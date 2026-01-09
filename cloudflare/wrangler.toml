@@ -1,0 +1,35 @@
+name = "kamizo"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+workers_dev = true
+
+# Custom domain (enable when kamizo.uz domain is added to Cloudflare)
+# routes = [
+#   { pattern = "app.kamizo.uz", custom_domain = true }
+# ]
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[vars]
+ENVIRONMENT = "production"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kamizo-db"
+database_id = "e83916ec-941f-420e-86fc-8760dd430aec"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "RATE_LIMITER"
+id = "89850617af24420da6d3e91051c1d2d2"
+
+[[durable_objects.bindings]]
+name = "CONNECTION_MANAGER"
+class_name = "ConnectionManager"
+script_name = "uk-crm"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ConnectionManager"]

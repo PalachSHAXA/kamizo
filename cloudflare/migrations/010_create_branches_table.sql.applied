@@ -1,0 +1,14 @@
+-- Create branches table for managing different building complexes/areas
+CREATE TABLE IF NOT EXISTS branches (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  address TEXT,
+  phone TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Create index on code for fast lookups
+CREATE INDEX IF NOT EXISTS idx_branches_code ON branches(code);

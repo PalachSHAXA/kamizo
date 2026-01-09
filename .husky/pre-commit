@@ -1,0 +1,45 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# ==================== TYPE CHECK ====================
+echo "📝 Type checking..."
+cd src/frontend
+if ! npx tsc --noEmit; then
+  echo "❌ TypeScript type check failed"
+  exit 1
+fi
+cd ../..
+echo "✅ Type check passed"
+
+# ==================== BUILD CHECK ====================
+echo "🔨 Testing build..."
+cd src/frontend
+if ! npm run build > /dev/null 2>&1; then
+  echo "❌ Build failed"
+  exit 1
+fi
+cd ../..
+echo "✅ Build successful"
+
+# ==================== BUNDLE SIZE CHECK ====================
+echo "📦 Checking bundle size..."
+MAIN_SIZE=$(du -k src/frontend/dist/assets/index-*.js 2>/dev/null | cut -f1 | head -1 || echo "0")
+
+if [ "$MAIN_SIZE" -gt 1024 ]; then
+  echo "⚠️  Warning: Main bundle is ${MAIN_SIZE}KB (> 1MB)"
+  echo "Consider code splitting or lazy loading"
+fi
+echo "✅ Bundle size check complete"
+
+# ==================== SECURITY CHECK ====================
+echo "🔒 Checking for secrets..."
+if git diff --cached | grep -iE "(api_key|apikey|password|secret|token|private_key).*=.*['\"]" | grep -v "node_modules"; then
+  echo "❌ Potential secrets detected in staged files"
+  echo "Please remove sensitive data before committing"
+  exit 1
+fi
+echo "✅ No obvious secrets detected"
+
+echo "✅ All pre-commit checks passed!"

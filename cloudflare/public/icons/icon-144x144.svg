@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="144" height="144" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FACC14"/>
+      <stop offset="100%" style="stop-color:#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+  <!-- House shape -->
+  <path d="M256 100 L416 220 L416 400 L96 400 L96 220 Z" fill="white" stroke="none"/>
+  <!-- Roof -->
+  <path d="M256 60 L456 230 L436 250 L256 100 L76 250 L56 230 Z" fill="white"/>
+  <!-- Door -->
+  <rect x="216" y="280" width="80" height="120" rx="8" fill="#FACC14"/>
+  <!-- Door handle -->
+  <circle cx="276" cy="340" r="8" fill="white"/>
+  <!-- Window left -->
+  <rect x="130" y="260" width="60" height="60" rx="4" fill="#60A5FA"/>
+  <line x1="160" y1="260" x2="160" y2="320" stroke="white" stroke-width="3"/>
+  <line x1="130" y1="290" x2="190" y2="290" stroke="white" stroke-width="3"/>
+  <!-- Window right -->
+  <rect x="322" y="260" width="60" height="60" rx="4" fill="#60A5FA"/>
+  <line x1="352" y1="260" x2="352" y2="320" stroke="white" stroke-width="3"/>
+  <line x1="322" y1="290" x2="382" y2="290" stroke="white" stroke-width="3"/>
+</svg>

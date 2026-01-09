@@ -1,0 +1,10 @@
+-- Add contract_signed_at column to users table for tracking when residents sign their contracts
+-- This is required for the contract signing feature
+
+ALTER TABLE users ADD COLUMN contract_signed_at TEXT;
+ALTER TABLE users ADD COLUMN agreed_to_terms_at TEXT;
+ALTER TABLE users ADD COLUMN contract_number TEXT;
+ALTER TABLE users ADD COLUMN contract_start_date TEXT;
+ALTER TABLE users ADD COLUMN contract_end_date TEXT;
+ALTER TABLE users ADD COLUMN contract_type TEXT DEFAULT 'standard';
+ALTER TABLE users ADD COLUMN qr_code TEXT;

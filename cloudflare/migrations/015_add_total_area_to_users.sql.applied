@@ -1,0 +1,4 @@
+-- Add total_area column to users table for storing apartment area (square meters)
+-- This is used for voting weight calculation in meetings and for contract generation
+
+ALTER TABLE users ADD COLUMN total_area REAL;

@@ -1,0 +1,28 @@
+-- Migration: Fix chat_channels foreign key constraint
+-- The resident_id column should reference users.id, not residents.id
+-- SQLite doesn't allow modifying FK constraints, so we need to recreate the table
+
+-- Step 1: Create new table with correct structure (no FK on resident_id)
+CREATE TABLE IF NOT EXISTS chat_channels_new (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL CHECK (type IN ('uk_general', 'building_general', 'admin_support', 'private_support')),
+  name TEXT NOT NULL,
+  description TEXT,
+  building_id TEXT REFERENCES buildings(id),
+  resident_id TEXT,  -- user.id for private_support channels (no FK to allow flexibility)
+  created_by TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  last_message_at TEXT,
+  last_sender_id TEXT,
+  last_message TEXT
+);
+
+-- Step 2: Copy all existing data
+INSERT INTO chat_channels_new (id, type, name, description, building_id, resident_id, created_by, created_at, last_message_at, last_sender_id, last_message)
+SELECT id, type, name, description, building_id, resident_id, created_by, created_at, last_message_at, last_sender_id, last_message FROM chat_channels;
+
+-- Step 3: Drop old table
+DROP TABLE chat_channels;
+
+-- Step 4: Rename new table
+ALTER TABLE chat_channels_new RENAME TO chat_channels;

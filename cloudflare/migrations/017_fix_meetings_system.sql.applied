@@ -1,0 +1,9 @@
+-- Add vote_weight column to meeting_schedule_votes table
+ALTER TABLE meeting_schedule_votes ADD COLUMN vote_weight REAL DEFAULT 50;
+
+-- Create indexes for faster meeting queries
+CREATE INDEX IF NOT EXISTS idx_meeting_vote_records_meeting_agenda ON meeting_vote_records(meeting_id, agenda_item_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_vote_records_voter ON meeting_vote_records(voter_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_schedule_votes_meeting ON meeting_schedule_votes(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_schedule_votes_option ON meeting_schedule_votes(option_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_participated_voters_meeting ON meeting_participated_voters(meeting_id);

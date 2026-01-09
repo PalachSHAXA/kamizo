@@ -1,0 +1,5 @@
+-- Delete all residents - simple version without foreign key cleanup
+-- Just force delete residents and let orphaned records stay
+PRAGMA foreign_keys = OFF;
+DELETE FROM users WHERE role = 'resident';
+PRAGMA foreign_keys = ON;

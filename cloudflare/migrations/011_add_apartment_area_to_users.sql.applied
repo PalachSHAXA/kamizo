@@ -1,0 +1,6 @@
+-- Add apartment_area column to users table for area-based voting (1 sq.m = 1 vote)
+-- According to Uzbekistan law ЗРУ-581
+-- Note: Some columns may already exist, errors are expected
+
+-- This migration adds apartment_area to users (if not exists)
+-- and vote_weight to meeting_schedule_votes (if not exists)

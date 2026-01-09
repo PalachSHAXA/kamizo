@@ -1,0 +1,4 @@
+-- Migration: Add attachments column to announcements table
+-- Run: wrangler d1 execute uk-crm-db --remote --file=./migrations/0008_add_announcement_attachments.sql
+
+ALTER TABLE announcements ADD COLUMN attachments TEXT;

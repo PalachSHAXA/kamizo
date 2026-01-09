@@ -1,0 +1,197 @@
+-- Performance optimization indexes for UK CRM
+-- Phase 1, Task 1.5: Database Indexes
+-- Created: 2025-12-29
+
+-- ==================== USERS TABLE ====================
+
+-- Login lookup (used in authentication)
+-- Already has UNIQUE constraint which creates an index, no additional index needed for login
+
+-- Role-based queries (managers filtering users by role)
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+
+-- Building-based queries (filtering users by building)
+CREATE INDEX IF NOT EXISTS idx_users_building ON users(building_id);
+
+-- Composite index for role + building queries
+CREATE INDEX IF NOT EXISTS idx_users_role_building ON users(role, building_id);
+
+-- Active users filter
+CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active);
+
+-- Specialization for executor matching
+CREATE INDEX IF NOT EXISTS idx_users_specialization ON users(specialization) WHERE specialization IS NOT NULL;
+
+-- ==================== REQUESTS TABLE ====================
+
+-- Resident's requests (most common query for residents)
+CREATE INDEX IF NOT EXISTS idx_requests_resident ON requests(resident_id, created_at DESC);
+
+-- Executor's requests (for executor dashboard)
+CREATE INDEX IF NOT EXISTS idx_requests_executor ON requests(executor_id, created_at DESC);
+
+-- Status-based queries (filtering by status)
+CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status, created_at DESC);
+
+-- Category-based queries
+CREATE INDEX IF NOT EXISTS idx_requests_category ON requests(category_id);
+
+-- Composite index for executor + status (executor sees their requests + new requests)
+CREATE INDEX IF NOT EXISTS idx_requests_executor_status ON requests(executor_id, status, created_at DESC);
+
+-- Composite index for resident + status
+CREATE INDEX IF NOT EXISTS idx_requests_resident_status ON requests(resident_id, status, created_at DESC);
+
+-- New requests by category (for executor matching)
+CREATE INDEX IF NOT EXISTS idx_requests_new_category ON requests(status, category_id) WHERE status = 'new';
+
+-- Scheduled requests
+CREATE INDEX IF NOT EXISTS idx_requests_scheduled ON requests(scheduled_at) WHERE scheduled_at IS NOT NULL;
+
+-- Request number lookup
+CREATE INDEX IF NOT EXISTS idx_requests_number ON requests(request_number);
+
+-- ==================== ANNOUNCEMENTS TABLE ====================
+
+-- Active announcements filter
+CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active, created_at DESC);
+
+-- Type-based queries
+CREATE INDEX IF NOT EXISTS idx_announcements_type ON announcements(type, created_at DESC);
+
+-- Expiration check (column may not exist in old schemas)
+-- CREATE INDEX IF NOT EXISTS idx_announcements_expires ON announcements(expires_at) WHERE expires_at IS NOT NULL;
+
+-- Target building queries
+CREATE INDEX IF NOT EXISTS idx_announcements_building ON announcements(target_building_id) WHERE target_building_id IS NOT NULL;
+
+-- ==================== VEHICLES TABLE ====================
+
+-- User's vehicles lookup
+CREATE INDEX IF NOT EXISTS idx_vehicles_user ON vehicles(user_id);
+
+-- License plate search
+CREATE INDEX IF NOT EXISTS idx_vehicles_plate ON vehicles(plate_number);
+
+-- ==================== GUEST ACCESS CODES TABLE ====================
+
+-- User's access codes
+CREATE INDEX IF NOT EXISTS idx_guest_codes_user ON guest_access_codes(user_id, created_at DESC);
+
+-- QR token lookup (for scanning)
+CREATE INDEX IF NOT EXISTS idx_guest_codes_token ON guest_access_codes(qr_token);
+
+-- Status-based queries
+CREATE INDEX IF NOT EXISTS idx_guest_codes_status ON guest_access_codes(status);
+
+-- Expiration check (column may not exist in old schemas)
+-- CREATE INDEX IF NOT EXISTS idx_guest_codes_expires ON guest_access_codes(expires_at) WHERE expires_at IS NOT NULL;
+
+-- ==================== GUEST ACCESS LOGS TABLE ====================
+
+-- Code logs lookup
+CREATE INDEX IF NOT EXISTS idx_guest_logs_code ON guest_access_logs(code_id, scanned_at DESC);
+
+-- Scanner lookup (guard activity)
+CREATE INDEX IF NOT EXISTS idx_guest_logs_scanner ON guest_access_logs(scanned_by, scanned_at DESC);
+
+-- ==================== CHAT MESSAGES TABLE ====================
+
+-- Channel messages (most common query)
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel_id, created_at DESC);
+
+-- Sender's messages
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages(sender_id, created_at DESC);
+
+-- ==================== CHAT CHANNELS TABLE ====================
+
+-- Type-based queries
+CREATE INDEX IF NOT EXISTS idx_chat_channels_type ON chat_channels(type);
+
+-- Resident's channels
+CREATE INDEX IF NOT EXISTS idx_chat_channels_resident ON chat_channels(resident_id) WHERE resident_id IS NOT NULL;
+
+-- ==================== MEETINGS TABLE ====================
+
+-- Building's meetings
+CREATE INDEX IF NOT EXISTS idx_meetings_building ON meetings(building_id, created_at DESC);
+
+-- Status-based queries
+CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status, created_at DESC);
+
+-- Scheduled meetings
+CREATE INDEX IF NOT EXISTS idx_meetings_scheduled ON meetings(scheduled_at) WHERE scheduled_at IS NOT NULL;
+
+-- ==================== TRAINING PROPOSALS TABLE ====================
+
+-- Status-based queries
+CREATE INDEX IF NOT EXISTS idx_training_status ON training_proposals(status, created_at DESC);
+
+-- Partner's proposals
+CREATE INDEX IF NOT EXISTS idx_training_partner ON training_proposals(partner_id);
+
+-- ==================== CATEGORIES TABLE ====================
+
+-- Active categories
+CREATE INDEX IF NOT EXISTS idx_categories_active ON categories(is_active);
+
+-- Specialization matching
+CREATE INDEX IF NOT EXISTS idx_categories_specialization ON categories(specialization) WHERE specialization IS NOT NULL;
+
+-- ==================== BUILDINGS TABLE ====================
+
+-- Branch-based queries
+CREATE INDEX IF NOT EXISTS idx_buildings_branch ON buildings(branch_code);
+
+-- Manager's buildings
+CREATE INDEX IF NOT EXISTS idx_buildings_manager ON buildings(manager_id) WHERE manager_id IS NOT NULL;
+
+-- ==================== APARTMENTS TABLE ====================
+
+-- Building's apartments
+CREATE INDEX IF NOT EXISTS idx_apartments_building ON apartments(building_id);
+
+-- Entrance-based queries
+CREATE INDEX IF NOT EXISTS idx_apartments_entrance ON apartments(building_id, entrance_id);
+
+-- Floor-based queries
+CREATE INDEX IF NOT EXISTS idx_apartments_floor ON apartments(building_id, entrance_id, floor);
+
+-- Number lookup
+CREATE INDEX IF NOT EXISTS idx_apartments_number ON apartments(building_id, number);
+
+-- ==================== PERSONAL ACCOUNTS TABLE ====================
+
+-- Building's accounts
+CREATE INDEX IF NOT EXISTS idx_accounts_building ON personal_accounts(building_id);
+
+-- Apartment's account
+CREATE INDEX IF NOT EXISTS idx_accounts_apartment ON personal_accounts(apartment_id);
+
+-- Owner's accounts
+CREATE INDEX IF NOT EXISTS idx_accounts_owner ON personal_accounts(owner_id) WHERE owner_id IS NOT NULL;
+
+-- Balance queries (debtors)
+CREATE INDEX IF NOT EXISTS idx_accounts_balance ON personal_accounts(balance) WHERE balance < 0;
+
+-- ==================== METERS TABLE ====================
+
+-- Apartment's meters
+CREATE INDEX IF NOT EXISTS idx_meters_apartment ON meters(apartment_id);
+
+-- Building's meters (common area)
+CREATE INDEX IF NOT EXISTS idx_meters_building ON meters(building_id) WHERE building_id IS NOT NULL;
+
+-- Type-based queries
+CREATE INDEX IF NOT EXISTS idx_meters_type ON meters(meter_type);
+
+-- ==================== METER READINGS TABLE ====================
+
+-- Meter's readings
+CREATE INDEX IF NOT EXISTS idx_readings_meter ON meter_readings(meter_id, reading_date DESC);
+
+-- Date-based queries
+CREATE INDEX IF NOT EXISTS idx_readings_date ON meter_readings(reading_date DESC);
+
+-- ANALYZE to update statistics
+ANALYZE;

@@ -1,0 +1,19 @@
+-- Add chairman and secretary signature fields to meeting_protocols
+-- According to Uzbekistan law ЗРУ-581, protocol must be signed by chairman and secretary
+
+-- Chairman signature
+ALTER TABLE meeting_protocols ADD COLUMN chairman_user_id TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN chairman_name TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN chairman_apartment TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN chairman_signed_at TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN chairman_signature_hash TEXT;
+
+-- Secretary signature
+ALTER TABLE meeting_protocols ADD COLUMN secretary_user_id TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN secretary_name TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN secretary_apartment TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN secretary_signed_at TEXT;
+ALTER TABLE meeting_protocols ADD COLUMN secretary_signature_hash TEXT;
+
+-- Counting commission members (JSON array)
+ALTER TABLE meeting_protocols ADD COLUMN counting_commission TEXT;

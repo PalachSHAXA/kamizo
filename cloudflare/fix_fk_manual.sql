@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS chat_messages_new (id TEXT PRIMARY KEY, channel_id TEXT NOT NULL REFERENCES chat_channels(id), sender_id TEXT NOT NULL REFERENCES users(id), content TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')));
