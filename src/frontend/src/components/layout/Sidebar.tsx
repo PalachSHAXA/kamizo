@@ -5,7 +5,7 @@ import {
   LogOut, User, Home, Shield, BarChart3,
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
-  X as CloseIcon, Star, StickyNote, Phone, Ticket
+  X as CloseIcon, Star, StickyNote, Phone, Ticket, ShoppingBag
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -180,15 +180,20 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
   // Different nav items based on role and account_type
   const getNavItems = () => {
-    // Special account types first
-    if (user?.account_type === 'advertiser') {
+    // Special account types first (check both account_type and role)
+    if (user?.account_type === 'advertiser' || user?.role === 'advertiser') {
       return [
         { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Мои объявления' : 'Mening e\'lonlarim' },
       ];
     }
-    if (user?.account_type === 'coupon_checker') {
+    if (user?.account_type === 'coupon_checker' || user?.role === 'coupon_checker') {
       return [
         { path: '/', icon: Ticket, label: language === 'ru' ? 'Проверка купонов' : 'Kuponlarni tekshirish' },
+      ];
+    }
+    if (user?.role === 'marketplace_manager') {
+      return [
+        { path: '/', icon: ShoppingBag, label: language === 'ru' ? 'Управление магазином' : 'Do\'konni boshqarish' },
       ];
     }
 
@@ -217,6 +222,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     if (user?.role === 'resident') {
       return [
         { path: '/', icon: Home, label: t('nav.services') },
+        { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Магазин' : 'Do\'kon' },
         { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Написать в УК' : 'UK ga yozish' },
         { path: '/vehicles', icon: Car, label: language === 'ru' ? 'Мои авто' : 'Mening avtomobillarim' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевой доступ' : 'Mehmon kirishi' },
@@ -285,6 +291,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     return [
       { path: '/', icon: LayoutDashboard, label: t('nav.dashboard') },
       { path: '/requests', icon: FileText, label: t('nav.requests') },
+      { path: '/marketplace-orders', icon: ShoppingBag, label: language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari' },
       { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
       { path: '/executors', icon: Wrench, label: t('nav.executors') },
       { path: '/residents', icon: Users, label: t('nav.residents') },

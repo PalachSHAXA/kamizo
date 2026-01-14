@@ -1,9 +1,9 @@
-// MyHelper PWA Service Worker
+// Kamizo PWA Service Worker
 // Version: 1.0.0
 
-const CACHE_NAME = 'myhelper-v1';
-const STATIC_CACHE = 'myhelper-static-v1';
-const DYNAMIC_CACHE = 'myhelper-dynamic-v1';
+const CACHE_NAME = 'kamizo-v1';
+const STATIC_CACHE = 'kamizo-static-v1';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v1';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -80,7 +80,7 @@ self.addEventListener('push', (event) => {
   console.log('[SW] Push notification received:', event);
 
   let notificationData = {
-    title: 'MyHelper',
+    title: 'Kamizo',
     body: 'Новое уведомление',
     icon: '/favicon.ico',
     badge: '/favicon.ico',
@@ -275,7 +275,7 @@ async function syncPendingMessages() {
 // IndexedDB helper
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('myhelper-offline', 1);
+    const request = indexedDB.open('kamizo-offline', 1);
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {

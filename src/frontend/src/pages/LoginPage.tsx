@@ -1,22 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, AlertCircle, X, FileText, Check, Users, UserCog, Building2, Wrench, Shield, Megaphone, ShieldCheck, Crown, Briefcase, Ticket } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, X, FileText, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
 import { AppLogo } from '../components/common/AppLogo';
 
 // Demo accounts for all roles
 const DEMO_ACCOUNTS = [
-  { login: 'admin', password: 'kamizo', role: 'admin', labelRu: 'Администратор', labelUz: 'Administrator', icon: Shield, color: 'bg-red-500' },
   { login: 'director', password: 'kamizo', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-rose-600' },
   { login: 'manager', password: 'kamizo', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-blue-500' },
   { login: 'department_head', password: 'kamizo', role: 'department_head', labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Crown, color: 'bg-indigo-500' },
   { login: 'resident', password: 'kamizo', role: 'resident', labelRu: 'Житель', labelUz: 'Aholi', icon: Users, color: 'bg-green-500' },
   { login: 'executor', password: 'kamizo', role: 'executor', labelRu: 'Исполнитель', labelUz: 'Ijrochi', icon: Wrench, color: 'bg-amber-500' },
-  { login: 'dispatcher', password: 'kamizo', role: 'dispatcher', labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Building2, color: 'bg-purple-500' },
   { login: 'security', password: 'kamizo', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-slate-500' },
-  { login: 'coupon_checker', password: 'kamizo', role: 'coupon_checker', labelRu: 'Чекер купонов', labelUz: 'Kupon tekshiruvchi', icon: Ticket, color: 'bg-teal-500' },
-  { login: 'advertiser', password: 'kamizo', role: 'advertiser', labelRu: 'Рекламодатель', labelUz: 'Reklamaberuvchi', icon: Megaphone, color: 'bg-pink-500' },
 ];
+
+// Hidden accounts (not shown in demo buttons, but can login manually)
+// admin: login='admin', password='kamizo'
+// dispatcher: login='dispatcher', password='kamizo'
+// coupon_checker: login='coupon_checker', password='kamizo'
+// advertiser: login='advertiser', password='kamizo'
 
 export function LoginPage() {
   const { login, isLoading: authLoading, error: authError } = useAuthStore();
@@ -120,11 +122,13 @@ export function LoginPage() {
       <div className="glass-card p-6 md:p-8 w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-6 md:mb-8">
-          <div className="flex justify-center mb-4">
+          <div className="flex items-center justify-center gap-5">
             <AppLogo size="xl" />
+            <div className="text-left">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">kamizo</h1>
+              <p className="text-gray-500 text-sm md:text-base">{language === 'ru' ? 'Управление жильём' : 'Uy-joy boshqaruvi'}</p>
+            </div>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Kamizo</h1>
-          <p className="text-gray-500 mt-1 md:mt-2 text-sm md:text-base">{language === 'ru' ? 'Управление жильём' : 'Uy-joy boshqaruvi'}</p>
         </div>
 
         {/* Login Form */}

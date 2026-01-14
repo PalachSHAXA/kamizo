@@ -3,15 +3,32 @@ import {
   FileText, Clock, CheckCircle, MapPin, Phone, User,
   Play, Check, X, Star, TrendingUp, Timer, Hand,
   CalendarDays, XCircle, Ban, AlertCircle,
-  Pause, PlayCircle, RefreshCw, Send, ChevronRight
+  Pause, PlayCircle, RefreshCw, Send, ChevronRight,
+  ShoppingBag, Package, Truck, ChefHat
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { executorsApi } from '../services/api';
+import { executorsApi, apiRequest } from '../services/api';
 import { formatAddress } from '../utils/formatAddress';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, RESCHEDULE_REASON_LABELS } from '../types';
 import type { Request, ExecutorSpecialization, RequestStatus, RescheduleReason, RescheduleRequest } from '../types';
+
+// Marketplace order interface
+interface MarketplaceOrder {
+  id: string;
+  order_number: string;
+  user_id: string;
+  user_name: string;
+  user_phone: string;
+  status: 'confirmed' | 'preparing' | 'ready' | 'delivering' | 'delivered';
+  total_amount: number;
+  delivery_address: string;
+  delivery_notes?: string;
+  items_count: number;
+  created_at: string;
+  assigned_at?: string;
+}
 
 // Stats interface for API response
 interface ExecutorStats {
@@ -26,21 +43,56 @@ export function ExecutorDashboard() {
   const { user } = useAuthStore();
   const { requests, executors, acceptRequest, startWork, pauseWork, resumeWork, completeWork, assignRequest, declineRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, fetchRequests, fetchPendingReschedules } = useDataStore();
   const { language } = useLanguageStore();
-  const [activeTab, setActiveTab] = useState<'available' | 'assigned' | 'in_progress' | 'completed'>('available');
+  const [activeTab, setActiveTab] = useState<'available' | 'assigned' | 'in_progress' | 'completed' | 'marketplace'>('available');
 
   // Live stats from API
   const [liveStats, setLiveStats] = useState<ExecutorStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
+  // Marketplace orders
+  const [marketplaceOrders, setMarketplaceOrders] = useState<MarketplaceOrder[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [selectedMarketplaceOrder, setSelectedMarketplaceOrder] = useState<MarketplaceOrder | null>(null);
+
+  // Fetch marketplace orders
+  const fetchMarketplaceOrders = useCallback(async () => {
+    setIsLoadingOrders(true);
+    try {
+      const response = await apiRequest('/api/marketplace/executor/orders') as { orders: MarketplaceOrder[] };
+      setMarketplaceOrders(response.orders || []);
+    } catch (error) {
+      console.error('Failed to fetch marketplace orders:', error);
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  }, []);
+
+  // Update marketplace order status
+  const updateMarketplaceOrderStatus = async (orderId: string, status: string) => {
+    try {
+      await apiRequest(`/api/marketplace/executor/orders/${orderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      await fetchMarketplaceOrders();
+      setSelectedMarketplaceOrder(null);
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+      alert('Ошибка при обновлении статуса');
+    }
+  };
+
   // Fetch requests and pending reschedules from D1 database on mount and poll every 30 seconds
   useEffect(() => {
     fetchRequests();
     fetchPendingReschedules();
+    fetchMarketplaceOrders();
     const interval = setInterval(() => {
       fetchPendingReschedules();
+      fetchMarketplaceOrders();
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchRequests, fetchPendingReschedules]);
+  }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
   const [showDeclineModal, setShowDeclineModal] = useState(false);
@@ -135,14 +187,15 @@ export function ExecutorDashboard() {
     { id: 'assigned' as const, label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', count: assignedRequests.length, color: 'bg-blue-500', icon: Clock },
     { id: 'in_progress' as const, label: language === 'ru' ? 'В работе' : 'Ishda', count: inProgressRequests.length, color: 'bg-amber-500', icon: Play },
     { id: 'completed' as const, label: language === 'ru' ? 'Выполненные' : 'Bajarilgan', count: completedRequests.length, color: 'bg-green-500', icon: CheckCircle },
+    { id: 'marketplace' as const, label: language === 'ru' ? 'Магазин' : 'Do\'kon', count: marketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag },
   ];
 
-  const currentRequests = {
+  const currentRequests = activeTab === 'marketplace' ? [] : ({
     available: availableRequests,
     assigned: assignedRequests,
     in_progress: inProgressRequests,
     completed: completedRequests,
-  }[activeTab] || [];
+  } as Record<string, Request[]>)[activeTab] || [];
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -422,7 +475,39 @@ export function ExecutorDashboard() {
             </div>
           </div>
 
-          {/* Requests List */}
+          {/* Requests List or Marketplace Orders */}
+          {activeTab === 'marketplace' ? (
+            <div className="space-y-3">
+              {isLoadingOrders ? (
+                <div className="glass-card p-8 text-center">
+                  <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4" />
+                  <p className="text-gray-500">{language === 'ru' ? 'Загрузка заказов...' : 'Buyurtmalar yuklanmoqda...'}</p>
+                </div>
+              ) : marketplaceOrders.length === 0 ? (
+                <div className="glass-card p-8 text-center">
+                  <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ShoppingBag className="w-8 h-8 text-orange-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-600">
+                    {language === 'ru' ? 'Нет заказов магазина' : 'Do\'kon buyurtmalari yo\'q'}
+                  </h3>
+                  <p className="text-gray-400 mt-1">
+                    {language === 'ru' ? 'Вам ещё не назначены заказы из магазина' : 'Sizga hali do\'kon buyurtmalari tayinlanmagan'}
+                  </p>
+                </div>
+              ) : (
+                marketplaceOrders.map((order) => (
+                  <MarketplaceOrderCard
+                    key={order.id}
+                    order={order}
+                    onView={() => setSelectedMarketplaceOrder(order)}
+                    onUpdateStatus={updateMarketplaceOrderStatus}
+                    language={language}
+                  />
+                ))
+              )}
+            </div>
+          ) : (
             <div className="space-y-3">
               {currentRequests.length === 0 ? (
                 <div className="glass-card p-8 text-center">
@@ -461,6 +546,7 @@ export function ExecutorDashboard() {
                 ))
               )}
             </div>
+          )}
 
       {/* Request Details Modal */}
       {selectedRequest && !showDeclineModal && (
@@ -545,6 +631,16 @@ export function ExecutorDashboard() {
             setShowRescheduleResponseModal(false);
             setRescheduleToRespond(null);
           }}
+          language={language}
+        />
+      )}
+
+      {/* Marketplace Order Details Modal */}
+      {selectedMarketplaceOrder && (
+        <MarketplaceOrderDetailsModal
+          order={selectedMarketplaceOrder}
+          onClose={() => setSelectedMarketplaceOrder(null)}
+          onUpdateStatus={updateMarketplaceOrderStatus}
           language={language}
         />
       )}
@@ -1412,6 +1508,293 @@ function RescheduleResponseModal({
                 {language === 'ru' ? 'Принять' : 'Qabul qilish'}
               </button>
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Marketplace Order Card Component
+function MarketplaceOrderCard({
+  order,
+  onView,
+  onUpdateStatus,
+  language,
+}: {
+  order: MarketplaceOrder;
+  onView: () => void;
+  onUpdateStatus: (orderId: string, status: string) => void;
+  language: 'ru' | 'uz';
+}) {
+  const MARKETPLACE_ORDER_STATUS_LABELS: Record<string, { label: string; labelUz: string; color: string; icon: typeof Package }> = {
+    confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-indigo-100 text-indigo-700', icon: Package },
+    preparing: { label: 'Готовится', labelUz: 'Tayyorlanmoqda', color: 'bg-amber-100 text-amber-700', icon: ChefHat },
+    ready: { label: 'Готов', labelUz: 'Tayyor', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+    delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'bg-blue-100 text-blue-700', icon: Truck },
+    delivered: { label: 'Доставлен', labelUz: 'Yetkazildi', color: 'bg-gray-100 text-gray-700', icon: CheckCircle },
+  };
+
+  const statusInfo = MARKETPLACE_ORDER_STATUS_LABELS[order.status] || MARKETPLACE_ORDER_STATUS_LABELS.confirmed;
+  const StatusIcon = statusInfo.icon;
+
+  const getNextStatus = () => {
+    const transitions: Record<string, string> = {
+      confirmed: 'preparing',
+      preparing: 'ready',
+      ready: 'delivering',
+      delivering: 'delivered',
+    };
+    return transitions[order.status];
+  };
+
+  const getNextStatusLabel = () => {
+    const labels: Record<string, { ru: string; uz: string }> = {
+      preparing: { ru: 'Начать готовить', uz: 'Tayyorlashni boshlash' },
+      ready: { ru: 'Готово к доставке', uz: 'Yetkazishga tayyor' },
+      delivering: { ru: 'Начать доставку', uz: 'Yetkazishni boshlash' },
+      delivered: { ru: 'Доставлено', uz: 'Yetkazildi' },
+    };
+    const next = getNextStatus();
+    return next ? labels[next] : null;
+  };
+
+  const nextStatusLabel = getNextStatusLabel();
+
+  return (
+    <div className="glass-card p-4 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation" onClick={onView}>
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <ShoppingBag className="w-6 h-6 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="text-sm font-semibold text-gray-900">#{order.order_number}</span>
+            <span className={`px-2 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1 ${statusInfo.color}`}>
+              <StatusIcon className="w-3 h-3" />
+              {language === 'ru' ? statusInfo.label : statusInfo.labelUz}
+            </span>
+          </div>
+          <div className="text-sm text-gray-600">
+            {order.items_count} {language === 'ru' ? 'товар(ов)' : 'mahsulot'} • {order.total_amount.toLocaleString()} сум
+          </div>
+
+          {/* Customer Info */}
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <User className="w-3.5 h-3.5" />
+              <span className="truncate max-w-[120px]">{order.user_name}</span>
+            </span>
+            <a
+              href={`tel:${order.user_phone}`}
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 text-primary-600 active:text-primary-800"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>{language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq'}</span>
+            </a>
+          </div>
+
+          {/* Address */}
+          <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">{order.delivery_address}</span>
+          </div>
+
+          {/* Created At */}
+          <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+            <Clock className="w-3 h-3" />
+            {new Date(order.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
+      </div>
+
+      {/* Action Button */}
+      {nextStatusLabel && (
+        <div className="mt-4 pt-3 border-t border-gray-200/50" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => onUpdateStatus(order.id, getNextStatus())}
+            className="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+            style={{
+              background: order.status === 'confirmed' ? 'linear-gradient(135deg, #f59e0b, #d97706)' :
+                order.status === 'preparing' ? 'linear-gradient(135deg, #10b981, #059669)' :
+                order.status === 'ready' ? 'linear-gradient(135deg, #3b82f6, #2563eb)' :
+                'linear-gradient(135deg, #10b981, #059669)'
+            }}
+          >
+            {order.status === 'confirmed' && <ChefHat className="w-5 h-5" />}
+            {order.status === 'preparing' && <CheckCircle className="w-5 h-5" />}
+            {order.status === 'ready' && <Truck className="w-5 h-5" />}
+            {order.status === 'delivering' && <CheckCircle className="w-5 h-5" />}
+            {language === 'ru' ? nextStatusLabel.ru : nextStatusLabel.uz}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Marketplace Order Details Modal
+function MarketplaceOrderDetailsModal({
+  order,
+  onClose,
+  onUpdateStatus,
+  language,
+}: {
+  order: MarketplaceOrder;
+  onClose: () => void;
+  onUpdateStatus: (orderId: string, status: string) => void;
+  language: 'ru' | 'uz';
+}) {
+  const MARKETPLACE_ORDER_STATUS_LABELS: Record<string, { label: string; labelUz: string; color: string }> = {
+    confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-indigo-100 text-indigo-700' },
+    preparing: { label: 'Готовится', labelUz: 'Tayyorlanmoqda', color: 'bg-amber-100 text-amber-700' },
+    ready: { label: 'Готов', labelUz: 'Tayyor', color: 'bg-green-100 text-green-700' },
+    delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'bg-blue-100 text-blue-700' },
+    delivered: { label: 'Доставлен', labelUz: 'Yetkazildi', color: 'bg-gray-100 text-gray-700' },
+  };
+
+  const statusInfo = MARKETPLACE_ORDER_STATUS_LABELS[order.status] || MARKETPLACE_ORDER_STATUS_LABELS.confirmed;
+
+  const getNextStatus = () => {
+    const transitions: Record<string, string> = {
+      confirmed: 'preparing',
+      preparing: 'ready',
+      ready: 'delivering',
+      delivering: 'delivered',
+    };
+    return transitions[order.status];
+  };
+
+  const getNextStatusLabel = () => {
+    const labels: Record<string, { ru: string; uz: string; icon: typeof Package }> = {
+      preparing: { ru: 'Начать готовить', uz: 'Tayyorlashni boshlash', icon: ChefHat },
+      ready: { ru: 'Готово к доставке', uz: 'Yetkazishga tayyor', icon: CheckCircle },
+      delivering: { ru: 'Начать доставку', uz: 'Yetkazishni boshlash', icon: Truck },
+      delivered: { ru: 'Доставлено', uz: 'Yetkazildi', icon: CheckCircle },
+    };
+    const next = getNextStatus();
+    return next ? labels[next] : null;
+  };
+
+  const nextStatusInfo = getNextStatusLabel();
+  const NextIcon = nextStatusInfo?.icon || Package;
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="text-sm text-gray-500">
+              {language === 'ru' ? 'Заказ магазина' : 'Do\'kon buyurtmasi'} #{order.order_number}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`px-2.5 py-1 rounded-lg text-sm font-medium ${statusInfo.color}`}>
+                {language === 'ru' ? statusInfo.label : statusInfo.labelUz}
+              </span>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Order Info */}
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
+                <ShoppingBag className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <div className="font-semibold text-gray-900">
+                  {order.items_count} {language === 'ru' ? 'товар(ов)' : 'mahsulot'}
+                </div>
+                <div className="text-lg font-bold text-orange-600">
+                  {order.total_amount.toLocaleString()} сум
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Info */}
+          <div className="bg-white/30 rounded-xl p-4 space-y-3">
+            <h3 className="font-medium">{language === 'ru' ? 'Информация о клиенте' : 'Mijoz haqida'}</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-gray-400" />
+                <span>{order.user_name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-gray-400" />
+                <a href={`tel:${order.user_phone}`} className="text-primary-600 hover:underline">
+                  {order.user_phone}
+                </a>
+              </div>
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                <span>{order.delivery_address}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Delivery Notes */}
+          {order.delivery_notes && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <h3 className="font-medium text-amber-800 mb-2">
+                {language === 'ru' ? 'Примечание к доставке' : 'Yetkazish uchun eslatma'}
+              </h3>
+              <p className="text-sm text-amber-700">{order.delivery_notes}</p>
+            </div>
+          )}
+
+          {/* Timeline */}
+          <div className="bg-white/30 rounded-xl p-4 space-y-3">
+            <h3 className="font-medium">{language === 'ru' ? 'История' : 'Tarix'}</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">{language === 'ru' ? 'Создан' : 'Yaratildi'}</span>
+                <span>{new Date(order.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              {order.assigned_at && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">{language === 'ru' ? 'Назначен' : 'Tayinlandi'}</span>
+                  <span>{new Date(order.assigned_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col gap-3 mt-6">
+          <div className="flex gap-3">
+            <a
+              href={`tel:${order.user_phone}`}
+              className="btn-secondary flex-1 flex items-center justify-center gap-2"
+            >
+              <Phone className="w-4 h-4" />
+              {language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq'}
+            </a>
+          </div>
+
+          {nextStatusInfo && (
+            <button
+              onClick={() => {
+                onUpdateStatus(order.id, getNextStatus());
+              }}
+              className="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              style={{
+                background: order.status === 'confirmed' ? 'linear-gradient(135deg, #f59e0b, #d97706)' :
+                  order.status === 'preparing' ? 'linear-gradient(135deg, #10b981, #059669)' :
+                  order.status === 'ready' ? 'linear-gradient(135deg, #3b82f6, #2563eb)' :
+                  'linear-gradient(135deg, #10b981, #059669)'
+              }}
+            >
+              <NextIcon className="w-5 h-5" />
+              {language === 'ru' ? nextStatusInfo.ru : nextStatusInfo.uz}
+            </button>
           )}
         </div>
       </div>

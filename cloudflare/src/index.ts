@@ -693,7 +693,7 @@ route('GET', '/api/admin/cache/stats', async (request, env) => {
 route('POST', '/api/seed', async (request, env) => {
   const initialUsers = [
     // Demo accounts (password: kamizo) - matching LoginPage demo buttons
-    { login: 'admin', password: 'kamizo', name: 'Администратор', role: 'admin', phone: '+998901234567' },
+    { login: 'admin', password: 'palach27', name: 'Администратор', role: 'admin', phone: '+998901234567' },
     { login: 'director', password: 'kamizo', name: 'Директор Демо', role: 'director', phone: '+998901000000' },
     { login: 'manager', password: 'kamizo', name: 'Управляющий', role: 'manager', phone: '+998901111111' },
     { login: 'department_head', password: 'kamizo', name: 'Глава отдела', role: 'department_head', phone: '+998901222222' },
@@ -2722,7 +2722,7 @@ route('GET', '/api/team', async (request, env) => {
   // Include password_plain for admin convenience
   const { results: staff } = await env.DB.prepare(`
     SELECT
-      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.status, u.created_at,
+      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at,
       u.password_plain as password,
       COALESCE(stats.completed_count, 0) as completed_count,
       COALESCE(stats.active_count, 0) as active_count,
@@ -3010,7 +3010,7 @@ route('GET', '/api/executors', async (request, env) => {
   // Query with statistics from requests table
   const dataQuery = `
     SELECT
-      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.status, u.created_at${includePassword ? ', u.password_plain as password' : ''},
+      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at${includePassword ? ', u.password_plain as password' : ''},
       COALESCE(stats.completed_count, 0) as completed_count,
       COALESCE(stats.active_requests, 0) as active_requests,
       COALESCE(stats.rating, 5.0) as rating,
@@ -3179,7 +3179,6 @@ route('GET', '/api/branches', async (request, env) => {
        JOIN buildings bld ON u.building_id = bld.id
        WHERE bld.branch_code = b.code AND u.role = 'resident') as residents_count
     FROM branches b
-    WHERE b.is_active = 1
     ORDER BY b.name
   `).all();
 
@@ -3205,7 +3204,7 @@ route('GET', '/api/branches/:id', async (request, env, params) => {
 // Branches: Create
 route('POST', '/api/branches', async (request, env) => {
   const user = await getUser(request, env);
-  if (!user || !['admin', 'manager'].includes(user.role)) {
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
     return error('Admin access required', 403);
   }
 
@@ -3238,7 +3237,7 @@ route('POST', '/api/branches', async (request, env) => {
 // Branches: Update
 route('PATCH', '/api/branches/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || !['admin', 'manager'].includes(user.role)) {
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
     return error('Admin access required', 403);
   }
 
@@ -3279,7 +3278,7 @@ route('PATCH', '/api/branches/:id', async (request, env, params) => {
 // Branches: Delete
 route('DELETE', '/api/branches/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'admin') {
+  if (!user || !['admin', 'director'].includes(user.role)) {
     return error('Admin access required', 403);
   }
 
@@ -10137,7 +10136,7 @@ route('POST', '/api/push/test', async (request, env) => {
 // Push: Send notification to specific user (admin only)
 route('POST', '/api/push/send', async (request, env) => {
   const authUser = await getUser(request, env);
-  if (!authUser || !['admin', 'manager'].includes(authUser.role)) {
+  if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) {
     return error('Admin access required', 403);
   }
 
@@ -10167,7 +10166,7 @@ route('POST', '/api/push/send', async (request, env) => {
 // Push: Broadcast notification to multiple users (admin only)
 route('POST', '/api/push/broadcast', async (request, env) => {
   const authUser = await getUser(request, env);
-  if (!authUser || !['admin', 'manager'].includes(authUser.role)) {
+  if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) {
     return error('Admin access required', 403);
   }
 
@@ -11031,6 +11030,723 @@ route('POST', '/api/admin/monitoring/frontend-error', async (request, env) => {
     console.error('Failed to log frontend error:', err);
     return error('Failed to log error', 500);
   }
+});
+
+// ==================== MARKETPLACE API ====================
+
+// Marketplace: Get categories
+route('GET', '/api/marketplace/categories', async (request, env) => {
+  const { results } = await env.DB.prepare(`
+    SELECT * FROM marketplace_categories WHERE is_active = 1 ORDER BY sort_order
+  `).all();
+  return json({ categories: results });
+});
+
+// Marketplace: Get products (with filtering)
+route('GET', '/api/marketplace/products', async (request, env) => {
+  const url = new URL(request.url);
+  const categoryId = url.searchParams.get('category');
+  const search = url.searchParams.get('search');
+  const featured = url.searchParams.get('featured');
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = parseInt(url.searchParams.get('limit') || '20');
+  const offset = (page - 1) * limit;
+
+  let whereClause = 'WHERE p.is_active = 1';
+  const params: any[] = [];
+
+  if (categoryId) {
+    whereClause += ' AND p.category_id = ?';
+    params.push(categoryId);
+  }
+  if (search) {
+    whereClause += ' AND (p.name_ru LIKE ? OR p.name_uz LIKE ? OR p.description_ru LIKE ?)';
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  if (featured === 'true') {
+    whereClause += ' AND p.is_featured = 1';
+  }
+
+  const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM marketplace_products p ${whereClause}`).bind(...params).first() as any;
+  const total = countResult?.total || 0;
+
+  params.push(limit, offset);
+  const { results } = await env.DB.prepare(`
+    SELECT p.*, c.name_ru as category_name_ru, c.name_uz as category_name_uz, c.icon as category_icon
+    FROM marketplace_products p
+    LEFT JOIN marketplace_categories c ON p.category_id = c.id
+    ${whereClause}
+    ORDER BY p.is_featured DESC, p.orders_count DESC, p.created_at DESC
+    LIMIT ? OFFSET ?
+  `).bind(...params).all();
+
+  return json({
+    products: results,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
+
+// Marketplace: Get single product
+route('GET', '/api/marketplace/products/:id', async (request, env, params) => {
+  const product = await env.DB.prepare(`
+    SELECT p.*, c.name_ru as category_name_ru, c.name_uz as category_name_uz, c.icon as category_icon
+    FROM marketplace_products p
+    LEFT JOIN marketplace_categories c ON p.category_id = c.id
+    WHERE p.id = ?
+  `).bind(params.id).first();
+
+  if (!product) return error('Product not found', 404);
+
+  // Get reviews
+  const { results: reviews } = await env.DB.prepare(`
+    SELECT r.*, u.name as user_name
+    FROM marketplace_reviews r
+    LEFT JOIN users u ON r.user_id = u.id
+    WHERE r.product_id = ? AND r.is_visible = 1
+    ORDER BY r.created_at DESC
+    LIMIT 10
+  `).bind(params.id).all();
+
+  return json({ product, reviews });
+});
+
+// Marketplace: Cart - Get
+route('GET', '/api/marketplace/cart', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const { results } = await env.DB.prepare(`
+    SELECT c.*, p.name_ru, p.name_uz, p.price, p.old_price, p.image_url, p.stock_quantity, p.unit,
+           cat.name_ru as category_name_ru, cat.icon as category_icon
+    FROM marketplace_cart c
+    JOIN marketplace_products p ON c.product_id = p.id
+    LEFT JOIN marketplace_categories cat ON p.category_id = cat.id
+    WHERE c.user_id = ?
+    ORDER BY c.created_at DESC
+  `).bind(user.id).all();
+
+  const total = (results as any[]).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const itemsCount = (results as any[]).reduce((sum, item) => sum + item.quantity, 0);
+
+  return json({ cart: results, total, itemsCount });
+});
+
+// Marketplace: Cart - Add/Update item
+route('POST', '/api/marketplace/cart', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const body = await request.json() as any;
+  const { product_id, quantity = 1 } = body;
+
+  if (!product_id || typeof quantity !== 'number' || quantity < 1) {
+    return error('Invalid product or quantity');
+  }
+
+  // Check product exists and in stock
+  const product = await env.DB.prepare(`SELECT * FROM marketplace_products WHERE id = ? AND is_active = 1`).bind(product_id).first() as any;
+  if (!product) return error('Product not found', 404);
+  if (product.stock_quantity < quantity) return error('Not enough stock');
+
+  // Upsert cart item
+  await env.DB.prepare(`
+    INSERT INTO marketplace_cart (id, user_id, product_id, quantity, created_at, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+    ON CONFLICT(user_id, product_id) DO UPDATE SET quantity = ?, updated_at = datetime('now')
+  `).bind(generateId(), user.id, product_id, quantity, quantity).run();
+
+  return json({ success: true });
+});
+
+// Marketplace: Cart - Remove item
+route('DELETE', '/api/marketplace/cart/:productId', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  await env.DB.prepare(`DELETE FROM marketplace_cart WHERE user_id = ? AND product_id = ?`).bind(user.id, params.productId).run();
+  return json({ success: true });
+});
+
+// Marketplace: Cart - Clear
+route('DELETE', '/api/marketplace/cart', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  await env.DB.prepare(`DELETE FROM marketplace_cart WHERE user_id = ?`).bind(user.id).run();
+  return json({ success: true });
+});
+
+// Marketplace: Create order
+route('POST', '/api/marketplace/orders', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const body = await request.json() as any;
+  const { delivery_date, delivery_time_slot, delivery_notes, payment_method } = body;
+
+  // Get cart items
+  const { results: cartItems } = await env.DB.prepare(`
+    SELECT c.*, p.name_ru, p.price, p.image_url, p.stock_quantity
+    FROM marketplace_cart c
+    JOIN marketplace_products p ON c.product_id = p.id
+    WHERE c.user_id = ?
+  `).bind(user.id).all() as { results: any[] };
+
+  if (!cartItems || cartItems.length === 0) {
+    return error('Cart is empty');
+  }
+
+  // Calculate totals
+  const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const deliveryFee = totalAmount >= 100000 ? 0 : 15000; // Free delivery over 100k
+  const finalAmount = totalAmount + deliveryFee;
+
+  // Generate order number (MP-YYYYMMDD-XXXX)
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const orderCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE order_number LIKE ?`).bind(`MP-${today}%`).first() as any;
+  const orderNumber = `MP-${today}-${String((orderCount?.count || 0) + 1).padStart(4, '0')}`;
+
+  const orderId = generateId();
+
+  // Create order
+  await env.DB.prepare(`
+    INSERT INTO marketplace_orders (
+      id, order_number, user_id, status, total_amount, delivery_fee, final_amount,
+      delivery_address, delivery_apartment, delivery_entrance, delivery_floor, delivery_phone,
+      delivery_date, delivery_time_slot, delivery_notes, payment_method
+    ) VALUES (?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    orderId, orderNumber, user.id, totalAmount, deliveryFee, finalAmount,
+    user.address || '', user.apartment || '', user.entrance || '', user.floor || '', user.phone || '',
+    delivery_date || null, delivery_time_slot || null, delivery_notes || null, payment_method || 'cash'
+  ).run();
+
+  // Create order items
+  for (const item of cartItems) {
+    await env.DB.prepare(`
+      INSERT INTO marketplace_order_items (id, order_id, product_id, product_name, product_image, quantity, unit_price, total_price)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(generateId(), orderId, item.product_id, item.name_ru, item.image_url, item.quantity, item.price, item.price * item.quantity).run();
+
+    // Update product orders count
+    await env.DB.prepare(`UPDATE marketplace_products SET orders_count = orders_count + 1 WHERE id = ?`).bind(item.product_id).run();
+  }
+
+  // Add order history
+  await env.DB.prepare(`
+    INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
+    VALUES (?, ?, 'new', 'Заказ создан', ?)
+  `).bind(generateId(), orderId, user.id).run();
+
+  // Clear cart
+  await env.DB.prepare(`DELETE FROM marketplace_cart WHERE user_id = ?`).bind(user.id).run();
+
+  // Create notification for managers
+  const managers = await env.DB.prepare(`SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'marketplace_manager')`).all() as { results: any[] };
+  for (const manager of (managers.results || [])) {
+    await env.DB.prepare(`
+      INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+      VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'))
+    `).bind(generateId(), manager.id, `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`, orderId).run();
+  }
+
+  return json({ order: { id: orderId, order_number: orderNumber, final_amount: finalAmount } }, 201);
+});
+
+// Marketplace: Get user orders
+route('GET', '/api/marketplace/orders', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const url = new URL(request.url);
+  const status = url.searchParams.get('status');
+
+  let whereClause = 'WHERE o.user_id = ?';
+  const params: any[] = [user.id];
+
+  if (status) {
+    whereClause += ' AND o.status = ?';
+    params.push(status);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT o.*,
+      (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
+    FROM marketplace_orders o
+    ${whereClause}
+    ORDER BY o.created_at DESC
+  `).bind(...params).all();
+
+  return json({ orders: results });
+});
+
+// Marketplace: Get single order with items
+route('GET', '/api/marketplace/orders/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const order = await env.DB.prepare(`
+    SELECT * FROM marketplace_orders WHERE id = ? AND (user_id = ? OR ? IN ('admin', 'director', 'manager', 'marketplace_manager'))
+  `).bind(params.id, user.id, user.role).first();
+
+  if (!order) return error('Order not found', 404);
+
+  const { results: items } = await env.DB.prepare(`
+    SELECT * FROM marketplace_order_items WHERE order_id = ?
+  `).bind(params.id).all();
+
+  const { results: history } = await env.DB.prepare(`
+    SELECT h.*, u.name as changed_by_name
+    FROM marketplace_order_history h
+    LEFT JOIN users u ON h.changed_by = u.id
+    WHERE h.order_id = ?
+    ORDER BY h.created_at DESC
+  `).bind(params.id).all();
+
+  return json({ order, items, history });
+});
+
+// Marketplace: Cancel order (by user)
+route('POST', '/api/marketplace/orders/:id/cancel', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const body = await request.json() as any;
+  const order = await env.DB.prepare(`SELECT * FROM marketplace_orders WHERE id = ? AND user_id = ?`).bind(params.id, user.id).first() as any;
+
+  if (!order) return error('Order not found', 404);
+  if (!['new', 'confirmed'].includes(order.status)) {
+    return error('Cannot cancel order in this status');
+  }
+
+  await env.DB.prepare(`
+    UPDATE marketplace_orders SET status = 'cancelled', cancelled_at = datetime('now'), cancellation_reason = ?
+    WHERE id = ?
+  `).bind(body.reason || 'Отменено покупателем', params.id).run();
+
+  await env.DB.prepare(`
+    INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
+    VALUES (?, ?, 'cancelled', ?, ?)
+  `).bind(generateId(), params.id, body.reason || 'Отменено покупателем', user.id).run();
+
+  return json({ success: true });
+});
+
+// Marketplace: Rate order
+route('POST', '/api/marketplace/orders/:id/rate', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const body = await request.json() as any;
+  const { rating, review } = body;
+
+  const order = await env.DB.prepare(`SELECT * FROM marketplace_orders WHERE id = ? AND user_id = ? AND status = 'delivered'`).bind(params.id, user.id).first();
+  if (!order) return error('Order not found or not delivered', 404);
+
+  await env.DB.prepare(`UPDATE marketplace_orders SET rating = ?, review = ? WHERE id = ?`).bind(rating, review || null, params.id).run();
+  return json({ success: true });
+});
+
+// Marketplace: Favorites - Get
+route('GET', '/api/marketplace/favorites', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const { results } = await env.DB.prepare(`
+    SELECT p.*, c.name_ru as category_name_ru, c.icon as category_icon
+    FROM marketplace_favorites f
+    JOIN marketplace_products p ON f.product_id = p.id
+    LEFT JOIN marketplace_categories c ON p.category_id = c.id
+    WHERE f.user_id = ?
+    ORDER BY f.created_at DESC
+  `).bind(user.id).all();
+
+  return json({ favorites: results });
+});
+
+// Marketplace: Favorites - Toggle
+route('POST', '/api/marketplace/favorites/:productId', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const existing = await env.DB.prepare(`SELECT id FROM marketplace_favorites WHERE user_id = ? AND product_id = ?`).bind(user.id, params.productId).first();
+
+  if (existing) {
+    await env.DB.prepare(`DELETE FROM marketplace_favorites WHERE user_id = ? AND product_id = ?`).bind(user.id, params.productId).run();
+    return json({ favorited: false });
+  } else {
+    await env.DB.prepare(`INSERT INTO marketplace_favorites (id, user_id, product_id) VALUES (?, ?, ?)`).bind(generateId(), user.id, params.productId).run();
+    return json({ favorited: true });
+  }
+});
+
+// ==================== MARKETPLACE MANAGER API ====================
+
+// Manager: Get all orders
+route('GET', '/api/marketplace/admin/orders', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const url = new URL(request.url);
+  const status = url.searchParams.get('status');
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = parseInt(url.searchParams.get('limit') || '20');
+  const offset = (page - 1) * limit;
+
+  let whereClause = 'WHERE 1=1';
+  const params: any[] = [];
+
+  if (status) {
+    whereClause += ' AND o.status = ?';
+    params.push(status);
+  }
+
+  const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM marketplace_orders o ${whereClause}`).bind(...params).first() as any;
+  const total = countResult?.total || 0;
+
+  params.push(limit, offset);
+  const { results } = await env.DB.prepare(`
+    SELECT o.*, u.name as user_name, u.phone as user_phone,
+      e.name as executor_name, e.phone as executor_phone,
+      (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
+    FROM marketplace_orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    LEFT JOIN users e ON o.executor_id = e.id
+    ${whereClause}
+    ORDER BY o.created_at DESC
+    LIMIT ? OFFSET ?
+  `).bind(...params).all();
+
+  return json({ orders: results, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+});
+
+// Manager: Update order status or assign executor
+route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const body = await request.json() as any;
+  const { status, comment, executor_id } = body;
+
+  // If assigning executor
+  if (executor_id !== undefined) {
+    await env.DB.prepare(`
+      UPDATE marketplace_orders SET executor_id = ?, assigned_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(executor_id, params.id).run();
+
+    // Notify executor about new order
+    if (executor_id) {
+      const order = await env.DB.prepare(`SELECT order_number FROM marketplace_orders WHERE id = ?`).bind(params.id).first() as any;
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+        VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'))
+      `).bind(generateId(), executor_id, `Вам назначен заказ ${order?.order_number || ''}`, params.id).run();
+    }
+
+    return json({ success: true });
+  }
+
+  // If updating status
+  if (status) {
+    const validStatuses = ['confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return error('Invalid status');
+    }
+
+    const statusField = status === 'cancelled' ? 'cancelled_at' :
+                        status === 'confirmed' ? 'confirmed_at' :
+                        status === 'preparing' ? 'preparing_at' :
+                        status === 'ready' ? 'ready_at' :
+                        status === 'delivering' ? 'delivering_at' :
+                        status === 'delivered' ? 'delivered_at' : null;
+
+    await env.DB.prepare(`
+      UPDATE marketplace_orders SET status = ?, ${statusField} = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(status, params.id).run();
+
+    await env.DB.prepare(`
+      INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(generateId(), params.id, status, comment || null, user.id).run();
+
+    // Notify user
+    const order = await env.DB.prepare(`SELECT user_id, order_number FROM marketplace_orders WHERE id = ?`).bind(params.id).first() as any;
+    if (order) {
+      const statusLabels: Record<string, string> = {
+        confirmed: 'подтверждён',
+        preparing: 'готовится',
+        ready: 'готов к выдаче',
+        delivering: 'доставляется',
+        delivered: 'доставлен',
+        cancelled: 'отменён'
+      };
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+        VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
+      `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, params.id).run();
+    }
+  }
+
+  return json({ success: true });
+});
+
+// Executor: Get my marketplace orders
+route('GET', '/api/marketplace/executor/orders', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || user.role !== 'executor') {
+    return error('Access denied', 403);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT o.*, u.name as user_name, u.phone as user_phone,
+      (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
+    FROM marketplace_orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    WHERE o.executor_id = ? AND o.status NOT IN ('delivered', 'cancelled')
+    ORDER BY
+      CASE o.status
+        WHEN 'confirmed' THEN 1
+        WHEN 'preparing' THEN 2
+        WHEN 'ready' THEN 3
+        WHEN 'delivering' THEN 4
+        ELSE 5
+      END,
+      o.created_at DESC
+  `).bind(user.id).all();
+
+  return json({ orders: results });
+});
+
+// Executor: Update order status (accept, prepare, deliver)
+route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || user.role !== 'executor') {
+    return error('Access denied', 403);
+  }
+
+  // Verify this order is assigned to this executor
+  const order = await env.DB.prepare(`
+    SELECT * FROM marketplace_orders WHERE id = ? AND executor_id = ?
+  `).bind(params.id, user.id).first() as any;
+
+  if (!order) {
+    return error('Order not found or not assigned to you', 404);
+  }
+
+  const body = await request.json() as any;
+  const { status, comment } = body;
+
+  // Executor can only move to certain statuses
+  const allowedTransitions: Record<string, string[]> = {
+    'confirmed': ['preparing'],
+    'preparing': ['ready'],
+    'ready': ['delivering'],
+    'delivering': ['delivered']
+  };
+
+  const allowed = allowedTransitions[order.status];
+  if (!allowed || !allowed.includes(status)) {
+    return error(`Cannot change status from ${order.status} to ${status}`);
+  }
+
+  const statusField = status === 'preparing' ? 'preparing_at' :
+                      status === 'ready' ? 'ready_at' :
+                      status === 'delivering' ? 'delivering_at' :
+                      status === 'delivered' ? 'delivered_at' : null;
+
+  await env.DB.prepare(`
+    UPDATE marketplace_orders SET status = ?, ${statusField} = datetime('now'), updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(status, params.id).run();
+
+  await env.DB.prepare(`
+    INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(generateId(), params.id, status, comment || null, user.id).run();
+
+  // Notify customer
+  const statusLabels: Record<string, string> = {
+    preparing: 'готовится',
+    ready: 'готов к выдаче',
+    delivering: 'доставляется',
+    delivered: 'доставлен'
+  };
+  await env.DB.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+    VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
+  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, params.id).run();
+
+  return json({ success: true });
+});
+
+// Manager: Dashboard stats
+route('GET', '/api/marketplace/admin/dashboard', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [newOrders, preparingOrders, deliveringOrders, todayOrders, todayRevenue, totalProducts] = await Promise.all([
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'new'`).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status IN ('confirmed', 'preparing', 'ready')`).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'delivering'`).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE date(created_at) = ?`).bind(today).first(),
+    env.DB.prepare(`SELECT COALESCE(SUM(final_amount), 0) as total FROM marketplace_orders WHERE date(created_at) = ? AND status != 'cancelled'`).bind(today).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_products WHERE is_active = 1`).first()
+  ]);
+
+  return json({
+    stats: {
+      new_orders: (newOrders as any)?.count || 0,
+      preparing_orders: (preparingOrders as any)?.count || 0,
+      delivering_orders: (deliveringOrders as any)?.count || 0,
+      today_orders: (todayOrders as any)?.count || 0,
+      today_revenue: (todayRevenue as any)?.total || 0,
+      total_products: (totalProducts as any)?.count || 0
+    }
+  });
+});
+
+// Manager: Products CRUD
+route('GET', '/api/marketplace/admin/products', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT p.*, c.name_ru as category_name_ru, c.icon as category_icon
+    FROM marketplace_products p
+    LEFT JOIN marketplace_categories c ON p.category_id = c.id
+    ORDER BY p.created_at DESC
+  `).all();
+
+  return json({ products: results });
+});
+
+route('POST', '/api/marketplace/admin/products', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const body = await request.json() as any;
+  const id = generateId();
+
+  await env.DB.prepare(`
+    INSERT INTO marketplace_products (
+      id, category_id, name_ru, name_uz, description_ru, description_uz,
+      price, old_price, unit, stock_quantity, min_order_quantity, max_order_quantity,
+      weight, weight_unit, image_url, images, is_active, is_featured, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, body.category_id, body.name_ru, body.name_uz || body.name_ru,
+    body.description_ru || null, body.description_uz || null,
+    body.price, body.old_price || null, body.unit || 'шт',
+    body.stock_quantity || 0, body.min_order_quantity || 1, body.max_order_quantity || null,
+    body.weight || null, body.weight_unit || 'кг',
+    body.image_url || null, body.images ? JSON.stringify(body.images) : null,
+    body.is_active !== false ? 1 : 0, body.is_featured ? 1 : 0, user.id
+  ).run();
+
+  const created = await env.DB.prepare(`SELECT * FROM marketplace_products WHERE id = ?`).bind(id).first();
+  return json({ product: created }, 201);
+});
+
+route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const body = await request.json() as any;
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  const fields = ['category_id', 'name_ru', 'name_uz', 'description_ru', 'description_uz', 'price', 'old_price', 'unit', 'stock_quantity', 'min_order_quantity', 'max_order_quantity', 'weight', 'weight_unit', 'image_url', 'is_active', 'is_featured'];
+  for (const field of fields) {
+    if (body[field] !== undefined) {
+      updates.push(`${field} = ?`);
+      values.push(field === 'is_active' || field === 'is_featured' ? (body[field] ? 1 : 0) : body[field]);
+    }
+  }
+  if (body.images) {
+    updates.push('images = ?');
+    values.push(JSON.stringify(body.images));
+  }
+
+  if (updates.length > 0) {
+    updates.push('updated_at = datetime("now")');
+    values.push(params.id);
+    await env.DB.prepare(`UPDATE marketplace_products SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  }
+
+  const updated = await env.DB.prepare(`SELECT * FROM marketplace_products WHERE id = ?`).bind(params.id).first();
+  return json({ product: updated });
+});
+
+route('DELETE', '/api/marketplace/admin/products/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  await env.DB.prepare(`UPDATE marketplace_products SET is_active = 0 WHERE id = ?`).bind(params.id).run();
+  return json({ success: true });
+});
+
+// Manager: Categories CRUD
+route('POST', '/api/marketplace/admin/categories', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const body = await request.json() as any;
+  const id = generateId();
+
+  await env.DB.prepare(`
+    INSERT INTO marketplace_categories (id, name_ru, name_uz, icon, parent_id, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(id, body.name_ru, body.name_uz || body.name_ru, body.icon || '📦', body.parent_id || null, body.sort_order || 99).run();
+
+  const created = await env.DB.prepare(`SELECT * FROM marketplace_categories WHERE id = ?`).bind(id).first();
+  return json({ category: created }, 201);
+});
+
+route('PATCH', '/api/marketplace/admin/categories/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const body = await request.json() as any;
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  const fields = ['name_ru', 'name_uz', 'icon', 'parent_id', 'sort_order', 'is_active'];
+  for (const field of fields) {
+    if (body[field] !== undefined) {
+      updates.push(`${field} = ?`);
+      values.push(field === 'is_active' ? (body[field] ? 1 : 0) : body[field]);
+    }
+  }
+
+  if (updates.length > 0) {
+    values.push(params.id);
+    await env.DB.prepare(`UPDATE marketplace_categories SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  }
+
+  const updated = await env.DB.prepare(`SELECT * FROM marketplace_categories WHERE id = ?`).bind(params.id).first();
+  return json({ category: updated });
 });
 
 // ==================== DB MIGRATIONS ====================

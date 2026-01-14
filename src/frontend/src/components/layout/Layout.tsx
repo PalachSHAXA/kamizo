@@ -58,6 +58,9 @@ const TeamPage = lazy(() => import('../../pages/admin/TeamPage').then(m => ({ de
 const ReportsPage = lazy(() => import('../../pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const SettingsPage = lazy(() => import('../../pages/admin/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const MonitoringPage = lazy(() => import('../../pages/admin/MonitoringPage').then(m => ({ default: m.MonitoringPage })));
+const MarketplacePage = lazy(() => import('../../pages/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
+const MarketplaceManagerDashboard = lazy(() => import('../../pages/MarketplaceManagerDashboard').then(m => ({ default: m.MarketplaceManagerDashboard })));
+const MarketplaceOrdersPage = lazy(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
 
 export function Layout() {
   const location = useLocation();
@@ -84,12 +87,15 @@ export function Layout() {
 
   // Determine which dashboard to show based on role and account_type
   const getDashboard = () => {
-    // Check account_type first for special accounts
-    if (user?.account_type === 'advertiser') {
+    // Check account_type or role for special accounts
+    if (user?.account_type === 'advertiser' || user?.role === 'advertiser') {
       return <AdvertiserDashboard />;
     }
-    if (user?.account_type === 'coupon_checker') {
+    if (user?.account_type === 'coupon_checker' || user?.role === 'coupon_checker') {
       return <CouponCheckerDashboard />;
+    }
+    if (user?.role === 'marketplace_manager') {
+      return <MarketplaceManagerDashboard />;
     }
 
     switch (user?.role) {
@@ -188,6 +194,8 @@ export function Layout() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/monitoring" element={<MonitoringPage />} />
+              <Route path="/marketplace" element={<MarketplacePage />} />
+              <Route path="/marketplace-orders" element={<MarketplaceOrdersPage />} />
             </Routes>
           </Suspense>
         </main>

@@ -87,6 +87,36 @@ function RoleBadge({ role, language }: { role: UserRole; language: string }) {
       labelUz: 'Direktor',
       color: 'bg-rose-100 text-rose-700',
       icon: <Crown className="w-3 h-3" />
+    },
+    advertiser: {
+      label: 'Рекламодатель',
+      labelUz: 'Reklamaberuvchi',
+      color: 'bg-pink-100 text-pink-700',
+      icon: <User className="w-3 h-3" />
+    },
+    coupon_checker: {
+      label: 'Чекер',
+      labelUz: 'Tekshiruvchi',
+      color: 'bg-teal-100 text-teal-700',
+      icon: <User className="w-3 h-3" />
+    },
+    dispatcher: {
+      label: 'Диспетчер',
+      labelUz: 'Dispetcher',
+      color: 'bg-cyan-100 text-cyan-700',
+      icon: <User className="w-3 h-3" />
+    },
+    security: {
+      label: 'Охранник',
+      labelUz: 'Qo\'riqchi',
+      color: 'bg-slate-100 text-slate-700',
+      icon: <Shield className="w-3 h-3" />
+    },
+    marketplace_manager: {
+      label: 'Менеджер магазина',
+      labelUz: 'Do\'kon menejeri',
+      color: 'bg-emerald-100 text-emerald-700',
+      icon: <User className="w-3 h-3" />
     }
   };
 

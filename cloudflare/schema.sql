@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS buildings (
   cadastral_number TEXT,
   branch_code TEXT DEFAULT 'YS',
   building_number TEXT,
+  branch_id TEXT REFERENCES branches(id),
 
   -- Technical specs
   floors INTEGER,
@@ -821,6 +822,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   content TEXT NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('residents', 'employees', 'all')),
   target_type TEXT CHECK (target_type IN ('all', 'branch', 'building', 'entrance', 'floor', 'custom')),
+  target_branch TEXT,
   target_building_id TEXT REFERENCES buildings(id),
   target_entrance TEXT,
   target_floor TEXT,
@@ -830,7 +832,8 @@ CREATE TABLE IF NOT EXISTS announcements (
   expires_at TEXT,
   attachments TEXT, -- JSON array of {name, url, type, size}
   created_by TEXT REFERENCES users(id),
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Announcement views (for tracking who viewed which announcement)
