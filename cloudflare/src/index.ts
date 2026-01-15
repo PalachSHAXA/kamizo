@@ -11181,20 +11181,27 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  const body = await request.json() as any;
-  const { delivery_date, delivery_time_slot, delivery_notes, payment_method } = body;
+  try {
+    const body = await request.json() as any;
+    const { delivery_date, delivery_time_slot, delivery_notes, payment_method } = body;
 
-  // Get cart items
-  const { results: cartItems } = await env.DB.prepare(`
-    SELECT c.*, p.name_ru, p.price, p.image_url, p.stock_quantity
-    FROM marketplace_cart c
-    JOIN marketplace_products p ON c.product_id = p.id
-    WHERE c.user_id = ?
-  `).bind(user.id).all() as { results: any[] };
+    console.log('[Marketplace Order] Creating order for user:', user.id, user.name);
+    console.log('[Marketplace Order] Request body:', body);
 
-  if (!cartItems || cartItems.length === 0) {
-    return error('Cart is empty');
-  }
+    // Get cart items
+    const { results: cartItems } = await env.DB.prepare(`
+      SELECT c.*, p.name_ru, p.price, p.image_url, p.stock_quantity
+      FROM marketplace_cart c
+      JOIN marketplace_products p ON c.product_id = p.id
+      WHERE c.user_id = ?
+    `).bind(user.id).all() as { results: any[] };
+
+    console.log('[Marketplace Order] Cart items found:', cartItems?.length || 0);
+
+    if (!cartItems || cartItems.length === 0) {
+      console.log('[Marketplace Order] ERROR: Cart is empty');
+      return error('Cart is empty', 400);
+    }
 
   // Calculate totals
   const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -11241,16 +11248,21 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
   // Clear cart
   await env.DB.prepare(`DELETE FROM marketplace_cart WHERE user_id = ?`).bind(user.id).run();
 
-  // Create notification for managers
-  const managers = await env.DB.prepare(`SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'marketplace_manager')`).all() as { results: any[] };
-  for (const manager of (managers.results || [])) {
-    await env.DB.prepare(`
-      INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
-      VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'))
-    `).bind(generateId(), manager.id, `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`, orderId).run();
-  }
+    // Create notification for managers
+    const managers = await env.DB.prepare(`SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'marketplace_manager')`).all() as { results: any[] };
+    for (const manager of (managers.results || [])) {
+      await env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+        VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'))
+      `).bind(generateId(), manager.id, `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`, orderId).run();
+    }
 
-  return json({ order: { id: orderId, order_number: orderNumber, final_amount: finalAmount } }, 201);
+    console.log('[Marketplace Order] Order created successfully:', orderNumber);
+    return json({ order: { id: orderId, order_number: orderNumber, final_amount: finalAmount } }, 201);
+  } catch (e: any) {
+    console.error('[Marketplace Order] ERROR:', e.message, e.stack);
+    return error(e.message || 'Failed to create order', 500);
+  }
 });
 
 // Marketplace: Get user orders
