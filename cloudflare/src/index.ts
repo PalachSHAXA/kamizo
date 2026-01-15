@@ -11252,9 +11252,9 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
     const managers = await env.DB.prepare(`SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'marketplace_manager')`).all() as { results: any[] };
     for (const manager of (managers.results || [])) {
       await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+        INSERT INTO notifications (id, user_id, type, title, body, data, created_at)
         VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'))
-      `).bind(generateId(), manager.id, `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`, orderId).run();
+      `).bind(generateId(), manager.id, `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`, JSON.stringify({ order_id: orderId })).run();
     }
 
     console.log('[Marketplace Order] Order created successfully:', orderNumber);
