@@ -365,6 +365,7 @@ export function ExecutorsPage() {
                     <option value="carpenter">Столяр</option>
                     <option value="boiler">Котельщик</option>
                     <option value="ac">Кондиционерщик</option>
+                    <option value="courier">Курьер</option>
                     <option value="other">Другое</option>
                   </select>
                 </div>
@@ -500,6 +501,7 @@ export function ExecutorsPage() {
                     <option value="carpenter">Столяр</option>
                     <option value="boiler">Котельщик</option>
                     <option value="ac">Кондиционерщик</option>
+                    <option value="courier">Курьер</option>
                     <option value="other">Другое</option>
                   </select>
                 </div>

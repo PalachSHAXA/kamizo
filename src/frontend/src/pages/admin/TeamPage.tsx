@@ -4,7 +4,7 @@ import {
   Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw,
   Shield, ChevronDown, ChevronUp, Search, Filter,
   Droplets, Zap, ArrowUpDown, Bell, Brush, ShieldCheck,
-  Hammer, Flame, Wind, Trash2, Key
+  Hammer, Flame, Wind, Trash2, Key, Truck
 } from 'lucide-react';
 import { teamApi } from '../../services/api';
 import { SPECIALIZATION_LABELS } from '../../types';
@@ -48,6 +48,7 @@ const SPECIALIZATION_ICONS: Record<ExecutorSpecialization, React.ReactNode> = {
   carpenter: <Hammer className="w-4 h-4" />,
   boiler: <Flame className="w-4 h-4" />,
   ac: <Wind className="w-4 h-4" />,
+  courier: <Truck className="w-4 h-4" />,
   other: <Wrench className="w-4 h-4" />,
 };
 
@@ -62,6 +63,7 @@ const SPECIALIZATION_COLORS: Record<ExecutorSpecialization, string> = {
   carpenter: 'bg-amber-100 text-amber-700',
   boiler: 'bg-orange-100 text-orange-700',
   ac: 'bg-cyan-100 text-cyan-700',
+  courier: 'bg-green-100 text-green-700',
   other: 'bg-gray-100 text-gray-700',
 };
 
@@ -728,6 +730,7 @@ export function TeamPage() {
                     <option value="carpenter">Столяр</option>
                     <option value="boiler">Котельщик</option>
                     <option value="ac">Кондиционерщик</option>
+                    <option value="courier">Курьер</option>
                     <option value="other">Другое</option>
                   </select>
                 </div>

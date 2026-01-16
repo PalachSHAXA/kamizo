@@ -80,6 +80,7 @@ const getDepartmentName = (specialization: ExecutorSpecialization): string => {
     carpenter: 'Столярный отдел',
     boiler: 'Котельная служба',
     ac: 'Климат-контроль',
+    courier: 'Служба доставки',
     other: 'Общий отдел',
   };
   return departments[specialization] || 'Общий отдел';

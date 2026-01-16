@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'director' | 'manager' | 'department_head' | 'executor' | 'resident' | 'commercial_owner' | 'tenant' | 'advertiser' | 'coupon_checker' | 'dispatcher' | 'security' | 'marketplace_manager';
-export type ExecutorSpecialization = 'plumber' | 'electrician' | 'elevator' | 'intercom' | 'cleaning' | 'security' | 'carpenter' | 'boiler' | 'ac' | 'other';
+export type ExecutorSpecialization = 'plumber' | 'electrician' | 'elevator' | 'intercom' | 'cleaning' | 'security' | 'carpenter' | 'boiler' | 'ac' | 'courier' | 'other';
 export type RequestStatus = 'new' | 'assigned' | 'accepted' | 'in_progress' | 'pending_approval' | 'completed' | 'cancelled';
 export type CancelledBy = 'resident' | 'executor' | 'manager' | 'admin';
 export type RequestPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -353,6 +353,7 @@ export const SPECIALIZATION_LABELS: Record<ExecutorSpecialization, string> = {
   carpenter: 'Столяр',
   boiler: 'Котельщик',
   ac: 'Кондиционерщик',
+  courier: 'Курьер',
   other: 'Другое'
 };
 
