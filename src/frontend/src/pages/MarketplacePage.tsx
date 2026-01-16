@@ -225,11 +225,11 @@ export function MarketplacePage() {
           const [cartRes, ordersRes, favoritesRes] = await Promise.all([
             apiRequest<{ cart: MarketplaceCartItemAPI[], total: number, itemsCount: number }>('/api/marketplace/cart'),
             apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders'),
-            apiRequest<{ favorites: { product_id: string }[] }>('/api/marketplace/favorites'),
+            apiRequest<{ favorites: { id: string }[] }>('/api/marketplace/favorites'),
           ]);
           setCart(cartRes?.cart || []);
           setOrders(ordersRes?.orders || []);
-          setFavorites((favoritesRes?.favorites || []).map(f => f.product_id));
+          setFavorites((favoritesRes?.favorites || []).map(f => f.id));
         } catch (err) {
           console.error('Error fetching user marketplace data:', err);
         }
