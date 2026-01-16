@@ -3010,7 +3010,7 @@ route('GET', '/api/executors', async (request, env) => {
   // Query with statistics from requests table
   const dataQuery = `
     SELECT
-      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at${includePassword ? ', u.password_plain as password' : ''},
+      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.status, u.is_active, u.created_at${includePassword ? ', u.password_plain as password' : ''},
       COALESCE(stats.completed_count, 0) as completed_count,
       COALESCE(stats.active_requests, 0) as active_requests,
       COALESCE(stats.rating, 5.0) as rating,
