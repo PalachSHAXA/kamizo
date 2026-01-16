@@ -2958,7 +2958,7 @@ route('GET', '/api/executors', async (request, env) => {
   }
 
   // SECURITY: Allow staff roles and residents (for rating executors) to see executors
-  const allowedRoles = ['admin', 'director', 'manager', 'department_head', 'executor', 'resident'];
+  const allowedRoles = ['admin', 'director', 'manager', 'department_head', 'executor', 'resident', 'marketplace_manager'];
   if (!allowedRoles.includes(user.role)) {
     return error('Access denied', 403);
   }
@@ -11316,6 +11316,28 @@ route('GET', '/api/marketplace/orders/:id', async (request, env, params) => {
   `).bind(params.id).all();
 
   return json({ order, items, history });
+});
+
+// Marketplace: Get order items (for manager dashboard)
+route('GET', '/api/marketplace/orders/:id/items', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  // Allow marketplace managers and admins to view order items
+  if (!['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    // For regular users, check if it's their order
+    const order = await env.DB.prepare(`
+      SELECT id FROM marketplace_orders WHERE id = ? AND user_id = ?
+    `).bind(params.id, user.id).first();
+
+    if (!order) return error('Access denied', 403);
+  }
+
+  const { results: items } = await env.DB.prepare(`
+    SELECT * FROM marketplace_order_items WHERE order_id = ?
+  `).bind(params.id).all();
+
+  return json({ items });
 });
 
 // Marketplace: Cancel order (by user)
