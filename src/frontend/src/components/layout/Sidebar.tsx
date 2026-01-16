@@ -194,6 +194,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     if (user?.role === 'marketplace_manager') {
       return [
         { path: '/', icon: ShoppingBag, label: language === 'ru' ? 'Управление магазином' : 'Do\'konni boshqarish' },
+        { path: '/marketplace-orders', icon: ShoppingBag, label: language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari' },
       ];
     }
 
