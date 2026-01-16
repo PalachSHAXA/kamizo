@@ -64,7 +64,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function MarketplaceOrdersPage() {
   const { language } = useLanguageStore();
-  const { executors } = useDataStore();
+  const { executors, fetchExecutors } = useDataStore();
 
   const [orders, setOrders] = useState<MarketplaceOrderAPI[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,10 +101,11 @@ export function MarketplaceOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+    fetchExecutors(true); // Fetch all executors including couriers
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
-  }, [fetchOrders]);
+  }, [fetchOrders, fetchExecutors]);
 
   // Assign executor
   const assignExecutor = async (orderId: string, executorId: string) => {
