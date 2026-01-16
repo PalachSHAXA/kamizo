@@ -538,7 +538,7 @@ export function MarketplaceOrdersPage() {
               </p>
 
               <div className="space-y-2">
-                {executors.filter(e => e.status !== 'offline').map(executor => (
+                {executors.filter(e => e.status !== 'offline' && e.specialization === 'courier').map(executor => (
                   <button
                     key={executor.id}
                     onClick={() => assignExecutor(showAssignModal.id, executor.id)}
@@ -558,7 +558,7 @@ export function MarketplaceOrdersPage() {
                   </button>
                 ))}
 
-                {executors.filter(e => e.status !== 'offline').length === 0 && (
+                {executors.filter(e => e.status !== 'offline' && e.specialization === 'courier').length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     {language === 'ru' ? 'Нет доступных исполнителей' : 'Mavjud ijrochilar yo\'q'}
                   </div>
