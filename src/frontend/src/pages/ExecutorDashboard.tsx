@@ -225,16 +225,21 @@ export function ExecutorDashboard() {
     return () => clearInterval(interval);
   }, [inProgressRequests, parseUTCDateTime]);
 
+  // For couriers, include available marketplace orders in "available" count
+  const availableCount = user?.specialization === 'courier'
+    ? availableRequests.length + availableMarketplaceOrders.length
+    : availableRequests.length;
+
   const baseTabs = [
-    { id: 'available' as const, label: language === 'ru' ? 'Доступные' : 'Mavjud', count: availableRequests.length, color: 'bg-purple-500', icon: FileText },
+    { id: 'available' as const, label: language === 'ru' ? 'Доступные' : 'Mavjud', count: availableCount, color: 'bg-purple-500', icon: FileText },
     { id: 'assigned' as const, label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', count: assignedRequests.length, color: 'bg-blue-500', icon: Clock },
     { id: 'in_progress' as const, label: language === 'ru' ? 'В работе' : 'Ishda', count: inProgressRequests.length, color: 'bg-amber-500', icon: Play },
     { id: 'completed' as const, label: language === 'ru' ? 'Выполненные' : 'Bajarilgan', count: completedRequests.length, color: 'bg-green-500', icon: CheckCircle },
   ];
 
-  // Only show marketplace tab for couriers - show total of available + my orders
+  // Only show marketplace tab for couriers - show only my (taken) orders count
   const tabs = user?.specialization === 'courier'
-    ? [...baseTabs, { id: 'marketplace' as const, label: language === 'ru' ? 'Магазин' : 'Do\'kon', count: availableMarketplaceOrders.length + marketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag }]
+    ? [...baseTabs, { id: 'marketplace' as const, label: language === 'ru' ? 'Мои доставки' : 'Mening yetkazishlarim', count: marketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag }]
     : baseTabs;
 
   const currentRequests = activeTab === 'marketplace' ? [] : ({
@@ -530,71 +535,93 @@ export function ExecutorDashboard() {
                   <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4" />
                   <p className="text-gray-500">{language === 'ru' ? 'Загрузка заказов...' : 'Buyurtmalar yuklanmoqda...'}</p>
                 </div>
+              ) : marketplaceOrders.length === 0 ? (
+                <div className="glass-card p-8 text-center">
+                  <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Truck className="w-8 h-8 text-orange-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-600">
+                    {language === 'ru' ? 'Нет активных доставок' : 'Faol yetkazishlar yo\'q'}
+                  </h3>
+                  <p className="text-gray-400 mt-1">
+                    {language === 'ru' ? 'Возьмите заказ из вкладки "Доступные"' : '"Mavjud" bo\'limidan buyurtma oling'}
+                  </p>
+                </div>
               ) : (
-                <>
-                  {/* Available orders section */}
-                  {availableMarketplaceOrders.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                        <Package className="w-4 h-4 text-purple-500" />
-                        {language === 'ru' ? 'Доступные заказы' : 'Mavjud buyurtmalar'}
-                        <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
-                          {availableMarketplaceOrders.length}
-                        </span>
-                      </h3>
-                      {availableMarketplaceOrders.map((order) => (
-                        <AvailableMarketplaceOrderCard
-                          key={order.id}
-                          order={order}
-                          onTake={() => takeMarketplaceOrder(order.id)}
-                          language={language}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* My orders section */}
-                  {marketplaceOrders.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-orange-500" />
-                        {language === 'ru' ? 'Мои заказы' : 'Mening buyurtmalarim'}
-                        <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs">
-                          {marketplaceOrders.length}
-                        </span>
-                      </h3>
-                      {marketplaceOrders.map((order) => (
-                        <MarketplaceOrderCard
-                          key={order.id}
-                          order={order}
-                          onView={() => setSelectedMarketplaceOrder(order)}
-                          onUpdateStatus={updateMarketplaceOrderStatus}
-                          language={language}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Empty state */}
-                  {availableMarketplaceOrders.length === 0 && marketplaceOrders.length === 0 && (
-                    <div className="glass-card p-8 text-center">
-                      <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <ShoppingBag className="w-8 h-8 text-orange-400" />
-                      </div>
-                      <h3 className="text-lg font-medium text-gray-600">
-                        {language === 'ru' ? 'Нет заказов магазина' : 'Do\'kon buyurtmalari yo\'q'}
-                      </h3>
-                      <p className="text-gray-400 mt-1">
-                        {language === 'ru' ? 'Нет доступных заказов для доставки' : 'Yetkazish uchun mavjud buyurtmalar yo\'q'}
-                      </p>
-                    </div>
-                  )}
-                </>
+                <div className="space-y-3">
+                  {marketplaceOrders.map((order) => (
+                    <MarketplaceOrderCard
+                      key={order.id}
+                      order={order}
+                      onView={() => setSelectedMarketplaceOrder(order)}
+                      onUpdateStatus={updateMarketplaceOrderStatus}
+                      language={language}
+                    />
+                  ))}
+                </div>
               )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {currentRequests.length === 0 ? (
+            <div className="space-y-4">
+              {/* For couriers on "available" tab - show marketplace orders first */}
+              {activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-orange-500" />
+                    {language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari'}
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs">
+                      {availableMarketplaceOrders.length}
+                    </span>
+                  </h3>
+                  {availableMarketplaceOrders.map((order) => (
+                    <AvailableMarketplaceOrderCard
+                      key={order.id}
+                      order={order}
+                      onTake={() => takeMarketplaceOrder(order.id)}
+                      language={language}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Regular service requests */}
+              {currentRequests.length > 0 && (
+                <div className="space-y-3">
+                  {activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0 && (
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-purple-500" />
+                      {language === 'ru' ? 'Заявки на услуги' : 'Xizmat so\'rovlari'}
+                      <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
+                        {currentRequests.length}
+                      </span>
+                    </h3>
+                  )}
+                  {currentRequests.map((request) => (
+                    <RequestCard
+                      key={request.id}
+                      request={request}
+                      timerSeconds={activeTimers[request.id]}
+                      hasActiveWork={inProgressRequests.length > 0}
+                      onView={() => setSelectedRequest(request)}
+                      onTakeRequest={() => handleTakeRequest(request.id)}
+                      onAccept={() => handleAccept(request.id)}
+                      onStartWork={() => handleStartWork(request.id)}
+                      onPauseWork={() => handlePauseWork(request.id)}
+                      onResumeWork={() => handleResumeWork(request.id)}
+                      onComplete={() => handleComplete(request.id)}
+                      onDecline={() => handleDeclineClick(request)}
+                      onReschedule={() => {
+                        setRequestToReschedule(request);
+                        setShowRescheduleModal(true);
+                      }}
+                      formatTime={formatTime}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Empty state - only show if both lists are empty */}
+              {currentRequests.length === 0 && !(activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0) && (
                 <div className="glass-card p-8 text-center">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <FileText className="w-8 h-8 text-gray-400" />
@@ -607,28 +634,6 @@ export function ExecutorDashboard() {
                     {activeTab === 'completed' && 'Нет выполненных заявок'}
                   </p>
                 </div>
-              ) : (
-                currentRequests.map((request) => (
-                  <RequestCard
-                    key={request.id}
-                    request={request}
-                    timerSeconds={activeTimers[request.id]}
-                    hasActiveWork={inProgressRequests.length > 0}
-                    onView={() => setSelectedRequest(request)}
-                    onTakeRequest={() => handleTakeRequest(request.id)}
-                    onAccept={() => handleAccept(request.id)}
-                    onStartWork={() => handleStartWork(request.id)}
-                    onPauseWork={() => handlePauseWork(request.id)}
-                    onResumeWork={() => handleResumeWork(request.id)}
-                    onComplete={() => handleComplete(request.id)}
-                    onDecline={() => handleDeclineClick(request)}
-                    onReschedule={() => {
-                      setRequestToReschedule(request);
-                      setShowRescheduleModal(true);
-                    }}
-                    formatTime={formatTime}
-                  />
-                ))
               )}
             </div>
           )}
