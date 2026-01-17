@@ -74,11 +74,19 @@ export function ExecutorDashboard() {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       });
-      await fetchMarketplaceOrders();
+      // Update local state immediately for responsive UI
+      setMarketplaceOrders(prev => prev.map(order =>
+        order.id === orderId ? { ...order, status: status as MarketplaceOrder['status'] } : order
+      ));
       setSelectedMarketplaceOrder(null);
-    } catch (error) {
+      // Also fetch fresh data from server
+      fetchMarketplaceOrders();
+    } catch (error: any) {
       console.error('Failed to update order status:', error);
-      alert('Ошибка при обновлении статуса');
+      // Refresh orders to get current state
+      await fetchMarketplaceOrders();
+      const errorMsg = error?.message || 'Ошибка при обновлении статуса';
+      alert(language === 'ru' ? errorMsg : 'Status yangilashda xatolik');
     }
   };
 

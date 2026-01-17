@@ -11609,10 +11609,17 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
                       status === 'delivering' ? 'delivering_at' :
                       status === 'delivered' ? 'delivered_at' : null;
 
-  await env.DB.prepare(`
-    UPDATE marketplace_orders SET status = ?, ${statusField} = datetime('now'), updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(status, params.id).run();
+  if (statusField) {
+    await env.DB.prepare(`
+      UPDATE marketplace_orders SET status = ?, ${statusField} = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(status, params.id).run();
+  } else {
+    await env.DB.prepare(`
+      UPDATE marketplace_orders SET status = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(status, params.id).run();
+  }
 
   await env.DB.prepare(`
     INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
