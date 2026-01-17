@@ -86,13 +86,18 @@ export function ExecutorDashboard() {
   useEffect(() => {
     fetchRequests();
     fetchPendingReschedules();
-    fetchMarketplaceOrders();
+    // Only fetch marketplace orders for couriers
+    if (user?.specialization === 'courier') {
+      fetchMarketplaceOrders();
+    }
     const interval = setInterval(() => {
       fetchPendingReschedules();
-      fetchMarketplaceOrders();
+      if (user?.specialization === 'courier') {
+        fetchMarketplaceOrders();
+      }
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders]);
+  }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders, user?.specialization]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
   const [showDeclineModal, setShowDeclineModal] = useState(false);
@@ -182,13 +187,17 @@ export function ExecutorDashboard() {
     return () => clearInterval(interval);
   }, [inProgressRequests, parseUTCDateTime]);
 
-  const tabs = [
+  const baseTabs = [
     { id: 'available' as const, label: language === 'ru' ? 'Доступные' : 'Mavjud', count: availableRequests.length, color: 'bg-purple-500', icon: FileText },
     { id: 'assigned' as const, label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', count: assignedRequests.length, color: 'bg-blue-500', icon: Clock },
     { id: 'in_progress' as const, label: language === 'ru' ? 'В работе' : 'Ishda', count: inProgressRequests.length, color: 'bg-amber-500', icon: Play },
     { id: 'completed' as const, label: language === 'ru' ? 'Выполненные' : 'Bajarilgan', count: completedRequests.length, color: 'bg-green-500', icon: CheckCircle },
-    { id: 'marketplace' as const, label: language === 'ru' ? 'Магазин' : 'Do\'kon', count: marketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag },
   ];
+
+  // Only show marketplace tab for couriers
+  const tabs = user?.specialization === 'courier'
+    ? [...baseTabs, { id: 'marketplace' as const, label: language === 'ru' ? 'Магазин' : 'Do\'kon', count: marketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag }]
+    : baseTabs;
 
   const currentRequests = activeTab === 'marketplace' ? [] : ({
     available: availableRequests,
