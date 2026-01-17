@@ -11484,16 +11484,16 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
     if (executor_id) {
       const order = await env.DB.prepare(`SELECT order_number, user_id FROM marketplace_orders WHERE id = ?`).bind(params.id).first() as any;
       await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+        INSERT INTO notifications (id, user_id, type, title, body, data, created_at)
         VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'))
-      `).bind(generateId(), executor_id, `Вам назначен заказ ${order?.order_number || ''}`, params.id).run();
+      `).bind(generateId(), executor_id, `Вам назначен заказ ${order?.order_number || ''}`, JSON.stringify({ order_id: params.id })).run();
 
       // Notify customer that order is confirmed
       if (order?.user_id) {
         await env.DB.prepare(`
-          INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+          INSERT INTO notifications (id, user_id, type, title, body, data, created_at)
           VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
-        `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, params.id).run();
+        `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, JSON.stringify({ order_id: params.id })).run();
       }
     }
 
@@ -11536,9 +11536,9 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
         cancelled: 'отменён'
       };
       await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+        INSERT INTO notifications (id, user_id, type, title, body, data, created_at)
         VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
-      `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, params.id).run();
+      `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, JSON.stringify({ order_id: params.id })).run();
     }
   }
 
@@ -11632,9 +11632,9 @@ route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, 
 
   // Notify customer
   await env.DB.prepare(`
-    INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+    INSERT INTO notifications (id, user_id, type, title, body, data, created_at)
     VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
-  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, params.id).run();
+  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, JSON.stringify({ order_id: params.id })).run();
 
   return json({ success: true });
 });
@@ -11701,9 +11701,9 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
     delivered: 'доставлен'
   };
   await env.DB.prepare(`
-    INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+    INSERT INTO notifications (id, user_id, type, title, body, data, created_at)
     VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
-  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, params.id).run();
+  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, JSON.stringify({ order_id: params.id })).run();
 
   return json({ success: true });
 });
