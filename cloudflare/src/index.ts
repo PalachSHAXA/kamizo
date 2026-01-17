@@ -11572,6 +11572,30 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
   return json({ orders: results });
 });
 
+// Executor (courier): Get delivered marketplace orders
+route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || user.role !== 'executor') {
+    return error('Access denied', 403);
+  }
+
+  // Only couriers have delivered orders
+  if (user.specialization !== 'courier') {
+    return json({ orders: [] });
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT o.*, u.name as user_name, u.phone as user_phone,
+      (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
+    FROM marketplace_orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    WHERE o.executor_id = ? AND o.status = 'delivered'
+    ORDER BY o.delivered_at DESC, o.updated_at DESC
+  `).bind(user.id).all();
+
+  return json({ orders: results });
+});
+
 // Executor (courier): Get available marketplace orders to take
 route('GET', '/api/marketplace/executor/available', async (request, env) => {
   const user = await getUser(request, env);

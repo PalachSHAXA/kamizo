@@ -43,16 +43,23 @@ export function ExecutorDashboard() {
   const { user } = useAuthStore();
   const { requests, executors, acceptRequest, startWork, pauseWork, resumeWork, completeWork, assignRequest, declineRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, fetchRequests, fetchPendingReschedules } = useDataStore();
   const { language } = useLanguageStore();
-  const [activeTab, setActiveTab] = useState<'available' | 'assigned' | 'in_progress' | 'completed' | 'marketplace'>('available');
+  const [activeTab, setActiveTab] = useState<'available' | 'assigned' | 'in_progress' | 'completed' | 'marketplace' | 'delivered'>('available');
 
   // Live stats from API
   const [liveStats, setLiveStats] = useState<ExecutorStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
-  // Marketplace orders (assigned to me)
+  // Marketplace orders (assigned to me - active only)
   const [marketplaceOrders, setMarketplaceOrders] = useState<MarketplaceOrder[]>([]);
   // Available marketplace orders (not assigned)
   const [availableMarketplaceOrders, setAvailableMarketplaceOrders] = useState<MarketplaceOrder[]>([]);
+  // Delivered marketplace orders
+  const [deliveredMarketplaceOrders, setDeliveredMarketplaceOrders] = useState<MarketplaceOrder[]>([]);
+
+  // Active orders are from marketplaceOrders (endpoint already filters out delivered)
+  const activeMarketplaceOrders = marketplaceOrders;
+  // Completed orders are from separate deliveredMarketplaceOrders state
+  const completedMarketplaceOrders = deliveredMarketplaceOrders;
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [selectedMarketplaceOrder, setSelectedMarketplaceOrder] = useState<MarketplaceOrder | null>(null);
 
@@ -76,6 +83,16 @@ export function ExecutorDashboard() {
       setAvailableMarketplaceOrders(response.orders || []);
     } catch (error) {
       console.error('Failed to fetch available marketplace orders:', error);
+    }
+  }, []);
+
+  // Fetch delivered marketplace orders
+  const fetchDeliveredMarketplaceOrders = useCallback(async () => {
+    try {
+      const response = await apiRequest('/api/marketplace/executor/delivered') as { orders: MarketplaceOrder[] };
+      setDeliveredMarketplaceOrders(response.orders || []);
+    } catch (error) {
+      console.error('Failed to fetch delivered marketplace orders:', error);
     }
   }, []);
 
@@ -103,16 +120,21 @@ export function ExecutorDashboard() {
         body: JSON.stringify({ status }),
       });
       // Update local state immediately for responsive UI
-      setMarketplaceOrders(prev => prev.map(order =>
-        order.id === orderId ? { ...order, status: status as MarketplaceOrder['status'] } : order
-      ));
+      if (status === 'delivered') {
+        // Remove from active orders
+        setMarketplaceOrders(prev => prev.filter(order => order.id !== orderId));
+      } else {
+        setMarketplaceOrders(prev => prev.map(order =>
+          order.id === orderId ? { ...order, status: status as MarketplaceOrder['status'] } : order
+        ));
+      }
       setSelectedMarketplaceOrder(null);
       // Also fetch fresh data from server
-      fetchMarketplaceOrders();
+      await Promise.all([fetchMarketplaceOrders(), fetchDeliveredMarketplaceOrders()]);
     } catch (error: any) {
       console.error('Failed to update order status:', error);
       // Refresh orders to get current state
-      await fetchMarketplaceOrders();
+      await Promise.all([fetchMarketplaceOrders(), fetchDeliveredMarketplaceOrders()]);
       const errorMsg = error?.message || 'Ошибка при обновлении статуса';
       alert(language === 'ru' ? errorMsg : 'Status yangilashda xatolik');
     }
@@ -126,16 +148,18 @@ export function ExecutorDashboard() {
     if (user?.specialization === 'courier') {
       fetchMarketplaceOrders();
       fetchAvailableMarketplaceOrders();
+      fetchDeliveredMarketplaceOrders();
     }
     const interval = setInterval(() => {
       fetchPendingReschedules();
       if (user?.specialization === 'courier') {
         fetchMarketplaceOrders();
         fetchAvailableMarketplaceOrders();
+        fetchDeliveredMarketplaceOrders();
       }
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, user?.specialization]);
+  }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, fetchDeliveredMarketplaceOrders, user?.specialization]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
   const [showDeclineModal, setShowDeclineModal] = useState(false);
@@ -237,12 +261,16 @@ export function ExecutorDashboard() {
     { id: 'completed' as const, label: language === 'ru' ? 'Выполненные' : 'Bajarilgan', count: completedRequests.length, color: 'bg-green-500', icon: CheckCircle },
   ];
 
-  // Only show marketplace tab for couriers - show only my (taken) orders count
+  // For couriers: add "Мои доставки" (active orders) and "Доставленные" (delivered orders) tabs
   const tabs = user?.specialization === 'courier'
-    ? [...baseTabs, { id: 'marketplace' as const, label: language === 'ru' ? 'Мои доставки' : 'Mening yetkazishlarim', count: marketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag }]
+    ? [
+        ...baseTabs,
+        { id: 'marketplace' as const, label: language === 'ru' ? 'Мои доставки' : 'Mening yetkazishlarim', count: activeMarketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag },
+        { id: 'delivered' as const, label: language === 'ru' ? 'Доставленные' : 'Yetkazilganlar', count: completedMarketplaceOrders.length, color: 'bg-emerald-500', icon: Truck },
+      ]
     : baseTabs;
 
-  const currentRequests = activeTab === 'marketplace' ? [] : ({
+  const currentRequests = (activeTab === 'marketplace' || activeTab === 'delivered') ? [] : ({
     available: availableRequests,
     assigned: assignedRequests,
     in_progress: inProgressRequests,
@@ -535,7 +563,7 @@ export function ExecutorDashboard() {
                   <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4" />
                   <p className="text-gray-500">{language === 'ru' ? 'Загрузка заказов...' : 'Buyurtmalar yuklanmoqda...'}</p>
                 </div>
-              ) : marketplaceOrders.length === 0 ? (
+              ) : activeMarketplaceOrders.length === 0 ? (
                 <div className="glass-card p-8 text-center">
                   <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Truck className="w-8 h-8 text-orange-400" />
@@ -549,12 +577,44 @@ export function ExecutorDashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {marketplaceOrders.map((order) => (
+                  {activeMarketplaceOrders.map((order) => (
                     <MarketplaceOrderCard
                       key={order.id}
                       order={order}
                       onView={() => setSelectedMarketplaceOrder(order)}
                       onUpdateStatus={updateMarketplaceOrderStatus}
+                      language={language}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'delivered' ? (
+            <div className="space-y-4">
+              {isLoadingOrders ? (
+                <div className="glass-card p-8 text-center">
+                  <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4" />
+                  <p className="text-gray-500">{language === 'ru' ? 'Загрузка заказов...' : 'Buyurtmalar yuklanmoqda...'}</p>
+                </div>
+              ) : completedMarketplaceOrders.length === 0 ? (
+                <div className="glass-card p-8 text-center">
+                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8 text-emerald-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-600">
+                    {language === 'ru' ? 'Нет доставленных заказов' : 'Yetkazilgan buyurtmalar yo\'q'}
+                  </h3>
+                  <p className="text-gray-400 mt-1">
+                    {language === 'ru' ? 'Здесь будут отображаться доставленные заказы' : 'Bu yerda yetkazilgan buyurtmalar ko\'rsatiladi'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {completedMarketplaceOrders.map((order) => (
+                    <CompletedMarketplaceOrderCard
+                      key={order.id}
+                      order={order}
+                      onView={() => setSelectedMarketplaceOrder(order)}
                       language={language}
                     />
                   ))}
@@ -587,6 +647,7 @@ export function ExecutorDashboard() {
               {/* Regular service requests */}
               {currentRequests.length > 0 && (
                 <div className="space-y-3">
+                  {/* Show section header if there are also marketplace orders in the same tab */}
                   {activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0 && (
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                       <FileText className="w-4 h-4 text-purple-500" />
@@ -621,7 +682,8 @@ export function ExecutorDashboard() {
               )}
 
               {/* Empty state - only show if both lists are empty */}
-              {currentRequests.length === 0 && !(activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0) && (
+              {currentRequests.length === 0 &&
+               !(activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0) && (
                 <div className="glass-card p-8 text-center">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <FileText className="w-8 h-8 text-gray-400" />
@@ -1665,6 +1727,62 @@ function AvailableMarketplaceOrderCard({
           <Hand className="w-5 h-5" />
           {language === 'ru' ? 'Взять заказ' : 'Buyurtmani olish'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Completed Marketplace Order Card Component (for delivered orders in Completed tab)
+function CompletedMarketplaceOrderCard({
+  order,
+  onView,
+  language,
+}: {
+  order: MarketplaceOrder;
+  onView: () => void;
+  language: 'ru' | 'uz';
+}) {
+  return (
+    <div
+      className="glass-card p-4 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation border-2 border-green-200 bg-green-50/30"
+      onClick={onView}
+    >
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
+          <CheckCircle className="w-6 h-6 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="text-sm font-semibold text-gray-900">#{order.order_number}</span>
+            <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-green-100 text-green-700">
+              {language === 'ru' ? 'Доставлен' : 'Yetkazildi'}
+            </span>
+          </div>
+          <div className="text-sm text-gray-600">
+            {order.items_count} {language === 'ru' ? 'товар(ов)' : 'mahsulot'} • {order.total_amount.toLocaleString()} сум
+          </div>
+
+          {/* Customer Info */}
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <User className="w-3.5 h-3.5" />
+              <span className="truncate max-w-[120px]">{order.user_name}</span>
+            </span>
+          </div>
+
+          {/* Address */}
+          <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">{order.delivery_address}</span>
+          </div>
+
+          {/* Created At */}
+          <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+            <Clock className="w-3 h-3" />
+            {new Date(order.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
       </div>
     </div>
   );
