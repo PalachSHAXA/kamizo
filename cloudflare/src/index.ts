@@ -11468,18 +11468,33 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
 
   // If assigning executor
   if (executor_id !== undefined) {
+    // Update executor_id and also set status to confirmed
     await env.DB.prepare(`
-      UPDATE marketplace_orders SET executor_id = ?, assigned_at = datetime('now'), updated_at = datetime('now')
+      UPDATE marketplace_orders SET executor_id = ?, assigned_at = datetime('now'), status = 'confirmed', confirmed_at = datetime('now'), updated_at = datetime('now')
       WHERE id = ?
     `).bind(executor_id, params.id).run();
 
+    // Add status change to history
+    await env.DB.prepare(`
+      INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
+      VALUES (?, ?, 'confirmed', 'Назначен исполнитель', ?)
+    `).bind(generateId(), params.id, user.id).run();
+
     // Notify executor about new order
     if (executor_id) {
-      const order = await env.DB.prepare(`SELECT order_number FROM marketplace_orders WHERE id = ?`).bind(params.id).first() as any;
+      const order = await env.DB.prepare(`SELECT order_number, user_id FROM marketplace_orders WHERE id = ?`).bind(params.id).first() as any;
       await env.DB.prepare(`
         INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
         VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'))
       `).bind(generateId(), executor_id, `Вам назначен заказ ${order?.order_number || ''}`, params.id).run();
+
+      // Notify customer that order is confirmed
+      if (order?.user_id) {
+        await env.DB.prepare(`
+          INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+          VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
+        `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, params.id).run();
+      }
     }
 
     return json({ success: true });

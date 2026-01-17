@@ -107,17 +107,12 @@ export function MarketplaceOrdersPage() {
     return () => clearInterval(interval);
   }, [fetchOrders, fetchExecutors]);
 
-  // Assign executor
+  // Assign executor (backend automatically sets status to 'confirmed')
   const assignExecutor = async (orderId: string, executorId: string) => {
     try {
       await apiRequest(`/api/marketplace/admin/orders/${orderId}`, {
         method: 'PATCH',
         body: JSON.stringify({ executor_id: executorId }),
-      });
-      // Also update status to confirmed
-      await apiRequest(`/api/marketplace/admin/orders/${orderId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'confirmed' }),
       });
       await fetchOrders();
       setShowAssignModal(null);
