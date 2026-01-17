@@ -11572,6 +11572,73 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
   return json({ orders: results });
 });
 
+// Executor (courier): Get available marketplace orders to take
+route('GET', '/api/marketplace/executor/available', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || user.role !== 'executor') {
+    return error('Access denied', 403);
+  }
+
+  // Only couriers can take marketplace orders
+  if (user.specialization !== 'courier') {
+    return json({ orders: [] });
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT o.*, u.name as user_name, u.phone as user_phone,
+      (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
+    FROM marketplace_orders o
+    LEFT JOIN users u ON o.user_id = u.id
+    WHERE o.executor_id IS NULL AND o.status = 'new'
+    ORDER BY o.created_at ASC
+  `).all();
+
+  return json({ orders: results });
+});
+
+// Executor (courier): Take a marketplace order
+route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || user.role !== 'executor') {
+    return error('Access denied', 403);
+  }
+
+  // Only couriers can take marketplace orders
+  if (user.specialization !== 'courier') {
+    return error('Only couriers can take marketplace orders', 403);
+  }
+
+  // Check if order exists and is available
+  const order = await env.DB.prepare(`
+    SELECT * FROM marketplace_orders WHERE id = ? AND executor_id IS NULL AND status = 'new'
+  `).bind(params.id).first() as any;
+
+  if (!order) {
+    return error('Order not available or already taken', 404);
+  }
+
+  // Assign order to this courier and set status to confirmed
+  await env.DB.prepare(`
+    UPDATE marketplace_orders
+    SET executor_id = ?, assigned_at = datetime('now'), status = 'confirmed', confirmed_at = datetime('now'), updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(user.id, params.id).run();
+
+  // Add to history
+  await env.DB.prepare(`
+    INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
+    VALUES (?, ?, 'confirmed', 'Курьер взял заказ', ?)
+  `).bind(generateId(), params.id, user.id).run();
+
+  // Notify customer
+  await env.DB.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, message, request_id, created_at)
+    VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'))
+  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, params.id).run();
+
+  return json({ success: true });
+});
+
 // Executor: Update order status (accept, prepare, deliver)
 route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, params) => {
   const user = await getUser(request, env);
