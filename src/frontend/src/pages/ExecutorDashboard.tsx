@@ -37,13 +37,24 @@ interface ExecutorStats {
   thisMonth: number;
   rating: number;
   avgCompletionTime: number;
+  // Courier-specific stats
+  totalDelivered?: number;
+  deliveredThisWeek?: number;
 }
 
 export function ExecutorDashboard() {
   const { user } = useAuthStore();
   const { requests, executors, acceptRequest, startWork, pauseWork, resumeWork, completeWork, assignRequest, declineRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, fetchRequests, fetchPendingReschedules } = useDataStore();
   const { language } = useLanguageStore();
+  // For couriers, default tab is 'marketplace', for others - 'available'
   const [activeTab, setActiveTab] = useState<'available' | 'assigned' | 'in_progress' | 'completed' | 'marketplace' | 'delivered'>('available');
+
+  // Set default tab for couriers on mount
+  useEffect(() => {
+    if (user?.specialization === 'courier') {
+      setActiveTab('marketplace');
+    }
+  }, [user?.specialization]);
 
   // Live stats from API
   const [liveStats, setLiveStats] = useState<ExecutorStats | null>(null);
@@ -56,8 +67,9 @@ export function ExecutorDashboard() {
   // Delivered marketplace orders
   const [deliveredMarketplaceOrders, setDeliveredMarketplaceOrders] = useState<MarketplaceOrder[]>([]);
 
-  // Active orders are from marketplaceOrders (endpoint already filters out delivered)
-  const activeMarketplaceOrders = marketplaceOrders;
+  // Split marketplace orders into assigned (confirmed) and active (preparing, ready, delivering)
+  const assignedMarketplaceOrders = marketplaceOrders.filter(o => o.status === 'confirmed');
+  const activeMarketplaceOrders = marketplaceOrders.filter(o => ['preparing', 'ready', 'delivering'].includes(o.status));
   // Completed orders are from separate deliveredMarketplaceOrders state
   const completedMarketplaceOrders = deliveredMarketplaceOrders;
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
@@ -261,11 +273,17 @@ export function ExecutorDashboard() {
     { id: 'completed' as const, label: language === 'ru' ? 'Выполненные' : 'Bajarilgan', count: completedRequests.length, color: 'bg-green-500', icon: CheckCircle },
   ];
 
-  // For couriers: add "Мои доставки" (active orders) and "Доставленные" (delivered orders) tabs
+  // For couriers: include assigned marketplace orders in "Назначенные" count
+  const assignedCount = user?.specialization === 'courier'
+    ? assignedRequests.length + assignedMarketplaceOrders.length
+    : assignedRequests.length;
+
+  // For couriers: "Мои доставки" first, then "Доступные", "Назначенные", "Доставленные" (no "В работе")
   const tabs = user?.specialization === 'courier'
     ? [
-        ...baseTabs,
         { id: 'marketplace' as const, label: language === 'ru' ? 'Мои доставки' : 'Mening yetkazishlarim', count: activeMarketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag },
+        { id: 'available' as const, label: language === 'ru' ? 'Доступные' : 'Mavjud', count: availableCount, color: 'bg-purple-500', icon: FileText },
+        { id: 'assigned' as const, label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', count: assignedCount, color: 'bg-blue-500', icon: Clock },
         { id: 'delivered' as const, label: language === 'ru' ? 'Доставленные' : 'Yetkazilganlar', count: completedMarketplaceOrders.length, color: 'bg-emerald-500', icon: Truck },
       ]
     : baseTabs;
@@ -426,14 +444,25 @@ export function ExecutorDashboard() {
         <div className="glass-card p-3 md:p-5">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
-              <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
+              {user?.specialization === 'courier' ? (
+                <Truck className="w-5 h-5 md:w-6 md:h-6 text-white" />
+              ) : (
+                <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
+              )}
             </div>
             <div className="min-w-0">
               <div className="text-2xl md:text-3xl font-bold">
-                {isLoadingStats ? '...' : (liveStats?.totalCompleted || 0)}
+                {isLoadingStats ? '...' : (
+                  user?.specialization === 'courier'
+                    ? (liveStats?.totalDelivered || 0)
+                    : (liveStats?.totalCompleted || 0)
+                )}
               </div>
               <div className="text-xs md:text-sm text-gray-500">
-                {language === 'ru' ? 'Выполнено' : 'Bajarildi'}
+                {user?.specialization === 'courier'
+                  ? (language === 'ru' ? 'Доставлено' : 'Yetkazildi')
+                  : (language === 'ru' ? 'Выполнено' : 'Bajarildi')
+                }
               </div>
             </div>
           </div>
@@ -446,7 +475,11 @@ export function ExecutorDashboard() {
             </div>
             <div className="min-w-0">
               <div className="text-2xl md:text-3xl font-bold">
-                {isLoadingStats ? '...' : (liveStats?.thisWeek || 0)}
+                {isLoadingStats ? '...' : (
+                  user?.specialization === 'courier'
+                    ? (liveStats?.deliveredThisWeek || 0)
+                    : (liveStats?.thisWeek || 0)
+                )}
               </div>
               <div className="text-xs md:text-sm text-gray-500">
                 {language === 'ru' ? 'За неделю' : 'Hafta'}
@@ -644,11 +677,34 @@ export function ExecutorDashboard() {
                 </div>
               )}
 
+              {/* For couriers on "assigned" tab - show assigned marketplace orders */}
+              {activeTab === 'assigned' && user?.specialization === 'courier' && assignedMarketplaceOrders.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-blue-500" />
+                    {language === 'ru' ? 'Назначенные заказы' : 'Tayinlangan buyurtmalar'}
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                      {assignedMarketplaceOrders.length}
+                    </span>
+                  </h3>
+                  {assignedMarketplaceOrders.map((order) => (
+                    <MarketplaceOrderCard
+                      key={order.id}
+                      order={order}
+                      onView={() => setSelectedMarketplaceOrder(order)}
+                      onUpdateStatus={updateMarketplaceOrderStatus}
+                      language={language}
+                    />
+                  ))}
+                </div>
+              )}
+
               {/* Regular service requests */}
               {currentRequests.length > 0 && (
                 <div className="space-y-3">
                   {/* Show section header if there are also marketplace orders in the same tab */}
-                  {activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0 && (
+                  {((activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0) ||
+                    (activeTab === 'assigned' && user?.specialization === 'courier' && assignedMarketplaceOrders.length > 0)) && (
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                       <FileText className="w-4 h-4 text-purple-500" />
                       {language === 'ru' ? 'Заявки на услуги' : 'Xizmat so\'rovlari'}
@@ -683,7 +739,8 @@ export function ExecutorDashboard() {
 
               {/* Empty state - only show if both lists are empty */}
               {currentRequests.length === 0 &&
-               !(activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0) && (
+               !(activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0) &&
+               !(activeTab === 'assigned' && user?.specialization === 'courier' && assignedMarketplaceOrders.length > 0) && (
                 <div className="glass-card p-8 text-center">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <FileText className="w-8 h-8 text-gray-400" />

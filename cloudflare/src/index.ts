@@ -3156,14 +3156,49 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
     GROUP BY status
   `).bind(params.id).all();
 
+  // For couriers - get delivery stats and rating from marketplace_orders
+  let deliveryStats = { totalDelivered: 0, deliveredThisWeek: 0, deliveryRating: null as number | null };
+  if ((executor as any).specialization === 'courier') {
+    const totalDelivered = await env.DB.prepare(`
+      SELECT COUNT(*) as count FROM marketplace_orders
+      WHERE executor_id = ? AND status = 'delivered'
+    `).bind(params.id).first() as { count: number };
+
+    const deliveredThisWeek = await env.DB.prepare(`
+      SELECT COUNT(*) as count FROM marketplace_orders
+      WHERE executor_id = ? AND status = 'delivered' AND delivered_at >= ?
+    `).bind(params.id, weekAgo).first() as { count: number };
+
+    // Average rating from delivery orders
+    const deliveryAvgRating = await env.DB.prepare(`
+      SELECT AVG(rating) as avg FROM marketplace_orders
+      WHERE executor_id = ? AND rating IS NOT NULL
+    `).bind(params.id).first() as { avg: number | null };
+
+    deliveryStats = {
+      totalDelivered: totalDelivered?.count || 0,
+      deliveredThisWeek: deliveredThisWeek?.count || 0,
+      deliveryRating: deliveryAvgRating?.avg || null
+    };
+  }
+
+  // For couriers, use delivery rating; for others, use request rating
+  const isCourier = (executor as any).specialization === 'courier';
+  const finalRating = isCourier && deliveryStats.deliveryRating !== null
+    ? Math.round(deliveryStats.deliveryRating * 10) / 10
+    : (avgRating?.avg ? Math.round(avgRating.avg * 10) / 10 : 5.0);
+
   return json({
     stats: {
       totalCompleted: totalCompleted?.count || 0,
       thisWeek: weekCompleted?.count || 0,
       thisMonth: monthCompleted?.count || 0,
-      rating: avgRating?.avg ? Math.round(avgRating.avg * 10) / 10 : 5.0,
+      rating: finalRating,
       avgCompletionTime: avgTime?.avg_minutes ? Math.round(avgTime.avg_minutes) : 0,
-      statusBreakdown: statusCounts.results || []
+      statusBreakdown: statusCounts.results || [],
+      // Courier-specific stats
+      totalDelivered: deliveryStats.totalDelivered,
+      deliveredThisWeek: deliveryStats.deliveredThisWeek
     }
   });
 });

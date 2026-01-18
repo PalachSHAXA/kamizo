@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
+import { apiRequest } from '../services/api';
 import type { PopupType } from '../components/PopupNotification';
+
+// Interface for marketplace orders
+interface MarketplaceOrderForNotification {
+  id: string;
+  order_number: string;
+  status: string;
+  rating?: number;
+}
 
 export interface PopupItem {
   id: string;
@@ -152,6 +161,68 @@ export function usePopupNotifications() {
       setPopups(prev => [...prev, ...newPopups]);
     }
   }, [user, requests]);
+
+  // Check for delivered marketplace orders that need rating (for residents) - with polling
+  useEffect(() => {
+    if (!user || user.role !== 'resident') {
+      return;
+    }
+
+    const checkDeliveredOrders = async () => {
+      try {
+        const response = await apiRequest<{ orders: MarketplaceOrderForNotification[] }>('/api/marketplace/orders?status=delivered');
+        const deliveredOrders = response?.orders || [];
+
+        const shownIds = getShownIds();
+
+        // Filter delivered orders that haven't been rated and popup not shown
+        const unratedDelivered = deliveredOrders.filter(o =>
+          o.status === 'delivered' &&
+          !o.rating &&
+          !shownIds.has(`delivery-completed-${o.id}`)
+        );
+
+        console.log('[PopupNotifications] Unrated delivered orders:', unratedDelivered.length);
+
+        const newPopups: PopupItem[] = unratedDelivered.map(o => {
+          saveShownId(`delivery-completed-${o.id}`);
+
+          return {
+            id: `delivery-completed-${o.id}`,
+            type: 'delivery_completed' as PopupType,
+            title: 'Заказ доставлен!',
+            message: `Ваш заказ ${o.order_number} успешно доставлен. Пожалуйста, оцените доставку.`,
+            actionLabel: 'Оценить доставку',
+            onAction: () => {
+              // Store order ID to open rating modal
+              sessionStorage.setItem('open_delivery_rating_for_order', o.id);
+              // Navigate to marketplace page or dispatch event
+              if (window.location.pathname !== '/marketplace') {
+                window.location.href = '/marketplace';
+              } else {
+                window.dispatchEvent(new CustomEvent('openDeliveryRatingModal', { detail: { orderId: o.id } }));
+              }
+            },
+          };
+        });
+
+        if (newPopups.length > 0) {
+          console.log('[PopupNotifications] Adding delivery popups:', newPopups);
+          setPopups(prev => [...prev, ...newPopups]);
+        }
+      } catch (err) {
+        console.error('[PopupNotifications] Error checking delivered orders:', err);
+      }
+    };
+
+    // Check immediately on mount
+    checkDeliveredOrders();
+
+    // Poll every 15 seconds for new delivered orders
+    const interval = setInterval(checkDeliveredOrders, 15000);
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const dismissPopup = useCallback((id: string) => {
     setPopups(prev => prev.filter(p => p.id !== id));

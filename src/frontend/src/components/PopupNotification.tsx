@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Bell, AlertTriangle, Users, CheckCircle } from 'lucide-react';
+import { X, Bell, AlertTriangle, Users, CheckCircle, Truck } from 'lucide-react';
 
 export type PopupType =
   | 'announcement_urgent'    // Срочное объявление
   | 'announcement_meeting'   // Собрание жильцов
   | 'request_completed'      // Заявка завершена - оцените
+  | 'delivery_completed'     // Доставка завершена - оцените
   | 'info';                  // Обычное уведомление
 
 interface PopupNotificationProps {
@@ -55,6 +56,8 @@ export function PopupNotification({
         return <Users className="w-8 h-8 text-blue-500" />;
       case 'request_completed':
         return <CheckCircle className="w-8 h-8 text-green-500" />;
+      case 'delivery_completed':
+        return <Truck className="w-8 h-8 text-orange-500" />;
       default:
         return <Bell className="w-8 h-8 text-yellow-500" />;
     }
@@ -68,6 +71,8 @@ export function PopupNotification({
         return 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200';
       case 'request_completed':
         return 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200';
+      case 'delivery_completed':
+        return 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200';
       default:
         return 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200';
     }
@@ -81,6 +86,8 @@ export function PopupNotification({
         return 'bg-blue-500 hover:bg-blue-600 text-white';
       case 'request_completed':
         return 'bg-green-500 hover:bg-green-600 text-white';
+      case 'delivery_completed':
+        return 'bg-orange-500 hover:bg-orange-600 text-white';
       default:
         return 'bg-orange-400 hover:bg-orange-500 text-black';
     }

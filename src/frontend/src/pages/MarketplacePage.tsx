@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
-  CheckCircle, ShoppingBag, Trash2, Truck, ChefHat
+  CheckCircle, ShoppingBag, Trash2, Truck, ChefHat, Star
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -205,6 +205,13 @@ export function MarketplacePage() {
   const [deliveryNote, setDeliveryNote] = useState('');
   const [orderSuccess, setOrderSuccess] = useState(false);
 
+  // Delivery rating modal state
+  const [showDeliveryRatingModal, setShowDeliveryRatingModal] = useState(false);
+  const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
+  const [deliveryRating, setDeliveryRating] = useState(5);
+  const [deliveryReview, setDeliveryReview] = useState('');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
@@ -244,6 +251,63 @@ export function MarketplacePage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Poll for order status updates every 10 seconds (only if user has active orders)
+  useEffect(() => {
+    if (!user) return;
+
+    const hasActiveOrders = orders.some(o => !['delivered', 'cancelled'].includes(o.status));
+    if (!hasActiveOrders) return;
+
+    const pollOrderUpdates = async () => {
+      try {
+        const ordersRes = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
+        if (ordersRes?.orders) {
+          setOrders(ordersRes.orders);
+        }
+      } catch (err) {
+        console.error('Error polling order updates:', err);
+      }
+    };
+
+    // Poll every 10 seconds for order status updates
+    const interval = setInterval(pollOrderUpdates, 10000);
+
+    return () => clearInterval(interval);
+  }, [user, orders.length > 0 && orders.some(o => !['delivered', 'cancelled'].includes(o.status))]);
+
+  // Listen for openDeliveryRatingModal event from popup notifications
+  useEffect(() => {
+    const handleOpenDeliveryRatingModal = (event: CustomEvent<{ orderId: string }>) => {
+      const { orderId } = event.detail;
+      const order = orders.find(o => o.id === orderId);
+      if (order && order.status === 'delivered') {
+        setRatingOrderId(orderId);
+        setShowDeliveryRatingModal(true);
+        sessionStorage.removeItem('open_delivery_rating_for_order');
+      }
+    };
+
+    window.addEventListener('openDeliveryRatingModal', handleOpenDeliveryRatingModal as EventListener);
+    return () => {
+      window.removeEventListener('openDeliveryRatingModal', handleOpenDeliveryRatingModal as EventListener);
+    };
+  }, [orders]);
+
+  // Check sessionStorage for pending delivery rating modal (after navigation or page load)
+  useEffect(() => {
+    if (orders.length === 0) return;
+
+    const pendingOrderId = sessionStorage.getItem('open_delivery_rating_for_order');
+    if (pendingOrderId) {
+      const order = orders.find(o => o.id === pendingOrderId);
+      if (order && order.status === 'delivered') {
+        setRatingOrderId(pendingOrderId);
+        setShowDeliveryRatingModal(true);
+        sessionStorage.removeItem('open_delivery_rating_for_order');
+      }
+    }
+  }, [orders]);
 
   // Add to cart
   const addToCart = async (productId: string, quantity: number = 1) => {
@@ -334,6 +398,33 @@ export function MarketplacePage() {
       }, 2000);
     } catch (error) {
       console.error('Error creating order:', error);
+    }
+  };
+
+  // Submit delivery rating
+  const submitDeliveryRating = async () => {
+    if (!ratingOrderId) return;
+
+    try {
+      setIsSubmittingRating(true);
+      await apiRequest(`/api/marketplace/orders/${ratingOrderId}/rate`, {
+        method: 'POST',
+        body: JSON.stringify({ rating: deliveryRating, review: deliveryReview || undefined }),
+      });
+
+      // Refresh orders to update the rating
+      const ordersRes = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
+      setOrders(ordersRes?.orders || []);
+
+      // Close modal and reset state
+      setShowDeliveryRatingModal(false);
+      setRatingOrderId(null);
+      setDeliveryRating(5);
+      setDeliveryReview('');
+    } catch (error) {
+      console.error('Error submitting delivery rating:', error);
+    } finally {
+      setIsSubmittingRating(false);
     }
   };
 
@@ -1040,6 +1131,111 @@ export function MarketplacePage() {
                 className="w-full py-4 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors"
               >
                 {language === 'ru' ? 'Подтвердить заказ' : 'Buyurtmani tasdiqlash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Rating Modal */}
+      {showDeliveryRatingModal && ratingOrderId && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-orange-500 to-amber-500">
+              <h2 className="text-lg font-bold text-white">
+                {language === 'ru' ? 'Оцените доставку' : 'Yetkazishni baholang'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowDeliveryRatingModal(false);
+                  setRatingOrderId(null);
+                  setDeliveryRating(5);
+                  setDeliveryReview('');
+                }}
+                className="p-2 hover:bg-white/20 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Order Info */}
+              <div className="bg-orange-50 rounded-xl p-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                    <Truck className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">
+                      {language === 'ru' ? 'Заказ' : 'Buyurtma'}
+                    </div>
+                    <div className="font-semibold text-gray-900">
+                      #{orders.find(o => o.id === ratingOrderId)?.order_number || ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Star Rating */}
+              <div className="text-center mb-6">
+                <p className="text-sm text-gray-600 mb-4">
+                  {language === 'ru' ? 'Как вам качество доставки?' : 'Yetkazish sifati qanday edi?'}
+                </p>
+                <div className="flex justify-center gap-2 mb-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setDeliveryRating(star)}
+                      className="p-1 active:scale-90 transition-transform touch-manipulation"
+                    >
+                      <Star
+                        className={`w-10 h-10 ${
+                          star <= deliveryRating
+                            ? 'text-yellow-400 fill-yellow-400'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <div className="text-sm font-medium text-gray-700">
+                  {deliveryRating === 5 && (language === 'ru' ? 'Отлично!' : 'Ajoyib!')}
+                  {deliveryRating === 4 && (language === 'ru' ? 'Хорошо' : 'Yaxshi')}
+                  {deliveryRating === 3 && (language === 'ru' ? 'Нормально' : 'O\'rtacha')}
+                  {deliveryRating === 2 && (language === 'ru' ? 'Плохо' : 'Yomon')}
+                  {deliveryRating === 1 && (language === 'ru' ? 'Очень плохо' : 'Juda yomon')}
+                </div>
+              </div>
+
+              {/* Review textarea */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Отзыв (необязательно)' : 'Sharh (ixtiyoriy)'}
+                </label>
+                <textarea
+                  value={deliveryReview}
+                  onChange={(e) => setDeliveryReview(e.target.value)}
+                  placeholder={language === 'ru' ? 'Напишите отзыв о доставке...' : 'Yetkazish haqida sharh yozing...'}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  rows={3}
+                />
+              </div>
+
+              {/* Submit button */}
+              <button
+                onClick={submitDeliveryRating}
+                disabled={isSubmittingRating}
+                className="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSubmittingRating ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="w-5 h-5" />
+                    {language === 'ru' ? 'Отправить оценку' : 'Bahoni yuborish'}
+                  </>
+                )}
               </button>
             </div>
           </div>
