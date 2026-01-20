@@ -367,7 +367,9 @@ export function ExecutorDashboard() {
       {/* Header - Mobile optimized */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Мои заявки</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">
+            {user?.specialization === 'courier' ? 'Мои заказы' : 'Мои заявки'}
+          </h1>
           <p className="text-sm md:text-base text-gray-500 mt-1 truncate">
             {user?.name} • {SPECIALIZATION_LABELS[user?.specialization as ExecutorSpecialization] || 'Исполнитель'}
           </p>
@@ -745,10 +747,16 @@ export function ExecutorDashboard() {
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <FileText className="w-8 h-8 text-gray-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-600">Нет заявок</h3>
+                  <h3 className="text-lg font-medium text-gray-600">
+                    {user?.specialization === 'courier' ? 'Нет заказов' : 'Нет заявок'}
+                  </h3>
                   <p className="text-gray-400 mt-1">
-                    {activeTab === 'available' && 'Нет доступных заявок по вашей специализации'}
-                    {activeTab === 'assigned' && 'Нет назначенных заявок'}
+                    {activeTab === 'available' && (user?.specialization === 'courier'
+                      ? 'Нет доступных заказов по вашей специализации'
+                      : 'Нет доступных заявок по вашей специализации')}
+                    {activeTab === 'assigned' && (user?.specialization === 'courier'
+                      ? 'Нет назначенных заказов'
+                      : 'Нет назначенных заявок')}
                     {activeTab === 'in_progress' && 'Нет заявок в работе'}
                     {activeTab === 'completed' && 'Нет выполненных заявок'}
                   </p>

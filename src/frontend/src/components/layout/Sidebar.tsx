@@ -200,8 +200,9 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
     if (user?.role === 'executor') {
       // Security guards get QR scanner
+      // Couriers see "Заказы" instead of "Заявки"
       const baseItems = [
-        { path: '/', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar' },
+        { path: '/', icon: FileText, label: language === 'ru' ? (user?.specialization === 'courier' ? 'Заказы' : 'Заявки') : (user?.specialization === 'courier' ? 'Buyurtmalar' : 'Arizalar') },
         { path: '/schedule', icon: CalendarDays, label: language === 'ru' ? 'Расписание' : 'Jadval' },
         { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
       ];
