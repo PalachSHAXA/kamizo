@@ -196,6 +196,7 @@ export function Layout() {
               <Route path="/monitoring" element={<MonitoringPage />} />
               <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/marketplace-orders" element={<MarketplaceOrdersPage />} />
+              <Route path="/marketplace-products" element={<MarketplaceManagerDashboard />} />
             </Routes>
           </Suspense>
         </main>

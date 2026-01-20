@@ -5,7 +5,7 @@ import {
   LogOut, User, Home, Shield, BarChart3,
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
-  X as CloseIcon, Star, StickyNote, Phone, Ticket, ShoppingBag
+  X as CloseIcon, Star, StickyNote, Phone, Ticket, ShoppingBag, Package
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -294,6 +294,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       { path: '/', icon: LayoutDashboard, label: t('nav.dashboard') },
       { path: '/requests', icon: FileText, label: t('nav.requests') },
       { path: '/marketplace-orders', icon: ShoppingBag, label: language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari' },
+      { path: '/marketplace-products', icon: Package, label: language === 'ru' ? 'Товары и склад' : 'Mahsulotlar va ombor' },
       { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
       { path: '/executors', icon: Wrench, label: t('nav.executors') },
       { path: '/residents', icon: Users, label: t('nav.residents') },
