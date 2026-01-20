@@ -89,11 +89,11 @@ export function MarketplaceManagerDashboard() {
       setLoading(true);
       const [productsRes, categoriesRes] = await Promise.all([
         apiRequest<{ products: MarketplaceProductAPI[] }>('/api/marketplace/admin/products'),
-        apiRequest<MarketplaceCategoryAPI[]>('/api/marketplace/categories'),
+        apiRequest<{ categories: MarketplaceCategoryAPI[] }>('/api/marketplace/categories'),
       ]);
 
       setProducts(productsRes?.products || []);
-      setCategories(categoriesRes || []);
+      setCategories(categoriesRes?.categories || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
