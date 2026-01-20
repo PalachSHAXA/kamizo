@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Package, Plus, Edit2, Trash2, Search, Filter,
-  X, TrendingUp, AlertTriangle, BarChart3, ImagePlus
+  X, TrendingUp, AlertTriangle, BarChart3, ImagePlus, Upload, Link
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -82,6 +82,62 @@ export function MarketplaceManagerDashboard() {
   const [showStockModal, setShowStockModal] = useState(false);
   const [stockProduct, setStockProduct] = useState<MarketplaceProductAPI | null>(null);
   const [stockQuantity, setStockQuantity] = useState('');
+
+  // Image upload
+  const [imageMode, setImageMode] = useState<'url' | 'file'>('url');
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Handle image file upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert(language === 'ru'
+        ? 'Неверный формат файла. Разрешены: JPEG, PNG, GIF, WEBP'
+        : 'Noto\'g\'ri fayl formati. Ruxsat etilgan: JPEG, PNG, GIF, WEBP');
+      return;
+    }
+
+    // Max 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      alert(language === 'ru'
+        ? 'Файл слишком большой. Максимум: 5МБ'
+        : 'Fayl juda katta. Maksimum: 5MB');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/marketplace/admin/upload-image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+      setProductForm({ ...productForm, image_url: result.image_url });
+    } catch (error) {
+      console.error('Image upload error:', error);
+      alert(language === 'ru'
+        ? 'Ошибка загрузки изображения'
+        : 'Rasm yuklashda xato');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -167,6 +223,8 @@ export function MarketplaceManagerDashboard() {
   // Edit product
   const editProduct = (product: MarketplaceProductAPI) => {
     setEditingProduct(product);
+    // Set image mode based on whether it's a data URL or external URL
+    setImageMode(product.image_url?.startsWith('data:') ? 'file' : 'url');
     setProductForm({
       category_id: product.category_id,
       name_ru: product.name_ru,
@@ -185,6 +243,7 @@ export function MarketplaceManagerDashboard() {
 
   const resetProductForm = () => {
     setEditingProduct(null);
+    setImageMode('url');
     setProductForm({
       category_id: '',
       name_ru: '',
@@ -613,22 +672,104 @@ export function MarketplaceManagerDashboard() {
                 </select>
               </div>
 
-              {/* Image URL */}
+              {/* Image Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   <ImagePlus className="w-4 h-4 inline mr-1" />
-                  {language === 'ru' ? 'URL изображения' : 'Rasm URL'}
+                  {language === 'ru' ? 'Изображение товара' : 'Mahsulot rasmi'}
                 </label>
-                <input
-                  type="url"
-                  value={productForm.image_url}
-                  onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full p-3 border rounded-xl"
-                />
+
+                {/* Mode toggle */}
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setImageMode('file')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border transition-colors ${
+                      imageMode === 'file'
+                        ? 'bg-orange-50 border-orange-300 text-orange-700'
+                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="text-sm">{language === 'ru' ? 'Загрузить файл' : 'Fayl yuklash'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageMode('url')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border transition-colors ${
+                      imageMode === 'url'
+                        ? 'bg-orange-50 border-orange-300 text-orange-700'
+                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Link className="w-4 h-4" />
+                    <span className="text-sm">{language === 'ru' ? 'URL ссылка' : 'URL havola'}</span>
+                  </button>
+                </div>
+
+                {/* File upload */}
+                {imageMode === 'file' && (
+                  <div className="space-y-2">
+                    <label className="block w-full">
+                      <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
+                        uploadingImage
+                          ? 'border-orange-300 bg-orange-50'
+                          : 'border-gray-300 hover:border-orange-400 hover:bg-orange-50'
+                      }`}>
+                        {uploadingImage ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                            <span className="text-sm text-orange-600">
+                              {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2">
+                            <Upload className="w-8 h-8 text-gray-400" />
+                            <span className="text-sm text-gray-600">
+                              {language === 'ru' ? 'Нажмите для выбора файла' : 'Fayl tanlash uchun bosing'}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              JPEG, PNG, GIF, WEBP (max 5MB)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={uploadingImage}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* URL input */}
+                {imageMode === 'url' && (
+                  <input
+                    type="url"
+                    value={productForm.image_url}
+                    onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full p-3 border rounded-xl"
+                  />
+                )}
+
+                {/* Image preview */}
                 {productForm.image_url && (
-                  <div className="mt-2 w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
-                    <img src={productForm.image_url} alt="Preview" className="w-full h-full object-cover" />
+                  <div className="mt-3 relative inline-block">
+                    <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 border">
+                      <img src={productForm.image_url} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setProductForm({ ...productForm, image_url: '' })}
+                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>

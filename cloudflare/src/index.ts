@@ -11923,6 +11923,51 @@ route('DELETE', '/api/marketplace/admin/products/:id', async (request, env, para
   return json({ success: true });
 });
 
+// Upload image for product (base64)
+route('POST', '/api/marketplace/admin/upload-image', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  try {
+    const contentType = request.headers.get('Content-Type') || '';
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      const file = formData.get('image') as File;
+
+      if (!file) {
+        return error('No image file provided', 400);
+      }
+
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        return error('Invalid file type. Allowed: JPEG, PNG, GIF, WEBP', 400);
+      }
+
+      // Max 5MB
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        return error('File too large. Maximum size: 5MB', 400);
+      }
+
+      // Convert to base64
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const dataUrl = `data:${file.type};base64,${base64}`;
+
+      return json({ image_url: dataUrl });
+    } else {
+      return error('Content-Type must be multipart/form-data', 400);
+    }
+  } catch (err) {
+    console.error('Image upload error:', err);
+    return error('Failed to upload image', 500);
+  }
+});
+
 // Manager: Categories CRUD
 route('POST', '/api/marketplace/admin/categories', async (request, env) => {
   const user = await getUser(request, env);
