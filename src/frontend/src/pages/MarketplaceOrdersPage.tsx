@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ShoppingCart, Search, ChevronRight, X, CheckCircle, Truck, ChefHat, Package, Phone, MapPin, UserPlus, User
+  ShoppingCart, Search, ChevronRight, X, CheckCircle, Truck, ChefHat, Package, Phone, MapPin, UserPlus, User, Star
 } from 'lucide-react';
 import { useLanguageStore } from '../stores/languageStore';
 import { useDataStore } from '../stores/dataStore';
@@ -25,6 +25,8 @@ interface MarketplaceOrderAPI {
   items_count: number;
   delivery_notes?: string;
   created_at: string;
+  rating?: number;
+  review?: string;
 }
 
 interface MarketplaceOrderItemAPI {
@@ -484,6 +486,32 @@ export function MarketplaceOrdersPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Rating and Review */}
+              {selectedOrder.status === 'delivered' && selectedOrder.rating && (
+                <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                  <h3 className="font-medium text-yellow-800 mb-2">
+                    {language === 'ru' ? 'Оценка клиента' : 'Mijoz bahosi'}
+                  </h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-5 h-5 ${star <= selectedOrder.rating! ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-lg font-semibold text-yellow-700">{selectedOrder.rating}/5</span>
+                  </div>
+                  {selectedOrder.review && (
+                    <p className="text-sm text-yellow-700">
+                      <span className="font-medium">{language === 'ru' ? 'Отзыв: ' : 'Sharh: '}</span>
+                      {selectedOrder.review}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-3">

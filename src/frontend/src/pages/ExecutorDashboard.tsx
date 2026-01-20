@@ -28,6 +28,8 @@ interface MarketplaceOrder {
   items_count: number;
   created_at: string;
   assigned_at?: string;
+  rating?: number;
+  review?: string;
 }
 
 // Stats interface for API response
@@ -1782,6 +1784,16 @@ function AvailableMarketplaceOrderCard({
         </div>
       </div>
 
+      {/* Delivery Notes */}
+      {order.delivery_notes && (
+        <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-xs text-amber-700">
+            <span className="font-medium">{language === 'ru' ? 'Комментарий: ' : 'Izoh: '}</span>
+            {order.delivery_notes}
+          </p>
+        </div>
+      )}
+
       {/* Take Button */}
       <div className="mt-4 pt-3 border-t border-purple-200/50">
         <button
@@ -1849,6 +1861,29 @@ function CompletedMarketplaceOrderCard({
           </div>
         </div>
       </div>
+
+      {/* Rating and Review */}
+      {order.rating && (
+        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={`w-4 h-4 ${star <= order.rating! ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
+                />
+              ))}
+            </div>
+            <span className="text-sm font-semibold text-yellow-700">{order.rating}/5</span>
+          </div>
+          {order.review && (
+            <p className="text-xs text-yellow-700 mt-1">
+              <span className="font-medium">{language === 'ru' ? 'Отзыв: ' : 'Sharh: '}</span>
+              {order.review}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1947,6 +1982,16 @@ function MarketplaceOrderCard({
           </div>
         </div>
       </div>
+
+      {/* Delivery Notes */}
+      {order.delivery_notes && (
+        <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-xs text-amber-700">
+            <span className="font-medium">{language === 'ru' ? 'Комментарий: ' : 'Izoh: '}</span>
+            {order.delivery_notes}
+          </p>
+        </div>
+      )}
 
       {/* Action Button */}
       {nextStatusLabel && (
