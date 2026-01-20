@@ -11846,6 +11846,7 @@ route('GET', '/api/marketplace/admin/products', async (request, env) => {
     SELECT p.*, c.name_ru as category_name_ru, c.icon as category_icon
     FROM marketplace_products p
     LEFT JOIN marketplace_categories c ON p.category_id = c.id
+    WHERE p.is_active = 1
     ORDER BY p.created_at DESC
   `).all();
 
@@ -11891,11 +11892,13 @@ route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, param
   const updates: string[] = [];
   const values: any[] = [];
 
-  const fields = ['category_id', 'name_ru', 'name_uz', 'description_ru', 'description_uz', 'price', 'old_price', 'unit', 'stock_quantity', 'min_order_quantity', 'max_order_quantity', 'weight', 'weight_unit', 'image_url', 'is_active', 'is_featured'];
+  // Note: is_active is intentionally excluded to prevent accidental deactivation during edits
+  // Use DELETE endpoint to deactivate products
+  const fields = ['category_id', 'name_ru', 'name_uz', 'description_ru', 'description_uz', 'price', 'old_price', 'unit', 'stock_quantity', 'min_order_quantity', 'max_order_quantity', 'weight', 'weight_unit', 'image_url', 'is_featured'];
   for (const field of fields) {
     if (body[field] !== undefined) {
       updates.push(`${field} = ?`);
-      values.push(field === 'is_active' || field === 'is_featured' ? (body[field] ? 1 : 0) : body[field]);
+      values.push(field === 'is_featured' ? (body[field] ? 1 : 0) : body[field]);
     }
   }
   if (body.images) {
