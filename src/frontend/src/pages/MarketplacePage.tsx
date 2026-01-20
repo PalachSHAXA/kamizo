@@ -611,9 +611,9 @@ export function MarketplacePage() {
                       }`}>
                         {product.stock_quantity === 0
                           ? (language === 'ru' ? 'Нет в наличии' : 'Mavjud emas')
-                          : product.stock_quantity <= 5
-                            ? (language === 'ru' ? `Осталось: ${product.stock_quantity} ${product.unit}` : `Qoldi: ${product.stock_quantity} ${product.unit}`)
-                            : (language === 'ru' ? 'В наличии' : 'Mavjud')
+                          : (language === 'ru'
+                              ? `В наличии: ${product.stock_quantity} ${product.unit}`
+                              : `Mavjud: ${product.stock_quantity} ${product.unit}`)
                         }
                       </p>
                       <div className="flex items-center justify-between mt-2">

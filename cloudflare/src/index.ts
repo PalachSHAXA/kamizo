@@ -11270,8 +11270,13 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(generateId(), orderId, item.product_id, item.name_ru, item.image_url, item.quantity, item.price, item.price * item.quantity).run();
 
-    // Update product orders count
-    await env.DB.prepare(`UPDATE marketplace_products SET orders_count = orders_count + 1 WHERE id = ?`).bind(item.product_id).run();
+    // Update product orders count and decrease stock quantity
+    await env.DB.prepare(`
+      UPDATE marketplace_products
+      SET orders_count = orders_count + 1,
+          stock_quantity = stock_quantity - ?
+      WHERE id = ?
+    `).bind(item.quantity, item.product_id).run();
   }
 
   // Add order history
@@ -11386,6 +11391,20 @@ route('POST', '/api/marketplace/orders/:id/cancel', async (request, env, params)
   if (!order) return error('Order not found', 404);
   if (!['new', 'confirmed'].includes(order.status)) {
     return error('Cannot cancel order in this status');
+  }
+
+  // Get order items to return stock
+  const orderItems = await env.DB.prepare(`
+    SELECT product_id, quantity FROM marketplace_order_items WHERE order_id = ?
+  `).bind(params.id).all() as { results: { product_id: string, quantity: number }[] };
+
+  // Return stock for each item
+  for (const item of (orderItems.results || [])) {
+    await env.DB.prepare(`
+      UPDATE marketplace_products
+      SET stock_quantity = stock_quantity + ?
+      WHERE id = ?
+    `).bind(item.quantity, item.product_id).run();
   }
 
   await env.DB.prepare(`
@@ -11540,6 +11559,25 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
     const validStatuses = ['confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled'];
     if (!validStatuses.includes(status)) {
       return error('Invalid status');
+    }
+
+    // If cancelling order, return stock
+    if (status === 'cancelled') {
+      const currentOrder = await env.DB.prepare(`SELECT status FROM marketplace_orders WHERE id = ?`).bind(params.id).first() as any;
+      // Only return stock if order wasn't already cancelled
+      if (currentOrder && currentOrder.status !== 'cancelled') {
+        const orderItems = await env.DB.prepare(`
+          SELECT product_id, quantity FROM marketplace_order_items WHERE order_id = ?
+        `).bind(params.id).all() as { results: { product_id: string, quantity: number }[] };
+
+        for (const item of (orderItems.results || [])) {
+          await env.DB.prepare(`
+            UPDATE marketplace_products
+            SET stock_quantity = stock_quantity + ?
+            WHERE id = ?
+          `).bind(item.quantity, item.product_id).run();
+        }
+      }
     }
 
     const statusField = status === 'cancelled' ? 'cancelled_at' :
