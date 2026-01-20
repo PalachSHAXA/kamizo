@@ -601,6 +601,21 @@ export function MarketplacePage() {
                         {language === 'ru' ? product.name_ru : product.name_uz}
                       </h3>
                       <p className="text-xs text-gray-500 mt-1">{product.unit}</p>
+                      {/* Stock indicator */}
+                      <p className={`text-xs mt-1 ${
+                        product.stock_quantity === 0
+                          ? 'text-red-500'
+                          : product.stock_quantity <= 5
+                            ? 'text-amber-500'
+                            : 'text-green-600'
+                      }`}>
+                        {product.stock_quantity === 0
+                          ? (language === 'ru' ? 'Нет в наличии' : 'Mavjud emas')
+                          : product.stock_quantity <= 5
+                            ? (language === 'ru' ? `Осталось: ${product.stock_quantity} ${product.unit}` : `Qoldi: ${product.stock_quantity} ${product.unit}`)
+                            : (language === 'ru' ? 'В наличии' : 'Mavjud')
+                        }
+                      </p>
                       <div className="flex items-center justify-between mt-2">
                         <div>
                           <p className="font-bold text-orange-600">
@@ -634,10 +649,18 @@ export function MarketplacePage() {
                       ) : (
                         <button
                           onClick={() => addToCart(product.id)}
-                          className="w-full mt-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex items-center justify-center gap-1"
+                          disabled={product.stock_quantity === 0}
+                          className={`w-full mt-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+                            product.stock_quantity === 0
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-orange-500 text-white hover:bg-orange-600'
+                          }`}
                         >
                           <Plus className="w-4 h-4" />
-                          <span>{language === 'ru' ? 'В корзину' : 'Savatga'}</span>
+                          <span>{product.stock_quantity === 0
+                            ? (language === 'ru' ? 'Нет в наличии' : 'Mavjud emas')
+                            : (language === 'ru' ? 'В корзину' : 'Savatga')
+                          }</span>
                         </button>
                       )}
                     </div>
