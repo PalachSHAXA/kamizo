@@ -3,7 +3,8 @@ import {
   Plus, Users, Calendar, AlertCircle,
   FileText, Building2, User,
   ThumbsUp, ThumbsDown, Minus, Eye,
-  Play, Square, BarChart3, Shield, X, Check, CalendarCheck, Download, Trash2
+  Play, Square, BarChart3, Shield, X, Check, CalendarCheck, Download, Trash2,
+  MessageSquare, Send, Phone
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -1122,6 +1123,75 @@ function MeetingDetailsModal({
 }) {
   const quorum = calculateQuorum();
   const [downloadingProtocol, setDownloadingProtocol] = useState(false);
+  const [activeTab, setActiveTab] = useState<'agenda' | 'against'>('agenda');
+  const [selectedAgendaItem, setSelectedAgendaItem] = useState<string | null>(null);
+  const [againstVotes, setAgainstVotes] = useState<any[]>([]);
+  const [loadingAgainstVotes, setLoadingAgainstVotes] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState<string | null>(null);
+  const [showSendModal, setShowSendModal] = useState<{ voterId: string; voterName: string } | null>(null);
+  const [requestReason, setRequestReason] = useState('');
+  const [requestMessage, setRequestMessage] = useState('');
+  const [reconsiderationStats, setReconsiderationStats] = useState<any>(null);
+
+  const { fetchAgainstVotes, sendReconsiderationRequest, fetchReconsiderationStats } = useMeetingStore();
+
+  // Load against votes when tab or agenda item changes
+  useEffect(() => {
+    if (activeTab === 'against' && selectedAgendaItem) {
+      setLoadingAgainstVotes(true);
+      fetchAgainstVotes(meeting.id, selectedAgendaItem).then(votes => {
+        setAgainstVotes(votes);
+        setLoadingAgainstVotes(false);
+      });
+    }
+  }, [activeTab, selectedAgendaItem, meeting.id, fetchAgainstVotes]);
+
+  // Load stats when on against tab
+  useEffect(() => {
+    if (activeTab === 'against') {
+      fetchReconsiderationStats(meeting.id).then(stats => {
+        setReconsiderationStats(stats);
+      });
+    }
+  }, [activeTab, meeting.id, fetchReconsiderationStats]);
+
+  // Auto-select first agenda item when switching to against tab
+  useEffect(() => {
+    if (activeTab === 'against' && !selectedAgendaItem && meeting.agendaItems.length > 0) {
+      setSelectedAgendaItem(meeting.agendaItems[0].id);
+    }
+  }, [activeTab, selectedAgendaItem, meeting.agendaItems]);
+
+  const handleSendReconsiderationRequest = async () => {
+    if (!showSendModal || !selectedAgendaItem || !requestReason) return;
+
+    setSendingRequest(showSendModal.voterId);
+    const result = await sendReconsiderationRequest(meeting.id, {
+      agendaItemId: selectedAgendaItem,
+      residentId: showSendModal.voterId,
+      reason: requestReason,
+      messageToResident: requestMessage || undefined,
+    });
+
+    if (result.success) {
+      // Refresh the against votes list
+      const votes = await fetchAgainstVotes(meeting.id, selectedAgendaItem);
+      setAgainstVotes(votes);
+      setShowSendModal(null);
+      setRequestReason('');
+      setRequestMessage('');
+    } else {
+      alert(result.error || (language === 'ru' ? 'Ошибка при отправке запроса' : 'So\'rovni yuborishda xatolik'));
+    }
+    setSendingRequest(null);
+  };
+
+  const reasonOptions = [
+    { value: 'discussed_personally', label: language === 'ru' ? 'Обсудили лично' : 'Shaxsan muhokama qildik' },
+    { value: 'new_information', label: language === 'ru' ? 'Появилась новая информация' : 'Yangi ma\'lumot paydo bo\'ldi' },
+    { value: 'clarification_needed', label: language === 'ru' ? 'Требуется уточнение' : 'Aniqlik kiritish kerak' },
+    { value: 'other', label: language === 'ru' ? 'Другое' : 'Boshqa' },
+  ];
 
   // Download protocol as DOCX file (official format)
   const handleDownloadProtocol = async () => {
@@ -1233,7 +1303,136 @@ function MeetingDetailsModal({
             </div>
           )}
 
-          {/* Agenda Items with Results */}
+          {/* Tabs - show against votes tab only during voting_open */}
+          {meeting.status === 'voting_open' && (
+            <div className="flex gap-2 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('agenda')}
+                className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                  activeTab === 'agenda'
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {language === 'ru' ? 'Повестка дня' : 'Kun tartibi'}
+              </button>
+              <button
+                onClick={() => setActiveTab('against')}
+                className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${
+                  activeTab === 'against'
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <ThumbsDown className="w-4 h-4" />
+                {language === 'ru' ? 'Голоса против' : 'Qarshi ovozlar'}
+              </button>
+            </div>
+          )}
+
+          {/* Against Votes Tab Content */}
+          {activeTab === 'against' && meeting.status === 'voting_open' && (
+            <div className="space-y-4">
+              {/* Stats summary */}
+              {reconsiderationStats && reconsiderationStats.total > 0 && (
+                <div className="p-3 bg-blue-50 rounded-xl">
+                  <div className="text-sm font-medium text-blue-800 mb-2">
+                    {language === 'ru' ? 'Статистика запросов на пересмотр' : 'Qayta ko\'rib chiqish so\'rovlari statistikasi'}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-blue-600">{language === 'ru' ? 'Отправлено:' : 'Yuborildi:'}</span> {reconsiderationStats.total}
+                    </div>
+                    <div>
+                      <span className="text-green-600">{language === 'ru' ? 'Изменили:' : 'O\'zgartirildi:'}</span> {reconsiderationStats.voteChanged}
+                    </div>
+                    <div>
+                      <span className="text-gray-600">{language === 'ru' ? 'Конверсия:' : 'Konversiya:'}</span> {reconsiderationStats.conversionRate}%
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Agenda item selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Выберите вопрос:' : 'Savolni tanlang:'}
+                </label>
+                <select
+                  value={selectedAgendaItem || ''}
+                  onChange={(e) => setSelectedAgendaItem(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  {meeting.agendaItems.map((item, index) => (
+                    <option key={item.id} value={item.id}>
+                      {index + 1}. {item.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Against votes list */}
+              {loadingAgainstVotes ? (
+                <div className="text-center py-8 text-gray-500">
+                  {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
+                </div>
+              ) : againstVotes.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  {language === 'ru' ? 'Нет голосов против по этому вопросу' : 'Bu savol bo\'yicha qarshi ovozlar yo\'q'}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {againstVotes.map((vote) => (
+                    <div key={vote.voteId} className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="font-medium">{vote.voterName}</div>
+                          <div className="text-sm text-gray-500 flex items-center gap-4">
+                            <span>{language === 'ru' ? 'Кв.' : 'Kv.'} {vote.apartmentNumber}</span>
+                            <span>{vote.voteWeight} {language === 'ru' ? 'кв.м' : 'kv.m'}</span>
+                            {vote.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {vote.phone}
+                              </span>
+                            )}
+                          </div>
+                          {vote.comment && (
+                            <div className="mt-2 p-2 bg-white rounded-lg text-sm text-gray-600">
+                              <MessageSquare className="w-3 h-3 inline mr-1" />
+                              {vote.comment}
+                            </div>
+                          )}
+                          {vote.requestCount > 0 && (
+                            <div className="mt-2 text-xs text-orange-600">
+                              {language === 'ru'
+                                ? `Отправлено запросов: ${vote.requestCount}/2`
+                                : `Yuborilgan so'rovlar: ${vote.requestCount}/2`}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setShowSendModal({ voterId: vote.voterId, voterName: vote.voterName })}
+                          disabled={!vote.canSendRequest || sendingRequest === vote.voterId}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                            vote.canSendRequest
+                              ? 'bg-orange-500 text-white hover:bg-orange-600'
+                              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <Send className="w-4 h-4" />
+                          {language === 'ru' ? 'Запросить' : 'So\'rash'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Agenda Items with Results - show when not on against tab or when voting not open */}
+          {(activeTab === 'agenda' || meeting.status !== 'voting_open') && (
           <div>
             <h3 className="font-medium mb-3">
               {language === 'ru' ? 'Повестка дня' : 'Kun tartibi'}
@@ -1305,7 +1504,93 @@ function MeetingDetailsModal({
               })}
             </div>
           </div>
+          )}
         </div>
+
+        {/* Send Reconsideration Request Modal */}
+        {showSendModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6">
+              <h3 className="text-lg font-bold mb-4">
+                {language === 'ru' ? 'Запрос на пересмотр голоса' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}
+              </h3>
+
+              <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+                <div className="text-sm text-gray-500">
+                  {language === 'ru' ? 'Получатель:' : 'Qabul qiluvchi:'}
+                </div>
+                <div className="font-medium">{showSendModal.voterName}</div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Причина запроса:' : 'So\'rov sababi:'}
+                </label>
+                <select
+                  value={requestReason}
+                  onChange={(e) => setRequestReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="">
+                    {language === 'ru' ? 'Выберите причину...' : 'Sababni tanlang...'}
+                  </option>
+                  {reasonOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Сообщение (необязательно):' : 'Xabar (ixtiyoriy):'}
+                </label>
+                <textarea
+                  value={requestMessage}
+                  onChange={(e) => setRequestMessage(e.target.value)}
+                  placeholder={language === 'ru' ? 'Личное сообщение жителю...' : 'Aholiga shaxsiy xabar...'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                  rows={3}
+                  maxLength={500}
+                />
+                <div className="text-xs text-gray-400 text-right mt-1">
+                  {requestMessage.length}/500
+                </div>
+              </div>
+
+              <div className="p-3 bg-yellow-50 rounded-xl mb-4 text-sm text-yellow-800">
+                <AlertCircle className="w-4 h-4 inline mr-1" />
+                {language === 'ru'
+                  ? 'Это только просьба. Житель сам решает, менять голос или нет.'
+                  : 'Bu faqat iltimos. Aholi ovozni o\'zgartirish yoki o\'zgartirmaslikni o\'zi hal qiladi.'}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowSendModal(null);
+                    setRequestReason('');
+                    setRequestMessage('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+                </button>
+                <button
+                  onClick={handleSendReconsiderationRequest}
+                  disabled={!requestReason || !!sendingRequest}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  {sendingRequest
+                    ? (language === 'ru' ? 'Отправка...' : 'Yuborilmoqda...')
+                    : (language === 'ru' ? 'Отправить' : 'Yuborish')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

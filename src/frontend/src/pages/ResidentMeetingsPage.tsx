@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Vote, Calendar, FileText, Users, Building2, CheckCircle, X,
   ThumbsUp, ThumbsDown, Minus, ChevronRight, Loader2, Clock, Trophy, ArrowRight, Key, User,
-  MessageSquare
+  MessageSquare, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -23,11 +23,15 @@ export function ResidentMeetingsPage() {
     getUserVotesForMeeting,
     calculateAgendaItemResult,
     calculateMeetingQuorum,
+    fetchMyReconsiderationRequests,
+    markReconsiderationRequestViewed,
+    ignoreReconsiderationRequest,
   } = useMeetingStore();
   const { language } = useLanguageStore();
 
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [showVotingModal, setShowVotingModal] = useState(false);
+  const [reconsiderationRequests, setReconsiderationRequests] = useState<any[]>([]);
 
   // Get selected meeting from store (reactive to changes)
   const selectedMeeting = selectedMeetingId ? meetings.find(m => m.id === selectedMeetingId) || null : null;
@@ -36,6 +40,33 @@ export function ResidentMeetingsPage() {
   useEffect(() => {
     fetchMeetings();
   }, []); // Empty array - runs only once
+
+  // Fetch reconsideration requests
+  useEffect(() => {
+    const loadRequests = async () => {
+      const requests = await fetchMyReconsiderationRequests();
+      setReconsiderationRequests(requests);
+    };
+    loadRequests();
+  }, [fetchMyReconsiderationRequests]);
+
+  // Handle ignoring a reconsideration request
+  const handleIgnoreRequest = async (requestId: string) => {
+    await ignoreReconsiderationRequest(requestId);
+    // Refresh the requests list
+    const requests = await fetchMyReconsiderationRequests();
+    setReconsiderationRequests(requests);
+  };
+
+  // Handle viewing and opening vote modal for a request
+  const handleRespondToRequest = async (request: any) => {
+    await markReconsiderationRequestViewed(request.id);
+    setSelectedMeetingId(request.meetingId);
+    setShowVotingModal(true);
+    // Refresh requests
+    const requests = await fetchMyReconsiderationRequests();
+    setReconsiderationRequests(requests);
+  };
 
   // Load user's votes when opening voting modal
   useEffect(() => {
@@ -107,6 +138,65 @@ export function ResidentMeetingsPage() {
           </span>
         )}
       </div>
+
+      {/* Reconsideration Requests Banner */}
+      {reconsiderationRequests.length > 0 && (
+        <div className="space-y-3">
+          {reconsiderationRequests.map((request) => (
+            <div
+              key={request.id}
+              className="glass-card p-4 border-2 border-orange-300 bg-orange-50"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-orange-100 rounded-xl">
+                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-orange-800 mb-1">
+                    {language === 'ru' ? 'Просьба пересмотреть голос' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}
+                  </div>
+                  <div className="text-sm text-orange-700 mb-2">
+                    {language === 'ru' ? 'Вопрос:' : 'Savol:'} {request.agendaItemTitle}
+                  </div>
+                  {request.messageToResident && (
+                    <div className="p-2 bg-white rounded-lg text-sm text-gray-700 mb-2">
+                      <MessageSquare className="w-3 h-3 inline mr-1 text-orange-500" />
+                      {request.messageToResident}
+                    </div>
+                  )}
+                  <div className="text-xs text-orange-600 mb-3">
+                    {language === 'ru'
+                      ? 'Это только просьба. Вы сами решаете, менять голос или нет.'
+                      : 'Bu faqat iltimos. Ovozni o\'zgartirish yoki o\'zgartirmaslikni o\'zingiz hal qilasiz.'}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRespondToRequest(request);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      {language === 'ru' ? 'Изменить голос' : 'Ovozni o\'zgartirish'}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleIgnoreRequest(request.id);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 rounded-xl text-sm font-medium hover:bg-orange-100 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                      {language === 'ru' ? 'Оставить как есть' : 'Shundayligicha qoldirish'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Meetings List */}
       {activeMeetings.length === 0 ? (

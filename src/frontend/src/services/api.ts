@@ -2120,6 +2120,86 @@ export const meetingAgendaVotesApi = {
   },
 };
 
+// Meeting Vote Reconsideration API
+export const meetingReconsiderationApi = {
+  // Get "against" votes for an agenda item (for managers)
+  getAgainstVotes: async (meetingId: string, agendaItemId: string) => {
+    return apiRequestWrapped<{ votes: any[] }>(
+      `/api/meetings/${meetingId}/agenda/${agendaItemId}/votes/against`
+    ).then(r => ({
+      success: r.success,
+      data: r.data?.votes || [],
+      error: r.error
+    }));
+  },
+
+  // Send reconsideration request to a resident
+  sendRequest: async (meetingId: string, data: {
+    agenda_item_id: string;
+    resident_id: string;
+    reason: string;
+    message_to_resident?: string;
+  }) => {
+    return apiRequestWrapped<{ success: boolean; requestId: string }>(
+      `/api/meetings/${meetingId}/reconsideration-requests`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ).then(r => ({
+      success: r.success,
+      data: r.data,
+      error: r.error
+    }));
+  },
+
+  // Get resident's pending reconsideration requests
+  getMyRequests: async () => {
+    return apiRequestWrapped<{ requests: any[] }>(
+      '/api/meetings/reconsideration-requests/me'
+    ).then(r => ({
+      success: r.success,
+      data: r.data?.requests || [],
+      error: r.error
+    }));
+  },
+
+  // Mark request as viewed
+  markViewed: async (requestId: string) => {
+    return apiRequestWrapped<{ success: boolean }>(
+      `/api/meetings/reconsideration-requests/${requestId}/view`,
+      { method: 'POST' }
+    ).then(r => ({
+      success: r.success,
+      data: r.data,
+      error: r.error
+    }));
+  },
+
+  // Ignore/dismiss request
+  ignoreRequest: async (requestId: string) => {
+    return apiRequestWrapped<{ success: boolean }>(
+      `/api/meetings/reconsideration-requests/${requestId}/ignore`,
+      { method: 'POST' }
+    ).then(r => ({
+      success: r.success,
+      data: r.data,
+      error: r.error
+    }));
+  },
+
+  // Get reconsideration statistics for a meeting
+  getStats: async (meetingId: string) => {
+    return apiRequestWrapped<{ stats: any }>(
+      `/api/meetings/${meetingId}/reconsideration-requests/stats`
+    ).then(r => ({
+      success: r.success,
+      data: r.data?.stats || null,
+      error: r.error
+    }));
+  },
+};
+
 // Meeting OTP API
 export const meetingOtpApi = {
   request: async (data: {
