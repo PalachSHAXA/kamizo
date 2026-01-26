@@ -254,8 +254,9 @@ export function ReportsPage() {
     const completionTrend = completionRate - prevCompletionRate;
     const requestsTrend = filteredRequests.length - prevRequests.length;
 
-    // Best executor this period
-    const executorPerformance = executors.map(exec => {
+    // Best executor this period (exclude couriers - they have separate marketplace tab)
+    const nonCourierExecutors = executors.filter(exec => exec.specialization !== 'courier');
+    const executorPerformance = nonCourierExecutors.map(exec => {
       const execRequests = filteredRequests.filter(r => r.executorId === exec.id);
       const execCompleted = execRequests.filter(r => r.status === 'completed');
       const execRated = execCompleted.filter(r => r.rating);
@@ -298,12 +299,14 @@ export function ReportsPage() {
     return acc;
   }, {} as Record<string, { total: number; completed: number; inProgress: number }>);
 
-  // Executor stats
-  const executorStats = executors.map(exec => ({
-    ...exec,
-    requests: requests.filter(r => r.executorId === exec.id).length,
-    completedCount: requests.filter(r => r.executorId === exec.id && r.status === 'completed').length,
-  })).sort((a, b) => b.completedCount - a.completedCount);
+  // Executor stats (exclude couriers - they have separate marketplace tab)
+  const executorStats = executors
+    .filter(exec => exec.specialization !== 'courier')
+    .map(exec => ({
+      ...exec,
+      requests: requests.filter(r => r.executorId === exec.id).length,
+      completedCount: requests.filter(r => r.executorId === exec.id && r.status === 'completed').length,
+    })).sort((a, b) => b.completedCount - a.completedCount);
 
   return (
     <div className="space-y-6">

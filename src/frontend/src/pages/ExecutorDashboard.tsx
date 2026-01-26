@@ -4,7 +4,7 @@ import {
   Play, Check, X, Star, TrendingUp, Timer, Hand,
   CalendarDays, XCircle, Ban, AlertCircle,
   Pause, PlayCircle, RefreshCw, Send, ChevronRight,
-  ShoppingBag, Package, Truck, ChefHat
+  ShoppingBag, Package
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
@@ -13,6 +13,17 @@ import { executorsApi, apiRequest } from '../services/api';
 import { formatAddress } from '../utils/formatAddress';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, RESCHEDULE_REASON_LABELS } from '../types';
 import type { Request, ExecutorSpecialization, RequestStatus, RescheduleReason, RescheduleRequest } from '../types';
+
+// Marketplace order item interface
+interface MarketplaceOrderItem {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  product_image?: string;
+  quantity: number;
+  unit_price: number;
+  total_price?: number;
+}
 
 // Marketplace order interface
 interface MarketplaceOrder {
@@ -26,8 +37,10 @@ interface MarketplaceOrder {
   delivery_address: string;
   delivery_notes?: string;
   items_count: number;
+  items?: MarketplaceOrderItem[];
   created_at: string;
   assigned_at?: string;
+  delivering_at?: string;
   rating?: number;
   review?: string;
 }
@@ -42,6 +55,7 @@ interface ExecutorStats {
   // Courier-specific stats
   totalDelivered?: number;
   deliveredThisWeek?: number;
+  avgDeliveryTime?: number;
 }
 
 export function ExecutorDashboard() {
@@ -176,6 +190,7 @@ export function ExecutorDashboard() {
   }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, fetchDeliveredMarketplaceOrders, user?.specialization]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
+  const [deliveryTimers, setDeliveryTimers] = useState<Record<string, number>>({});
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [requestToDecline, setRequestToDecline] = useState<Request | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -263,6 +278,51 @@ export function ExecutorDashboard() {
     return () => clearInterval(interval);
   }, [inProgressRequests, parseUTCDateTime]);
 
+  // Timer effect for marketplace delivery orders (orders in 'delivering' status)
+  useEffect(() => {
+    // Get orders that are currently being delivered
+    const deliveringOrders = marketplaceOrders.filter(o => o.status === 'delivering');
+
+    if (deliveringOrders.length === 0) {
+      setDeliveryTimers({});
+      return;
+    }
+
+    // Calculate elapsed time for an order
+    const calculateElapsed = (order: MarketplaceOrder): number => {
+      if (order.delivering_at) {
+        const startTime = parseUTCDateTime(order.delivering_at);
+        return Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+      }
+      return 0;
+    };
+
+    // Initial calculation
+    const initialTimers: Record<string, number> = {};
+    deliveringOrders.forEach(order => {
+      initialTimers[order.id] = calculateElapsed(order);
+    });
+    setDeliveryTimers(initialTimers);
+
+    // Update every second
+    const interval = setInterval(() => {
+      setDeliveryTimers(prev => {
+        const newTimers: Record<string, number> = {};
+        deliveringOrders.forEach(order => {
+          // Increment by 1 second if we have a previous value, otherwise calculate
+          if (prev[order.id] !== undefined) {
+            newTimers[order.id] = prev[order.id] + 1;
+          } else {
+            newTimers[order.id] = calculateElapsed(order);
+          }
+        });
+        return newTimers;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [marketplaceOrders, parseUTCDateTime]);
+
   // For couriers, include available marketplace orders in "available" count
   const availableCount = user?.specialization === 'courier'
     ? availableRequests.length + availableMarketplaceOrders.length
@@ -286,7 +346,7 @@ export function ExecutorDashboard() {
         { id: 'marketplace' as const, label: language === 'ru' ? 'Мои доставки' : 'Mening yetkazishlarim', count: activeMarketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag },
         { id: 'available' as const, label: language === 'ru' ? 'Доступные' : 'Mavjud', count: availableCount, color: 'bg-purple-500', icon: FileText },
         { id: 'assigned' as const, label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', count: assignedCount, color: 'bg-blue-500', icon: Clock },
-        { id: 'delivered' as const, label: language === 'ru' ? 'Доставленные' : 'Yetkazilganlar', count: completedMarketplaceOrders.length, color: 'bg-emerald-500', icon: Truck },
+        { id: 'delivered' as const, label: language === 'ru' ? 'Доставленные' : 'Yetkazilganlar', count: completedMarketplaceOrders.length, color: 'bg-emerald-500', icon: CheckCircle },
       ]
     : baseTabs;
 
@@ -449,7 +509,7 @@ export function ExecutorDashboard() {
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
               {user?.specialization === 'courier' ? (
-                <Truck className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                <User className="w-5 h-5 md:w-6 md:h-6 text-white" />
               ) : (
                 <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
               )}
@@ -499,7 +559,11 @@ export function ExecutorDashboard() {
             </div>
             <div className="min-w-0">
               <div className="text-2xl md:text-3xl font-bold">
-                {isLoadingStats ? '...' : (liveStats?.avgCompletionTime || 0)}
+                {isLoadingStats ? '...' : (
+                  user?.specialization === 'courier'
+                    ? (liveStats?.avgDeliveryTime || 0)
+                    : (liveStats?.avgCompletionTime || 0)
+                )}
               </div>
               <div className="text-xs md:text-sm text-gray-500 leading-tight">
                 {language === 'ru' ? 'Сред. мин' : 'O\'rt. daq'}
@@ -603,7 +667,7 @@ export function ExecutorDashboard() {
               ) : activeMarketplaceOrders.length === 0 ? (
                 <div className="glass-card p-8 text-center">
                   <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Truck className="w-8 h-8 text-orange-400" />
+                    <ShoppingBag className="w-8 h-8 text-orange-400" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-600">
                     {language === 'ru' ? 'Нет активных доставок' : 'Faol yetkazishlar yo\'q'}
@@ -621,6 +685,8 @@ export function ExecutorDashboard() {
                       onView={() => setSelectedMarketplaceOrder(order)}
                       onUpdateStatus={updateMarketplaceOrderStatus}
                       language={language}
+                      deliveryTimer={deliveryTimers[order.id]}
+                      formatTime={formatTime}
                     />
                   ))}
                 </div>
@@ -1784,6 +1850,25 @@ function AvailableMarketplaceOrderCard({
         </div>
       </div>
 
+      {/* Product List */}
+      {order.items && order.items.length > 0 && (
+        <div className="mt-3 p-2.5 bg-white/60 border border-purple-200 rounded-lg">
+          <p className="text-xs font-medium text-gray-700 mb-2">{language === 'ru' ? 'Товары:' : 'Mahsulotlar:'}</p>
+          <div className="space-y-1.5">
+            {order.items.map((item, idx) => (
+              <div key={item.id || idx} className="flex items-center justify-between text-xs">
+                <span className="text-gray-700 truncate flex-1">
+                  {item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}
+                </span>
+                <span className="text-gray-500 ml-2 whitespace-nowrap">
+                  {item.quantity} × {item.unit_price?.toLocaleString()} сум
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Delivery Notes */}
       {order.delivery_notes && (
         <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
@@ -1862,6 +1947,25 @@ function CompletedMarketplaceOrderCard({
         </div>
       </div>
 
+      {/* Product List */}
+      {order.items && order.items.length > 0 && (
+        <div className="mt-3 p-2.5 bg-white/60 border border-green-200 rounded-lg">
+          <p className="text-xs font-medium text-gray-700 mb-2">{language === 'ru' ? 'Товары:' : 'Mahsulotlar:'}</p>
+          <div className="space-y-1.5">
+            {order.items.map((item, idx) => (
+              <div key={item.id || idx} className="flex items-center justify-between text-xs">
+                <span className="text-gray-700 truncate flex-1">
+                  {item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}
+                </span>
+                <span className="text-gray-500 ml-2 whitespace-nowrap">
+                  {item.quantity} × {item.unit_price?.toLocaleString()} сум
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Rating and Review */}
       {order.rating && (
         <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1894,17 +1998,21 @@ function MarketplaceOrderCard({
   onView,
   onUpdateStatus,
   language,
+  deliveryTimer,
+  formatTime,
 }: {
   order: MarketplaceOrder;
   onView: () => void;
   onUpdateStatus: (orderId: string, status: string) => void;
   language: 'ru' | 'uz';
+  deliveryTimer?: number;
+  formatTime?: (seconds: number) => string;
 }) {
   const MARKETPLACE_ORDER_STATUS_LABELS: Record<string, { label: string; labelUz: string; color: string; icon: typeof Package }> = {
     confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-indigo-100 text-indigo-700', icon: Package },
-    preparing: { label: 'Готовится', labelUz: 'Tayyorlanmoqda', color: 'bg-amber-100 text-amber-700', icon: ChefHat },
+    preparing: { label: 'Собирается', labelUz: 'Yig\'ilmoqda', color: 'bg-amber-100 text-amber-700', icon: Package },
+    delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'bg-blue-100 text-blue-700', icon: User },
     ready: { label: 'Готов', labelUz: 'Tayyor', color: 'bg-green-100 text-green-700', icon: CheckCircle },
-    delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'bg-blue-100 text-blue-700', icon: Truck },
     delivered: { label: 'Доставлен', labelUz: 'Yetkazildi', color: 'bg-gray-100 text-gray-700', icon: CheckCircle },
   };
 
@@ -1914,19 +2022,19 @@ function MarketplaceOrderCard({
   const getNextStatus = () => {
     const transitions: Record<string, string> = {
       confirmed: 'preparing',
-      preparing: 'ready',
-      ready: 'delivering',
-      delivering: 'delivered',
+      preparing: 'delivering',
+      delivering: 'ready',
+      ready: 'delivered',
     };
     return transitions[order.status];
   };
 
   const getNextStatusLabel = () => {
     const labels: Record<string, { ru: string; uz: string }> = {
-      preparing: { ru: 'Начать готовить', uz: 'Tayyorlashni boshlash' },
-      ready: { ru: 'Готово к доставке', uz: 'Yetkazishga tayyor' },
+      preparing: { ru: 'Начать сборку', uz: 'Yig\'ishni boshlash' },
       delivering: { ru: 'Начать доставку', uz: 'Yetkazishni boshlash' },
-      delivered: { ru: 'Доставлено', uz: 'Yetkazildi' },
+      ready: { ru: 'Доставлено клиенту', uz: 'Mijozga yetkazildi' },
+      delivered: { ru: 'Завершить', uz: 'Yakunlash' },
     };
     const next = getNextStatus();
     return next ? labels[next] : null;
@@ -1948,6 +2056,13 @@ function MarketplaceOrderCard({
               <StatusIcon className="w-3 h-3" />
               {language === 'ru' ? statusInfo.label : statusInfo.labelUz}
             </span>
+            {/* Delivery Timer */}
+            {order.status === 'delivering' && formatTime && (
+              <span className="px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-blue-500 text-white animate-pulse">
+                <Timer className="w-3 h-3" />
+                {formatTime(deliveryTimer ?? 0)}
+              </span>
+            )}
           </div>
           <div className="text-sm text-gray-600">
             {order.items_count} {language === 'ru' ? 'товар(ов)' : 'mahsulot'} • {order.total_amount.toLocaleString()} сум
@@ -1983,6 +2098,25 @@ function MarketplaceOrderCard({
         </div>
       </div>
 
+      {/* Product List */}
+      {order.items && order.items.length > 0 && (
+        <div className="mt-3 p-2.5 bg-white/60 border border-orange-200 rounded-lg">
+          <p className="text-xs font-medium text-gray-700 mb-2">{language === 'ru' ? 'Товары:' : 'Mahsulotlar:'}</p>
+          <div className="space-y-1.5">
+            {order.items.map((item, idx) => (
+              <div key={item.id || idx} className="flex items-center justify-between text-xs">
+                <span className="text-gray-700 truncate flex-1">
+                  {item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}
+                </span>
+                <span className="text-gray-500 ml-2 whitespace-nowrap">
+                  {item.quantity} × {item.unit_price?.toLocaleString()} сум
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Delivery Notes */}
       {order.delivery_notes && (
         <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
@@ -2006,10 +2140,10 @@ function MarketplaceOrderCard({
                 'linear-gradient(135deg, #10b981, #059669)'
             }}
           >
-            {order.status === 'confirmed' && <ChefHat className="w-5 h-5" />}
-            {order.status === 'preparing' && <CheckCircle className="w-5 h-5" />}
-            {order.status === 'ready' && <Truck className="w-5 h-5" />}
+            {order.status === 'confirmed' && <Package className="w-5 h-5" />}
+            {order.status === 'preparing' && <User className="w-5 h-5" />}
             {order.status === 'delivering' && <CheckCircle className="w-5 h-5" />}
+            {order.status === 'ready' && <CheckCircle className="w-5 h-5" />}
             {language === 'ru' ? nextStatusLabel.ru : nextStatusLabel.uz}
           </button>
         </div>
@@ -2032,9 +2166,9 @@ function MarketplaceOrderDetailsModal({
 }) {
   const MARKETPLACE_ORDER_STATUS_LABELS: Record<string, { label: string; labelUz: string; color: string }> = {
     confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-indigo-100 text-indigo-700' },
-    preparing: { label: 'Готовится', labelUz: 'Tayyorlanmoqda', color: 'bg-amber-100 text-amber-700' },
-    ready: { label: 'Готов', labelUz: 'Tayyor', color: 'bg-green-100 text-green-700' },
+    preparing: { label: 'Собирается', labelUz: 'Yig\'ilmoqda', color: 'bg-amber-100 text-amber-700' },
     delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'bg-blue-100 text-blue-700' },
+    ready: { label: 'Готов', labelUz: 'Tayyor', color: 'bg-green-100 text-green-700' },
     delivered: { label: 'Доставлен', labelUz: 'Yetkazildi', color: 'bg-gray-100 text-gray-700' },
   };
 
@@ -2043,19 +2177,19 @@ function MarketplaceOrderDetailsModal({
   const getNextStatus = () => {
     const transitions: Record<string, string> = {
       confirmed: 'preparing',
-      preparing: 'ready',
-      ready: 'delivering',
-      delivering: 'delivered',
+      preparing: 'delivering',
+      delivering: 'ready',
+      ready: 'delivered',
     };
     return transitions[order.status];
   };
 
   const getNextStatusLabel = () => {
     const labels: Record<string, { ru: string; uz: string; icon: typeof Package }> = {
-      preparing: { ru: 'Начать готовить', uz: 'Tayyorlashni boshlash', icon: ChefHat },
-      ready: { ru: 'Готово к доставке', uz: 'Yetkazishga tayyor', icon: CheckCircle },
-      delivering: { ru: 'Начать доставку', uz: 'Yetkazishni boshlash', icon: Truck },
-      delivered: { ru: 'Доставлено', uz: 'Yetkazildi', icon: CheckCircle },
+      preparing: { ru: 'Начать сборку', uz: 'Yig\'ishni boshlash', icon: Package },
+      delivering: { ru: 'Начать доставку', uz: 'Yetkazishni boshlash', icon: User },
+      ready: { ru: 'Доставлено клиенту', uz: 'Mijozga yetkazildi', icon: CheckCircle },
+      delivered: { ru: 'Завершить', uz: 'Yakunlash', icon: CheckCircle },
     };
     const next = getNextStatus();
     return next ? labels[next] : null;

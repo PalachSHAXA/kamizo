@@ -1250,6 +1250,7 @@ export const teamApi = {
   getAll: async () => {
     // Always fetch fresh data, no caching
     return apiRequest<{
+      admins: any[];
       managers: any[];
       departmentHeads: any[];
       executors: any[];
@@ -1268,7 +1269,7 @@ export const teamApi = {
     password: string;
     name: string;
     phone: string;
-    role: 'manager' | 'department_head' | 'executor';
+    role: 'admin' | 'manager' | 'department_head' | 'executor';
     specialization?: string;
   }) => {
     return apiRequest<{ user: any }>('/api/auth/register', {
@@ -1875,12 +1876,16 @@ export const meetingsFullApi = {
     format?: 'online' | 'offline' | 'hybrid';
     location?: string;
     description?: string;
+    meetingTime?: string;
     agendaItems: { title: string; description?: string; threshold?: string }[];
     materials?: any[];
   }) => {
     return apiRequestWrapped<any>('/api/meetings', {
       method: 'POST',
-      body: JSON.stringify(meeting),
+      body: JSON.stringify({
+        ...meeting,
+        meeting_time: meeting.meetingTime,
+      }),
     }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1990,7 +1995,7 @@ export const meetingsFullApi = {
       body: signerData ? JSON.stringify(signerData) : undefined,
     }).then(r => ({
       success: r.success,
-      data: r.data,
+      data: r.data?.meeting || r.data,
       error: r.error
     }));
   },

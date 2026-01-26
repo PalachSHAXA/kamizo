@@ -492,22 +492,13 @@ function MeetingCard({
           )}
 
           {meeting.status === 'protocol_generated' && (
-            <>
-              <button
-                onClick={onApproveProtocol}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium"
-              >
-                <Shield className="w-4 h-4" />
-                {language === 'ru' ? 'Подписать протокол' : 'Bayonnomani imzolash'}
-              </button>
-              <button
-                onClick={onViewDetails}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium"
-              >
-                <Download className="w-4 h-4" />
-                {language === 'ru' ? 'Скачать протокол' : 'Bayonnomani yuklab olish'}
-              </button>
-            </>
+            <button
+              onClick={onApproveProtocol}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium"
+            >
+              <Shield className="w-4 h-4" />
+              {language === 'ru' ? 'Подписать протокол' : 'Bayonnomani imzolash'}
+            </button>
           )}
 
           {meeting.status === 'protocol_approved' && (
@@ -544,6 +535,7 @@ function CreateMeetingWizard({
     agendaItems: Omit<AgendaItem, 'id' | 'votesFor' | 'votesAgainst' | 'votesAbstain' | 'order'>[];
     location?: string;
     description?: string;
+    meetingTime?: string;
   }) => void;
   language: string;
   user: { id: string; name: string; role: string; buildingId?: string } | null;
@@ -562,6 +554,7 @@ function CreateMeetingWizard({
     customItems: [] as { title: string; description: string; threshold: DecisionThreshold }[],
     location: '',
     description: '', // Описание/обоснование собрания
+    meetingTime: '19:00', // Время проведения собрания
   });
 
   const handleBuildingChange = (buildingId: string) => {
@@ -614,6 +607,7 @@ function CreateMeetingWizard({
         agendaItems,
         location: formData.location || undefined,
         description: formData.description || undefined,
+        meetingTime: formData.meetingTime || '19:00',
       });
     } finally {
       setIsSubmitting(false);
@@ -776,6 +770,24 @@ function CreateMeetingWizard({
                   />
                 </div>
               )}
+
+              {/* Meeting Time */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Время проведения' : 'O\'tkazish vaqti'}
+                </label>
+                <input
+                  type="time"
+                  value={formData.meetingTime}
+                  onChange={(e) => setFormData({ ...formData, meetingTime: e.target.value })}
+                  className="glass-input"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {language === 'ru'
+                    ? 'Время для всех вариантов дат в голосовании'
+                    : 'Ovoz berishdagi barcha sanalar uchun vaqt'}
+                </p>
+              </div>
 
               {/* Description/Justification */}
               <div>

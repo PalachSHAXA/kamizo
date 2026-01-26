@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Vote, Calendar, FileText, Users, Building2, CheckCircle, X,
   ThumbsUp, ThumbsDown, Minus, ChevronRight, Loader2, Clock, Trophy, ArrowRight, Key, User,
@@ -32,6 +32,11 @@ export function ResidentMeetingsPage() {
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [showVotingModal, setShowVotingModal] = useState(false);
   const [reconsiderationRequests, setReconsiderationRequests] = useState<any[]>([]);
+  const [allowRevote, setAllowRevote] = useState(false); // Allow changing vote when responding to reconsideration request
+  const [newRequestAlert, setNewRequestAlert] = useState<any | null>(null); // For showing new request popup
+
+  // Track known request IDs to detect new ones
+  const knownRequestIds = useRef<Set<string>>(new Set());
 
   // Get selected meeting from store (reactive to changes)
   const selectedMeeting = selectedMeetingId ? meetings.find(m => m.id === selectedMeetingId) || null : null;
@@ -41,31 +46,83 @@ export function ResidentMeetingsPage() {
     fetchMeetings();
   }, []); // Empty array - runs only once
 
-  // Fetch reconsideration requests
-  useEffect(() => {
-    const loadRequests = async () => {
-      const requests = await fetchMyReconsiderationRequests();
-      setReconsiderationRequests(requests);
-    };
-    loadRequests();
+  // Load reconsideration requests with new request detection
+  const loadReconsiderationRequests = useCallback(async (isInitial = false) => {
+    const requests = await fetchMyReconsiderationRequests();
+
+    // Detect new requests (only after initial load)
+    if (!isInitial && requests.length > 0) {
+      const newRequests = requests.filter(r =>
+        (r.status === 'pending' || r.status === 'viewed') &&
+        !knownRequestIds.current.has(r.id)
+      );
+
+      if (newRequests.length > 0) {
+        // Show alert for the first new request
+        setNewRequestAlert(newRequests[0]);
+
+        // Play notification sound if available
+        try {
+          const audio = new Audio('/notification.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(() => {}); // Ignore if autoplay blocked
+        } catch {}
+      }
+    }
+
+    // Update known IDs
+    requests.forEach(r => knownRequestIds.current.add(r.id));
+
+    setReconsiderationRequests(requests);
   }, [fetchMyReconsiderationRequests]);
+
+  // Initial fetch of reconsideration requests
+  useEffect(() => {
+    loadReconsiderationRequests(true);
+  }, [loadReconsiderationRequests]);
+
+  // Poll for new reconsideration requests every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadReconsiderationRequests(false);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [loadReconsiderationRequests]);
 
   // Handle ignoring a reconsideration request
   const handleIgnoreRequest = async (requestId: string) => {
     await ignoreReconsiderationRequest(requestId);
     // Refresh the requests list
-    const requests = await fetchMyReconsiderationRequests();
-    setReconsiderationRequests(requests);
+    await loadReconsiderationRequests(false);
+    // Close alert if this was the alerted request
+    if (newRequestAlert?.id === requestId) {
+      setNewRequestAlert(null);
+    }
   };
 
   // Handle viewing and opening vote modal for a request
   const handleRespondToRequest = async (request: any) => {
+    // Mark as viewed
     await markReconsiderationRequestViewed(request.id);
+
+    // Enable revote mode - allows changing existing votes
+    setAllowRevote(true);
+
+    // Show modal immediately (loading state will show if meeting not yet loaded)
     setSelectedMeetingId(request.meetingId);
     setShowVotingModal(true);
+
+    // Close alert if responding from alert
+    if (newRequestAlert?.id === request.id) {
+      setNewRequestAlert(null);
+    }
+
+    // Refresh meetings to ensure the meeting is loaded
+    await fetchMeetings();
+
     // Refresh requests
-    const requests = await fetchMyReconsiderationRequests();
-    setReconsiderationRequests(requests);
+    await loadReconsiderationRequests(false);
   };
 
   // Load user's votes when opening voting modal
@@ -125,6 +182,47 @@ export function ResidentMeetingsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+      {/* New Request Popup Alert */}
+      {newRequestAlert && (
+        <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-50 animate-in slide-in-from-top-2 duration-300">
+          <div className="glass-card p-4 border-2 border-orange-400 bg-gradient-to-r from-orange-50 to-yellow-50 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-orange-100 rounded-full animate-pulse">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-orange-800 mb-1">
+                  {language === 'ru' ? 'Новый запрос!' : 'Yangi so\'rov!'}
+                </div>
+                <div className="text-sm text-orange-700 mb-2">
+                  {language === 'ru'
+                    ? 'УК просит вас пересмотреть свой голос'
+                    : 'BK sizdan ovozingizni qayta ko\'rib chiqishni so\'raydi'}
+                </div>
+                <div className="text-xs text-gray-600 mb-3 truncate">
+                  {newRequestAlert.agendaItemTitle}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleRespondToRequest(newRequestAlert)}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    {language === 'ru' ? 'Открыть' : 'Ochish'}
+                  </button>
+                  <button
+                    onClick={() => setNewRequestAlert(null)}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
@@ -348,9 +446,11 @@ export function ResidentMeetingsPage() {
           meeting={selectedMeeting}
           language={language}
           user={user}
+          allowRevote={allowRevote}
           onClose={() => {
             setShowVotingModal(false);
             setSelectedMeetingId(null);
+            setAllowRevote(false); // Reset revote mode on close
           }}
           getVote={(agendaItemId) => {
             const vote = getVoteByUser(selectedMeeting.id, agendaItemId, user.id);
@@ -371,6 +471,27 @@ export function ResidentMeetingsPage() {
           calculateQuorum={() => calculateMeetingQuorum(selectedMeeting.id)}
         />
       )}
+
+      {/* Loading Modal when meeting not found yet */}
+      {showVotingModal && !selectedMeeting && selectedMeetingId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-orange-500" />
+            <p className="text-gray-600">
+              {language === 'ru' ? 'Загрузка собрания...' : 'Yig\'ilish yuklanmoqda...'}
+            </p>
+            <button
+              onClick={() => {
+                setShowVotingModal(false);
+                setSelectedMeetingId(null);
+              }}
+              className="mt-4 px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -380,6 +501,7 @@ function MeetingVotingModal({
   meeting,
   language,
   user,
+  allowRevote = false,
   onClose,
   getVote,
   onVote,
@@ -391,6 +513,7 @@ function MeetingVotingModal({
   meeting: Meeting;
   language: string;
   user: { id: string; name: string; login?: string; address?: string; apartment?: string; phone?: string; contractNumber?: string };
+  allowRevote?: boolean; // Allow changing vote (for reconsideration requests)
   onClose: () => void;
   getVote: (agendaItemId: string) => { choice: VoteChoice } | undefined;
   onVote: (agendaItemId: string, choice: VoteChoice, verified: boolean, comment?: string) => void;
@@ -427,8 +550,25 @@ function MeetingVotingModal({
     });
   }, [getScheduleVote]);
 
+  // Initialize pendingVotes with existing votes when in revote mode
+  useEffect(() => {
+    if (allowRevote) {
+      const existingVotes: Record<string, VoteChoice> = {};
+      meeting.agendaItems.forEach(item => {
+        const vote = getVote(item.id);
+        if (vote && vote.choice) {
+          existingVotes[item.id] = vote.choice;
+        }
+      });
+      if (Object.keys(existingVotes).length > 0) {
+        setPendingVotes(existingVotes);
+      }
+    }
+  }, [allowRevote, meeting.agendaItems, getVote]);
+
   // Check if user has already voted on all items
-  const hasVotedOnAll = meeting.agendaItems.every(item => getVote(item.id) !== undefined);
+  // When allowRevote is true, treat as if not voted to allow changing votes
+  const hasVotedOnAll = allowRevote ? false : meeting.agendaItems.every(item => getVote(item.id) !== undefined);
 
   const quorum = calculateQuorum();
   const isVotingOpen = meeting.status === 'voting_open';
@@ -591,6 +731,25 @@ function MeetingVotingModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {/* Revote Banner - shown when changing vote after reconsideration request */}
+          {allowRevote && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <RefreshCw className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-orange-800">
+                    {language === 'ru' ? 'Изменение голоса' : 'Ovozni o\'zgartirish'}
+                  </p>
+                  <p className="text-xs text-orange-600">
+                    {language === 'ru'
+                      ? 'Выберите новый вариант голоса и подтвердите изменение'
+                      : 'Yangi ovoz variantini tanlang va o\'zgartirishni tasdiqlang'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Quorum Info - compact */}
           <div className="flex items-center justify-between bg-gray-50 rounded-xl p-2.5">
             <div className="flex items-center gap-2 text-sm">

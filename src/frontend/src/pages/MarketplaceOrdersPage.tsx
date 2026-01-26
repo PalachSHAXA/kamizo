@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ShoppingCart, Search, ChevronRight, X, CheckCircle, Truck, ChefHat, Package, Phone, MapPin, UserPlus, User, Star
+  ShoppingCart, Search, ChevronRight, X, CheckCircle, Package, Phone, MapPin, UserPlus, User, Star
 } from 'lucide-react';
 import { useLanguageStore } from '../stores/languageStore';
 import { useDataStore } from '../stores/dataStore';
@@ -33,8 +33,7 @@ interface MarketplaceOrderItemAPI {
   id: string;
   order_id: string;
   product_id: string;
-  product_name_ru?: string;
-  product_name_uz?: string;
+  product_name?: string;
   product_image?: string;
   quantity: number;
   unit_price: number;
@@ -45,14 +44,14 @@ type MarketplaceOrderStatus = 'new' | 'confirmed' | 'preparing' | 'ready' | 'del
 const ORDER_STATUS_LABELS: Record<MarketplaceOrderStatus, { label: string; labelUz: string; color: string }> = {
   new: { label: 'Новый', labelUz: 'Yangi', color: 'blue' },
   confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'indigo' },
-  preparing: { label: 'Готовится', labelUz: 'Tayyorlanmoqda', color: 'yellow' },
+  preparing: { label: 'Собирается', labelUz: 'Yig\'ilmoqda', color: 'yellow' },
   ready: { label: 'Готов', labelUz: 'Tayyor', color: 'orange' },
   delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'purple' },
   delivered: { label: 'Доставлен', labelUz: 'Yetkazildi', color: 'green' },
   cancelled: { label: 'Отменён', labelUz: 'Bekor qilindi', color: 'red' },
 };
 
-const ORDER_STATUS_FLOW: MarketplaceOrderStatus[] = ['new', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered'];
+const ORDER_STATUS_FLOW: MarketplaceOrderStatus[] = ['new', 'confirmed', 'preparing', 'delivering', 'ready', 'delivered'];
 
 const STATUS_COLORS: Record<string, string> = {
   blue: 'bg-blue-100 text-blue-700',
@@ -198,7 +197,7 @@ export function MarketplaceOrdersPage() {
         >
           <div className="flex items-center gap-2">
             <div className="p-2 bg-yellow-100 rounded-lg">
-              <ChefHat className="w-4 h-4 text-yellow-600" />
+              <Package className="w-4 h-4 text-yellow-600" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900">{inProgressCount}</p>
@@ -212,7 +211,7 @@ export function MarketplaceOrdersPage() {
         >
           <div className="flex items-center gap-2">
             <div className="p-2 bg-purple-100 rounded-lg">
-              <Truck className="w-4 h-4 text-purple-600" />
+              <User className="w-4 h-4 text-purple-600" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900">{deliveringCount}</p>
@@ -352,8 +351,8 @@ export function MarketplaceOrdersPage() {
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
-          <div className="bg-white w-full rounded-t-3xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center md:p-4">
+          <div className="bg-white w-full md:max-w-lg md:rounded-2xl rounded-t-3xl max-h-[90vh] md:max-h-[85vh] overflow-y-auto md:self-center self-end">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
                 {language === 'ru' ? 'Заказ' : 'Buyurtma'} #{selectedOrder.order_number}
@@ -374,7 +373,7 @@ export function MarketplaceOrdersPage() {
                     const currentIndex = ORDER_STATUS_FLOW.indexOf(selectedOrder.status);
                     const isCompleted = index <= currentIndex;
                     const isCurrent = index === currentIndex;
-                    const StatusIcon = index === 0 ? ShoppingCart : index === 1 ? UserPlus : index === 2 ? ChefHat : index === 3 ? Truck : CheckCircle;
+                    const StatusIcon = index === 0 ? ShoppingCart : index === 1 ? UserPlus : index === 2 ? Package : index === 3 ? User : CheckCircle;
 
                     return (
                       <div key={status} className="flex flex-col items-center flex-1">
@@ -462,7 +461,7 @@ export function MarketplaceOrdersPage() {
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">
-                        {language === 'ru' ? item.product_name_ru : item.product_name_uz}
+                        {item.product_name || 'Товар'}
                       </p>
                       <p className="text-sm text-gray-500">
                         {item.quantity} x {formatPrice(item.unit_price)}

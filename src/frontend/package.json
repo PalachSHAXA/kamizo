@@ -15,6 +15,7 @@
     "date-fns": "^4.1.0",
     "docx": "^9.5.1",
     "docxtemplater": "^3.67.6",
+    "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.562.0",

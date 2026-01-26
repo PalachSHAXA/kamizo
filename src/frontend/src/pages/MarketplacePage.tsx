@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
-  CheckCircle, ShoppingBag, Trash2, Truck, ChefHat, Star
+  CheckCircle, ShoppingBag, Trash2, User, Star, History, XCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -56,17 +56,20 @@ interface MarketplaceOrderAPI {
   items_count: number;
   delivery_note?: string;
   created_at: string;
+  rating?: number;
+  review?: string;
 }
 
 interface MarketplaceOrderItemAPI {
   id: string;
-  order_id: string;
+  order_id?: string;
   product_id: string;
-  product_name_ru?: string;
-  product_name_uz?: string;
+  product_name?: string;
   product_image?: string;
   quantity: number;
-  price: number;
+  price?: number;
+  unit_price?: number;
+  total_price?: number;
 }
 
 type MarketplaceOrderStatus = 'new' | 'confirmed' | 'preparing' | 'ready' | 'delivering' | 'delivered' | 'cancelled';
@@ -76,8 +79,8 @@ const ORDER_STAGES = [
   {
     id: 'created',
     statuses: ['new'],
-    labelRu: 'Создан',
-    labelUz: 'Yaratildi',
+    labelRu: 'Новый',
+    labelUz: 'Yangi',
     icon: ShoppingBag,
     descRu: 'Заказ оформлен',
     descUz: 'Buyurtma yaratildi',
@@ -85,8 +88,8 @@ const ORDER_STAGES = [
   {
     id: 'confirmed',
     statuses: ['confirmed'],
-    labelRu: 'Принят',
-    labelUz: 'Qabul qilindi',
+    labelRu: 'Назначен',
+    labelUz: 'Tayinlangan',
     icon: CheckCircle,
     descRu: 'Заказ подтверждён',
     descUz: 'Buyurtma tasdiqlandi',
@@ -94,20 +97,29 @@ const ORDER_STAGES = [
   {
     id: 'preparing',
     statuses: ['preparing'],
-    labelRu: 'Готовится',
-    labelUz: 'Tayyorlanmoqda',
-    icon: ChefHat,
+    labelRu: 'Собирается',
+    labelUz: 'Yig\'ilmoqda',
+    icon: Package,
     descRu: 'Собираем заказ',
     descUz: 'Buyurtma yig\'ilmoqda',
   },
   {
     id: 'delivering',
-    statuses: ['ready', 'delivering'],
-    labelRu: 'Доставка',
-    labelUz: 'Yetkazish',
-    icon: Truck,
+    statuses: ['delivering'],
+    labelRu: 'Доставляется',
+    labelUz: 'Yetkazilmoqda',
+    icon: User,
     descRu: 'В пути к вам',
     descUz: 'Sizga yo\'lda',
+  },
+  {
+    id: 'ready',
+    statuses: ['ready'],
+    labelRu: 'Готов',
+    labelUz: 'Tayyor',
+    icon: CheckCircle,
+    descRu: 'Готов к получению',
+    descUz: 'Qabul qilishga tayyor',
   },
   {
     id: 'delivered',
@@ -191,7 +203,7 @@ export function MarketplacePage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
 
-  const [activeTab, setActiveTab] = useState<'shop' | 'cart' | 'orders' | 'favorites'>('shop');
+  const [activeTab, setActiveTab] = useState<'shop' | 'cart' | 'orders' | 'history' | 'favorites'>('shop');
   const [categories, setCategories] = useState<MarketplaceCategoryAPI[]>([]);
   const [products, setProducts] = useState<MarketplaceProductAPI[]>([]);
   const [cart, setCart] = useState<MarketplaceCartItemAPI[]>([]);
@@ -204,6 +216,13 @@ export function MarketplacePage() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [deliveryNote, setDeliveryNote] = useState('');
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+
+  // Pagination state
+  const [productsPage, setProductsPage] = useState(1);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   // Delivery rating modal state
   const [showDeliveryRatingModal, setShowDeliveryRatingModal] = useState(false);
@@ -428,6 +447,28 @@ export function MarketplacePage() {
     }
   };
 
+  // Cancel order
+  const cancelOrder = async (orderId: string) => {
+    if (!confirm(language === 'ru' ? 'Вы уверены, что хотите отменить заказ?' : 'Buyurtmani bekor qilmoqchimisiz?')) {
+      return;
+    }
+    try {
+      setCancellingOrderId(orderId);
+      await apiRequest(`/api/marketplace/orders/${orderId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Отменено пользователем' }),
+      });
+      // Refresh orders
+      const ordersRes = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
+      setOrders(ordersRes?.orders || []);
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      alert(language === 'ru' ? 'Ошибка отмены заказа' : 'Buyurtmani bekor qilishda xato');
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
   // Filter products
   const filteredProducts = products.filter(p => {
     const matchesCategory = !selectedCategory || p.category_id === selectedCategory;
@@ -452,11 +493,28 @@ export function MarketplacePage() {
     return new Intl.NumberFormat('ru-RU').format(price) + ' сум';
   };
 
+  // Split orders into active and history
+  const activeOrders = orders.filter(o => !['delivered', 'cancelled'].includes(o.status));
+  const historyOrders = orders.filter(o => ['delivered', 'cancelled'].includes(o.status));
+
+  // Paginated products
+  const paginatedProducts = filteredProducts.slice((productsPage - 1) * ITEMS_PER_PAGE, productsPage * ITEMS_PER_PAGE);
+  const totalProductPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+
+  // Paginated active orders
+  const paginatedActiveOrders = activeOrders.slice((ordersPage - 1) * ITEMS_PER_PAGE, ordersPage * ITEMS_PER_PAGE);
+  const totalOrderPages = Math.ceil(activeOrders.length / ITEMS_PER_PAGE);
+
+  // Paginated history orders
+  const paginatedHistoryOrders = historyOrders.slice((historyPage - 1) * ITEMS_PER_PAGE, historyPage * ITEMS_PER_PAGE);
+  const totalHistoryPages = Math.ceil(historyOrders.length / ITEMS_PER_PAGE);
+
   const tabs = [
-    { id: 'shop' as const, label: language === 'ru' ? 'Магазин' : 'Do\'kon', icon: ShoppingBag },
-    { id: 'cart' as const, label: language === 'ru' ? 'Корзина' : 'Savat', icon: ShoppingCart, count: cart.length },
-    { id: 'orders' as const, label: language === 'ru' ? 'Заказы' : 'Buyurtmalar', icon: Package, count: orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length },
-    { id: 'favorites' as const, label: language === 'ru' ? 'Избранное' : 'Sevimlilar', icon: Heart, count: favorites.length },
+    { id: 'shop' as const, label: language === 'ru' ? 'Магазин' : 'Do\'kon', shortLabel: language === 'ru' ? 'Товары' : 'Do\'kon', icon: ShoppingBag },
+    { id: 'cart' as const, label: language === 'ru' ? 'Корзина' : 'Savat', shortLabel: language === 'ru' ? 'Корзина' : 'Savat', icon: ShoppingCart, count: cart.length },
+    { id: 'orders' as const, label: language === 'ru' ? 'Активные' : 'Faol', shortLabel: language === 'ru' ? 'Актив.' : 'Faol', icon: Package, count: activeOrders.length },
+    { id: 'history' as const, label: language === 'ru' ? 'История' : 'Tarix', shortLabel: language === 'ru' ? 'Истор.' : 'Tarix', icon: History },
+    { id: 'favorites' as const, label: language === 'ru' ? 'Избранное' : 'Sevimlilar', shortLabel: language === 'ru' ? 'Избр.' : 'Sevim.', icon: Heart, count: favorites.length },
   ];
 
   if (loading) {
@@ -479,21 +537,21 @@ export function MarketplacePage() {
 
       {/* Tabs */}
       <div className="glass-card sticky top-0 z-40">
-        <div className="flex overflow-x-auto">
+        <div className="flex">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 min-w-0 py-3 px-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${
+              className={`flex-1 py-3 px-2 sm:px-4 flex items-center justify-center gap-1 sm:gap-2 border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-orange-500 text-orange-600 bg-orange-50/50'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              <tab.icon className="w-5 h-5" />
-              <span className="text-sm font-medium truncate">{tab.label}</span>
+              <tab.icon className="w-5 h-5 flex-shrink-0" />
+              <span className="text-xs sm:text-sm font-medium whitespace-nowrap">{tab.shortLabel || tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
-                <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
+                <span className="bg-orange-500 text-white text-xs px-1.5 sm:px-2 py-0.5 rounded-full flex-shrink-0">
                   {tab.count}
                 </span>
               )}
@@ -550,7 +608,7 @@ export function MarketplacePage() {
 
             {/* Products Grid */}
             <div className="grid grid-cols-2 gap-3">
-              {filteredProducts.map(product => {
+              {paginatedProducts.map(product => {
                 const cartQty = getCartQuantity(product.id);
                 const isFavorite = favorites.includes(product.id);
 
@@ -677,6 +735,29 @@ export function MarketplacePage() {
                 </p>
               </div>
             )}
+
+            {/* Pagination */}
+            {totalProductPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-6">
+                <button
+                  onClick={() => setProductsPage(p => Math.max(1, p - 1))}
+                  disabled={productsPage === 1}
+                  className="p-2 rounded-lg bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <span className="text-sm text-gray-600">
+                  {productsPage} / {totalProductPages}
+                </span>
+                <button
+                  onClick={() => setProductsPage(p => Math.min(totalProductPages, p + 1))}
+                  disabled={productsPage === totalProductPages}
+                  className="p-2 rounded-lg bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -780,14 +861,14 @@ export function MarketplacePage() {
           </div>
         )}
 
-        {/* Orders Tab */}
+        {/* Orders Tab (Active Orders) */}
         {activeTab === 'orders' && (
           <div>
-            {orders.length === 0 ? (
+            {activeOrders.length === 0 ? (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 mb-4">
-                  {language === 'ru' ? 'У вас пока нет заказов' : 'Sizda hali buyurtmalar yo\'q'}
+                  {language === 'ru' ? 'Нет активных заказов' : 'Faol buyurtmalar yo\'q'}
                 </p>
                 <button
                   onClick={() => setActiveTab('shop')}
@@ -798,10 +879,10 @@ export function MarketplacePage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {orders.map(order => {
+                {paginatedActiveOrders.map(order => {
                   const currentStageIndex = getOrderStageIndex(order.status);
-                  const isCancelled = order.status === 'cancelled';
                   const statusMessage = getOrderStatusMessage(order.status, language);
+                  const canCancel = ['new', 'confirmed'].includes(order.status);
 
                   return (
                     <div key={order.id} className="glass-card overflow-hidden">
@@ -846,33 +927,31 @@ export function MarketplacePage() {
                           <div
                             className="absolute top-4 left-4 h-1 bg-orange-500 rounded-full transition-all duration-500"
                             style={{
-                              width: isCancelled ? '0%' : `calc(${Math.min((currentStageIndex / (ORDER_STAGES.length - 1)) * 100, 100)}% - 32px)`
+                              width: `calc(${Math.min((currentStageIndex / (ORDER_STAGES.length - 1)) * 100, 100)}% - 32px)`
                             }}
                           />
 
                           {/* Stage Icons */}
                           {ORDER_STAGES.map((stage, index) => {
-                            const isCompleted = !isCancelled && currentStageIndex >= index;
-                            const isCurrent = !isCancelled && currentStageIndex === index;
+                            const isCompleted = currentStageIndex >= index;
+                            const isCurrent = currentStageIndex === index;
                             const StageIcon = stage.icon;
 
                             return (
                               <div key={stage.id} className="relative z-10 flex flex-col items-center">
                                 <div
                                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                                    isCancelled
-                                      ? 'bg-gray-200 text-gray-400'
-                                      : isCompleted
-                                        ? isCurrent
-                                          ? 'bg-orange-500 text-white ring-4 ring-orange-200 shadow-lg'
-                                          : 'bg-orange-500 text-white'
-                                        : 'bg-gray-200 text-gray-400'
+                                    isCompleted
+                                      ? isCurrent
+                                        ? 'bg-orange-500 text-white ring-4 ring-orange-200 shadow-lg'
+                                        : 'bg-orange-500 text-white'
+                                      : 'bg-gray-200 text-gray-400'
                                   }`}
                                 >
                                   <StageIcon className="w-4 h-4" />
                                 </div>
                                 <span className={`text-[10px] mt-1.5 font-medium text-center max-w-[50px] leading-tight ${
-                                  isCompleted && !isCancelled ? 'text-gray-900' : 'text-gray-400'
+                                  isCompleted ? 'text-gray-900' : 'text-gray-400'
                                 }`}>
                                   {language === 'ru' ? stage.labelRu : stage.labelUz}
                                 </span>
@@ -880,47 +959,227 @@ export function MarketplacePage() {
                             );
                           })}
                         </div>
-
-                        {/* Cancelled State */}
-                        {isCancelled && (
-                          <div className="mt-4 p-3 bg-red-50 rounded-xl flex items-center gap-2">
-                            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                              <X className="w-4 h-4 text-red-500" />
-                            </div>
-                            <div className="text-sm font-medium text-red-700">
-                              {language === 'ru' ? 'Заказ отменён' : 'Buyurtma bekor qilindi'}
-                            </div>
-                          </div>
-                        )}
                       </div>
 
-                      {/* Order Items Preview */}
+                      {/* Order Items List */}
                       <div className="px-4 pb-4 border-t border-gray-100 pt-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex -space-x-2">
-                            {(order.items || []).slice(0, 3).map((item, idx) => (
-                              <div key={idx} className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-white">
+                        <p className="text-xs font-medium text-gray-700 mb-2">{language === 'ru' ? 'Товары:' : 'Mahsulotlar:'}</p>
+                        <div className="space-y-2">
+                          {(order.items || []).map((item, idx) => (
+                            <div key={item.id || idx} className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                                 {item.product_image ? (
                                   <img src={item.product_image} alt="" className="w-full h-full object-cover rounded-lg" />
                                 ) : (
-                                  <span className="text-sm">📦</span>
+                                  <span className="text-xs">📦</span>
                                 )}
                               </div>
-                            ))}
-                            {(order.items || []).length > 3 && (
-                              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-white text-xs text-gray-500 font-medium">
-                                +{(order.items || []).length - 3}
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm text-gray-700 truncate block">
+                                  {item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}
+                                </span>
                               </div>
-                            )}
-                          </div>
-                          <span className="text-sm text-gray-500 ml-2">
+                              <span className="text-xs text-gray-500 whitespace-nowrap">
+                                {item.quantity} × {(item.unit_price || item.price || 0).toLocaleString()} сум
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-gray-100 flex justify-between items-center">
+                          <span className="text-sm text-gray-500">
                             {(order.items || []).reduce((sum, i) => sum + i.quantity, 0)} {language === 'ru' ? 'товаров' : 'mahsulot'}
                           </span>
+                          <span className="text-sm font-semibold text-orange-600">
+                            {order.total_amount.toLocaleString()} сум
+                          </span>
                         </div>
+
+                        {/* Cancel Button */}
+                        {canCancel && (
+                          <button
+                            onClick={() => cancelOrder(order.id)}
+                            disabled={cancellingOrderId === order.id}
+                            className="mt-3 w-full py-2 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            {cancellingOrderId === order.id ? (
+                              <div className="w-4 h-4 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                            ) : (
+                              <XCircle className="w-4 h-4" />
+                            )}
+                            {language === 'ru' ? 'Отменить заказ' : 'Bekor qilish'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
                 })}
+
+                {/* Pagination */}
+                {totalOrderPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <button
+                      onClick={() => setOrdersPage(p => Math.max(1, p - 1))}
+                      disabled={ordersPage === 1}
+                      className="p-2 rounded-lg bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      {ordersPage} / {totalOrderPages}
+                    </span>
+                    <button
+                      onClick={() => setOrdersPage(p => Math.min(totalOrderPages, p + 1))}
+                      disabled={ordersPage === totalOrderPages}
+                      className="p-2 rounded-lg bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* History Tab (Delivered/Cancelled Orders) */}
+        {activeTab === 'history' && (
+          <div>
+            {historyOrders.length === 0 ? (
+              <div className="text-center py-12">
+                <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-4">
+                  {language === 'ru' ? 'История заказов пуста' : 'Buyurtmalar tarixi bo\'sh'}
+                </p>
+                <button
+                  onClick={() => setActiveTab('shop')}
+                  className="text-orange-600 font-medium"
+                >
+                  {language === 'ru' ? 'Перейти к покупкам' : 'Xaridga o\'tish'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {paginatedHistoryOrders.map(order => {
+                  const isCancelled = order.status === 'cancelled';
+                  const isDelivered = order.status === 'delivered';
+
+                  return (
+                    <div key={order.id} className="glass-card overflow-hidden">
+                      {/* Header */}
+                      <div className={`p-4 border-b ${isCancelled ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-gray-900">
+                                {language === 'ru' ? 'Заказ' : 'Buyurtma'} #{order.order_number}
+                              </p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                isCancelled ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                              }`}>
+                                {isCancelled
+                                  ? (language === 'ru' ? 'Отменён' : 'Bekor qilindi')
+                                  : (language === 'ru' ? 'Доставлен' : 'Yetkazildi')
+                                }
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-500">
+                              {new Date(order.created_at).toLocaleDateString('ru-RU', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric'
+                              })}
+                            </p>
+                          </div>
+                          <span className="font-bold text-gray-700">
+                            {formatPrice(order.total_amount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Order Items List */}
+                      <div className="px-4 py-3">
+                        <div className="space-y-2">
+                          {(order.items || []).slice(0, 3).map((item, idx) => (
+                            <div key={item.id || idx} className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                {item.product_image ? (
+                                  <img src={item.product_image} alt="" className="w-full h-full object-cover rounded-lg" />
+                                ) : (
+                                  <span className="text-xs">📦</span>
+                                )}
+                              </div>
+                              <span className="text-sm text-gray-700 flex-1 truncate">
+                                {item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}
+                              </span>
+                              <span className="text-xs text-gray-500">×{item.quantity}</span>
+                            </div>
+                          ))}
+                          {(order.items || []).length > 3 && (
+                            <p className="text-xs text-gray-400">
+                              +{(order.items || []).length - 3} {language === 'ru' ? 'ещё' : 'yana'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Rate delivery button for delivered orders without rating */}
+                      {isDelivered && !order.rating && (
+                        <div className="px-4 pb-4">
+                          <button
+                            onClick={() => {
+                              setRatingOrderId(order.id);
+                              setShowDeliveryRatingModal(true);
+                            }}
+                            className="w-full py-2 px-4 bg-orange-50 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Star className="w-4 h-4" />
+                            {language === 'ru' ? 'Оценить доставку' : 'Yetkazishni baholash'}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Show rating if exists */}
+                      {isDelivered && order.rating && (
+                        <div className="px-4 pb-4">
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-4 h-4 ${star <= (order.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                              />
+                            ))}
+                            <span className="text-sm text-gray-500 ml-2">
+                              {language === 'ru' ? 'Ваша оценка' : 'Sizning bahongiz'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Pagination */}
+                {totalHistoryPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <button
+                      onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                      disabled={historyPage === 1}
+                      className="p-2 rounded-lg bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      {historyPage} / {totalHistoryPages}
+                    </span>
+                    <button
+                      onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                      disabled={historyPage === totalHistoryPages}
+                      className="p-2 rounded-lg bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1187,7 +1446,7 @@ export function MarketplacePage() {
               <div className="bg-orange-50 rounded-xl p-4 mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <Truck className="w-6 h-6 text-orange-600" />
+                    <ShoppingBag className="w-6 h-6 text-orange-600" />
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">

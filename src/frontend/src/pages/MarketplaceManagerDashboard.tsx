@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Package, Plus, Edit2, Trash2, Search, Filter,
+  Package, Plus, Edit2, Trash2, Search,
   X, TrendingUp, AlertTriangle, BarChart3, ImagePlus, Upload, Link
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
@@ -279,7 +279,6 @@ export function MarketplaceManagerDashboard() {
   const tabs = [
     { id: 'products' as const, label: language === 'ru' ? 'Товары' : 'Mahsulotlar', icon: Package, count: products.length },
     { id: 'stock' as const, label: language === 'ru' ? 'Склад' : 'Ombor', icon: BarChart3, count: lowStockProducts.length + outOfStockProducts.length },
-    { id: 'categories' as const, label: language === 'ru' ? 'Категории' : 'Kategoriyalar', icon: Filter },
   ];
 
   if (loading) {
@@ -608,29 +607,6 @@ export function MarketplaceManagerDashboard() {
           </div>
         )}
 
-        {/* Categories Tab */}
-        {activeTab === 'categories' && (
-          <div className="space-y-3">
-            {categories.map(category => (
-              <div key={category.id} className="bg-white rounded-xl p-4 shadow-sm flex items-center gap-4">
-                <span className="text-3xl">{CATEGORY_ICONS[category.id] || '📦'}</span>
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">
-                    {language === 'ru' ? category.name_ru : category.name_uz}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {products.filter(p => p.category_id === category.id).length} {language === 'ru' ? 'товаров' : 'mahsulot'}
-                  </p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-sm ${
-                  category.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {category.is_active ? (language === 'ru' ? 'Активна' : 'Faol') : (language === 'ru' ? 'Неактивна' : 'Nofaol')}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Product Modal */}

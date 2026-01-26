@@ -222,10 +222,10 @@ export async function withMonitoring(
       requestId,
     });
 
-    // Return 500 response
+    // Return 500 response with detailed error message
     response = new Response(
       JSON.stringify({
-        error: 'Internal Server Error',
+        error: error.message || 'Internal Server Error',
         requestId,
       }),
       {

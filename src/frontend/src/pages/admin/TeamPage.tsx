@@ -16,7 +16,7 @@ interface StaffMember {
   password?: string;
   name: string;
   phone: string;
-  role: 'manager' | 'department_head' | 'executor';
+  role: 'admin' | 'manager' | 'department_head' | 'executor';
   specialization?: ExecutorSpecialization;
   status?: string;
   created_at: string;
@@ -26,12 +26,14 @@ interface StaffMember {
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  admin: 'Администратор',
   manager: 'Менеджер',
   department_head: 'Глава отдела',
   executor: 'Исполнитель',
 };
 
 const ROLE_COLORS: Record<string, string> = {
+  admin: 'bg-red-100 text-red-700',
   manager: 'bg-purple-100 text-purple-700',
   department_head: 'bg-blue-100 text-blue-700',
   executor: 'bg-green-100 text-green-700',
@@ -68,6 +70,7 @@ const SPECIALIZATION_COLORS: Record<ExecutorSpecialization, string> = {
 };
 
 export function TeamPage() {
+  const [admins, setAdmins] = useState<StaffMember[]>([]);
   const [managers, setManagers] = useState<StaffMember[]>([]);
   const [departmentHeads, setDepartmentHeads] = useState<StaffMember[]>([]);
   const [executors, setExecutors] = useState<StaffMember[]>([]);
@@ -83,6 +86,7 @@ export function TeamPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [specializationFilter, setSpecializationFilter] = useState<ExecutorSpecialization | 'all'>('all');
   const [expandedSections, setExpandedSections] = useState({
+    admins: true,
     managers: true,
     departmentHeads: true,
     executors: true,
@@ -105,7 +109,7 @@ export function TeamPage() {
     phone: '',
     login: '',
     password: '',
-    role: 'executor' as 'manager' | 'department_head' | 'executor',
+    role: 'executor' as 'admin' | 'manager' | 'department_head' | 'executor',
     specialization: '' as ExecutorSpecialization | '',
   });
   const [addLoading, setAddLoading] = useState(false);
@@ -117,6 +121,7 @@ export function TeamPage() {
     setError(null);
     try {
       const data = await teamApi.getAll();
+      setAdmins(data.admins || []);
       setManagers(data.managers || []);
       setDepartmentHeads(data.departmentHeads || []);
       setExecutors(data.executors || []);
@@ -285,7 +290,7 @@ export function TeamPage() {
     }
   };
 
-  const openAddModal = (role: 'manager' | 'department_head' | 'executor' = 'executor') => {
+  const openAddModal = (role: 'admin' | 'manager' | 'department_head' | 'executor' = 'executor') => {
     setAddForm({
       name: '',
       phone: '',
@@ -389,6 +394,7 @@ export function TeamPage() {
     ...executors.map(m => m.specialization).filter(Boolean),
   ])] as ExecutorSpecialization[];
 
+  const filteredAdmins = filterMembers(admins);
   const filteredManagers = filterMembers(managers);
   const filteredDepartmentHeads = filterMembers(departmentHeads);
   const filteredExecutors = filterMembers(executors);
@@ -543,7 +549,7 @@ export function TeamPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Персонал</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Всего: {managers.length + departmentHeads.length + executors.length} сотрудников
+            Всего: {admins.length + managers.length + departmentHeads.length + executors.length} сотрудников
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -580,7 +586,7 @@ export function TeamPage() {
             <RefreshCw className="w-5 h-5" />
           </button>
           {/* Show reset passwords button only if there are staff without passwords */}
-          {[...managers, ...departmentHeads, ...executors].some(m => !m.password) && (
+          {[...admins, ...managers, ...departmentHeads, ...executors].some(m => !m.password) && (
             <button
               onClick={handleResetAllPasswords}
               className="btn-secondary flex items-center gap-2 text-orange-600 hover:bg-orange-50"
@@ -601,7 +607,20 @@ export function TeamPage() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {admins.length > 0 && (
+          <div className="glass-card p-5">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                <Shield className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{admins.length}</div>
+                <div className="text-sm text-gray-500">Администраторов</div>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="glass-card p-5">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -639,6 +658,12 @@ export function TeamPage() {
 
       {/* Sections */}
       <div className="space-y-4">
+        {filteredAdmins.length > 0 && renderSection(
+          'Администраторы',
+          <Shield className="w-5 h-5 text-red-500" />,
+          filteredAdmins,
+          'admins'
+        )}
         {renderSection(
           'Менеджеры',
           <Shield className="w-5 h-5 text-purple-500" />,
@@ -681,12 +706,13 @@ export function TeamPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Роль *</label>
                 <select
                   value={addForm.role}
-                  onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'manager' | 'department_head' | 'executor' })}
+                  onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'admin' | 'manager' | 'department_head' | 'executor' })}
                   className="input-field"
                 >
                   <option value="executor">Исполнитель</option>
                   <option value="department_head">Глава отдела</option>
                   <option value="manager">Менеджер</option>
+                  <option value="admin">Администратор</option>
                 </select>
               </div>
 

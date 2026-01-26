@@ -833,9 +833,9 @@ route('POST', '/api/auth/register', async (request, env) => {
     return error('Login, password, and name required');
   }
 
-  // SECURITY: Only admin can create admin accounts
-  if (role === 'admin' && authUser.role !== 'admin') {
-    return error('Only admin can create admin accounts', 403);
+  // SECURITY: Only admin or director can create admin accounts
+  if (role === 'admin' && !isAdminLevel(authUser)) {
+    return error('Only admin or director can create admin accounts', 403);
   }
 
   // SECURITY: Only admin can create director accounts
@@ -2701,11 +2701,11 @@ route('GET', '/api/team', async (request, env) => {
   if (!isAdminLevel(user)) return error('Access denied', 403);
 
   const url = new URL(request.url);
-  const roleFilter = url.searchParams.get('role'); // 'manager', 'department_head', 'executor'
+  const roleFilter = url.searchParams.get('role'); // 'admin', 'manager', 'department_head', 'executor'
   const search = url.searchParams.get('search');
 
-  // Build WHERE clause
-  let whereClause = "WHERE u.role IN ('manager', 'department_head', 'executor')";
+  // Build WHERE clause - include admin role for director to see admins
+  let whereClause = "WHERE u.role IN ('admin', 'manager', 'department_head', 'executor')";
   const params: any[] = [];
 
   if (roleFilter) {
@@ -2740,6 +2740,7 @@ route('GET', '/api/team', async (request, env) => {
     ${whereClause}
     ORDER BY
       CASE u.role
+        WHEN 'admin' THEN 0
         WHEN 'manager' THEN 1
         WHEN 'department_head' THEN 2
         WHEN 'executor' THEN 3
@@ -2749,11 +2750,13 @@ route('GET', '/api/team', async (request, env) => {
   `).bind(...params).all();
 
   // Group by role
+  const admins = staff.filter((s: any) => s.role === 'admin');
   const managers = staff.filter((s: any) => s.role === 'manager');
   const departmentHeads = staff.filter((s: any) => s.role === 'department_head');
   const executors = staff.filter((s: any) => s.role === 'executor');
 
   return json({
+    admins,
     managers,
     departmentHeads,
     executors,
@@ -2770,7 +2773,7 @@ route('GET', '/api/team/:id', async (request, env, params) => {
   const staff = await env.DB.prepare(`
     SELECT id, login, name, phone, role, specialization, status, created_at, password_plain as password
     FROM users
-    WHERE id = ? AND role IN ('manager', 'department_head', 'executor', 'director')
+    WHERE id = ? AND role IN ('admin', 'manager', 'department_head', 'executor', 'director')
   `).bind(params.id).first();
 
   if (!staff) {
@@ -3157,7 +3160,7 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
   `).bind(params.id).all();
 
   // For couriers - get delivery stats and rating from marketplace_orders
-  let deliveryStats = { totalDelivered: 0, deliveredThisWeek: 0, deliveryRating: null as number | null };
+  let deliveryStats = { totalDelivered: 0, deliveredThisWeek: 0, deliveryRating: null as number | null, avgDeliveryTime: 0 };
   if ((executor as any).specialization === 'courier') {
     const totalDelivered = await env.DB.prepare(`
       SELECT COUNT(*) as count FROM marketplace_orders
@@ -3175,10 +3178,18 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
       WHERE executor_id = ? AND rating IS NOT NULL
     `).bind(params.id).first() as { avg: number | null };
 
+    // Average delivery time (from delivering_at to delivered_at) in minutes
+    const avgDeliveryTime = await env.DB.prepare(`
+      SELECT AVG((julianday(delivered_at) - julianday(delivering_at)) * 24 * 60) as avg_minutes
+      FROM marketplace_orders
+      WHERE executor_id = ? AND delivering_at IS NOT NULL AND delivered_at IS NOT NULL
+    `).bind(params.id).first() as { avg_minutes: number | null };
+
     deliveryStats = {
       totalDelivered: totalDelivered?.count || 0,
       deliveredThisWeek: deliveredThisWeek?.count || 0,
-      deliveryRating: deliveryAvgRating?.avg || null
+      deliveryRating: deliveryAvgRating?.avg || null,
+      avgDeliveryTime: avgDeliveryTime?.avg_minutes ? Math.round(avgDeliveryTime.avg_minutes) : 0
     };
   }
 
@@ -3198,7 +3209,8 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
       statusBreakdown: statusCounts.results || [],
       // Courier-specific stats
       totalDelivered: deliveryStats.totalDelivered,
-      deliveredThisWeek: deliveryStats.deliveredThisWeek
+      deliveredThisWeek: deliveryStats.deliveredThisWeek,
+      avgDeliveryTime: deliveryStats.avgDeliveryTime
     }
   });
 });
@@ -6928,11 +6940,12 @@ route('GET', '/api/meetings', async (request, env) => {
   ]);
 
   // Get votes for options in batch (include vote_weight for proper weighting)
+  // Note: use user_id as primary key (NOT NULL), voter_id is nullable legacy
   const optionIds = (allOptions.results as any[]).map(o => o.id);
   let allVotes: any[] = [];
   if (optionIds.length > 0) {
     const votesResult = await env.DB.prepare(
-      `SELECT option_id, voter_id, vote_weight FROM meeting_schedule_votes WHERE option_id IN (${optionIds.map(() => '?').join(',')})`
+      `SELECT option_id, user_id, vote_weight FROM meeting_schedule_votes WHERE option_id IN (${optionIds.map(() => '?').join(',')})`
     ).bind(...optionIds).all();
     allVotes = votesResult.results as any[];
   }
@@ -6945,7 +6958,7 @@ route('GET', '/api/meetings', async (request, env) => {
     const totalWeight = optionVotes.reduce((sum, v) => sum + (v.vote_weight || 0), 0);
     optionsMap.get(opt.meeting_id)!.push({
       ...opt,
-      votes: optionVotes.map(v => v.voter_id),
+      votes: optionVotes.map(v => v.user_id),
       voteWeight: totalWeight, // Total area (sq.m) voting for this option
       voteCount: optionVotes.length // Count of voters
     });
@@ -7032,8 +7045,9 @@ route('GET', '/api/meetings/:id', async (request, env, params) => {
     env.DB.prepare('SELECT user_id, first_vote_at FROM meeting_participated_voters WHERE meeting_id = ?').bind(params.id).all(),
 
     // ✅ NEW: Single query for ALL schedule votes (include vote_weight)
+    // Note: use user_id as primary key (NOT NULL), voter_id is nullable
     env.DB.prepare(`
-      SELECT option_id, voter_id, voter_name, vote_weight
+      SELECT option_id, user_id, voter_name, vote_weight
       FROM meeting_schedule_votes
       WHERE meeting_id = ?
     `).bind(params.id).all(),
@@ -7056,7 +7070,7 @@ route('GET', '/api/meetings/:id', async (request, env, params) => {
       votesByOption.set(vote.option_id, { voters: [], totalWeight: 0 });
     }
     const optVotes = votesByOption.get(vote.option_id)!;
-    optVotes.voters.push(vote.voter_id);
+    optVotes.voters.push(vote.user_id);
     optVotes.totalWeight += (vote.vote_weight || 0);
   }
 
@@ -7150,30 +7164,50 @@ route('GET', '/api/meetings/:id', async (request, env, params) => {
 
 // Meetings: Create
 route('POST', '/api/meetings', async (request, env) => {
-  const authUser = await getUser(request, env);
-  if (!authUser) {
-    return error('Unauthorized', 401);
-  }
+  console.log('[Meeting] POST /api/meetings called');
+  try {
+    const authUser = await getUser(request, env);
+    console.log('[Meeting] Auth user:', authUser?.id, authUser?.name);
+    if (!authUser) {
+      return error('Unauthorized', 401);
+    }
 
-  const body = await request.json() as any;
-  const id = generateId();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (e: any) {
+      console.error('[Meeting] JSON parse error:', e);
+      return error('Invalid JSON body: ' + e.message, 400);
+    }
 
-  // Get building settings
-  const buildingId = body.building_id || body.buildingId;
-  const settings = await env.DB.prepare(
-    'SELECT * FROM meeting_building_settings WHERE building_id = ?'
-  ).bind(buildingId).first() as any;
+    console.log('[Meeting] Request body keys:', Object.keys(body || {}));
 
-  const votingUnit = settings?.voting_unit || 'apartment';
-  const quorumPercent = settings?.default_quorum_percent || 50;
-  const requireModeration = settings?.require_moderation !== 0;
+    const id = generateId();
 
-  // Calculate total_area from all residents in this building (sum of apartment_area)
+    // Get building settings
+    const buildingId = body.building_id || body.buildingId;
+    if (!buildingId) {
+      return error('building_id is required', 400);
+    }
+
+    console.log('[Meeting] Building ID:', buildingId);
+
+    const settings = await env.DB.prepare(
+      'SELECT * FROM meeting_building_settings WHERE building_id = ?'
+    ).bind(buildingId).first() as any;
+
+    console.log('[Meeting] Settings:', JSON.stringify(settings));
+
+    const votingUnit = settings?.voting_unit || 'apartment';
+    const quorumPercent = settings?.default_quorum_percent || 50;
+    const requireModeration = settings?.require_moderation !== 0;
+
+  // Calculate total_area from all residents in this building (sum of total_area)
   // This is critical for quorum calculation per Uzbekistan law
   const areaResult = await env.DB.prepare(`
-    SELECT COALESCE(SUM(apartment_area), 0) as total_area, COUNT(*) as total_count
+    SELECT COALESCE(SUM(total_area), 0) as total_area, COUNT(*) as total_count
     FROM users
-    WHERE building_id = ? AND role = 'resident' AND apartment_area > 0
+    WHERE building_id = ? AND role = 'resident' AND total_area > 0
   `).bind(buildingId).first() as any;
 
   const totalArea = areaResult?.total_area || 0;
@@ -7204,75 +7238,97 @@ route('POST', '/api/meetings', async (request, env) => {
   // Set schedule_poll_opened_at if status is schedule_poll_open
   const schedulePollOpenedAt = initialStatus === 'schedule_poll_open' ? new Date().toISOString() : null;
 
-  await env.DB.prepare(`
-    INSERT INTO meetings (
-      id, number, building_id, building_address, description,
-      organizer_type, organizer_id, organizer_name,
-      format, status,
-      schedule_poll_ends_at, schedule_poll_opened_at,
-      location,
-      voting_unit, quorum_percent, allow_revote, require_otp, show_intermediate_results,
-      materials,
-      total_area, total_eligible_count
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id,
-    meetingNumber,
-    buildingId,
-    body.building_address || body.buildingAddress || '',
-    body.description || null,
-    organizerType,
-    authUser.id,
-    authUser.name,
-    body.format || 'offline',
-    initialStatus,
-    pollEndDate.toISOString(),
-    schedulePollOpenedAt,
-    body.location || null,
-    votingUnit,
-    quorumPercent,
-    1, // allow_revote
-    1, // require_otp
-    0, // show_intermediate_results
-    JSON.stringify(body.materials || []),
-    totalArea, // Total building area in sq.m for quorum calculation
-    totalEligibleCount // Total number of eligible voters (residents with apartment_area)
-  ).run();
+  try {
+    await env.DB.prepare(`
+      INSERT INTO meetings (
+        id, number, building_id, building_address, description,
+        organizer_type, organizer_id, organizer_name,
+        format, status,
+        schedule_poll_ends_at, schedule_poll_opened_at,
+        location,
+        voting_unit, quorum_percent, allow_revote, require_otp, show_intermediate_results,
+        materials,
+        total_area, total_eligible_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id,
+      meetingNumber,
+      buildingId,
+      body.building_address || body.buildingAddress || '',
+      body.description || null,
+      organizerType,
+      authUser.id,
+      authUser.name,
+      body.format || 'offline',
+      initialStatus,
+      pollEndDate.toISOString(),
+      schedulePollOpenedAt,
+      body.location || null,
+      votingUnit,
+      quorumPercent,
+      1, // allow_revote
+      1, // require_otp
+      0, // show_intermediate_results
+      JSON.stringify(body.materials || []),
+      totalArea, // Total building area in sq.m for quorum calculation
+      totalEligibleCount // Total number of eligible voters (residents with total_area)
+    ).run();
+  } catch (e: any) {
+    console.error('[Meeting] Error inserting meeting:', e);
+    return error('Failed to create meeting: ' + e.message, 500);
+  }
 
   // Create schedule options (3 options, starting 10 days from now)
-  const defaultTime = settings?.default_meeting_time || '19:00';
+  // Use user-provided meeting_time if available, otherwise fall back to settings or default
+  const meetingTime = body.meeting_time || body.meetingTime || settings?.default_meeting_time || '19:00';
+  const defaultTime = meetingTime;
   const baseDate = new Date();
   baseDate.setDate(baseDate.getDate() + 10);
 
-  for (let i = 0; i < 3; i++) {
-    const optionDate = new Date(baseDate);
-    optionDate.setDate(optionDate.getDate() + i);
-    const [hours, minutes] = defaultTime.split(':').map(Number);
-    optionDate.setHours(hours, minutes, 0, 0);
+  try {
+    for (let i = 0; i < 3; i++) {
+      const optionDate = new Date(baseDate);
+      optionDate.setDate(optionDate.getDate() + i);
 
-    const optId = generateId();
-    await env.DB.prepare(`
-      INSERT INTO meeting_schedule_options (id, meeting_id, date_time)
-      VALUES (?, ?, ?)
-    `).bind(optId, id, optionDate.toISOString()).run();
+      // Format date as YYYY-MM-DD and append user's selected time directly
+      // This preserves the exact time user selected without timezone conversion
+      const year = optionDate.getFullYear();
+      const month = String(optionDate.getMonth() + 1).padStart(2, '0');
+      const day = String(optionDate.getDate()).padStart(2, '0');
+      const dateTimeStr = `${year}-${month}-${day}T${defaultTime}:00`;
+
+      const optId = generateId();
+      await env.DB.prepare(`
+        INSERT INTO meeting_schedule_options (id, meeting_id, date_time)
+        VALUES (?, ?, ?)
+      `).bind(optId, id, dateTimeStr).run();
+    }
+  } catch (e: any) {
+    console.error('[Meeting] Error inserting schedule options:', e);
+    return error('Failed to create schedule options: ' + e.message, 500);
   }
 
   // Create agenda items
   const agendaItems = body.agenda_items || body.agendaItems || [];
-  for (let i = 0; i < agendaItems.length; i++) {
-    const item = agendaItems[i];
-    const itemId = generateId();
-    await env.DB.prepare(`
-      INSERT INTO meeting_agenda_items (id, meeting_id, item_order, title, description, threshold)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(
-      itemId,
-      id,
-      i + 1,
-      item.title,
-      item.description || null,
-      item.threshold || 'simple_majority'
-    ).run();
+  try {
+    for (let i = 0; i < agendaItems.length; i++) {
+      const item = agendaItems[i];
+      const itemId = generateId();
+      await env.DB.prepare(`
+        INSERT INTO meeting_agenda_items (id, meeting_id, item_order, title, description, threshold)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        itemId,
+        id,
+        i + 1,
+        item.title,
+        item.description || null,
+        item.threshold || 'simple_majority'
+      ).run();
+    }
+  } catch (e: any) {
+    console.error('[Meeting] Error inserting agenda items:', e);
+    return error('Failed to create agenda items: ' + e.message, 500);
   }
 
   // Invalidate meetings cache
@@ -7282,42 +7338,51 @@ route('POST', '/api/meetings', async (request, env) => {
 
   // Send push notifications AND in-app notifications to building residents - meeting announced
   if (body.building_id && body.status === 'schedule_poll_open') {
-    const { results: residents } = await env.DB.prepare(
-      'SELECT id FROM users WHERE role = ? AND building_id = ?'
-    ).bind('resident', body.building_id).all();
+    try {
+      const { results: residents } = await env.DB.prepare(
+        'SELECT id FROM users WHERE role = ? AND building_id = ?'
+      ).bind('resident', body.building_id).all();
 
-    for (const resident of residents as any[]) {
-      // In-app notification (stored in DB for viewing in app)
-      const notifId = generateId();
-      await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
-        VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'))
-      `).bind(
-        notifId,
-        resident.id,
-        '📢 Новое собрание объявлено',
-        `Назначено собрание жильцов дома ${body.building_address || ''}. Примите участие в выборе даты!`,
-        JSON.stringify({ meetingId: id, url: '/meetings' })
-      ).run();
+      for (const resident of residents as any[]) {
+        // In-app notification (stored in DB for viewing in app)
+        const notifId = generateId();
+        await env.DB.prepare(`
+          INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
+          VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'))
+        `).bind(
+          notifId,
+          resident.id,
+          '📢 Новое собрание объявлено',
+          `Назначено собрание жильцов дома ${body.building_address || ''}. Примите участие в выборе даты!`,
+          JSON.stringify({ meetingId: id, url: '/meetings' })
+        ).run();
 
-      // Push notification
-      await sendPushNotification(env, resident.id, {
-        title: '📢 Новое собрание объявлено',
-        body: `Назначено собрание жильцов дома ${body.building_address || ''}. Примите участие в выборе даты!`,
-        type: 'meeting',
-        tag: `meeting-announced-${id}`,
-        data: {
-          meetingId: id,
-          url: '/meetings'
-        },
-        requireInteraction: true
-      }).catch(() => {});
+        // Push notification
+        await sendPushNotification(env, resident.id, {
+          title: '📢 Новое собрание объявлено',
+          body: `Назначено собрание жильцов дома ${body.building_address || ''}. Примите участие в выборе даты!`,
+          type: 'meeting',
+          tag: `meeting-announced-${id}`,
+          data: {
+            meetingId: id,
+            url: '/meetings'
+          },
+          requireInteraction: true
+        }).catch(() => {});
+      }
+
+      console.log(`[Meeting] Created meeting ${id}, sent notifications to ${residents.length} residents`);
+    } catch (e: any) {
+      console.error('[Meeting] Error sending notifications:', e);
+      // Don't fail the request if notifications fail
     }
-
-    console.log(`[Meeting] Created meeting ${id}, sent notifications to ${residents.length} residents`);
   }
 
   return json({ meeting: created }, 201);
+  } catch (e: any) {
+    console.error('[Meeting] FATAL ERROR creating meeting:', e);
+    return error('Meeting creation failed: ' + (e.message || String(e)), 500);
+  }
 });
 
 // Meetings: Update
@@ -7727,6 +7792,7 @@ route('POST', '/api/meetings/:id/publish-results', async (request, env, params) 
 
 // Meetings: Generate protocol
 route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params) => {
+  try {
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -7742,6 +7808,11 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
 
   if (!meeting) {
     return error('Meeting not found', 404);
+  }
+
+  // If protocol already exists, delete it to regenerate
+  if (meeting.protocol_id) {
+    await env.DB.prepare('DELETE FROM meeting_protocols WHERE id = ?').bind(meeting.protocol_id).run();
   }
 
   const protocolId = generateId();
@@ -7774,7 +7845,14 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
       env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'for' AND is_revote = 0").bind(i.id).first(),
       env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'against' AND is_revote = 0").bind(i.id).first(),
       env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'abstain' AND is_revote = 0").bind(i.id).first(),
-      env.DB.prepare("SELECT * FROM meeting_agenda_comments WHERE agenda_item_id = ? AND include_in_protocol = 1 ORDER BY created_at").bind(i.id).all()
+      // Fetch comments with user info - table has: id, agenda_item_id, user_id, comment, created_at
+      env.DB.prepare(`
+        SELECT c.comment, u.name as user_name, u.apartment
+        FROM meeting_agenda_comments c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.agenda_item_id = ?
+        ORDER BY c.created_at
+      `).bind(i.id).all()
     ]) as any[];
 
     const forCount = votesFor?.count || 0;
@@ -7813,8 +7891,8 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
       content += `**Доводы и комментарии участников:**\n\n`;
       for (const c of comments.results) {
         const comment = c as any;
-        content += `> "${comment.content}"\n`;
-        content += `> — ${comment.resident_name}${comment.apartment_number ? `, кв. ${comment.apartment_number}` : ''}\n\n`;
+        content += `> "${comment.comment}"\n`;
+        content += `> — ${comment.user_name || 'Участник'}${comment.apartment ? `, кв. ${comment.apartment}` : ''}\n\n`;
       }
     }
 
@@ -7862,6 +7940,10 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
   invalidateCache('meetings:');
   const protocol = await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ?').bind(protocolId).first();
   return json({ protocol }, 201);
+  } catch (err: any) {
+    console.error('Generate protocol error:', err?.message, err?.stack);
+    return error(`Protocol generation failed: ${err?.message}`, 500);
+  }
 });
 
 // Meetings: Approve protocol
@@ -8074,22 +8156,23 @@ route('POST', '/api/meetings/:meetingId/schedule-votes', async (request, env, pa
 
   // Get user's apartment area for vote weight (default to 50 if not set)
   const userInfo = await env.DB.prepare(
-    'SELECT apartment_area FROM users WHERE id = ?'
+    'SELECT total_area FROM users WHERE id = ?'
   ).bind(authUser.id).first() as any;
 
-  // Use 50 as default if apartment_area is not set
-  const voteWeight = userInfo?.apartment_area || 50;
+  // Use 50 as default if total_area is not set
+  const voteWeight = userInfo?.total_area || 50;
 
   // Remove existing vote and add new one (upsert)
+  // Note: table has both user_id (NOT NULL) and voter_id columns - use user_id as primary
   await env.DB.prepare(
-    'DELETE FROM meeting_schedule_votes WHERE meeting_id = ? AND voter_id = ?'
+    'DELETE FROM meeting_schedule_votes WHERE meeting_id = ? AND user_id = ?'
   ).bind(params.meetingId, authUser.id).run();
 
   const id = generateId();
   await env.DB.prepare(`
-    INSERT INTO meeting_schedule_votes (id, meeting_id, option_id, voter_id, voter_name, vote_weight)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(id, params.meetingId, optionId, authUser.id, authUser.name, voteWeight).run();
+    INSERT INTO meeting_schedule_votes (id, meeting_id, option_id, user_id, voter_id, voter_name, vote_weight)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, params.meetingId, optionId, authUser.id, authUser.id, authUser.name, voteWeight).run();
 
   // Update meeting's updated_at to trigger WebSocket broadcast
   await env.DB.prepare(`
@@ -8109,7 +8192,7 @@ route('GET', '/api/meetings/:meetingId/schedule-votes/me', async (request, env, 
   }
 
   const vote = await env.DB.prepare(
-    'SELECT option_id FROM meeting_schedule_votes WHERE meeting_id = ? AND voter_id = ?'
+    'SELECT option_id FROM meeting_schedule_votes WHERE meeting_id = ? AND user_id = ?'
   ).bind(params.meetingId, authUser.id).first() as any;
 
   return json({ optionId: vote?.option_id || null });
@@ -8135,7 +8218,7 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
 
   // Check if user is eligible to vote (must be resident of this building)
   const eligibleVoter = await env.DB.prepare(`
-    SELECT ev.*, u.apartment, u.apartment_area
+    SELECT ev.*, u.apartment, u.total_area
     FROM meeting_eligible_voters ev
     JOIN users u ON u.id = ev.user_id
     WHERE ev.meeting_id = ? AND ev.user_id = ?
@@ -8148,21 +8231,21 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
   if (!eligibleVoter) {
     // Check if user is resident of the meeting's building
     const userBuilding = await env.DB.prepare(
-      'SELECT apartment, apartment_area FROM users WHERE id = ? AND building_id = ? AND role = ?'
+      'SELECT apartment, total_area FROM users WHERE id = ? AND building_id = ? AND role = ?'
     ).bind(authUser.id, meeting.building_id, 'resident').first() as any;
 
     if (!userBuilding) {
       return error('You are not eligible to vote in this meeting', 403);
     }
 
-    apartmentArea = apartmentArea || userBuilding.apartment_area;
+    apartmentArea = apartmentArea || userBuilding.total_area;
     if (!apartmentArea || apartmentArea <= 0) {
       return error('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', 400);
     }
     apartmentNumber = apartmentNumber || userBuilding.apartment;
   } else {
-    // Use eligible voter data or user's apartment area
-    apartmentArea = apartmentArea || eligibleVoter.apartment_area;
+    // Use eligible voter data or user's total_area
+    apartmentArea = apartmentArea || eligibleVoter.total_area;
     if (!apartmentArea || apartmentArea <= 0) {
       return error('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', 400);
     }
@@ -8201,14 +8284,16 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
     await env.DB.prepare(`
       INSERT INTO meeting_vote_records (
         id, meeting_id, agenda_item_id,
-        voter_id, voter_name, apartment_id, apartment_number, ownership_share, vote_weight,
+        user_id, vote, voter_id, voter_name, apartment_id, apartment_number, ownership_share, vote_weight,
         choice, verification_method, otp_verified, vote_hash, previous_vote_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       newId,
       params.meetingId,
       params.agendaItemId,
-      authUser.id,
+      authUser.id,           // user_id (NOT NULL)
+      body.choice,           // vote (NOT NULL) - same as choice
+      authUser.id,           // voter_id
       authUser.name,
       body.apartment_id || body.apartmentId || null,
       apartmentNumber,
@@ -8226,14 +8311,16 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
     await env.DB.prepare(`
       INSERT INTO meeting_vote_records (
         id, meeting_id, agenda_item_id,
-        voter_id, voter_name, apartment_id, apartment_number, ownership_share, vote_weight,
+        user_id, vote, voter_id, voter_name, apartment_id, apartment_number, ownership_share, vote_weight,
         choice, verification_method, otp_verified, vote_hash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       params.meetingId,
       params.agendaItemId,
-      authUser.id,
+      authUser.id,           // user_id (NOT NULL)
+      body.choice,           // vote (NOT NULL) - same as choice
+      authUser.id,           // voter_id
       authUser.name,
       body.apartment_id || body.apartmentId || null,
       apartmentNumber,
@@ -8336,9 +8423,9 @@ route('GET', '/api/meetings/:meetingId/agenda/:agendaItemId/votes/against', asyn
       vr.vote_weight,
       vr.voted_at,
       u.phone,
-      u.apartment_area,
-      (SELECT content FROM meeting_agenda_comments
-       WHERE agenda_item_id = ? AND resident_id = vr.voter_id
+      u.total_area,
+      (SELECT comment FROM meeting_agenda_comments
+       WHERE agenda_item_id = ? AND user_id = vr.voter_id
        ORDER BY created_at DESC LIMIT 1) as comment,
       (SELECT COUNT(*) FROM meeting_vote_reconsideration_requests
        WHERE agenda_item_id = ? AND resident_id = vr.voter_id) as request_count
@@ -9534,13 +9621,12 @@ route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, para
     const { results: itemVotes } = await env.DB.prepare(`
       SELECT
         v.voter_id, v.voter_name, v.apartment_number, v.vote_weight, v.choice, v.voted_at,
-        c.content as comment
+        c.comment as comment
       FROM meeting_vote_records v
       LEFT JOIN meeting_agenda_comments c ON
         c.agenda_item_id = v.agenda_item_id AND
-        c.resident_id = v.voter_id AND
-        c.include_in_protocol = 1
-      WHERE v.agenda_item_id = ?
+        c.user_id = v.voter_id
+      WHERE v.agenda_item_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL)
       ORDER BY v.voter_name
     `).bind((item as any).id).all();
     votesByItem[(item as any).id] = itemVotes;
@@ -9597,19 +9683,13 @@ route('POST', '/api/agenda/:agendaItemId/comments', async (request, env, params)
 
   const id = generateId();
   await env.DB.prepare(`
-    INSERT INTO meeting_agenda_comments (
-      id, agenda_item_id, meeting_id, resident_id, resident_name,
-      apartment_number, content, include_in_protocol
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO meeting_agenda_comments (id, agenda_item_id, user_id, comment)
+    VALUES (?, ?, ?, ?)
   `).bind(
     id,
     params.agendaItemId,
-    agendaItem.meeting_id,
     authUser.id,
-    authUser.name,
-    body.apartment_number || body.apartmentNumber || authUser.apartment || null,
-    body.content,
-    body.include_in_protocol !== false ? 1 : 0
+    body.content || body.comment
   ).run();
 
   const created = await env.DB.prepare(
@@ -9628,7 +9708,7 @@ route('DELETE', '/api/comments/:commentId', async (request, env, params) => {
 
   // Check ownership
   const comment = await env.DB.prepare(
-    'SELECT resident_id, meeting_id FROM meeting_agenda_comments WHERE id = ?'
+    'SELECT user_id, agenda_item_id FROM meeting_agenda_comments WHERE id = ?'
   ).bind(params.commentId).first() as any;
 
   if (!comment) {
@@ -9636,17 +9716,23 @@ route('DELETE', '/api/comments/:commentId', async (request, env, params) => {
   }
 
   // Only owner or admin can delete
-  if (comment.resident_id !== authUser.id && authUser.role !== 'admin') {
+  if (comment.user_id !== authUser.id && authUser.role !== 'admin') {
     return error('Not authorized to delete this comment', 403);
   }
 
-  // Check if meeting is still in voting state
-  const meeting = await env.DB.prepare(
-    'SELECT status FROM meetings WHERE id = ?'
-  ).bind(comment.meeting_id).first() as any;
+  // Check if meeting is still in voting state (need to get meeting_id via agenda_item)
+  const agendaItem = await env.DB.prepare(
+    'SELECT meeting_id FROM meeting_agenda_items WHERE id = ?'
+  ).bind(comment.agenda_item_id).first() as any;
 
-  if (!meeting || !['voting_open', 'schedule_poll_open'].includes(meeting.status)) {
-    return error('Cannot delete comments after voting ends', 400);
+  if (agendaItem) {
+    const meeting = await env.DB.prepare(
+      'SELECT status FROM meetings WHERE id = ?'
+    ).bind(agendaItem.meeting_id).first() as any;
+
+    if (!meeting || !['voting_open', 'schedule_poll_open'].includes(meeting.status)) {
+      return error('Cannot delete comments after voting ends', 400);
+    }
   }
 
   await env.DB.prepare('DELETE FROM meeting_agenda_comments WHERE id = ?')
@@ -11481,7 +11567,24 @@ route('POST', '/api/marketplace/cart', async (request, env) => {
   // Check product exists and in stock
   const product = await env.DB.prepare(`SELECT * FROM marketplace_products WHERE id = ? AND is_active = 1`).bind(product_id).first() as any;
   if (!product) return error('Product not found', 404);
-  if (product.stock_quantity < quantity) return error('Not enough stock');
+
+  // Get current quantity in cart (if any)
+  const existingCartItem = await env.DB.prepare(`
+    SELECT quantity FROM marketplace_cart WHERE user_id = ? AND product_id = ?
+  `).bind(user.id, product_id).first() as any;
+
+  // Calculate total reserved stock from ALL users' carts for this product (excluding current user's existing quantity)
+  const reservedStock = await env.DB.prepare(`
+    SELECT COALESCE(SUM(quantity), 0) as total FROM marketplace_cart
+    WHERE product_id = ? AND user_id != ?
+  `).bind(product_id, user.id).first() as any;
+
+  const otherUsersReserved = reservedStock?.total || 0;
+  const availableStock = product.stock_quantity - otherUsersReserved;
+
+  if (availableStock < quantity) {
+    return error(`Недостаточно товара. Доступно: ${Math.max(0, availableStock)} шт.`, 400);
+  }
 
   // Upsert cart item
   await env.DB.prepare(`
@@ -11523,7 +11626,7 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
     console.log('[Marketplace Order] Creating order for user:', user.id, user.name);
     console.log('[Marketplace Order] Request body:', body);
 
-    // Get cart items
+    // Get cart items with current stock
     const { results: cartItems } = await env.DB.prepare(`
       SELECT c.*, p.name_ru, p.price, p.image_url, p.stock_quantity
       FROM marketplace_cart c
@@ -11538,55 +11641,77 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
       return error('Cart is empty', 400);
     }
 
-  // Calculate totals
-  const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const deliveryFee = totalAmount >= 100000 ? 0 : 15000; // Free delivery over 100k
-  const finalAmount = totalAmount + deliveryFee;
+    // Validate stock availability BEFORE creating order
+    const outOfStockItems: string[] = [];
+    for (const item of cartItems) {
+      if (item.stock_quantity < item.quantity) {
+        outOfStockItems.push(`${item.name_ru} (доступно: ${item.stock_quantity}, в корзине: ${item.quantity})`);
+      }
+    }
+    if (outOfStockItems.length > 0) {
+      console.log('[Marketplace Order] ERROR: Insufficient stock for items:', outOfStockItems);
+      return error(`Недостаточно товара на складе: ${outOfStockItems.join(', ')}`, 400);
+    }
 
-  // Generate order number (MP-YYYYMMDD-XXXX)
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const orderCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE order_number LIKE ?`).bind(`MP-${today}%`).first() as any;
-  const orderNumber = `MP-${today}-${String((orderCount?.count || 0) + 1).padStart(4, '0')}`;
+    // Calculate totals
+    const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const deliveryFee = totalAmount >= 100000 ? 0 : 15000; // Free delivery over 100k
+    const finalAmount = totalAmount + deliveryFee;
 
-  const orderId = generateId();
+    // Generate order number (MP-YYYYMMDD-XXXX)
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const orderCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE order_number LIKE ?`).bind(`MP-${today}%`).first() as any;
+    const orderNumber = `MP-${today}-${String((orderCount?.count || 0) + 1).padStart(4, '0')}`;
 
-  // Create order
-  await env.DB.prepare(`
-    INSERT INTO marketplace_orders (
-      id, order_number, user_id, status, total_amount, delivery_fee, final_amount,
-      delivery_address, delivery_apartment, delivery_entrance, delivery_floor, delivery_phone,
-      delivery_date, delivery_time_slot, delivery_notes, payment_method
-    ) VALUES (?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    orderId, orderNumber, user.id, totalAmount, deliveryFee, finalAmount,
-    user.address || '', user.apartment || '', user.entrance || '', user.floor || '', user.phone || '',
-    delivery_date || null, delivery_time_slot || null, delivery_notes || null, payment_method || 'cash'
-  ).run();
+    const orderId = generateId();
 
-  // Create order items
-  for (const item of cartItems) {
-    await env.DB.prepare(`
-      INSERT INTO marketplace_order_items (id, order_id, product_id, product_name, product_image, quantity, unit_price, total_price)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(generateId(), orderId, item.product_id, item.name_ru, item.image_url, item.quantity, item.price, item.price * item.quantity).run();
+    // Use batch to ensure atomicity - all operations succeed or all fail
+    const statements = [];
 
-    // Update product orders count and decrease stock quantity
-    await env.DB.prepare(`
-      UPDATE marketplace_products
-      SET orders_count = orders_count + 1,
-          stock_quantity = stock_quantity - ?
-      WHERE id = ?
-    `).bind(item.quantity, item.product_id).run();
-  }
+    // 1. Create order
+    statements.push(env.DB.prepare(`
+      INSERT INTO marketplace_orders (
+        id, order_number, user_id, status, total_amount, delivery_fee, final_amount,
+        delivery_address, delivery_apartment, delivery_entrance, delivery_floor, delivery_phone,
+        delivery_date, delivery_time_slot, delivery_notes, payment_method
+      ) VALUES (?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      orderId, orderNumber, user.id, totalAmount, deliveryFee, finalAmount,
+      user.address || '', user.apartment || '', user.entrance || '', user.floor || '', user.phone || '',
+      delivery_date || null, delivery_time_slot || null, delivery_notes || null, payment_method || 'cash'
+    ));
 
-  // Add order history
-  await env.DB.prepare(`
-    INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
-    VALUES (?, ?, 'new', 'Заказ создан', ?)
-  `).bind(generateId(), orderId, user.id).run();
+    // 2. Create order items and update stock atomically
+    for (const item of cartItems) {
+      // Insert order item
+      statements.push(env.DB.prepare(`
+        INSERT INTO marketplace_order_items (id, order_id, product_id, product_name, product_image, quantity, unit_price, total_price)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(generateId(), orderId, item.product_id, item.name_ru, item.image_url, item.quantity, item.price, item.price * item.quantity));
 
-  // Clear cart
-  await env.DB.prepare(`DELETE FROM marketplace_cart WHERE user_id = ?`).bind(user.id).run();
+      // Update stock with validation to prevent negative values
+      statements.push(env.DB.prepare(`
+        UPDATE marketplace_products
+        SET orders_count = orders_count + 1,
+            stock_quantity = CASE
+              WHEN stock_quantity >= ? THEN stock_quantity - ?
+              ELSE stock_quantity
+            END
+        WHERE id = ? AND stock_quantity >= ?
+      `).bind(item.quantity, item.quantity, item.product_id, item.quantity));
+    }
+
+    // 3. Add order history
+    statements.push(env.DB.prepare(`
+      INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by)
+      VALUES (?, ?, 'new', 'Заказ создан', ?)
+    `).bind(generateId(), orderId, user.id));
+
+    // 4. Clear cart
+    statements.push(env.DB.prepare(`DELETE FROM marketplace_cart WHERE user_id = ?`).bind(user.id));
+
+    // Execute all statements as a batch (atomic transaction)
+    await env.DB.batch(statements);
 
     // Create notification for managers
     const managers = await env.DB.prepare(`SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'marketplace_manager')`).all() as { results: any[] };
@@ -11629,7 +11754,16 @@ route('GET', '/api/marketplace/orders', async (request, env) => {
     ORDER BY o.created_at DESC
   `).bind(...params).all();
 
-  return json({ orders: results });
+  // Fetch items for each order
+  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
+    const { results: items } = await env.DB.prepare(`
+      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
+      FROM marketplace_order_items WHERE order_id = ?
+    `).bind(order.id).all();
+    return { ...order, items: items || [] };
+  }));
+
+  return json({ orders: ordersWithItems });
 });
 
 // Marketplace: Get single order with items
@@ -11728,8 +11862,18 @@ route('POST', '/api/marketplace/orders/:id/rate', async (request, env, params) =
   const body = await request.json() as any;
   const { rating, review } = body;
 
-  const order = await env.DB.prepare(`SELECT * FROM marketplace_orders WHERE id = ? AND user_id = ? AND status = 'delivered'`).bind(params.id, user.id).first();
+  // Validate rating value
+  if (typeof rating !== 'number' || rating < 1 || rating > 5) {
+    return error('Рейтинг должен быть от 1 до 5', 400);
+  }
+
+  const order = await env.DB.prepare(`SELECT * FROM marketplace_orders WHERE id = ? AND user_id = ? AND status = 'delivered'`).bind(params.id, user.id).first() as any;
   if (!order) return error('Order not found or not delivered', 404);
+
+  // Prevent double rating
+  if (order.rating) {
+    return error('Вы уже оценили этот заказ', 400);
+  }
 
   await env.DB.prepare(`UPDATE marketplace_orders SET rating = ?, review = ? WHERE id = ?`).bind(rating, review || null, params.id).run();
   return json({ success: true });
@@ -11942,7 +12086,16 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
       o.created_at DESC
   `).bind(user.id).all();
 
-  return json({ orders: results });
+  // Fetch items for each order
+  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
+    const { results: items } = await env.DB.prepare(`
+      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
+      FROM marketplace_order_items WHERE order_id = ?
+    `).bind(order.id).all();
+    return { ...order, items: items || [] };
+  }));
+
+  return json({ orders: ordersWithItems });
 });
 
 // Executor (courier): Get delivered marketplace orders
@@ -11966,7 +12119,16 @@ route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
     ORDER BY o.delivered_at DESC, o.updated_at DESC
   `).bind(user.id).all();
 
-  return json({ orders: results });
+  // Fetch items for each order
+  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
+    const { results: items } = await env.DB.prepare(`
+      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
+      FROM marketplace_order_items WHERE order_id = ?
+    `).bind(order.id).all();
+    return { ...order, items: items || [] };
+  }));
+
+  return json({ orders: ordersWithItems });
 });
 
 // Executor (courier): Get available marketplace orders to take
@@ -11990,7 +12152,16 @@ route('GET', '/api/marketplace/executor/available', async (request, env) => {
     ORDER BY o.created_at ASC
   `).all();
 
-  return json({ orders: results });
+  // Fetch items for each order
+  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
+    const { results: items } = await env.DB.prepare(`
+      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
+      FROM marketplace_order_items WHERE order_id = ?
+    `).bind(order.id).all();
+    return { ...order, items: items || [] };
+  }));
+
+  return json({ orders: ordersWithItems });
 });
 
 // Executor (courier): Take a marketplace order
@@ -12056,11 +12227,12 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
   const { status, comment } = body;
 
   // Executor can only move to certain statuses
+  // Flow: confirmed -> preparing -> delivering -> ready -> delivered
   const allowedTransitions: Record<string, string[]> = {
     'confirmed': ['preparing'],
-    'preparing': ['ready'],
-    'ready': ['delivering'],
-    'delivering': ['delivered']
+    'preparing': ['delivering'],
+    'delivering': ['ready'],
+    'ready': ['delivered']
   };
 
   const allowed = allowedTransitions[order.status];
@@ -12133,6 +12305,134 @@ route('GET', '/api/marketplace/admin/dashboard', async (request, env) => {
       total_products: (totalProducts as any)?.count || 0
     }
   });
+});
+
+// Manager: Marketplace Reports (for Director)
+route('GET', '/api/marketplace/admin/reports', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const url = new URL(request.url);
+  const startDate = url.searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const endDate = url.searchParams.get('end_date') || new Date().toISOString().slice(0, 10);
+
+  try {
+    // Overall stats for period
+    const overallStats = await env.DB.prepare(`
+      SELECT
+        COUNT(*) as total_orders,
+        COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders,
+        COALESCE(SUM(CASE WHEN status = 'delivered' THEN final_amount ELSE 0 END), 0) as total_revenue,
+        COALESCE(SUM(CASE WHEN status = 'delivered' THEN delivery_fee ELSE 0 END), 0) as total_delivery_fees,
+        COALESCE(AVG(CASE WHEN rating IS NOT NULL THEN rating END), 0) as avg_rating,
+        COUNT(CASE WHEN rating IS NOT NULL THEN 1 END) as rated_orders
+      FROM marketplace_orders
+      WHERE date(created_at) BETWEEN ? AND ?
+    `).bind(startDate, endDate).first() as any;
+
+    // Top selling products
+    const topProducts = await env.DB.prepare(`
+      SELECT
+        oi.product_id,
+        oi.product_name,
+        p.image_url,
+        SUM(oi.quantity) as total_sold,
+        SUM(oi.total_price) as total_revenue,
+        COUNT(DISTINCT oi.order_id) as order_count
+      FROM marketplace_order_items oi
+      JOIN marketplace_orders o ON oi.order_id = o.id
+      LEFT JOIN marketplace_products p ON oi.product_id = p.id
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      GROUP BY oi.product_id, oi.product_name
+      ORDER BY total_revenue DESC
+      LIMIT 20
+    `).bind(startDate, endDate).all() as { results: any[] };
+
+    // Sales by category
+    const categoryStats = await env.DB.prepare(`
+      SELECT
+        COALESCE(c.name_ru, 'Без категории') as category_name,
+        SUM(oi.quantity) as total_sold,
+        SUM(oi.total_price) as total_revenue,
+        COUNT(DISTINCT oi.order_id) as order_count
+      FROM marketplace_order_items oi
+      JOIN marketplace_orders o ON oi.order_id = o.id
+      LEFT JOIN marketplace_products p ON oi.product_id = p.id
+      LEFT JOIN marketplace_categories c ON p.category_id = c.id
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      GROUP BY c.id, c.name_ru
+      ORDER BY total_revenue DESC
+    `).bind(startDate, endDate).all() as { results: any[] };
+
+    // Daily sales (for chart)
+    const dailySales = await env.DB.prepare(`
+      SELECT
+        date(created_at) as date,
+        COUNT(*) as orders,
+        SUM(CASE WHEN status = 'delivered' THEN final_amount ELSE 0 END) as revenue
+      FROM marketplace_orders
+      WHERE date(created_at) BETWEEN ? AND ?
+      GROUP BY date(created_at)
+      ORDER BY date(created_at)
+    `).bind(startDate, endDate).all() as { results: any[] };
+
+    // Orders by status
+    const ordersByStatus = await env.DB.prepare(`
+      SELECT
+        status,
+        COUNT(*) as count
+      FROM marketplace_orders
+      WHERE date(created_at) BETWEEN ? AND ?
+      GROUP BY status
+    `).bind(startDate, endDate).all() as { results: any[] };
+
+    // Top customers
+    const topCustomers = await env.DB.prepare(`
+      SELECT
+        u.id as user_id,
+        u.name as user_name,
+        u.phone as user_phone,
+        COUNT(o.id) as order_count,
+        SUM(o.final_amount) as total_spent
+      FROM marketplace_orders o
+      JOIN users u ON o.user_id = u.id
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      GROUP BY u.id, u.name, u.phone
+      ORDER BY total_spent DESC
+      LIMIT 10
+    `).bind(startDate, endDate).all() as { results: any[] };
+
+    // Executor performance (couriers)
+    const executorStats = await env.DB.prepare(`
+      SELECT
+        u.id as executor_id,
+        u.name as executor_name,
+        COUNT(o.id) as delivered_count,
+        COALESCE(AVG(o.rating), 0) as avg_rating
+      FROM marketplace_orders o
+      JOIN users u ON o.executor_id = u.id
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      GROUP BY u.id, u.name
+      ORDER BY delivered_count DESC
+    `).bind(startDate, endDate).all() as { results: any[] };
+
+    return json({
+      period: { start_date: startDate, end_date: endDate },
+      overall: overallStats,
+      top_products: topProducts.results || [],
+      categories: categoryStats.results || [],
+      daily_sales: dailySales.results || [],
+      orders_by_status: ordersByStatus.results || [],
+      top_customers: topCustomers.results || [],
+      executor_stats: executorStats.results || [],
+    });
+  } catch (err: any) {
+    console.error('Marketplace reports error:', err);
+    return error('Failed to generate report', 500);
+  }
 });
 
 // Manager: Products CRUD
@@ -12244,10 +12544,25 @@ route('POST', '/api/marketplace/admin/upload-image', async (request, env) => {
         return error('No image file provided', 400);
       }
 
-      // Validate file type
+      // Sanitize filename - remove path traversal and dangerous characters
+      const originalName = file.name || 'image';
+      const sanitizedName = originalName
+        .replace(/\.\./g, '') // Remove path traversal
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '') // Remove dangerous characters
+        .replace(/^\.+/, ''); // Remove leading dots
+
+      // Validate file type by both MIME type and extension
       const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      const fileExtension = sanitizedName.toLowerCase().match(/\.[^.]+$/)?.[0] || '';
+
       if (!allowedTypes.includes(file.type)) {
         return error('Invalid file type. Allowed: JPEG, PNG, GIF, WEBP', 400);
+      }
+
+      // If there's an extension, validate it matches the MIME type
+      if (fileExtension && !allowedExtensions.includes(fileExtension)) {
+        return error('Invalid file extension. Allowed: .jpg, .jpeg, .png, .gif, .webp', 400);
       }
 
       // Max 5MB

@@ -12,6 +12,17 @@ interface MarketplaceOrderForNotification {
   rating?: number;
 }
 
+// Interface for vote reconsideration requests
+interface ReconsiderationRequestForNotification {
+  id: string;
+  meeting_id: string;
+  agenda_item_id: string;
+  agenda_item_title: string;
+  status: string;
+  message_to_resident?: string;
+  created_at: string;
+}
+
 export interface PopupItem {
   id: string;
   type: PopupType;
@@ -162,64 +173,232 @@ export function usePopupNotifications() {
     }
   }, [user, requests]);
 
-  // Check for delivered marketplace orders that need rating (for residents) - with polling
+  // Check for marketplace order status changes (for residents) - with polling
   useEffect(() => {
     if (!user || user.role !== 'resident') {
       return;
     }
 
-    const checkDeliveredOrders = async () => {
+    // Track last known statuses
+    const lastKnownStatusesKey = 'marketplace_order_statuses';
+    const getLastStatuses = (): Record<string, string> => {
       try {
-        const response = await apiRequest<{ orders: MarketplaceOrderForNotification[] }>('/api/marketplace/orders?status=delivered');
-        const deliveredOrders = response?.orders || [];
+        const stored = sessionStorage.getItem(lastKnownStatusesKey);
+        return stored ? JSON.parse(stored) : {};
+      } catch {
+        return {};
+      }
+    };
+    const saveStatuses = (statuses: Record<string, string>) => {
+      try {
+        sessionStorage.setItem(lastKnownStatusesKey, JSON.stringify(statuses));
+      } catch {
+        // Ignore
+      }
+    };
+
+    const statusLabels: Record<string, { ru: string, title: string }> = {
+      confirmed: { ru: 'подтверждён', title: 'Заказ подтверждён!' },
+      preparing: { ru: 'готовится', title: 'Заказ готовится!' },
+      ready: { ru: 'готов к выдаче', title: 'Заказ готов!' },
+      delivering: { ru: 'доставляется', title: 'Заказ в пути!' },
+      delivered: { ru: 'доставлен', title: 'Заказ доставлен!' },
+      cancelled: { ru: 'отменён', title: 'Заказ отменён' },
+    };
+
+    const checkOrderStatuses = async () => {
+      try {
+        const response = await apiRequest<{ orders: MarketplaceOrderForNotification[] }>('/api/marketplace/orders');
+        const orders = response?.orders || [];
 
         const shownIds = getShownIds();
+        const lastStatuses = getLastStatuses();
+        const newStatuses: Record<string, string> = {};
 
-        // Filter delivered orders that haven't been rated and popup not shown
-        const unratedDelivered = deliveredOrders.filter(o =>
+        const newPopups: PopupItem[] = [];
+
+        for (const order of orders) {
+          newStatuses[order.id] = order.status;
+
+          // Check if status changed from last known status
+          const lastStatus = lastStatuses[order.id];
+          if (lastStatus && lastStatus !== order.status) {
+            const popupId = `order-status-${order.id}-${order.status}`;
+            if (!shownIds.has(popupId)) {
+              saveShownId(popupId);
+
+              const statusInfo = statusLabels[order.status] || { ru: order.status, title: 'Статус заказа изменён' };
+
+              // Special handling for delivered orders - show rating option
+              if (order.status === 'delivered' && !order.rating) {
+                newPopups.push({
+                  id: popupId,
+                  type: 'delivery_completed' as PopupType,
+                  title: statusInfo.title,
+                  message: `Ваш заказ ${order.order_number} успешно доставлен. Пожалуйста, оцените доставку.`,
+                  actionLabel: 'Оценить доставку',
+                  onAction: () => {
+                    sessionStorage.setItem('open_delivery_rating_for_order', order.id);
+                    if (window.location.pathname !== '/marketplace') {
+                      window.location.href = '/marketplace';
+                    } else {
+                      window.dispatchEvent(new CustomEvent('openDeliveryRatingModal', { detail: { orderId: order.id } }));
+                    }
+                  },
+                });
+              } else if (order.status === 'cancelled') {
+                newPopups.push({
+                  id: popupId,
+                  type: 'announcement_urgent' as PopupType,
+                  title: statusInfo.title,
+                  message: `Ваш заказ ${order.order_number} был отменён.`,
+                  actionLabel: 'Понятно',
+                });
+              } else {
+                newPopups.push({
+                  id: popupId,
+                  type: 'announcement_meeting' as PopupType,
+                  title: statusInfo.title,
+                  message: `Заказ ${order.order_number} ${statusInfo.ru}.`,
+                  actionLabel: 'Посмотреть',
+                  onAction: () => {
+                    if (window.location.pathname !== '/marketplace') {
+                      window.location.href = '/marketplace';
+                    }
+                  },
+                });
+              }
+            }
+          }
+        }
+
+        // Save current statuses for next check
+        saveStatuses(newStatuses);
+
+        // Also check for delivered orders without rating (initial check)
+        const unratedDelivered = orders.filter(o =>
           o.status === 'delivered' &&
           !o.rating &&
           !shownIds.has(`delivery-completed-${o.id}`)
         );
 
-        console.log('[PopupNotifications] Unrated delivered orders:', unratedDelivered.length);
-
-        const newPopups: PopupItem[] = unratedDelivered.map(o => {
+        for (const o of unratedDelivered) {
           saveShownId(`delivery-completed-${o.id}`);
-
-          return {
+          newPopups.push({
             id: `delivery-completed-${o.id}`,
             type: 'delivery_completed' as PopupType,
             title: 'Заказ доставлен!',
             message: `Ваш заказ ${o.order_number} успешно доставлен. Пожалуйста, оцените доставку.`,
             actionLabel: 'Оценить доставку',
             onAction: () => {
-              // Store order ID to open rating modal
               sessionStorage.setItem('open_delivery_rating_for_order', o.id);
-              // Navigate to marketplace page or dispatch event
               if (window.location.pathname !== '/marketplace') {
                 window.location.href = '/marketplace';
               } else {
                 window.dispatchEvent(new CustomEvent('openDeliveryRatingModal', { detail: { orderId: o.id } }));
               }
             },
-          };
-        });
+          });
+        }
 
         if (newPopups.length > 0) {
-          console.log('[PopupNotifications] Adding delivery popups:', newPopups);
+          console.log('[PopupNotifications] Adding order popups:', newPopups.length);
           setPopups(prev => [...prev, ...newPopups]);
         }
       } catch (err) {
-        console.error('[PopupNotifications] Error checking delivered orders:', err);
+        console.error('[PopupNotifications] Error checking order statuses:', err);
       }
     };
 
     // Check immediately on mount
-    checkDeliveredOrders();
+    checkOrderStatuses();
 
-    // Poll every 15 seconds for new delivered orders
-    const interval = setInterval(checkDeliveredOrders, 15000);
+    // Poll every 10 seconds for order status changes
+    const interval = setInterval(checkOrderStatuses, 10000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Check for new vote reconsideration requests (for residents) - with polling
+  useEffect(() => {
+    if (!user || user.role !== 'resident') {
+      return;
+    }
+
+    // Track last known request IDs
+    const lastKnownRequestsKey = 'reconsideration_request_ids';
+    const getLastKnownIds = (): string[] => {
+      try {
+        const stored = sessionStorage.getItem(lastKnownRequestsKey);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+    const saveKnownIds = (ids: string[]) => {
+      try {
+        sessionStorage.setItem(lastKnownRequestsKey, JSON.stringify(ids));
+      } catch {
+        // Ignore
+      }
+    };
+
+    const checkReconsiderationRequests = async () => {
+      try {
+        const response = await apiRequest<{
+          success: boolean;
+          data: { requests: ReconsiderationRequestForNotification[] };
+        }>('/api/meetings/reconsideration-requests/me');
+
+        const requests = response?.data?.requests || [];
+        const pendingRequests = requests.filter(r => r.status === 'pending' || r.status === 'viewed');
+
+        const shownIds = getShownIds();
+        const lastKnownIds = getLastKnownIds();
+        const currentIds = pendingRequests.map(r => r.id);
+
+        const newPopups: PopupItem[] = [];
+
+        // Find new requests that weren't in the last known list
+        for (const request of pendingRequests) {
+          const popupId = `reconsideration-${request.id}`;
+          if (!lastKnownIds.includes(request.id) && !shownIds.has(popupId)) {
+            saveShownId(popupId);
+            newPopups.push({
+              id: popupId,
+              type: 'announcement_meeting' as PopupType,
+              title: 'Просьба пересмотреть голос',
+              message: request.message_to_resident
+                ? `${request.agenda_item_title}: ${request.message_to_resident}`
+                : `УК просит вас пересмотреть голос по вопросу: ${request.agenda_item_title}`,
+              actionLabel: 'Открыть',
+              onAction: () => {
+                // Navigate to meetings page
+                if (window.location.pathname !== '/meetings') {
+                  window.location.href = '/meetings';
+                }
+              },
+            });
+          }
+        }
+
+        // Save current IDs for next check
+        saveKnownIds(currentIds);
+
+        if (newPopups.length > 0) {
+          console.log('[PopupNotifications] Adding reconsideration request popups:', newPopups.length);
+          setPopups(prev => [...prev, ...newPopups]);
+        }
+      } catch (err) {
+        console.error('[PopupNotifications] Error checking reconsideration requests:', err);
+      }
+    };
+
+    // Check immediately on mount
+    checkReconsiderationRequests();
+
+    // Poll every 5 seconds for new reconsideration requests
+    const interval = setInterval(checkReconsiderationRequests, 5000);
 
     return () => clearInterval(interval);
   }, [user]);

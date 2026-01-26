@@ -300,6 +300,7 @@ interface MeetingState {
     agendaItems: Omit<AgendaItem, 'id' | 'votesFor' | 'votesAgainst' | 'votesAbstain' | 'order'>[];
     location?: string;
     description?: string;
+    meetingTime?: string;
   }) => Promise<Meeting>;
 
   updateMeeting: (id: string, data: Partial<Meeting>) => Promise<void>;
@@ -539,6 +540,7 @@ export const useMeetingStore = create<MeetingState>()(
             format: data.format,
             location: data.location,
             description: data.description,
+            meetingTime: data.meetingTime,
             agendaItems: data.agendaItems.map(item => ({
               title: item.title,
               description: item.description,
@@ -748,7 +750,11 @@ export const useMeetingStore = create<MeetingState>()(
           if (response.success && response.data) {
             const protocol = mapProtocolFromApi(response.data);
             set((state) => ({
-              protocols: [...state.protocols, protocol]
+              protocols: [...state.protocols, protocol],
+              // Update meeting status to 'protocol_generated' immediately
+              meetings: state.meetings.map(m =>
+                m.id === meetingId ? { ...m, status: 'protocol_generated' as const } : m
+              )
             }));
             return protocol;
           }
