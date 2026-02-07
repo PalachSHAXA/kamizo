@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'director' | 'manager' | 'department_head' | 'executor' | 'resident' | 'commercial_owner' | 'tenant' | 'advertiser' | 'coupon_checker' | 'dispatcher' | 'security' | 'marketplace_manager';
+export type UserRole = 'super_admin' | 'admin' | 'director' | 'manager' | 'department_head' | 'executor' | 'resident' | 'commercial_owner' | 'tenant' | 'advertiser' | 'coupon_checker' | 'dispatcher' | 'security' | 'marketplace_manager';
 export type ExecutorSpecialization = 'plumber' | 'electrician' | 'elevator' | 'intercom' | 'cleaning' | 'security' | 'carpenter' | 'boiler' | 'ac' | 'courier' | 'other';
 export type RequestStatus = 'new' | 'assigned' | 'accepted' | 'in_progress' | 'pending_approval' | 'completed' | 'cancelled';
 export type CancelledBy = 'resident' | 'executor' | 'manager' | 'admin';

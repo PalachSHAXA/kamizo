@@ -762,10 +762,11 @@ route('POST', '/api/auth/login', async (request, env) => {
     return error('Login and password required');
   }
 
-  // Fetch user with password hash
+  // Fetch user with password hash (filter by tenant if on a subdomain)
+  const tenantId = getTenantId();
   const userWithHash = await env.DB.prepare(
-    'SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type FROM users WHERE login = ?'
-  ).bind(login.trim()).first() as any;
+    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type FROM users WHERE login = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...[login.trim(), ...(tenantId ? [tenantId] : [])]).first() as any;
 
   if (!userWithHash) {
     return error('Invalid credentials', 401);
@@ -871,9 +872,9 @@ route('POST', '/api/auth/register', async (request, env) => {
   const passwordPlain = staffRoles.includes(role) ? password : null;
 
   await env.DB.prepare(`
-    INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, login.trim(), passwordHash, passwordPlain, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null).run();
+    INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, login.trim(), passwordHash, passwordPlain, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, getTenantId()).run();
 
   return json({ user: { id, login, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, password: passwordPlain } }, 201);
 });
@@ -918,11 +919,11 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
       const passwordHash = await hashPassword(u.password || 'kamizo');
 
       await env.DB.prepare(`
-        INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, total_area)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, total_area, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id, u.login.trim(), passwordHash, u.name, 'resident',
-        u.phone || null, u.address || null, u.apartment || null, u.building_id || null, u.entrance || null, u.floor || null, u.total_area || null
+        u.phone || null, u.address || null, u.apartment || null, u.building_id || null, u.entrance || null, u.floor || null, u.total_area || null, getTenantId()
       ).run();
 
       created.push({ id, login: u.login, name: u.name });
@@ -1043,6 +1044,13 @@ route('GET', '/api/users', async (request, env) => {
   let whereClause = 'WHERE 1=1';
   const params: any[] = [];
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  if (tenantId) {
+    whereClause += ' AND tenant_id = ?';
+    params.push(tenantId);
+  }
+
   if (role) {
     whereClause += ' AND role = ?';
     params.push(role);
@@ -1091,13 +1099,16 @@ route('GET', '/api/vehicles', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
   const { results } = await env.DB.prepare(`
     SELECT v.*, u.name as owner_name, u.phone as owner_phone, u.apartment, u.address
     FROM vehicles v
     JOIN users u ON COALESCE(v.user_id, v.resident_id) = u.id
     WHERE COALESCE(v.user_id, v.resident_id) = ?
+    ${tenantId ? 'AND v.tenant_id = ?' : ''}
     ORDER BY v.is_primary DESC, v.created_at DESC
-  `).bind(user.id).all();
+  `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ vehicles: results });
 });
@@ -1115,15 +1126,16 @@ route('POST', '/api/vehicles', async (request, env) => {
   }
 
   const id = generateId();
+  // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
-    INSERT INTO vehicles (id, resident_id, user_id, plate_number, brand, model, color, year, vehicle_type, owner_type, company_name, parking_spot, notes, is_primary)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO vehicles (id, resident_id, user_id, plate_number, brand, model, color, year, vehicle_type, owner_type, company_name, parking_spot, notes, is_primary, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, user.id, user.id, plate_number.toUpperCase(),
     brand || null, model || null, color || null, year || null,
     vehicle_type || 'car', owner_type || 'individual',
     company_name || null, parking_spot || null, notes || null,
-    is_primary ? 1 : 0
+    is_primary ? 1 : 0, getTenantId()
   ).run();
 
   // Return vehicle with owner info
@@ -1167,20 +1179,24 @@ route('PATCH', '/api/vehicles/:id', async (request, env, params) => {
     return json({ success: true });
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   updates.push('updated_at = datetime("now")');
   values.push(params.id);
   values.push(user.id);
   values.push(user.id);
+  if (tenantId) values.push(tenantId);
 
-  await env.DB.prepare(`UPDATE vehicles SET ${updates.join(', ')} WHERE id = ? AND (user_id = ? OR resident_id = ?)`).bind(...values).run();
+  await env.DB.prepare(`UPDATE vehicles SET ${updates.join(', ')} WHERE id = ? AND (user_id = ? OR resident_id = ?) ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
 
   // Return updated vehicle
   const updated = await env.DB.prepare(`
     SELECT v.*, u.name as owner_name, u.phone as owner_phone, u.apartment, u.address
     FROM vehicles v
     JOIN users u ON COALESCE(v.user_id, v.resident_id) = u.id
-    WHERE v.id = ?
-  `).bind(params.id).first();
+    WHERE v.id = ? ${tenantId ? 'AND v.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   return json({ vehicle: updated });
 });
@@ -1190,7 +1206,9 @@ route('DELETE', '/api/vehicles/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  await env.DB.prepare('DELETE FROM vehicles WHERE id = ? AND (user_id = ? OR resident_id = ?)').bind(params.id, user.id, user.id).run();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  await env.DB.prepare(`DELETE FROM vehicles WHERE id = ? AND (user_id = ? OR resident_id = ?) ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, user.id, user.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
 });
 
@@ -1210,12 +1228,15 @@ route('GET', '/api/vehicles/all', async (request, env) => {
   const pagination = getPaginationParams(url);
   const search = url.searchParams.get('search')?.toUpperCase();
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Build WHERE clause for search
-  let whereClause = '';
-  const params: any[] = [];
+  let whereClause = tenantId ? 'WHERE v.tenant_id = ?' : '';
+  const params: any[] = tenantId ? [tenantId] : [];
 
   if (search && search.length >= 2) {
-    whereClause = 'WHERE v.plate_number LIKE ? OR u.name LIKE ? OR u.apartment LIKE ?';
+    whereClause += (whereClause ? ' AND ' : 'WHERE ') + '(v.plate_number LIKE ? OR u.name LIKE ? OR u.apartment LIKE ?)';
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
 
@@ -1254,14 +1275,17 @@ route('GET', '/api/vehicles/search', async (request, env) => {
     return json({ vehicles: [] });
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
   const { results } = await env.DB.prepare(`
     SELECT v.*, u.name as owner_name, u.phone as owner_phone, u.apartment, u.address
     FROM vehicles v
     JOIN users u ON COALESCE(v.user_id, v.resident_id) = u.id
     WHERE v.plate_number LIKE ?
+    ${tenantId ? 'AND v.tenant_id = ?' : ''}
     ORDER BY v.plate_number
     LIMIT 20
-  `).bind(`%${query}%`).all();
+  `).bind(`%${query}%`, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ vehicles: results });
 });
@@ -1278,6 +1302,9 @@ route('GET', '/api/rentals/my-apartments', async (request, env) => {
     return error('Access denied', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get apartments owned by this user
   const { results: apartments } = await env.DB.prepare(`
     SELECT
@@ -1285,8 +1312,9 @@ route('GET', '/api/rentals/my-apartments', async (request, env) => {
       ra.is_active, ra.created_at
     FROM rental_apartments ra
     WHERE ra.owner_id = ?
+    ${tenantId ? 'AND ra.tenant_id = ?' : ''}
     ORDER BY ra.created_at DESC
-  `).bind(user.id).all();
+  `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
 
   // Get all records for all of user's apartments
   const apartmentIds = apartments.map((a: any) => a.id);
@@ -1301,8 +1329,9 @@ route('GET', '/api/rentals/my-apartments', async (request, env) => {
         rr.notes, rr.created_at
       FROM rental_records rr
       WHERE rr.apartment_id IN (${placeholders})
+      ${tenantId ? 'AND rr.tenant_id = ?' : ''}
       ORDER BY rr.check_in_date DESC
-    `).bind(...apartmentIds).all();
+    `).bind(...apartmentIds, ...(tenantId ? [tenantId] : [])).all();
     records = recordResults || [];
   }
 
@@ -1346,6 +1375,9 @@ route('GET', '/api/rentals/apartments', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT
       ra.id, ra.name, ra.address, ra.apartment, ra.owner_id, ra.owner_type,
@@ -1354,8 +1386,9 @@ route('GET', '/api/rentals/apartments', async (request, env) => {
       u.password_plain as owner_password
     FROM rental_apartments ra
     LEFT JOIN users u ON u.id = ra.owner_id
+    ${tenantId ? 'WHERE ra.tenant_id = ?' : ''}
     ORDER BY ra.created_at DESC
-  `).all();
+  `).bind(...(tenantId ? [tenantId] : [])).all();
 
   // Transform to frontend format
   const apartments = results.map((r: any) => ({
@@ -1410,19 +1443,21 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
     console.log('[API] Password hashed successfully');
 
     console.log('[API] Inserting user...');
+    // MULTI-TENANCY: Add tenant_id on creation
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, phone)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(userId, ownerLogin.trim(), passwordHash, ownerPassword, ownerName || name, ownerType, ownerPhone || null).run();
+      INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(userId, ownerLogin.trim(), passwordHash, ownerPassword, ownerName || name, ownerType, ownerPhone || null, getTenantId()).run();
     console.log('[API] User created successfully');
 
     // Create rental apartment
     const apartmentId = generateId();
     console.log('[API] Inserting apartment...');
+    // MULTI-TENANCY: Add tenant_id on creation
     await env.DB.prepare(`
-      INSERT INTO rental_apartments (id, name, address, apartment, owner_id, owner_type)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(apartmentId, name, address, apartment || null, userId, ownerType).run();
+      INSERT INTO rental_apartments (id, name, address, apartment, owner_id, owner_type, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(apartmentId, name, address, apartment || null, userId, ownerType, getTenantId()).run();
     console.log('[API] Apartment created successfully');
 
     return json({
@@ -1468,10 +1503,15 @@ route('PATCH', '/api/rentals/apartments/:id', async (request, env, params) => {
   if (body.apartment !== undefined) { updates.push('apartment = ?'); values.push(body.apartment); }
   if (body.isActive !== undefined) { updates.push('is_active = ?'); values.push(body.isActive ? 1 : 0); }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   if (updates.length > 0) {
     values.push(params.id);
+    if (tenantId) values.push(tenantId);
     await env.DB.prepare(`
-      UPDATE rental_apartments SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?
+      UPDATE rental_apartments SET ${updates.join(', ')}, updated_at = datetime('now')
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(...values).run();
   }
 
@@ -1484,20 +1524,23 @@ route('DELETE', '/api/rentals/apartments/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get apartment to find owner
-  const apt = await env.DB.prepare('SELECT owner_id FROM rental_apartments WHERE id = ?').bind(params.id).first() as any;
+  const apt = await env.DB.prepare(`SELECT owner_id FROM rental_apartments WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!apt) {
     return error('Apartment not found', 404);
   }
 
   // Delete rental records first (cascade should handle, but be safe)
-  await env.DB.prepare('DELETE FROM rental_records WHERE apartment_id = ?').bind(params.id).run();
+  await env.DB.prepare(`DELETE FROM rental_records WHERE apartment_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Delete apartment
-  await env.DB.prepare('DELETE FROM rental_apartments WHERE id = ?').bind(params.id).run();
+  await env.DB.prepare(`DELETE FROM rental_apartments WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Delete owner user
-  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(apt.owner_id).run();
+  await env.DB.prepare(`DELETE FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(apt.owner_id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({ success: true });
 });
@@ -1508,24 +1551,29 @@ route('GET', '/api/rentals/records', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const url = new URL(request.url);
   const apartmentId = url.searchParams.get('apartmentId');
 
-  let query = `
+  let whereClause = tenantId ? 'WHERE rr.tenant_id = ?' : '';
+  const params: any[] = tenantId ? [tenantId] : [];
+
+  if (apartmentId) {
+    whereClause += (whereClause ? ' AND ' : 'WHERE ') + 'rr.apartment_id = ?';
+    params.push(apartmentId);
+  }
+
+  const query = `
     SELECT
       rr.id, rr.apartment_id, rr.guest_names, rr.passport_info,
       rr.check_in_date, rr.check_out_date, rr.amount, rr.currency,
       rr.notes, rr.created_by, rr.created_at
     FROM rental_records rr
+    ${whereClause}
+    ORDER BY rr.check_in_date DESC
   `;
-  const params: any[] = [];
-
-  if (apartmentId) {
-    query += ' WHERE rr.apartment_id = ?';
-    params.push(apartmentId);
-  }
-
-  query += ' ORDER BY rr.check_in_date DESC';
 
   const { results } = await env.DB.prepare(query).bind(...params).all();
 
@@ -1561,10 +1609,11 @@ route('POST', '/api/rentals/records', async (request, env) => {
   }
 
   const id = generateId();
+  // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
-    INSERT INTO rental_records (id, apartment_id, guest_names, passport_info, check_in_date, check_out_date, amount, currency, notes, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, apartmentId, guestNames, passportInfo || null, checkInDate, checkOutDate, amount || 0, currency || 'UZS', notes || null, user.id).run();
+    INSERT INTO rental_records (id, apartment_id, guest_names, passport_info, check_in_date, check_out_date, amount, currency, notes, created_by, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, apartmentId, guestNames, passportInfo || null, checkInDate, checkOutDate, amount || 0, currency || 'UZS', notes || null, user.id, getTenantId()).run();
 
   return json({
     record: {
@@ -1601,10 +1650,15 @@ route('PATCH', '/api/rentals/records/:id', async (request, env, params) => {
   if (body.currency) { updates.push('currency = ?'); values.push(body.currency); }
   if (body.notes !== undefined) { updates.push('notes = ?'); values.push(body.notes); }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   if (updates.length > 0) {
     values.push(params.id);
+    if (tenantId) values.push(tenantId);
     await env.DB.prepare(`
-      UPDATE rental_records SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?
+      UPDATE rental_records SET ${updates.join(', ')}, updated_at = datetime('now')
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(...values).run();
   }
 
@@ -1617,7 +1671,9 @@ route('DELETE', '/api/rentals/records/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
 
-  await env.DB.prepare('DELETE FROM rental_records WHERE id = ?').bind(params.id).run();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  await env.DB.prepare(`DELETE FROM rental_records WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({ success: true });
 });
@@ -1629,6 +1685,8 @@ route('GET', '/api/guest-codes', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  const tenantId = getTenantId();
+
   // Check if user is management (admin, director, manager)
   const isManagementUser = ['admin', 'director', 'manager'].includes(user.role);
 
@@ -1638,15 +1696,15 @@ route('GET', '/api/guest-codes', async (request, env) => {
     await env.DB.prepare(`
       UPDATE guest_access_codes
       SET status = 'expired', updated_at = datetime('now')
-      WHERE status = 'active' AND valid_until < datetime('now')
-    `).run();
+      WHERE status = 'active' AND valid_until < datetime('now') ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(...(tenantId ? [tenantId] : [])).run();
   } else {
     // Expire only user's codes
     await env.DB.prepare(`
       UPDATE guest_access_codes
       SET status = 'expired', updated_at = datetime('now')
-      WHERE user_id = ? AND status = 'active' AND valid_until < datetime('now')
-    `).bind(user.id).run();
+      WHERE user_id = ? AND status = 'active' AND valid_until < datetime('now') ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(user.id, ...(tenantId ? [tenantId] : [])).run();
   }
 
   let results;
@@ -1655,19 +1713,20 @@ route('GET', '/api/guest-codes', async (request, env) => {
     const response = await env.DB.prepare(`
       SELECT g.*, u.name as creator_name, u.apartment as creator_apartment, u.phone as creator_phone
       FROM guest_access_codes g
-      LEFT JOIN users u ON u.id = g.user_id
+      LEFT JOIN users u ON u.id = g.user_id ${tenantId ? 'AND u.tenant_id = ?' : ''}
+      WHERE 1=1 ${tenantId ? 'AND g.tenant_id = ?' : ''}
       ORDER BY g.created_at DESC
       LIMIT 200
-    `).all();
+    `).bind(...(tenantId ? [tenantId, tenantId] : [])).all();
     results = response.results;
   } else {
     // Regular users see only their own codes
     const response = await env.DB.prepare(`
       SELECT * FROM guest_access_codes
-      WHERE user_id = ?
+      WHERE user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
       ORDER BY created_at DESC
       LIMIT 100
-    `).bind(user.id).all();
+    `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
     results = response.results;
   }
 
@@ -1735,8 +1794,8 @@ route('POST', '/api/guest-codes', async (request, env) => {
     INSERT INTO guest_access_codes (
       id, user_id, qr_token, visitor_type, visitor_name, visitor_phone, visitor_vehicle_plate,
       access_type, valid_from, valid_until, max_uses, current_uses, status,
-      resident_name, resident_phone, resident_apartment, resident_address, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'active', ?, ?, ?, ?, ?)
+      resident_name, resident_phone, resident_apartment, resident_address, notes, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'active', ?, ?, ?, ?, ?, ?)
   `).bind(
     id, user.id, qrToken,
     body.visitor_type || 'guest',
@@ -1751,10 +1810,12 @@ route('POST', '/api/guest-codes', async (request, env) => {
     body.resident_phone || user.phone,
     body.resident_apartment || user.apartment,
     body.resident_address || user.address,
-    body.notes || null
+    body.notes || null,
+    getTenantId()
   ).run();
 
-  const created = await env.DB.prepare('SELECT * FROM guest_access_codes WHERE id = ?').bind(id).first();
+  const tenantId = getTenantId();
+  const created = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(id, ...(tenantId ? [tenantId] : [])).first();
   return json({ code: created }, 201);
 });
 
@@ -1763,8 +1824,9 @@ route('GET', '/api/guest-codes/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  const code = await env.DB.prepare('SELECT * FROM guest_access_codes WHERE id = ? AND user_id = ?')
-    .bind(params.id, user.id).first();
+  const tenantId = getTenantId();
+  const code = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!code) return error('Not found', 404);
   return json({ code });
@@ -1776,12 +1838,13 @@ route('POST', '/api/guest-codes/:id/revoke', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
 
   const body = await request.json() as any;
+  const tenantId = getTenantId();
 
   await env.DB.prepare(`
     UPDATE guest_access_codes
     SET status = 'revoked', revoked_at = datetime('now'), revoked_by = ?, revoked_reason = ?, updated_at = datetime('now')
-    WHERE id = ? AND user_id = ?
-  `).bind(user.id, body.reason || null, params.id, user.id).run();
+    WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(user.id, body.reason || null, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({ success: true });
 });
@@ -1791,7 +1854,8 @@ route('DELETE', '/api/guest-codes/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  await env.DB.prepare('DELETE FROM guest_access_codes WHERE id = ? AND user_id = ?').bind(params.id, user.id).run();
+  const tenantId = getTenantId();
+  await env.DB.prepare(`DELETE FROM guest_access_codes WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
 });
 
@@ -1878,7 +1942,8 @@ route('POST', '/api/guest-codes/:id/use', async (request, env, params) => {
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
-  const code = await env.DB.prepare('SELECT * FROM guest_access_codes WHERE id = ?').bind(params.id).first() as any;
+  const tenantId = getTenantId();
+  const code = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!code) return error('Not found', 404);
 
   const newUses = (code.current_uses || 0) + 1;
@@ -1887,20 +1952,20 @@ route('POST', '/api/guest-codes/:id/use', async (request, env, params) => {
   await env.DB.prepare(`
     UPDATE guest_access_codes
     SET current_uses = ?, status = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(newUses, newStatus, params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(newUses, newStatus, params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Log the usage
   await env.DB.prepare(`
-    INSERT INTO guest_access_logs (id, code_id, scanned_by_id, scanned_by_name, scanned_by_role, action, visitor_type, resident_name, resident_apartment)
-    VALUES (?, ?, ?, ?, ?, 'entry_allowed', ?, ?, ?)
+    INSERT INTO guest_access_logs (id, code_id, scanned_by_id, scanned_by_name, scanned_by_role, action, visitor_type, resident_name, resident_apartment, tenant_id)
+    VALUES (?, ?, ?, ?, ?, 'entry_allowed', ?, ?, ?, ?)
   `).bind(
     generateId(), params.id, authUser.id, authUser.name, authUser.role,
-    code.visitor_type, code.resident_name, code.resident_apartment
+    code.visitor_type, code.resident_name, code.resident_apartment, tenantId
   ).run();
 
   // Return updated code
-  const updated = await env.DB.prepare('SELECT * FROM guest_access_codes WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ success: true, code: updated });
 });
 
@@ -1909,9 +1974,10 @@ route('GET', '/api/guest-codes/:id/logs', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  const tenantId = getTenantId();
   const { results } = await env.DB.prepare(`
-    SELECT * FROM guest_access_logs WHERE code_id = ? ORDER BY scanned_at DESC
-  `).bind(params.id).all();
+    SELECT * FROM guest_access_logs WHERE code_id = ? ${tenantId ? 'AND tenant_id = ?' : ''} ORDER BY scanned_at DESC
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ logs: results });
 });
@@ -1923,6 +1989,9 @@ route('GET', '/api/guest-codes/:id/logs', async (request, env, params) => {
 route('GET', '/api/chat/channels', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
 
   let query: string;
   let params: any[];
@@ -1952,10 +2021,11 @@ route('GET', '/api/chat/channels', async (request, env) => {
         WHERE sender_id != ? AND id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
         GROUP BY channel_id
       ) unread ON unread.channel_id = c.id
+      ${tenantId ? 'WHERE c.tenant_id = ?' : ''}
       ORDER BY lm.created_at DESC NULLS LAST
       LIMIT 100
     `;
-    params = [user.id, user.id];
+    params = [user.id, user.id, ...(tenantId ? [tenantId] : [])];
   } else {
     // Regular users see their channels
     query = `
@@ -1973,14 +2043,15 @@ route('GET', '/api/chat/channels', async (request, env) => {
           SELECT channel_id, MAX(created_at) as max_date FROM chat_messages GROUP BY channel_id
         ) m2 ON m1.channel_id = m2.channel_id AND m1.created_at = m2.max_date
       ) lm ON lm.channel_id = c.id
-      WHERE c.type = 'uk_general'
+      WHERE (c.type = 'uk_general'
         OR c.resident_id = ?
         OR c.building_id = ?
-        OR c.id IN (SELECT channel_id FROM chat_participants WHERE user_id = ?)
+        OR c.id IN (SELECT channel_id FROM chat_participants WHERE user_id = ?))
+      ${tenantId ? 'AND c.tenant_id = ?' : ''}
       ORDER BY lm.created_at DESC NULLS LAST
       LIMIT 50
     `;
-    params = [user.id, user.building_id, user.id];
+    params = [user.id, user.building_id, user.id, ...(tenantId ? [tenantId] : [])];
   }
 
   const { results } = await env.DB.prepare(query).bind(...params).all();
@@ -1997,17 +2068,21 @@ route('POST', '/api/chat/channels/support', async (request, env) => {
     return error('Only residents can create support channels', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check if channel exists
   let channel = await env.DB.prepare(
-    'SELECT * FROM chat_channels WHERE type = ? AND resident_id = ?'
-  ).bind('private_support', user.id).first();
+    `SELECT * FROM chat_channels WHERE type = ? AND resident_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind('private_support', user.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!channel) {
     const id = generateId();
+    // MULTI-TENANCY: Add tenant_id on creation
     await env.DB.prepare(`
-      INSERT INTO chat_channels (id, type, name, description, resident_id)
-      VALUES (?, 'private_support', ?, ?, ?)
-    `).bind(id, user.name, user.apartment ? `кв. ${user.apartment}` : 'Личный чат', user.id).run();
+      INSERT INTO chat_channels (id, type, name, description, resident_id, tenant_id)
+      VALUES (?, 'private_support', ?, ?, ?, ?)
+    `).bind(id, user.name, user.apartment ? `кв. ${user.apartment}` : 'Личный чат', user.id, getTenantId()).run();
 
     channel = await env.DB.prepare('SELECT * FROM chat_channels WHERE id = ?').bind(id).first();
   }
@@ -2076,10 +2151,11 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
   const channelId = params.id;
 
   try {
+    // MULTI-TENANCY: Add tenant_id on creation
     await env.DB.prepare(`
-      INSERT INTO chat_messages (id, channel_id, sender_id, content)
-      VALUES (?, ?, ?, ?)
-    `).bind(id, channelId, user.id, content).run();
+      INSERT INTO chat_messages (id, channel_id, sender_id, content, tenant_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(id, channelId, user.id, content, getTenantId()).run();
   } catch (e: any) {
     console.error('Failed to insert chat message:', e);
     return error(`Failed to send message: ${e.message || 'Database error'}`, 500);
@@ -2205,10 +2281,11 @@ route('POST', '/api/chat/channels', async (request, env) => {
   }
 
   const id = generateId();
+  // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
-    INSERT INTO chat_channels (id, type, name, description, building_id, created_by)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(id, type, name, description || null, building_id || null, user.id).run();
+    INSERT INTO chat_channels (id, type, name, description, building_id, created_by, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, type, name, description || null, building_id || null, user.id, getTenantId()).run();
 
   const channel = await env.DB.prepare('SELECT * FROM chat_channels WHERE id = ?').bind(id).first();
   return json({ channel }, 201);
@@ -2263,6 +2340,9 @@ route('GET', '/api/chat/unread-count', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   let count = 0;
 
   if (isManagement(user)) {
@@ -2273,7 +2353,8 @@ route('GET', '/api/chat/unread-count', async (request, env) => {
       WHERE c.type = 'private_support'
         AND m.sender_id != ?
         AND m.id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
-    `).bind(user.id, user.id).first();
+        ${tenantId ? 'AND c.tenant_id = ?' : ''}
+    `).bind(user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
     count = (result as any)?.count || 0;
   } else if (user.role === 'resident') {
     // Count unread messages in resident's support channel
@@ -2284,7 +2365,8 @@ route('GET', '/api/chat/unread-count', async (request, env) => {
         AND c.resident_id = ?
         AND m.sender_id != ?
         AND m.id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
-    `).bind(user.id, user.id, user.id).first();
+        ${tenantId ? 'AND c.tenant_id = ?' : ''}
+    `).bind(user.id, user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
     count = (result as any)?.count || 0;
   }
 
@@ -2301,13 +2383,15 @@ route('GET', '/api/announcements', async (request, env) => {
   const url = new URL(request.url);
   const type = url.searchParams.get('type');
   const pagination = getPaginationParams(url);
+  const tenantId = getTenantId();
 
   let whereClause: string;
   let params: any[] = [];
 
   if (isManagement(user)) {
     // Admins/directors/managers see all
-    whereClause = 'WHERE 1=1';
+    whereClause = `WHERE 1=1 ${tenantId ? 'AND tenant_id = ?' : ''}`;
+    if (tenantId) params.push(tenantId);
   } else if (user.role === 'resident') {
     // Residents see announcements targeted to them
     // Logic:
@@ -2326,8 +2410,8 @@ route('GET', '/api/announcements', async (request, env) => {
     let userBranchCode: string | null = null;
     if (hasBuilding) {
       const buildingInfo = await env.DB.prepare(
-        'SELECT branch_code FROM buildings WHERE id = ?'
-      ).bind(user.building_id).first() as any;
+        `SELECT branch_code FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+      ).bind(user.building_id, ...(tenantId ? [tenantId] : [])).first() as any;
       userBranchCode = buildingInfo?.branch_code || null;
     }
 
@@ -2335,6 +2419,7 @@ route('GET', '/api/announcements', async (request, env) => {
       WHERE is_active = 1
         AND (expires_at IS NULL OR expires_at > datetime('now'))
         AND (type = 'residents' OR type = 'all')
+        ${tenantId ? 'AND tenant_id = ?' : ''}
         AND (
           target_type IS NULL
           OR target_type = ''
@@ -2348,6 +2433,7 @@ route('GET', '/api/announcements', async (request, env) => {
     `;
 
     params = [];
+    if (tenantId) params.push(tenantId);
     if (userBranchCode) params.push(userBranchCode);
     if (hasBuilding) params.push(user.building_id);
     if (hasBuilding && userEntrance) {
@@ -2364,7 +2450,9 @@ route('GET', '/api/announcements', async (request, env) => {
       WHERE is_active = 1
         AND (expires_at IS NULL OR expires_at > datetime('now'))
         AND (type = 'employees' OR type = 'staff' OR type = 'all')
+        ${tenantId ? 'AND tenant_id = ?' : ''}
     `;
+    if (tenantId) params.push(tenantId);
   }
 
   // Count total
@@ -2375,15 +2463,16 @@ route('GET', '/api/announcements', async (request, env) => {
   const offset = ((pagination.page || 1) - 1) * (pagination.limit || 50);
   const dataQuery = `
     SELECT a.*,
-      (SELECT COUNT(*) FROM announcement_views WHERE announcement_id = a.id) as view_count,
-      (SELECT name FROM users WHERE id = a.created_by) as author_name
+      (SELECT COUNT(*) FROM announcement_views WHERE announcement_id = a.id ${tenantId ? 'AND tenant_id = ?' : ''}) as view_count,
+      (SELECT name FROM users WHERE id = a.created_by ${tenantId ? 'AND tenant_id = ?' : ''}) as author_name
     FROM announcements a
     ${whereClause}
     ORDER BY a.created_at DESC
     LIMIT ? OFFSET ?
   `;
 
-  const { results } = await env.DB.prepare(dataQuery).bind(...params, pagination.limit, offset).all();
+  const subqueryTenantIds = tenantId ? [tenantId, tenantId] : [];
+  const { results } = await env.DB.prepare(dataQuery).bind(...params, ...subqueryTenantIds, pagination.limit, offset).all();
 
   // For current user, check which announcements they've viewed
   const announcementIds = (results as any[]).map(a => a.id);
@@ -2392,8 +2481,8 @@ route('GET', '/api/announcements', async (request, env) => {
   if (announcementIds.length > 0) {
     const placeholders = announcementIds.map(() => '?').join(',');
     const { results: views } = await env.DB.prepare(
-      `SELECT announcement_id FROM announcement_views WHERE user_id = ? AND announcement_id IN (${placeholders})`
-    ).bind(user.id, ...announcementIds).all();
+      `SELECT announcement_id FROM announcement_views WHERE user_id = ? AND announcement_id IN (${placeholders}) ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(user.id, ...announcementIds, ...(tenantId ? [tenantId] : [])).all();
     viewedByUser = new Set((views as any[]).map(v => v.announcement_id));
   }
 
@@ -2422,13 +2511,13 @@ route('POST', '/api/announcements', async (request, env) => {
   const attachments = body.attachments ? JSON.stringify(body.attachments) : null;
 
   await env.DB.prepare(`
-    INSERT INTO announcements (id, title, content, type, target_type, target_branch, target_building_id, target_logins, priority, expires_at, attachments, created_by, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO announcements (id, title, content, type, target_type, target_branch, target_building_id, target_logins, priority, expires_at, attachments, created_by, created_at, updated_at, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
   `).bind(
     id, body.title, body.content, body.type || 'residents',
     body.target_type || 'all', body.target_branch || null, body.target_building_id || null,
     body.target_logins || null, body.priority || 'normal',
-    body.expires_at || null, attachments, authUser.id
+    body.expires_at || null, attachments, authUser.id, getTenantId()
   ).run();
 
   // Send push notifications to target users
@@ -2708,6 +2797,13 @@ route('GET', '/api/team', async (request, env) => {
   let whereClause = "WHERE u.role IN ('admin', 'manager', 'department_head', 'executor')";
   const params: any[] = [];
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  if (tenantId) {
+    whereClause += ' AND u.tenant_id = ?';
+    params.push(tenantId);
+  }
+
   if (roleFilter) {
     whereClause += ' AND u.role = ?';
     params.push(roleFilter);
@@ -2735,6 +2831,7 @@ route('GET', '/api/team', async (request, env) => {
         SUM(CASE WHEN status IN ('assigned', 'accepted', 'in_progress') THEN 1 ELSE 0 END) as active_count,
         ROUND(AVG(CASE WHEN rating IS NOT NULL THEN rating ELSE NULL END), 1) as avg_rating
       FROM requests
+      ${tenantId ? 'WHERE tenant_id = ?' : ''}
       GROUP BY executor_id
     ) stats ON stats.executor_id = u.id
     ${whereClause}
@@ -2747,7 +2844,7 @@ route('GET', '/api/team', async (request, env) => {
       END,
       u.name
     LIMIT 500
-  `).bind(...params).all();
+  `).bind(...(tenantId ? [tenantId] : []), ...params).all();
 
   // Group by role
   const admins = staff.filter((s: any) => s.role === 'admin');
@@ -2770,11 +2867,14 @@ route('GET', '/api/team/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   if (!isAdminLevel(user)) return error('Access denied', 403);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
   const staff = await env.DB.prepare(`
     SELECT id, login, name, phone, role, specialization, status, created_at, password_plain as password
     FROM users
     WHERE id = ? AND role IN ('admin', 'manager', 'department_head', 'executor', 'director')
-  `).bind(params.id).first();
+      ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!staff) {
     return error('Staff member not found', 404);
@@ -2850,18 +2950,26 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
     return error('No fields to update');
   }
 
+  // MULTI-TENANCY: Only update users from same tenant
+  const tenantId = getTenantId();
   values.push(params.id);
+  if (tenantId) {
+    values.push(tenantId);
+  }
 
   await env.DB.prepare(`
-    UPDATE users SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?
+    UPDATE users SET ${updates.join(', ')}, updated_at = datetime('now')
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(...values).run();
 
   // Инвалидируем кэш
   await invalidateOnChange('users', env.RATE_LIMITER);
 
   const updated = await env.DB.prepare(`
-    SELECT id, login, name, phone, role, specialization, status, created_at, password_plain as password FROM users WHERE id = ?
-  `).bind(params.id).first();
+    SELECT id, login, name, phone, role, specialization, status, created_at, password_plain as password
+    FROM users
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   return json({ user: updated });
 });
@@ -2872,10 +2980,13 @@ route('DELETE', '/api/team/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   if (!isAdminLevel(user)) return error('Access denied', 403);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check if user exists and is a staff member
   const targetUser = await env.DB.prepare(
-    'SELECT id, role FROM users WHERE id = ?'
-  ).bind(params.id).first() as any;
+    `SELECT id, role FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!targetUser) {
     return error('User not found', 404);
@@ -2892,7 +3003,9 @@ route('DELETE', '/api/team/:id', async (request, env, params) => {
     return error('Directors cannot delete managers', 403);
   }
 
-  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(params.id).run();
+  await env.DB.prepare(
+    `DELETE FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Invalidate cache
   await invalidateOnChange('users', env.RATE_LIMITER);
@@ -2907,13 +3020,17 @@ route('POST', '/api/team/reset-all-passwords', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   if (user.role !== 'admin') return error('Only admin can perform this operation', 403);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Find all staff members without password_plain
   const staffRoles = ['manager', 'department_head', 'executor'];
   const { results: staffWithoutPassword } = await env.DB.prepare(`
     SELECT id, login, name, role FROM users
     WHERE role IN (?, ?, ?)
     AND (password_plain IS NULL OR password_plain = '')
-  `).bind(...staffRoles).all();
+    ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(...staffRoles, ...(tenantId ? [tenantId] : [])).all();
 
   if (!staffWithoutPassword || staffWithoutPassword.length === 0) {
     return json({ message: 'All staff members already have passwords set', updated: 0 });
@@ -2966,6 +3083,9 @@ route('GET', '/api/executors', async (request, env) => {
     return error('Access denied', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check if requesting all executors (for colleagues page)
   const url = new URL(request.url);
   const showAll = url.searchParams.get('all') === 'true';
@@ -2975,6 +3095,12 @@ route('GET', '/api/executors', async (request, env) => {
   // Build WHERE clause (use u. alias for users table in JOIN query)
   let whereClause = `WHERE u.role = 'executor'`;
   const bindValues: any[] = [];
+
+  // MULTI-TENANCY: Filter by tenant
+  if (tenantId) {
+    whereClause += ` AND u.tenant_id = ?`;
+    bindValues.push(tenantId);
+  }
 
   // SECURITY: Department heads only see executors in their department (specialization)
   // Unless they request all (for colleagues page)
@@ -3011,6 +3137,7 @@ route('GET', '/api/executors', async (request, env) => {
   const includePassword = ['admin', 'director', 'manager'].includes(user.role);
 
   // Query with statistics from requests table
+  // MULTI-TENANCY: Also filter requests stats by tenant_id
   const dataQuery = `
     SELECT
       u.id, u.login, u.name, u.phone, u.role, u.specialization, u.status, u.is_active, u.created_at${includePassword ? ', u.password_plain as password' : ''},
@@ -3030,6 +3157,7 @@ route('GET', '/api/executors', async (request, env) => {
           THEN (julianday(completed_at) - julianday(started_at)) * 24 * 60
           ELSE NULL END), 0) as avg_completion_time
       FROM requests
+      ${tenantId ? 'WHERE tenant_id = ?' : ''}
       GROUP BY executor_id
     ) stats ON stats.executor_id = u.id
     ${whereClause}
@@ -3038,9 +3166,12 @@ route('GET', '/api/executors', async (request, env) => {
   `;
 
   const dataStmt = env.DB.prepare(dataQuery);
+  // Note: tenantId is already in bindValues from the WHERE clause if present
+  // We need to also bind it for the subquery if tenantId exists
+  const subqueryBinds = tenantId ? [tenantId] : [];
   const { results } = bindValues.length > 0
-    ? await dataStmt.bind(...bindValues, pagination.limit, offset).all()
-    : await dataStmt.bind(pagination.limit, offset).all();
+    ? await dataStmt.bind(...subqueryBinds, ...bindValues, pagination.limit, offset).all()
+    : await dataStmt.bind(...subqueryBinds, pagination.limit, offset).all();
 
   const response = createPaginatedResponse(results, total || 0, pagination);
   return json({ executors: response.data, pagination: response.pagination });
@@ -3057,14 +3188,17 @@ route('GET', '/api/executors/:id', async (request, env, params) => {
     return error('Access denied', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Include password for admin/manager/director roles only
   const includePassword = ['admin', 'director', 'manager'].includes(user.role);
 
   const executor = await env.DB.prepare(`
     SELECT id, login, name, phone, role, specialization, status, created_at${includePassword ? ', password_plain as password' : ''}
     FROM users
-    WHERE id = ? AND role IN ('executor', 'department_head')
-  `).bind(params.id).first();
+    WHERE id = ? AND role IN ('executor', 'department_head') ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!executor) {
     return error('Executor not found', 404);
@@ -3083,6 +3217,9 @@ route('PATCH', '/api/executors/:id/status', async (request, env, params) => {
     return error('Access denied', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const status = body.status;
 
@@ -3091,15 +3228,15 @@ route('PATCH', '/api/executors/:id/status', async (request, env, params) => {
   }
 
   await env.DB.prepare(`
-    UPDATE users SET status = ? WHERE id = ? AND role = 'executor'
-  `).bind(status, params.id).run();
+    UPDATE users SET status = ? WHERE id = ? AND role = 'executor' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(status, params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Инвалидируем кэш исполнителей
   await invalidateOnChange('users', env.RATE_LIMITER);
 
   const executor = await env.DB.prepare(`
-    SELECT id, login, name, phone, role, specialization, status FROM users WHERE id = ?
-  `).bind(params.id).first();
+    SELECT id, login, name, phone, role, specialization, status FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   return json({ executor });
 });
@@ -3109,10 +3246,13 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get executor info
   const executor = await env.DB.prepare(`
-    SELECT id, name, specialization, status FROM users WHERE id = ? AND role = 'executor'
-  `).bind(params.id).first();
+    SELECT id, name, specialization, status FROM users WHERE id = ? AND role = 'executor' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!executor) return error('Executor not found', 404);
 
@@ -3124,33 +3264,33 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
   // Total completed
   const totalCompleted = await env.DB.prepare(`
     SELECT COUNT(*) as count FROM requests
-    WHERE executor_id = ? AND status IN ('completed', 'closed')
-  `).bind(params.id).first() as { count: number };
+    WHERE executor_id = ? AND status IN ('completed', 'closed') ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { count: number };
 
   // This week completed
   const weekCompleted = await env.DB.prepare(`
     SELECT COUNT(*) as count FROM requests
-    WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ?
-  `).bind(params.id, weekAgo).first() as { count: number };
+    WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, weekAgo, ...(tenantId ? [tenantId] : [])).first() as { count: number };
 
   // This month completed
   const monthCompleted = await env.DB.prepare(`
     SELECT COUNT(*) as count FROM requests
-    WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ?
-  `).bind(params.id, monthAgo).first() as { count: number };
+    WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, monthAgo, ...(tenantId ? [tenantId] : [])).first() as { count: number };
 
   // Average rating from requests
   const avgRating = await env.DB.prepare(`
     SELECT AVG(rating) as avg FROM requests
-    WHERE executor_id = ? AND rating IS NOT NULL
-  `).bind(params.id).first() as { avg: number | null };
+    WHERE executor_id = ? AND rating IS NOT NULL ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { avg: number | null };
 
   // Average completion time (in minutes) - calculate from started_at to completed_at
   const avgTime = await env.DB.prepare(`
     SELECT AVG((julianday(completed_at) - julianday(started_at)) * 24 * 60) as avg_minutes
     FROM requests
-    WHERE executor_id = ? AND started_at IS NOT NULL AND completed_at IS NOT NULL
-  `).bind(params.id).first() as { avg_minutes: number | null };
+    WHERE executor_id = ? AND started_at IS NOT NULL AND completed_at IS NOT NULL ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { avg_minutes: number | null };
 
   // Count requests by status for this executor
   const statusCounts = await env.DB.prepare(`
@@ -3219,30 +3359,37 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
 
 // Branches: List all
 route('GET', '/api/branches', async (request, env) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT b.*,
-      (SELECT COUNT(*) FROM buildings WHERE branch_code = b.code) as buildings_count,
+      (SELECT COUNT(*) FROM buildings WHERE branch_code = b.code ${tenantId ? 'AND tenant_id = ?' : ''}) as buildings_count,
       (SELECT COUNT(*) FROM users u
        JOIN buildings bld ON u.building_id = bld.id
-       WHERE bld.branch_code = b.code AND u.role = 'resident') as residents_count
+       WHERE bld.branch_code = b.code AND u.role = 'resident' ${tenantId ? 'AND bld.tenant_id = ?' : ''}) as residents_count
     FROM branches b
+    ${tenantId ? 'WHERE b.tenant_id = ?' : ''}
     ORDER BY b.name
-  `).all();
+  `).bind(...(tenantId ? [tenantId, tenantId, tenantId] : [])).all();
 
   return json({ branches: results });
 });
 
 // Branches: Get single
 route('GET', '/api/branches/:id', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const branch = await env.DB.prepare(`
     SELECT b.*,
-      (SELECT COUNT(*) FROM buildings WHERE branch_code = b.code) as buildings_count,
+      (SELECT COUNT(*) FROM buildings WHERE branch_code = b.code ${tenantId ? 'AND tenant_id = ?' : ''}) as buildings_count,
       (SELECT COUNT(*) FROM users u
        JOIN buildings bld ON u.building_id = bld.id
-       WHERE bld.branch_code = b.code AND u.role = 'resident') as residents_count
+       WHERE bld.branch_code = b.code AND u.role = 'resident' ${tenantId ? 'AND bld.tenant_id = ?' : ''}) as residents_count
     FROM branches b
-    WHERE b.id = ?
-  `).bind(params.id).first();
+    WHERE b.id = ? ${tenantId ? 'AND b.tenant_id = ?' : ''}
+  `).bind(...(tenantId ? [tenantId, tenantId] : []), params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!branch) return error('Branch not found', 404);
   return json({ branch });
@@ -3262,20 +3409,24 @@ route('POST', '/api/branches', async (request, env) => {
     return error('Code and name are required', 400);
   }
 
-  // Check if code is unique
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  // Check if code is unique (within tenant)
   const existing = await env.DB.prepare(
-    'SELECT id FROM branches WHERE code = ?'
-  ).bind(code.toUpperCase()).first();
+    `SELECT id FROM branches WHERE code = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(code.toUpperCase(), ...(tenantId ? [tenantId] : [])).first();
 
   if (existing) {
     return error('Branch with this code already exists', 400);
   }
 
   const id = generateId();
+  // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
-    INSERT INTO branches (id, code, name, address, phone)
-    VALUES (?, ?, ?, ?, ?)
-  `).bind(id, code.toUpperCase(), name, address || null, phone || null).run();
+    INSERT INTO branches (id, code, name, address, phone, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(id, code.toUpperCase(), name, address || null, phone || null, getTenantId()).run();
 
   const branch = await env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(id).first();
   return json({ branch }, 201);
@@ -3313,12 +3464,16 @@ route('PATCH', '/api/branches/:id', async (request, env, params) => {
     return error('No fields to update', 400);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   values.push(params.id);
+  if (tenantId) values.push(tenantId);
   await env.DB.prepare(`
-    UPDATE branches SET ${updates.join(', ')} WHERE id = ?
+    UPDATE branches SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(...values).run();
 
-  const branch = await env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(params.id).first();
+  const branch = await env.DB.prepare(`SELECT * FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ branch });
 });
 
@@ -3329,16 +3484,19 @@ route('DELETE', '/api/branches/:id', async (request, env, params) => {
     return error('Admin access required', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check if branch has buildings
   const buildingsCount = await env.DB.prepare(
-    'SELECT COUNT(*) as count FROM buildings WHERE branch_id = ?'
-  ).bind(params.id).first() as any;
+    `SELECT COUNT(*) as count FROM buildings WHERE branch_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (buildingsCount?.count > 0) {
     return error('Cannot delete branch with buildings. Remove buildings first.', 400);
   }
 
-  await env.DB.prepare('DELETE FROM branches WHERE id = ?').bind(params.id).run();
+  await env.DB.prepare(`DELETE FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
 });
 
@@ -3350,10 +3508,16 @@ route('GET', '/api/buildings', async (request, env) => {
   const branchCode = url.searchParams.get('branch_code');
   const search = url.searchParams.get('search')?.toLowerCase();
   const pagination = getPaginationParams(url);
+  const tenantId = getTenantId();
 
   // Build WHERE clause
   let whereClause = 'WHERE 1=1';
   const bindValues: any[] = [];
+
+  if (tenantId) {
+    whereClause += ` AND b.tenant_id = ?`;
+    bindValues.push(tenantId);
+  }
 
   if (branchCode) {
     whereClause += ` AND b.branch_code = ?`;
@@ -3379,21 +3543,23 @@ route('GET', '/api/buildings', async (request, env) => {
     SELECT b.*,
       br.code as branch_code_from_branch,
       br.name as branch_name,
-      (SELECT COUNT(*) FROM users WHERE building_id = b.id AND role = 'resident') as residents_count,
-      (SELECT COUNT(*) FROM entrances WHERE building_id = b.id) as entrances_actual,
-      (SELECT COUNT(*) FROM apartments WHERE building_id = b.id) as apartments_actual,
-      (SELECT COUNT(*) FROM requests WHERE resident_id IN (SELECT id FROM users WHERE building_id = b.id) AND status NOT IN ('completed', 'cancelled', 'closed')) as active_requests_count
+      (SELECT COUNT(*) FROM users WHERE building_id = b.id AND role = 'resident' ${tenantId ? 'AND tenant_id = ?' : ''}) as residents_count,
+      (SELECT COUNT(*) FROM entrances WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) as entrances_actual,
+      (SELECT COUNT(*) FROM apartments WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) as apartments_actual,
+      (SELECT COUNT(*) FROM requests WHERE resident_id IN (SELECT id FROM users WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) AND status NOT IN ('completed', 'cancelled', 'closed') ${tenantId ? 'AND tenant_id = ?' : ''}) as active_requests_count
     FROM buildings b
-    LEFT JOIN branches br ON b.branch_code = br.code
+    LEFT JOIN branches br ON b.branch_code = br.code ${tenantId ? 'AND br.tenant_id = ?' : ''}
     ${whereClause}
     ORDER BY b.name
     LIMIT ? OFFSET ?
   `;
 
   const dataStmt = env.DB.prepare(dataQuery);
+  // Add tenant_id for each subquery if needed (6 times: 4 in subqueries + 1 in JOIN + 1 in inner users subquery)
+  const subqueryTenantIds = tenantId ? [tenantId, tenantId, tenantId, tenantId, tenantId, tenantId] : [];
   const { results } = bindValues.length > 0
-    ? await dataStmt.bind(...bindValues, pagination.limit, offset).all()
-    : await dataStmt.bind(pagination.limit, offset).all();
+    ? await dataStmt.bind(...bindValues, ...subqueryTenantIds, pagination.limit, offset).all()
+    : await dataStmt.bind(...subqueryTenantIds, pagination.limit, offset).all();
 
   const response = createPaginatedResponse(results, total || 0, pagination);
   return json({ buildings: response.data, pagination: response.pagination });
@@ -3401,33 +3567,34 @@ route('GET', '/api/buildings', async (request, env) => {
 
 // Buildings: Get single with full details
 route('GET', '/api/buildings/:id', async (request, env, params) => {
+  const tenantId = getTenantId();
   // Кэшируем данные здания на 5 минут (включает динамические счетчики)
   const data = await cachedQueryWithArgs(
     CachePrefix.BUILDING,
     CacheTTL.BUILDING_STATS,
-    [params.id],
+    [params.id, tenantId || 'no-tenant'],
     async (buildingId: string) => {
       const building = await env.DB.prepare(`
         SELECT b.*,
-          (SELECT COUNT(*) FROM users WHERE building_id = b.id AND role = 'resident') as residents_count,
-          (SELECT COUNT(*) FROM entrances WHERE building_id = b.id) as entrances_actual,
-          (SELECT COUNT(*) FROM apartments WHERE building_id = b.id) as apartments_actual,
-          (SELECT COUNT(*) FROM requests WHERE resident_id IN (SELECT id FROM users WHERE building_id = b.id) AND status NOT IN ('completed', 'cancelled', 'closed')) as active_requests_count
+          (SELECT COUNT(*) FROM users WHERE building_id = b.id AND role = 'resident' ${tenantId ? 'AND tenant_id = ?' : ''}) as residents_count,
+          (SELECT COUNT(*) FROM entrances WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) as entrances_actual,
+          (SELECT COUNT(*) FROM apartments WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) as apartments_actual,
+          (SELECT COUNT(*) FROM requests WHERE resident_id IN (SELECT id FROM users WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) AND status NOT IN ('completed', 'cancelled', 'closed') ${tenantId ? 'AND tenant_id = ?' : ''}) as active_requests_count
         FROM buildings b
-        WHERE b.id = ?
-      `).bind(buildingId).first();
+        WHERE b.id = ? ${tenantId ? 'AND b.tenant_id = ?' : ''}
+      `).bind(buildingId, ...(tenantId ? [tenantId, tenantId, tenantId, tenantId, tenantId, tenantId] : [])).first();
 
       if (!building) return null;
 
       // Get entrances
       const { results: entrances } = await env.DB.prepare(
-        'SELECT * FROM entrances WHERE building_id = ? ORDER BY number'
-      ).bind(buildingId).all();
+        `SELECT * FROM entrances WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''} ORDER BY number`
+      ).bind(buildingId, ...(tenantId ? [tenantId] : [])).all();
 
       // Get documents
       const { results: documents } = await env.DB.prepare(
-        'SELECT * FROM building_documents WHERE building_id = ? AND is_active = 1 ORDER BY uploaded_at DESC'
-      ).bind(buildingId).all();
+        `SELECT * FROM building_documents WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 ORDER BY uploaded_at DESC`
+      ).bind(buildingId, ...(tenantId ? [tenantId] : [])).all();
 
       return { building, entrances, documents };
     },
@@ -3458,8 +3625,8 @@ route('POST', '/api/buildings', async (request, env) => {
       has_intercom, has_video_surveillance, has_concierge, has_parking_lot, parking_spaces, has_playground,
       manager_id, manager_name, management_start_date, contract_number, contract_end_date,
       monthly_budget, reserve_fund, total_debt, collection_rate,
-      latitude, longitude
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      latitude, longitude, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     body.name,
@@ -3505,13 +3672,15 @@ route('POST', '/api/buildings', async (request, env) => {
     body.total_debt || body.totalDebt || 0,
     body.collection_rate || body.collectionRate || 0,
     body.latitude || null,
-    body.longitude || null
+    body.longitude || null,
+    getTenantId()
   ).run();
 
   // Инвалидируем кэш зданий
   await invalidateOnChange('buildings', env.RATE_LIMITER);
 
-  const created = await env.DB.prepare('SELECT * FROM buildings WHERE id = ?').bind(id).first();
+  const tenantId = getTenantId();
+  const created = await env.DB.prepare(`SELECT * FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(id, ...(tenantId ? [tenantId] : [])).first();
   return json({ building: created }, 201);
 });
 
@@ -3584,12 +3753,17 @@ route('PATCH', '/api/buildings/:id', async (request, env, params) => {
   updates.push('updated_at = datetime("now")');
   values.push(params.id);
 
-  await env.DB.prepare(`UPDATE buildings SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  const tenantId = getTenantId();
+  if (tenantId) {
+    values.push(tenantId);
+  }
+
+  await env.DB.prepare(`UPDATE buildings SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
 
   // Инвалидируем кэш зданий
   await invalidateOnChange('buildings', env.RATE_LIMITER);
 
-  const updated = await env.DB.prepare('SELECT * FROM buildings WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ building: updated });
 });
 
@@ -3601,27 +3775,28 @@ route('DELETE', '/api/buildings/:id', async (request, env, params) => {
   }
 
   const buildingId = params.id;
+  const tenantId = getTenantId();
 
   // First, unlink users from this building (set building_id to NULL)
-  await env.DB.prepare('UPDATE users SET building_id = NULL WHERE building_id = ?').bind(buildingId).run();
+  await env.DB.prepare(`UPDATE users SET building_id = NULL WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   // Unlink announcements
-  await env.DB.prepare('UPDATE announcements SET target_building_id = NULL WHERE target_building_id = ?').bind(buildingId).run();
+  await env.DB.prepare(`UPDATE announcements SET target_building_id = NULL WHERE target_building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   // Delete chat channels for this building
-  await env.DB.prepare('DELETE FROM chat_channels WHERE building_id = ?').bind(buildingId).run();
+  await env.DB.prepare(`DELETE FROM chat_channels WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   // Delete executor zones
-  await env.DB.prepare('DELETE FROM executor_zones WHERE building_id = ?').bind(buildingId).run();
+  await env.DB.prepare(`DELETE FROM executor_zones WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   // Delete meeting voting units
-  await env.DB.prepare('DELETE FROM meeting_voting_units WHERE building_id = ?').bind(buildingId).run();
+  await env.DB.prepare(`DELETE FROM meeting_voting_units WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   // Delete meeting building settings
-  await env.DB.prepare('DELETE FROM meeting_building_settings WHERE building_id = ?').bind(buildingId).run();
+  await env.DB.prepare(`DELETE FROM meeting_building_settings WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   // Now delete the building - cascades will handle entrances, documents, apartments, meetings, etc.
-  await env.DB.prepare('DELETE FROM buildings WHERE id = ?').bind(buildingId).run();
+  await env.DB.prepare(`DELETE FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   // Invalidate cache
   await invalidateOnChange('buildings', env.RATE_LIMITER);
@@ -4001,9 +4176,16 @@ route('GET', '/api/owners', async (request, env) => {
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const offset = (page - 1) * limit;
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   let query = 'SELECT * FROM owners WHERE 1=1';
   const bindings: any[] = [];
 
+  if (tenantId) {
+    query += ' AND tenant_id = ?';
+    bindings.push(tenantId);
+  }
   if (type) {
     query += ' AND type = ?';
     bindings.push(type);
@@ -4022,6 +4204,10 @@ route('GET', '/api/owners', async (request, env) => {
   // Get total
   let countQuery = 'SELECT COUNT(*) as total FROM owners WHERE 1=1';
   const countBindings: any[] = [];
+  if (tenantId) {
+    countQuery += ' AND tenant_id = ?';
+    countBindings.push(tenantId);
+  }
   if (type) {
     countQuery += ' AND type = ?';
     countBindings.push(type);
@@ -4046,7 +4232,8 @@ route('GET', '/api/owners', async (request, env) => {
 
 // Owners: Get single with apartments
 route('GET', '/api/owners/:id', async (request, env, params) => {
-  const owner = await env.DB.prepare('SELECT * FROM owners WHERE id = ?').bind(params.id).first();
+  const tenantId = getTenantId();
+  const owner = await env.DB.prepare(`SELECT * FROM owners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   if (!owner) return error('Owner not found', 404);
 
   // Get apartments
@@ -4087,8 +4274,8 @@ route('POST', '/api/owners', async (request, env) => {
       passport_series, passport_number, passport_issued_by, passport_issued_date, registration_address,
       ownership_type, ownership_share, ownership_start_date,
       ownership_document, ownership_document_number, ownership_document_date,
-      is_active, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      is_active, notes, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     body.type || 'individual',
@@ -4115,7 +4302,8 @@ route('POST', '/api/owners', async (request, env) => {
     body.ownership_document_number || body.ownershipDocumentNumber || null,
     body.ownership_document_date || body.ownershipDocumentDate || null,
     body.is_active !== false ? 1 : 0,
-    body.notes || null
+    body.notes || null,
+    getTenantId() || null
   ).run();
 
   const created = await env.DB.prepare('SELECT * FROM owners WHERE id = ?').bind(id).first();
@@ -4172,11 +4360,19 @@ route('PATCH', '/api/owners/:id', async (request, env, params) => {
   if (updates.length === 0) return json({ success: true });
 
   updates.push('updated_at = datetime("now")');
+
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  let whereClause = 'WHERE id = ?';
   values.push(params.id);
+  if (tenantId) {
+    whereClause += ' AND tenant_id = ?';
+    values.push(tenantId);
+  }
 
-  await env.DB.prepare(`UPDATE owners SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  await env.DB.prepare(`UPDATE owners SET ${updates.join(', ')} ${whereClause}`).bind(...values).run();
 
-  const updated = await env.DB.prepare('SELECT * FROM owners WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM owners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ owner: updated });
 });
 
@@ -4187,7 +4383,9 @@ route('DELETE', '/api/owners/:id', async (request, env, params) => {
     return error('Manager access required', 403);
   }
 
-  await env.DB.prepare('DELETE FROM owners WHERE id = ?').bind(params.id).run();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  await env.DB.prepare(`DELETE FROM owners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
 });
 
@@ -4248,8 +4446,11 @@ route('GET', '/api/buildings/:buildingId/accounts', async (request, env, params)
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const offset = (page - 1) * limit;
 
-  let query = 'SELECT * FROM personal_accounts WHERE building_id = ?';
-  const bindings: any[] = [params.buildingId];
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  let query = `SELECT * FROM personal_accounts WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
+  const bindings: any[] = [params.buildingId, ...(tenantId ? [tenantId] : [])];
 
   if (status) {
     query += ' AND status = ?';
@@ -4264,8 +4465,8 @@ route('GET', '/api/buildings/:buildingId/accounts', async (request, env, params)
 
   const { results } = await env.DB.prepare(query).bind(...bindings).all();
 
-  let countQuery = 'SELECT COUNT(*) as total FROM personal_accounts WHERE building_id = ?';
-  const countBindings: any[] = [params.buildingId];
+  let countQuery = `SELECT COUNT(*) as total FROM personal_accounts WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
+  const countBindings: any[] = [params.buildingId, ...(tenantId ? [tenantId] : [])];
   if (status) {
     countQuery += ' AND status = ?';
     countBindings.push(status);
@@ -4288,6 +4489,9 @@ route('GET', '/api/buildings/:buildingId/accounts', async (request, env, params)
 
 // Personal Accounts: Get single
 route('GET', '/api/accounts/:id', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const account = await env.DB.prepare(`
     SELECT pa.*,
       a.number as apt_number, a.floor, a.rooms,
@@ -4295,8 +4499,8 @@ route('GET', '/api/accounts/:id', async (request, env, params) => {
     FROM personal_accounts pa
     LEFT JOIN apartments a ON pa.apartment_id = a.id
     LEFT JOIN buildings b ON pa.building_id = b.id
-    WHERE pa.id = ?
-  `).bind(params.id).first();
+    WHERE pa.id = ? ${tenantId ? 'AND pa.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!account) return error('Account not found', 404);
 
@@ -4324,8 +4528,8 @@ route('POST', '/api/accounts', async (request, env) => {
       balance, current_debt, penalty_amount,
       has_subsidy, subsidy_amount, subsidy_end_date,
       has_discount, discount_percent, discount_reason,
-      status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      status, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     accountNumber,
@@ -4347,7 +4551,8 @@ route('POST', '/api/accounts', async (request, env) => {
     body.has_discount || body.hasDiscount ? 1 : 0,
     body.discount_percent || body.discountPercent || 0,
     body.discount_reason || body.discountReason || null,
-    body.status || 'active'
+    body.status || 'active',
+    getTenantId() || null
   ).run();
 
   // Link account to apartment
@@ -4404,11 +4609,19 @@ route('PATCH', '/api/accounts/:id', async (request, env, params) => {
   if (updates.length === 0) return json({ success: true });
 
   updates.push('updated_at = datetime("now")');
+
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  let whereClause = 'WHERE id = ?';
   values.push(params.id);
+  if (tenantId) {
+    whereClause += ' AND tenant_id = ?';
+    values.push(tenantId);
+  }
 
-  await env.DB.prepare(`UPDATE personal_accounts SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  await env.DB.prepare(`UPDATE personal_accounts SET ${updates.join(', ')} ${whereClause}`).bind(...values).run();
 
-  const updated = await env.DB.prepare('SELECT * FROM personal_accounts WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM personal_accounts WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ account: updated });
 });
 
@@ -4418,14 +4631,18 @@ route('GET', '/api/accounts/debtors', async (request, env) => {
   const minDebt = parseInt(url.searchParams.get('min_debt') || '0');
   const buildingId = url.searchParams.get('building_id');
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   let query = `
     SELECT pa.*,
       b.name as building_name
     FROM personal_accounts pa
     JOIN buildings b ON pa.building_id = b.id
     WHERE pa.current_debt > ?
+    ${tenantId ? 'AND pa.tenant_id = ?' : ''}
   `;
-  const bindings: any[] = [minDebt];
+  const bindings: any[] = [minDebt, ...(tenantId ? [tenantId] : [])];
 
   if (buildingId) {
     query += ' AND pa.building_id = ?';
@@ -4445,8 +4662,11 @@ route('GET', '/api/apartments/:apartmentId/residents', async (request, env, para
   const url = new URL(request.url);
   const isActive = url.searchParams.get('is_active');
 
-  let query = 'SELECT * FROM crm_residents WHERE apartment_id = ?';
-  const bindings: any[] = [params.apartmentId];
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  let query = `SELECT * FROM crm_residents WHERE apartment_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
+  const bindings: any[] = [params.apartmentId, ...(tenantId ? [tenantId] : [])];
 
   if (isActive !== null) {
     query += ' AND is_active = ?';
@@ -4461,6 +4681,9 @@ route('GET', '/api/apartments/:apartmentId/residents', async (request, env, para
 
 // CRM Residents: Get single
 route('GET', '/api/residents/:id', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const resident = await env.DB.prepare(`
     SELECT r.*,
       a.number as apartment_number, a.floor,
@@ -4470,8 +4693,8 @@ route('GET', '/api/residents/:id', async (request, env, params) => {
     LEFT JOIN apartments a ON r.apartment_id = a.id
     LEFT JOIN buildings b ON a.building_id = b.id
     LEFT JOIN owners o ON r.owner_id = o.id
-    WHERE r.id = ?
-  `).bind(params.id).first();
+    WHERE r.id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!resident) return error('Resident not found', 404);
 
@@ -4502,8 +4725,8 @@ route('POST', '/api/apartments/:apartmentId/residents', async (request, env, par
       phone, additional_phone, email,
       is_active, moved_in_date,
       passport_series, passport_number,
-      notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      notes, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     params.apartmentId,
@@ -4525,7 +4748,8 @@ route('POST', '/api/apartments/:apartmentId/residents', async (request, env, par
     body.moved_in_date || body.movedInDate || new Date().toISOString().split('T')[0],
     body.passport_series || body.passportSeries || null,
     body.passport_number || body.passportNumber || null,
-    body.notes || null
+    body.notes || null,
+    getTenantId() || null
   ).run();
 
   const created = await env.DB.prepare('SELECT * FROM crm_residents WHERE id = ?').bind(id).first();
@@ -4576,11 +4800,19 @@ route('PATCH', '/api/residents/:id', async (request, env, params) => {
   if (updates.length === 0) return json({ success: true });
 
   updates.push('updated_at = datetime("now")');
+
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  let whereClause = 'WHERE id = ?';
   values.push(params.id);
+  if (tenantId) {
+    whereClause += ' AND tenant_id = ?';
+    values.push(tenantId);
+  }
 
-  await env.DB.prepare(`UPDATE crm_residents SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  await env.DB.prepare(`UPDATE crm_residents SET ${updates.join(', ')} ${whereClause}`).bind(...values).run();
 
-  const updated = await env.DB.prepare('SELECT * FROM crm_residents WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM crm_residents WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ resident: updated });
 });
 
@@ -4591,7 +4823,9 @@ route('DELETE', '/api/residents/:id', async (request, env, params) => {
     return error('Manager access required', 403);
   }
 
-  await env.DB.prepare('DELETE FROM crm_residents WHERE id = ?').bind(params.id).run();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  await env.DB.prepare(`DELETE FROM crm_residents WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
 });
 
@@ -4602,16 +4836,20 @@ route('POST', '/api/residents/:id/move-out', async (request, env, params) => {
     return error('Manager access required', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
 
   await env.DB.prepare(`
     UPDATE crm_residents
     SET is_active = 0, moved_out_date = ?, moved_out_reason = ?, updated_at = datetime('now')
-    WHERE id = ?
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(
     body.moved_out_date || body.movedOutDate || new Date().toISOString().split('T')[0],
     body.reason || null,
-    params.id
+    params.id,
+    ...(tenantId ? [tenantId] : [])
   ).run();
 
   return json({ success: true });
@@ -4625,8 +4863,11 @@ route('GET', '/api/apartments/:apartmentId/meters', async (request, env, params)
   const type = url.searchParams.get('type');
   const isActive = url.searchParams.get('is_active');
 
-  let query = 'SELECT * FROM meters WHERE apartment_id = ?';
-  const bindings: any[] = [params.apartmentId];
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  let query = `SELECT * FROM meters WHERE apartment_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
+  const bindings: any[] = [params.apartmentId, ...(tenantId ? [tenantId] : [])];
 
   if (type) {
     query += ' AND type = ?';
@@ -4649,8 +4890,11 @@ route('GET', '/api/buildings/:buildingId/meters', async (request, env, params) =
   const type = url.searchParams.get('type');
   const isCommon = url.searchParams.get('is_common');
 
-  let query = 'SELECT * FROM meters WHERE building_id = ?';
-  const bindings: any[] = [params.buildingId];
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  let query = `SELECT * FROM meters WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
+  const bindings: any[] = [params.buildingId, ...(tenantId ? [tenantId] : [])];
 
   if (type) {
     query += ' AND type = ?';
@@ -4669,6 +4913,9 @@ route('GET', '/api/buildings/:buildingId/meters', async (request, env, params) =
 
 // Meters: Get single with latest readings
 route('GET', '/api/meters/:id', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const meter = await env.DB.prepare(`
     SELECT m.*,
       a.number as apartment_number, a.floor,
@@ -4676,8 +4923,8 @@ route('GET', '/api/meters/:id', async (request, env, params) => {
     FROM meters m
     LEFT JOIN apartments a ON m.apartment_id = a.id
     LEFT JOIN buildings b ON COALESCE(m.building_id, a.building_id) = b.id
-    WHERE m.id = ?
-  `).bind(params.id).first();
+    WHERE m.id = ? ${tenantId ? 'AND m.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!meter) return error('Meter not found', 404);
 
@@ -4710,8 +4957,8 @@ route('POST', '/api/meters', async (request, env) => {
       install_date, install_location, initial_value,
       verification_date, next_verification_date, seal_number, seal_date,
       is_active, current_value, last_reading_date,
-      tariff_zone, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      tariff_zone, notes, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     body.apartment_id || body.apartmentId || null,
@@ -4732,7 +4979,8 @@ route('POST', '/api/meters', async (request, env) => {
     body.current_value || body.currentValue || body.initial_value || body.initialValue || 0,
     body.last_reading_date || body.lastReadingDate || null,
     body.tariff_zone || body.tariffZone || 'single',
-    body.notes || null
+    body.notes || null,
+    getTenantId() || null
   ).run();
 
   const created = await env.DB.prepare('SELECT * FROM meters WHERE id = ?').bind(id).first();
@@ -4779,11 +5027,19 @@ route('PATCH', '/api/meters/:id', async (request, env, params) => {
   if (updates.length === 0) return json({ success: true });
 
   updates.push('updated_at = datetime("now")');
+
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  let whereClause = 'WHERE id = ?';
   values.push(params.id);
+  if (tenantId) {
+    whereClause += ' AND tenant_id = ?';
+    values.push(tenantId);
+  }
 
-  await env.DB.prepare(`UPDATE meters SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  await env.DB.prepare(`UPDATE meters SET ${updates.join(', ')} ${whereClause}`).bind(...values).run();
 
-  const updated = await env.DB.prepare('SELECT * FROM meters WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM meters WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ meter: updated });
 });
 
@@ -4794,7 +5050,9 @@ route('DELETE', '/api/meters/:id', async (request, env, params) => {
     return error('Manager access required', 403);
   }
 
-  await env.DB.prepare('DELETE FROM meters WHERE id = ?').bind(params.id).run();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  await env.DB.prepare(`DELETE FROM meters WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
 });
 
@@ -4805,13 +5063,16 @@ route('POST', '/api/meters/:id/decommission', async (request, env, params) => {
     return error('Manager access required', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
 
   await env.DB.prepare(`
     UPDATE meters
     SET is_active = 0, decommissioned_at = datetime('now'), decommissioned_reason = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(body.reason || null, params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(body.reason || null, params.id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({ success: true });
 });
@@ -4960,6 +5221,13 @@ route('GET', '/api/requests', async (request, env) => {
   let whereClause = 'WHERE 1=1';
   const params: any[] = [];
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  if (tenantId) {
+    whereClause += ' AND r.tenant_id = ?';
+    params.push(tenantId);
+  }
+
   // Filter by role
   if (user.role === 'resident') {
     whereClause += ' AND r.resident_id = ?';
@@ -5082,12 +5350,12 @@ route('POST', '/api/requests', async (request, env) => {
   const requestNumber = `${prefix}-${number}`;
 
   await env.DB.prepare(`
-    INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, access_info, scheduled_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, access_info, scheduled_at, tenant_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, number, requestNumber, residentId, body.category_id, body.title,
     body.description || null, body.priority || 'medium',
-    body.access_info || null, body.scheduled_at || null
+    body.access_info || null, body.scheduled_at || null, getTenantId()
   ).run();
 
   // Return the created request with user info
@@ -5131,10 +5399,13 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get request before update for notifications
   const requestBefore = await env.DB.prepare(
-    'SELECT * FROM requests WHERE id = ?'
-  ).bind(params.id).first() as any;
+    `SELECT * FROM requests WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   const body = await request.json() as any;
   const updates: string[] = [];
@@ -5165,8 +5436,9 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
 
   updates.push('updated_at = datetime("now")');
   values.push(params.id);
+  if (tenantId) values.push(tenantId);
 
-  await env.DB.prepare(`UPDATE requests SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  await env.DB.prepare(`UPDATE requests SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
 
   // Send notifications on status change
   if (body.status && requestBefore && body.status !== requestBefore.status) {
@@ -5212,13 +5484,16 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
     return error('Not authorized to assign requests', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const executorId = body.executor_id;
 
   // Get executor info
   const executor = await env.DB.prepare(
-    'SELECT id, name, phone, specialization FROM users WHERE id = ? AND role = ?'
-  ).bind(executorId, 'executor').first() as any;
+    `SELECT id, name, phone, specialization FROM users WHERE id = ? AND role = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(executorId, 'executor', ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!executor) {
     return error('Executor not found', 404);
@@ -5231,13 +5506,13 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
 
   // Get request info before update
   const requestBefore = await env.DB.prepare(
-    'SELECT * FROM requests WHERE id = ?'
-  ).bind(params.id).first() as any;
+    `SELECT * FROM requests WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   await env.DB.prepare(`
     UPDATE requests SET executor_id = ?, status = 'assigned', assigned_by = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(executorId, user.id, params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(executorId, user.id, params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Get updated request
   const updated = await env.DB.prepare(`
@@ -5246,8 +5521,8 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
     FROM requests r
     LEFT JOIN users u ON r.resident_id = u.id
     LEFT JOIN users eu ON r.executor_id = eu.id
-    WHERE r.id = ?
-  `).bind(params.id).first() as any;
+    WHERE r.id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   // Send push notification to executor - new request assigned
   await sendPushNotification(env, executorId, {
@@ -5287,13 +5562,16 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
     return error('Only executors can accept requests', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get request info before update
   const requestData = await env.DB.prepare(`
     SELECT r.*, u.name as resident_name
     FROM requests r
     LEFT JOIN users u ON r.resident_id = u.id
-    WHERE r.id = ? AND r.executor_id = ?
-  `).bind(params.id, user.id).first() as any;
+    WHERE r.id = ? AND r.executor_id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found or not assigned to you', 404);
@@ -5301,8 +5579,8 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
 
   await env.DB.prepare(`
     UPDATE requests SET status = 'accepted', updated_at = datetime('now')
-    WHERE id = ? AND executor_id = ?
-  `).bind(params.id, user.id).run();
+    WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Send push notification to resident - executor accepted
   if (requestData.resident_id) {
@@ -5329,6 +5607,9 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
     return error('Only executors can decline requests', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const { reason } = body;
 
@@ -5341,8 +5622,8 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
     SELECT r.*, u.name as resident_name
     FROM requests r
     LEFT JOIN users u ON r.resident_id = u.id
-    WHERE r.id = ? AND r.executor_id = ?
-  `).bind(params.id, user.id).first() as any;
+    WHERE r.id = ? AND r.executor_id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found or not assigned to you', 404);
@@ -5363,16 +5644,16 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
       assigned_by = NULL,
       started_at = NULL,
       updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Update executor's active request count
   await env.DB.prepare(`
     UPDATE users SET
       active_requests = CASE WHEN active_requests > 0 THEN active_requests - 1 ELSE 0 END,
       updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(user.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(user.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Send push notification to resident
   if (requestData.resident_id) {
@@ -5392,8 +5673,8 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
 
   // Notify managers and department heads
   const { results: managers } = await env.DB.prepare(
-    `SELECT id FROM users WHERE role IN ('manager', 'admin', 'director', 'department_head') AND is_active = 1`
-  ).all();
+    `SELECT id FROM users WHERE role IN ('manager', 'admin', 'director', 'department_head') AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...(tenantId ? [tenantId] : [])).all();
 
   for (const manager of (managers || []) as any[]) {
     sendPushNotification(env, manager.id, {
@@ -5509,14 +5790,18 @@ route('GET', '/api/reschedule-requests', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id via requests table
+  const tenantId = getTenantId();
+
   // Get pending reschedules where user is recipient OR initiator
   const { results } = await env.DB.prepare(`
     SELECT rr.*, r.title as request_title, r.status as request_status, r.number as request_number
     FROM reschedule_requests rr
     JOIN requests r ON rr.request_id = r.id
     WHERE (rr.recipient_id = ? OR rr.initiator_id = ?) AND rr.status = 'pending'
+    ${tenantId ? 'AND r.tenant_id = ?' : ''}
     ORDER BY rr.created_at DESC
-  `).bind(user.id, user.id).all();
+  `).bind(user.id, user.id, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ reschedules: results });
 });
@@ -5526,11 +5811,15 @@ route('GET', '/api/requests/:id/reschedule', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id via requests table
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
-    SELECT * FROM reschedule_requests
-    WHERE request_id = ?
-    ORDER BY created_at DESC
-  `).bind(params.id).all();
+    SELECT rr.* FROM reschedule_requests rr
+    JOIN requests r ON rr.request_id = r.id
+    WHERE rr.request_id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+    ORDER BY rr.created_at DESC
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ reschedules: results });
 });
@@ -5547,10 +5836,15 @@ route('POST', '/api/reschedule-requests/:id/respond', async (request, env, param
     return error('Missing required field: accepted (boolean)', 400);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id via requests table
+  const tenantId = getTenantId();
+
   // Get reschedule request
   const reschedule = await env.DB.prepare(`
-    SELECT * FROM reschedule_requests WHERE id = ?
-  `).bind(params.id).first() as any;
+    SELECT rr.* FROM reschedule_requests rr
+    JOIN requests r ON rr.request_id = r.id
+    WHERE rr.id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!reschedule) {
     return error('Reschedule request not found', 404);
@@ -5608,13 +5902,16 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
     return error('Only executors can start work', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get request info before update
   const requestData = await env.DB.prepare(`
     SELECT r.*, u.name as resident_name
     FROM requests r
     LEFT JOIN users u ON r.resident_id = u.id
-    WHERE r.id = ? AND r.executor_id = ?
-  `).bind(params.id, user.id).first() as any;
+    WHERE r.id = ? AND r.executor_id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found or not assigned to you', 404);
@@ -5622,8 +5919,8 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
 
   await env.DB.prepare(`
     UPDATE requests SET status = 'in_progress', started_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ? AND executor_id = ?
-  `).bind(params.id, user.id).run();
+    WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Send push notification to resident - work started
   if (requestData.resident_id) {
@@ -5642,8 +5939,8 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
 
   // Notify department heads about work started
   const { results: deptHeadsStart } = await env.DB.prepare(
-    `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1`
-  ).all();
+    `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...(tenantId ? [tenantId] : [])).all();
 
   for (const head of (deptHeadsStart || []) as any[]) {
     sendPushNotification(env, head.id, {
@@ -5666,13 +5963,16 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
     return error('Only executors can complete work', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get request info for notification
   const requestData = await env.DB.prepare(`
     SELECT r.*, u.name as resident_name
     FROM requests r
     LEFT JOIN users u ON r.resident_id = u.id
-    WHERE r.id = ? AND r.executor_id = ?
-  `).bind(params.id, user.id).first() as any;
+    WHERE r.id = ? AND r.executor_id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found or not assigned to you', 404);
@@ -5681,8 +5981,8 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
   // Update status to pending_approval (waiting for resident confirmation)
   await env.DB.prepare(`
     UPDATE requests SET status = 'pending_approval', completed_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ? AND executor_id = ?
-  `).bind(params.id, user.id).run();
+    WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Send push notification to resident - work completed, please approve
   if (requestData.resident_id) {
@@ -5701,8 +6001,8 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
 
   // Notify department heads about completed work
   const { results: deptHeads } = await env.DB.prepare(
-    `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1`
-  ).all();
+    `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...(tenantId ? [tenantId] : [])).all();
 
   for (const head of (deptHeads || []) as any[]) {
     sendPushNotification(env, head.id, {
@@ -5725,10 +6025,13 @@ route('POST', '/api/requests/:id/pause', async (request, env, params) => {
     return error('Only executors can pause work', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check request exists and is in_progress
   const requestData = await env.DB.prepare(`
-    SELECT * FROM requests WHERE id = ? AND executor_id = ? AND status = 'in_progress'
-  `).bind(params.id, user.id).first() as any;
+    SELECT * FROM requests WHERE id = ? AND executor_id = ? AND status = 'in_progress' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found, not assigned to you, or not in progress', 404);
@@ -5743,11 +6046,11 @@ route('POST', '/api/requests/:id/pause', async (request, env, params) => {
   await env.DB.prepare(`
     UPDATE requests
     SET is_paused = 1, paused_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Get updated request
-  const updated = await env.DB.prepare(`SELECT * FROM requests WHERE id = ?`).bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM requests WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   return json({ success: true, request: updated });
 });
@@ -5759,10 +6062,13 @@ route('POST', '/api/requests/:id/resume', async (request, env, params) => {
     return error('Only executors can resume work', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check request exists and is paused
   const requestData = await env.DB.prepare(`
-    SELECT * FROM requests WHERE id = ? AND executor_id = ? AND status = 'in_progress' AND is_paused = 1
-  `).bind(params.id, user.id).first() as any;
+    SELECT * FROM requests WHERE id = ? AND executor_id = ? AND status = 'in_progress' AND is_paused = 1 ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found, not assigned to you, or not paused', 404);
@@ -5778,11 +6084,11 @@ route('POST', '/api/requests/:id/resume', async (request, env, params) => {
   await env.DB.prepare(`
     UPDATE requests
     SET is_paused = 0, paused_at = NULL, total_paused_time = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(newTotalPausedTime, params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(newTotalPausedTime, params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Get updated request
-  const updated = await env.DB.prepare(`SELECT * FROM requests WHERE id = ?`).bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM requests WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   return json({ success: true, request: updated, pausedDuration, totalPausedTime: newTotalPausedTime });
 });
@@ -5792,13 +6098,16 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const { rating, feedback } = body;
 
   // Verify request belongs to this resident and is pending approval
   const requestData = await env.DB.prepare(`
-    SELECT * FROM requests WHERE id = ? AND resident_id = ? AND status = 'pending_approval'
-  `).bind(params.id, user.id).first() as any;
+    SELECT * FROM requests WHERE id = ? AND resident_id = ? AND status = 'pending_approval' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found or not pending approval', 404);
@@ -5811,8 +6120,8 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
       rating = ?,
       feedback = ?,
       updated_at = datetime('now')
-    WHERE id = ? AND resident_id = ?
-  `).bind(rating || null, feedback || null, params.id, user.id).run();
+    WHERE id = ? AND resident_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(rating || null, feedback || null, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Send push notification to executor - work approved
   if (requestData.executor_id) {
@@ -5836,8 +6145,8 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
 
     // Notify department heads about approved work with rating
     const { results: deptHeads } = await env.DB.prepare(
-      `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1`
-    ).all();
+      `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(...(tenantId ? [tenantId] : [])).all();
 
     const ratingStars = rating ? '⭐'.repeat(rating) : 'без оценки';
     for (const head of (deptHeads || []) as any[]) {
@@ -5860,6 +6169,9 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const { reason } = body;
 
@@ -5869,8 +6181,8 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
 
   // Verify request belongs to this resident and is pending approval
   const requestData = await env.DB.prepare(`
-    SELECT * FROM requests WHERE id = ? AND resident_id = ? AND status = 'pending_approval'
-  `).bind(params.id, user.id).first() as any;
+    SELECT * FROM requests WHERE id = ? AND resident_id = ? AND status = 'pending_approval' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!requestData) {
     return error('Request not found or not pending approval', 404);
@@ -5886,8 +6198,8 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
       rejection_reason = ?,
       rejection_count = ?,
       updated_at = datetime('now')
-    WHERE id = ? AND resident_id = ?
-  `).bind(reason, currentCount + 1, params.id, user.id).run();
+    WHERE id = ? AND resident_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(reason, currentCount + 1, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Send push notification to executor - work rejected
   if (requestData.executor_id) {
@@ -5910,8 +6222,8 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
 
     // Notify department heads about rejected work
     const { results: deptHeadsReject } = await env.DB.prepare(
-      `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1`
-    ).all();
+      `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(...(tenantId ? [tenantId] : [])).all();
 
     for (const head of (deptHeadsReject || []) as any[]) {
       sendPushNotification(env, head.id, {
@@ -5933,11 +6245,14 @@ route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const reason = body.reason || 'Без причины';
 
   // Get request data
-  const requestData = await env.DB.prepare('SELECT * FROM requests WHERE id = ?').bind(params.id).first();
+  const requestData = await env.DB.prepare(`SELECT * FROM requests WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   if (!requestData) return error('Request not found', 404);
 
   // Check permissions
@@ -5965,8 +6280,8 @@ route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
     UPDATE requests
     SET status = 'cancelled',
         updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Add to history
   await env.DB.prepare(`
@@ -6018,12 +6333,15 @@ route('POST', '/api/requests/:id/rate', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
 
   await env.DB.prepare(`
     UPDATE requests SET rating = ?, feedback = ?, status = 'completed', updated_at = datetime('now')
-    WHERE id = ? AND resident_id = ?
-  `).bind(body.rating, body.feedback || null, params.id, user.id).run();
+    WHERE id = ? AND resident_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(body.rating, body.feedback || null, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({ success: true });
 });
@@ -6079,23 +6397,31 @@ route('GET', '/api/ratings', async (request, env) => {
 
 // Training Partners: List all
 route('GET', '/api/training/partners', async (request, env) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const url = new URL(request.url);
   const activeOnly = url.searchParams.get('active') === 'true';
 
-  let query = 'SELECT * FROM training_partners';
-  if (activeOnly) {
-    query += ' WHERE is_active = 1';
-  }
-  query += ' ORDER BY name';
+  let whereClause = tenantId ? 'WHERE tenant_id = ?' : '';
+  const params: any[] = tenantId ? [tenantId] : [];
 
-  const { results } = await env.DB.prepare(query).all();
+  if (activeOnly) {
+    whereClause += (whereClause ? ' AND ' : 'WHERE ') + 'is_active = 1';
+  }
+
+  const query = `SELECT * FROM training_partners ${whereClause} ORDER BY name`;
+  const { results } = await env.DB.prepare(query).bind(...params).all();
   return json({ partners: results });
 });
 
 // Training Partners: Get by ID
 route('GET', '/api/training/partners/:id', async (request, env, params) => {
-  const partner = await env.DB.prepare('SELECT * FROM training_partners WHERE id = ?')
-    .bind(params.id).first();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  const partner = await env.DB.prepare(`SELECT * FROM training_partners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!partner) {
     return error('Partner not found', 404);
@@ -6113,10 +6439,11 @@ route('POST', '/api/training/partners', async (request, env) => {
   const body = await request.json() as any;
   const id = generateId();
 
+  // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
     INSERT INTO training_partners (
-      id, name, position, specialization, email, phone, bio, avatar_url, is_active
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, name, position, specialization, email, phone, bio, avatar_url, is_active, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     body.name,
@@ -6126,7 +6453,8 @@ route('POST', '/api/training/partners', async (request, env) => {
     body.phone || null,
     body.bio || null,
     body.avatar_url || body.avatarUrl || null,
-    body.is_active !== false ? 1 : 0
+    body.is_active !== false ? 1 : 0,
+    getTenantId()
   ).run();
 
   const created = await env.DB.prepare('SELECT * FROM training_partners WHERE id = ?').bind(id).first();
@@ -6194,6 +6522,9 @@ route('DELETE', '/api/training/partners/:id', async (request, env, params) => {
 
 // Training Proposals: List
 route('GET', '/api/training/proposals', async (request, env) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
   const partnerId = url.searchParams.get('partner_id') || url.searchParams.get('partnerId');
@@ -6204,6 +6535,11 @@ route('GET', '/api/training/proposals', async (request, env) => {
 
   let query = 'SELECT * FROM training_proposals WHERE 1=1';
   const params: any[] = [];
+
+  if (tenantId) {
+    query += ' AND tenant_id = ?';
+    params.push(tenantId);
+  }
 
   if (status) {
     query += ' AND status = ?';
@@ -6294,13 +6630,14 @@ route('POST', '/api/training/proposals', async (request, env) => {
     return error('Partner not found', 404);
   }
 
+  // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
     INSERT INTO training_proposals (
       id, topic, description,
       author_id, author_name, is_author_anonymous,
       partner_id, partner_name,
-      format, preferred_time_slots, vote_threshold, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voting')
+      format, preferred_time_slots, vote_threshold, status, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voting', ?)
   `).bind(
     id,
     body.topic,
@@ -6312,7 +6649,8 @@ route('POST', '/api/training/proposals', async (request, env) => {
     partner.name,
     body.format || 'offline',
     JSON.stringify(body.preferred_time_slots || body.preferredTimeSlots || []),
-    voteThreshold
+    voteThreshold,
+    getTenantId()
   ).run();
 
   // Create notification for all employees about new proposal
@@ -6416,6 +6754,16 @@ route('POST', '/api/training/proposals/:id/schedule', async (request, env, param
     return error('Admin/Manager access required', 403);
   }
 
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const existingProposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!existingProposal) {
+    return error('Proposal not found', 404);
+  }
+
   const body = await request.json() as any;
 
   await env.DB.prepare(`
@@ -6427,14 +6775,15 @@ route('POST', '/api/training/proposals/:id/schedule', async (request, env, param
         scheduled_link = ?,
         max_participants = ?,
         updated_at = datetime('now')
-    WHERE id = ?
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(
     body.scheduledDate || body.scheduled_date,
     body.scheduledTime || body.scheduled_time,
     body.scheduledLocation || body.scheduled_location || null,
     body.scheduledLink || body.scheduled_link || null,
     body.maxParticipants || body.max_participants || null,
-    params.id
+    params.id,
+    ...(tenantId ? [tenantId] : [])
   ).run();
 
   // Notify all voters about scheduling
@@ -6467,6 +6816,16 @@ route('POST', '/api/training/proposals/:id/complete', async (request, env, param
     return error('Admin/Manager access required', 403);
   }
 
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const existingProposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!existingProposal) {
+    return error('Proposal not found', 404);
+  }
+
   const body = await request.json() as any;
 
   // Get actual participants count
@@ -6480,10 +6839,11 @@ route('POST', '/api/training/proposals/:id/complete', async (request, env, param
         completed_at = datetime('now'),
         actual_participants_count = ?,
         updated_at = datetime('now')
-    WHERE id = ?
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(
     body.actualParticipantsCount || body.actual_participants_count || regCount?.count || 0,
-    params.id
+    params.id,
+    ...(tenantId ? [tenantId] : [])
   ).run();
 
   // Update partner's trainings_conducted count
@@ -6507,6 +6867,18 @@ route('POST', '/api/training/proposals/:proposalId/votes', async (request, env, 
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
+  }
+
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  // Verify proposal belongs to tenant
+  const proposal = await env.DB.prepare(
+    `SELECT * FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first() as any;
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
   }
 
   const body = await request.json() as any;
@@ -6535,8 +6907,6 @@ route('POST', '/api/training/proposals/:proposalId/votes', async (request, env, 
   ).run();
 
   // Check if threshold reached
-  const proposal = await env.DB.prepare('SELECT * FROM training_proposals WHERE id = ?')
-    .bind(params.proposalId).first() as any;
   const voteCount = await env.DB.prepare('SELECT COUNT(*) as count FROM training_votes WHERE proposal_id = ?')
     .bind(params.proposalId).first() as any;
 
@@ -6582,6 +6952,16 @@ route('DELETE', '/api/training/proposals/:proposalId/votes', async (request, env
     return error('Unauthorized', 401);
   }
 
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const proposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
+  }
+
   await env.DB.prepare(
     'DELETE FROM training_votes WHERE proposal_id = ? AND voter_id = ?'
   ).bind(params.proposalId, authUser.id).run();
@@ -6591,6 +6971,16 @@ route('DELETE', '/api/training/proposals/:proposalId/votes', async (request, env
 
 // Training Votes: Get for proposal
 route('GET', '/api/training/proposals/:proposalId/votes', async (request, env, params) => {
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const proposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
+  }
+
   const { results } = await env.DB.prepare(
     'SELECT * FROM training_votes WHERE proposal_id = ? ORDER BY voted_at DESC'
   ).bind(params.proposalId).all();
@@ -6603,6 +6993,16 @@ route('POST', '/api/training/proposals/:proposalId/register', async (request, en
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
+  }
+
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const proposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
   }
 
   // Check if already registered
@@ -6631,6 +7031,16 @@ route('DELETE', '/api/training/proposals/:proposalId/register', async (request, 
     return error('Unauthorized', 401);
   }
 
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const proposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
+  }
+
   await env.DB.prepare(
     'DELETE FROM training_registrations WHERE proposal_id = ? AND user_id = ?'
   ).bind(params.proposalId, authUser.id).run();
@@ -6643,6 +7053,16 @@ route('POST', '/api/training/proposals/:proposalId/attendance/:userId', async (r
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
+  }
+
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const proposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
   }
 
   await env.DB.prepare(`
@@ -6659,6 +7079,16 @@ route('POST', '/api/training/proposals/:proposalId/feedback', async (request, en
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
+  }
+
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const proposal = await env.DB.prepare(
+    `SELECT * FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first() as any;
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
   }
 
   const body = await request.json() as any;
@@ -6692,20 +7122,15 @@ route('POST', '/api/training/proposals/:proposalId/feedback', async (request, en
   ).run();
 
   // Update partner's average rating
-  const proposal = await env.DB.prepare('SELECT partner_id FROM training_proposals WHERE id = ?')
-    .bind(params.proposalId).first() as any;
+  const avgRating = await env.DB.prepare(`
+    SELECT AVG(rating) as avg FROM training_feedback f
+    JOIN training_proposals p ON f.proposal_id = p.id
+    WHERE p.partner_id = ?
+  `).bind(proposal.partner_id).first() as any;
 
-  if (proposal) {
-    const avgRating = await env.DB.prepare(`
-      SELECT AVG(rating) as avg FROM training_feedback f
-      JOIN training_proposals p ON f.proposal_id = p.id
-      WHERE p.partner_id = ?
-    `).bind(proposal.partner_id).first() as any;
-
-    await env.DB.prepare(`
-      UPDATE training_partners SET average_rating = ?, updated_at = datetime('now') WHERE id = ?
-    `).bind(avgRating?.avg || 0, proposal.partner_id).run();
-  }
+  await env.DB.prepare(`
+    UPDATE training_partners SET average_rating = ?, updated_at = datetime('now') WHERE id = ?
+  `).bind(avgRating?.avg || 0, proposal.partner_id).run();
 
   const created = await env.DB.prepare('SELECT * FROM training_feedback WHERE id = ?').bind(id).first();
   return json({ feedback: created }, 201);
@@ -6713,6 +7138,16 @@ route('POST', '/api/training/proposals/:proposalId/feedback', async (request, en
 
 // Training Feedback: Get for proposal
 route('GET', '/api/training/proposals/:proposalId/feedback', async (request, env, params) => {
+  // MULTI-TENANCY: Verify proposal belongs to tenant
+  const tenantId = getTenantId();
+  const proposal = await env.DB.prepare(
+    `SELECT id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).first();
+
+  if (!proposal) {
+    return error('Proposal not found', 404);
+  }
+
   const { results } = await env.DB.prepare(
     'SELECT * FROM training_feedback WHERE proposal_id = ? ORDER BY created_at DESC'
   ).bind(params.proposalId).all();
@@ -6727,28 +7162,35 @@ route('GET', '/api/training/notifications', async (request, env) => {
     return error('Unauthorized', 401);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id via proposals table
+  const tenantId = getTenantId();
+
   const url = new URL(request.url);
   const unreadOnly = url.searchParams.get('unread') === 'true';
 
   let query = `
-    SELECT * FROM training_notifications
-    WHERE recipient_id = ? OR recipient_id = 'all'
+    SELECT tn.* FROM training_notifications tn
+    LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
+    WHERE (tn.recipient_id = ? OR tn.recipient_id = 'all')
+    ${tenantId ? 'AND (tp.tenant_id = ? OR tp.id IS NULL)' : ''}
   `;
 
   if (isAdminLevel(authUser)) {
     query = `
-      SELECT * FROM training_notifications
-      WHERE recipient_id = ? OR recipient_id = 'all' OR recipient_id = 'admin'
+      SELECT tn.* FROM training_notifications tn
+      LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
+      WHERE (tn.recipient_id = ? OR tn.recipient_id = 'all' OR tn.recipient_id = 'admin')
+      ${tenantId ? 'AND (tp.tenant_id = ? OR tp.id IS NULL)' : ''}
     `;
   }
 
   if (unreadOnly) {
-    query += ' AND is_read = 0';
+    query += ' AND tn.is_read = 0';
   }
 
-  query += ' ORDER BY created_at DESC LIMIT 100';
+  query += ' ORDER BY tn.created_at DESC LIMIT 100';
 
-  const { results } = await env.DB.prepare(query).bind(authUser.id).all();
+  const { results } = await env.DB.prepare(query).bind(authUser.id, ...(tenantId ? [tenantId] : [])).all();
   return json({ notifications: results });
 });
 
@@ -6757,6 +7199,20 @@ route('POST', '/api/training/notifications/:id/read', async (request, env, param
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
+  }
+
+  // MULTI-TENANCY: Verify notification belongs to tenant via proposals
+  const tenantId = getTenantId();
+  if (tenantId) {
+    const notif = await env.DB.prepare(`
+      SELECT tn.id FROM training_notifications tn
+      LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
+      WHERE tn.id = ? AND (tp.tenant_id = ? OR tp.id IS NULL)
+    `).bind(params.id, tenantId).first();
+
+    if (!notif) {
+      return error('Notification not found', 404);
+    }
   }
 
   await env.DB.prepare('UPDATE training_notifications SET is_read = 1 WHERE id = ?')
@@ -6772,15 +7228,42 @@ route('POST', '/api/training/notifications/read-all', async (request, env) => {
     return error('Unauthorized', 401);
   }
 
-  await env.DB.prepare(`
-    UPDATE training_notifications SET is_read = 1
-    WHERE recipient_id = ? OR recipient_id = 'all'
-  `).bind(authUser.id).run();
+  // MULTI-TENANCY: Only update notifications belonging to tenant
+  const tenantId = getTenantId();
 
-  if (isAdminLevel(authUser)) {
+  if (tenantId) {
     await env.DB.prepare(`
-      UPDATE training_notifications SET is_read = 1 WHERE recipient_id = 'admin'
-    `).run();
+      UPDATE training_notifications SET is_read = 1
+      WHERE (recipient_id = ? OR recipient_id = 'all')
+      AND id IN (
+        SELECT tn.id FROM training_notifications tn
+        LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
+        WHERE tp.tenant_id = ? OR tp.id IS NULL
+      )
+    `).bind(authUser.id, tenantId).run();
+
+    if (isAdminLevel(authUser)) {
+      await env.DB.prepare(`
+        UPDATE training_notifications SET is_read = 1
+        WHERE recipient_id = 'admin'
+        AND id IN (
+          SELECT tn.id FROM training_notifications tn
+          LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
+          WHERE tp.tenant_id = ? OR tp.id IS NULL
+        )
+      `).bind(tenantId).run();
+    }
+  } else {
+    await env.DB.prepare(`
+      UPDATE training_notifications SET is_read = 1
+      WHERE recipient_id = ? OR recipient_id = 'all'
+    `).bind(authUser.id).run();
+
+    if (isAdminLevel(authUser)) {
+      await env.DB.prepare(`
+        UPDATE training_notifications SET is_read = 1 WHERE recipient_id = 'admin'
+      `).run();
+    }
   }
 
   return json({ success: true });
@@ -6825,6 +7308,9 @@ route('PATCH', '/api/training/settings', async (request, env) => {
 
 // Training Stats
 route('GET', '/api/training/stats', async (request, env) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const [
     totalProposals,
     votingProposals,
@@ -6834,13 +7320,13 @@ route('GET', '/api/training/stats', async (request, env) => {
     totalRegistrations,
     avgRating
   ] = await Promise.all([
-    env.DB.prepare('SELECT COUNT(*) as count FROM training_proposals').first(),
-    env.DB.prepare("SELECT COUNT(*) as count FROM training_proposals WHERE status = 'voting'").first(),
-    env.DB.prepare("SELECT COUNT(*) as count FROM training_proposals WHERE status = 'scheduled'").first(),
-    env.DB.prepare("SELECT COUNT(*) as count FROM training_proposals WHERE status = 'completed'").first(),
-    env.DB.prepare('SELECT COUNT(*) as count FROM training_votes').first(),
-    env.DB.prepare('SELECT COUNT(*) as count FROM training_registrations').first(),
-    env.DB.prepare('SELECT AVG(rating) as avg FROM training_feedback').first()
+    env.DB.prepare(`SELECT COUNT(*) as count FROM training_proposals ${tenantId ? 'WHERE tenant_id = ?' : ''}`).bind(...(tenantId ? [tenantId] : [])).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM training_proposals WHERE status = 'voting' ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...(tenantId ? [tenantId] : [])).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM training_proposals WHERE status = 'scheduled' ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...(tenantId ? [tenantId] : [])).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM training_proposals WHERE status = 'completed' ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...(tenantId ? [tenantId] : [])).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM training_votes tv JOIN training_proposals tp ON tv.proposal_id = tp.id ${tenantId ? 'WHERE tp.tenant_id = ?' : ''}`).bind(...(tenantId ? [tenantId] : [])).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM training_registrations tr JOIN training_proposals tp ON tr.proposal_id = tp.id ${tenantId ? 'WHERE tp.tenant_id = ?' : ''}`).bind(...(tenantId ? [tenantId] : [])).first(),
+    env.DB.prepare(`SELECT AVG(tf.rating) as avg FROM training_feedback tf JOIN training_proposals tp ON tf.proposal_id = tp.id ${tenantId ? 'WHERE tp.tenant_id = ?' : ''}`).bind(...(tenantId ? [tenantId] : [])).first()
   ]);
 
   return json({
@@ -6882,6 +7368,7 @@ route('GET', '/api/meetings', async (request, env) => {
   const status = url.searchParams.get('status');
   const organizerId = url.searchParams.get('organizer_id');
   const onlyActive = url.searchParams.get('only_active') === 'true'; // ✅ NEW: Filter for active meetings only
+  const tenantId = getTenantId();
 
   // ✅ FIX: For residents, automatically filter by their building
   const authUser = await getUser(request, env);
@@ -6890,7 +7377,7 @@ route('GET', '/api/meetings', async (request, env) => {
   }
 
   // ✅ OPTIMIZED: Cache key includes only_active flag and user's building for residents
-  const cacheKey = `meetings:${buildingId || 'all'}:${status || 'all'}:${organizerId || 'all'}:${onlyActive ? 'active' : 'all'}`;
+  const cacheKey = `meetings:${buildingId || 'all'}:${status || 'all'}:${organizerId || 'all'}:${onlyActive ? 'active' : 'all'}:${tenantId || 'no-tenant'}`;
   const cached = getCached<any>(cacheKey);
   if (cached) {
     return json({ meetings: cached });
@@ -6899,6 +7386,10 @@ route('GET', '/api/meetings', async (request, env) => {
   let query = 'SELECT * FROM meetings WHERE 1=1';
   const params: any[] = [];
 
+  if (tenantId) {
+    query += ' AND tenant_id = ?';
+    params.push(tenantId);
+  }
   if (buildingId) {
     query += ' AND building_id = ?';
     params.push(buildingId);
@@ -6932,11 +7423,11 @@ route('GET', '/api/meetings', async (request, env) => {
 
   // Parallel fetch all related data (including agenda votes)
   const [allOptions, allAgenda, allParticipation, allAgendaVotes] = await Promise.all([
-    env.DB.prepare(`SELECT * FROM meeting_schedule_options WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')})`).bind(...meetingIds).all(),
-    env.DB.prepare(`SELECT * FROM meeting_agenda_items WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) ORDER BY item_order`).bind(...meetingIds).all(),
-    env.DB.prepare(`SELECT meeting_id, COUNT(*) as count FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) GROUP BY meeting_id`).bind(...meetingIds).all(),
+    env.DB.prepare(`SELECT * FROM meeting_schedule_options WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...meetingIds, ...(tenantId ? [tenantId] : [])).all(),
+    env.DB.prepare(`SELECT * FROM meeting_agenda_items WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) ${tenantId ? 'AND tenant_id = ?' : ''} ORDER BY item_order`).bind(...meetingIds, ...(tenantId ? [tenantId] : [])).all(),
+    env.DB.prepare(`SELECT meeting_id, COUNT(*) as count FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) ${tenantId ? 'AND tenant_id = ?' : ''} GROUP BY meeting_id`).bind(...meetingIds, ...(tenantId ? [tenantId] : [])).all(),
     // Fetch agenda votes to show voting progress
-    env.DB.prepare(`SELECT meeting_id, agenda_item_id, choice, voter_id FROM meeting_vote_records WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND is_revote = 0`).bind(...meetingIds).all()
+    env.DB.prepare(`SELECT meeting_id, agenda_item_id, choice, voter_id FROM meeting_vote_records WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND is_revote = 0 ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...meetingIds, ...(tenantId ? [tenantId] : [])).all()
   ]);
 
   // Get votes for options in batch (include vote_weight for proper weighting)
@@ -6945,8 +7436,8 @@ route('GET', '/api/meetings', async (request, env) => {
   let allVotes: any[] = [];
   if (optionIds.length > 0) {
     const votesResult = await env.DB.prepare(
-      `SELECT option_id, user_id, vote_weight FROM meeting_schedule_votes WHERE option_id IN (${optionIds.map(() => '?').join(',')})`
-    ).bind(...optionIds).all();
+      `SELECT option_id, user_id, vote_weight FROM meeting_schedule_votes WHERE option_id IN (${optionIds.map(() => '?').join(',')}) ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(...optionIds, ...(tenantId ? [tenantId] : [])).all();
     allVotes = votesResult.results as any[];
   }
 
@@ -7001,8 +7492,8 @@ route('GET', '/api/meetings', async (request, env) => {
 
   // Get list of participated voters for each meeting
   const participatedVotersResult = await env.DB.prepare(
-    `SELECT meeting_id, user_id FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')})`
-  ).bind(...meetingIds).all();
+    `SELECT meeting_id, user_id FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...meetingIds, ...(tenantId ? [tenantId] : [])).all();
 
   const participatedVotersMap = new Map<string, string[]>();
   for (const p of participatedVotersResult.results as any[]) {
@@ -7030,8 +7521,9 @@ route('GET', '/api/meetings', async (request, env) => {
 
 // Meetings: Get by ID with full details
 route('GET', '/api/meetings/:id', async (request, env, params) => {
-  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?')
-    .bind(params.id).first() as any;
+  const tenantId = getTenantId();
+  const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting) {
     return error('Meeting not found', 404);
@@ -7039,27 +7531,27 @@ route('GET', '/api/meetings/:id', async (request, env, params) => {
 
   // ✅ OPTIMIZED: Get all related data in parallel (batch queries)
   const [scheduleOptions, agendaItems, eligibleVoters, participatedVoters, allScheduleVotes, allAgendaVotes, protocol] = await Promise.all([
-    env.DB.prepare('SELECT * FROM meeting_schedule_options WHERE meeting_id = ?').bind(params.id).all(),
-    env.DB.prepare('SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ORDER BY item_order').bind(params.id).all(),
-    env.DB.prepare('SELECT user_id, apartment_id, ownership_share FROM meeting_eligible_voters WHERE meeting_id = ?').bind(params.id).all(),
-    env.DB.prepare('SELECT user_id, first_vote_at FROM meeting_participated_voters WHERE meeting_id = ?').bind(params.id).all(),
+    env.DB.prepare(`SELECT * FROM meeting_schedule_options WHERE meeting_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).all(),
+    env.DB.prepare(`SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ${tenantId ? 'AND tenant_id = ?' : ''} ORDER BY item_order`).bind(params.id, ...(tenantId ? [tenantId] : [])).all(),
+    env.DB.prepare(`SELECT user_id, apartment_id, ownership_share FROM meeting_eligible_voters WHERE meeting_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).all(),
+    env.DB.prepare(`SELECT user_id, first_vote_at FROM meeting_participated_voters WHERE meeting_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).all(),
 
     // ✅ NEW: Single query for ALL schedule votes (include vote_weight)
     // Note: use user_id as primary key (NOT NULL), voter_id is nullable
     env.DB.prepare(`
       SELECT option_id, user_id, voter_name, vote_weight
       FROM meeting_schedule_votes
-      WHERE meeting_id = ?
-    `).bind(params.id).all(),
+      WHERE meeting_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, ...(tenantId ? [tenantId] : [])).all(),
 
     // ✅ NEW: Single query for ALL agenda votes (include vote_weight, exclude revotes)
     env.DB.prepare(`
       SELECT agenda_item_id, choice, voter_id, vote_weight
       FROM meeting_vote_records
-      WHERE meeting_id = ? AND is_revote = 0
-    `).bind(params.id).all(),
+      WHERE meeting_id = ? AND is_revote = 0 ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, ...(tenantId ? [tenantId] : [])).all(),
 
-    meeting.protocol_id ? env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ?').bind(meeting.protocol_id).first() : null
+    meeting.protocol_id ? env.DB.prepare(`SELECT * FROM meeting_protocols WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(meeting.protocol_id, ...(tenantId ? [tenantId] : [])).first() : null
   ]);
 
   // ✅ OPTIMIZED: Group votes in memory (O(n) instead of N+1 queries)
@@ -7248,8 +7740,8 @@ route('POST', '/api/meetings', async (request, env) => {
         location,
         voting_unit, quorum_percent, allow_revote, require_otp, show_intermediate_results,
         materials,
-        total_area, total_eligible_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        total_area, total_eligible_count, tenant_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       meetingNumber,
@@ -7271,7 +7763,8 @@ route('POST', '/api/meetings', async (request, env) => {
       0, // show_intermediate_results
       JSON.stringify(body.materials || []),
       totalArea, // Total building area in sq.m for quorum calculation
-      totalEligibleCount // Total number of eligible voters (residents with total_area)
+      totalEligibleCount, // Total number of eligible voters (residents with total_area)
+      getTenantId()
     ).run();
   } catch (e: any) {
     console.error('[Meeting] Error inserting meeting:', e);
@@ -7299,9 +7792,9 @@ route('POST', '/api/meetings', async (request, env) => {
 
       const optId = generateId();
       await env.DB.prepare(`
-        INSERT INTO meeting_schedule_options (id, meeting_id, date_time)
-        VALUES (?, ?, ?)
-      `).bind(optId, id, dateTimeStr).run();
+        INSERT INTO meeting_schedule_options (id, meeting_id, date_time, tenant_id)
+        VALUES (?, ?, ?, ?)
+      `).bind(optId, id, dateTimeStr, getTenantId()).run();
     }
   } catch (e: any) {
     console.error('[Meeting] Error inserting schedule options:', e);
@@ -7315,15 +7808,16 @@ route('POST', '/api/meetings', async (request, env) => {
       const item = agendaItems[i];
       const itemId = generateId();
       await env.DB.prepare(`
-        INSERT INTO meeting_agenda_items (id, meeting_id, item_order, title, description, threshold)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO meeting_agenda_items (id, meeting_id, item_order, title, description, threshold, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(
         itemId,
         id,
         i + 1,
         item.title,
         item.description || null,
-        item.threshold || 'simple_majority'
+        item.threshold || 'simple_majority',
+        getTenantId()
       ).run();
     }
   } catch (e: any) {
@@ -7334,7 +7828,8 @@ route('POST', '/api/meetings', async (request, env) => {
   // Invalidate meetings cache
   invalidateCache('meetings:');
 
-  const created = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(id).first() as any;
+  const tenantId = getTenantId();
+  const created = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   // Send push notifications AND in-app notifications to building residents - meeting announced
   if (body.building_id && body.status === 'schedule_poll_open') {
@@ -7392,6 +7887,9 @@ route('PATCH', '/api/meetings/:id', async (request, env, params) => {
     return error('Unauthorized', 401);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const updates: string[] = [];
   const values: any[] = [];
@@ -7427,25 +7925,29 @@ route('PATCH', '/api/meetings/:id', async (request, env, params) => {
   if (updates.length > 0) {
     updates.push("updated_at = datetime('now')");
     values.push(params.id);
+    if (tenantId) values.push(tenantId);
 
     await env.DB.prepare(`
-      UPDATE meetings SET ${updates.join(', ')} WHERE id = ?
+      UPDATE meetings SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(...values).run();
   }
 
-  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ meeting: updated });
 });
 
 // Meetings: Submit for moderation
 route('POST', '/api/meetings/:id/submit', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   await env.DB.prepare(`
     UPDATE meetings SET status = 'pending_moderation', updated_at = datetime('now')
-    WHERE id = ? AND status = 'draft'
-  `).bind(params.id).run();
+    WHERE id = ? AND status = 'draft' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   invalidateCache('meetings:');
-  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ meeting: updated });
 });
 
@@ -7456,8 +7958,11 @@ route('POST', '/api/meetings/:id/approve', async (request, env, params) => {
     return error('Admin/Manager access required', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get meeting info before update
-  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first() as any;
+  const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   await env.DB.prepare(`
     UPDATE meetings
@@ -7466,17 +7971,17 @@ route('POST', '/api/meetings/:id/approve', async (request, env, params) => {
         moderated_by = ?,
         schedule_poll_opened_at = datetime('now'),
         updated_at = datetime('now')
-    WHERE id = ? AND status = 'pending_moderation'
-  `).bind(authUser.id, params.id).run();
+    WHERE id = ? AND status = 'pending_moderation' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(authUser.id, params.id, ...(tenantId ? [tenantId] : [])).run();
 
   invalidateCache('meetings:');
-  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first() as any;
+  const updated = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   // Send push notifications AND in-app notifications to building residents - meeting announced
   if (meeting?.building_id) {
     const { results: residents } = await env.DB.prepare(
-      'SELECT id FROM users WHERE role = ? AND building_id = ?'
-    ).bind('resident', meeting.building_id).all();
+      `SELECT id FROM users WHERE role = ? AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind('resident', meeting.building_id, ...(tenantId ? [tenantId] : [])).all();
 
     for (const resident of residents as any[]) {
       // In-app notification (stored in DB for viewing in app)
@@ -7517,6 +8022,9 @@ route('POST', '/api/meetings/:id/reject', async (request, env, params) => {
     return error('Admin/Manager access required', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
 
   await env.DB.prepare(`
@@ -7525,31 +8033,41 @@ route('POST', '/api/meetings/:id/reject', async (request, env, params) => {
         cancelled_at = datetime('now'),
         cancellation_reason = ?,
         updated_at = datetime('now')
-    WHERE id = ? AND status = 'pending_moderation'
-  `).bind(body.reason || 'Rejected by moderator', params.id).run();
+    WHERE id = ? AND status = 'pending_moderation' ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(body.reason || 'Rejected by moderator', params.id, ...(tenantId ? [tenantId] : [])).run();
 
   invalidateCache('meetings:');
-  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ meeting: updated });
 });
 
 // Meetings: Open schedule poll
 route('POST', '/api/meetings/:id/open-schedule-poll', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   await env.DB.prepare(`
     UPDATE meetings
     SET status = 'schedule_poll_open',
         schedule_poll_opened_at = datetime('now'),
         updated_at = datetime('now')
-    WHERE id = ? AND status IN ('draft', 'pending_moderation')
-  `).bind(params.id).run();
+    WHERE id = ? AND status IN ('draft', 'pending_moderation') ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   invalidateCache('meetings:');
-  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ meeting: updated });
 });
 
 // Meetings: Confirm schedule
 route('POST', '/api/meetings/:id/confirm-schedule', async (request, env, params) => {
+  // MULTI-TENANCY: Verify meeting belongs to tenant
+  const tenantId = getTenantId();
+  if (tenantId) {
+    const mtg = await env.DB.prepare('SELECT id FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.id, tenantId).first();
+    if (!mtg) return error('Meeting not found', 404);
+  }
+
   const body = await request.json() as any;
   const selectedOptionId = body.option_id || body.optionId;
 
@@ -7599,8 +8117,12 @@ route('POST', '/api/meetings/:id/confirm-schedule', async (request, env, params)
 
 // Meetings: Open voting
 route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get meeting info before update
-  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first() as any;
+  const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!meeting) return error('Meeting not found', 404);
 
   await env.DB.prepare(`
     UPDATE meetings
@@ -7639,8 +8161,11 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
 
 // Meetings: Close voting
 route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => {
-  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?')
-    .bind(params.id).first() as any;
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting || meeting.status !== 'voting_open') {
     return error('Meeting not found or voting not open', 400);
@@ -7755,8 +8280,12 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
 
 // Meetings: Publish results
 route('POST', '/api/meetings/:id/publish-results', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Get meeting info before update
-  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first() as any;
+  const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!meeting) return error('Meeting not found', 404);
 
   await env.DB.prepare(`
     UPDATE meetings
@@ -7803,8 +8332,11 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
     return error('Forbidden', 403);
   }
 
-  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?')
-    .bind(params.id).first() as any;
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting) {
     return error('Meeting not found', 404);
@@ -7953,8 +8485,11 @@ route('POST', '/api/meetings/:id/approve-protocol', async (request, env, params)
     return error('Unauthorized', 401);
   }
 
-  const meeting = await env.DB.prepare('SELECT protocol_id FROM meetings WHERE id = ?')
-    .bind(params.id).first() as any;
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  const meeting = await env.DB.prepare(`SELECT protocol_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting?.protocol_id) {
     return error('Protocol not found', 404);
@@ -7992,8 +8527,11 @@ route('POST', '/api/meetings/:id/protocol/sign-chairman', async (request, env, p
     return error('Unauthorized', 401);
   }
 
-  const meeting = await env.DB.prepare('SELECT protocol_id, building_id FROM meetings WHERE id = ?')
-    .bind(params.id).first() as any;
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  const meeting = await env.DB.prepare(`SELECT protocol_id, building_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting?.protocol_id) {
     return error('Protocol not found', 404);
@@ -8038,8 +8576,11 @@ route('POST', '/api/meetings/:id/protocol/sign-secretary', async (request, env, 
     return error('Unauthorized', 401);
   }
 
-  const meeting = await env.DB.prepare('SELECT protocol_id, building_id FROM meetings WHERE id = ?')
-    .bind(params.id).first() as any;
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
+  const meeting = await env.DB.prepare(`SELECT protocol_id, building_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting?.protocol_id) {
     return error('Protocol not found', 404);
@@ -8083,9 +8624,12 @@ route('POST', '/api/meetings/:id/protocol/counting-commission', async (request, 
     return error('Manager access required', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
-  const meeting = await env.DB.prepare('SELECT protocol_id FROM meetings WHERE id = ?')
-    .bind(params.id).first() as any;
+  const meeting = await env.DB.prepare(`SELECT protocol_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting?.protocol_id) {
     return error('Protocol not found', 404);
@@ -8107,6 +8651,9 @@ route('POST', '/api/meetings/:id/protocol/counting-commission', async (request, 
 
 // Meetings: Cancel
 route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
 
   await env.DB.prepare(`
@@ -8115,8 +8662,8 @@ route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
         cancelled_at = datetime('now'),
         cancellation_reason = ?,
         updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(body.reason || 'Cancelled', params.id).run();
+    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(body.reason || 'Cancelled', params.id, ...(tenantId ? [tenantId] : [])).run();
 
   invalidateCache('meetings:');
   const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first();
@@ -8130,7 +8677,9 @@ route('DELETE', '/api/meetings/:id', async (request, env, params) => {
     return error('Admin access required', 403);
   }
 
-  await env.DB.prepare('DELETE FROM meetings WHERE id = ?').bind(params.id).run();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  await env.DB.prepare(`DELETE FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   invalidateCache('meetings:');
   return json({ success: true });
 });
@@ -8142,13 +8691,16 @@ route('POST', '/api/meetings/:meetingId/schedule-votes', async (request, env, pa
     return error('Unauthorized', 401);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
   const optionId = body.option_id || body.optionId;
 
   // Get meeting info and user's apartment area for weighted voting
   const meeting = await env.DB.prepare(
-    'SELECT building_id FROM meetings WHERE id = ?'
-  ).bind(params.meetingId).first() as any;
+    `SELECT building_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting) {
     return error('Собрание не найдено', 404);
@@ -8205,12 +8757,15 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
     return error('Unauthorized', 401);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const body = await request.json() as any;
 
   // Check if meeting is open for voting
   const meeting = await env.DB.prepare(
-    'SELECT status, require_otp, building_id, allow_revote FROM meetings WHERE id = ?'
-  ).bind(params.meetingId).first() as any;
+    `SELECT status, require_otp, building_id, allow_revote FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting || meeting.status !== 'voting_open') {
     return error('Voting is not open', 400);
@@ -8466,10 +9021,13 @@ route('POST', '/api/meetings/:meetingId/reconsideration-requests', async (reques
     return error('Missing required fields', 400);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check if meeting is in voting_open status
   const meeting = await env.DB.prepare(
-    'SELECT id, status, building_id FROM meetings WHERE id = ?'
-  ).bind(params.meetingId).first() as any;
+    `SELECT id, status, building_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting || meeting.status !== 'voting_open') {
     return error('Voting is not open', 400);
@@ -8671,9 +9229,12 @@ route('GET', '/api/meetings/:meetingId/reconsideration-requests/stats', async (r
 
 // Real-time voting stats (for polling during active voting)
 route('GET', '/api/meetings/:meetingId/stats', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const meeting = await env.DB.prepare(
-    'SELECT id, status, total_area, quorum_percent, voted_area, participation_percent, quorum_reached FROM meetings WHERE id = ?'
-  ).bind(params.meetingId).first() as any;
+    `SELECT id, status, total_area, quorum_percent, voted_area, participation_percent, quorum_reached FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting) {
     return error('Meeting not found', 404);
@@ -9861,17 +10422,20 @@ route('GET', '/api/notifications', async (request, env) => {
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const unreadOnly = url.searchParams.get('unread') === 'true';
 
-  let query = 'SELECT * FROM notifications WHERE user_id = ?';
+  let query = `SELECT * FROM notifications WHERE user_id = ? ${tenantId ? 'AND (tenant_id = ? OR tenant_id IS NULL)' : ''}`;
   if (unreadOnly) {
     query += ' AND is_read = 0';
   }
   query += ' ORDER BY created_at DESC LIMIT ?';
 
-  const { results } = await env.DB.prepare(query).bind(authUser.id, limit).all();
+  const { results } = await env.DB.prepare(query).bind(authUser.id, ...(tenantId ? [tenantId] : []), limit).all();
 
   // Parse data field
   const notifications = (results as any[]).map(n => ({
@@ -9888,9 +10452,12 @@ route('GET', '/api/notifications/count', async (request, env) => {
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const result = await env.DB.prepare(
-    'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0'
-  ).bind(authUser.id).first();
+    `SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0 ${tenantId ? 'AND (tenant_id = ? OR tenant_id IS NULL)' : ''}`
+  ).bind(authUser.id, ...(tenantId ? [tenantId] : [])).first();
 
   return json({ count: (result as any)?.count || 0 });
 });
@@ -9904,15 +10471,16 @@ route('POST', '/api/notifications', async (request, env) => {
   const id = generateId();
 
   await env.DB.prepare(`
-    INSERT INTO notifications (id, user_id, type, title, body, data)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO notifications (id, user_id, type, title, body, data, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     body.user_id,
     body.type,
     body.title,
     body.body || null,
-    body.data ? JSON.stringify(body.data) : null
+    body.data ? JSON.stringify(body.data) : null,
+    getTenantId() || null
   ).run();
 
   return json({ id, success: true });
@@ -10837,8 +11405,8 @@ route('POST', '/api/ads', async (request, env) => {
       INSERT INTO ads (
         id, category_id, title, description, phone, phone2, telegram, instagram, facebook, website,
         address, work_hours, work_days, logo_url, photos, discount_percent, badges,
-        target_type, target_branches, starts_at, expires_at, duration_type, status, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        target_type, target_branches, starts_at, expires_at, duration_type, status, created_by, tenant_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       body.category_id,
@@ -10863,7 +11431,8 @@ route('POST', '/api/ads', async (request, env) => {
       expiresAt,
       body.duration_type || 'month',
       body.status || 'active',
-      authUser.id
+      authUser.id,
+      getTenantId()
     ).run();
 
     const created = await env.DB.prepare('SELECT * FROM ads WHERE id = ?').bind(id).first();
@@ -10985,6 +11554,9 @@ route('GET', '/api/coupons/check/:code', async (request, env, params) => {
 
   const code = params.code.toUpperCase();
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const coupon = await env.DB.prepare(`
     SELECT c.*,
       a.title as ad_title, a.phone as ad_phone, a.description as ad_description,
@@ -10992,8 +11564,8 @@ route('GET', '/api/coupons/check/:code', async (request, env, params) => {
     FROM ad_coupons c
     JOIN ads a ON c.ad_id = a.id
     JOIN users u ON c.user_id = u.id
-    WHERE c.code = ?
-  `).bind(code).first() as any;
+    WHERE c.code = ? ${tenantId ? 'AND c.tenant_id = ?' : ''}
+  `).bind(code, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!coupon) {
     return error('Купон не найден', 404);
@@ -11042,12 +11614,15 @@ route('POST', '/api/coupons/activate/:code', async (request, env, params) => {
   const body = await request.json() as any;
   const amount = body.amount || 0;
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const coupon = await env.DB.prepare(`
     SELECT c.*, a.id as ad_id
     FROM ad_coupons c
     JOIN ads a ON c.ad_id = a.id
-    WHERE c.code = ?
-  `).bind(code).first() as any;
+    WHERE c.code = ? ${tenantId ? 'AND c.tenant_id = ?' : ''}
+  `).bind(code, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!coupon) {
     return error('Купон не найден', 404);
@@ -11096,15 +11671,18 @@ route('GET', '/api/coupons/history', async (request, env) => {
     return error('Coupon checker access required', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT c.*, a.title as ad_title, u.name as user_name
     FROM ad_coupons c
     JOIN ads a ON c.ad_id = a.id
     JOIN users u ON c.user_id = u.id
-    WHERE c.activated_by = ?
+    WHERE c.activated_by = ? ${tenantId ? 'AND c.tenant_id = ?' : ''}
     ORDER BY c.activated_at DESC
     LIMIT 100
-  `).bind(authUser.id).all();
+  `).bind(authUser.id, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ activations: results });
 });
@@ -11268,9 +11846,9 @@ route('POST', '/api/ads/:id/get-coupon', async (request, env, params) => {
   const couponId = generateId();
 
   await env.DB.prepare(`
-    INSERT INTO ad_coupons (id, ad_id, user_id, code, discount_percent, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(couponId, params.id, authUser.id, code, ad.discount_percent, ad.expires_at).run();
+    INSERT INTO ad_coupons (id, ad_id, user_id, code, discount_percent, expires_at, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(couponId, params.id, authUser.id, code, ad.discount_percent, ad.expires_at, getTenantId()).run();
 
   // Update ad stats
   await env.DB.prepare(`UPDATE ads SET coupons_issued = coupons_issued + 1 WHERE id = ?`).bind(params.id).run();
@@ -11288,15 +11866,18 @@ route('GET', '/api/my-coupons', async (request, env) => {
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT c.*, a.title as ad_title, a.phone as ad_phone, a.description as ad_description,
       a.logo_url, cat.name_ru as category_name
     FROM ad_coupons c
     JOIN ads a ON c.ad_id = a.id
     JOIN ad_categories cat ON a.category_id = cat.id
-    WHERE c.user_id = ?
+    WHERE c.user_id = ? ${tenantId ? 'AND c.tenant_id = ?' : ''}
     ORDER BY c.issued_at DESC
-  `).bind(authUser.id).all();
+  `).bind(authUser.id, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ coupons: results });
 });
@@ -11310,6 +11891,32 @@ route('GET', '/api/health', async (request, env) => {
   const health = await healthCheck(env);
   const status = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 503 : 503;
   return json(health, status);
+});
+
+// Tenant Config (returns current tenant's configuration)
+route('GET', '/api/tenant/config', async (request, env) => {
+  if (!currentTenant) {
+    return json({ tenant: null, features: [] });
+  }
+
+  try {
+    const features = JSON.parse(currentTenant.features || '[]');
+    return json({
+      tenant: {
+        id: currentTenant.id,
+        name: currentTenant.name,
+        slug: currentTenant.slug,
+        color: currentTenant.color,
+        color_secondary: currentTenant.color_secondary,
+        plan: currentTenant.plan,
+        logo: currentTenant.logo || null,
+      },
+      features
+    });
+  } catch (error) {
+    console.error('Error parsing tenant features:', error);
+    return json({ tenant: null, features: [] });
+  }
 });
 
 // Metrics Dashboard (Admin only)
@@ -11457,9 +12064,12 @@ route('POST', '/api/admin/monitoring/frontend-error', async (request, env) => {
 
 // Marketplace: Get categories
 route('GET', '/api/marketplace/categories', async (request, env) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
   const { results } = await env.DB.prepare(`
-    SELECT * FROM marketplace_categories WHERE is_active = 1 ORDER BY sort_order
-  `).all();
+    SELECT * FROM marketplace_categories WHERE is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}
+    ORDER BY sort_order
+  `).bind(...(tenantId ? [tenantId] : [])).all();
   return json({ categories: results });
 });
 
@@ -11473,8 +12083,16 @@ route('GET', '/api/marketplace/products', async (request, env) => {
   const limit = parseInt(url.searchParams.get('limit') || '20');
   const offset = (page - 1) * limit;
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   let whereClause = 'WHERE p.is_active = 1';
   const params: any[] = [];
+
+  if (tenantId) {
+    whereClause += ' AND p.tenant_id = ?';
+    params.push(tenantId);
+  }
 
   if (categoryId) {
     whereClause += ' AND p.category_id = ?';
@@ -11509,12 +12127,15 @@ route('GET', '/api/marketplace/products', async (request, env) => {
 
 // Marketplace: Get single product
 route('GET', '/api/marketplace/products/:id', async (request, env, params) => {
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const product = await env.DB.prepare(`
     SELECT p.*, c.name_ru as category_name_ru, c.name_uz as category_name_uz, c.icon as category_icon
     FROM marketplace_products p
     LEFT JOIN marketplace_categories c ON p.category_id = c.id
-    WHERE p.id = ?
-  `).bind(params.id).first();
+    WHERE p.id = ? ${tenantId ? 'AND p.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!product) return error('Product not found', 404);
 
@@ -11668,17 +12289,17 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
     // Use batch to ensure atomicity - all operations succeed or all fail
     const statements = [];
 
-    // 1. Create order
+    // 1. Create order (MULTI-TENANCY: Add tenant_id)
     statements.push(env.DB.prepare(`
       INSERT INTO marketplace_orders (
         id, order_number, user_id, status, total_amount, delivery_fee, final_amount,
         delivery_address, delivery_apartment, delivery_entrance, delivery_floor, delivery_phone,
-        delivery_date, delivery_time_slot, delivery_notes, payment_method
-      ) VALUES (?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        delivery_date, delivery_time_slot, delivery_notes, payment_method, tenant_id
+      ) VALUES (?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       orderId, orderNumber, user.id, totalAmount, deliveryFee, finalAmount,
       user.address || '', user.apartment || '', user.entrance || '', user.floor || '', user.phone || '',
-      delivery_date || null, delivery_time_slot || null, delivery_notes || null, payment_method || 'cash'
+      delivery_date || null, delivery_time_slot || null, delivery_notes || null, payment_method || 'cash', getTenantId()
     ));
 
     // 2. Create order items and update stock atomically
@@ -11735,11 +12356,19 @@ route('GET', '/api/marketplace/orders', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
 
   let whereClause = 'WHERE o.user_id = ?';
   const params: any[] = [user.id];
+
+  if (tenantId) {
+    whereClause += ' AND o.tenant_id = ?';
+    params.push(tenantId);
+  }
 
   if (status) {
     whereClause += ' AND o.status = ?';
@@ -11771,9 +12400,13 @@ route('GET', '/api/marketplace/orders/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const order = await env.DB.prepare(`
     SELECT * FROM marketplace_orders WHERE id = ? AND (user_id = ? OR ? IN ('admin', 'director', 'manager', 'marketplace_manager'))
-  `).bind(params.id, user.id, user.role).first();
+    ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, user.role, ...(tenantId ? [tenantId] : [])).first();
 
   if (!order) return error('Order not found', 404);
 
@@ -11927,8 +12560,16 @@ route('GET', '/api/marketplace/admin/orders', async (request, env) => {
   const limit = parseInt(url.searchParams.get('limit') || '20');
   const offset = (page - 1) * limit;
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   let whereClause = 'WHERE 1=1';
   const params: any[] = [];
+
+  if (tenantId) {
+    whereClause += ' AND o.tenant_id = ?';
+    params.push(tenantId);
+  }
 
   if (status) {
     whereClause += ' AND o.status = ?';
@@ -12069,12 +12710,16 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
     return error('Access denied', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT o.*, u.name as user_name, u.phone as user_phone,
       (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
     FROM marketplace_orders o
     LEFT JOIN users u ON o.user_id = u.id
     WHERE o.executor_id = ? AND o.status NOT IN ('delivered', 'cancelled')
+    ${tenantId ? 'AND o.tenant_id = ?' : ''}
     ORDER BY
       CASE o.status
         WHEN 'confirmed' THEN 1
@@ -12084,7 +12729,7 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
         ELSE 5
       END,
       o.created_at DESC
-  `).bind(user.id).all();
+  `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
 
   // Fetch items for each order
   const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
@@ -12110,14 +12755,18 @@ route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
     return json({ orders: [] });
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT o.*, u.name as user_name, u.phone as user_phone,
       (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
     FROM marketplace_orders o
     LEFT JOIN users u ON o.user_id = u.id
     WHERE o.executor_id = ? AND o.status = 'delivered'
+    ${tenantId ? 'AND o.tenant_id = ?' : ''}
     ORDER BY o.delivered_at DESC, o.updated_at DESC
-  `).bind(user.id).all();
+  `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
 
   // Fetch items for each order
   const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
@@ -12143,14 +12792,18 @@ route('GET', '/api/marketplace/executor/available', async (request, env) => {
     return json({ orders: [] });
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT o.*, u.name as user_name, u.phone as user_phone,
       (SELECT COUNT(*) FROM marketplace_order_items WHERE order_id = o.id) as items_count
     FROM marketplace_orders o
     LEFT JOIN users u ON o.user_id = u.id
     WHERE o.executor_id IS NULL AND o.status = 'new'
+    ${tenantId ? 'AND o.tenant_id = ?' : ''}
     ORDER BY o.created_at ASC
-  `).all();
+  `).bind(...(tenantId ? [tenantId] : [])).all();
 
   // Fetch items for each order
   const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
@@ -12176,10 +12829,14 @@ route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, 
     return error('Only couriers can take marketplace orders', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Check if order exists and is available
   const order = await env.DB.prepare(`
     SELECT * FROM marketplace_orders WHERE id = ? AND executor_id IS NULL AND status = 'new'
-  `).bind(params.id).first() as any;
+    ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!order) {
     return error('Order not available or already taken', 404);
@@ -12214,10 +12871,14 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
     return error('Access denied', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   // Verify this order is assigned to this executor
   const order = await env.DB.prepare(`
     SELECT * FROM marketplace_orders WHERE id = ? AND executor_id = ?
-  `).bind(params.id, user.id).first() as any;
+    ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!order) {
     return error('Order not found or not assigned to you', 404);
@@ -12286,13 +12947,18 @@ route('GET', '/api/marketplace/admin/dashboard', async (request, env) => {
 
   const today = new Date().toISOString().slice(0, 10);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  const tFilter = tenantId ? ' AND tenant_id = ?' : '';
+  const tBind = tenantId ? [tenantId] : [];
+
   const [newOrders, preparingOrders, deliveringOrders, todayOrders, todayRevenue, totalProducts] = await Promise.all([
-    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'new'`).first(),
-    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status IN ('confirmed', 'preparing', 'ready')`).first(),
-    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'delivering'`).first(),
-    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE date(created_at) = ?`).bind(today).first(),
-    env.DB.prepare(`SELECT COALESCE(SUM(final_amount), 0) as total FROM marketplace_orders WHERE date(created_at) = ? AND status != 'cancelled'`).bind(today).first(),
-    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_products WHERE is_active = 1`).first()
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'new'${tFilter}`).bind(...tBind).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status IN ('confirmed', 'preparing', 'ready')${tFilter}`).bind(...tBind).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE status = 'delivering'${tFilter}`).bind(...tBind).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_orders WHERE date(created_at) = ?${tFilter}`).bind(today, ...tBind).first(),
+    env.DB.prepare(`SELECT COALESCE(SUM(final_amount), 0) as total FROM marketplace_orders WHERE date(created_at) = ? AND status != 'cancelled'${tFilter}`).bind(today, ...tBind).first(),
+    env.DB.prepare(`SELECT COUNT(*) as count FROM marketplace_products WHERE is_active = 1${tFilter}`).bind(...tBind).first()
   ]);
 
   return json({
@@ -12318,6 +12984,12 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
   const startDate = url.searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const endDate = url.searchParams.get('end_date') || new Date().toISOString().slice(0, 10);
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  const tFilter = tenantId ? ' AND tenant_id = ?' : '';
+  const tFilterO = tenantId ? ' AND o.tenant_id = ?' : '';
+  const tBind = tenantId ? [tenantId] : [];
+
   try {
     // Overall stats for period
     const overallStats = await env.DB.prepare(`
@@ -12330,8 +13002,8 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
         COALESCE(AVG(CASE WHEN rating IS NOT NULL THEN rating END), 0) as avg_rating,
         COUNT(CASE WHEN rating IS NOT NULL THEN 1 END) as rated_orders
       FROM marketplace_orders
-      WHERE date(created_at) BETWEEN ? AND ?
-    `).bind(startDate, endDate).first() as any;
+      WHERE date(created_at) BETWEEN ? AND ?${tFilter}
+    `).bind(startDate, endDate, ...tBind).first() as any;
 
     // Top selling products
     const topProducts = await env.DB.prepare(`
@@ -12345,11 +13017,11 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
       FROM marketplace_order_items oi
       JOIN marketplace_orders o ON oi.order_id = o.id
       LEFT JOIN marketplace_products p ON oi.product_id = p.id
-      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?${tFilterO}
       GROUP BY oi.product_id, oi.product_name
       ORDER BY total_revenue DESC
       LIMIT 20
-    `).bind(startDate, endDate).all() as { results: any[] };
+    `).bind(startDate, endDate, ...tBind).all() as { results: any[] };
 
     // Sales by category
     const categoryStats = await env.DB.prepare(`
@@ -12362,10 +13034,10 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
       JOIN marketplace_orders o ON oi.order_id = o.id
       LEFT JOIN marketplace_products p ON oi.product_id = p.id
       LEFT JOIN marketplace_categories c ON p.category_id = c.id
-      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?${tFilterO}
       GROUP BY c.id, c.name_ru
       ORDER BY total_revenue DESC
-    `).bind(startDate, endDate).all() as { results: any[] };
+    `).bind(startDate, endDate, ...tBind).all() as { results: any[] };
 
     // Daily sales (for chart)
     const dailySales = await env.DB.prepare(`
@@ -12374,10 +13046,10 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
         COUNT(*) as orders,
         SUM(CASE WHEN status = 'delivered' THEN final_amount ELSE 0 END) as revenue
       FROM marketplace_orders
-      WHERE date(created_at) BETWEEN ? AND ?
+      WHERE date(created_at) BETWEEN ? AND ?${tFilter}
       GROUP BY date(created_at)
       ORDER BY date(created_at)
-    `).bind(startDate, endDate).all() as { results: any[] };
+    `).bind(startDate, endDate, ...tBind).all() as { results: any[] };
 
     // Orders by status
     const ordersByStatus = await env.DB.prepare(`
@@ -12385,9 +13057,9 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
         status,
         COUNT(*) as count
       FROM marketplace_orders
-      WHERE date(created_at) BETWEEN ? AND ?
+      WHERE date(created_at) BETWEEN ? AND ?${tFilter}
       GROUP BY status
-    `).bind(startDate, endDate).all() as { results: any[] };
+    `).bind(startDate, endDate, ...tBind).all() as { results: any[] };
 
     // Top customers
     const topCustomers = await env.DB.prepare(`
@@ -12399,11 +13071,11 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
         SUM(o.final_amount) as total_spent
       FROM marketplace_orders o
       JOIN users u ON o.user_id = u.id
-      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?${tFilterO}
       GROUP BY u.id, u.name, u.phone
       ORDER BY total_spent DESC
       LIMIT 10
-    `).bind(startDate, endDate).all() as { results: any[] };
+    `).bind(startDate, endDate, ...tBind).all() as { results: any[] };
 
     // Executor performance (couriers)
     const executorStats = await env.DB.prepare(`
@@ -12414,10 +13086,10 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
         COALESCE(AVG(o.rating), 0) as avg_rating
       FROM marketplace_orders o
       JOIN users u ON o.executor_id = u.id
-      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?
+      WHERE o.status = 'delivered' AND date(o.created_at) BETWEEN ? AND ?${tFilterO}
       GROUP BY u.id, u.name
       ORDER BY delivered_count DESC
-    `).bind(startDate, endDate).all() as { results: any[] };
+    `).bind(startDate, endDate, ...tBind).all() as { results: any[] };
 
     return json({
       period: { start_date: startDate, end_date: endDate },
@@ -12442,13 +13114,16 @@ route('GET', '/api/marketplace/admin/products', async (request, env) => {
     return error('Access denied', 403);
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   const { results } = await env.DB.prepare(`
     SELECT p.*, c.name_ru as category_name_ru, c.icon as category_icon
     FROM marketplace_products p
     LEFT JOIN marketplace_categories c ON p.category_id = c.id
-    WHERE p.is_active = 1
+    WHERE p.is_active = 1 ${tenantId ? 'AND p.tenant_id = ?' : ''}
     ORDER BY p.created_at DESC
-  `).all();
+  `).bind(...(tenantId ? [tenantId] : [])).all();
 
   return json({ products: results });
 });
@@ -12462,12 +13137,13 @@ route('POST', '/api/marketplace/admin/products', async (request, env) => {
   const body = await request.json() as any;
   const id = generateId();
 
+  // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
     INSERT INTO marketplace_products (
       id, category_id, name_ru, name_uz, description_ru, description_uz,
       price, old_price, unit, stock_quantity, min_order_quantity, max_order_quantity,
-      weight, weight_unit, image_url, images, is_active, is_featured, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      weight, weight_unit, image_url, images, is_active, is_featured, created_by, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, body.category_id, body.name_ru, body.name_uz || body.name_ru,
     body.description_ru || null, body.description_uz || null,
@@ -12475,7 +13151,7 @@ route('POST', '/api/marketplace/admin/products', async (request, env) => {
     body.stock_quantity || 0, body.min_order_quantity || 1, body.max_order_quantity || null,
     body.weight || null, body.weight_unit || 'кг',
     body.image_url || null, body.images ? JSON.stringify(body.images) : null,
-    body.is_active !== false ? 1 : 0, body.is_featured ? 1 : 0, user.id
+    body.is_active !== false ? 1 : 0, body.is_featured ? 1 : 0, user.id, getTenantId()
   ).run();
 
   const created = await env.DB.prepare(`SELECT * FROM marketplace_products WHERE id = ?`).bind(id).first();
@@ -12506,13 +13182,17 @@ route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, param
     values.push(JSON.stringify(body.images));
   }
 
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+
   if (updates.length > 0) {
     updates.push('updated_at = datetime("now")');
     values.push(params.id);
-    await env.DB.prepare(`UPDATE marketplace_products SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+    if (tenantId) values.push(tenantId);
+    await env.DB.prepare(`UPDATE marketplace_products SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
   }
 
-  const updated = await env.DB.prepare(`SELECT * FROM marketplace_products WHERE id = ?`).bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM marketplace_products WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ product: updated });
 });
 
@@ -12522,7 +13202,9 @@ route('DELETE', '/api/marketplace/admin/products/:id', async (request, env, para
     return error('Access denied', 403);
   }
 
-  await env.DB.prepare(`UPDATE marketplace_products SET is_active = 0 WHERE id = ?`).bind(params.id).run();
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId();
+  await env.DB.prepare(`UPDATE marketplace_products SET is_active = 0 WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
 });
 
@@ -12632,44 +13314,417 @@ route('PATCH', '/api/marketplace/admin/categories/:id', async (request, env, par
   return json({ category: updated });
 });
 
+// ==================== TENANTS API (SUPER ADMIN ONLY) ====================
+// Helper to check super_admin role
+function isSuperAdmin(user: any): boolean {
+  return user?.role === 'super_admin';
+}
+
+// GET /api/tenants - list all tenants
+route('GET', '/api/tenants', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const result = await env.DB.prepare(`SELECT * FROM tenants ORDER BY created_at DESC`).all();
+  return json({ tenants: result.results || [] });
+});
+
+// POST /api/tenants - create tenant
+route('POST', '/api/tenants', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const body = await request.json() as any;
+  if (!body.name || !body.slug || !body.url) {
+    return error('name, slug, and url are required');
+  }
+
+  // Check slug uniqueness
+  const existing = await env.DB.prepare(`SELECT id FROM tenants WHERE slug = ?`).bind(body.slug).first();
+  if (existing) return error('Tenant with this slug already exists');
+
+  const id = generateId();
+  const features = body.features ? JSON.stringify(body.features) : '["requests","votes","qr"]';
+
+  await env.DB.prepare(`
+    INSERT INTO tenants (id, name, slug, url, admin_url, color, color_secondary, plan, features, admin_email, admin_phone, logo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, body.name, body.slug, body.url, body.admin_url || null,
+    body.color || '#6366f1', body.color_secondary || '#a855f7',
+    body.plan || 'basic', features,
+    body.admin_email || null, body.admin_phone || null,
+    body.logo || null
+  ).run();
+
+  // Create initial director user for the tenant
+  let directorCreated = false;
+  if (body.director_login && body.director_password && body.director_name) {
+    const directorId = generateId();
+    const passwordHash = await hashPassword(body.director_password);
+    await env.DB.prepare(`
+      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
+    `).bind(directorId, body.director_login, passwordHash, body.director_name, id).run();
+    directorCreated = true;
+  }
+
+  const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(id).first();
+  return json({ tenant, directorCreated }, 201);
+});
+
+// PATCH /api/tenants/:id - update tenant
+route('PATCH', '/api/tenants/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const existing = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(params.id).first();
+  if (!existing) return error('Tenant not found', 404);
+
+  const body = await request.json() as any;
+  const fields = ['name', 'slug', 'url', 'admin_url', 'color', 'color_secondary', 'plan', 'admin_email', 'admin_phone', 'users_count', 'requests_count', 'votes_count', 'qr_count', 'revenue', 'is_active', 'logo'];
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  for (const field of fields) {
+    if (body[field] !== undefined) {
+      updates.push(`${field} = ?`);
+      values.push(field === 'is_active' ? (body[field] ? 1 : 0) : body[field]);
+    }
+  }
+
+  if (body.features !== undefined) {
+    updates.push('features = ?');
+    values.push(JSON.stringify(body.features));
+  }
+
+  if (updates.length > 0) {
+    updates.push("updated_at = datetime('now')");
+    values.push(params.id);
+    await env.DB.prepare(`UPDATE tenants SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  }
+
+  const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(params.id).first();
+  return json({ tenant });
+});
+
+// DELETE /api/tenants/:id - delete tenant
+route('DELETE', '/api/tenants/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const existing = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(params.id).first();
+  if (!existing) return error('Tenant not found', 404);
+
+  await env.DB.prepare(`DELETE FROM tenants WHERE id = ?`).bind(params.id).run();
+  return json({ success: true });
+});
+
+// GET /api/super-admin/analytics - cross-tenant analytics
+route('GET', '/api/super-admin/analytics', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  try {
+    // Helper: build time-series queries for a given period
+    const timeQueries = (groupExpr: string, periodAlias: string, dateFilter: string) => [
+      env.DB.prepare(`SELECT ${groupExpr} as period, COUNT(*) as count FROM users WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
+      env.DB.prepare(`SELECT ${groupExpr} as period, COUNT(*) as count FROM requests WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
+      env.DB.prepare(`SELECT ${groupExpr} as period, COALESCE(SUM(CASE WHEN status = 'delivered' THEN final_amount ELSE 0 END), 0) as revenue, COUNT(*) as orders FROM marketplace_orders WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
+      env.DB.prepare(`SELECT ${groupExpr} as period, COUNT(*) as count FROM buildings WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
+    ];
+
+    const [
+      perTenantResult, planResult, tenantsResult,
+      // Daily (last 30 days)
+      udRes, rdRes, revdRes, bdRes,
+      // Weekly (last 12 weeks)
+      uwRes, rwRes, revwRes, bwRes,
+      // Monthly (last 12 months)
+      umRes, rmRes, revmRes, bmRes,
+    ] = await Promise.all([
+      // Per-tenant real counts
+      env.DB.prepare(`
+        SELECT
+          t.id, t.name, t.slug, t.plan, t.is_active,
+          COALESCE(u.cnt, 0) as users_count,
+          COALESCE(r.cnt, 0) as requests_count,
+          COALESCE(b.cnt, 0) as buildings_count,
+          COALESCE(o.revenue, 0) as revenue
+        FROM tenants t
+        LEFT JOIN (SELECT tenant_id, COUNT(*) as cnt FROM users GROUP BY tenant_id) u ON u.tenant_id = t.id
+        LEFT JOIN (SELECT tenant_id, COUNT(*) as cnt FROM requests GROUP BY tenant_id) r ON r.tenant_id = t.id
+        LEFT JOIN (SELECT tenant_id, COUNT(*) as cnt FROM buildings GROUP BY tenant_id) b ON b.tenant_id = t.id
+        LEFT JOIN (SELECT tenant_id, COALESCE(SUM(CASE WHEN status = 'delivered' THEN final_amount ELSE 0 END), 0) as revenue FROM marketplace_orders GROUP BY tenant_id) o ON o.tenant_id = t.id
+        ORDER BY u.cnt DESC
+      `).all(),
+      env.DB.prepare(`SELECT plan, COUNT(*) as count FROM tenants GROUP BY plan`).all(),
+      env.DB.prepare(`SELECT features FROM tenants`).all(),
+      // Daily
+      ...timeQueries("date(created_at)", "day", "date('now', '-30 days')"),
+      // Weekly
+      ...timeQueries("strftime('%Y-W%W', created_at)", "week", "date('now', '-84 days')"),
+      // Monthly
+      ...timeQueries("strftime('%Y-%m', created_at)", "month", "date('now', '-12 months')"),
+    ]);
+
+    const perTenant = (perTenantResult.results || []) as any[];
+    const planDistribution = (planResult.results || []) as any[];
+
+    // Calculate totals
+    const totals = perTenant.reduce((acc: any, t: any) => ({
+      users: acc.users + Number(t.users_count || 0),
+      requests: acc.requests + Number(t.requests_count || 0),
+      buildings: acc.buildings + Number(t.buildings_count || 0),
+      revenue: acc.revenue + Number(t.revenue || 0),
+    }), { users: 0, requests: 0, buildings: 0, revenue: 0 });
+    totals.tenants = perTenant.length;
+
+    // Parse feature usage from tenants
+    const featureUsage: Record<string, number> = {};
+    for (const t of (tenantsResult.results || []) as any[]) {
+      try {
+        const features = JSON.parse(t.features || '[]');
+        for (const f of features) {
+          featureUsage[f] = (featureUsage[f] || 0) + 1;
+        }
+      } catch {}
+    }
+    const featureUsageArr = Object.entries(featureUsage).map(([feature, count]) => ({ feature, count }));
+
+    // Merge time-series data for a given period
+    const mergeGrowth = (usersR: any, requestsR: any, revenueR: any, buildingsR: any) => {
+      const u = (usersR.results || []) as any[];
+      const r = (requestsR.results || []) as any[];
+      const rev = (revenueR.results || []) as any[];
+      const b = (buildingsR.results || []) as any[];
+      const allPeriods = new Set([
+        ...u.map((x: any) => x.period),
+        ...r.map((x: any) => x.period),
+        ...rev.map((x: any) => x.period),
+        ...b.map((x: any) => x.period),
+      ]);
+      return Array.from(allPeriods).sort().map(p => ({
+        period: p,
+        users: Number(u.find((x: any) => x.period === p)?.count || 0),
+        requests: Number(r.find((x: any) => x.period === p)?.count || 0),
+        revenue: Number(rev.find((x: any) => x.period === p)?.revenue || 0),
+        orders: Number(rev.find((x: any) => x.period === p)?.orders || 0),
+        buildings: Number(b.find((x: any) => x.period === p)?.count || 0),
+      }));
+    };
+
+    return json({
+      analytics: {
+        totals,
+        perTenant,
+        planDistribution,
+        featureUsage: featureUsageArr,
+        growth: {
+          daily: mergeGrowth(udRes, rdRes, revdRes, bdRes),
+          weekly: mergeGrowth(uwRes, rwRes, revwRes, bwRes),
+          monthly: mergeGrowth(umRes, rmRes, revmRes, bmRes),
+        },
+      }
+    });
+  } catch (err: any) {
+    console.error('Super admin analytics error:', err);
+    return error('Failed to load analytics', 500);
+  }
+});
+
 // ==================== DB MIGRATIONS ====================
 // Track which migrations have been run in this worker instance
 const migrationsRun = new Set<string>();
 
 async function runMigrations(env: Env) {
   // Only run migrations once per worker instance
-  if (migrationsRun.has('pause_fields')) return;
+  if (migrationsRun.has('all_migrations')) return;
 
   try {
-    // Check if columns exist using PRAGMA
-    const tableInfo = await env.DB.prepare(`PRAGMA table_info(requests)`).all();
-    const columns = (tableInfo.results || []).map((col: any) => col.name);
-
-    // Add is_paused column if not exists
-    if (!columns.includes('is_paused')) {
-      await env.DB.prepare(`ALTER TABLE requests ADD COLUMN is_paused INTEGER DEFAULT 0`).run();
-      console.log('Migration: Added is_paused column to requests');
+    // Migration 1: Create tenants table if not exists
+    try {
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS tenants (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT UNIQUE NOT NULL,
+          url TEXT NOT NULL,
+          admin_url TEXT,
+          color TEXT DEFAULT '#6366f1',
+          color_secondary TEXT DEFAULT '#a855f7',
+          plan TEXT DEFAULT 'basic' CHECK (plan IN ('basic', 'pro', 'enterprise')),
+          features TEXT DEFAULT '["requests","votes","qr"]',
+          admin_email TEXT,
+          admin_phone TEXT,
+          logo TEXT,
+          users_count INTEGER DEFAULT 0,
+          requests_count INTEGER DEFAULT 0,
+          votes_count INTEGER DEFAULT 0,
+          qr_count INTEGER DEFAULT 0,
+          revenue REAL DEFAULT 0,
+          is_active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `).run();
+      console.log('Migration: Created tenants table');
+    } catch (e) {
+      // Table might already exist, ignore
     }
 
-    // Add paused_at column if not exists
-    if (!columns.includes('paused_at')) {
-      await env.DB.prepare(`ALTER TABLE requests ADD COLUMN paused_at TEXT`).run();
-      console.log('Migration: Added paused_at column to requests');
+    // Migration: Add logo column to tenants
+    try {
+      const tenantInfo = await env.DB.prepare(`PRAGMA table_info(tenants)`).all();
+      const tenantCols = (tenantInfo.results || []).map((col: any) => col.name);
+      if (!tenantCols.includes('logo')) {
+        await env.DB.prepare(`ALTER TABLE tenants ADD COLUMN logo TEXT`).run();
+        console.log('Migration: Added logo column to tenants');
+      }
+    } catch (e) {}
+
+    // Migration: Fix users login UNIQUE constraint (global → per-tenant)
+    try {
+      const indexList = await env.DB.prepare(`PRAGMA index_list(users)`).all();
+      const hasCompositeIndex = (indexList.results || []).some((idx: any) =>
+        idx.name === 'idx_users_login_tenant'
+      );
+
+      if (!hasCompositeIndex) {
+        console.log('Migration: Fixing users login UNIQUE constraint for multi-tenancy...');
+
+        // Get existing column names dynamically
+        const tableInfo = await env.DB.prepare(`PRAGMA table_info(users)`).all();
+        const existingCols = (tableInfo.results || []).map((col: any) => col.name as string);
+        console.log('Existing users columns:', existingCols.join(', '));
+
+        // All known columns in the new table
+        const newTableCols = [
+          'id', 'login', 'phone', 'password_hash', 'password_plain', 'name', 'role',
+          'specialization', 'email', 'avatar_url', 'address', 'apartment', 'building_id',
+          'entrance', 'floor', 'branch', 'building', 'language', 'is_active', 'qr_code',
+          'contract_signed_at', 'agreed_to_terms_at', 'contract_number', 'contract_start_date',
+          'contract_end_date', 'contract_type', 'total_area', 'password_changed_at',
+          'account_type', 'status', 'tenant_id', 'created_at', 'updated_at'
+        ];
+
+        // Only copy columns that exist in both old and new tables
+        const commonCols = existingCols.filter(c => newTableCols.includes(c));
+        const colList = commonCols.join(', ');
+
+        // Disable foreign keys before table recreation
+        await env.DB.prepare(`PRAGMA foreign_keys=OFF`).run();
+
+        await env.DB.batch([
+          env.DB.prepare(`CREATE TABLE users_new (
+            id TEXT PRIMARY KEY,
+            login TEXT NOT NULL,
+            phone TEXT,
+            password_hash TEXT NOT NULL DEFAULT '',
+            password_plain TEXT,
+            name TEXT NOT NULL DEFAULT '',
+            role TEXT NOT NULL DEFAULT 'resident',
+            specialization TEXT,
+            email TEXT,
+            avatar_url TEXT,
+            address TEXT,
+            apartment TEXT,
+            building_id TEXT,
+            entrance TEXT,
+            floor TEXT,
+            branch TEXT,
+            building TEXT,
+            language TEXT DEFAULT 'ru',
+            is_active INTEGER DEFAULT 1,
+            qr_code TEXT,
+            contract_signed_at TEXT,
+            agreed_to_terms_at TEXT,
+            contract_number TEXT,
+            contract_start_date TEXT,
+            contract_end_date TEXT,
+            contract_type TEXT DEFAULT 'standard',
+            total_area REAL,
+            password_changed_at TEXT,
+            account_type TEXT DEFAULT 'standard',
+            status TEXT DEFAULT 'available',
+            tenant_id TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+          )`),
+          env.DB.prepare(`INSERT INTO users_new (${colList}) SELECT ${colList} FROM users`),
+          env.DB.prepare(`DROP TABLE users`),
+          env.DB.prepare(`ALTER TABLE users_new RENAME TO users`),
+          env.DB.prepare(`CREATE UNIQUE INDEX idx_users_login_tenant ON users(login, COALESCE(tenant_id, '___global___'))`),
+          env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id)`),
+          env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`),
+        ]);
+
+        // Re-enable foreign keys
+        await env.DB.prepare(`PRAGMA foreign_keys=ON`).run();
+
+        console.log('Migration: Fixed users login constraint - now unique per tenant');
+      }
+    } catch (e) {
+      console.error('Migration error (users login unique):', e);
     }
 
-    // Add total_paused_time column if not exists
-    if (!columns.includes('total_paused_time')) {
-      await env.DB.prepare(`ALTER TABLE requests ADD COLUMN total_paused_time INTEGER DEFAULT 0`).run();
-      console.log('Migration: Added total_paused_time column to requests');
+    // Migration 2: Add pause-related columns to requests table
+    try {
+      const tableInfo = await env.DB.prepare(`PRAGMA table_info(requests)`).all();
+      const columns = (tableInfo.results || []).map((col: any) => col.name);
+
+      // Add is_paused column if not exists
+      if (!columns.includes('is_paused')) {
+        await env.DB.prepare(`ALTER TABLE requests ADD COLUMN is_paused INTEGER DEFAULT 0`).run();
+        console.log('Migration: Added is_paused column to requests');
+      }
+
+      // Add paused_at column if not exists
+      if (!columns.includes('paused_at')) {
+        await env.DB.prepare(`ALTER TABLE requests ADD COLUMN paused_at TEXT`).run();
+        console.log('Migration: Added paused_at column to requests');
+      }
+
+      // Add total_paused_time column if not exists
+      if (!columns.includes('total_paused_time')) {
+        await env.DB.prepare(`ALTER TABLE requests ADD COLUMN total_paused_time INTEGER DEFAULT 0`).run();
+        console.log('Migration: Added total_paused_time column to requests');
+      }
+    } catch (e) {
+      // Table might not exist yet, ignore
     }
 
-    migrationsRun.add('pause_fields');
+    migrationsRun.add('all_migrations');
   } catch (error) {
     console.error('Migration error:', error);
   }
 }
 
 // ==================== MAIN HANDLER ====================
+
+// Helper function to extract tenant slug from hostname
+function getTenantSlug(hostname: string): string | null {
+  // Check if hostname matches *.kamizo.uz pattern (but not reserved subdomains)
+  const match = hostname.match(/^([a-z0-9-]+)\.kamizo\.uz$/i);
+  if (match) {
+    const slug = match[1].toLowerCase();
+    // Exclude reserved subdomains
+    if (slug === 'app' || slug === 'www' || slug === 'api' || slug === 'admin') {
+      return null;
+    }
+    return slug;
+  }
+  // For main domain (kamizo.uz) or localhost, return null
+  return null;
+}
+
+// Store current tenant context for this request
+let currentTenant: any = null;
+
+// Helper function to get current tenant ID
+function getTenantId(): string | null {
+  return currentTenant?.id || null;
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -12691,6 +13746,83 @@ export default {
     }
 
     const url = new URL(request.url);
+
+    // Detect tenant from hostname
+    const tenantSlug = getTenantSlug(url.hostname);
+    if (tenantSlug) {
+      try {
+        const tenant = await env.DB.prepare(`
+          SELECT * FROM tenants WHERE slug = ? AND is_active = 1
+        `).bind(tenantSlug).first();
+
+        if (!tenant) {
+          return new Response(`
+            <!DOCTYPE html>
+            <html lang="ru">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Управляющая компания не найдена</title>
+              <style>
+                body {
+                  font-family: system-ui, -apple-system, sans-serif;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
+                  margin: 0;
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                }
+                .container {
+                  text-align: center;
+                  padding: 2rem;
+                }
+                h1 {
+                  font-size: 3rem;
+                  margin: 0 0 1rem 0;
+                }
+                p {
+                  font-size: 1.25rem;
+                  margin: 0.5rem 0;
+                  opacity: 0.9;
+                }
+                .code {
+                  font-family: monospace;
+                  background: rgba(255,255,255,0.1);
+                  padding: 0.25rem 0.5rem;
+                  border-radius: 4px;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h1>404</h1>
+                <p>Управляющая компания <span class="code">${tenantSlug}</span> не найдена</p>
+                <p>Данный поддомен не зарегистрирован в системе</p>
+              </div>
+            </body>
+            </html>
+          `, {
+            status: 404,
+            headers: {
+              'Content-Type': 'text/html;charset=UTF-8',
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
+        }
+
+        // Store tenant context for this request
+        currentTenant = tenant;
+      } catch (error) {
+        console.error('Error fetching tenant:', error);
+        return new Response('Error loading tenant', { status: 500 });
+      }
+    } else {
+      currentTenant = null;
+    }
 
     // Try to match API routes
     if (url.pathname.startsWith('/api')) {
@@ -12756,6 +13888,67 @@ export default {
     }
 
     // For SPA: serve static assets or fallback to index.html
+    // BUT first verify tenant exists if this is a tenant subdomain
+    if (tenantSlug && !currentTenant) {
+      // This shouldn't happen as we checked above, but double-check for safety
+      return new Response(`
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Управляющая компания не найдена</title>
+          <style>
+            body {
+              font-family: system-ui, -apple-system, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+            }
+            .container {
+              text-align: center;
+              padding: 2rem;
+            }
+            h1 {
+              font-size: 3rem;
+              margin: 0 0 1rem 0;
+            }
+            p {
+              font-size: 1.25rem;
+              margin: 0.5rem 0;
+              opacity: 0.9;
+            }
+            .code {
+              font-family: monospace;
+              background: rgba(255,255,255,0.1);
+              padding: 0.25rem 0.5rem;
+              border-radius: 4px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>404</h1>
+            <p>Управляющая компания <span class="code">${tenantSlug}</span> не найдена</p>
+            <p>Данный поддомен не зарегистрирован в системе</p>
+          </div>
+        </body>
+        </html>
+      `, {
+        status: 404,
+        headers: {
+          'Content-Type': 'text/html;charset=UTF-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+    }
+
     // env.ASSETS is automatically provided by Cloudflare when using assets config
     try {
       // Try to serve the requested asset

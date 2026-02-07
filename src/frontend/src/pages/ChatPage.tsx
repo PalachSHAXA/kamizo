@@ -40,6 +40,12 @@ interface ChatMessage {
 // Role badge component
 function RoleBadge({ role, language }: { role: UserRole; language: string }) {
   const roleConfig: Record<UserRole, { label: string; labelUz: string; color: string; icon: React.ReactNode }> = {
+    super_admin: {
+      label: 'Супер Админ',
+      labelUz: 'Super Admin',
+      color: 'bg-purple-100 text-purple-700',
+      icon: <Shield className="w-3 h-3" />
+    },
     admin: {
       label: 'Админ',
       labelUz: 'Admin',

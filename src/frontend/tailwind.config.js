@@ -8,16 +8,16 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#F97316',
-          600: '#EA580C',
-          700: '#C2410C',
-          800: '#9A3412',
-          900: '#7C2D12',
+          50: 'var(--brand-50, #fff7ed)',
+          100: 'var(--brand-100, #ffedd5)',
+          200: 'var(--brand-200, #fed7aa)',
+          300: 'var(--brand-300, #fdba74)',
+          400: 'var(--brand-400, #fb923c)',
+          500: 'var(--brand-500, #F97316)',
+          600: 'var(--brand-600, #EA580C)',
+          700: 'var(--brand-700, #C2410C)',
+          800: 'var(--brand-800, #9A3412)',
+          900: 'var(--brand-900, #7C2D12)',
         },
       },
       boxShadow: {

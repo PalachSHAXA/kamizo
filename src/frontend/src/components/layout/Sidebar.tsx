@@ -11,6 +11,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
+import { useTenantStore } from '../../stores/tenantStore';
 import { AppLogo } from '../common/AppLogo';
 import { chatApi } from '../../services/api';
 
@@ -26,6 +27,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { t, language } = useLanguageStore();
   const { requests, announcements, executors, getAnnouncementsForEmployees } = useDataStore();
   const { meetings } = useMeetingStore();
+  const { hasFeature } = useTenantStore();
 
   // Chat unread count state
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
@@ -240,6 +242,12 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/', icon: Key, label: t('nav.myApartments') },
       ];
     }
+    if (user?.role === 'super_admin') {
+      return [
+        { path: '/', icon: Building2, label: language === 'ru' ? 'Управляющие компании' : 'Boshqaruv kompaniyalari' },
+        { path: '/settings', icon: Settings, label: language === 'ru' ? 'Настройки' : 'Sozlamalar' },
+      ];
+    }
     if (user?.role === 'admin') {
       return [
         { path: '/', icon: Shield, label: t('nav.monitoring') },
@@ -313,7 +321,53 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     ];
   };
 
-  const navItems = getNavItems();
+  // Feature to menu path mapping
+  const featurePathMap: Record<string, string[]> = {
+    'requests': ['/', '/requests', '/executors', '/work-orders', '/schedule', '/stats'],
+    'votes': ['/meetings'],
+    'qr': ['/qr-scanner', '/guest-access'],
+    'chat': ['/chat'],
+    'marketplace': ['/marketplace', '/marketplace-orders', '/marketplace-products'],
+    'announcements': ['/announcements'],
+    'trainings': ['/trainings'],
+    'vehicles': ['/vehicles', '/vehicle-search'],
+    'reports': ['/reports'],
+    'rentals': ['/rentals'],
+    'notepad': ['/notepad'],
+    'colleagues': ['/colleagues'],
+  };
+
+  // Filter menu items based on tenant features
+  const filterByFeatures = (items: Array<{ path: string; icon: any; label: string }>): Array<{ path: string; icon: any; label: string }> => {
+    // If no tenant (main domain) or super_admin, show all items
+    if (!hasFeature || user?.role === 'super_admin') {
+      return items;
+    }
+
+    return items.filter((item: { path: string; icon: any; label: string }) => {
+      // Always allow dashboard, settings, profile pages, buildings, residents, useful contacts, contract, rate employees
+      const alwaysAllowed = [
+        '/', '/settings', '/profile', '/buildings', '/residents',
+        '/useful-contacts', '/contract', '/rate-employees', '/team'
+      ];
+
+      if (alwaysAllowed.includes(item.path)) {
+        return true;
+      }
+
+      // Check if this menu item requires a specific feature
+      for (const [feature, paths] of Object.entries(featurePathMap)) {
+        if (paths.includes(item.path)) {
+          return hasFeature(feature);
+        }
+      }
+
+      // If not mapped to any feature, show it by default
+      return true;
+    });
+  };
+
+  const navItems = filterByFeatures(getNavItems());
 
   const handleNavClick = () => {
     // Close sidebar on mobile after navigation

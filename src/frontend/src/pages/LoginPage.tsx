@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, AlertCircle, X, FileText, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { AppLogo } from '../components/common/AppLogo';
 
 // Demo accounts for all roles
@@ -21,9 +22,23 @@ const DEMO_ACCOUNTS = [
 // coupon_checker: login='coupon_checker', password='kamizo'
 // advertiser: login='advertiser', password='kamizo'
 
+// Convert hex color to rgba string
+const hexToRgba = (hex: string, alpha: number) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 export function LoginPage() {
   const { login, isLoading: authLoading, error: authError } = useAuthStore();
   const { language, setLanguage, t } = useLanguageStore();
+  const { config: tenantConfig } = useTenantStore();
+  const tenant = tenantConfig?.tenant;
+
+  // Tenant brand colors
+  const brandColor = tenant?.color || '';
+  const brandColor2 = tenant?.color_secondary || '';
 
   const [loginValue, setLoginValue] = useState('');
   const [password, setPassword] = useState('');
@@ -104,9 +119,10 @@ export function LoginPage() {
               onClick={() => setLanguage(lang.code)}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors touch-manipulation ${
                 language === lang.code
-                  ? 'bg-orange-400 text-gray-900'
+                  ? (tenant ? 'text-white' : 'bg-orange-400 text-gray-900')
                   : 'hover:bg-gray-100 text-gray-600'
               }`}
+              style={language === lang.code && tenant ? { backgroundColor: brandColor } : undefined}
             >
               <span>{lang.flag}</span>
               <span>{lang.label}</span>
@@ -116,20 +132,59 @@ export function LoginPage() {
       </div>
 
       {/* Decorative elements */}
-      <div className="absolute top-20 left-20 w-72 h-72 bg-primary-300/30 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 right-20 w-96 h-96 bg-primary-200/40 rounded-full blur-3xl" />
-      <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-orange-200/30 rounded-full blur-3xl" />
+      <div
+        className={`absolute top-20 left-20 w-72 h-72 rounded-full blur-3xl ${!tenant ? 'bg-primary-300/30' : ''}`}
+        style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.3) } : undefined}
+      />
+      <div
+        className={`absolute bottom-20 right-20 w-96 h-96 rounded-full blur-3xl ${!tenant ? 'bg-primary-200/40' : ''}`}
+        style={tenant ? { backgroundColor: hexToRgba(brandColor2 || brandColor, 0.35) } : undefined}
+      />
+      <div
+        className={`absolute top-1/2 left-1/3 w-64 h-64 rounded-full blur-3xl ${!tenant ? 'bg-orange-200/30' : ''}`}
+        style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.25) } : undefined}
+      />
 
       <div className="glass-card p-6 md:p-8 w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-6 md:mb-8">
-          <div className="flex items-center justify-center gap-5">
-            <AppLogo size="xl" />
-            <div className="text-left">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">kamizo</h1>
-              <p className="text-gray-500 text-sm md:text-base">{language === 'ru' ? 'Управление жильём' : 'Uy-joy boshqaruvi'}</p>
+          {tenant ? (
+            <div className="flex items-center justify-center gap-3">
+              {/* Tenant Logo + Name */}
+              {tenant.logo ? (
+                <img src={tenant.logo} alt={tenant.name} className="w-12 h-12 rounded-xl object-cover" />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                  style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
+                >
+                  {tenant.name[0]}
+                </div>
+              )}
+              <div className="text-left">
+                <h2 className="text-lg font-bold text-gray-900 leading-tight">{tenant.name}</h2>
+                <p className="text-xs font-medium" style={{ color: brandColor }}>{language === 'ru' ? 'УК' : 'BK'}</p>
+              </div>
+
+              {/* × separator */}
+              <span className="text-gray-300 text-xl mx-1">×</span>
+
+              {/* Kamizo Logo */}
+              <AppLogo size="lg" />
+              <div className="text-left">
+                <h2 className="text-lg font-bold text-gray-900 leading-tight">kamizo</h2>
+                <p className="text-xs text-gray-400 font-medium">CRM</p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center justify-center gap-5">
+              <AppLogo size="xl" />
+              <div className="text-left">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">kamizo</h1>
+                <p className="text-gray-500 text-sm md:text-base">{language === 'ru' ? 'Управление жильём' : 'Uy-joy boshqaruvi'}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Login Form */}
@@ -192,9 +247,10 @@ export function LoginPage() {
               }}
               className={`flex-shrink-0 w-11 h-11 md:w-6 md:h-6 rounded-lg md:rounded border-2 flex items-center justify-center transition-colors touch-manipulation active:scale-95 ${
                 agreedToTerms
-                  ? 'bg-orange-400 border-orange-400'
-                  : 'border-gray-300 hover:border-orange-400 bg-white/50'
+                  ? (tenant ? '' : 'bg-orange-400 border-orange-400')
+                  : (tenant ? 'bg-white/50' : 'border-gray-300 hover:border-orange-400 bg-white/50')
               }`}
+              style={agreedToTerms && tenant ? { backgroundColor: brandColor, borderColor: brandColor } : (!agreedToTerms && tenant ? { borderColor: '#d1d5db' } : undefined)}
             >
               {agreedToTerms && <Check className="w-5 h-5 md:w-4 md:h-4 text-gray-800" />}
             </button>
@@ -205,7 +261,8 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowOfferModal(true)}
-                    className="text-orange-600 hover:text-orange-700 underline font-medium touch-manipulation"
+                    className={`${tenant ? '' : 'text-orange-600 hover:text-orange-700'} underline font-medium touch-manipulation`}
+                    style={tenant ? { color: brandColor } : undefined}
                   >
                     публичной оферты
                   </button>
@@ -216,7 +273,8 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowOfferModal(true)}
-                    className="text-orange-600 hover:text-orange-700 underline font-medium touch-manipulation"
+                    className={`${tenant ? '' : 'text-orange-600 hover:text-orange-700'} underline font-medium touch-manipulation`}
+                    style={tenant ? { color: brandColor } : undefined}
                   >
                     ommaviy oferta
                   </button>
@@ -229,14 +287,15 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={authLoading || !agreedToTerms}
-            className="btn-primary w-full text-center disabled:opacity-50 py-3 text-base touch-manipulation"
+            className={`${tenant ? 'text-white font-semibold rounded-xl' : 'btn-primary'} w-full text-center disabled:opacity-50 py-3 text-base touch-manipulation`}
+            style={tenant ? { background: `linear-gradient(135deg, ${brandColor}, ${brandColor2 || brandColor})` } : undefined}
           >
             {authLoading ? (language === 'ru' ? 'Вход...' : 'Kirish...') : t('auth.enter')}
           </button>
         </form>
 
-        {/* Demo Accounts Section */}
-        <div className="mt-6 pt-6 border-t border-gray-200">
+        {/* Demo Accounts Section - only on main domain */}
+        {!tenant && <div className="mt-6 pt-6 border-t border-gray-200">
           <p className="text-xs text-gray-500 text-center mb-3">
             {language === 'ru' ? 'Демо-входы для тестирования:' : 'Test uchun demo-kirish:'}
           </p>
@@ -266,7 +325,7 @@ export function LoginPage() {
               );
             })}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Public Offer Modal */}
@@ -276,8 +335,11 @@ export function LoginPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200">
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+                <div
+                  className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${!tenant ? 'bg-orange-100' : ''}`}
+                  style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.15) } : undefined}
+                >
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5" style={tenant ? { color: brandColor } : { color: '#ea580c' }} />
                 </div>
                 <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">
                   {language === 'ru' ? 'Публичная оферта' : 'Ommaviy oferta'}
@@ -356,8 +418,11 @@ export function LoginPage() {
                   <p>8.1. Настоящая Оферта может быть изменена Исполнителем в одностороннем порядке с уведомлением Заказчика не менее чем за 30 дней.</p>
                   <p>8.2. Продолжение использования сервиса после внесения изменений означает согласие с новой редакцией Оферты.</p>
 
-                  <div className="mt-6 p-4 bg-orange-50 rounded-xl border border-orange-200">
-                    <p className="font-medium text-orange-800">
+                  <div
+                    className={`mt-6 p-4 rounded-xl border ${!tenant ? 'bg-orange-50 border-orange-200' : ''}`}
+                    style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.08), borderColor: hexToRgba(brandColor, 0.3) } : undefined}
+                  >
+                    <p className="font-medium" style={tenant ? { color: brandColor } : { color: '#9a3412' }}>
                       Прокрутите до конца документа, чтобы принять условия оферты.
                     </p>
                   </div>
@@ -421,8 +486,11 @@ export function LoginPage() {
                   <p>8.1. Ushbu Oferta Ijrochi tomonidan bir tomonlama tartibda, Buyurtmachini kamida 30 kun oldin xabardor qilgan holda o'zgartirilishi mumkin.</p>
                   <p>8.2. O'zgartirishlar kiritilganidan keyin xizmatdan foydalanishni davom ettirish Ofertaning yangi tahririga rozilikni bildiradi.</p>
 
-                  <div className="mt-6 p-4 bg-orange-50 rounded-xl border border-orange-200">
-                    <p className="font-medium text-orange-800">
+                  <div
+                    className={`mt-6 p-4 rounded-xl border ${!tenant ? 'bg-orange-50 border-orange-200' : ''}`}
+                    style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.08), borderColor: hexToRgba(brandColor, 0.3) } : undefined}
+                  >
+                    <p className="font-medium" style={tenant ? { color: brandColor } : { color: '#9a3412' }}>
                       Oferta shartlarini qabul qilish uchun hujjat oxirigacha aylantiring.
                     </p>
                   </div>
@@ -451,9 +519,10 @@ export function LoginPage() {
                     disabled={!canAcceptOffer}
                     className={`flex-1 sm:flex-none px-6 py-3 sm:py-2 rounded-xl font-medium transition-colors touch-manipulation text-sm sm:text-base ${
                       canAcceptOffer
-                        ? 'bg-orange-400 hover:bg-orange-500 active:bg-orange-600 text-gray-900'
+                        ? (tenant ? 'text-white' : 'bg-orange-400 hover:bg-orange-500 active:bg-orange-600 text-gray-900')
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     }`}
+                    style={canAcceptOffer && tenant ? { backgroundColor: brandColor } : undefined}
                   >
                     {language === 'ru' ? 'Принять' : 'Qabul qilish'}
                   </button>

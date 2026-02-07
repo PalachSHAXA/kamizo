@@ -61,6 +61,7 @@ const MonitoringPage = lazy(() => import('../../pages/admin/MonitoringPage').the
 const MarketplacePage = lazy(() => import('../../pages/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
 const MarketplaceManagerDashboard = lazy(() => import('../../pages/MarketplaceManagerDashboard').then(m => ({ default: m.MarketplaceManagerDashboard })));
 const MarketplaceOrdersPage = lazy(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
+const SuperAdminDashboard = lazy(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
 
 export function Layout() {
   const location = useLocation();
@@ -99,6 +100,8 @@ export function Layout() {
     }
 
     switch (user?.role) {
+      case 'super_admin':
+        return <SuperAdminDashboard />;
       case 'admin':
         return <AdminDashboard />;
       case 'director':
@@ -168,8 +171,13 @@ export function Layout() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={getDashboard()} />
-              <Route path="/requests" element={<RequestsPage />} />
-              <Route path="/residents" element={<ResidentsPage />} />
+              {/* Requests page - not accessible by super_admin (they manage tenants, not individual requests) */}
+              {user?.role !== 'super_admin' && (
+                <Route path="/requests" element={<RequestsPage />} />
+              )}
+              {user?.role !== 'super_admin' && (
+                <Route path="/residents" element={<ResidentsPage />} />
+              )}
               <Route path="/executors" element={<ExecutorsPage />} />
               <Route path="/rentals" element={<RentalsPage />} />
               <Route path="/buildings" element={<BuildingsPage />} />
@@ -197,6 +205,9 @@ export function Layout() {
               <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/marketplace-orders" element={<MarketplaceOrdersPage />} />
               <Route path="/marketplace-products" element={<MarketplaceManagerDashboard />} />
+              {user?.role === 'super_admin' && (
+                <Route path="/super-admin" element={<SuperAdminDashboard />} />
+              )}
             </Routes>
           </Suspense>
         </main>

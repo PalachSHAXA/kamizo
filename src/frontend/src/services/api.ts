@@ -2496,3 +2496,57 @@ export const notificationsApi = {
     });
   },
 };
+
+// === TENANTS API (SUPER ADMIN ONLY) ===
+export const tenantApi = {
+  // Get all tenants
+  getAll: async () => {
+    return apiRequest<{ tenants: any[] }>('/api/tenants');
+  },
+
+  // Create tenant
+  create: async (data: {
+    name: string;
+    slug: string;
+    url: string;
+    admin_url?: string;
+    color?: string;
+    color_secondary?: string;
+    plan?: 'basic' | 'pro' | 'enterprise';
+    features?: string[];
+    admin_email?: string;
+    admin_phone?: string;
+  }) => {
+    return apiRequest<{ tenant: any }>('/api/tenants', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update tenant
+  update: async (id: string, data: Partial<{
+    name: string;
+    slug: string;
+    url: string;
+    admin_url: string;
+    color: string;
+    color_secondary: string;
+    plan: 'basic' | 'pro' | 'enterprise';
+    features: string[];
+    admin_email: string;
+    admin_phone: string;
+    is_active: number;
+  }>) => {
+    return apiRequest<{ tenant: any }>(`/api/tenants/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete tenant
+  delete: async (id: string) => {
+    return apiRequest<{ success: boolean }>(`/api/tenants/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};

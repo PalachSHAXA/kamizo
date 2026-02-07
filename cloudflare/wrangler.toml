@@ -3,14 +3,14 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 workers_dev = true
 
-# Custom domain (enable when kamizo.uz domain is added to Cloudflare)
-# routes = [
-#   { pattern = "app.kamizo.uz", custom_domain = true }
-# ]
+# Custom domains must be added via Cloudflare Dashboard:
+# Workers & Pages → kamizo → Settings → Triggers → Custom Domains
+# Add: kamizo.uz and *.kamizo.uz (wildcards only supported via Dashboard)
 
 [assets]
 directory = "public"
 binding = "ASSETS"
+run_worker_first = true
 
 [vars]
 ENVIRONMENT = "production"

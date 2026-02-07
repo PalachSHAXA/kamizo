@@ -275,7 +275,10 @@ export function Header() {
 
   // Handle clock click - navigate based on user role
   const handleClockClick = () => {
-    if (user?.role === 'executor') {
+    if (user?.role === 'super_admin') {
+      // Super admin - go to dashboard (management companies)
+      navigate('/');
+    } else if (user?.role === 'executor') {
       // For executors - go to schedule view
       navigate('/');
       // Will need to trigger schedule view in ExecutorDashboard
@@ -292,8 +295,8 @@ export function Header() {
   return (
     <header className="h-16 glass-card rounded-none border-x-0 border-t-0 flex items-center justify-between px-6">
       <div className="flex items-center gap-4">
-        {/* Hide search for rental users (tenant/commercial_owner) - they don't have requests */}
-        {!isRentalUser && (
+        {/* Hide search for rental users (tenant/commercial_owner) and super_admin - they don't manage individual requests */}
+        {!isRentalUser && user?.role !== 'super_admin' && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input

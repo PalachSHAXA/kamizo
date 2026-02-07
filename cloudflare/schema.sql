@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   password_plain TEXT,              -- Plain password for admin convenience (optional)
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'director', 'manager', 'department_head', 'dispatcher', 'executor', 'resident', 'advertiser', 'coupon_checker', 'tenant', 'commercial_owner')),
+  role TEXT NOT NULL CHECK (role IN ('super_admin', 'admin', 'director', 'manager', 'department_head', 'dispatcher', 'executor', 'resident', 'advertiser', 'coupon_checker', 'tenant', 'commercial_owner')),
   specialization TEXT CHECK (specialization IN ('plumber', 'electrician', 'elevator', 'intercom', 'cleaning', 'security', 'carpenter', 'boiler', 'ac', 'gardener', 'other', NULL)),
   email TEXT,
   avatar_url TEXT,
