@@ -1,8 +1,10 @@
 import { FileText, User, CheckCircle, Clock, Star, Calendar, Download, List } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
+import { useLanguageStore } from '../../stores/languageStore';
 
 export function ActivityLogPage() {
   const { requests } = useDataStore();
+  const { language } = useLanguageStore();
 
   // Generate activity log from requests
   const activityLog = requests.flatMap(req => {
@@ -16,7 +18,7 @@ export function ActivityLogPage() {
       requestTitle: req.title,
       user: req.residentName,
       timestamp: req.createdAt,
-      description: `Создана заявка #${req.number}: ${req.title}`,
+      description: language === 'ru' ? `Создана заявка #${req.number}: ${req.title}` : `Ariza yaratildi #${req.number}: ${req.title}`,
     });
 
     // Assigned
@@ -26,10 +28,10 @@ export function ActivityLogPage() {
         type: 'request_assigned',
         requestNumber: req.number,
         requestTitle: req.title,
-        user: 'Менеджер',
+        user: language === 'ru' ? 'Менеджер' : 'Menejer',
         executor: req.executorName,
         timestamp: req.assignedAt,
-        description: `Заявка #${req.number} назначена исполнителю ${req.executorName}`,
+        description: language === 'ru' ? `Заявка #${req.number} назначена исполнителю ${req.executorName}` : `Ariza #${req.number} ijrochiga tayinlandi ${req.executorName}`,
       });
     }
 
@@ -42,7 +44,7 @@ export function ActivityLogPage() {
         requestTitle: req.title,
         user: req.executorName,
         timestamp: req.acceptedAt,
-        description: `${req.executorName} принял заявку #${req.number}`,
+        description: language === 'ru' ? `${req.executorName} принял заявку #${req.number}` : `${req.executorName} arizani qabul qildi #${req.number}`,
       });
     }
 
@@ -55,7 +57,7 @@ export function ActivityLogPage() {
         requestTitle: req.title,
         user: req.executorName,
         timestamp: req.startedAt,
-        description: `${req.executorName} начал работу над заявкой #${req.number}`,
+        description: language === 'ru' ? `${req.executorName} начал работу над заявкой #${req.number}` : `${req.executorName} ariza ustida ishni boshladi #${req.number}`,
       });
     }
 
@@ -68,7 +70,7 @@ export function ActivityLogPage() {
         requestTitle: req.title,
         user: req.executorName,
         timestamp: req.completedAt,
-        description: `${req.executorName} завершил работу над заявкой #${req.number}`,
+        description: language === 'ru' ? `${req.executorName} завершил работу над заявкой #${req.number}` : `${req.executorName} ariza ustida ishni yakunladi #${req.number}`,
       });
     }
 
@@ -81,7 +83,7 @@ export function ActivityLogPage() {
         requestTitle: req.title,
         user: req.residentName,
         timestamp: req.approvedAt,
-        description: `${req.residentName} подтвердил выполнение заявки #${req.number}`,
+        description: language === 'ru' ? `${req.residentName} подтвердил выполнение заявки #${req.number}` : `${req.residentName} ariza bajarilishini tasdiqladi #${req.number}`,
         rating: req.rating,
       });
     }
@@ -91,15 +93,26 @@ export function ActivityLogPage() {
 
   // Export activity log to CSV
   const handleExportActivityLog = () => {
-    const headers = ['Дата/Время', 'Тип', '№ Заявки', 'Пользователь', 'Описание'];
-    const typeLabels: Record<string, string> = {
-      request_created: 'Создание',
-      request_assigned: 'Назначение',
-      request_accepted: 'Принятие',
-      request_started: 'Начало работы',
-      request_completed: 'Завершение',
-      request_approved: 'Подтверждение'
-    };
+    const headers = language === 'ru'
+      ? ['Дата/Время', 'Тип', '№ Заявки', 'Пользователь', 'Описание']
+      : ['Sana/Vaqt', 'Turi', 'Ariza №', 'Foydalanuvchi', 'Tavsif'];
+    const typeLabels: Record<string, string> = language === 'ru'
+      ? {
+          request_created: 'Создание',
+          request_assigned: 'Назначение',
+          request_accepted: 'Принятие',
+          request_started: 'Начало работы',
+          request_completed: 'Завершение',
+          request_approved: 'Подтверждение'
+        }
+      : {
+          request_created: 'Yaratish',
+          request_assigned: 'Tayinlash',
+          request_accepted: 'Qabul qilish',
+          request_started: 'Ishni boshlash',
+          request_completed: 'Yakunlash',
+          request_approved: 'Tasdiqlash'
+        };
 
     const rows = activityLog.map(activity => [
       new Date(activity.timestamp).toLocaleString('ru-RU'),
@@ -115,7 +128,9 @@ export function ActivityLogPage() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `журнал_действий_${new Date().toLocaleDateString('ru-RU')}.csv`;
+    link.download = language === 'ru'
+      ? `журнал_действий_${new Date().toLocaleDateString('ru-RU')}.csv`
+      : `harakatlar_jurnali_${new Date().toLocaleDateString('ru-RU')}.csv`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
@@ -176,12 +191,12 @@ export function ActivityLogPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Журнал действий</h1>
-          <p className="text-gray-500 mt-1">История всех операций в системе</p>
+          <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Журнал действий' : 'Harakatlar jurnali'}</h1>
+          <p className="text-gray-500 mt-1">{language === 'ru' ? 'История всех операций в системе' : 'Tizimdagi barcha operatsiyalar tarixi'}</p>
         </div>
         <button onClick={handleExportActivityLog} className="btn-secondary flex items-center gap-2">
           <Download className="w-4 h-4" />
-          Экспорт CSV
+          {language === 'ru' ? 'Экспорт CSV' : 'CSV eksport'}
         </button>
       </div>
 
@@ -194,7 +209,7 @@ export function ActivityLogPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{requests.length}</div>
-              <div className="text-sm text-gray-500">Всего заявок</div>
+              <div className="text-sm text-gray-500">{language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}</div>
             </div>
           </div>
         </div>
@@ -205,7 +220,7 @@ export function ActivityLogPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{requests.filter(r => r.status === 'completed').length}</div>
-              <div className="text-sm text-gray-500">Выполнено</div>
+              <div className="text-sm text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
             </div>
           </div>
         </div>
@@ -216,7 +231,7 @@ export function ActivityLogPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{requests.filter(r => r.status === 'in_progress').length}</div>
-              <div className="text-sm text-gray-500">В работе</div>
+              <div className="text-sm text-gray-500">{language === 'ru' ? 'В работе' : 'Ishda'}</div>
             </div>
           </div>
         </div>
@@ -227,7 +242,7 @@ export function ActivityLogPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{activityLog.length}</div>
-              <div className="text-sm text-gray-500">Действий</div>
+              <div className="text-sm text-gray-500">{language === 'ru' ? 'Действий' : 'Harakatlar'}</div>
             </div>
           </div>
         </div>
@@ -277,8 +292,8 @@ export function ActivityLogPage() {
           {activityLog.length === 0 && (
             <div className="text-center py-12">
               <List className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-600">Нет действий</h3>
-              <p className="text-gray-400 mt-1">История действий пуста</p>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Нет действий' : 'Harakatlar yo\'q'}</h3>
+              <p className="text-gray-400 mt-1">{language === 'ru' ? 'История действий пуста' : 'Harakatlar tarixi bo\'sh'}</p>
             </div>
           )}
         </div>

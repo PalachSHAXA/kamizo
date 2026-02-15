@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { usePopupNotifications } from '../../hooks/usePopupNotifications';
@@ -48,7 +48,6 @@ const ResidentProfilePage = lazy(() => import('../../pages/ResidentProfilePage')
 const ResidentContractPage = lazy(() => import('../../pages/ResidentContractPage').then(m => ({ default: m.ResidentContractPage })));
 const ResidentUsefulContactsPage = lazy(() => import('../../pages/ResidentUsefulContactsPage'));
 const AdvertiserDashboard = lazy(() => import('../../pages/AdvertiserDashboard').then(m => ({ default: m.AdvertiserDashboard })));
-const CouponCheckerDashboard = lazy(() => import('../../pages/CouponCheckerDashboard').then(m => ({ default: m.CouponCheckerDashboard })));
 const NotepadPage = lazy(() => import('../../pages/NotepadPage').then(m => ({ default: m.NotepadPage })));
 const TenantDashboard = lazy(() => import('../../pages/tenant/TenantDashboard').then(m => ({ default: m.TenantDashboard })));
 const ExecutorsPage = lazy(() => import('../../pages/shared/ExecutorsPage').then(m => ({ default: m.ExecutorsPage })));
@@ -65,6 +64,7 @@ const SuperAdminDashboard = lazy(() => import('../../pages/admin/SuperAdminDashb
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { getUnreadCount, fetchAnnouncements } = useDataStore();
@@ -75,6 +75,15 @@ export function Layout() {
 
   // Real-time sync via WebSocket (replaces SSE polling)
   useWebSocketSync();
+
+  // Redirect to dashboard if current path is not "/" on first render (e.g. after login)
+  // This prevents stale URLs from a previous session showing wrong pages
+  useEffect(() => {
+    if (user && location.pathname !== '/') {
+      navigate('/', { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Fetch announcements on mount (for badge in sidebar)
   useEffect(() => {
@@ -91,9 +100,6 @@ export function Layout() {
     // Check account_type or role for special accounts
     if (user?.account_type === 'advertiser' || user?.role === 'advertiser') {
       return <AdvertiserDashboard />;
-    }
-    if (user?.account_type === 'coupon_checker' || user?.role === 'coupon_checker') {
-      return <CouponCheckerDashboard />;
     }
     if (user?.role === 'marketplace_manager') {
       return <MarketplaceManagerDashboard />;
@@ -125,7 +131,7 @@ export function Layout() {
     if (user?.role === 'resident') {
       return <ResidentAnnouncementsPage />;
     }
-    if (user?.role === 'executor') {
+    if (user?.role === 'executor' || user?.role === 'advertiser') {
       return <ExecutorAnnouncementsPage />;
     }
     return <AnnouncementsPage />;
@@ -175,7 +181,7 @@ export function Layout() {
               {user?.role !== 'super_admin' && (
                 <Route path="/requests" element={<RequestsPage />} />
               )}
-              {user?.role !== 'super_admin' && (
+              {['admin', 'manager', 'director', 'department_head'].includes(user?.role || '') && (
                 <Route path="/residents" element={<ResidentsPage />} />
               )}
               <Route path="/executors" element={<ExecutorsPage />} />

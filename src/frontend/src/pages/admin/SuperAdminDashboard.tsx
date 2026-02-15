@@ -102,12 +102,13 @@ const INITIAL_FORM_DATA: TenantFormData = {
 
 const AVAILABLE_FEATURES = [
   { value: 'requests', label: 'Заявки' },
-  { value: 'votes', label: 'Голосования' },
+  { value: 'rentals', label: 'Аренда' },
   { value: 'qr', label: 'QR Коды' },
   { value: 'marketplace', label: 'Маркетплейс' },
   { value: 'meetings', label: 'Собрания' },
   { value: 'chat', label: 'Чат' },
   { value: 'announcements', label: 'Объявления' },
+  { value: 'advertiser', label: 'Менеджер рекламы' },
 ];
 
 const PLAN_COLORS: Record<string, string> = {
@@ -126,12 +127,16 @@ const FEATURE_COLORS = ['#6366f1', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '
 
 const FEATURE_LABELS: Record<string, string> = {
   requests: 'Заявки',
-  votes: 'Голосования',
+  rentals: 'Аренда',
   qr: 'QR Коды',
   marketplace: 'Маркетплейс',
   meetings: 'Собрания',
   chat: 'Чат',
   announcements: 'Объявления',
+  notepad: 'Заметки',
+  reports: 'Отчёты',
+  votes: 'Голосования',
+  advertiser: 'Менеджер рекламы',
 };
 
 export function SuperAdminDashboard() {
@@ -468,7 +473,7 @@ export function SuperAdminDashboard() {
                           tenant.plan === 'pro' ? 'bg-blue-100 text-blue-700' :
                           'bg-gray-100 text-gray-700'
                         }`}>
-                          {tenant.plan}
+                          {PLAN_LABELS[tenant.plan] || tenant.plan}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm">{tenant.users_count}</td>
@@ -974,6 +979,7 @@ export function SuperAdminDashboard() {
                     value={formData.admin_phone}
                     onChange={(e) => setFormData({ ...formData, admin_phone: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
+                    maxLength={13}
                   />
                 </div>
               </div>

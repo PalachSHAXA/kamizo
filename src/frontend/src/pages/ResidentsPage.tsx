@@ -8,6 +8,7 @@ import {
 import { useCRMStore } from '../stores/crmStore';
 import { useAuthStore } from '../stores/authStore';
 import { authApi, usersApi, apiRequest } from '../services/api';
+import { useLanguageStore } from '../stores/languageStore';
 import type { BuildingFull } from '../types';
 
 // Branch type (from API)
@@ -63,6 +64,7 @@ interface ExcelRow {
 export function ResidentsPage() {
   const { buildings, fetchBuildings } = useCRMStore();
   const { addMockUser, additionalUsers, removeUser, updateUserPassword, getUserPassword } = useAuthStore();
+  const { language } = useLanguageStore();
 
   // Navigation state
   const [viewLevel, setViewLevel] = useState<ViewLevel>('branches');
@@ -299,10 +301,12 @@ export function ResidentsPage() {
 
   // Filter residents by selected entrance
   const buildingResidents = selectedEntrance
-    ? allResidents.filter(r =>
-        r.buildingId === selectedBuilding?.id &&
-        r.entrance === String(selectedEntrance.number)
-      )
+    ? selectedEntrance.number === 0
+      ? allResidents.filter(r => r.buildingId === selectedBuilding?.id && !r.entrance)
+      : allResidents.filter(r =>
+          r.buildingId === selectedBuilding?.id &&
+          r.entrance === String(selectedEntrance.number)
+        )
     : allResidents.filter(r => r.buildingId === selectedBuilding?.id);
 
   // Filter by search
@@ -378,26 +382,26 @@ export function ResidentsPage() {
       const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { header: 1 });
 
       if (jsonData.length < 2) {
-        setUploadError('Файл пустой или имеет неверный формат');
+        setUploadError(language === 'ru' ? 'Файл пустой или имеет неверный формат' : 'Fayl bo\'sh yoki noto\'g\'ri formatda');
         return;
       }
 
       const rows = parseExcelData(jsonData as unknown as string[][]);
 
       if (rows.length === 0) {
-        setUploadError(`Не удалось найти данные. Проверьте формат файла.`);
+        setUploadError(language === 'ru' ? 'Не удалось найти данные. Проверьте формат файла.' : 'Ma\'lumotlar topilmadi. Fayl formatini tekshiring.');
         return;
       }
 
       setUploadedData(rows);
     } catch {
-      setUploadError('Ошибка при чтении файла');
+      setUploadError(language === 'ru' ? 'Ошибка при чтении файла' : 'Faylni o\'qishda xatolik');
     }
 
     if (event.target) {
       event.target.value = '';
     }
-  }, []);
+  }, [language]);
 
   // Parse Excel data
   const parseExcelData = (data: string[][]): ExcelRow[] => {
@@ -513,7 +517,9 @@ export function ResidentsPage() {
       if (additionalUsers[login]) return;
 
       const apartment = extractApartmentFromAddress(row.address);
-      const { entrance, floor } = calculateEntranceAndFloor(apartment);
+      const { entrance: calcEntrance, floor } = calculateEntranceAndFloor(apartment);
+      // Selected entrance takes priority over calculated entrance
+      const entrance = selectedEntrance ? String(selectedEntrance.number) : calcEntrance;
       const buildingId = selectedBuilding?.id || '';
       const residentAddress = row.address || selectedBuilding?.address || '';
       const password = generatePassword(selectedBuilding, apartment, residentAddress);
@@ -535,14 +541,16 @@ export function ResidentsPage() {
 
     if (usersToCreate.length === 0) {
       const message = skippedNonResidential > 0
-        ? `Нет новых пользователей для создания. Пропущено ${skippedNonResidential} нежилых помещений.`
-        : 'Нет новых пользователей для создания';
+        ? (language === 'ru'
+            ? `Нет новых пользователей для создания. Пропущено ${skippedNonResidential} нежилых помещений.`
+            : `Yangi foydalanuvchilar yo'q. ${skippedNonResidential} ta noturar joy o'tkazib yuborildi.`)
+        : (language === 'ru' ? 'Нет новых пользователей для создания' : 'Yangi foydalanuvchilar yo\'q');
       setUploadError(message);
       return;
     }
 
     setIsCreating(true);
-    setProgressMessage(`Создание ${usersToCreate.length} аккаунтов...`);
+    setProgressMessage(language === 'ru' ? `Создание ${usersToCreate.length} аккаунтов...` : `${usersToCreate.length} ta akkaunt yaratilmoqda...`);
 
     try {
       const result = await authApi.registerBulk(usersToCreate);
@@ -556,7 +564,9 @@ export function ResidentsPage() {
 
       setUploadedData([]);
       setShowUploadModal(false);
-      setProgressMessage(`Готово! Создано: ${createdCount}, Обновлено: ${updatedCount}`);
+      setProgressMessage(language === 'ru'
+        ? `Готово! Создано: ${createdCount}, Обновлено: ${updatedCount}`
+        : `Tayyor! Yaratildi: ${createdCount}, Yangilandi: ${updatedCount}`);
 
       if (selectedBuilding) {
         await fetchResidents(selectedBuilding.id);
@@ -564,7 +574,7 @@ export function ResidentsPage() {
 
       setTimeout(() => setProgressMessage(''), 3000);
     } catch (error: any) {
-      setUploadError(error.message || 'Ошибка при массовой регистрации');
+      setUploadError(error.message || (language === 'ru' ? 'Ошибка при массовой регистрации' : 'Ommaviy ro\'yxatdan o\'tishda xatolik'));
       setProgressMessage('');
     } finally {
       setIsCreating(false);
@@ -587,12 +597,16 @@ export function ResidentsPage() {
       : `${Date.now()}`;
 
     const apartment = extractApartmentFromAddress(manualForm.address);
+    const { entrance: calcEntrance, floor: calcFloor } = calculateEntranceAndFloor(apartment);
+    // Selected entrance takes priority over calculated entrance
+    const entrance = selectedEntrance ? String(selectedEntrance.number) : calcEntrance;
+    const floor = calcFloor || '';
     const buildingId = selectedBuilding?.id || '';
     const residentAddress = manualForm.address || selectedBuilding?.address || '';
     const password = generatePassword(selectedBuilding, apartment, residentAddress);
 
     setIsCreating(true);
-    setProgressMessage('Создание аккаунта...');
+    setProgressMessage(language === 'ru' ? 'Создание аккаунта...' : 'Akkaunt yaratilmoqda...');
 
     try {
       await authApi.register({
@@ -604,8 +618,8 @@ export function ResidentsPage() {
         address: manualForm.address || selectedBuilding?.address || '',
         apartment: apartment,
         building_id: buildingId,
-        entrance: '',
-        floor: '',
+        entrance,
+        floor,
         branch: selectedBuilding?.branchCode,
         building: selectedBuilding?.buildingNumber,
       });
@@ -619,6 +633,8 @@ export function ResidentsPage() {
         address: manualForm.address || selectedBuilding?.address || '',
         apartment: apartment,
         buildingId: buildingId,
+        entrance,
+        floor,
         branch: selectedBuilding?.branchCode,
         building: selectedBuilding?.buildingNumber,
       });
@@ -644,11 +660,11 @@ export function ResidentsPage() {
         await fetchResidents(selectedBuilding.id);
       }
 
-      setProgressMessage('Аккаунт создан!');
+      setProgressMessage(language === 'ru' ? 'Аккаунт создан!' : 'Akkaunt yaratildi!');
       setTimeout(() => setProgressMessage(''), 2000);
     } catch (error: any) {
       console.error('Manual registration error:', error);
-      alert('Ошибка создания: ' + (error.message || 'Неизвестная ошибка'));
+      alert((language === 'ru' ? 'Ошибка создания: ' : 'Yaratishda xatolik: ') + (error.message || (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xatolik')));
       setProgressMessage('');
     } finally {
       setIsCreating(false);
@@ -663,31 +679,37 @@ export function ResidentsPage() {
       if (apiResident?.id) {
         await usersApi.delete(apiResident.id);
       }
+      // Immediately remove from UI (optimistic update)
       removeUser(login);
+      setApiResidents(prev => prev.filter(r => r.login !== login));
+      setDeleteConfirm(null);
+      setShowResidentCard(null);
+      setIsDeleting(false);
+      // Refetch in background for consistency
       if (selectedBuilding) {
-        await fetchResidents(selectedBuilding.id);
+        fetchResidents(selectedBuilding.id);
       }
     } catch (err) {
       console.error('Failed to delete resident:', err);
-      alert('Ошибка при удалении: ' + (err as Error).message);
-    } finally {
+      alert((language === 'ru' ? 'Ошибка при удалении: ' : 'O\'chirishda xatolik: ') + (err as Error).message);
       setIsDeleting(false);
       setDeleteConfirm(null);
-      setShowResidentCard(null);
     }
   };
 
   // Delete all residents
   const handleDeleteAllResidents = async () => {
     setIsDeleting(true);
-    setProgressMessage(`Удаление ${filteredResidents.length} жителей...`);
+    setProgressMessage(language === 'ru' ? `Удаление ${filteredResidents.length} жителей...` : `${filteredResidents.length} ta yashovchi o'chirilmoqda...`);
     let deletedCount = 0;
     const total = filteredResidents.length;
 
     try {
       for (let i = 0; i < filteredResidents.length; i++) {
         const resident = filteredResidents[i];
-        setProgressMessage(`Удаление ${i + 1}/${total}: ${resident.name.split(' ')[0]}...`);
+        setProgressMessage(language === 'ru'
+          ? `Удаление ${i + 1}/${total}: ${resident.name.split(' ')[0]}...`
+          : `O'chirish ${i + 1}/${total}: ${resident.name.split(' ')[0]}...`);
 
         try {
           let residentId = (resident as any).id;
@@ -707,7 +729,7 @@ export function ResidentsPage() {
         }
       }
 
-      setProgressMessage(`Удалено ${deletedCount} жителей`);
+      setProgressMessage(language === 'ru' ? `Удалено ${deletedCount} жителей` : `${deletedCount} ta yashovchi o'chirildi`);
 
       if (selectedBuilding) {
         await fetchResidents(selectedBuilding.id);
@@ -734,7 +756,7 @@ export function ResidentsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Поиск по имени, телефону, квартире..."
+            placeholder={language === 'ru' ? 'Поиск по имени, телефону, квартире...' : 'Ism, telefon, xonadon bo\'yicha qidirish...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-field pl-10"
@@ -745,7 +767,7 @@ export function ResidentsPage() {
       {/* Residents count and actions */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-gray-500">
-          Найдено: <strong>{filteredResidents.length}</strong> жителей
+          {language === 'ru' ? 'Найдено' : 'Topildi'}: <strong>{filteredResidents.length}</strong> {language === 'ru' ? 'жителей' : 'yashovchi'}
         </div>
         {filteredResidents.length > 0 && (
           <button
@@ -753,7 +775,7 @@ export function ResidentsPage() {
             className="btn-secondary flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 text-sm"
           >
             <Trash2 className="w-4 h-4" />
-            Удалить всех
+            {language === 'ru' ? 'Удалить всех' : 'Hammasini o\'chirish'}
           </button>
         )}
       </div>
@@ -762,14 +784,14 @@ export function ResidentsPage() {
       {isLoadingResidents ? (
         <div className="glass-card p-8 text-center">
           <Loader2 className="w-8 h-8 mx-auto mb-3 text-primary-500 animate-spin" />
-          <p className="text-gray-500">Загрузка жителей...</p>
+          <p className="text-gray-500">{language === 'ru' ? 'Загрузка жителей...' : 'Yashovchilar yuklanmoqda...'}</p>
         </div>
       ) : filteredResidents.length === 0 ? (
         <div className="glass-card p-8 text-center">
           <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <h3 className="text-lg font-medium text-gray-600">Жители не найдены</h3>
+          <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Жители не найдены' : 'Yashovchilar topilmadi'}</h3>
           <p className="text-gray-400 mt-1 mb-4">
-            Загрузите Excel файл с данными жителей
+            {language === 'ru' ? 'Загрузите Excel файл с данными жителей' : 'Yashovchilar ma\'lumotlari bilan Excel faylni yuklang'}
           </p>
           <div className="flex items-center justify-center gap-3">
             <button
@@ -777,14 +799,14 @@ export function ResidentsPage() {
               className="btn-secondary inline-flex items-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
-              Обновить
+              {language === 'ru' ? 'Обновить' : 'Yangilash'}
             </button>
             <button
               onClick={() => setShowUploadModal(true)}
               className="btn-primary inline-flex items-center gap-2"
             >
               <Upload className="w-4 h-4" />
-              Загрузить Excel
+              {language === 'ru' ? 'Загрузить Excel' : 'Excel yuklash'}
             </button>
           </div>
         </div>
@@ -815,7 +837,7 @@ export function ResidentsPage() {
                     {resident.apartment && (
                       <span className="flex items-center gap-1 text-gray-500">
                         <Home className="w-3.5 h-3.5" />
-                        кв. {resident.apartment}
+                        {language === 'ru' ? 'кв.' : 'xon.'} {resident.apartment}
                       </span>
                     )}
                   </div>
@@ -840,26 +862,26 @@ export function ResidentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Жители</h1>
-          <p className="text-gray-500 mt-1">Управление аккаунтами жителей</p>
+          <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h1>
+          <p className="text-gray-500 mt-1">{language === 'ru' ? 'Управление аккаунтами жителей' : 'Yashovchilar akkauntlarini boshqarish'}</p>
         </div>
       </div>
 
       {/* Step 1: Branch Selection */}
       {viewLevel === 'branches' && (
         <div>
-          <h2 className="text-lg font-semibold mb-4">Выберите филиал</h2>
+          <h2 className="text-lg font-semibold mb-4">{language === 'ru' ? 'Выберите филиал' : 'Filialni tanlang'}</h2>
           {isLoadingBranches ? (
             <div className="glass-card p-8 text-center">
               <Loader2 className="w-8 h-8 mx-auto mb-3 text-primary-500 animate-spin" />
-              <p className="text-gray-500">Загрузка филиалов...</p>
+              <p className="text-gray-500">{language === 'ru' ? 'Загрузка филиалов...' : 'Filiallar yuklanmoqda...'}</p>
             </div>
           ) : branches.length === 0 ? (
             <div className="glass-card p-8 text-center">
               <GitBranch className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-600">Филиалы не найдены</h3>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Филиалы не найдены' : 'Filiallar topilmadi'}</h3>
               <p className="text-gray-400 mt-1">
-                Добавьте филиалы в разделе "Дома/Объекты"
+                {language === 'ru' ? 'Добавьте филиалы в разделе "Дома/Объекты"' : '"Uylar/Obyektlar" bo\'limida filiallar qo\'shing'}
               </p>
             </div>
           ) : (
@@ -877,7 +899,7 @@ export function ResidentsPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold">{branch.name}</h3>
-                        <div className="text-sm text-gray-500">Филиал {branch.code}</div>
+                        <div className="text-sm text-gray-500">{language === 'ru' ? 'Филиал' : 'Filial'} {branch.code}</div>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary-500 transition-colors" />
@@ -885,11 +907,11 @@ export function ResidentsPage() {
                   <div className="mt-4 flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1">
                       <Building2 className="w-4 h-4 text-gray-400" />
-                      <span>{branch.buildings_count} домов</span>
+                      <span>{branch.buildings_count} {language === 'ru' ? 'домов' : 'uy'}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Users className="w-4 h-4 text-gray-400" />
-                      <span>{branch.residents_count} жителей</span>
+                      <span>{branch.residents_count} {language === 'ru' ? 'жителей' : 'yashovchi'}</span>
                     </div>
                   </div>
                 </button>
@@ -916,7 +938,7 @@ export function ResidentsPage() {
               </div>
               <div>
                 <h2 className="font-semibold">{selectedBranch.name}</h2>
-                <p className="text-sm text-gray-500">Выберите дом</p>
+                <p className="text-sm text-gray-500">{language === 'ru' ? 'Выберите дом' : 'Uyni tanlang'}</p>
               </div>
             </div>
           </div>
@@ -924,9 +946,9 @@ export function ResidentsPage() {
           {filteredBuildings.length === 0 ? (
             <div className="glass-card p-8 text-center">
               <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-600">Дома не найдены</h3>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Дома не найдены' : 'Uylar topilmadi'}</h3>
               <p className="text-gray-400 mt-1">
-                Добавьте дома в этот филиал в разделе "Дома/Объекты"
+                {language === 'ru' ? 'Добавьте дома в этот филиал в разделе "Дома/Объекты"' : 'Bu filialga "Uylar/Obyektlar" bo\'limida uylar qo\'shing'}
               </p>
             </div>
           ) : (
@@ -943,7 +965,7 @@ export function ResidentsPage() {
                         <Home className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-semibold">Дом {building.buildingNumber || building.name}</h3>
+                        <h3 className="font-semibold">{language === 'ru' ? 'Дом' : 'Uy'} {building.buildingNumber || building.name}</h3>
                         <div className="flex items-center gap-1 text-sm text-gray-500">
                           <MapPin className="w-3 h-3" />
                           {building.address}
@@ -955,11 +977,11 @@ export function ResidentsPage() {
                   <div className="mt-4 flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1">
                       <Home className="w-4 h-4 text-gray-400" />
-                      <span>{building.totalApartments} кв.</span>
+                      <span>{building.totalApartments} {language === 'ru' ? 'кв.' : 'xon.'}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <DoorOpen className="w-4 h-4 text-gray-400" />
-                      <span>{building.entrances} подъездов</span>
+                      <span>{building.entrances} {language === 'ru' ? 'подъездов' : 'podyezd'}</span>
                     </div>
                   </div>
                 </button>
@@ -991,7 +1013,7 @@ export function ResidentsPage() {
                     }}
                     className="text-gray-500 hover:text-primary-600"
                   >
-                    Филиалы
+                    {language === 'ru' ? 'Филиалы' : 'Filiallar'}
                   </button>
                   <ChevronRight className="w-4 h-4 text-gray-300" />
                   <button
@@ -1002,7 +1024,7 @@ export function ResidentsPage() {
                   </button>
                   <ChevronRight className="w-4 h-4 text-gray-300" />
                   <span className="font-medium text-gray-900">
-                    Дом {selectedBuilding.buildingNumber || selectedBuilding.name}
+                    {language === 'ru' ? 'Дом' : 'Uy'} {selectedBuilding.buildingNumber || selectedBuilding.name}
                   </span>
                 </div>
               </div>
@@ -1012,7 +1034,7 @@ export function ResidentsPage() {
                   className="btn-secondary flex items-center gap-2"
                 >
                   <UserPlus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Добавить</span>
+                  <span className="hidden sm:inline">{language === 'ru' ? 'Добавить' : 'Qo\'shish'}</span>
                 </button>
                 <button
                   onClick={() => setShowUploadModal(true)}
@@ -1029,7 +1051,7 @@ export function ResidentsPage() {
           {isLoadingEntrances ? (
             <div className="glass-card p-8 text-center">
               <Loader2 className="w-8 h-8 mx-auto mb-3 text-primary-500 animate-spin" />
-              <p className="text-gray-500">Загрузка подъездов...</p>
+              <p className="text-gray-500">{language === 'ru' ? 'Загрузка подъездов...' : 'Podyezdlar yuklanmoqda...'}</p>
             </div>
           ) : entrances.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1050,10 +1072,10 @@ export function ResidentsPage() {
                           <DoorOpen className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                          <h3 className="font-semibold">Подъезд {entrance.number}</h3>
+                          <h3 className="font-semibold">{language === 'ru' ? 'Подъезд' : 'Podyezd'} {entrance.number}</h3>
                           <div className="text-sm text-gray-500">
                             {entrance.floors_from && entrance.floors_to && (
-                              <span>Этажи {entrance.floors_from}-{entrance.floors_to}</span>
+                              <span>{language === 'ru' ? 'Этажи' : 'Qavatlar'} {entrance.floors_from}-{entrance.floors_to}</span>
                             )}
                           </div>
                         </div>
@@ -1064,17 +1086,53 @@ export function ResidentsPage() {
                       {entrance.apartments_from && entrance.apartments_to && (
                         <div className="flex items-center gap-1">
                           <Home className="w-4 h-4 text-gray-400" />
-                          <span>кв. {entrance.apartments_from}-{entrance.apartments_to}</span>
+                          <span>{language === 'ru' ? 'кв.' : 'xon.'} {entrance.apartments_from}-{entrance.apartments_to}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4 text-gray-400" />
-                        <span>{entranceResidents.length} жителей</span>
+                        <span>{entranceResidents.length} {language === 'ru' ? 'жителей' : 'yashovchi'}</span>
                       </div>
                     </div>
                   </button>
                 );
               })}
+              {/* Show card for residents without entrance */}
+              {(() => {
+                const unassignedResidents = allResidents.filter(r =>
+                  r.buildingId === selectedBuilding.id && !r.entrance
+                );
+                if (unassignedResidents.length === 0) return null;
+                return (
+                  <button
+                    onClick={() => {
+                      setSelectedEntrance({ id: 'unassigned', building_id: selectedBuilding.id, number: 0 } as Entrance);
+                      setViewLevel('residents');
+                      setSearchQuery('');
+                    }}
+                    className="glass-card p-5 text-left hover:shadow-lg transition-shadow group border-dashed border-2 border-gray-200"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gradient-to-br from-gray-300 to-gray-400 rounded-xl flex items-center justify-center">
+                          <AlertCircle className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-500">{language === 'ru' ? 'Без подъезда' : 'Podyezdsiz'}</h3>
+                          <div className="text-sm text-gray-400">{language === 'ru' ? 'Не привязаны к подъезду' : 'Podyezdga biriktirilmagan'}</div>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary-500 transition-colors" />
+                    </div>
+                    <div className="mt-4 flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-1">
+                        <Users className="w-4 h-4 text-gray-400" />
+                        <span>{unassignedResidents.length} {language === 'ru' ? 'жителей' : 'yashovchi'}</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })()}
             </div>
           ) : (
             // No entrances - show residents directly
@@ -1106,7 +1164,7 @@ export function ResidentsPage() {
                     }}
                     className="text-gray-500 hover:text-primary-600"
                   >
-                    Филиалы
+                    {language === 'ru' ? 'Филиалы' : 'Filiallar'}
                   </button>
                   <ChevronRight className="w-4 h-4 text-gray-300" />
                   <button
@@ -1124,11 +1182,11 @@ export function ResidentsPage() {
                     onClick={handleBack}
                     className="text-gray-500 hover:text-primary-600"
                   >
-                    Дом {selectedBuilding.buildingNumber || selectedBuilding.name}
+                    {language === 'ru' ? 'Дом' : 'Uy'} {selectedBuilding.buildingNumber || selectedBuilding.name}
                   </button>
                   <ChevronRight className="w-4 h-4 text-gray-300" />
                   <span className="font-medium text-gray-900">
-                    Подъезд {selectedEntrance.number}
+                    {language === 'ru' ? 'Подъезд' : 'Podyezd'} {selectedEntrance.number}
                   </span>
                 </div>
               </div>
@@ -1138,7 +1196,7 @@ export function ResidentsPage() {
                   className="btn-secondary flex items-center gap-2"
                 >
                   <UserPlus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Добавить</span>
+                  <span className="hidden sm:inline">{language === 'ru' ? 'Добавить' : 'Qo\'shish'}</span>
                 </button>
                 <button
                   onClick={() => setShowUploadModal(true)}
@@ -1185,20 +1243,22 @@ export function ResidentsPage() {
             </div>
             <div className="flex-1">
               <h4 className="font-semibold text-green-800">
-                Обработано {createdAccounts.length} аккаунтов
+                {language === 'ru'
+                  ? `Обработано ${createdAccounts.length} аккаунтов`
+                  : `${createdAccounts.length} ta akkaunt qayta ishlandi`}
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {selectedBuilding?.branchCode && selectedBuilding?.buildingNumber ? (
-                  <>Формат пароля: <code className="bg-gray-100 px-1 rounded">{selectedBuilding.branchCode}/{selectedBuilding.buildingNumber}/[кв]</code></>
+                  <>{language === 'ru' ? 'Формат пароля' : 'Parol formati'}: <code className="bg-gray-100 px-1 rounded">{selectedBuilding.branchCode}/{selectedBuilding.buildingNumber}/{language === 'ru' ? '[кв]' : '[xon]'}</code></>
                 ) : (
-                  <>Пароль по умолчанию: <code className="bg-gray-100 px-1 rounded">{DEFAULT_PASSWORD}</code></>
+                  <>{language === 'ru' ? 'Пароль по умолчанию' : 'Standart parol'}: <code className="bg-gray-100 px-1 rounded">{DEFAULT_PASSWORD}</code></>
                 )}
               </p>
               <button
                 onClick={() => setCreatedAccounts([])}
                 className="text-sm text-primary-600 hover:text-primary-700 mt-2"
               >
-                Понятно
+                {language === 'ru' ? 'Понятно' : 'Tushunarli'}
               </button>
             </div>
           </div>
@@ -1210,7 +1270,7 @@ export function ResidentsPage() {
         <div className="modal-backdrop">
           <div className="modal-content p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Загрузка данных жителей</h2>
+              <h2 className="text-xl font-bold">{language === 'ru' ? 'Загрузка данных жителей' : 'Yashovchilar ma\'lumotlarini yuklash'}</h2>
               <button
                 onClick={() => {
                   setShowUploadModal(false);
@@ -1231,13 +1291,16 @@ export function ResidentsPage() {
                 >
                   <FileSpreadsheet className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                   <h3 className="font-semibold text-gray-700 mb-2">
-                    Загрузите XLS/XLSX файл
+                    {language === 'ru' ? 'Загрузите XLS/XLSX файл' : 'XLS/XLSX faylni yuklang'}
                   </h3>
                   <p className="text-sm text-gray-500 mb-4">
-                    Файл должен содержать столбцы: <strong>Л/С</strong>, <strong>ФИО абонента</strong>, <strong>Адрес</strong>, <strong>Площадь (кв.м)</strong>
+                    {language === 'ru'
+                      ? <>Файл должен содержать столбцы: <strong>Л/С</strong>, <strong>ФИО абонента</strong>, <strong>Адрес</strong>, <strong>Площадь (кв.м)</strong></>
+                      : <>Faylda ustunlar bo'lishi kerak: <strong>Sh/H</strong>, <strong>F.I.O.</strong>, <strong>Manzil</strong>, <strong>Maydon (kv.m)</strong></>
+                    }
                   </p>
                   <button className="btn-primary">
-                    Выбрать файл
+                    {language === 'ru' ? 'Выбрать файл' : 'Faylni tanlash'}
                   </button>
                 </div>
 
@@ -1257,26 +1320,26 @@ export function ResidentsPage() {
                 )}
 
                 <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-                  <h4 className="font-medium text-gray-700 mb-2">Пример формата файла:</h4>
+                  <h4 className="font-medium text-gray-700 mb-2">{language === 'ru' ? 'Пример формата файла:' : 'Fayl formati namunasi:'}</h4>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left p-2">Л/С</th>
-                          <th className="text-left p-2">ФИО абонента</th>
-                          <th className="text-left p-2">Адрес</th>
+                          <th className="text-left p-2">{language === 'ru' ? 'Л/С' : 'Sh/H'}</th>
+                          <th className="text-left p-2">{language === 'ru' ? 'ФИО абонента' : 'Abonent F.I.O.'}</th>
+                          <th className="text-left p-2">{language === 'ru' ? 'Адрес' : 'Manzil'}</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
                           <td className="p-2">12345678</td>
-                          <td className="p-2">Иванов Иван Иванович</td>
-                          <td className="p-2">ул. Мустакиллик, 15, кв. 42</td>
+                          <td className="p-2">{language === 'ru' ? 'Иванов Иван Иванович' : 'Ivanov Ivan Ivanovich'}</td>
+                          <td className="p-2">{language === 'ru' ? 'ул. Мустакиллик, 15, кв. 42' : 'Mustaqillik ko\'ch., 15, xon. 42'}</td>
                         </tr>
                         <tr>
                           <td className="p-2">12345679</td>
-                          <td className="p-2">Петрова Анна Сергеевна</td>
-                          <td className="p-2">ул. Мустакиллик, 15, кв. 18</td>
+                          <td className="p-2">{language === 'ru' ? 'Петрова Анна Сергеевна' : 'Petrova Anna Sergeyevna'}</td>
+                          <td className="p-2">{language === 'ru' ? 'ул. Мустакиллик, 15, кв. 18' : 'Mustaqillik ko\'ch., 15, xon. 18'}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -1288,13 +1351,13 @@ export function ResidentsPage() {
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold">
-                      Найдено записей: {uploadedData.length}
+                      {language === 'ru' ? 'Найдено записей' : 'Topilgan yozuvlar'}: {uploadedData.length}
                     </h3>
                     <button
                       onClick={() => setUploadedData([])}
                       className="text-sm text-gray-500 hover:text-gray-700"
                     >
-                      Загрузить другой файл
+                      {language === 'ru' ? 'Загрузить другой файл' : 'Boshqa fayl yuklash'}
                     </button>
                   </div>
 
@@ -1302,10 +1365,10 @@ export function ResidentsPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr className="border-b">
-                          <th className="text-left p-3">Л/С</th>
-                          <th className="text-left p-3">ФИО абонента</th>
-                          <th className="text-left p-3">Адрес</th>
-                          <th className="text-left p-3">Площадь, м²</th>
+                          <th className="text-left p-3">{language === 'ru' ? 'Л/С' : 'Sh/H'}</th>
+                          <th className="text-left p-3">{language === 'ru' ? 'ФИО абонента' : 'Abonent F.I.O.'}</th>
+                          <th className="text-left p-3">{language === 'ru' ? 'Адрес' : 'Manzil'}</th>
+                          <th className="text-left p-3">{language === 'ru' ? 'Площадь, м²' : 'Maydon, m²'}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1314,13 +1377,13 @@ export function ResidentsPage() {
                             <td className="p-3">{row.personalAccount}</td>
                             <td className="p-3">{row.fullName}</td>
                             <td className="p-3">{row.address}</td>
-                            <td className="p-3">{row.totalArea ? `${row.totalArea} м²` : '—'}</td>
+                            <td className="p-3">{row.totalArea ? `${row.totalArea} ${language === 'ru' ? 'м²' : 'm²'}` : '\u2014'}</td>
                           </tr>
                         ))}
                         {uploadedData.length > 20 && (
                           <tr>
                             <td colSpan={4} className="p-3 text-center text-gray-500">
-                              и еще {uploadedData.length - 20} записей...
+                              {language === 'ru' ? `и еще ${uploadedData.length - 20} записей...` : `va yana ${uploadedData.length - 20} ta yozuv...`}
                             </td>
                           </tr>
                         )}
@@ -1332,18 +1395,20 @@ export function ResidentsPage() {
                 <div className="p-3 bg-blue-50 text-blue-700 rounded-xl mb-4 text-sm">
                   {selectedBuilding?.branchCode && selectedBuilding?.buildingNumber ? (
                     <>
-                      <strong>Формат пароля:</strong> {selectedBuilding.branchCode}/{selectedBuilding.buildingNumber}/[номер квартиры]
+                      <strong>{language === 'ru' ? 'Формат пароля' : 'Parol formati'}:</strong> {selectedBuilding.branchCode}/{selectedBuilding.buildingNumber}/{language === 'ru' ? '[номер квартиры]' : '[xonadon raqami]'}
                       <br />
                       <span className="text-blue-600">
-                        Например: {selectedBuilding.branchCode}/{selectedBuilding.buildingNumber}/23 для квартиры 23
+                        {language === 'ru'
+                          ? `Например: ${selectedBuilding.branchCode}/${selectedBuilding.buildingNumber}/23 для квартиры 23`
+                          : `Masalan: ${selectedBuilding.branchCode}/${selectedBuilding.buildingNumber}/23 — 23-xonadon uchun`}
                       </span>
                     </>
                   ) : (
                     <>
-                      <strong>Пароль по умолчанию:</strong> {DEFAULT_PASSWORD}
+                      <strong>{language === 'ru' ? 'Пароль по умолчанию' : 'Standart parol'}:</strong> {DEFAULT_PASSWORD}
                       <br />
                       <span className="text-blue-600">
-                        Жители смогут изменить пароль в личном кабинете
+                        {language === 'ru' ? 'Жители смогут изменить пароль в личном кабинете' : 'Yashovchilar parolni shaxsiy kabinetda o\'zgartira oladi'}
                       </span>
                     </>
                   )}
@@ -1354,7 +1419,7 @@ export function ResidentsPage() {
                     onClick={() => setUploadedData([])}
                     className="btn-secondary flex-1"
                   >
-                    Отмена
+                    {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
                   </button>
                   <button
                     onClick={createAccountsFromData}
@@ -1364,12 +1429,12 @@ export function ResidentsPage() {
                     {isCreating ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Создание...
+                        {language === 'ru' ? 'Создание...' : 'Yaratilmoqda...'}
                       </>
                     ) : (
                       <>
                         <Check className="w-4 h-4" />
-                        Создать {uploadedData.length} аккаунтов
+                        {language === 'ru' ? `Создать ${uploadedData.length} аккаунтов` : `${uploadedData.length} ta akkaunt yaratish`}
                       </>
                     )}
                   </button>
@@ -1385,7 +1450,7 @@ export function ResidentsPage() {
         <div className="modal-backdrop">
           <div className="modal-content p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Добавить жителя</h2>
+              <h2 className="text-xl font-bold">{language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}</h2>
               <button
                 onClick={() => setShowAddManualModal(false)}
                 className="p-2 hover:bg-white/30 rounded-lg"
@@ -1396,7 +1461,7 @@ export function ResidentsPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Л/С (Лицевой счет)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Л/С (Лицевой счет)' : 'Sh/H (Shaxsiy hisob)'}</label>
                 <input
                   type="text"
                   value={manualForm.personalAccount}
@@ -1407,41 +1472,42 @@ export function ResidentsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ФИО абонента *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО абонента *' : 'Abonent F.I.O. *'}</label>
                 <input
                   type="text"
                   value={manualForm.fullName}
                   onChange={(e) => setManualForm({...manualForm, fullName: e.target.value})}
                   className="input-field"
-                  placeholder="Иванов Иван Иванович"
+                  placeholder={language === 'ru' ? 'Иванов Иван Иванович' : 'Ivanov Ivan Ivanovich'}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Адрес' : 'Manzil'}</label>
                 <input
                   type="text"
                   value={manualForm.address}
                   onChange={(e) => setManualForm({...manualForm, address: e.target.value})}
                   className="input-field"
-                  placeholder="ул. Мустакиллик, 15, кв. 42"
+                  placeholder={language === 'ru' ? 'ул. Мустакиллик, 15, кв. 42' : 'Mustaqillik ko\'ch., 15, xon. 42'}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                 <input
                   type="tel"
                   value={manualForm.phone}
                   onChange={(e) => setManualForm({...manualForm, phone: e.target.value})}
                   className="input-field"
                   placeholder="+998 90 123 45 67"
+                  maxLength={13}
                 />
               </div>
 
               <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-600">
-                <strong>Пароль:</strong> {selectedBuilding?.branchCode && selectedBuilding?.buildingNumber
-                  ? `${selectedBuilding.branchCode}/${selectedBuilding.buildingNumber}/[кв]`
+                <strong>{language === 'ru' ? 'Пароль' : 'Parol'}:</strong> {selectedBuilding?.branchCode && selectedBuilding?.buildingNumber
+                  ? `${selectedBuilding.branchCode}/${selectedBuilding.buildingNumber}/${language === 'ru' ? '[кв]' : '[xon]'}`
                   : DEFAULT_PASSWORD}
               </div>
             </div>
@@ -1451,14 +1517,14 @@ export function ResidentsPage() {
                 onClick={() => setShowAddManualModal(false)}
                 className="btn-secondary flex-1"
               >
-                Отмена
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={handleManualAdd}
                 disabled={!manualForm.fullName}
                 className="btn-primary flex-1 disabled:opacity-50"
               >
-                Создать аккаунт
+                {language === 'ru' ? 'Создать аккаунт' : 'Akkaunt yaratish'}
               </button>
             </div>
           </div>
@@ -1470,7 +1536,7 @@ export function ResidentsPage() {
         <div className="modal-backdrop">
           <div className="modal-content p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Карточка жителя</h2>
+              <h2 className="text-xl font-bold">{language === 'ru' ? 'Карточка жителя' : 'Yashovchi kartasi'}</h2>
               <button
                 onClick={() => {
                   setShowResidentCard(null);
@@ -1500,14 +1566,14 @@ export function ResidentsPage() {
                       <Key className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-blue-600 font-medium">Л/С (Логин)</div>
+                      <div className="text-xs text-blue-600 font-medium">{language === 'ru' ? 'Л/С (Логин)' : 'Sh/H (Login)'}</div>
                       <div className="font-mono font-bold text-blue-900">{showResidentCard.login}</div>
                     </div>
                   </div>
                   <button
                     onClick={() => copyToClipboard(showResidentCard.login)}
                     className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
-                    title="Копировать"
+                    title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                   >
                     <Copy className="w-4 h-4 text-blue-600" />
                   </button>
@@ -1521,10 +1587,10 @@ export function ResidentsPage() {
                       <Key className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Пароль</div>
+                      <div className="text-xs text-gray-500 font-medium">{language === 'ru' ? 'Пароль' : 'Parol'}</div>
                       {!editingPassword ? (
                         <div className="font-mono font-bold text-gray-900 flex items-center gap-2">
-                          {showPassword ? getResidentPassword(showResidentCard) : '••••••••'}
+                          {showPassword ? getResidentPassword(showResidentCard) : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1542,7 +1608,7 @@ export function ResidentsPage() {
                           type="text"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Новый пароль"
+                          placeholder={language === 'ru' ? 'Новый пароль' : 'Yangi parol'}
                           className="input-field text-sm py-1 px-2 w-40"
                           autoFocus
                         />
@@ -1555,7 +1621,7 @@ export function ResidentsPage() {
                         <button
                           onClick={() => copyToClipboard(getResidentPassword(showResidentCard))}
                           className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                          title="Копировать"
+                          title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                         >
                           <Copy className="w-4 h-4 text-gray-600" />
                         </button>
@@ -1565,7 +1631,7 @@ export function ResidentsPage() {
                             setNewPassword(getResidentPassword(showResidentCard));
                           }}
                           className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                          title="Изменить пароль"
+                          title={language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish'}
                         >
                           <Edit3 className="w-4 h-4 text-gray-600" />
                         </button>
@@ -1583,13 +1649,13 @@ export function ResidentsPage() {
                                 setEditingPassword(false);
                                 setShowPassword(true);
                               } catch (err: any) {
-                                alert('Ошибка сохранения пароля: ' + err.message);
+                                alert((language === 'ru' ? 'Ошибка сохранения пароля: ' : 'Parolni saqlashda xatolik: ') + err.message);
                               }
                             }
                           }}
                           disabled={newPassword.length < 4}
                           className="p-2 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
-                          title="Сохранить"
+                          title={language === 'ru' ? 'Сохранить' : 'Saqlash'}
                         >
                           <Save className="w-4 h-4 text-green-600" />
                         </button>
@@ -1599,7 +1665,7 @@ export function ResidentsPage() {
                             setNewPassword('');
                           }}
                           className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                          title="Отмена"
+                          title={language === 'ru' ? 'Отмена' : 'Bekor qilish'}
                         >
                           <X className="w-4 h-4 text-gray-600" />
                         </button>
@@ -1608,7 +1674,7 @@ export function ResidentsPage() {
                   </div>
                 </div>
                 {editingPassword && newPassword.length > 0 && newPassword.length < 4 && (
-                  <p className="text-xs text-red-500 mt-1 ml-13">Минимум 4 символа</p>
+                  <p className="text-xs text-red-500 mt-1 ml-13">{language === 'ru' ? 'Минимум 4 символа' : 'Kamida 4 ta belgi'}</p>
                 )}
               </div>
 
@@ -1619,7 +1685,7 @@ export function ResidentsPage() {
                       <MapPin className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Адрес</div>
+                      <div className="text-xs text-gray-500 font-medium">{language === 'ru' ? 'Адрес' : 'Manzil'}</div>
                       <div className="font-medium text-gray-900">{showResidentCard.address}</div>
                     </div>
                   </div>
@@ -1633,7 +1699,7 @@ export function ResidentsPage() {
                       <Home className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Квартира / Помещение</div>
+                      <div className="text-xs text-gray-500 font-medium">{language === 'ru' ? 'Квартира / Помещение' : 'Xonadon / Xona'}</div>
                       <div className="font-bold text-gray-900">{showResidentCard.apartment}</div>
                     </div>
                   </div>
@@ -1647,7 +1713,7 @@ export function ResidentsPage() {
                       <Phone className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Телефон</div>
+                      <div className="text-xs text-gray-500 font-medium">{language === 'ru' ? 'Телефон' : 'Telefon'}</div>
                       <div className="font-medium text-gray-900">{showResidentCard.phone}</div>
                     </div>
                   </div>
@@ -1661,13 +1727,13 @@ export function ResidentsPage() {
                 className="btn-secondary flex-1 flex items-center justify-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
               >
                 <Trash2 className="w-4 h-4" />
-                Удалить
+                {language === 'ru' ? 'Удалить' : 'O\'chirish'}
               </button>
               <button
                 onClick={() => setShowResidentCard(null)}
                 className="btn-primary flex-1"
               >
-                Закрыть
+                {language === 'ru' ? 'Закрыть' : 'Yopish'}
               </button>
             </div>
           </div>
@@ -1682,13 +1748,13 @@ export function ResidentsPage() {
               <AlertCircle className="w-7 h-7 text-red-600" />
             </div>
             <h3 className="text-lg font-bold text-center mb-2">
-              Удалить жителя?
+              {language === 'ru' ? 'Удалить жителя?' : 'Yashovchini o\'chirishni tasdiqlaysizmi?'}
             </h3>
             <p className="text-gray-500 text-center text-sm mb-2">
               {deleteConfirm.name}
             </p>
             <p className="text-gray-400 text-center text-xs mb-6">
-              Это действие нельзя отменить. Житель потеряет доступ к системе.
+              {language === 'ru' ? 'Это действие нельзя отменить. Житель потеряет доступ к системе.' : 'Bu amalni bekor qilib bo\'lmaydi. Yashovchi tizimga kirishni yo\'qotadi.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -1696,7 +1762,7 @@ export function ResidentsPage() {
                 disabled={isDeleting}
                 className="flex-1 py-3 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
               >
-                Отмена
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={() => handleDeleteResident(deleteConfirm.login)}
@@ -1706,12 +1772,12 @@ export function ResidentsPage() {
                 {isDeleting ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Удаление...
+                    {language === 'ru' ? 'Удаление...' : 'O\'chirilmoqda...'}
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4" />
-                    Удалить
+                    {language === 'ru' ? 'Удалить' : 'O\'chirish'}
                   </>
                 )}
               </button>
@@ -1728,13 +1794,13 @@ export function ResidentsPage() {
               <Trash2 className="w-7 h-7 text-red-600" />
             </div>
             <h3 className="text-lg font-bold text-center mb-2">
-              Удалить всех жителей?
+              {language === 'ru' ? 'Удалить всех жителей?' : 'Barcha yashovchilarni o\'chirishni tasdiqlaysizmi?'}
             </h3>
             <p className="text-gray-500 text-center text-sm mb-2">
-              Будет удалено: <strong>{filteredResidents.length}</strong> жителей
+              {language === 'ru' ? 'Будет удалено' : 'O\'chiriladi'}: <strong>{filteredResidents.length}</strong> {language === 'ru' ? 'жителей' : 'yashovchi'}
             </p>
             <p className="text-gray-400 text-center text-xs mb-6">
-              Это действие нельзя отменить. Все жители потеряют доступ к системе.
+              {language === 'ru' ? 'Это действие нельзя отменить. Все жители потеряют доступ к системе.' : 'Bu amalni bekor qilib bo\'lmaydi. Barcha yashovchilar tizimga kirishni yo\'qotadi.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -1742,7 +1808,7 @@ export function ResidentsPage() {
                 disabled={isDeleting}
                 className="flex-1 py-3 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
               >
-                Отмена
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={handleDeleteAllResidents}
@@ -1752,12 +1818,12 @@ export function ResidentsPage() {
                 {isDeleting ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Удаление...
+                    {language === 'ru' ? 'Удаление...' : 'O\'chirilmoqda...'}
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4" />
-                    Удалить всех
+                    {language === 'ru' ? 'Удалить всех' : 'Hammasini o\'chirish'}
                   </>
                 )}
               </button>

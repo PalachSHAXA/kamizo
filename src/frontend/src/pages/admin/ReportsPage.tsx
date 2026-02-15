@@ -8,11 +8,13 @@ import { useDataStore } from '../../stores/dataStore';
 import { useCRMStore } from '../../stores/crmStore';
 import { useAuthStore } from '../../stores/authStore';
 import { SPECIALIZATION_LABELS } from '../../types';
+import { useLanguageStore } from '../../stores/languageStore';
 
 export function ReportsPage() {
   const { requests, executors } = useDataStore();
   const { buildings, residents } = useCRMStore();
   const { additionalUsers } = useAuthStore();
+  const { language } = useLanguageStore();
   const [period, setPeriod] = useState('week');
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [reportType, setReportType] = useState<'general' | 'branch'>('general');
@@ -310,25 +312,25 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Отчёты и аналитика</h1>
-          <p className="text-gray-500 mt-1">Статистика и показатели эффективности</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Отчёты и аналитика' : 'Hisobotlar va tahlil'}</h1>
+          <p className="text-gray-500 text-sm sm:text-base mt-1">{language === 'ru' ? 'Статистика и показатели эффективности' : 'Statistika va samaradorlik ko\'rsatkichlari'}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="glass-input w-40"
+            className="glass-input flex-1 sm:flex-none sm:w-40"
           >
-            <option value="day">За сегодня</option>
-            <option value="week">За неделю</option>
-            <option value="month">За месяц</option>
-            <option value="year">За год</option>
+            <option value="day">{language === 'ru' ? 'За сегодня' : 'Bugungi'}</option>
+            <option value="week">{language === 'ru' ? 'За неделю' : 'Haftalik'}</option>
+            <option value="month">{language === 'ru' ? 'За месяц' : 'Oylik'}</option>
+            <option value="year">{language === 'ru' ? 'За год' : 'Yillik'}</option>
           </select>
-          <button onClick={handleExportCSV} className="btn-secondary flex items-center gap-2">
+          <button onClick={handleExportCSV} className="btn-secondary flex items-center gap-2 flex-shrink-0">
             <Download className="w-4 h-4" />
-            Скачать CSV
+            <span className="hidden sm:inline">{language === 'ru' ? 'Скачать' : 'Yuklab olish'}</span> CSV
           </button>
         </div>
       </div>
@@ -343,7 +345,7 @@ export function ReportsPage() {
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          Общий отчёт
+          {language === 'ru' ? 'Общий отчёт' : 'Umumiy hisobot'}
         </button>
         <button
           onClick={() => setReportType('branch')}
@@ -353,7 +355,7 @@ export function ReportsPage() {
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          По объектам
+          {language === 'ru' ? 'По объектам' : 'Obyektlar bo\'yicha'}
         </button>
       </div>
 
@@ -365,22 +367,22 @@ export function ReportsPage() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-gray-400" />
-                Выберите объект для анализа
+                {language === 'ru' ? 'Выберите объект для анализа' : 'Tahlil uchun obyektni tanlang'}
               </h2>
               <button
                 onClick={() => handleExportBranchCSV(selectedBranch === 'all' ? undefined : selectedBranch)}
                 className="btn-secondary flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                Скачать отчёт
+                {language === 'ru' ? 'Скачать отчёт' : 'Hisobotni yuklab olish'}
               </button>
             </div>
 
             {branchStats.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Нет данных по объектам</p>
-                <p className="text-sm mt-1">Добавьте здания в разделе "Дома"</p>
+                <p>{language === 'ru' ? 'Нет данных по объектам' : 'Obyektlar bo\'yicha ma\'lumot yo\'q'}</p>
+                <p className="text-sm mt-1">{language === 'ru' ? 'Добавьте здания в разделе "Дома"' : '"Uylar" bo\'limiga binolarni qo\'shing'}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -397,8 +399,8 @@ export function ReportsPage() {
                       <Building2 className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-semibold">Все объекты</div>
-                      <div className="text-xs text-gray-500">{branchStats.length} объектов</div>
+                      <div className="font-semibold">{language === 'ru' ? 'Все объекты' : 'Barcha obyektlar'}</div>
+                      <div className="text-xs text-gray-500">{branchStats.length} {language === 'ru' ? 'объектов' : 'obyekt'}</div>
                     </div>
                   </div>
                 </button>
@@ -418,7 +420,7 @@ export function ReportsPage() {
                       </div>
                       <div className="min-w-0">
                         <div className="font-semibold truncate">{stat.branch}</div>
-                        <div className="text-xs text-gray-500">{stat.totalRequests} заявок</div>
+                        <div className="text-xs text-gray-500">{stat.totalRequests} {language === 'ru' ? 'заявок' : 'ariza'}</div>
                       </div>
                     </div>
                   </button>
@@ -490,20 +492,20 @@ export function ReportsPage() {
               : '—';
 
             const statusLabels: Record<string, { label: string; color: string; barColor: string }> = {
-              new: { label: 'Новые', color: 'bg-blue-100 text-blue-700', barColor: 'from-blue-400 to-blue-500' },
-              assigned: { label: 'Назначены', color: 'bg-purple-100 text-purple-700', barColor: 'from-purple-400 to-purple-500' },
-              accepted: { label: 'Приняты', color: 'bg-indigo-100 text-indigo-700', barColor: 'from-indigo-400 to-indigo-500' },
-              in_progress: { label: 'В работе', color: 'bg-yellow-100 text-yellow-700', barColor: 'from-orange-400 to-amber-500' },
-              pending_approval: { label: 'На проверке', color: 'bg-orange-100 text-orange-700', barColor: 'from-orange-400 to-orange-500' },
-              completed: { label: 'Выполнены', color: 'bg-green-100 text-green-700', barColor: 'from-green-400 to-emerald-500' },
-              cancelled: { label: 'Отменены', color: 'bg-red-100 text-red-700', barColor: 'from-red-400 to-red-500' },
+              new: { label: language === 'ru' ? 'Новые' : 'Yangi', color: 'bg-blue-100 text-blue-700', barColor: 'from-blue-400 to-blue-500' },
+              assigned: { label: language === 'ru' ? 'Назначены' : 'Tayinlangan', color: 'bg-purple-100 text-purple-700', barColor: 'from-purple-400 to-purple-500' },
+              accepted: { label: language === 'ru' ? 'Приняты' : 'Qabul qilingan', color: 'bg-indigo-100 text-indigo-700', barColor: 'from-indigo-400 to-indigo-500' },
+              in_progress: { label: language === 'ru' ? 'В работе' : 'Jarayonda', color: 'bg-yellow-100 text-yellow-700', barColor: 'from-orange-400 to-amber-500' },
+              pending_approval: { label: language === 'ru' ? 'На проверке' : 'Tekshiruvda', color: 'bg-orange-100 text-orange-700', barColor: 'from-orange-400 to-orange-500' },
+              completed: { label: language === 'ru' ? 'Выполнены' : 'Bajarildi', color: 'bg-green-100 text-green-700', barColor: 'from-green-400 to-emerald-500' },
+              cancelled: { label: language === 'ru' ? 'Отменены' : 'Bekor qilindi', color: 'bg-red-100 text-red-700', barColor: 'from-red-400 to-red-500' },
             };
 
             const priorityLabels: Record<string, { label: string; color: string }> = {
-              low: { label: 'Низкий', color: 'bg-gray-100 text-gray-600' },
-              medium: { label: 'Средний', color: 'bg-blue-100 text-blue-600' },
-              high: { label: 'Высокий', color: 'bg-orange-100 text-orange-600' },
-              urgent: { label: 'Срочный', color: 'bg-red-100 text-red-600' },
+              low: { label: language === 'ru' ? 'Низкий' : 'Past', color: 'bg-gray-100 text-gray-600' },
+              medium: { label: language === 'ru' ? 'Средний' : 'O\'rtacha', color: 'bg-blue-100 text-blue-600' },
+              high: { label: language === 'ru' ? 'Высокий' : 'Yuqori', color: 'bg-orange-100 text-orange-600' },
+              urgent: { label: language === 'ru' ? 'Срочный' : 'Shoshilinch', color: 'bg-red-100 text-red-600' },
             };
 
             return (
@@ -517,7 +519,7 @@ export function ReportsPage() {
                       </div>
                       <div>
                         <div className="text-3xl font-bold">{totalRequests}</div>
-                        <div className="text-sm text-gray-500">Всего заявок</div>
+                        <div className="text-sm text-gray-500">{language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}</div>
                       </div>
                     </div>
                   </div>
@@ -529,7 +531,7 @@ export function ReportsPage() {
                       </div>
                       <div>
                         <div className="text-3xl font-bold">{totalCompleted}</div>
-                        <div className="text-sm text-gray-500">Выполнено</div>
+                        <div className="text-sm text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
                       </div>
                     </div>
                   </div>
@@ -541,7 +543,7 @@ export function ReportsPage() {
                       </div>
                       <div>
                         <div className="text-3xl font-bold">{avgRat}</div>
-                        <div className="text-sm text-gray-500">Средняя оценка</div>
+                        <div className="text-sm text-gray-500">{language === 'ru' ? 'Средняя оценка' : 'O\'rtacha baho'}</div>
                       </div>
                     </div>
                   </div>
@@ -553,7 +555,7 @@ export function ReportsPage() {
                       </div>
                       <div>
                         <div className="text-3xl font-bold">{totalResidents}</div>
-                        <div className="text-sm text-gray-500">Жителей</div>
+                        <div className="text-sm text-gray-500">{language === 'ru' ? 'Жителей' : 'Aholi'}</div>
                       </div>
                     </div>
                   </div>
@@ -567,11 +569,11 @@ export function ReportsPage() {
                         <Clock className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
-                        <div className="font-semibold">Время реакции</div>
-                        <div className="text-sm text-gray-500">от создания до назначения</div>
+                        <div className="font-semibold">{language === 'ru' ? 'Время реакции' : 'Javob vaqti'}</div>
+                        <div className="text-sm text-gray-500">{language === 'ru' ? 'от создания до назначения' : 'yaratishdan tayinlashgacha'}</div>
                       </div>
                     </div>
-                    <div className="text-4xl font-bold text-blue-600">{avgResponseTime} мин</div>
+                    <div className="text-4xl font-bold text-blue-600">{avgResponseTime} {language === 'ru' ? 'мин' : 'daq'}</div>
                   </div>
 
                   <div className="glass-card p-5">
@@ -580,11 +582,11 @@ export function ReportsPage() {
                         <Clock className="w-5 h-5 text-green-600" />
                       </div>
                       <div>
-                        <div className="font-semibold">Время выполнения</div>
-                        <div className="text-sm text-gray-500">среднее время работы</div>
+                        <div className="font-semibold">{language === 'ru' ? 'Время выполнения' : 'Bajarish vaqti'}</div>
+                        <div className="text-sm text-gray-500">{language === 'ru' ? 'среднее время работы' : 'o\'rtacha ish vaqti'}</div>
                       </div>
                     </div>
-                    <div className="text-4xl font-bold text-green-600">{avgCompTime} мин</div>
+                    <div className="text-4xl font-bold text-green-600">{avgCompTime} {language === 'ru' ? 'мин' : 'daq'}</div>
                   </div>
                 </div>
 
@@ -594,7 +596,7 @@ export function ReportsPage() {
                   <div className="glass-card p-6">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <Zap className="w-5 h-5 text-gray-400" />
-                      Статусы заявок
+                      {language === 'ru' ? 'Статусы заявок' : 'Arizalar holati'}
                     </h3>
                     <div className="space-y-3">
                       {Object.entries(statusBreakdown)
@@ -631,7 +633,7 @@ export function ReportsPage() {
                   <div className="glass-card p-6">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <PieChart className="w-5 h-5 text-gray-400" />
-                      По категориям (специалистам)
+                      {language === 'ru' ? 'По категориям (специалистам)' : 'Kategoriyalar bo\'yicha (mutaxassislar)'}
                     </h3>
                     <div className="space-y-3">
                       {Object.entries(catBreakdown)
@@ -646,7 +648,7 @@ export function ReportsPage() {
                             cleaning: 'from-green-400 to-emerald-500',
                             elevator: 'from-purple-400 to-violet-500',
                             intercom: 'from-indigo-400 to-indigo-500',
-                            carpenter: 'from-amber-400 to-amber-500',
+                            trash: 'from-amber-400 to-amber-500',
                             locksmith: 'from-gray-400 to-gray-500',
                             other: 'from-pink-400 to-pink-500',
                           };
@@ -679,7 +681,7 @@ export function ReportsPage() {
                 <div className="glass-card p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-gray-400" />
-                    Приоритеты заявок
+                    {language === 'ru' ? 'Приоритеты заявок' : 'Arizalar ustuvorligi'}
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {Object.entries(priorityLabels).map(([priority, info]) => {
@@ -699,17 +701,17 @@ export function ReportsPage() {
                   <div className="glass-card p-6">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
                       <AlertCircle className="w-5 h-5" />
-                      Отменённые заявки ({cancelledRequests.length})
+                      {language === 'ru' ? 'Отменённые заявки' : 'Bekor qilingan arizalar'} ({cancelledRequests.length})
                     </h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-left text-gray-500 border-b">
                             <th className="pb-2 font-medium">№</th>
-                            <th className="pb-2 font-medium">Заявка</th>
-                            <th className="pb-2 font-medium">Категория</th>
-                            <th className="pb-2 font-medium">Адрес</th>
-                            <th className="pb-2 font-medium">Дата</th>
+                            <th className="pb-2 font-medium">{language === 'ru' ? 'Заявка' : 'Ariza'}</th>
+                            <th className="pb-2 font-medium">{language === 'ru' ? 'Категория' : 'Kategoriya'}</th>
+                            <th className="pb-2 font-medium">{language === 'ru' ? 'Адрес' : 'Manzil'}</th>
+                            <th className="pb-2 font-medium">{language === 'ru' ? 'Дата' : 'Sana'}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -722,7 +724,7 @@ export function ReportsPage() {
                                   {SPECIALIZATION_LABELS[req.category as keyof typeof SPECIALIZATION_LABELS]}
                                 </span>
                               </td>
-                              <td className="py-2 text-gray-500">{req.address}, кв. {req.apartment}</td>
+                              <td className="py-2 text-gray-500">{req.address}, {language === 'ru' ? 'кв.' : 'xon.'} {req.apartment}</td>
                               <td className="py-2 text-gray-400">
                                 {new Date(req.createdAt).toLocaleDateString('ru-RU')}
                               </td>
@@ -732,7 +734,7 @@ export function ReportsPage() {
                       </table>
                       {cancelledRequests.length > 10 && (
                         <div className="text-center text-gray-400 text-sm mt-3">
-                          И ещё {cancelledRequests.length - 10} отменённых заявок...
+                          {language === 'ru' ? `И ещё ${cancelledRequests.length - 10} отменённых заявок...` : `Va yana ${cancelledRequests.length - 10} ta bekor qilingan ariza...`}
                         </div>
                       )}
                     </div>
@@ -763,7 +765,7 @@ export function ReportsPage() {
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500">Всего заявок</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}</div>
                 </div>
               </div>
             </div>
@@ -783,7 +785,7 @@ export function ReportsPage() {
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500">Выполнено</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
                 </div>
               </div>
             </div>
@@ -795,7 +797,7 @@ export function ReportsPage() {
                 </div>
                 <div>
                   <div className="text-3xl font-bold">{avgRating}</div>
-                  <div className="text-sm text-gray-500">Средний рейтинг</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting'}</div>
                 </div>
               </div>
             </div>
@@ -807,7 +809,7 @@ export function ReportsPage() {
                 </div>
                 <div>
                   <div className="text-3xl font-bold">{advancedMetrics.avgResponseTime}</div>
-                  <div className="text-sm text-gray-500">Время реакции (мин)</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Время реакции (мин)' : 'Javob vaqti (daq)'}</div>
                 </div>
               </div>
             </div>
@@ -819,7 +821,7 @@ export function ReportsPage() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span className="font-medium">Выполнено</span>
+                  <span className="font-medium">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</span>
                 </div>
                 <span className="text-2xl font-bold text-green-600">{completedRequests.length}</span>
               </div>
@@ -835,22 +837,22 @@ export function ReportsPage() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-amber-500" />
-                  <span className="font-medium">Время выполнения</span>
+                  <span className="font-medium">{language === 'ru' ? 'Время выполнения' : 'Bajarish vaqti'}</span>
                 </div>
-                <span className="text-2xl font-bold text-amber-600">{avgCompletionTime} мин</span>
+                <span className="text-2xl font-bold text-amber-600">{avgCompletionTime} {language === 'ru' ? 'мин' : 'daq'}</span>
               </div>
-              <div className="text-sm text-gray-500">Среднее время работы над заявкой</div>
+              <div className="text-sm text-gray-500">{language === 'ru' ? 'Среднее время работы над заявкой' : 'O\'rtacha ariza ustida ishlash vaqti'}</div>
             </div>
 
             <div className="glass-card p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 text-red-500" />
-                  <span className="font-medium">Отменено</span>
+                  <span className="font-medium">{language === 'ru' ? 'Отменено' : 'Bekor qilindi'}</span>
                 </div>
                 <span className="text-2xl font-bold text-red-600">{advancedMetrics.cancelledRate}%</span>
               </div>
-              <div className="text-sm text-gray-500">Процент отмененных заявок</div>
+              <div className="text-sm text-gray-500">{language === 'ru' ? 'Процент отмененных заявок' : 'Bekor qilingan arizalar foizi'}</div>
             </div>
           </div>
 
@@ -862,18 +864,18 @@ export function ReportsPage() {
                   <Award className="w-7 h-7 text-white" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm text-amber-700 font-medium">Лучший исполнитель периода</div>
+                  <div className="text-sm text-amber-700 font-medium">{language === 'ru' ? 'Лучший исполнитель периода' : 'Davr eng yaxshi ijrochisi'}</div>
                   <div className="text-xl font-bold text-gray-900">{advancedMetrics.bestExecutor.name}</div>
                   <div className="text-sm text-gray-600">
                     {SPECIALIZATION_LABELS[advancedMetrics.bestExecutor.specialization]} •
-                    {advancedMetrics.bestExecutor.periodCompleted} выполнено •
+                    {advancedMetrics.bestExecutor.periodCompleted} {language === 'ru' ? 'выполнено' : 'bajarildi'} •
                     <Star className="w-3 h-3 inline text-amber-500 ml-1" />
                     {advancedMetrics.bestExecutor.periodAvgRating.toFixed(1)}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-3xl font-bold text-amber-600">{advancedMetrics.bestExecutor.efficiency}%</div>
-                  <div className="text-sm text-amber-700">эффективность</div>
+                  <div className="text-sm text-amber-700">{language === 'ru' ? 'эффективность' : 'samaradorlik'}</div>
                 </div>
               </div>
             </div>
@@ -885,7 +887,7 @@ export function ReportsPage() {
             <div className="glass-card p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <PieChart className="w-5 h-5 text-gray-400" />
-                Распределение по категориям
+                {language === 'ru' ? 'Распределение по категориям' : 'Kategoriyalar bo\'yicha taqsimot'}
               </h2>
               <div className="space-y-3">
                 {Object.entries(categoryStats).map(([category, stats]) => (
@@ -911,32 +913,32 @@ export function ReportsPage() {
             <div className="glass-card p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-gray-400" />
-                Статусы заявок
+                {language === 'ru' ? 'Статусы заявок' : 'Arizalar holati'}
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-blue-50 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-blue-600">
                     {filteredRequests.filter(r => r.status === 'new').length}
                   </div>
-                  <div className="text-sm text-blue-700">Новых</div>
+                  <div className="text-sm text-blue-700">{language === 'ru' ? 'Новых' : 'Yangi'}</div>
                 </div>
                 <div className="bg-indigo-50 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-indigo-600">
                     {filteredRequests.filter(r => r.status === 'assigned' || r.status === 'accepted').length}
                   </div>
-                  <div className="text-sm text-indigo-700">Назначено</div>
+                  <div className="text-sm text-indigo-700">{language === 'ru' ? 'Назначено' : 'Tayinlangan'}</div>
                 </div>
                 <div className="bg-amber-50 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-amber-600">
                     {filteredRequests.filter(r => r.status === 'in_progress').length}
                   </div>
-                  <div className="text-sm text-amber-700">В работе</div>
+                  <div className="text-sm text-amber-700">{language === 'ru' ? 'В работе' : 'Jarayonda'}</div>
                 </div>
                 <div className="bg-green-50 rounded-xl p-4 text-center">
                   <div className="text-3xl font-bold text-green-600">
                     {filteredRequests.filter(r => r.status === 'completed').length}
                   </div>
-                  <div className="text-sm text-green-700">Выполнено</div>
+                  <div className="text-sm text-green-700">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
                 </div>
               </div>
             </div>
@@ -946,54 +948,54 @@ export function ReportsPage() {
           <div className="glass-card p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-gray-400" />
-              Топ исполнителей
+              {language === 'ru' ? 'Топ исполнителей' : 'Top ijrochilar'}
             </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto -mx-6 px-6">
+              <table className="w-full" style={{ minWidth: '600px' }}>
                 <thead>
                   <tr className="text-left text-sm text-gray-500 border-b border-gray-200">
-                    <th className="pb-3 font-medium">#</th>
-                    <th className="pb-3 font-medium">Исполнитель</th>
-                    <th className="pb-3 font-medium">Специализация</th>
-                    <th className="pb-3 font-medium text-center">Заявок</th>
-                    <th className="pb-3 font-medium text-center">Выполнено</th>
-                    <th className="pb-3 font-medium text-center">Рейтинг</th>
-                    <th className="pb-3 font-medium text-center">Статус</th>
+                    <th className="pb-3 pr-2 font-medium w-8">#</th>
+                    <th className="pb-3 pr-3 font-medium">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</th>
+                    <th className="pb-3 pr-3 font-medium">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'}</th>
+                    <th className="pb-3 pr-2 font-medium text-center">{language === 'ru' ? 'Заявок' : 'Arizalar'}</th>
+                    <th className="pb-3 pr-2 font-medium text-center">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</th>
+                    <th className="pb-3 pr-2 font-medium text-center">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</th>
+                    <th className="pb-3 font-medium text-center">{language === 'ru' ? 'Статус' : 'Holat'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {executorStats.slice(0, 10).map((executor, index) => (
                     <tr key={executor.id} className="hover:bg-white/30">
-                      <td className="py-3 text-gray-500">{index + 1}</td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-sm font-medium text-primary-700">
+                      <td className="py-3 pr-2 text-gray-500">{index + 1}</td>
+                      <td className="py-3 pr-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-sm font-medium text-primary-700 flex-shrink-0">
                             {executor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </div>
-                          <span className="font-medium">{executor.name}</span>
+                          <span className="font-medium whitespace-nowrap">{executor.name}</span>
                         </div>
                       </td>
-                      <td className="py-3 text-gray-600">{SPECIALIZATION_LABELS[executor.specialization]}</td>
-                      <td className="py-3 text-center">{executor.requests}</td>
-                      <td className="py-3 text-center">
+                      <td className="py-3 pr-3 text-gray-600 whitespace-nowrap">{SPECIALIZATION_LABELS[executor.specialization]}</td>
+                      <td className="py-3 pr-2 text-center">{executor.requests}</td>
+                      <td className="py-3 pr-2 text-center">
                         <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm">
                           {executor.completedCount}
                         </span>
                       </td>
-                      <td className="py-3 text-center">
+                      <td className="py-3 pr-2 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                           <span className="font-medium">{executor.rating}</span>
                         </div>
                       </td>
                       <td className="py-3 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
                           executor.status === 'available' ? 'bg-green-100 text-green-700' :
                           executor.status === 'busy' ? 'bg-amber-100 text-amber-700' :
                           'bg-gray-100 text-gray-600'
                         }`}>
-                          {executor.status === 'available' ? 'Доступен' :
-                           executor.status === 'busy' ? 'Занят' : 'Оффлайн'}
+                          {executor.status === 'available' ? (language === 'ru' ? 'Доступен' : 'Mavjud') :
+                           executor.status === 'busy' ? (language === 'ru' ? 'Занят' : 'Band') : (language === 'ru' ? 'Оффлайн' : 'Oflayn')}
                         </span>
                       </td>
                     </tr>

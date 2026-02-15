@@ -6,7 +6,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { SERVICE_CATEGORIES, PRIORITY_LABELS, RESCHEDULE_REASON_LABELS } from '../types';
+import { SERVICE_CATEGORIES, PRIORITY_LABELS, PRIORITY_LABELS_UZ, RESCHEDULE_REASON_LABELS } from '../types';
 import type { Request, ExecutorSpecialization, RequestPriority, RescheduleReason, RescheduleRequest } from '../types';
 import { RequestStatusTracker, RequestStatusTrackerCompact } from '../components/RequestStatusTracker';
 import { formatAddress } from '../utils/formatAddress';
@@ -115,7 +115,7 @@ export function ResidentDashboard() {
       {/* Header - Mobile optimized */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Личный кабинет</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Личный кабинет' : 'Shaxsiy kabinet'}</h1>
           <div className="flex items-center gap-2 mt-1 text-sm md:text-base text-gray-500">
             <User className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">{user?.name}</span>
@@ -149,10 +149,12 @@ export function ResidentDashboard() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-purple-800">
-                {pendingApproval.length} {pendingApproval.length === 1 ? 'заявка ожидает' : 'заявки ожидают'} подтверждения
+                {language === 'ru'
+                  ? `${pendingApproval.length} ${pendingApproval.length === 1 ? 'заявка ожидает' : 'заявки ожидают'} подтверждения`
+                  : `${pendingApproval.length} ta ariza tasdiqlanishi kerak`}
               </div>
               <div className="text-sm text-purple-600">
-                Нажмите, чтобы подтвердить
+                {language === 'ru' ? 'Нажмите, чтобы подтвердить' : 'Tasdiqlash uchun bosing'}
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-purple-500 flex-shrink-0" />
@@ -232,21 +234,21 @@ export function ResidentDashboard() {
           className="glass-card p-3 md:p-4 text-center active:scale-95 transition-transform touch-manipulation"
         >
           <div className="text-2xl md:text-3xl font-bold text-blue-600">{activeRequests.length}</div>
-          <div className="text-xs md:text-sm text-gray-500">Активных</div>
+          <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
         </button>
         <button
           onClick={() => setActiveTab('pending')}
           className="glass-card p-3 md:p-4 text-center active:scale-95 transition-transform touch-manipulation"
         >
           <div className="text-2xl md:text-3xl font-bold text-purple-600">{pendingApproval.length}</div>
-          <div className="text-xs md:text-sm text-gray-500 leading-tight">Ожидают</div>
+          <div className="text-xs md:text-sm text-gray-500 leading-tight">{language === 'ru' ? 'Ожидают' : 'Kutmoqda'}</div>
         </button>
         <button
           onClick={() => setActiveTab('history')}
           className="glass-card p-3 md:p-4 text-center active:scale-95 transition-transform touch-manipulation"
         >
           <div className="text-2xl md:text-3xl font-bold text-green-600">{completedRequests.length}</div>
-          <div className="text-xs md:text-sm text-gray-500">Выполнено</div>
+          <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
         </button>
       </div>
 
@@ -313,9 +315,9 @@ export function ResidentDashboard() {
                         <span className="text-2xl filter drop-shadow-sm">{category.icon}</span>
                       </div>
                       <h3 className={`font-bold text-gray-800 group-hover:${colors.text} transition-colors`}>
-                        {category.name}
+                        {language === 'ru' ? category.name : category.nameUz}
                       </h3>
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2 group-hover:text-gray-600 transition-colors">{category.description}</p>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2 group-hover:text-gray-600 transition-colors">{language === 'ru' ? category.description : category.descriptionUz}</p>
                     </div>
 
                     {/* Hover arrow indicator */}
@@ -342,7 +344,7 @@ export function ResidentDashboard() {
               {SERVICE_CATEGORIES.slice(4).map((category, index) => {
                 const miniColors = [
                   'from-rose-400 to-pink-400',
-                  'from-orange-400 to-amber-400',
+                  'from-primary-400 to-primary-500',
                   'from-lime-400 to-green-400',
                   'from-cyan-400 to-blue-400',
                   'from-indigo-400 to-violet-400',
@@ -366,7 +368,7 @@ export function ResidentDashboard() {
                       <span className="text-lg filter drop-shadow-sm">{category.icon}</span>
                     </div>
                     <h3 className="font-medium text-xs text-gray-700 group-hover:text-gray-900 transition-colors leading-tight">
-                      {category.name}
+                      {language === 'ru' ? category.name : category.nameUz}
                     </h3>
                   </button>
                 );
@@ -375,7 +377,7 @@ export function ResidentDashboard() {
           </div>
 
           {/* Info Banner */}
-          <div className="glass-card p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100">
+          <div className="glass-card p-4 bg-gradient-to-r from-primary-50 to-primary-100 border border-primary-100">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
@@ -400,14 +402,14 @@ export function ResidentDashboard() {
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FileText className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-medium text-gray-600">Нет заявок</h3>
-              <p className="text-gray-400 mt-1">Создайте заявку, выбрав услугу</p>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Нет заявок' : 'Arizalar yo\'q'}</h3>
+              <p className="text-gray-400 mt-1">{language === 'ru' ? 'Создайте заявку, выбрав услугу' : 'Xizmatni tanlab ariza yarating'}</p>
               <button
                 onClick={() => setActiveTab('services')}
                 className="btn-primary mt-4"
               >
                 <Plus className="w-4 h-4 mr-2 inline" />
-                Создать заявку
+                {language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
               </button>
             </div>
           ) : (
@@ -431,8 +433,8 @@ export function ResidentDashboard() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-8 h-8 text-green-500" />
               </div>
-              <h3 className="text-lg font-medium text-gray-600">Все подтверждено</h3>
-              <p className="text-gray-400 mt-1">Нет заявок, ожидающих подтверждения</p>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Все подтверждено' : 'Hammasi tasdiqlangan'}</h3>
+              <p className="text-gray-400 mt-1">{language === 'ru' ? 'Нет заявок, ожидающих подтверждения' : 'Tasdiqlanishi kerak bo\'lgan arizalar yo\'q'}</p>
             </div>
           ) : (
             pendingApproval.map((request) => (
@@ -453,8 +455,8 @@ export function ResidentDashboard() {
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <History className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-medium text-gray-600">История пуста</h3>
-              <p className="text-gray-400 mt-1">Здесь будут отображаться завершённые и отменённые заявки</p>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'История пуста' : 'Tarix bo\'sh'}</h3>
+              <p className="text-gray-400 mt-1">{language === 'ru' ? 'Здесь будут отображаться завершённые и отменённые заявки' : 'Bu yerda yakunlangan va bekor qilingan arizalar ko\'rsatiladi'}</p>
             </div>
           ) : (
             historyRequests.map((request) => (
@@ -606,6 +608,7 @@ function HistoryRequestCard({
   request: Request;
   onClick: () => void;
 }) {
+  const { language } = useLanguageStore();
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('ru-RU', {
       day: '2-digit',
@@ -618,12 +621,22 @@ function HistoryRequestCard({
   const isCancelled = request.status === 'cancelled';
 
   const getCancelledByLabel = (cancelledBy?: string) => {
-    switch (cancelledBy) {
-      case 'resident': return 'Вами';
-      case 'executor': return 'Исполнителем';
-      case 'manager': return 'Менеджером';
-      case 'admin': return 'Администратором';
-      default: return '';
+    if (language === 'ru') {
+      switch (cancelledBy) {
+        case 'resident': return 'Вами';
+        case 'executor': return 'Исполнителем';
+        case 'manager': return 'Менеджером';
+        case 'admin': return 'Администратором';
+        default: return '';
+      }
+    } else {
+      switch (cancelledBy) {
+        case 'resident': return 'Siz tomondan';
+        case 'executor': return 'Ijrochi tomondan';
+        case 'manager': return 'Menejer tomondan';
+        case 'admin': return 'Administrator tomondan';
+        default: return '';
+      }
     }
   };
 
@@ -642,10 +655,10 @@ function HistoryRequestCard({
             {isCancelled ? (
               <span className="badge bg-red-100 text-red-700 flex items-center gap-1">
                 <Ban className="w-3 h-3" />
-                Отменена
+                {language === 'ru' ? 'Отменена' : 'Bekor qilindi'}
               </span>
             ) : (
-              <span className="badge badge-done">Выполнена</span>
+              <span className="badge badge-done">{language === 'ru' ? 'Выполнена' : 'Bajarildi'}</span>
             )}
           </div>
           <p className="text-gray-600 text-sm mt-1">{request.description}</p>
@@ -653,7 +666,7 @@ function HistoryRequestCard({
           {isCancelled ? (
             <div className="mt-3 p-3 bg-red-50 rounded-lg">
               <div className="text-sm text-red-700">
-                <span className="font-medium">Отменена {getCancelledByLabel(request.cancelledBy)}</span>
+                <span className="font-medium">{language === 'ru' ? 'Отменена' : 'Bekor qilindi'} {getCancelledByLabel(request.cancelledBy)}</span>
                 {request.cancellationReason && (
                   <p className="mt-1 text-red-600">{request.cancellationReason}</p>
                 )}
@@ -705,10 +718,11 @@ function PendingApprovalCard({
   request: Request;
   onApprove: () => void;
 }) {
+  const { language } = useLanguageStore();
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'Не указано';
+    if (!seconds) return language === 'ru' ? 'Не указано' : 'Ko\'rsatilmagan';
     const mins = Math.floor(seconds / 60);
-    return `${mins} мин`;
+    return `${mins} ${language === 'ru' ? 'мин' : 'daq'}`;
   };
 
   return (
@@ -732,14 +746,14 @@ function PendingApprovalCard({
       {/* Info cards - stacked on mobile */}
       <div className="grid grid-cols-2 gap-2 mb-4">
         <div className="bg-white/60 rounded-lg p-3">
-          <div className="text-xs text-gray-500 mb-0.5">Исполнитель</div>
+          <div className="text-xs text-gray-500 mb-0.5">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</div>
           <div className="font-medium text-sm flex items-center gap-1">
             <User className="w-3.5 h-3.5 text-gray-400" />
             <span className="truncate">{request.executorName}</span>
           </div>
         </div>
         <div className="bg-white/60 rounded-lg p-3">
-          <div className="text-xs text-gray-500 mb-0.5">Время работы</div>
+          <div className="text-xs text-gray-500 mb-0.5">{language === 'ru' ? 'Время работы' : 'Ish vaqti'}</div>
           <div className="font-medium text-sm flex items-center gap-1">
             <Clock className="w-3.5 h-3.5 text-gray-400" />
             {formatDuration(request.workDuration)}
@@ -754,7 +768,7 @@ function PendingApprovalCard({
         style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
       >
         <CheckCircle className="w-5 h-5" />
-        Подтвердить выполнение
+        {language === 'ru' ? 'Подтвердить выполнение' : 'Bajarilganini tasdiqlash'}
       </button>
     </div>
   );
@@ -762,12 +776,28 @@ function PendingApprovalCard({
 
 // Time slots for scheduling
 const TIME_SLOTS = [
-  { value: '08:00-10:00', label: '08:00 - 10:00' },
-  { value: '10:00-12:00', label: '10:00 - 12:00' },
-  { value: '12:00-14:00', label: '12:00 - 14:00' },
-  { value: '14:00-16:00', label: '14:00 - 16:00' },
-  { value: '16:00-18:00', label: '16:00 - 18:00' },
-  { value: '18:00-20:00', label: '18:00 - 20:00' },
+  { value: '09:00-11:00', label: '09:00 - 11:00' },
+  { value: '11:00-13:00', label: '11:00 - 13:00' },
+  { value: '13:00-15:00', label: '13:00 - 15:00' },
+  { value: '15:00-17:00', label: '15:00 - 17:00' },
+  { value: '17:00-19:00', label: '17:00 - 19:00' },
+];
+
+// Trash removal types for selection
+const TRASH_TYPES = [
+  { value: 'construction', label: 'Строительный мусор', icon: '🧱', description: 'Кирпич, бетон, штукатурка' },
+  { value: 'furniture', label: 'Старая мебель', icon: '🛋️', description: 'Диваны, шкафы, кровати' },
+  { value: 'household', label: 'Бытовой мусор', icon: '🗑️', description: 'Обычные бытовые отходы' },
+  { value: 'appliances', label: 'Бытовая техника', icon: '📺', description: 'Холодильники, стиральные машины' },
+  { value: 'garden', label: 'Садовый мусор', icon: '🌿', description: 'Ветки, листья, трава' },
+  { value: 'mixed', label: 'Смешанный', icon: '📦', description: 'Разные виды мусора' },
+];
+
+const TRASH_VOLUME = [
+  { value: 'small', label: 'До 1 м³', description: '1-2 мешка, небольшие предметы', icon: '📦' },
+  { value: 'medium', label: '1-3 м³', description: 'Несколько мешков, мелкая мебель', icon: '📦📦' },
+  { value: 'large', label: '3-5 м³', description: 'Много мусора, крупная мебель', icon: '🚛' },
+  { value: 'truck', label: 'Более 5 м³', description: 'Полная машина, капремонт', icon: '🚚' },
 ];
 
 // New Request Modal - Mobile full-screen optimized
@@ -795,6 +825,14 @@ function NewRequestModal({
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
 
+  // Trash removal-specific fields
+  const [trashType, setTrashType] = useState('');
+  const [trashVolume, setTrashVolume] = useState('');
+  const [trashDetails, setTrashDetails] = useState('');
+  const [trashDate, setTrashDate] = useState('');
+  const [trashTime, setTrashTime] = useState('');
+  const { language } = useLanguageStore();
+
   const categoryInfo = SERVICE_CATEGORIES.find(c => c.id === category);
 
   // Get minimum date (today)
@@ -812,6 +850,32 @@ function NewRequestModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // For trash removal category, build structured title and description
+    if (category === 'trash') {
+      const typeLabel = TRASH_TYPES.find(t => t.value === trashType)?.label || trashType;
+      const volumeLabel = TRASH_VOLUME.find(v => v.value === trashVolume)?.label || trashVolume;
+
+      if (!trashType || !trashVolume || !trashDate || !trashTime) return;
+
+      let finalTitle = `Вывоз мусора: ${typeLabel}`;
+      let finalDescription = `Тип мусора: ${typeLabel}\nОбъём: ${volumeLabel}`;
+      if (trashDetails.trim()) {
+        finalDescription += `\n\nДополнительно: ${trashDetails.trim()}`;
+      }
+
+      onSubmit({
+        title: finalTitle,
+        description: finalDescription,
+        category,
+        priority,
+        scheduledDate: trashDate,
+        scheduledTime: trashTime
+      });
+      return;
+    }
+
+    // For other categories, use regular title/description
     if (!title.trim() || !description.trim()) return;
     onSubmit({
       title,
@@ -832,8 +896,8 @@ function NewRequestModal({
           <div className="flex items-center gap-3">
             <span className="text-2xl md:text-3xl">{categoryInfo?.icon}</span>
             <div>
-              <h2 className="text-lg md:text-xl font-bold">Новая заявка</h2>
-              <p className="text-sm text-gray-500">{categoryInfo?.name}</p>
+              <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Новая заявка' : 'Yangi ariza'}</h2>
+              <p className="text-sm text-gray-500">{language === 'ru' ? categoryInfo?.name : categoryInfo?.nameUz}</p>
             </div>
           </div>
           <button
@@ -846,36 +910,143 @@ function NewRequestModal({
 
         {/* Scrollable form content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Заголовок *
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-base"
-              placeholder="Кратко опишите проблему"
-              required
-            />
-          </div>
+          {category === 'trash' ? (
+            <>
+              {/* Trash Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Тип мусора' : 'Chiqindi turi'} *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TRASH_TYPES.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setTrashType(type.value)}
+                      className={`p-3 rounded-xl border-2 text-left transition-all touch-manipulation ${
+                        trashType === type.value
+                          ? 'border-primary-500 bg-primary-50 shadow-md'
+                          : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-xl">{type.icon}</span>
+                      <div className="font-medium text-sm mt-1">{type.label}</div>
+                      <div className="text-xs text-gray-500">{type.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trash Volume Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Объём мусора' : 'Chiqindi hajmi'} *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TRASH_VOLUME.map((vol) => (
+                    <button
+                      key={vol.value}
+                      type="button"
+                      onClick={() => setTrashVolume(vol.value)}
+                      className={`p-3 rounded-xl border-2 text-left transition-all touch-manipulation ${
+                        trashVolume === vol.value
+                          ? 'border-primary-500 bg-primary-50 shadow-md'
+                          : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-lg">{vol.icon}</span>
+                      <div className="font-medium text-sm mt-1">{vol.label}</div>
+                      <div className="text-xs text-gray-500">{vol.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trash Date and Time */}
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <label className="block text-sm font-medium text-blue-700 mb-3 flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  {language === 'ru' ? 'Дата и время вывоза' : 'Olib ketish sanasi va vaqti'} *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дата' : 'Sana'} <span className="text-red-500">*</span></label>
+                    <input
+                      type="date"
+                      value={trashDate}
+                      onChange={(e) => setTrashDate(e.target.value)}
+                      min={getMinDate()}
+                      max={getMaxDate()}
+                      className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Время' : 'Vaqt'} <span className="text-red-500">*</span></label>
+                    <select
+                      value={trashTime}
+                      onChange={(e) => setTrashTime(e.target.value)}
+                      className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
+                      required
+                    >
+                      <option value="">{language === 'ru' ? 'Выберите время' : 'Vaqtni tanlang'}</option>
+                      {TIME_SLOTS.map((slot) => (
+                        <option key={slot.value} value={slot.value}>
+                          {slot.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Details */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Дополнительная информация' : 'Qo\'shimcha ma\'lumot'}
+                </label>
+                <textarea
+                  value={trashDetails}
+                  onChange={(e) => setTrashDetails(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[80px] text-base resize-none"
+                  placeholder={language === 'ru' ? 'Укажите детали: этаж, место складирования, особые условия...' : 'Tafsilotlarni ko\'rsating: qavat, saqlash joyi...'}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Заголовок' : 'Sarlavha'} *
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-base"
+                  placeholder={language === 'ru' ? 'Кратко опишите проблему' : 'Muammoni qisqacha tavsiflang'}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Описание' : 'Tavsif'} *
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[120px] text-base resize-none"
+                  placeholder={language === 'ru' ? 'Подробно опишите проблему' : 'Muammoni batafsil tavsiflang'}
+                  required
+                />
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Описание *
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[120px] text-base resize-none"
-              placeholder="Подробно опишите проблему"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Приоритет
+              {language === 'ru' ? 'Приоритет' : 'Muhimlik'}
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {(['low', 'medium', 'high', 'urgent'] as RequestPriority[]).map((p) => (
@@ -892,59 +1063,61 @@ function NewRequestModal({
                       : 'bg-gray-100 hover:bg-gray-200 active:bg-gray-300'
                   }`}
                 >
-                  {PRIORITY_LABELS[p]}
+                  {language === 'ru' ? PRIORITY_LABELS[p] : PRIORITY_LABELS_UZ[p]}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Scheduled Date and Time */}
-          <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-            <label className="block text-sm font-medium text-blue-700 mb-3 flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Желаемое время (необязательно)
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Дата</label>
-                <input
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value)}
-                  min={getMinDate()}
-                  max={getMaxDate()}
-                  className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
-                />
+          {/* Scheduled Date and Time - only for non-trash categories */}
+          {category !== 'trash' && (
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+              <label className="block text-sm font-medium text-blue-700 mb-3 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                {language === 'ru' ? 'Желаемое время (необязательно)' : 'Istalgan vaqt (ixtiyoriy)'}
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дата' : 'Sana'}</label>
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    min={getMinDate()}
+                    max={getMaxDate()}
+                    className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Время' : 'Vaqt'}</label>
+                  <select
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
+                    disabled={!scheduledDate}
+                  >
+                    <option value="">{language === 'ru' ? 'Любое' : 'Istalgan'}</option>
+                    {TIME_SLOTS.map((slot) => (
+                      <option key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Время</label>
-                <select
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                  className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
-                  disabled={!scheduledDate}
-                >
-                  <option value="">Любое</option>
-                  {TIME_SLOTS.map((slot) => (
-                    <option key={slot.value} value={slot.value}>
-                      {slot.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {scheduledDate && (
+                <p className="text-xs text-blue-600 mt-2">
+                  {language === 'ru' ? 'Мы постараемся выполнить заявку в указанное время' : 'Arizani belgilangan vaqtda bajarishga harakat qilamiz'}
+                </p>
+              )}
             </div>
-            {scheduledDate && (
-              <p className="text-xs text-blue-600 mt-2">
-                Мы постараемся выполнить заявку в указанное время
-              </p>
-            )}
-          </div>
+          )}
 
           {/* Address info */}
           <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
             <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0" />
             <div>
-              <div className="text-xs text-gray-500">Адрес</div>
+              <div className="text-xs text-gray-500">{language === 'ru' ? 'Адрес' : 'Manzil'}</div>
               <div className="font-medium text-sm">{formatAddress(user?.address, user?.apartment)}</div>
             </div>
           </div>
@@ -958,16 +1131,24 @@ function NewRequestModal({
               onClick={onClose}
               className="flex-1 py-4 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
             >
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button
               type="submit"
               onClick={handleSubmit}
-              className="flex-1 py-4 px-4 rounded-xl font-semibold text-gray-900 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
-              style={{ background: 'linear-gradient(135deg, #FFE500, #FFC700)' }}
+              disabled={category === 'trash' ? (!trashType || !trashVolume || !trashDate || !trashTime) : (!title.trim() || !description.trim())}
+              className={`flex-1 py-4 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all touch-manipulation ${
+                (category === 'trash' ? (!trashType || !trashVolume || !trashDate || !trashTime) : (!title.trim() || !description.trim()))
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'text-gray-900 active:scale-[0.98]'
+              }`}
+              style={(category === 'trash' ? (!trashType || !trashVolume || !trashDate || !trashTime) : (!title.trim() || !description.trim()))
+                ? undefined
+                : { background: 'linear-gradient(135deg, #FFE500, #FFC700)' }
+              }
             >
               <Plus className="w-5 h-5" />
-              Создать
+              {language === 'ru' ? 'Создать' : 'Yaratish'}
             </button>
           </div>
         </div>
@@ -992,13 +1173,14 @@ function ApproveModal({
   const [feedback, setFeedback] = useState('');
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const { language } = useLanguageStore();
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'Не указано';
+    if (!seconds) return language === 'ru' ? 'Не указано' : 'Ko\'rsatilmagan';
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
-    if (hrs > 0) return `${hrs} ч ${mins} мин`;
-    return `${mins} мин`;
+    if (hrs > 0) return `${hrs} ${language === 'ru' ? 'ч' : 'soat'} ${mins} ${language === 'ru' ? 'мин' : 'daq'}`;
+    return `${mins} ${language === 'ru' ? 'мин' : 'daq'}`;
   };
 
   if (showReject) {
@@ -1007,7 +1189,7 @@ function ApproveModal({
         <div className="h-full md:h-auto w-full md:max-w-md md:mx-4 bg-white md:rounded-2xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
-            <h2 className="text-lg md:text-xl font-bold text-red-600">Отклонить работу</h2>
+            <h2 className="text-lg md:text-xl font-bold text-red-600">{language === 'ru' ? 'Отклонить работу' : 'Ishni rad etish'}</h2>
             <button
               onClick={onClose}
               className="p-3 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
@@ -1019,15 +1201,16 @@ function ApproveModal({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-4">
             <p className="text-gray-600 mb-4 text-sm">
-              Укажите причину, почему работа не выполнена качественно.
-              Исполнитель получит уведомление.
+              {language === 'ru'
+                ? 'Укажите причину, почему работа не выполнена качественно. Исполнитель получит уведомление.'
+                : 'Ish sifatsiz bajarilganligining sababini ko\'rsating. Ijrochi xabar oladi.'}
             </p>
 
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white min-h-[150px] text-base resize-none"
-              placeholder="Опишите, что не так..."
+              placeholder={language === 'ru' ? 'Опишите, что не так...' : 'Nima noto\'g\'ri ekanligini yozing...'}
               required
             />
           </div>
@@ -1039,14 +1222,14 @@ function ApproveModal({
                 onClick={() => setShowReject(false)}
                 className="flex-1 py-4 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
               >
-                Назад
+                {language === 'ru' ? 'Назад' : 'Orqaga'}
               </button>
               <button
                 onClick={() => rejectReason.trim() && onReject(rejectReason)}
                 className="flex-1 py-4 px-4 rounded-xl font-semibold text-white bg-red-500 active:bg-red-600 disabled:opacity-50 transition-colors touch-manipulation"
                 disabled={!rejectReason.trim()}
               >
-                Отклонить
+                {language === 'ru' ? 'Отклонить' : 'Rad etish'}
               </button>
             </div>
           </div>
@@ -1060,7 +1243,7 @@ function ApproveModal({
       <div className="h-full md:h-auto w-full md:max-w-md md:mx-4 bg-white md:rounded-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
-          <h2 className="text-lg md:text-xl font-bold">Подтвердить выполнение</h2>
+          <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Подтвердить выполнение' : 'Bajarilganini tasdiqlash'}</h2>
           <button
             onClick={onClose}
             className="p-3 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
@@ -1073,7 +1256,7 @@ function ApproveModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Request Info */}
           <div className="bg-gray-50 rounded-xl p-4">
-            <div className="text-xs text-gray-500 mb-1">Заявка #{request.number}</div>
+            <div className="text-xs text-gray-500 mb-1">{language === 'ru' ? 'Заявка' : 'Ariza'} #{request.number}</div>
             <div className="font-semibold text-base mb-2">{request.title}</div>
             <div className="flex flex-wrap gap-3 text-sm">
               <span className="flex items-center gap-1.5 text-gray-600 bg-white px-3 py-1.5 rounded-lg">
@@ -1090,7 +1273,7 @@ function ApproveModal({
           {/* Rating - Large touch targets */}
           <div className="text-center">
             <label className="block text-sm font-medium text-gray-700 mb-4">
-              Оцените работу исполнителя
+              {language === 'ru' ? 'Оцените работу исполнителя' : 'Ijrochi ishini baholang'}
             </label>
             <div className="flex justify-center gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -1111,24 +1294,24 @@ function ApproveModal({
               ))}
             </div>
             <div className="text-sm text-gray-500 mt-2 font-medium">
-              {rating === 5 && 'Отлично!'}
-              {rating === 4 && 'Хорошо'}
-              {rating === 3 && 'Нормально'}
-              {rating === 2 && 'Плохо'}
-              {rating === 1 && 'Очень плохо'}
+              {rating === 5 && (language === 'ru' ? 'Отлично!' : 'A\'lo!')}
+              {rating === 4 && (language === 'ru' ? 'Хорошо' : 'Yaxshi')}
+              {rating === 3 && (language === 'ru' ? 'Нормально' : 'O\'rtacha')}
+              {rating === 2 && (language === 'ru' ? 'Плохо' : 'Yomon')}
+              {rating === 1 && (language === 'ru' ? 'Очень плохо' : 'Juda yomon')}
             </div>
           </div>
 
           {/* Feedback */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Отзыв (необязательно)
+              {language === 'ru' ? 'Отзыв (необязательно)' : 'Fikr-mulohaza (ixtiyoriy)'}
             </label>
             <textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white min-h-[100px] text-base resize-none"
-              placeholder="Напишите отзыв о работе..."
+              placeholder={language === 'ru' ? 'Напишите отзыв о работе...' : 'Ish haqida fikringizni yozing...'}
             />
           </div>
         </div>
@@ -1141,7 +1324,7 @@ function ApproveModal({
               className="flex-1 py-4 px-4 rounded-xl font-medium text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 transition-colors touch-manipulation flex items-center justify-center gap-2"
             >
               <X className="w-5 h-5" />
-              Отклонить
+              {language === 'ru' ? 'Отклонить' : 'Rad etish'}
             </button>
             <button
               onClick={() => onApprove(rating, feedback || undefined)}
@@ -1149,7 +1332,7 @@ function ApproveModal({
               style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
             >
               <CheckCircle className="w-5 h-5" />
-              Подтвердить
+              {language === 'ru' ? 'Подтвердить' : 'Tasdiqlash'}
             </button>
           </div>
         </div>
@@ -1221,7 +1404,7 @@ function RequestDetailsModal({
               request.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
               'bg-gray-100 text-gray-700'
             }`}>
-              {PRIORITY_LABELS[request.priority]}
+              {language === 'ru' ? PRIORITY_LABELS[request.priority] : PRIORITY_LABELS_UZ[request.priority]}
             </span>
           </div>
 
@@ -1302,13 +1485,20 @@ function CancelRequestModal({
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState('');
+  const { language } = useLanguageStore();
 
-  const predefinedReasons = [
+  const predefinedReasons = language === 'ru' ? [
     'Передумал/Не актуально',
     'Нашёл другого исполнителя',
     'Проблема решилась сама',
     'Ошибся при создании заявки',
     'Слишком долгое ожидание',
+  ] : [
+    'Qaror o\'zgardi/Dolzarb emas',
+    'Boshqa ijrochi topdim',
+    'Muammo o\'z-o\'zidan hal bo\'ldi',
+    'Ariza yaratishda xato qildim',
+    'Juda uzoq kutish',
   ];
 
   return (
@@ -1317,7 +1507,7 @@ function CancelRequestModal({
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-red-600 flex items-center gap-2">
             <Ban className="w-5 h-5" />
-            Отменить заявку
+            {language === 'ru' ? 'Отменить заявку' : 'Arizani bekor qilish'}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
@@ -1326,15 +1516,16 @@ function CancelRequestModal({
 
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-sm text-amber-800">
-            Вы уверены, что хотите отменить заявку <strong>#{request.number}</strong>?
-            Это действие нельзя отменить.
+            {language === 'ru'
+              ? <>Вы уверены, что хотите отменить заявку <strong>#{request.number}</strong>? Это действие нельзя отменить.</>
+              : <><strong>#{request.number}</strong> arizani bekor qilmoqchimisiz? Bu amalni ortga qaytarib bo&apos;lmaydi.</>}
           </p>
         </div>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Причина отмены
+              {language === 'ru' ? 'Причина отмены' : 'Bekor qilish sababi'}
             </label>
             <div className="flex flex-wrap gap-2 mb-3">
               {predefinedReasons.map((r) => (
@@ -1356,13 +1547,13 @@ function CancelRequestModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="input-field min-h-[80px]"
-              placeholder="Или укажите свою причину..."
+              placeholder={language === 'ru' ? 'Или укажите свою причину...' : 'Yoki o\'z sababingizni yozing...'}
             />
           </div>
 
           <div className="flex gap-3">
             <button onClick={onClose} className="btn-secondary flex-1">
-              Не отменять
+              {language === 'ru' ? 'Не отменять' : 'Bekor qilmaslik'}
             </button>
             <button
               onClick={() => reason.trim() && onConfirm(reason)}
@@ -1370,7 +1561,7 @@ function CancelRequestModal({
               disabled={!reason.trim()}
             >
               <Ban className="w-4 h-4 mr-2 inline" />
-              Отменить заявку
+              {language === 'ru' ? 'Отменить заявку' : 'Arizani bekor qilish'}
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { CheckCircle, Clock, Wrench, User, Star, XCircle, Phone, MessageCircle, RefreshCw } from 'lucide-react';
 import type { Request, RequestStatus } from '../types';
-import { SERVICE_CATEGORIES, SPECIALIZATION_LABELS } from '../types';
+import { SERVICE_CATEGORIES, SPECIALIZATION_LABELS, SPECIALIZATION_LABELS_UZ } from '../types';
 
 // Helper to get category info
 function getCategoryInfo(category: string) {
@@ -8,7 +8,7 @@ function getCategoryInfo(category: string) {
   return {
     icon: cat?.icon || '🔧',
     name: cat?.name || SPECIALIZATION_LABELS[category as keyof typeof SPECIALIZATION_LABELS] || category,
-    nameUz: cat?.name || category
+    nameUz: cat?.nameUz || SPECIALIZATION_LABELS_UZ[category as keyof typeof SPECIALIZATION_LABELS_UZ] || category
   };
 }
 
@@ -179,7 +179,7 @@ export function RequestStatusTracker({
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
       {/* Заголовок с иконкой услуги */}
-      <div className="p-4 bg-gradient-to-r from-primary-500 to-orange-400">
+      <div className="p-4 bg-gradient-to-r from-primary-500 to-primary-400">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">
             {categoryInfo.icon}
@@ -440,7 +440,7 @@ export function RequestStatusTrackerCompact({
       className="w-full bg-white rounded-2xl shadow-sm overflow-hidden text-left hover:shadow-md transition-shadow active:scale-[0.99]"
     >
       {/* Header с градиентом */}
-      <div className="p-4 bg-gradient-to-r from-primary-500/10 to-orange-400/10">
+      <div className="p-4 bg-gradient-to-r from-primary-500/10 to-primary-400/10">
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
             {categoryInfo.icon}

@@ -163,8 +163,8 @@ export function ExecutorDashboard() {
       console.error('Failed to update order status:', error);
       // Refresh orders to get current state
       await Promise.all([fetchMarketplaceOrders(), fetchDeliveredMarketplaceOrders()]);
-      const errorMsg = error?.message || 'Ошибка при обновлении статуса';
-      alert(language === 'ru' ? errorMsg : 'Status yangilashda xatolik');
+      const errorMsg = error?.message || (language === 'ru' ? 'Ошибка при обновлении статуса' : 'Status yangilashda xatolik');
+      alert(errorMsg);
     }
   };
 
@@ -187,7 +187,7 @@ export function ExecutorDashboard() {
       }
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, fetchDeliveredMarketplaceOrders, user?.specialization]);
+  }, [fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, fetchDeliveredMarketplaceOrders, user?.specialization]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
   const [deliveryTimers, setDeliveryTimers] = useState<Record<string, number>>({});
@@ -343,7 +343,7 @@ export function ExecutorDashboard() {
   // For couriers: "Мои доставки" first, then "Доступные", "Назначенные", "Доставленные" (no "В работе")
   const tabs = user?.specialization === 'courier'
     ? [
-        { id: 'marketplace' as const, label: language === 'ru' ? 'Мои доставки' : 'Mening yetkazishlarim', count: activeMarketplaceOrders.length, color: 'bg-orange-500', icon: ShoppingBag },
+        { id: 'marketplace' as const, label: language === 'ru' ? 'Мои доставки' : 'Mening yetkazishlarim', count: activeMarketplaceOrders.length, color: 'bg-primary-500', icon: ShoppingBag },
         { id: 'available' as const, label: language === 'ru' ? 'Доступные' : 'Mavjud', count: availableCount, color: 'bg-purple-500', icon: FileText },
         { id: 'assigned' as const, label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', count: assignedCount, color: 'bg-blue-500', icon: Clock },
         { id: 'delivered' as const, label: language === 'ru' ? 'Доставленные' : 'Yetkazilganlar', count: completedMarketplaceOrders.length, color: 'bg-emerald-500', icon: CheckCircle },
@@ -384,7 +384,7 @@ export function ExecutorDashboard() {
   const handleStartWork = (requestId: string) => {
     // Check if there's already work in progress
     if (inProgressRequests.length > 0) {
-      alert('Сначала завершите текущую работу');
+      alert(language === 'ru' ? 'Сначала завершите текущую работу' : 'Avval joriy ishni yakunlang');
       return;
     }
     startWork(requestId);
@@ -415,6 +415,8 @@ export function ExecutorDashboard() {
         setShowDeclineModal(false);
         setRequestToDecline(null);
         setSelectedRequest(null);
+        // Async sync with server
+        fetchRequests();
       } catch (error) {
         console.error('Failed to decline request:', error);
         // Error will be handled by declineRequest rollback, just close modal
@@ -430,10 +432,12 @@ export function ExecutorDashboard() {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">
-            {user?.specialization === 'courier' ? 'Мои заказы' : 'Мои заявки'}
+            {user?.specialization === 'courier'
+              ? (language === 'ru' ? 'Мои заказы' : 'Mening buyurtmalarim')
+              : (language === 'ru' ? 'Мои заявки' : 'Mening arizalarim')}
           </h1>
           <p className="text-sm md:text-base text-gray-500 mt-1 truncate">
-            {user?.name} • {SPECIALIZATION_LABELS[user?.specialization as ExecutorSpecialization] || 'Исполнитель'}
+            {user?.name} • {SPECIALIZATION_LABELS[user?.specialization as ExecutorSpecialization] || (language === 'ru' ? 'Исполнитель' : 'Ijrochi')}
           </p>
         </div>
         <div className="flex-shrink-0">
@@ -442,8 +446,8 @@ export function ExecutorDashboard() {
             currentExecutor?.status === 'busy' ? 'bg-amber-100 text-amber-700' :
             'bg-gray-100 text-gray-600'
           }`}>
-            {currentExecutor?.status === 'available' ? 'Доступен' :
-             currentExecutor?.status === 'busy' ? 'Занят' : 'Оффлайн'}
+            {currentExecutor?.status === 'available' ? (language === 'ru' ? 'Доступен' : 'Mavjud') :
+             currentExecutor?.status === 'busy' ? (language === 'ru' ? 'Занят' : 'Band') : (language === 'ru' ? 'Оффлайн' : 'Oflayn')}
           </div>
         </div>
       </div>
@@ -491,7 +495,7 @@ export function ExecutorDashboard() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <div className="glass-card p-3 md:p-5">
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
               <Star className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </div>
             <div className="min-w-0">
@@ -579,7 +583,9 @@ export function ExecutorDashboard() {
           <div className="flex items-center gap-2 mb-3 md:mb-4">
             <div className={`w-3 h-3 rounded-full ${inProgressRequests[0]?.isPaused ? 'bg-gray-500' : 'bg-amber-500 animate-pulse'}`} />
             <span className={`font-medium ${inProgressRequests[0]?.isPaused ? 'text-gray-700' : 'text-amber-700'}`}>
-              {inProgressRequests[0]?.isPaused ? 'Работа приостановлена' : 'Активная работа'}
+              {inProgressRequests[0]?.isPaused
+                ? (language === 'ru' ? 'Работа приостановлена' : 'Ish to\'xtatildi')
+                : (language === 'ru' ? 'Активная работа' : 'Faol ish')}
             </span>
           </div>
           {inProgressRequests.map(req => (
@@ -594,7 +600,9 @@ export function ExecutorDashboard() {
                     {formatTime(activeTimers[req.id] || 0)}
                   </div>
                   <div className="text-xs md:text-sm text-gray-500">
-                    {req.isPaused ? 'Пауза' : 'Время работы'}
+                    {req.isPaused
+                      ? (language === 'ru' ? 'Пауза' : 'Pauza')
+                      : (language === 'ru' ? 'Время работы' : 'Ish vaqti')}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -605,7 +613,7 @@ export function ExecutorDashboard() {
                       style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}
                     >
                       <PlayCircle className="w-5 h-5" />
-                      <span className="hidden md:inline">Продолжить</span>
+                      <span className="hidden md:inline">{language === 'ru' ? 'Продолжить' : 'Davom etish'}</span>
                     </button>
                   ) : (
                     <button
@@ -613,7 +621,7 @@ export function ExecutorDashboard() {
                       className="py-3 px-4 md:px-5 rounded-xl font-semibold text-gray-700 bg-white border-2 border-gray-300 flex items-center gap-2 active:scale-95 transition-transform touch-manipulation"
                     >
                       <Pause className="w-5 h-5" />
-                      <span className="hidden md:inline">Пауза</span>
+                      <span className="hidden md:inline">{language === 'ru' ? 'Пауза' : 'Pauza'}</span>
                     </button>
                   )}
                   <button
@@ -622,8 +630,8 @@ export function ExecutorDashboard() {
                     style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
                   >
                     <Check className="w-5 h-5" />
-                    <span className="hidden md:inline">Завершить</span>
-                    <span className="md:hidden">Готово</span>
+                    <span className="hidden md:inline">{language === 'ru' ? 'Завершить' : 'Tugatish'}</span>
+                    <span className="md:hidden">{language === 'ru' ? 'Готово' : 'Tayyor'}</span>
                   </button>
                 </div>
               </div>
@@ -661,13 +669,13 @@ export function ExecutorDashboard() {
             <div className="space-y-4">
               {isLoadingOrders ? (
                 <div className="glass-card p-8 text-center">
-                  <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4" />
+                  <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4" />
                   <p className="text-gray-500">{language === 'ru' ? 'Загрузка заказов...' : 'Buyurtmalar yuklanmoqda...'}</p>
                 </div>
               ) : activeMarketplaceOrders.length === 0 ? (
                 <div className="glass-card p-8 text-center">
-                  <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <ShoppingBag className="w-8 h-8 text-orange-400" />
+                  <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ShoppingBag className="w-8 h-8 text-primary-400" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-600">
                     {language === 'ru' ? 'Нет активных доставок' : 'Faol yetkazishlar yo\'q'}
@@ -730,9 +738,9 @@ export function ExecutorDashboard() {
               {activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-orange-500" />
+                    <ShoppingBag className="w-4 h-4 text-primary-500" />
                     {language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari'}
-                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs">
+                    <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
                       {availableMarketplaceOrders.length}
                     </span>
                   </h3>
@@ -816,17 +824,19 @@ export function ExecutorDashboard() {
                     <FileText className="w-8 h-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-600">
-                    {user?.specialization === 'courier' ? 'Нет заказов' : 'Нет заявок'}
+                    {user?.specialization === 'courier'
+                      ? (language === 'ru' ? 'Нет заказов' : 'Buyurtmalar yo\'q')
+                      : (language === 'ru' ? 'Нет заявок' : 'Arizalar yo\'q')}
                   </h3>
                   <p className="text-gray-400 mt-1">
                     {activeTab === 'available' && (user?.specialization === 'courier'
-                      ? 'Нет доступных заказов по вашей специализации'
-                      : 'Нет доступных заявок по вашей специализации')}
+                      ? (language === 'ru' ? 'Нет доступных заказов по вашей специализации' : 'Sizning mutaxassisligingiz bo\'yicha mavjud buyurtmalar yo\'q')
+                      : (language === 'ru' ? 'Нет доступных заявок по вашей специализации' : 'Sizning mutaxassisligingiz bo\'yicha mavjud arizalar yo\'q'))}
                     {activeTab === 'assigned' && (user?.specialization === 'courier'
-                      ? 'Нет назначенных заказов'
-                      : 'Нет назначенных заявок')}
-                    {activeTab === 'in_progress' && 'Нет заявок в работе'}
-                    {activeTab === 'completed' && 'Нет выполненных заявок'}
+                      ? (language === 'ru' ? 'Нет назначенных заказов' : 'Tayinlangan buyurtmalar yo\'q')
+                      : (language === 'ru' ? 'Нет назначенных заявок' : 'Tayinlangan arizalar yo\'q'))}
+                    {activeTab === 'in_progress' && (language === 'ru' ? 'Нет заявок в работе' : 'Ishda arizalar yo\'q')}
+                    {activeTab === 'completed' && (language === 'ru' ? 'Нет выполненных заявок' : 'Bajarilgan arizalar yo\'q')}
                   </p>
                 </div>
               )}
@@ -963,6 +973,7 @@ function RequestCard({
   onReschedule: () => void;
   formatTime: (s: number) => string;
 }) {
+  const { language } = useLanguageStore();
   // Can decline/release if assigned, accepted, or in_progress (for illness, etc.)
   const canDecline = ['assigned', 'accepted', 'in_progress'].includes(request.status);
   const getPriorityColor = (priority: string) => {
@@ -977,12 +988,12 @@ function RequestCard({
   const getStatusBadge = (status: RequestStatus) => {
     const baseClass = "px-2 py-1 rounded-lg text-xs font-medium";
     switch (status) {
-      case 'new': return <span className={`${baseClass} bg-purple-100 text-purple-700`}>Новая</span>;
-      case 'assigned': return <span className={`${baseClass} bg-blue-100 text-blue-700`}>Назначена</span>;
-      case 'accepted': return <span className={`${baseClass} bg-cyan-100 text-cyan-700`}>Принята</span>;
-      case 'in_progress': return <span className={`${baseClass} bg-amber-100 text-amber-700`}>В работе</span>;
-      case 'pending_approval': return <span className={`${baseClass} bg-purple-100 text-purple-700`}>Ожидает</span>;
-      case 'completed': return <span className={`${baseClass} bg-green-100 text-green-700`}>Выполнена</span>;
+      case 'new': return <span className={`${baseClass} bg-purple-100 text-purple-700`}>{language === 'ru' ? 'Новая' : 'Yangi'}</span>;
+      case 'assigned': return <span className={`${baseClass} bg-blue-100 text-blue-700`}>{language === 'ru' ? 'Назначена' : 'Tayinlangan'}</span>;
+      case 'accepted': return <span className={`${baseClass} bg-cyan-100 text-cyan-700`}>{language === 'ru' ? 'Принята' : 'Qabul qilingan'}</span>;
+      case 'in_progress': return <span className={`${baseClass} bg-amber-100 text-amber-700`}>{language === 'ru' ? 'В работе' : 'Ishda'}</span>;
+      case 'pending_approval': return <span className={`${baseClass} bg-purple-100 text-purple-700`}>{language === 'ru' ? 'Ожидает' : 'Kutilmoqda'}</span>;
+      case 'completed': return <span className={`${baseClass} bg-green-100 text-green-700`}>{language === 'ru' ? 'Выполнена' : 'Bajarilgan'}</span>;
       default: return <span className={baseClass}>{STATUS_LABELS[status]}</span>;
     }
   };
@@ -1007,6 +1018,22 @@ function RequestCard({
           <h3 className="font-semibold text-base md:text-lg leading-tight truncate">{request.title}</h3>
           <p className="text-gray-600 text-sm line-clamp-2 mt-1">{request.description}</p>
 
+          {/* Trash type and volume badges */}
+          {request.category === 'trash' && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {request.title.includes(': ') && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                  🗑️ {request.title.split(': ').slice(1).join(': ')}
+                </span>
+              )}
+              {request.description?.includes('Объём: ') && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                  📦 {request.description.split('Объём: ')[1].split('\n')[0]}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Contact info - compact on mobile */}
           <div className="flex flex-wrap items-center gap-2 mt-3 text-xs md:text-sm text-gray-500">
             <span className="flex items-center gap-1">
@@ -1019,7 +1046,7 @@ function RequestCard({
               className="flex items-center gap-1 text-primary-600 active:text-primary-800"
             >
               <Phone className="w-3.5 h-3.5" />
-              <span>Позвонить</span>
+              <span>{language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq qilish'}</span>
             </a>
           </div>
 
@@ -1044,15 +1071,15 @@ function RequestCard({
           {['assigned', 'accepted', 'in_progress'].includes(request.status) && (
             <div className="mt-3 p-2 bg-gray-50 rounded-lg">
               <div className="text-xs text-gray-500">
-                <span className="text-gray-400">Приоритет: </span>
+                <span className="text-gray-400">{language === 'ru' ? 'Приоритет: ' : 'Ustuvorlik: '}</span>
                 <span className={`font-medium ${
                   request.priority === 'urgent' ? 'text-red-600' :
                   request.priority === 'high' ? 'text-orange-600' :
                   request.priority === 'medium' ? 'text-amber-600' : 'text-gray-600'
                 }`}>
-                  {request.priority === 'urgent' ? 'Срочный' :
-                   request.priority === 'high' ? 'Высокий' :
-                   request.priority === 'medium' ? 'Средний' : 'Низкий'}
+                  {request.priority === 'urgent' ? (language === 'ru' ? 'Срочный' : 'Shoshilinch') :
+                   request.priority === 'high' ? (language === 'ru' ? 'Высокий' : 'Yuqori') :
+                   request.priority === 'medium' ? (language === 'ru' ? 'Средний' : 'O\'rta') : (language === 'ru' ? 'Низкий' : 'Past')}
                 </span>
               </div>
             </div>
@@ -1065,7 +1092,7 @@ function RequestCard({
               className="mt-3 w-full py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98] touch-manipulation"
             >
               <RefreshCw className="w-4 h-4" />
-              Перенести на другое время
+              {language === 'ru' ? 'Перенести на другое время' : 'Boshqa vaqtga o\'tkazish'}
             </button>
           )}
 
@@ -1085,7 +1112,7 @@ function RequestCard({
           {request.status === 'pending_approval' && (
             <div className="mt-2 text-xs text-purple-600 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
-              Ожидание подтверждения
+              {language === 'ru' ? 'Ожидание подтверждения' : 'Tasdiq kutilmoqda'}
             </div>
           )}
 
@@ -1094,7 +1121,7 @@ function RequestCard({
             <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center gap-1 text-red-700 font-medium text-xs">
                 <AlertCircle className="w-3.5 h-3.5" />
-                Требуется доработка
+                {language === 'ru' ? 'Требуется доработка' : 'Qayta ishlash kerak'}
               </div>
               <p className="text-xs text-red-600 mt-1 line-clamp-2">{request.rejectionReason}</p>
             </div>
@@ -1110,7 +1137,9 @@ function RequestCard({
             className="py-3 px-4 text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-colors touch-manipulation"
           >
             <XCircle className="w-4 h-4" />
-            <span className="hidden md:inline">{request.status === 'in_progress' ? 'Освободить' : 'Отказаться'}</span>
+            <span className="hidden md:inline">{request.status === 'in_progress'
+              ? (language === 'ru' ? 'Освободить' : 'Bo\'shatish')
+              : (language === 'ru' ? 'Отказаться' : 'Rad etish')}</span>
           </button>
         )}
         {request.status === 'new' && (
@@ -1120,7 +1149,7 @@ function RequestCard({
             style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
           >
             <Hand className="w-5 h-5" />
-            Взять заявку
+            {language === 'ru' ? 'Взять заявку' : 'Arizani olish'}
           </button>
         )}
         {request.status === 'assigned' && (
@@ -1129,14 +1158,14 @@ function RequestCard({
             className="flex-1 py-3 px-4 rounded-xl font-semibold bg-white border-2 border-gray-200 text-gray-700 flex items-center justify-center gap-2 active:scale-[0.98] active:bg-gray-50 transition-all touch-manipulation"
           >
             <Check className="w-5 h-5" />
-            Принять
+            {language === 'ru' ? 'Принять' : 'Qabul qilish'}
           </button>
         )}
         {request.status === 'accepted' && (
           hasActiveWork ? (
             <div className="flex-1 py-3 px-4 rounded-xl font-medium bg-gray-100 text-gray-500 flex items-center justify-center gap-2 text-sm">
               <AlertCircle className="w-4 h-4" />
-              Сначала завершите текущую работу
+              {language === 'ru' ? 'Сначала завершите текущую работу' : 'Avval joriy ishni tugatish'}
             </div>
           ) : (
             <button
@@ -1145,7 +1174,7 @@ function RequestCard({
               style={{ background: 'linear-gradient(135deg, #FFE500, #FFC700)', color: '#000' }}
             >
               <Play className="w-5 h-5" />
-              Начать работу
+              {language === 'ru' ? 'Начать работу' : 'Ishni boshlash'}
             </button>
           )
         )}
@@ -1158,7 +1187,7 @@ function RequestCard({
                 style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}
               >
                 <PlayCircle className="w-5 h-5" />
-                Продолжить
+                {language === 'ru' ? 'Продолжить' : 'Davom etish'}
               </button>
             ) : (
               <button
@@ -1174,7 +1203,7 @@ function RequestCard({
               style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
             >
               <Check className="w-5 h-5" />
-              Завершить
+              {language === 'ru' ? 'Завершить' : 'Tugatish'}
             </button>
           </div>
         )}
@@ -1207,6 +1236,7 @@ function RequestDetailsModal({
   onReschedule: () => void;
   formatTime: (s: number) => string;
 }) {
+  const { language } = useLanguageStore();
   // Can decline/release if assigned, accepted, or in_progress (for illness, etc.)
   const canDecline = ['assigned', 'accepted', 'in_progress'].includes(request.status);
   // Can reschedule if assigned, accepted, or in_progress
@@ -1223,10 +1253,10 @@ function RequestDetailsModal({
 
   const getPriorityLabel = (priority: string) => {
     switch (priority) {
-      case 'urgent': return { label: 'Срочно', color: 'text-red-600 bg-red-50' };
-      case 'high': return { label: 'Высокий', color: 'text-orange-600 bg-orange-50' };
-      case 'medium': return { label: 'Средний', color: 'text-amber-600 bg-amber-50' };
-      default: return { label: 'Низкий', color: 'text-gray-600 bg-gray-50' };
+      case 'urgent': return { label: language === 'ru' ? 'Срочно' : 'Shoshilinch', color: 'text-red-600 bg-red-50' };
+      case 'high': return { label: language === 'ru' ? 'Высокий' : 'Yuqori', color: 'text-orange-600 bg-orange-50' };
+      case 'medium': return { label: language === 'ru' ? 'Средний' : 'O\'rta', color: 'text-amber-600 bg-amber-50' };
+      default: return { label: language === 'ru' ? 'Низкий' : 'Past', color: 'text-gray-600 bg-gray-50' };
     }
   };
 
@@ -1237,7 +1267,7 @@ function RequestDetailsModal({
       <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="text-sm text-gray-500">Заявка #{request.number}</div>
+            <div className="text-sm text-gray-500">{language === 'ru' ? 'Заявка' : 'Ariza'} #{request.number}</div>
             <h2 className="text-xl font-bold">{request.title}</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
@@ -1251,7 +1281,7 @@ function RequestDetailsModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
-                <span className="font-medium text-amber-700">Работа в процессе</span>
+                <span className="font-medium text-amber-700">{language === 'ru' ? 'Работа в процессе' : 'Ish jarayonda'}</span>
               </div>
               <div className="text-3xl font-mono font-bold text-amber-600">
                 {formatTime(timerSeconds)}
@@ -1265,18 +1295,20 @@ function RequestDetailsModal({
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
             <div className="flex items-center gap-2 text-red-700 font-medium mb-2">
               <AlertCircle className="w-5 h-5" />
-              <span>Работа отклонена - требуется доработка</span>
+              <span>{language === 'ru' ? 'Работа отклонена - требуется доработка' : 'Ish rad etildi - qayta ishlash kerak'}</span>
               {request.rejectionCount && request.rejectionCount > 1 && (
                 <span className="text-xs bg-red-100 px-2 py-0.5 rounded">
-                  {request.rejectionCount}-й раз
+                  {request.rejectionCount}-{language === 'ru' ? 'й раз' : 'marta'}
                 </span>
               )}
             </div>
             <p className="text-red-600 mb-3">
-              <span className="font-medium">Причина отклонения:</span> {request.rejectionReason}
+              <span className="font-medium">{language === 'ru' ? 'Причина отклонения:' : 'Rad etish sababi:'}</span> {request.rejectionReason}
             </p>
             <p className="text-sm text-red-600/80">
-              Пожалуйста, устраните проблему и завершите работу снова. После выполнения нажмите "Завершить работу".
+              {language === 'ru'
+                ? 'Пожалуйста, устраните проблему и завершите работу снова. После выполнения нажмите "Завершить работу".'
+                : 'Iltimos, muammoni bartaraf eting va ishni qaytadan tugating. Bajarilgandan so\'ng "Ishni tugatish" tugmasini bosing.'}
             </p>
           </div>
         )}
@@ -1294,7 +1326,7 @@ function RequestDetailsModal({
 
           {/* Description */}
           <div>
-            <h3 className="text-sm font-medium text-gray-500 mb-1">Описание</h3>
+            <h3 className="text-sm font-medium text-gray-500 mb-1">{language === 'ru' ? 'Описание' : 'Tavsif'}</h3>
             <p className="text-gray-900">{request.description}</p>
           </div>
 
@@ -1303,7 +1335,7 @@ function RequestDetailsModal({
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <h3 className="font-medium text-blue-800 flex items-center gap-2 mb-2">
                 <CalendarDays className="w-4 h-4" />
-                Желаемое время выполнения
+                {language === 'ru' ? 'Желаемое время выполнения' : 'Bajarish uchun kerakli vaqt'}
               </h3>
               <div className="flex items-center gap-4 text-blue-700">
                 <span>{new Date(request.scheduledDate).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
@@ -1319,7 +1351,7 @@ function RequestDetailsModal({
 
           {/* Resident Info */}
           <div className="bg-white/30 rounded-xl p-4 space-y-3">
-            <h3 className="font-medium">Информация о жителе</h3>
+            <h3 className="font-medium">{language === 'ru' ? 'Информация о жителе' : 'Yashovchi haqida'}</h3>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-gray-400" />
@@ -1337,7 +1369,7 @@ function RequestDetailsModal({
               </div>
               {request.accessInfo && (
                 <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="text-xs text-amber-700 font-medium mb-1">🔑 Доступ в квартиру:</div>
+                  <div className="text-xs text-amber-700 font-medium mb-1">🔑 {language === 'ru' ? 'Доступ в квартиру:' : 'Kvartiraga kirish:'}</div>
                   <div className="text-sm text-amber-900">{request.accessInfo}</div>
                 </div>
               )}
@@ -1346,46 +1378,46 @@ function RequestDetailsModal({
 
           {/* Timeline */}
           <div className="bg-white/30 rounded-xl p-4 space-y-3">
-            <h3 className="font-medium">История</h3>
+            <h3 className="font-medium">{language === 'ru' ? 'История' : 'Tarix'}</h3>
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Создана</span>
+                <span className="text-gray-500">{language === 'ru' ? 'Создана' : 'Yaratildi'}</span>
                 <span>{formatDate(request.createdAt)}</span>
               </div>
               {request.assignedAt && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Назначена</span>
+                  <span className="text-gray-500">{language === 'ru' ? 'Назначена' : 'Tayinlandi'}</span>
                   <span>{formatDate(request.assignedAt)}</span>
                 </div>
               )}
               {request.acceptedAt && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Принята</span>
+                  <span className="text-gray-500">{language === 'ru' ? 'Принята' : 'Qabul qilindi'}</span>
                   <span>{formatDate(request.acceptedAt)}</span>
                 </div>
               )}
               {request.startedAt && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Работа начата</span>
+                  <span className="text-gray-500">{language === 'ru' ? 'Работа начата' : 'Ish boshlandi'}</span>
                   <span>{formatDate(request.startedAt)}</span>
                 </div>
               )}
               {request.completedAt && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Работа завершена</span>
+                  <span className="text-gray-500">{language === 'ru' ? 'Работа завершена' : 'Ish tugallandi'}</span>
                   <span>{formatDate(request.completedAt)}</span>
                 </div>
               )}
               {request.approvedAt && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Подтверждена</span>
+                  <span className="text-gray-500">{language === 'ru' ? 'Подтверждена' : 'Tasdiqlandi'}</span>
                   <span>{formatDate(request.approvedAt)}</span>
                 </div>
               )}
               {request.workDuration && (
                 <div className="flex items-center justify-between border-t pt-2 mt-2">
-                  <span className="text-gray-500">Время работы</span>
-                  <span className="font-medium">{Math.round(request.workDuration / 60)} мин</span>
+                  <span className="text-gray-500">{language === 'ru' ? 'Время работы' : 'Ish vaqti'}</span>
+                  <span className="font-medium">{Math.round(request.workDuration / 60)} {language === 'ru' ? 'мин' : 'daq'}</span>
                 </div>
               )}
             </div>
@@ -1394,7 +1426,7 @@ function RequestDetailsModal({
           {/* Rating if completed */}
           {request.status === 'completed' && request.rating && (
             <div className="bg-white/30 rounded-xl p-4">
-              <h3 className="font-medium mb-2">Оценка</h3>
+              <h3 className="font-medium mb-2">{language === 'ru' ? 'Оценка' : 'Baho'}</h3>
               <div className="flex items-center gap-2">
                 {[1, 2, 3, 4, 5].map(star => (
                   <Star
@@ -1419,7 +1451,7 @@ function RequestDetailsModal({
               className="btn-secondary flex-1 flex items-center justify-center gap-2"
             >
               <Phone className="w-4 h-4" />
-              Позвонить
+              {language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq qilish'}
             </a>
             {request.status === 'new' && (
               <button
@@ -1428,19 +1460,19 @@ function RequestDetailsModal({
                 style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
               >
                 <Hand className="w-4 h-4" />
-                Взять заявку
+                {language === 'ru' ? 'Взять заявку' : 'Arizani olish'}
               </button>
             )}
             {request.status === 'assigned' && (
               <button onClick={onAccept} className="btn-primary flex-1 flex items-center justify-center gap-2">
                 <Check className="w-4 h-4" />
-                Принять заявку
+                {language === 'ru' ? 'Принять заявку' : 'Arizani qabul qilish'}
               </button>
             )}
             {request.status === 'accepted' && (
               <button onClick={onStartWork} className="btn-primary flex-1 flex items-center justify-center gap-2">
                 <Play className="w-4 h-4" />
-                Начать работу
+                {language === 'ru' ? 'Начать работу' : 'Ishni boshlash'}
               </button>
             )}
             {request.status === 'in_progress' && (
@@ -1450,7 +1482,7 @@ function RequestDetailsModal({
                 style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
               >
                 <Check className="w-4 h-4" />
-                Завершить
+                {language === 'ru' ? 'Завершить' : 'Tugatish'}
               </button>
             )}
           </div>
@@ -1460,7 +1492,7 @@ function RequestDetailsModal({
               className="w-full py-3 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-medium flex items-center justify-center gap-2 transition-all"
             >
               <RefreshCw className="w-4 h-4" />
-              Перенести на другое время
+              {language === 'ru' ? 'Перенести на другое время' : 'Boshqa vaqtga o\'tkazish'}
             </button>
           )}
           {canDecline && (
@@ -1469,7 +1501,9 @@ function RequestDetailsModal({
               className="w-full py-2 px-4 rounded-xl font-medium text-red-600 border border-red-300 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
             >
               <XCircle className="w-4 h-4" />
-              {request.status === 'in_progress' ? 'Освободить заявку' : 'Отказаться от заявки'}
+              {request.status === 'in_progress'
+                ? (language === 'ru' ? 'Освободить заявку' : 'Arizani bo\'shatish')
+                : (language === 'ru' ? 'Отказаться от заявки' : 'Arizadan voz kechish')}
             </button>
           )}
         </div>
@@ -1488,22 +1522,39 @@ function DeclineRequestModal({
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }) {
+  const { language } = useLanguageStore();
   const [reason, setReason] = useState('');
   const isInProgress = request.status === 'in_progress';
 
-  const predefinedReasons = isInProgress ? [
-    'Заболел/Не могу продолжить работу',
-    'Необходима помощь другого специалиста',
-    'Нет необходимых материалов для завершения',
-    'Срочные личные обстоятельства',
-    'Требуется другая специализация',
-  ] : [
-    'Не смогу прибыть в указанное время',
-    'Нет необходимых материалов/инструментов',
-    'Заболел/Не могу работать',
-    'Слишком далеко от текущего местоположения',
-    'Загружен другими заявками',
-  ];
+  const predefinedReasons = isInProgress ? (
+    language === 'ru' ? [
+      'Заболел/Не могу продолжить работу',
+      'Необходима помощь другого специалиста',
+      'Нет необходимых материалов для завершения',
+      'Срочные личные обстоятельства',
+      'Требуется другая специализация',
+    ] : [
+      'Kasal bo\'ldim/Ishni davom ettira olmayman',
+      'Boshqa mutaxassis yordami kerak',
+      'Tugatish uchun kerakli materiallar yo\'q',
+      'Shoshilinch shaxsiy holatlar',
+      'Boshqa mutaxassislik talab qilinadi',
+    ]
+  ) : (
+    language === 'ru' ? [
+      'Не смогу прибыть в указанное время',
+      'Нет необходимых материалов/инструментов',
+      'Заболел/Не могу работать',
+      'Слишком далеко от текущего местоположения',
+      'Загружен другими заявками',
+    ] : [
+      'Ko\'rsatilgan vaqtda kelolmayman',
+      'Kerakli materiallar/asboblar yo\'q',
+      'Kasal bo\'ldim/Ishlay olmayman',
+      'Hozirgi joydan juda uzoq',
+      'Boshqa arizalar bilan band',
+    ]
+  );
 
   return (
     <div className="modal-backdrop">
@@ -1511,7 +1562,9 @@ function DeclineRequestModal({
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-red-600 flex items-center gap-2">
             <Ban className="w-5 h-5" />
-            {isInProgress ? 'Освободить заявку' : 'Отказаться от заявки'}
+            {isInProgress
+              ? (language === 'ru' ? 'Освободить заявку' : 'Arizani bo\'shatish')
+              : (language === 'ru' ? 'Отказаться от заявки' : 'Arizadan voz kechish')}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
@@ -1520,15 +1573,16 @@ function DeclineRequestModal({
 
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-sm text-amber-800">
-            Заявка <strong>#{request.number}</strong> будет возвращена в очередь и может быть назначена другому исполнителю.
-            {isInProgress && ' Прогресс работы будет сброшен.'}
+            {language === 'ru'
+              ? <>Заявка <strong>#{request.number}</strong> будет возвращена в очередь и может быть назначена другому исполнителю.{isInProgress && ' Прогресс работы будет сброшен.'}</>
+              : <><strong>#{request.number}</strong> ariza navbatga qaytariladi va boshqa ijrochiga tayinlanishi mumkin.{isInProgress && ' Ish jarayoni tiklanadi.'}</>}
           </p>
         </div>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Причина отказа
+              {language === 'ru' ? 'Причина отказа' : 'Rad etish sababi'}
             </label>
             <div className="flex flex-wrap gap-2 mb-3">
               {predefinedReasons.map((r) => (
@@ -1550,13 +1604,13 @@ function DeclineRequestModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="input-field min-h-[80px]"
-              placeholder="Или укажите свою причину..."
+              placeholder={language === 'ru' ? 'Или укажите свою причину...' : 'Yoki o\'z sababingizni ko\'rsating...'}
             />
           </div>
 
           <div className="flex gap-3">
             <button onClick={onClose} className="btn-secondary flex-1">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button
               onClick={() => reason.trim() && onConfirm(reason)}
@@ -1564,7 +1618,9 @@ function DeclineRequestModal({
               disabled={!reason.trim()}
             >
               <Ban className="w-4 h-4 mr-2 inline" />
-              {isInProgress ? 'Освободить' : 'Отказаться'}
+              {isInProgress
+                ? (language === 'ru' ? 'Освободить' : 'Bo\'shatish')
+                : (language === 'ru' ? 'Отказаться' : 'Rad etish')}
             </button>
           </div>
         </div>
@@ -1737,7 +1793,7 @@ function RescheduleResponseModal({
               {reschedule.initiatorName} {language === 'ru' ? 'предлагает перенести на:' : 'taklif qiladi:'}
             </div>
             <div className="text-xl font-bold text-amber-600 mt-2">
-              {reschedule.proposedDate} в {reschedule.proposedTime}
+              {reschedule.proposedDate} {language === 'ru' ? 'в' : 'soat'} {reschedule.proposedTime}
             </div>
             <div className="text-sm text-gray-600 mt-2">
               <strong>{language === 'ru' ? 'Причина:' : 'Sabab:'}</strong>{' '}
@@ -2022,9 +2078,9 @@ function MarketplaceOrderCard({
   const getNextStatus = () => {
     const transitions: Record<string, string> = {
       confirmed: 'preparing',
-      preparing: 'delivering',
-      delivering: 'ready',
-      ready: 'delivered',
+      preparing: 'ready',
+      ready: 'delivering',
+      delivering: 'delivered',
     };
     return transitions[order.status];
   };
@@ -2032,9 +2088,9 @@ function MarketplaceOrderCard({
   const getNextStatusLabel = () => {
     const labels: Record<string, { ru: string; uz: string }> = {
       preparing: { ru: 'Начать сборку', uz: 'Yig\'ishni boshlash' },
+      ready: { ru: 'Готов к выдаче', uz: 'Topshirishga tayyor' },
       delivering: { ru: 'Начать доставку', uz: 'Yetkazishni boshlash' },
-      ready: { ru: 'Доставлено клиенту', uz: 'Mijozga yetkazildi' },
-      delivered: { ru: 'Завершить', uz: 'Yakunlash' },
+      delivered: { ru: 'Доставлено', uz: 'Yetkazildi' },
     };
     const next = getNextStatus();
     return next ? labels[next] : null;
@@ -2046,7 +2102,7 @@ function MarketplaceOrderCard({
     <div className="glass-card p-4 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation" onClick={onView}>
       {/* Header */}
       <div className="flex items-start gap-3">
-        <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
           <ShoppingBag className="w-6 h-6 text-white" />
         </div>
         <div className="flex-1 min-w-0">
@@ -2100,7 +2156,7 @@ function MarketplaceOrderCard({
 
       {/* Product List */}
       {order.items && order.items.length > 0 && (
-        <div className="mt-3 p-2.5 bg-white/60 border border-orange-200 rounded-lg">
+        <div className="mt-3 p-2.5 bg-white/60 border border-primary-200 rounded-lg">
           <p className="text-xs font-medium text-gray-700 mb-2">{language === 'ru' ? 'Товары:' : 'Mahsulotlar:'}</p>
           <div className="space-y-1.5">
             {order.items.map((item, idx) => (
@@ -2177,9 +2233,9 @@ function MarketplaceOrderDetailsModal({
   const getNextStatus = () => {
     const transitions: Record<string, string> = {
       confirmed: 'preparing',
-      preparing: 'delivering',
-      delivering: 'ready',
-      ready: 'delivered',
+      preparing: 'ready',
+      ready: 'delivering',
+      delivering: 'delivered',
     };
     return transitions[order.status];
   };
@@ -2187,9 +2243,9 @@ function MarketplaceOrderDetailsModal({
   const getNextStatusLabel = () => {
     const labels: Record<string, { ru: string; uz: string; icon: typeof Package }> = {
       preparing: { ru: 'Начать сборку', uz: 'Yig\'ishni boshlash', icon: Package },
+      ready: { ru: 'Готов к выдаче', uz: 'Topshirishga tayyor', icon: Package },
       delivering: { ru: 'Начать доставку', uz: 'Yetkazishni boshlash', icon: User },
-      ready: { ru: 'Доставлено клиенту', uz: 'Mijozga yetkazildi', icon: CheckCircle },
-      delivered: { ru: 'Завершить', uz: 'Yakunlash', icon: CheckCircle },
+      delivered: { ru: 'Доставлено', uz: 'Yetkazildi', icon: CheckCircle },
     };
     const next = getNextStatus();
     return next ? labels[next] : null;
@@ -2219,16 +2275,16 @@ function MarketplaceOrderDetailsModal({
 
         <div className="space-y-4">
           {/* Order Info */}
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-xl flex items-center justify-center">
                 <ShoppingBag className="w-6 h-6 text-white" />
               </div>
               <div>
                 <div className="font-semibold text-gray-900">
                   {order.items_count} {language === 'ru' ? 'товар(ов)' : 'mahsulot'}
                 </div>
-                <div className="text-lg font-bold text-orange-600">
+                <div className="text-lg font-bold text-primary-600">
                   {order.total_amount.toLocaleString()} сум
                 </div>
               </div>

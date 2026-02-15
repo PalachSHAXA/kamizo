@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   QrCode, Search, Filter, X, Clock, CheckCircle, Ban, Package, Users, Car, User,
-  AlertTriangle, Calendar, Phone, MapPin, Eye, History
+  AlertTriangle, Calendar, Phone, MapPin, Eye, History, UserPlus, Loader2
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
@@ -13,7 +13,7 @@ import {
 
 export function ManagerGuestAccessPage() {
   const { user } = useAuthStore();
-  const { getAllGuestAccessCodes, revokeGuestAccessCode, getGuestAccessStats, getGuestAccessLogs } = useDataStore();
+  const { getAllGuestAccessCodes, revokeGuestAccessCode, getGuestAccessStats, getGuestAccessLogs, fetchGuestCodes, isLoadingGuestCodes } = useDataStore();
   const { language } = useLanguageStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,6 +23,11 @@ export function ManagerGuestAccessPage() {
   const [showRevokeModal, setShowRevokeModal] = useState<GuestAccessCode | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Fetch guest codes from API on mount
+  useEffect(() => {
+    fetchGuestCodes();
+  }, [fetchGuestCodes]);
 
   const allCodes = getAllGuestAccessCodes();
   const stats = getGuestAccessStats();
@@ -272,9 +277,17 @@ export function ManagerGuestAccessPage() {
           <h3 className="font-bold">
             {language === 'ru' ? 'Пропуска' : 'Ruxsatnomalar'} ({filteredCodes.length})
           </h3>
+          {isLoadingGuestCodes && (
+            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          )}
         </div>
 
-        {filteredCodes.length === 0 ? (
+        {isLoadingGuestCodes && filteredCodes.length === 0 ? (
+          <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
+          </div>
+        ) : filteredCodes.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             {language === 'ru' ? 'Пропуска не найдены' : 'Ruxsatnomalar topilmadi'}
           </div>
@@ -327,6 +340,26 @@ export function ManagerGuestAccessPage() {
                           {new Date(code.validUntil).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
                         </span>
                       </div>
+
+                      {/* Creator info */}
+                      {(code.creatorName || code.createdAt) && (
+                        <div className="mt-2 text-xs text-gray-500 flex items-center gap-2 bg-gray-50 px-2 py-1 rounded">
+                          <UserPlus className="w-3 h-3" />
+                          <span>
+                            {language === 'ru' ? 'Создал' : 'Yaratgan'}:{' '}
+                            <span className="font-medium">{code.creatorName || code.residentName}</span>
+                            {code.creatorApartment && ` (кв. ${code.creatorApartment})`}
+                            {' • '}
+                            {new Date(code.createdAt).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      )}
 
                       {code.revocationReason && (
                         <div className="mt-2 text-xs text-red-600 bg-red-50 px-2 py-1 rounded inline-block">

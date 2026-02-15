@@ -19,15 +19,7 @@ import { SPECIALIZATION_LABELS } from '../types';
 import { teamApi, apiRequest } from '../services/api';
 import ExcelJS from 'exceljs';
 
-const REQUEST_STATUS_LABELS: Record<string, string> = {
-  new: 'Новая',
-  assigned: 'Назначена',
-  accepted: 'Принята',
-  in_progress: 'В работе',
-  pending_approval: 'На проверке',
-  completed: 'Выполнена',
-  cancelled: 'Отменена',
-};
+// REQUEST_STATUS_LABELS moved to function component to access language
 
 // Modal component for details
 function DetailModal({
@@ -139,6 +131,16 @@ export function DirectorDashboard() {
   const { buildings, residents, fetchBuildings } = useCRMStore();
   const { meetings, fetchMeetings } = useMeetingStore();
   const { language } = useLanguageStore();
+
+  const REQUEST_STATUS_LABELS: Record<string, string> = {
+    new: language === 'ru' ? 'Новая' : 'Yangi',
+    assigned: language === 'ru' ? 'Назначена' : 'Tayinlangan',
+    accepted: language === 'ru' ? 'Принята' : 'Qabul qilindi',
+    in_progress: language === 'ru' ? 'В работе' : 'Jarayonda',
+    pending_approval: language === 'ru' ? 'На проверке' : 'Tekshiruvda',
+    completed: language === 'ru' ? 'Выполнена' : 'Bajarildi',
+    cancelled: language === 'ru' ? 'Отменена' : 'Bekor qilindi',
+  };
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeModal, setActiveModal] = useState<'requests' | 'staff' | 'buildings' | 'activity' | null>(null);
@@ -371,7 +373,7 @@ export function DirectorDashboard() {
     workbook.creator = 'Kamizo';
     workbook.created = new Date();
 
-    const formatCurrency = (value: number) => `${value.toLocaleString('ru-RU')} сум`;
+    const formatCurrency = (value: number) => `${value.toLocaleString('ru-RU')} ${language === 'ru' ? 'сум' : 'so\'m'}`;
 
     // Common styles
     const headerStyle: Partial<ExcelJS.Style> = {
@@ -414,36 +416,36 @@ export function DirectorDashboard() {
     };
 
     // ============ Sheet 1: Summary ============
-    const ws1 = workbook.addWorksheet('Сводный отчёт');
+    const ws1 = workbook.addWorksheet(language === 'ru' ? 'Сводный отчёт' : 'Umumiy hisobot');
     ws1.columns = [
       { width: 25 }, { width: 35 }, { width: 18 }, { width: 22 }, { width: 15 }
     ];
 
     // Title - merged and centered
-    const titleRow = ws1.addRow(['ОТЧЁТ ПО МАРКЕТПЛЕЙСУ']);
+    const titleRow = ws1.addRow([language === 'ru' ? 'ОТЧЁТ ПО МАРКЕТПЛЕЙСУ' : 'MARKETPLACE HISOBOTI']);
     ws1.mergeCells(`A${titleRow.number}:E${titleRow.number}`);
     titleRow.getCell(1).style = { font: { bold: true, size: 16 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    ws1.addRow(['Период:', `${marketplaceReport.period.start_date} — ${marketplaceReport.period.end_date}`]);
-    ws1.addRow(['Дата формирования:', new Date().toLocaleDateString('ru-RU')]);
+    ws1.addRow([language === 'ru' ? 'Период:' : 'Davr:', `${marketplaceReport.period.start_date} — ${marketplaceReport.period.end_date}`]);
+    ws1.addRow([language === 'ru' ? 'Дата формирования:' : 'Shakllantirish sanasi:', new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')]);
     ws1.addRow([]);
 
     // Overall Stats Section
-    const statsTitle = ws1.addRow(['ОБЩАЯ СТАТИСТИКА']);
+    const statsTitle = ws1.addRow([language === 'ru' ? 'ОБЩАЯ СТАТИСТИКА' : 'UMUMIY STATISTIKA']);
     ws1.mergeCells(`A${statsTitle.number}:E${statsTitle.number}`);
     statsTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const statsHeader = ws1.addRow(['Показатель', 'Значение']);
+    const statsHeader = ws1.addRow([language === 'ru' ? 'Показатель' : 'Ko\'rsatkich', language === 'ru' ? 'Значение' : 'Qiymat']);
     statsHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     const statsData = [
-      ['Всего заказов', marketplaceReport.overall.total_orders],
-      ['Доставлено заказов', marketplaceReport.overall.delivered_orders],
-      ['Отменено заказов', marketplaceReport.overall.cancelled_orders],
-      ['Общая выручка', formatCurrency(marketplaceReport.overall.total_revenue)],
-      ['Доход от доставки', formatCurrency(marketplaceReport.overall.total_delivery_fees)],
-      ['Средний рейтинг', `${marketplaceReport.overall.avg_rating.toFixed(1)} ⭐`],
-      ['Количество оценок', marketplaceReport.overall.rated_orders],
+      [language === 'ru' ? 'Всего заказов' : 'Jami buyurtmalar', marketplaceReport.overall.total_orders],
+      [language === 'ru' ? 'Доставлено заказов' : 'Yetkazilgan buyurtmalar', marketplaceReport.overall.delivered_orders],
+      [language === 'ru' ? 'Отменено заказов' : 'Bekor qilingan buyurtmalar', marketplaceReport.overall.cancelled_orders],
+      [language === 'ru' ? 'Общая выручка' : 'Umumiy daromad', formatCurrency(marketplaceReport.overall.total_revenue)],
+      [language === 'ru' ? 'Доход от доставки' : 'Yetkazishdan daromad', formatCurrency(marketplaceReport.overall.total_delivery_fees)],
+      [language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting', `${marketplaceReport.overall.avg_rating.toFixed(1)} ⭐`],
+      [language === 'ru' ? 'Количество оценок' : 'Baholar soni', marketplaceReport.overall.rated_orders],
     ];
     statsData.forEach(row => {
       const r = ws1.addRow(row);
@@ -455,11 +457,11 @@ export function DirectorDashboard() {
     ws1.addRow([]);
 
     // Top Products Section
-    const prodTitle = ws1.addRow(['ТОП-10 ТОВАРОВ ПО ПРОДАЖАМ']);
+    const prodTitle = ws1.addRow([language === 'ru' ? 'ТОП-10 ТОВАРОВ ПО ПРОДАЖАМ' : 'TOP-10 ENG KO\'P SOTILGAN MAHSULOTLAR']);
     ws1.mergeCells(`A${prodTitle.number}:E${prodTitle.number}`);
     prodTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const prodHeader = ws1.addRow(['№', 'Название товара', 'Продано (шт)', 'Выручка', 'Заказов']);
+    const prodHeader = ws1.addRow(['№', language === 'ru' ? 'Название товара' : 'Mahsulot nomi', language === 'ru' ? 'Продано (шт)' : 'Sotildi (dona)', language === 'ru' ? 'Выручка' : 'Daromad', language === 'ru' ? 'Заказов' : 'Buyurtmalar']);
     prodHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_products.forEach((p, i) => {
@@ -475,11 +477,11 @@ export function DirectorDashboard() {
     ws1.addRow([]);
 
     // Categories Section
-    const catTitle = ws1.addRow(['ПРОДАЖИ ПО КАТЕГОРИЯМ']);
+    const catTitle = ws1.addRow([language === 'ru' ? 'ПРОДАЖИ ПО КАТЕГОРИЯМ' : 'KATEGORIYALAR BO\'YICHA SOTUVLAR']);
     ws1.mergeCells(`A${catTitle.number}:E${catTitle.number}`);
     catTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const catHeader = ws1.addRow(['№', 'Категория', 'Продано (шт)', 'Выручка', 'Заказов']);
+    const catHeader = ws1.addRow(['№', language === 'ru' ? 'Категория' : 'Kategoriya', language === 'ru' ? 'Продано (шт)' : 'Sotildi (dona)', language === 'ru' ? 'Выручка' : 'Daromad', language === 'ru' ? 'Заказов' : 'Buyurtmalar']);
     catHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.categories.forEach((c, i) => {
@@ -495,11 +497,11 @@ export function DirectorDashboard() {
     ws1.addRow([]);
 
     // Couriers Stats Section on Summary sheet
-    const courSummaryTitle = ws1.addRow(['СТАТИСТИКА КУРЬЕРОВ']);
+    const courSummaryTitle = ws1.addRow([language === 'ru' ? 'СТАТИСТИКА КУРЬЕРОВ' : 'KURYERLAR STATISTIKASI']);
     ws1.mergeCells(`A${courSummaryTitle.number}:E${courSummaryTitle.number}`);
     courSummaryTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const courSummaryHeader = ws1.addRow(['№', 'Имя курьера', 'Доставлено заказов', 'Средний рейтинг']);
+    const courSummaryHeader = ws1.addRow(['№', language === 'ru' ? 'Имя курьера' : 'Kuryer ismi', language === 'ru' ? 'Доставлено заказов' : 'Yetkazilgan buyurtmalar', language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting']);
     courSummaryHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.executor_stats.forEach((e, i) => {
@@ -514,11 +516,11 @@ export function DirectorDashboard() {
     ws1.addRow([]);
 
     // Top Customers Section on Summary sheet
-    const custSummaryTitle = ws1.addRow(['ТОП-10 ПОКУПАТЕЛЕЙ']);
+    const custSummaryTitle = ws1.addRow([language === 'ru' ? 'ТОП-10 ПОКУПАТЕЛЕЙ' : 'TOP-10 XARIDORLAR']);
     ws1.mergeCells(`A${custSummaryTitle.number}:E${custSummaryTitle.number}`);
     custSummaryTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const custSummaryHeader = ws1.addRow(['№', 'Имя клиента', 'Телефон', 'Заказов', 'Сумма покупок']);
+    const custSummaryHeader = ws1.addRow(['№', language === 'ru' ? 'Имя клиента' : 'Mijoz ismi', language === 'ru' ? 'Телефон' : 'Telefon', language === 'ru' ? 'Заказов' : 'Buyurtmalar', language === 'ru' ? 'Сумма покупок' : 'Xaridlar summasi']);
     custSummaryHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_customers.forEach((c, i) => {
@@ -531,14 +533,14 @@ export function DirectorDashboard() {
     });
 
     // ============ Sheet 2: Daily Sales ============
-    const ws2 = workbook.addWorksheet('По дням');
+    const ws2 = workbook.addWorksheet(language === 'ru' ? 'По дням' : 'Kunlar bo\'yicha');
     ws2.columns = [{ width: 18 }, { width: 22 }, { width: 25 }];
 
-    const dailyTitle = ws2.addRow(['ПРОДАЖИ ПО ДНЯМ']);
+    const dailyTitle = ws2.addRow([language === 'ru' ? 'ПРОДАЖИ ПО ДНЯМ' : 'KUNLIK SOTUVLAR']);
     ws2.mergeCells(`A${dailyTitle.number}:C${dailyTitle.number}`);
     dailyTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws2.addRow([]);
-    const dailyHeader = ws2.addRow(['Дата', 'Количество заказов', 'Выручка']);
+    const dailyHeader = ws2.addRow([language === 'ru' ? 'Дата' : 'Sana', language === 'ru' ? 'Количество заказов' : 'Buyurtmalar soni', language === 'ru' ? 'Выручка' : 'Daromad']);
     dailyHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.daily_sales.forEach(d => {
@@ -550,7 +552,7 @@ export function DirectorDashboard() {
 
     ws2.addRow([]);
     const totalRow = ws2.addRow([
-      'ИТОГО:',
+      language === 'ru' ? 'ИТОГО:' : 'JAMI:',
       marketplaceReport.daily_sales.reduce((sum, d) => sum + d.orders, 0),
       formatCurrency(marketplaceReport.daily_sales.reduce((sum, d) => sum + d.revenue, 0))
     ]);
@@ -559,14 +561,14 @@ export function DirectorDashboard() {
     totalRow.getCell(3).style = { ...currencyStyle, font: { bold: true } };
 
     // ============ Sheet 3: Products ============
-    const ws3 = workbook.addWorksheet('Товары');
+    const ws3 = workbook.addWorksheet(language === 'ru' ? 'Товары' : 'Mahsulotlar');
     ws3.columns = [{ width: 6 }, { width: 45 }, { width: 16 }, { width: 22 }, { width: 12 }];
 
-    const prodListTitle = ws3.addRow(['ДЕТАЛЬНЫЙ ОТЧЁТ ПО ТОВАРАМ']);
+    const prodListTitle = ws3.addRow([language === 'ru' ? 'ДЕТАЛЬНЫЙ ОТЧЁТ ПО ТОВАРАМ' : 'MAHSULOTLAR BO\'YICHA BATAFSIL HISOBOT']);
     ws3.mergeCells(`A${prodListTitle.number}:E${prodListTitle.number}`);
     prodListTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws3.addRow([]);
-    const prodListHeader = ws3.addRow(['№', 'Название товара', 'Продано (шт)', 'Выручка', 'Заказов']);
+    const prodListHeader = ws3.addRow(['№', language === 'ru' ? 'Название товара' : 'Mahsulot nomi', language === 'ru' ? 'Продано (шт)' : 'Sotildi (dona)', language === 'ru' ? 'Выручка' : 'Daromad', language === 'ru' ? 'Заказов' : 'Buyurtmalar']);
     prodListHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_products.forEach((p, i) => {
@@ -579,14 +581,14 @@ export function DirectorDashboard() {
     });
 
     // ============ Sheet 4: Customers ============
-    const ws4 = workbook.addWorksheet('Покупатели');
+    const ws4 = workbook.addWorksheet(language === 'ru' ? 'Покупатели' : 'Xaridorlar');
     ws4.columns = [{ width: 6 }, { width: 30 }, { width: 18 }, { width: 20 }, { width: 25 }];
 
-    const custTitle = ws4.addRow(['ДЕТАЛЬНЫЙ ОТЧЁТ ПО ПОКУПАТЕЛЯМ']);
+    const custTitle = ws4.addRow([language === 'ru' ? 'ДЕТАЛЬНЫЙ ОТЧЁТ ПО ПОКУПАТЕЛЯМ' : 'XARIDORLAR BO\'YICHA BATAFSIL HISOBOT']);
     ws4.mergeCells(`A${custTitle.number}:E${custTitle.number}`);
     custTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws4.addRow([]);
-    const custHeader = ws4.addRow(['№', 'Имя клиента', 'Телефон', 'Количество заказов', 'Сумма покупок']);
+    const custHeader = ws4.addRow(['№', language === 'ru' ? 'Имя клиента' : 'Mijoz ismi', language === 'ru' ? 'Телефон' : 'Telefon', language === 'ru' ? 'Количество заказов' : 'Buyurtmalar soni', language === 'ru' ? 'Сумма покупок' : 'Xaridlar summasi']);
     custHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_customers.forEach((c, i) => {
@@ -599,14 +601,14 @@ export function DirectorDashboard() {
     });
 
     // ============ Sheet 5: Couriers ============
-    const ws5 = workbook.addWorksheet('Курьеры');
+    const ws5 = workbook.addWorksheet(language === 'ru' ? 'Курьеры' : 'Kuryerlar');
     ws5.columns = [{ width: 6 }, { width: 30 }, { width: 22 }, { width: 18 }];
 
-    const courTitle = ws5.addRow(['ОТЧЁТ ПО КУРЬЕРАМ']);
+    const courTitle = ws5.addRow([language === 'ru' ? 'ОТЧЁТ ПО КУРЬЕРАМ' : 'KURYERLAR BO\'YICHA HISOBOT']);
     ws5.mergeCells(`A${courTitle.number}:D${courTitle.number}`);
     courTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws5.addRow([]);
-    const courHeader = ws5.addRow(['№', 'Имя курьера', 'Доставлено заказов', 'Средний рейтинг']);
+    const courHeader = ws5.addRow(['№', language === 'ru' ? 'Имя курьера' : 'Kuryer ismi', language === 'ru' ? 'Доставлено заказов' : 'Yetkazilgan buyurtmalar', language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting']);
     courHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.executor_stats.forEach((e, i) => {
@@ -623,7 +625,7 @@ export function DirectorDashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Отчёт_маркетплейс_${reportStartDate}_${reportEndDate}.xlsx`;
+    a.download = language === 'ru' ? `Отчёт_маркетплейс_${reportStartDate}_${reportEndDate}.xlsx` : `Marketplace_hisobot_${reportStartDate}_${reportEndDate}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -760,7 +762,7 @@ export function DirectorDashboard() {
           onClick={() => setActiveTab('overview')}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === 'overview'
-              ? 'border-orange-500 text-orange-600'
+              ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
@@ -771,7 +773,7 @@ export function DirectorDashboard() {
           onClick={() => setActiveTab('marketplace')}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === 'marketplace'
-              ? 'border-orange-500 text-orange-600'
+              ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
@@ -847,7 +849,7 @@ export function DirectorDashboard() {
           onClick={() => setActiveModal('activity')}
         >
           <div className="flex items-center justify-between mb-3">
-            <Activity className="w-8 h-8 text-orange-500" />
+            <Activity className="w-8 h-8 text-primary-500" />
           </div>
           <div className="flex items-baseline gap-4">
             <div>
@@ -1131,7 +1133,7 @@ export function DirectorDashboard() {
       {/* Alerts */}
       {companyStats.pendingApproval > 0 && (
         <div
-          className="glass-card p-4 border-2 border-orange-400 bg-orange-50 cursor-pointer hover:bg-orange-100 transition-colors"
+          className="glass-card p-4 border-2 border-primary-400 bg-primary-50 cursor-pointer hover:bg-primary-100 transition-colors"
           onClick={() => navigate('/requests')}
         >
           <div className="flex items-center gap-3">
@@ -1447,7 +1449,7 @@ export function DirectorDashboard() {
 
           {isLoadingReport ? (
             <div className="flex items-center justify-center py-20">
-              <RefreshCw className="w-8 h-8 animate-spin text-orange-500" />
+              <RefreshCw className="w-8 h-8 animate-spin text-primary-500" />
               <span className="ml-3 text-gray-600">{t('director.loading')}</span>
             </div>
           ) : marketplaceReport ? (
@@ -1472,9 +1474,9 @@ export function DirectorDashboard() {
                     <DollarSign className="w-8 h-8 text-green-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.total_revenue.toLocaleString()}</div>
-                  <div className="text-sm text-gray-500">{t('director.revenue')} (сум)</div>
+                  <div className="text-sm text-gray-500">{t('director.revenue')} ({language === 'ru' ? 'сум' : 'so\'m'})</div>
                   <div className="mt-2 text-xs text-gray-600">
-                    {t('director.deliveryFees')}: {marketplaceReport.overall.total_delivery_fees.toLocaleString()} сум
+                    {t('director.deliveryFees')}: {marketplaceReport.overall.total_delivery_fees.toLocaleString()} {language === 'ru' ? 'сум' : 'so\'m'}
                   </div>
                 </div>
 
@@ -1496,7 +1498,7 @@ export function DirectorDashboard() {
                   <div className="text-2xl font-bold">
                     {marketplaceReport.top_products.reduce((sum, p) => sum + p.total_sold, 0)}
                   </div>
-                  <div className="text-sm text-gray-500">{t('director.sold')} (шт)</div>
+                  <div className="text-sm text-gray-500">{t('director.sold')} ({language === 'ru' ? 'шт' : 'dona'})</div>
                   <div className="mt-2 text-xs text-gray-600">
                     {marketplaceReport.top_products.length} {language === 'ru' ? 'товаров' : 'mahsulot'}
                   </div>
@@ -1526,7 +1528,7 @@ export function DirectorDashboard() {
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip
                       formatter={(value: number, name: string) => [
-                        name === 'revenue' ? `${value.toLocaleString()} сум` : value,
+                        name === 'revenue' ? `${value.toLocaleString()} ${language === 'ru' ? 'сум' : 'so\'m'}` : value,
                         name === 'revenue' ? t('director.revenue') : t('director.orders')
                       ]}
                       labelFormatter={(label: string) => new Date(label).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
@@ -1576,14 +1578,14 @@ export function DirectorDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm truncate">{product.product_name}</div>
                           <div className="text-xs text-gray-500">
-                            {product.total_sold} шт • {product.order_count} {t('director.orders')}
+                            {product.total_sold} {language === 'ru' ? 'шт' : 'dona'} • {product.order_count} {t('director.orders')}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-sm text-green-600">
                             {product.total_revenue.toLocaleString()}
                           </div>
-                          <div className="text-xs text-gray-400">сум</div>
+                          <div className="text-xs text-gray-400">{language === 'ru' ? 'сум' : 'so\'m'}</div>
                         </div>
                       </div>
                     ))}
@@ -1605,14 +1607,14 @@ export function DirectorDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm">{cat.category_name}</div>
                           <div className="text-xs text-gray-500">
-                            {cat.total_sold} шт • {cat.order_count} {t('director.orders')}
+                            {cat.total_sold} {language === 'ru' ? 'шт' : 'dona'} • {cat.order_count} {t('director.orders')}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-sm text-green-600">
                             {cat.total_revenue.toLocaleString()}
                           </div>
-                          <div className="text-xs text-gray-400">сум</div>
+                          <div className="text-xs text-gray-400">{language === 'ru' ? 'сум' : 'so\'m'}</div>
                         </div>
                       </div>
                     ))}
@@ -1643,7 +1645,7 @@ export function DirectorDashboard() {
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-sm">{customer.order_count} {t('director.orders')}</div>
-                          <div className="text-xs text-green-600">{customer.total_spent.toLocaleString()} сум</div>
+                          <div className="text-xs text-green-600">{customer.total_spent.toLocaleString()} {language === 'ru' ? 'сум' : 'so\'m'}</div>
                         </div>
                       </div>
                     ))}

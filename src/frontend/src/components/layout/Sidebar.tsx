@@ -5,7 +5,7 @@ import {
   LogOut, User, Home, Shield, BarChart3,
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
-  X as CloseIcon, Star, StickyNote, Phone, Ticket, ShoppingBag, Package
+  X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -186,11 +186,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     if (user?.account_type === 'advertiser' || user?.role === 'advertiser') {
       return [
         { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Мои объявления' : 'Mening e\'lonlarim' },
-      ];
-    }
-    if (user?.account_type === 'coupon_checker' || user?.role === 'coupon_checker') {
-      return [
-        { path: '/', icon: Ticket, label: language === 'ru' ? 'Проверка купонов' : 'Kuponlarni tekshirish' },
+        { path: '/announcements', icon: Megaphone, label: language === 'ru' ? 'Объявления' : 'E\'lonlar' },
+        { path: '/settings', icon: Settings, label: language === 'ru' ? 'Настройки' : 'Sozlamalar' },
       ];
     }
     if (user?.role === 'marketplace_manager') {
@@ -324,16 +321,14 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   // Feature to menu path mapping
   const featurePathMap: Record<string, string[]> = {
     'requests': ['/', '/requests', '/executors', '/work-orders', '/schedule', '/stats'],
-    'votes': ['/meetings'],
+    'meetings': ['/meetings'],
     'qr': ['/qr-scanner', '/guest-access'],
     'chat': ['/chat'],
     'marketplace': ['/marketplace', '/marketplace-orders', '/marketplace-products'],
     'announcements': ['/announcements'],
     'trainings': ['/trainings'],
     'vehicles': ['/vehicles', '/vehicle-search'],
-    'reports': ['/reports'],
     'rentals': ['/rentals'],
-    'notepad': ['/notepad'],
     'colleagues': ['/colleagues'],
   };
 
@@ -348,7 +343,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       // Always allow dashboard, settings, profile pages, buildings, residents, useful contacts, contract, rate employees
       const alwaysAllowed = [
         '/', '/settings', '/profile', '/buildings', '/residents',
-        '/useful-contacts', '/contract', '/rate-employees', '/team'
+        '/useful-contacts', '/contract', '/rate-employees', '/team',
+        '/notepad', '/reports'
       ];
 
       if (alwaysAllowed.includes(item.path)) {

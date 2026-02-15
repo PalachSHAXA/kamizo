@@ -79,7 +79,7 @@ interface DataState {
   updateAnnouncement: (id: string, data: Partial<Announcement>) => void;
   deleteAnnouncement: (id: string) => Promise<void>;
   markAnnouncementAsViewed: (announcementId: string, userId: string) => void;
-  getAnnouncementsForResidents: (userLogin: string, buildingId?: string, entrance?: string, floor?: string, branch?: string) => Announcement[];
+  getAnnouncementsForResidents: (userLogin: string, buildingId?: string, entrance?: string, floor?: string, branch?: string, apartment?: string) => Announcement[];
   getAnnouncementsForEmployees: () => Announcement[];
   getAnnouncementsByAuthor: (authorId: string) => Announcement[];
   fetchAnnouncements: () => Promise<void>;
@@ -95,7 +95,7 @@ interface DataState {
   // Rental actions
   fetchRentals: () => Promise<void>;
   fetchMyRentals: () => Promise<void>;  // For tenants/commercial_owners
-  addRentalApartment: (apartment: Omit<RentalApartment, 'id' | 'createdAt' | 'isActive'> & { password: string; ownerType?: 'tenant' | 'commercial_owner' }) => Promise<RentalApartment | null>;
+  addRentalApartment: (apartment: Omit<RentalApartment, 'id' | 'createdAt' | 'isActive'> & { password: string; ownerType?: 'tenant' | 'commercial_owner'; existingUserId?: string }) => Promise<RentalApartment | null>;
   updateRentalApartment: (id: string, data: Partial<RentalApartment>) => Promise<void>;
   deleteRentalApartment: (id: string) => Promise<void>;
   getRentalApartmentsByOwner: (ownerId: string) => RentalApartment[];
@@ -122,7 +122,7 @@ interface DataState {
   assignRequest: (requestId: string, executorId: string) => Promise<void>;
   acceptRequest: (requestId: string) => Promise<void>;
   startWork: (requestId: string) => Promise<void>;
-  pauseWork: (requestId: string) => Promise<void>;
+  pauseWork: (requestId: string, reason?: string) => Promise<void>;
   resumeWork: (requestId: string) => Promise<void>;
   completeWork: (requestId: string, workDuration: number) => Promise<void>;
   approveRequest: (requestId: string, rating: number, feedback?: string) => Promise<void>;
@@ -177,33 +177,6 @@ interface DataState {
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// Demo QR code for testing
-const createDemoGuestAccessCode = (): GuestAccessCode => {
-  const now = new Date();
-  const validUntil = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Valid for 7 days
-
-  return {
-    id: 'demo-code-1',
-    residentId: 'resident1',
-    residentName: 'Иванов Иван Иванович',
-    residentPhone: '+998901234567',
-    residentApartment: '42',
-    residentAddress: 'ул. Мустакиллик, 15',
-    visitorType: 'guest' as VisitorType,
-    visitorName: 'Демо Гость',
-    visitorPhone: '+998901111111',
-    accessType: 'week' as AccessType,
-    qrToken: 'GA-demo-test-code123',
-    status: 'active',
-    validFrom: now.toISOString(),
-    validUntil: validUntil.toISOString(),
-    maxUses: 999,
-    currentUses: 0,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-};
-
 // Default settings
 const defaultSettings: AppSettings = {
   companyName: 'ТСЖ Юнусабад',
@@ -234,7 +207,7 @@ export const useDataStore = create<DataState>()(
       rentalRecords: [],
       announcements: [],
       vehicles: [],
-      guestAccessCodes: [createDemoGuestAccessCode()],
+      guestAccessCodes: [],
       guestAccessLogs: [],
       rescheduleRequests: [],
       isLoadingRequests: false,
@@ -283,6 +256,7 @@ export const useDataStore = create<DataState>()(
             // Pause fields from DB
             isPaused: r.is_paused === 1 || r.is_paused === true,
             pausedAt: r.paused_at,
+            pauseReason: r.pause_reason,
             totalPausedTime: r.total_paused_time || 0,
           }));
 
@@ -371,10 +345,13 @@ export const useDataStore = create<DataState>()(
 
       // Fetch guest codes from D1 database via API
       fetchGuestCodes: async () => {
+        console.log('[fetchGuestCodes] Starting fetch...');
         set({ isLoadingGuestCodes: true });
         try {
           const response = await guestCodesApi.getAll();
+          console.log('[fetchGuestCodes] API response:', response);
           const codes = response.codes || [];
+          console.log('[fetchGuestCodes] Total codes from API:', codes.length);
           const mappedCodes: GuestAccessCode[] = codes.map((c: any) => ({
             id: c.id,
             residentId: c.user_id,
@@ -399,10 +376,15 @@ export const useDataStore = create<DataState>()(
             revokedAt: c.revoked_at || undefined,
             revokedBy: c.revoked_by || undefined,
             revocationReason: c.revoked_reason || undefined,
+            // Creator info (for management view)
+            creatorName: c.creator_name || undefined,
+            creatorApartment: c.creator_apartment || undefined,
+            creatorPhone: c.creator_phone || undefined,
           }));
+          console.log('[fetchGuestCodes] Setting', mappedCodes.length, 'codes to store');
           set({ guestAccessCodes: mappedCodes, isLoadingGuestCodes: false });
         } catch (error) {
-          console.error('Failed to fetch guest codes:', error);
+          console.error('[fetchGuestCodes] Failed to fetch guest codes:', error);
           set({ isLoadingGuestCodes: false });
         }
       },
@@ -451,6 +433,9 @@ export const useDataStore = create<DataState>()(
           set((state) => ({
             guestAccessCodes: [newCode, ...state.guestAccessCodes],
           }));
+
+          // Refetch from API to ensure sync
+          setTimeout(() => get().fetchGuestCodes(), 500);
 
           return newCode;
         } catch (error) {
@@ -1065,6 +1050,8 @@ export const useDataStore = create<DataState>()(
             target_floor: target?.floor,
             target_logins: target?.customLogins?.join(','),
             attachments: announcementData.attachments,
+            // Personalized data for debt-based announcements
+            personalized_data: announcementData.personalizedData,
           };
 
           const result = await announcementsApi.create(apiData);
@@ -1168,7 +1155,7 @@ export const useDataStore = create<DataState>()(
         }
       },
 
-      getAnnouncementsForResidents: (userLogin: string, buildingId?: string, entrance?: string, floor?: string, branch?: string) => {
+      getAnnouncementsForResidents: (userLogin: string, buildingId?: string, entrance?: string, floor?: string, branch?: string, apartment?: string) => {
         const now = new Date();
         return get().announcements.filter((a) => {
           // Basic filters - show 'residents' and 'all' types
@@ -1195,8 +1182,8 @@ export const useDataStore = create<DataState>()(
                      floor === a.target.floor;
 
             case 'custom':
-              // Check if user's login is in the custom list
-              return a.target.customLogins?.includes(userLogin) || false;
+              // Check if user's login or apartment is in the custom list
+              return a.target.customLogins?.includes(userLogin) || (apartment && a.target.customLogins?.includes(apartment)) || false;
 
             case 'branch':
               // Branch filtering is done on the server side
@@ -1261,6 +1248,18 @@ export const useDataStore = create<DataState>()(
               }
             }
 
+            // Parse personalized data
+            let personalizedData = undefined;
+            if (a.personalized_data) {
+              try {
+                personalizedData = typeof a.personalized_data === 'string'
+                  ? JSON.parse(a.personalized_data)
+                  : a.personalized_data;
+              } catch {
+                personalizedData = undefined;
+              }
+            }
+
             // Map 'staff' from API back to 'employees' for UI compatibility
             const typeForUI = a.type === 'staff' ? 'employees' : a.type;
             return {
@@ -1270,7 +1269,7 @@ export const useDataStore = create<DataState>()(
               type: typeForUI as 'residents' | 'employees' | 'all',
               priority: a.priority || 'normal',
               authorId: a.created_by || '',
-              authorName: a.author_name || '',
+              authorName: a.author_name || 'Администрация',
               authorRole: 'manager' as const,
               createdAt: a.created_at,
               expiresAt: a.expires_at,
@@ -1278,13 +1277,14 @@ export const useDataStore = create<DataState>()(
               viewedBy,
               viewCount: a.view_count || 0, // Total view count from API
               attachments, // File attachments
+              personalizedData,
               target: a.target_type ? {
                 type: a.target_type,
                 branchId: a.target_branch,
                 buildingId: a.target_building_id,
                 entrance: a.target_entrance,
                 floor: a.target_floor,
-                customLogins: a.target_logins?.split(',').filter(Boolean),
+                customLogins: a.target_logins?.split(',').map((l: string) => l.trim()).filter(Boolean),
               } : undefined,
             };
           });
@@ -1338,6 +1338,7 @@ export const useDataStore = create<DataState>()(
             ownerLogin: apartmentData.ownerLogin,
             ownerPassword: apartmentData.password,
             ownerType: apartmentData.ownerType || 'tenant',
+            existingUserId: (apartmentData as any).existingUserId,
           });
 
           console.log('[DataStore] API response:', response);
@@ -1834,20 +1835,20 @@ export const useDataStore = create<DataState>()(
         }
       },
 
-      pauseWork: async (requestId) => {
+      pauseWork: async (requestId, reason?) => {
         const state = get();
         const request = state.requests.find(r => r.id === requestId);
         if (!request || request.status !== 'in_progress' || request.isPaused) return;
 
         try {
           // Call API to pause work in D1 database
-          await requestsApi.pause(requestId);
+          await requestsApi.pause(requestId, reason);
 
           // Update local state
           set((state) => ({
             requests: state.requests.map((r) =>
               r.id === requestId
-                ? { ...r, isPaused: true, pausedAt: new Date().toISOString() }
+                ? { ...r, isPaused: true, pausedAt: new Date().toISOString(), pauseReason: reason }
                 : r
             ),
           }));
@@ -2644,8 +2645,6 @@ export const useDataStore = create<DataState>()(
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<DataState>;
-        // Demo code for QR testing
-        const demoCode = createDemoGuestAccessCode();
 
         return {
           ...currentState,
@@ -2655,7 +2654,7 @@ export const useDataStore = create<DataState>()(
           vehicles: [],
           announcements: [],
           requests: [],
-          guestAccessCodes: [demoCode],
+          guestAccessCodes: [],
           executors: [], // Empty - will be fetched from API
           rescheduleRequests: [],
           rentalApartments: [],

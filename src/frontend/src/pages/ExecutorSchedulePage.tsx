@@ -347,6 +347,21 @@ export function ExecutorSchedulePage() {
                             <span className="text-sm text-gray-500">#{request.number}</span>
                           </div>
                           <h4 className="font-semibold">{request.title}</h4>
+                          {/* Trash type and volume badges */}
+                          {request.category === 'trash' && (
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {request.title.includes(': ') && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                  🗑️ {request.title.split(': ').slice(1).join(': ')}
+                                </span>
+                              )}
+                              {request.description?.includes('Объём: ') && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                                  📦 {request.description.split('Объём: ')[1].split('\n')[0]}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-500">
                             {request.scheduledTime && (
                               <span className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-medium">
@@ -430,7 +445,22 @@ export function ExecutorSchedulePage() {
                     </span>
                   </div>
                   <h4 className="font-semibold mb-2">{request.title}</h4>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-3">{request.description}</p>
+                  <p className="text-sm text-gray-600 line-clamp-2 mb-2">{request.description}</p>
+                  {/* Trash type and volume badges */}
+                  {request.category === 'trash' && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {request.title.includes(': ') && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                          🗑️ {request.title.split(': ').slice(1).join(': ')}
+                        </span>
+                      )}
+                      {request.description?.includes('Объём: ') && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                          📦 {request.description.split('Объём: ')[1].split('\n')[0]}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />

@@ -108,7 +108,7 @@ export function PushNotificationPrompt() {
               <button
                 onClick={handleAllow}
                 disabled={isSubscribing}
-                className="px-4 py-2 bg-orange-400 hover:bg-orange-500 text-black font-medium rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-primary-400 hover:bg-primary-500 text-black font-medium rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center gap-2"
               >
                 {isSubscribing ? (
                   <>

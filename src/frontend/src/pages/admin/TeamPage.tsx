@@ -7,6 +7,8 @@ import {
   Hammer, Flame, Wind, Trash2, Key, Truck
 } from 'lucide-react';
 import { teamApi } from '../../services/api';
+import { useTenantStore } from '../../stores/tenantStore';
+import { useLanguageStore } from '../../stores/languageStore';
 import { SPECIALIZATION_LABELS } from '../../types';
 import type { ExecutorSpecialization } from '../../types';
 
@@ -16,7 +18,7 @@ interface StaffMember {
   password?: string;
   name: string;
   phone: string;
-  role: 'admin' | 'manager' | 'department_head' | 'executor';
+  role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser';
   specialization?: ExecutorSpecialization;
   status?: string;
   created_at: string;
@@ -25,16 +27,26 @@ interface StaffMember {
   avg_rating?: number;
 }
 
-const ROLE_LABELS: Record<string, string> = {
+const ROLE_LABELS_RU: Record<string, string> = {
   admin: 'Администратор',
   manager: 'Менеджер',
+  advertiser: 'Менеджер рекламы',
   department_head: 'Глава отдела',
   executor: 'Исполнитель',
+};
+
+const ROLE_LABELS_UZ: Record<string, string> = {
+  admin: 'Administrator',
+  manager: 'Menejer',
+  advertiser: 'Reklama menejeri',
+  department_head: 'Bo\'lim boshlig\'i',
+  executor: 'Ijrochi',
 };
 
 const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',
   manager: 'bg-purple-100 text-purple-700',
+  advertiser: 'bg-orange-100 text-orange-700',
   department_head: 'bg-blue-100 text-blue-700',
   executor: 'bg-green-100 text-green-700',
 };
@@ -47,7 +59,7 @@ const SPECIALIZATION_ICONS: Record<ExecutorSpecialization, React.ReactNode> = {
   intercom: <Bell className="w-4 h-4" />,
   cleaning: <Brush className="w-4 h-4" />,
   security: <ShieldCheck className="w-4 h-4" />,
-  carpenter: <Hammer className="w-4 h-4" />,
+  trash: <Hammer className="w-4 h-4" />,
   boiler: <Flame className="w-4 h-4" />,
   ac: <Wind className="w-4 h-4" />,
   courier: <Truck className="w-4 h-4" />,
@@ -62,14 +74,30 @@ const SPECIALIZATION_COLORS: Record<ExecutorSpecialization, string> = {
   intercom: 'bg-purple-100 text-purple-700',
   cleaning: 'bg-pink-100 text-pink-700',
   security: 'bg-red-100 text-red-700',
-  carpenter: 'bg-amber-100 text-amber-700',
+  trash: 'bg-amber-100 text-amber-700',
   boiler: 'bg-orange-100 text-orange-700',
   ac: 'bg-cyan-100 text-cyan-700',
   courier: 'bg-green-100 text-green-700',
   other: 'bg-gray-100 text-gray-700',
 };
 
+const SPECIALIZATION_LABELS_UZ: Record<string, string> = {
+  plumber: 'Santexnik',
+  electrician: 'Elektrik',
+  elevator: 'Liftchi',
+  intercom: 'Domofon',
+  cleaning: 'Tozalovchi',
+  security: 'Qorovul',
+  trash: 'Chiqindi tashish',
+  boiler: 'Qozonxonachi',
+  ac: 'Konditsionerchi',
+  courier: 'Kuryer',
+  other: 'Boshqa',
+};
+
 export function TeamPage() {
+  const { hasFeature } = useTenantStore();
+  const { language } = useLanguageStore();
   const [admins, setAdmins] = useState<StaffMember[]>([]);
   const [managers, setManagers] = useState<StaffMember[]>([]);
   const [departmentHeads, setDepartmentHeads] = useState<StaffMember[]>([]);
@@ -110,10 +138,13 @@ export function TeamPage() {
     login: '',
     password: '',
     role: 'executor' as 'admin' | 'manager' | 'department_head' | 'executor',
+    managerType: 'manager' as 'manager' | 'advertiser',
     specialization: '' as ExecutorSpecialization | '',
   });
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  const ROLE_LABELS = language === 'ru' ? ROLE_LABELS_RU : ROLE_LABELS_UZ;
 
   // Fetch team data
   const fetchTeam = async () => {
@@ -126,7 +157,7 @@ export function TeamPage() {
       setDepartmentHeads(data.departmentHeads || []);
       setExecutors(data.executors || []);
     } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки данных');
+      setError(err.message || (language === 'ru' ? 'Ошибка загрузки данных' : 'Ma\'lumotlarni yuklashda xatolik'));
     } finally {
       setLoading(false);
     }
@@ -217,7 +248,7 @@ export function TeamPage() {
       setIsEditing(false);
       setEditForm(prev => ({ ...prev, password: '' })); // Clear password field
     } catch (err: any) {
-      alert('Ошибка сохранения: ' + err.message);
+      alert((language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlashda xatolik: ') + err.message);
     }
   };
 
@@ -237,30 +268,32 @@ export function TeamPage() {
 
     // Validation
     if (!addForm.name.trim()) {
-      setAddError('Введите ФИО');
+      setAddError(language === 'ru' ? 'Введите ФИО' : 'F.I.O. kiriting');
       return;
     }
     if (!addForm.login.trim()) {
-      setAddError('Введите логин');
+      setAddError(language === 'ru' ? 'Введите логин' : 'Login kiriting');
       return;
     }
     if (!addForm.password.trim()) {
-      setAddError('Введите пароль');
+      setAddError(language === 'ru' ? 'Введите пароль' : 'Parol kiriting');
       return;
     }
     if ((addForm.role === 'executor' || addForm.role === 'department_head') && !addForm.specialization) {
-      setAddError('Выберите специализацию');
+      setAddError(language === 'ru' ? 'Выберите специализацию' : 'Mutaxassislikni tanlang');
       return;
     }
 
     setAddLoading(true);
     try {
+      // For managers, use managerType as the actual role (manager/advertiser)
+      const actualRole = addForm.role === 'manager' ? addForm.managerType : addForm.role;
       const result = await teamApi.create({
         login: addForm.login,
         password: addForm.password,
         name: addForm.name,
         phone: addForm.phone,
-        role: addForm.role,
+        role: actualRole,
         specialization: addForm.specialization || undefined,
       });
 
@@ -277,6 +310,7 @@ export function TeamPage() {
         login: '',
         password: '',
         role: 'executor',
+        managerType: 'manager',
         specialization: '',
       });
       setShowAddModal(false);
@@ -284,7 +318,7 @@ export function TeamPage() {
       // Refresh data
       await fetchTeam();
     } catch (err: any) {
-      setAddError(err.message || 'Ошибка создания сотрудника');
+      setAddError(err.message || (language === 'ru' ? 'Ошибка создания сотрудника' : 'Xodim yaratishda xatolik'));
     } finally {
       setAddLoading(false);
     }
@@ -297,6 +331,7 @@ export function TeamPage() {
       login: '',
       password: generatePassword(),
       role,
+      managerType: 'manager',
       specialization: '',
     });
     setAddError(null);
@@ -305,7 +340,10 @@ export function TeamPage() {
 
   // Handle delete member
   const handleDeleteMember = async (member: StaffMember) => {
-    if (!confirm(`Удалить сотрудника "${member.name}"? Это действие необратимо.`)) {
+    if (!confirm(language === 'ru'
+      ? `Удалить сотрудника "${member.name}"? Это действие необратимо.`
+      : `"${member.name}" xodimni o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.`
+    )) {
       return;
     }
 
@@ -318,7 +356,7 @@ export function TeamPage() {
       // Refresh data
       await fetchTeam();
     } catch (err: any) {
-      alert('Ошибка удаления: ' + err.message);
+      alert((language === 'ru' ? 'Ошибка удаления: ' : 'O\'chirishda xatolik: ') + err.message);
     }
   };
 
@@ -332,11 +370,14 @@ export function TeamPage() {
     ];
 
     if (staffWithoutPassword.length === 0) {
-      alert('Все сотрудники уже имеют пароли');
+      alert(language === 'ru' ? 'Все сотрудники уже имеют пароли' : 'Barcha xodimlarning parollari mavjud');
       return;
     }
 
-    if (!confirm(`Сбросить пароли для ${staffWithoutPassword.length} сотрудников без паролей?\n\nЭто сгенерирует новые пароли для всех сотрудников, у которых не отображается пароль.`)) {
+    if (!confirm(language === 'ru'
+      ? `Сбросить пароли для ${staffWithoutPassword.length} сотрудников без паролей?\n\nЭто сгенерирует новые пароли для всех сотрудников, у которых не отображается пароль.`
+      : `Parolsiz ${staffWithoutPassword.length} xodimlarning parollarini tiklash?\n\nBu paroli ko'rinmaydigan barcha xodimlar uchun yangi parollar yaratadi.`
+    )) {
       return;
     }
 
@@ -347,7 +388,7 @@ export function TeamPage() {
       if (result.updated > 0) {
         // Show list of updated users with their new passwords
         const message = result.staff.map(s => `${s.name}: ${s.login} / ${s.password}`).join('\n');
-        alert(`Обновлено ${result.updated} сотрудников:\n\n${message}`);
+        alert((language === 'ru' ? `Обновлено ${result.updated} сотрудников:\n\n` : `${result.updated} xodim yangilandi:\n\n`) + message);
       } else {
         alert(result.message);
       }
@@ -355,7 +396,7 @@ export function TeamPage() {
       // Refresh data
       await fetchTeam();
     } catch (err: any) {
-      alert('Ошибка сброса паролей: ' + err.message);
+      alert((language === 'ru' ? 'Ошибка сброса паролей: ' : 'Parollarni tiklashda xatolik: ') + err.message);
     } finally {
       setLoading(false);
     }
@@ -401,17 +442,21 @@ export function TeamPage() {
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
-      case 'available': return <span className="badge badge-done text-xs">Доступен</span>;
-      case 'busy': return <span className="badge badge-progress text-xs">Занят</span>;
-      case 'offline': return <span className="badge bg-gray-100 text-gray-600 text-xs">Не в сети</span>;
+      case 'available': return <span className="badge badge-done text-xs">{language === 'ru' ? 'Доступен' : 'Mavjud'}</span>;
+      case 'busy': return <span className="badge badge-progress text-xs">{language === 'ru' ? 'Занят' : 'Band'}</span>;
+      case 'offline': return <span className="badge bg-gray-100 text-gray-600 text-xs">{language === 'ru' ? 'Не в сети' : 'Oflayn'}</span>;
       default: return null;
     }
+  };
+
+  const getSpecLabel = (spec: ExecutorSpecialization) => {
+    return language === 'ru' ? (SPECIALIZATION_LABELS[spec] || spec) : (SPECIALIZATION_LABELS_UZ[spec] || spec);
   };
 
   const renderStaffCard = (member: StaffMember) => (
     <div
       key={member.id}
-      className="glass-card p-4 hover:shadow-lg transition-shadow cursor-pointer relative group"
+      className="glass-card p-3 sm:p-4 hover:shadow-lg transition-shadow cursor-pointer relative group"
       onClick={() => handleOpenDetails(member)}
     >
       {/* Delete button */}
@@ -421,14 +466,14 @@ export function TeamPage() {
           handleDeleteMember(member);
         }}
         className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-        title="Удалить сотрудника"
+        title={language === 'ru' ? 'Удалить сотрудника' : 'Xodimni o\'chirish'}
       >
         <Trash2 className="w-4 h-4" />
       </button>
 
-      <div className="flex items-start justify-between mb-3 pr-8">
-        <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-medium ${
+      <div className="flex items-start justify-between mb-2 sm:mb-3 pr-8">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-lg font-medium flex-shrink-0 ${
             member.specialization
               ? SPECIALIZATION_COLORS[member.specialization]
               : 'bg-primary-100 text-primary-700'
@@ -438,16 +483,16 @@ export function TeamPage() {
               : member.name.split(' ').map(n => n[0]).join('').slice(0, 2)
             }
           </div>
-          <div>
-            <h3 className="font-semibold">{member.name}</h3>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm sm:text-base truncate">{member.name}</h3>
             {member.specialization && (
-              <div className="flex items-center gap-1 text-sm text-gray-500">
-                {SPECIALIZATION_LABELS[member.specialization] || member.specialization}
+              <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
+                {getSpecLabel(member.specialization)}
               </div>
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[member.role]}`}>
             {ROLE_LABELS[member.role]}
           </span>
@@ -455,25 +500,25 @@ export function TeamPage() {
         </div>
       </div>
 
-      <div className="space-y-2 text-sm text-gray-600">
+      <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-600">
         <div className="flex items-center gap-2">
-          <Phone className="w-4 h-4" />
+          <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
           {member.phone}
         </div>
         {(member.role === 'executor' || member.role === 'department_head') && (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
             <div className="flex items-center gap-1">
-              <Star className="w-4 h-4 text-amber-400" />
+              <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
               {member.avg_rating || 0}
             </div>
             <div className="flex items-center gap-1">
-              <Check className="w-4 h-4 text-green-500" />
-              {member.completed_count || 0} выполнено
+              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500" />
+              {member.completed_count || 0} {language === 'ru' ? 'выполнено' : 'bajarilgan'}
             </div>
             {member.active_count ? (
               <div className="flex items-center gap-1">
-                <Clock className="w-4 h-4 text-blue-500" />
-                {member.active_count} активных
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
+                {member.active_count} {language === 'ru' ? 'активных' : 'faol'}
               </div>
             ) : null}
           </div>
@@ -490,13 +535,13 @@ export function TeamPage() {
   ) => (
     <div className="glass-card overflow-hidden">
       <button
-        className="w-full p-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+        className="w-full p-3 sm:p-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
         onClick={() => toggleSection(sectionKey)}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {icon}
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <span className="px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 text-sm">
+          <h2 className="text-base sm:text-lg font-semibold">{title}</h2>
+          <span className="px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 text-xs sm:text-sm">
             {members.length}
           </span>
         </div>
@@ -508,13 +553,13 @@ export function TeamPage() {
       </button>
 
       {expandedSections[sectionKey] && (
-        <div className="p-4">
+        <div className="p-2 sm:p-4">
           {members.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              Нет сотрудников
+              {language === 'ru' ? 'Нет сотрудников' : 'Xodimlar yo\'q'}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
               {members.map(renderStaffCard)}
             </div>
           )}
@@ -536,148 +581,152 @@ export function TeamPage() {
       <div className="glass-card p-8 text-center">
         <div className="text-red-500 mb-4">{error}</div>
         <button onClick={fetchTeam} className="btn-primary">
-          Повторить
+          {language === 'ru' ? 'Повторить' : 'Qayta urinish'}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Персонал</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Персонал' : 'Xodimlar'}</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Всего: {admins.length + managers.length + departmentHeads.length + executors.length} сотрудников
+            {language === 'ru' ? 'Всего' : 'Jami'}: {admins.length + managers.length + departmentHeads.length + executors.length} {language === 'ru' ? 'сотрудников' : 'xodimlar'}
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Поиск..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* Search */}
+            <div className="relative flex-1 sm:flex-none min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder={language === 'ru' ? 'Поиск...' : 'Qidirish...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full sm:w-auto pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+            {/* Specialization Filter */}
+            <div className="relative flex-1 sm:flex-none min-w-0">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <select
+                value={specializationFilter}
+                onChange={(e) => setSpecializationFilter(e.target.value as ExecutorSpecialization | 'all')}
+                className="w-full pl-10 pr-8 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white text-sm"
+              >
+                <option value="all">{language === 'ru' ? 'Все специализации' : 'Barcha mutaxassisliklar'}</option>
+                {allSpecializations.map(spec => (
+                  <option key={spec} value={spec}>{getSpecLabel(spec)}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          {/* Specialization Filter */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <select
-              value={specializationFilter}
-              onChange={(e) => setSpecializationFilter(e.target.value as ExecutorSpecialization | 'all')}
-              className="pl-10 pr-8 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
-            >
-              <option value="all">Все специализации</option>
-              {allSpecializations.map(spec => (
-                <option key={spec} value={spec}>{SPECIALIZATION_LABELS[spec]}</option>
-              ))}
-            </select>
-          </div>
-          <button
-            onClick={fetchTeam}
-            className="btn-secondary p-2"
-            title="Обновить"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
-          {/* Show reset passwords button only if there are staff without passwords */}
-          {[...admins, ...managers, ...departmentHeads, ...executors].some(m => !m.password) && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleResetAllPasswords}
-              className="btn-secondary flex items-center gap-2 text-orange-600 hover:bg-orange-50"
-              title="Сбросить пароли для сотрудников без паролей"
+              onClick={fetchTeam}
+              className="btn-secondary p-2"
+              title={language === 'ru' ? 'Обновить' : 'Yangilash'}
             >
-              <Key className="w-5 h-5" />
-              <span className="hidden sm:inline">Сбросить пароли</span>
+              <RefreshCw className="w-5 h-5" />
             </button>
-          )}
-          <button
-            onClick={() => openAddModal('executor')}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            <span className="hidden sm:inline">Добавить сотрудника</span>
-          </button>
+            {/* Show reset passwords button only if there are staff without passwords */}
+            {[...admins, ...managers, ...departmentHeads, ...executors].some(m => !m.password) && (
+              <button
+                onClick={handleResetAllPasswords}
+                className="btn-secondary flex items-center gap-2 text-orange-600 hover:bg-orange-50"
+                title={language === 'ru' ? 'Сбросить пароли для сотрудников без паролей' : 'Parolsiz xodimlarning parollarini tiklash'}
+              >
+                <Key className="w-5 h-5" />
+                <span className="hidden sm:inline">{language === 'ru' ? 'Сбросить пароли' : 'Parollarni tiklash'}</span>
+              </button>
+            )}
+            <button
+              onClick={() => openAddModal('executor')}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="hidden sm:inline">{language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
         {admins.length > 0 && (
-          <div className="glass-card p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                <Shield className="w-6 h-6 text-red-600" />
+          <div className="glass-card p-3 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
               </div>
-              <div>
-                <div className="text-2xl font-bold">{admins.length}</div>
-                <div className="text-sm text-gray-500">Администраторов</div>
+              <div className="min-w-0">
+                <div className="text-xl sm:text-2xl font-bold">{admins.length}</div>
+                <div className="text-xs sm:text-sm text-gray-500 truncate">{language === 'ru' ? 'Администраторов' : 'Administratorlar'}</div>
               </div>
             </div>
           </div>
         )}
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Shield className="w-6 h-6 text-purple-600" />
+        <div className="glass-card p-3 sm:p-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
             </div>
-            <div>
-              <div className="text-2xl font-bold">{managers.length}</div>
-              <div className="text-sm text-gray-500">Менеджеров</div>
-            </div>
-          </div>
-        </div>
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <UserCog className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{departmentHeads.length}</div>
-              <div className="text-sm text-gray-500">Глав отделов</div>
+            <div className="min-w-0">
+              <div className="text-xl sm:text-2xl font-bold">{managers.length}</div>
+              <div className="text-xs sm:text-sm text-gray-500 truncate">{language === 'ru' ? 'Менеджеров' : 'Menejerlar'}</div>
             </div>
           </div>
         </div>
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <Wrench className="w-6 h-6 text-green-600" />
+        <div className="glass-card p-3 sm:p-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <UserCog className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
             </div>
-            <div>
-              <div className="text-2xl font-bold">{executors.length}</div>
-              <div className="text-sm text-gray-500">Исполнителей</div>
+            <div className="min-w-0">
+              <div className="text-xl sm:text-2xl font-bold">{departmentHeads.length}</div>
+              <div className="text-xs sm:text-sm text-gray-500 truncate">{language === 'ru' ? 'Глав отделов' : 'Bo\'lim boshliqlari'}</div>
+            </div>
+          </div>
+        </div>
+        <div className="glass-card p-3 sm:p-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Wrench className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xl sm:text-2xl font-bold">{executors.length}</div>
+              <div className="text-xs sm:text-sm text-gray-500 truncate">{language === 'ru' ? 'Исполнителей' : 'Ijrochilar'}</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Sections */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {filteredAdmins.length > 0 && renderSection(
-          'Администраторы',
+          language === 'ru' ? 'Администраторы' : 'Administratorlar',
           <Shield className="w-5 h-5 text-red-500" />,
           filteredAdmins,
           'admins'
         )}
         {renderSection(
-          'Менеджеры',
+          language === 'ru' ? 'Менеджеры' : 'Menejerlar',
           <Shield className="w-5 h-5 text-purple-500" />,
           filteredManagers,
           'managers'
         )}
         {renderSection(
-          'Главы отделов',
+          language === 'ru' ? 'Главы отделов' : 'Bo\'lim boshliqlari',
           <UserCog className="w-5 h-5 text-blue-500" />,
           filteredDepartmentHeads,
           'departmentHeads'
         )}
         {renderSection(
-          'Исполнители',
+          language === 'ru' ? 'Исполнители' : 'Ijrochilar',
           <Wrench className="w-5 h-5 text-green-500" />,
           filteredExecutors,
           'executors'
@@ -687,132 +736,149 @@ export function TeamPage() {
       {/* Add Member Modal */}
       {showAddModal && (
         <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content p-6 w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Добавить сотрудника</h2>
+          <div className="modal-content p-4 sm:p-6 w-full max-w-lg mx-4 flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}</h2>
               <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {addError && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm">
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-3 text-sm">
                 {addError}
               </div>
             )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Роль *</label>
-                <select
-                  value={addForm.role}
-                  onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'admin' | 'manager' | 'department_head' | 'executor' })}
-                  className="input-field"
-                >
-                  <option value="executor">Исполнитель</option>
-                  <option value="department_head">Глава отдела</option>
-                  <option value="manager">Менеджер</option>
-                  <option value="admin">Администратор</option>
-                </select>
+            <div className="space-y-3 sm:space-y-4 overflow-y-auto flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Роль' : 'Rol'} *</label>
+                  <select
+                    value={addForm.role}
+                    onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'admin' | 'manager' | 'department_head' | 'executor', managerType: 'manager' })}
+                    className="input-field"
+                  >
+                    <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
+                    <option value="department_head">{language === 'ru' ? 'Глава отдела' : 'Bo\'lim boshlig\'i'}</option>
+                    <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
+                    <option value="admin">{language === 'ru' ? 'Администратор' : 'Administrator'}</option>
+                  </select>
+                </div>
+
+                {(addForm.role === 'executor' || addForm.role === 'department_head') ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'} *</label>
+                    <select
+                      value={addForm.specialization}
+                      onChange={(e) => setAddForm({ ...addForm, specialization: e.target.value as ExecutorSpecialization })}
+                      className="input-field"
+                    >
+                      <option value="">{language === 'ru' ? 'Выберите' : 'Tanlang'}</option>
+                      <option value="plumber">{language === 'ru' ? 'Сантехник' : 'Santexnik'}</option>
+                      <option value="electrician">{language === 'ru' ? 'Электрик' : 'Elektrik'}</option>
+                      <option value="elevator">{language === 'ru' ? 'Лифтёр' : 'Liftchi'}</option>
+                      <option value="intercom">{language === 'ru' ? 'Домофон' : 'Domofon'}</option>
+                      <option value="cleaning">{language === 'ru' ? 'Уборщица' : 'Tozalovchi'}</option>
+                      <option value="security">{language === 'ru' ? 'Охранник' : 'Qorovul'}</option>
+                      <option value="trash">{language === 'ru' ? 'Вывоз мусора' : 'Chiqindi tashish'}</option>
+                      <option value="boiler">{language === 'ru' ? 'Котельщик' : 'Qozonxonachi'}</option>
+                      <option value="ac">{language === 'ru' ? 'Кондиционерщик' : 'Konditsionerchi'}</option>
+                      <option value="courier">{language === 'ru' ? 'Курьер' : 'Kuryer'}</option>
+                      <option value="other">{language === 'ru' ? 'Другое' : 'Boshqa'}</option>
+                    </select>
+                  </div>
+                ) : addForm.role === 'manager' && hasFeature('advertiser') ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Тип' : 'Turi'}</label>
+                    <select
+                      value={addForm.managerType}
+                      onChange={(e) => setAddForm({ ...addForm, managerType: e.target.value as 'manager' | 'advertiser' })}
+                      className="input-field"
+                    >
+                      <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
+                      <option value="advertiser">{language === 'ru' ? 'Реклама' : 'Reklama'}</option>
+                    </select>
+                  </div>
+                ) : null}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ФИО *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.O.'} *</label>
                 <input
                   type="text"
                   value={addForm.name}
                   onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
                   className="input-field"
-                  placeholder="Иванов Иван Иванович"
+                  placeholder={language === 'ru' ? 'Иванов Иван Иванович' : 'Ismailov Ismoil Ismailovich'}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                 <input
                   type="text"
                   value={addForm.phone}
                   onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
                   className="input-field"
                   placeholder="+998 XX XXX XX XX"
+                  maxLength={13}
                 />
               </div>
 
-              {(addForm.role === 'executor' || addForm.role === 'department_head') && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Специализация *</label>
-                  <select
-                    value={addForm.specialization}
-                    onChange={(e) => setAddForm({ ...addForm, specialization: e.target.value as ExecutorSpecialization })}
-                    className="input-field"
-                  >
-                    <option value="">Выберите специализацию</option>
-                    <option value="plumber">Сантехник</option>
-                    <option value="electrician">Электрик</option>
-                    <option value="elevator">Лифтёр</option>
-                    <option value="intercom">Домофон</option>
-                    <option value="cleaning">Уборщица</option>
-                    <option value="security">Охранник</option>
-                    <option value="carpenter">Столяр</option>
-                    <option value="boiler">Котельщик</option>
-                    <option value="ac">Кондиционерщик</option>
-                    <option value="courier">Курьер</option>
-                    <option value="other">Другое</option>
-                  </select>
-                </div>
-              )}
+              <div className="border-t pt-3 mt-3">
+                <div className="text-sm font-medium text-gray-700 mb-3">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
 
-              <div className="border-t pt-4 mt-4">
-                <div className="text-sm font-medium text-gray-700 mb-3">Данные для входа</div>
-
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Логин *</label>
-                  <input
-                    type="text"
-                    value={addForm.login}
-                    onChange={(e) => setAddForm({ ...addForm, login: e.target.value })}
-                    className="input-field"
-                    placeholder="ivanov"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Пароль *</label>
-                  <div className="flex gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'} *</label>
                     <input
                       type="text"
-                      value={addForm.password}
-                      onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                      className="input-field flex-1"
+                      value={addForm.login}
+                      onChange={(e) => setAddForm({ ...addForm, login: e.target.value })}
+                      className="input-field"
+                      placeholder="ivanov"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setAddForm({ ...addForm, password: generatePassword() })}
-                      className="btn-secondary px-3"
-                      title="Сгенерировать пароль"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(addForm.password, 'addPassword')}
-                      className="btn-secondary px-3"
-                      title="Копировать пароль"
-                    >
-                      {copiedField === 'addPassword' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'} *</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={addForm.password}
+                        onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                        className="input-field flex-1 min-w-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAddForm({ ...addForm, password: generatePassword() })}
+                        className="btn-secondary px-2.5 flex-shrink-0"
+                        title={language === 'ru' ? 'Сгенерировать пароль' : 'Parol yaratish'}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(addForm.password, 'addPassword')}
+                        className="btn-secondary px-2.5 flex-shrink-0"
+                        title={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
+                      >
+                        {copiedField === 'addPassword' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-4 sm:mt-6 pt-3 border-t sm:border-t-0 sm:pt-0">
               <button
                 onClick={() => setShowAddModal(false)}
                 className="btn-secondary flex-1"
                 disabled={addLoading}
               >
-                Отмена
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={handleAddMember}
@@ -824,7 +890,7 @@ export function TeamPage() {
                 ) : (
                   <Plus className="w-4 h-4" />
                 )}
-                Добавить
+                {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
               </button>
             </div>
           </div>
@@ -849,7 +915,7 @@ export function TeamPage() {
                     </span>
                     {selectedMember.specialization && (
                       <span className="text-sm text-gray-500">
-                        {SPECIALIZATION_LABELS[selectedMember.specialization]}
+                        {getSpecLabel(selectedMember.specialization)}
                       </span>
                     )}
                   </div>
@@ -869,21 +935,21 @@ export function TeamPage() {
                     <Star className="w-4 h-4" />
                     <span className="font-bold text-lg">{selectedMember.avg_rating || 0}</span>
                   </div>
-                  <div className="text-xs text-gray-500">Рейтинг</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</div>
                 </div>
                 <div className="bg-green-50 rounded-xl p-3 text-center">
                   <div className="flex items-center justify-center gap-1 text-green-600 mb-1">
                     <Award className="w-4 h-4" />
                     <span className="font-bold text-lg">{selectedMember.completed_count || 0}</span>
                   </div>
-                  <div className="text-xs text-gray-500">Выполнено</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</div>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
                     <Clock className="w-4 h-4" />
                     <span className="font-bold text-lg">{selectedMember.active_count || 0}</span>
                   </div>
-                  <div className="text-xs text-gray-500">Активных</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
                 </div>
               </div>
             )}
@@ -892,7 +958,7 @@ export function TeamPage() {
             {isEditing ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ФИО</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.O.'}</label>
                   <input
                     type="text"
                     value={editForm.name}
@@ -901,16 +967,17 @@ export function TeamPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                   <input
                     type="text"
                     value={editForm.phone}
                     onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                     className="input-field"
+                    maxLength={13}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
                   <input
                     type="text"
                     value={editForm.login}
@@ -919,35 +986,35 @@ export function TeamPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Новый пароль</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Новый пароль' : 'Yangi parol'}</label>
                   <input
                     type="text"
                     value={editForm.password}
                     onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
                     className="input-field"
-                    placeholder="Оставьте пустым, чтобы не менять"
+                    placeholder={language === 'ru' ? 'Оставьте пустым, чтобы не менять' : 'O\'zgartirmaslik uchun bo\'sh qoldiring'}
                   />
                 </div>
                 {(selectedMember.role === 'executor' || selectedMember.role === 'department_head') && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Специализация</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'}</label>
                     <select
                       value={editForm.specialization}
                       onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value as ExecutorSpecialization })}
                       className="input-field"
                     >
-                      <option value="">Не указана</option>
-                      <option value="plumber">Сантехник</option>
-                      <option value="electrician">Электрик</option>
-                      <option value="elevator">Лифтёр</option>
-                      <option value="intercom">Домофон</option>
-                      <option value="cleaning">Уборщица</option>
-                      <option value="gardener">Садовник</option>
-                      <option value="security">Охранник</option>
-                      <option value="carpenter">Столяр</option>
-                      <option value="boiler">Котельщик</option>
-                      <option value="ac">Кондиционерщик</option>
-                      <option value="other">Другое</option>
+                      <option value="">{language === 'ru' ? 'Не указана' : 'Ko\'rsatilmagan'}</option>
+                      <option value="plumber">{language === 'ru' ? 'Сантехник' : 'Santexnik'}</option>
+                      <option value="electrician">{language === 'ru' ? 'Электрик' : 'Elektrik'}</option>
+                      <option value="elevator">{language === 'ru' ? 'Лифтёр' : 'Liftchi'}</option>
+                      <option value="intercom">{language === 'ru' ? 'Домофон' : 'Domofon'}</option>
+                      <option value="cleaning">{language === 'ru' ? 'Уборщица' : 'Tozalovchi'}</option>
+                      <option value="gardener">{language === 'ru' ? 'Садовник' : 'Bog\'bon'}</option>
+                      <option value="security">{language === 'ru' ? 'Охранник' : 'Qorovul'}</option>
+                      <option value="trash">{language === 'ru' ? 'Вывоз мусора' : 'Chiqindi tashish'}</option>
+                      <option value="boiler">{language === 'ru' ? 'Котельщик' : 'Qozonxonachi'}</option>
+                      <option value="ac">{language === 'ru' ? 'Кондиционерщик' : 'Konditsionerchi'}</option>
+                      <option value="other">{language === 'ru' ? 'Другое' : 'Boshqa'}</option>
                     </select>
                   </div>
                 )}
@@ -959,7 +1026,7 @@ export function TeamPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Phone className="w-4 h-4" />
-                      <span className="text-sm">Телефон</span>
+                      <span className="text-sm">{language === 'ru' ? 'Телефон' : 'Telefon'}</span>
                     </div>
                     <span className="font-medium">{selectedMember.phone}</span>
                   </div>
@@ -967,16 +1034,16 @@ export function TeamPage() {
 
                 {/* Credentials */}
                 <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-                  <div className="text-sm font-medium text-blue-800 mb-2">Данные для входа</div>
+                  <div className="text-sm font-medium text-blue-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Логин</span>
+                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
                     <div className="flex items-center gap-2">
                       <code className="bg-white px-2 py-1 rounded text-sm font-mono">{selectedMember.login}</code>
                       <button
                         onClick={() => handleCopy(selectedMember.login, 'login')}
                         className="p-1 hover:bg-blue-100 rounded"
-                        title="Копировать"
+                        title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                       >
                         {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                       </button>
@@ -984,12 +1051,12 @@ export function TeamPage() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Пароль</span>
+                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
                     <div className="flex items-center gap-2">
                       {isLoadingDetails ? (
                         <span className="flex items-center gap-2 text-sm text-gray-400">
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          Загрузка...
+                          {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
                         </span>
                       ) : selectedMember.password ? (
                         <>
@@ -1004,20 +1071,20 @@ export function TeamPage() {
                               setShowPassword(!showPassword);
                             }}
                             className="p-2 hover:bg-blue-100 active:bg-blue-200 rounded touch-manipulation z-10"
-                            title={showPassword ? 'Скрыть' : 'Показать'}
+                            title={showPassword ? (language === 'ru' ? 'Скрыть пароль' : 'Parolni yashirish') : (language === 'ru' ? 'Показать пароль' : 'Parolni ko\'rsatish')}
                           >
                             {showPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
                           </button>
                           <button
                             onClick={() => handleCopy(selectedMember.password || '', 'password')}
                             className="p-1 hover:bg-blue-100 rounded"
-                            title="Копировать"
+                            title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                           >
                             {copiedField === 'password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                           </button>
                         </>
                       ) : (
-                        <span className="text-sm text-gray-400 italic">Задайте через "Редактировать"</span>
+                        <span className="text-sm text-gray-400 italic">{language === 'ru' ? 'Задайте через "Редактировать"' : '"Tahrirlash" orqali belgilang'}</span>
                       )}
                     </div>
                   </div>
@@ -1025,7 +1092,7 @@ export function TeamPage() {
 
                 {/* Created date */}
                 <div className="text-sm text-gray-500 text-center">
-                  Добавлен: {new Date(selectedMember.created_at).toLocaleDateString('ru-RU')}
+                  {language === 'ru' ? 'Добавлен' : 'Qo\'shilgan'}: {new Date(selectedMember.created_at).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
                 </div>
               </div>
             )}
@@ -1035,17 +1102,17 @@ export function TeamPage() {
               {isEditing ? (
                 <>
                   <button onClick={() => setIsEditing(false)} className="btn-secondary flex-1">
-                    Отмена
+                    {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
                   </button>
                   <button onClick={handleSaveChanges} className="btn-primary flex-1 flex items-center justify-center gap-2">
                     <Save className="w-4 h-4" />
-                    Сохранить
+                    {language === 'ru' ? 'Сохранить' : 'Saqlash'}
                   </button>
                 </>
               ) : (
                 <button onClick={() => setIsEditing(true)} className="btn-primary w-full flex items-center justify-center gap-2">
                   <Edit3 className="w-4 h-4" />
-                  Редактировать
+                  {language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                 </button>
               )}
             </div>
@@ -1061,13 +1128,13 @@ export function TeamPage() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-8 h-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Сотрудник создан!</h3>
-              <p className="text-gray-500 mt-2">Сохраните учетные данные для входа</p>
+              <h3 className="text-xl font-bold text-gray-900">{language === 'ru' ? 'Сотрудник создан!' : 'Xodim yaratildi!'}</h3>
+              <p className="text-gray-500 mt-2">{language === 'ru' ? 'Сохраните учетные данные для входа' : 'Kirish ma\'lumotlarini saqlang'}</p>
             </div>
 
             <div className="space-y-4 bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Логин</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
                 <div className="flex items-center gap-2">
                   <code className="bg-white px-3 py-1.5 rounded-lg text-sm font-mono font-medium">
                     {showCredentialsModal.login}
@@ -1086,7 +1153,7 @@ export function TeamPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Пароль</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
                 <div className="flex items-center gap-2">
                   <code className="bg-white px-3 py-1.5 rounded-lg text-sm font-mono font-medium">
                     {showCredentialsModal.password}
@@ -1107,7 +1174,9 @@ export function TeamPage() {
 
             <div className="mt-6 p-3 bg-yellow-50 rounded-xl border border-yellow-200">
               <p className="text-sm text-yellow-800">
-                ⚠️ Сохраните эти данные! Пароль показывается только один раз.
+                {language === 'ru'
+                  ? '⚠️ Сохраните эти данные! Пароль показывается только один раз.'
+                  : '⚠️ Bu ma\'lumotlarni saqlang! Parol faqat bir marta ko\'rsatiladi.'}
               </p>
             </div>
 
@@ -1115,7 +1184,7 @@ export function TeamPage() {
               onClick={() => setShowCredentialsModal(null)}
               className="btn-primary w-full mt-6"
             >
-              Готово
+              {language === 'ru' ? 'Готово' : 'Tayyor'}
             </button>
           </div>
         </div>

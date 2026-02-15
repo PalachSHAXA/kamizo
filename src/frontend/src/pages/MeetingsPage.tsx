@@ -132,7 +132,7 @@ export function MeetingsPage() {
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
               activeTab === tab.id
-                ? 'bg-orange-400 text-gray-900'
+                ? 'bg-primary-400 text-gray-900'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -464,7 +464,7 @@ function MeetingCard({
           {meeting.status === 'voting_open' && (
             <button
               onClick={onCloseVoting}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-sm font-medium"
+              className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors text-sm font-medium"
             >
               <Square className="w-4 h-4" />
               {language === 'ru' ? 'Закрыть голосование' : 'Ovoz berishni yopish'}
@@ -647,7 +647,7 @@ function CreateMeetingWizard({
             {steps.map((s, i) => (
               <div key={s.num} className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step >= s.num ? 'bg-orange-400 text-gray-900' : 'bg-gray-200 text-gray-500'
+                  step >= s.num ? 'bg-primary-400 text-gray-900' : 'bg-gray-200 text-gray-500'
                 }`}>
                   {s.num}
                 </div>
@@ -655,7 +655,7 @@ function CreateMeetingWizard({
                   {s.label}
                 </span>
                 {i < steps.length - 1 && (
-                  <div className={`w-16 h-1 mx-4 rounded ${step > s.num ? 'bg-orange-400' : 'bg-gray-200'}`} />
+                  <div className={`w-16 h-1 mx-4 rounded ${step > s.num ? 'bg-primary-400' : 'bg-gray-200'}`} />
                 )}
               </div>
             ))}
@@ -681,7 +681,7 @@ function CreateMeetingWizard({
                   <select
                     value={formData.buildingId}
                     onChange={(e) => handleBuildingChange(e.target.value)}
-                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-400 focus:border-orange-400"
+                    className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
                   >
                     {buildings.map((building) => (
                       <option key={building.id} value={building.id}>
@@ -702,7 +702,7 @@ function CreateMeetingWizard({
                     onClick={() => setFormData({ ...formData, organizerType: 'management' })}
                     className={`p-4 rounded-xl border-2 transition-colors ${
                       formData.organizerType === 'management'
-                        ? 'border-orange-400 bg-yellow-50'
+                        ? 'border-primary-400 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -715,7 +715,7 @@ function CreateMeetingWizard({
                     onClick={() => setFormData({ ...formData, organizerType: 'resident' })}
                     className={`p-4 rounded-xl border-2 transition-colors ${
                       formData.organizerType === 'resident'
-                        ? 'border-orange-400 bg-yellow-50'
+                        ? 'border-primary-400 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -739,7 +739,7 @@ function CreateMeetingWizard({
                       onClick={() => setFormData({ ...formData, format })}
                       className={`p-3 rounded-xl border-2 transition-colors ${
                         formData.format === format
-                          ? 'border-orange-400 bg-yellow-50'
+                          ? 'border-primary-400 bg-primary-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -827,7 +827,7 @@ function CreateMeetingWizard({
                         onClick={() => handleAddAgendaItem(type)}
                         className={`w-full p-4 rounded-xl border-2 text-left transition-colors ${
                           isSelected
-                            ? 'border-orange-400 bg-yellow-50'
+                            ? 'border-primary-400 bg-primary-50'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -853,7 +853,7 @@ function CreateMeetingWizard({
                             </div>
                           </div>
                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                            isSelected ? 'border-orange-400 bg-orange-400' : 'border-gray-300'
+                            isSelected ? 'border-primary-400 bg-primary-400' : 'border-gray-300'
                           }`}>
                             {isSelected && <Check className="w-4 h-4 text-gray-900" />}
                           </div>
@@ -873,7 +873,7 @@ function CreateMeetingWizard({
                   <button
                     type="button"
                     onClick={() => setShowCustomItemForm(true)}
-                    className="text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
                   >
                     <Plus className="w-4 h-4" />
                     {language === 'ru' ? 'Добавить вопрос' : 'Savol qo\'shish'}
@@ -884,7 +884,7 @@ function CreateMeetingWizard({
                 {formData.customItems.length > 0 && (
                   <div className="space-y-2 mb-4">
                     {formData.customItems.map((item, index) => (
-                      <div key={index} className="p-3 rounded-xl border-2 border-orange-400 bg-yellow-50">
+                      <div key={index} className="p-3 rounded-xl border-2 border-primary-400 bg-primary-50">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="font-medium">{item.title}</div>
@@ -959,7 +959,7 @@ function CreateMeetingWizard({
                           }
                         }}
                         disabled={!newCustomItem.title.trim()}
-                        className="flex-1 py-2 px-4 bg-orange-400 hover:bg-orange-500 text-gray-900 rounded-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 py-2 px-4 bg-primary-400 hover:bg-primary-500 text-gray-900 rounded-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
                       </button>
@@ -1090,7 +1090,7 @@ function CreateMeetingWizard({
             <button
               onClick={() => setStep(step + 1)}
               disabled={(step === 1 && !formData.buildingId) || (step === 2 && formData.agendaItems.length === 0 && formData.customItems.length === 0)}
-              className="flex-1 py-3 rounded-xl font-medium bg-orange-400 text-gray-900 hover:bg-orange-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 rounded-xl font-medium bg-primary-400 text-gray-900 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {language === 'ru' ? 'Далее' : 'Keyingi'}
             </button>
@@ -1098,7 +1098,7 @@ function CreateMeetingWizard({
             <button
               onClick={handleCreate}
               disabled={isSubmitting || !formData.buildingId}
-              className="flex-1 py-3 rounded-xl font-medium bg-orange-400 text-gray-900 hover:bg-orange-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 rounded-xl font-medium bg-primary-400 text-gray-900 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting
                 ? (language === 'ru' ? 'Создание...' : 'Yaratilmoqda...')
@@ -1322,7 +1322,7 @@ function MeetingDetailsModal({
                 onClick={() => setActiveTab('agenda')}
                 className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
                   activeTab === 'agenda'
-                    ? 'border-orange-500 text-orange-600'
+                    ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -1332,7 +1332,7 @@ function MeetingDetailsModal({
                 onClick={() => setActiveTab('against')}
                 className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${
                   activeTab === 'against'
-                    ? 'border-orange-500 text-orange-600'
+                    ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -1373,7 +1373,7 @@ function MeetingDetailsModal({
                 <select
                   value={selectedAgendaItem || ''}
                   onChange={(e) => setSelectedAgendaItem(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   {meeting.agendaItems.map((item, index) => (
                     <option key={item.id} value={item.id}>
@@ -1428,7 +1428,7 @@ function MeetingDetailsModal({
                           disabled={!vote.canSendRequest || sendingRequest === vote.voterId}
                           className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
                             vote.canSendRequest
-                              ? 'bg-orange-500 text-white hover:bg-orange-600'
+                              ? 'bg-primary-500 text-white hover:bg-primary-600'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                           }`}
                         >
@@ -1541,7 +1541,7 @@ function MeetingDetailsModal({
                 <select
                   value={requestReason}
                   onChange={(e) => setRequestReason(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   <option value="">
                     {language === 'ru' ? 'Выберите причину...' : 'Sababni tanlang...'}
@@ -1562,7 +1562,7 @@ function MeetingDetailsModal({
                   value={requestMessage}
                   onChange={(e) => setRequestMessage(e.target.value)}
                   placeholder={language === 'ru' ? 'Личное сообщение жителю...' : 'Aholiga shaxsiy xabar...'}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   rows={3}
                   maxLength={500}
                 />
@@ -1592,7 +1592,7 @@ function MeetingDetailsModal({
                 <button
                   onClick={handleSendReconsiderationRequest}
                   disabled={!requestReason || !!sendingRequest}
-                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4" />
                   {sendingRequest

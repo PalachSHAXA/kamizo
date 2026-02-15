@@ -2,6 +2,9 @@
 
 const API_URL = '';
 
+// Flag to prevent multiple 401 reload loops
+let isHandling401 = false;
+
 // Get auth token from localStorage
 const getToken = () => localStorage.getItem('auth_token');
 
@@ -91,6 +94,24 @@ export async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
+      // Auto-logout on 401 (stale token, tenant mismatch, etc.)
+      if (response.status === 401 && endpoint !== '/api/auth/login' && !isHandling401) {
+        isHandling401 = true;
+        console.warn('401 Unauthorized - clearing auth state and redirecting to login');
+        localStorage.removeItem('auth_token');
+        // Clear zustand persisted auth state
+        try {
+          const authState = JSON.parse(localStorage.getItem('uk-auth-storage') || '{}');
+          if (authState?.state) {
+            authState.state.user = null;
+            authState.state.token = null;
+            localStorage.setItem('uk-auth-storage', JSON.stringify(authState));
+          }
+        } catch {}
+        // Reload page to show login (delayed to allow state cleanup)
+        setTimeout(() => window.location.reload(), 100);
+        throw new Error('Session expired');
+      }
       throw new Error(data.error || 'API Error');
     }
 
@@ -363,6 +384,7 @@ export const rentalsApi = {
     ownerLogin: string;
     ownerPassword: string;
     ownerType?: 'tenant' | 'commercial_owner';
+    existingUserId?: string;
   }) => {
     return apiRequest<{ apartment: any }>('/api/rentals/apartments', {
       method: 'POST',
@@ -569,6 +591,7 @@ export const announcementsApi = {
     priority?: 'normal' | 'important' | 'urgent';
     expires_at?: string;
     attachments?: { name: string; url: string; type: string; size: number }[];
+    personalized_data?: Record<string, { name: string; debt: number }>;
   }) => {
     const result = await apiRequest<{ id: string }>('/api/announcements', {
       method: 'POST',
@@ -1269,7 +1292,7 @@ export const teamApi = {
     password: string;
     name: string;
     phone: string;
-    role: 'admin' | 'manager' | 'department_head' | 'executor';
+    role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser';
     specialization?: string;
   }) => {
     return apiRequest<{ user: any }>('/api/auth/register', {
@@ -1422,9 +1445,10 @@ export const requestsApi = {
     });
   },
 
-  pause: async (requestId: string) => {
+  pause: async (requestId: string, reason?: string) => {
     const result = await apiRequest<{ success: boolean; request: any }>(`/api/requests/${requestId}/pause`, {
       method: 'POST',
+      body: JSON.stringify({ reason }),
     });
     invalidateCache('/api/requests');
     return result;
@@ -1880,12 +1904,10 @@ export const meetingsFullApi = {
     agendaItems: { title: string; description?: string; threshold?: string }[];
     materials?: any[];
   }) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>('/api/meetings', {
       method: 'POST',
-      body: JSON.stringify({
-        ...meeting,
-        meeting_time: meeting.meetingTime,
-      }),
+      body: JSON.stringify(meeting),
     }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1894,6 +1916,7 @@ export const meetingsFullApi = {
   },
 
   update: async (id: string, updates: any) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -1905,6 +1928,7 @@ export const meetingsFullApi = {
   },
 
   delete: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<{ success: boolean }>(`/api/meetings/${id}`, {
       method: 'DELETE',
     });
@@ -1912,6 +1936,7 @@ export const meetingsFullApi = {
 
   // Status transitions
   submit: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/submit`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1920,6 +1945,7 @@ export const meetingsFullApi = {
   },
 
   approve: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/approve`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1928,6 +1954,7 @@ export const meetingsFullApi = {
   },
 
   reject: async (id: string, reason: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/reject`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
@@ -1939,6 +1966,7 @@ export const meetingsFullApi = {
   },
 
   openSchedulePoll: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/open-schedule-poll`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1947,6 +1975,7 @@ export const meetingsFullApi = {
   },
 
   confirmSchedule: async (id: string, optionId?: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/confirm-schedule`, {
       method: 'POST',
       body: JSON.stringify({ optionId }),
@@ -1958,6 +1987,7 @@ export const meetingsFullApi = {
   },
 
   openVoting: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/open-voting`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1966,6 +1996,7 @@ export const meetingsFullApi = {
   },
 
   closeVoting: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/close-voting`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1974,6 +2005,7 @@ export const meetingsFullApi = {
   },
 
   publishResults: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/publish-results`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
@@ -1982,20 +2014,22 @@ export const meetingsFullApi = {
   },
 
   generateProtocol: async (id: string) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/generate-protocol`, { method: 'POST' }).then(r => ({
       success: r.success,
-      data: r.data,
+      data: r.data?.protocol || r.data,
       error: r.error
     }));
   },
 
   approveProtocol: async (id: string, signerData?: { signerId: string; signerName: string; signerRole: string }) => {
+    invalidateCache('/api/meetings');
     return apiRequestWrapped<any>(`/api/meetings/${id}/approve-protocol`, {
       method: 'POST',
       body: signerData ? JSON.stringify(signerData) : undefined,
     }).then(r => ({
       success: r.success,
-      data: r.data?.meeting || r.data,
+      data: r.data,
       error: r.error
     }));
   },

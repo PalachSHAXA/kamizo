@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Megaphone, AlertTriangle, AlertCircle, Info, Clock } from 'lucide-react';
+import { Megaphone, AlertTriangle, AlertCircle, Info, Clock, Download, FileText, File, Image } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -132,6 +132,33 @@ export function ExecutorAnnouncementsPage() {
 
                     {/* Content */}
                     <p className="text-gray-600 whitespace-pre-wrap">{announcement.content}</p>
+
+                    {/* Attachments */}
+                    {announcement.attachments && announcement.attachments.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {announcement.attachments.map((attachment, index) => (
+                          <a
+                            key={index}
+                            href={attachment.url}
+                            download={attachment.name}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-gray-700 transition-colors border border-gray-200"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {attachment.type.startsWith('image/') ? (
+                              <Image className="w-4 h-4 text-blue-500" />
+                            ) : attachment.type.includes('pdf') ? (
+                              <FileText className="w-4 h-4 text-red-500" />
+                            ) : (
+                              <File className="w-4 h-4 text-gray-500" />
+                            )}
+                            <span className="truncate max-w-[150px]">{attachment.name}</span>
+                            <Download className="w-4 h-4 text-gray-400" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Meta */}
                     <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">

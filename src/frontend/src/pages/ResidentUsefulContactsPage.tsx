@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Phone, MapPin, Clock, Search, ArrowLeft,
   Ticket, CheckCircle, Loader2, Flame, Sparkles,
-  Tag, Eye, Gift, Globe, ChevronRight
+  Tag, Eye, Gift, Globe, ChevronRight, Shield, Siren,
+  HeartPulse, FireExtinguisher, Zap, PlugZap
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -428,6 +429,44 @@ export default function ResidentUsefulContactsPage() {
             ? 'Проверенные специалисты для жителей комплекса'
             : 'Majmua aholisi uchun tekshirilgan mutaxassislar'}
         </p>
+      </div>
+
+      {/* Emergency Services */}
+      <div className="mb-5 px-1">
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+              <Siren className="w-5 h-5 text-red-600" />
+            </div>
+            <h2 className="font-semibold text-gray-900">
+              {language === 'ru' ? 'Экстренные службы' : 'Tez yordam xizmatlari'}
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { name: language === 'ru' ? 'Пожарная' : 'Yong\'in xizmati', number: '101', icon: FireExtinguisher, color: 'bg-red-500' },
+              { name: language === 'ru' ? 'Полиция' : 'Politsiya', number: '102', icon: Shield, color: 'bg-blue-600' },
+              { name: language === 'ru' ? 'Скорая помощь' : 'Tez yordam', number: '103', icon: HeartPulse, color: 'bg-green-600' },
+              { name: language === 'ru' ? 'Газовая служба' : 'Gaz xizmati', number: '104', icon: Zap, color: 'bg-yellow-500' },
+              { name: language === 'ru' ? 'МЧС' : 'FVV', number: '1050', icon: Siren, color: 'bg-orange-500' },
+              { name: language === 'ru' ? 'Электросеть' : 'Elektr tarmog\'i', number: '1055', icon: PlugZap, color: 'bg-indigo-500' },
+            ].map(service => (
+              <a
+                key={service.number}
+                href={`tel:${service.number}`}
+                className="flex items-center gap-3 bg-white rounded-xl p-3 border border-gray-100 hover:shadow-md transition-all active:scale-[0.98]"
+              >
+                <div className={`w-10 h-10 rounded-full ${service.color} flex items-center justify-center flex-shrink-0`}>
+                  <service.icon className="w-5 h-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs text-gray-500 truncate">{service.name}</div>
+                  <div className="text-lg font-bold text-gray-900">{service.number}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Search */}

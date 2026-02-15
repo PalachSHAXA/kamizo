@@ -185,16 +185,16 @@ export function ResidentMeetingsPage() {
       {/* New Request Popup Alert */}
       {newRequestAlert && (
         <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-50 animate-in slide-in-from-top-2 duration-300">
-          <div className="glass-card p-4 border-2 border-orange-400 bg-gradient-to-r from-orange-50 to-yellow-50 shadow-xl">
+          <div className="glass-card p-4 border-2 border-primary-400 bg-gradient-to-r from-primary-50 to-primary-100 shadow-xl">
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-orange-100 rounded-full animate-pulse">
-                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              <div className="p-2 bg-primary-100 rounded-full animate-pulse">
+                <AlertTriangle className="w-5 h-5 text-primary-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-orange-800 mb-1">
+                <div className="font-bold text-primary-800 mb-1">
                   {language === 'ru' ? 'Новый запрос!' : 'Yangi so\'rov!'}
                 </div>
-                <div className="text-sm text-orange-700 mb-2">
+                <div className="text-sm text-primary-700 mb-2">
                   {language === 'ru'
                     ? 'УК просит вас пересмотреть свой голос'
                     : 'BK sizdan ovozingizni qayta ko\'rib chiqishni so\'raydi'}
@@ -205,7 +205,7 @@ export function ResidentMeetingsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleRespondToRequest(newRequestAlert)}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-primary-500 text-white rounded-xl text-sm font-medium hover:bg-primary-600 transition-colors"
                   >
                     <RefreshCw className="w-4 h-4" />
                     {language === 'ru' ? 'Открыть' : 'Ochish'}
@@ -243,26 +243,26 @@ export function ResidentMeetingsPage() {
           {reconsiderationRequests.map((request) => (
             <div
               key={request.id}
-              className="glass-card p-4 border-2 border-orange-300 bg-orange-50"
+              className="glass-card p-4 border-2 border-primary-300 bg-primary-50"
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 bg-orange-100 rounded-xl">
-                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                <div className="p-2 bg-primary-100 rounded-xl">
+                  <AlertTriangle className="w-5 h-5 text-primary-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-orange-800 mb-1">
+                  <div className="font-medium text-primary-800 mb-1">
                     {language === 'ru' ? 'Просьба пересмотреть голос' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}
                   </div>
-                  <div className="text-sm text-orange-700 mb-2">
+                  <div className="text-sm text-primary-700 mb-2">
                     {language === 'ru' ? 'Вопрос:' : 'Savol:'} {request.agendaItemTitle}
                   </div>
                   {request.messageToResident && (
                     <div className="p-2 bg-white rounded-lg text-sm text-gray-700 mb-2">
-                      <MessageSquare className="w-3 h-3 inline mr-1 text-orange-500" />
+                      <MessageSquare className="w-3 h-3 inline mr-1 text-primary-500" />
                       {request.messageToResident}
                     </div>
                   )}
-                  <div className="text-xs text-orange-600 mb-3">
+                  <div className="text-xs text-primary-600 mb-3">
                     {language === 'ru'
                       ? 'Это только просьба. Вы сами решаете, менять голос или нет.'
                       : 'Bu faqat iltimos. Ovozni o\'zgartirish yoki o\'zgartirmaslikni o\'zingiz hal qilasiz.'}
@@ -273,7 +273,7 @@ export function ResidentMeetingsPage() {
                         e.stopPropagation();
                         handleRespondToRequest(request);
                       }}
-                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-xl text-sm font-medium hover:bg-primary-600 transition-colors"
                     >
                       <RefreshCw className="w-4 h-4" />
                       {language === 'ru' ? 'Изменить голос' : 'Ovozni o\'zgartirish'}
@@ -283,7 +283,7 @@ export function ResidentMeetingsPage() {
                         e.stopPropagation();
                         handleIgnoreRequest(request.id);
                       }}
-                      className="flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 rounded-xl text-sm font-medium hover:bg-orange-100 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 border border-primary-300 text-primary-700 rounded-xl text-sm font-medium hover:bg-primary-100 transition-colors"
                     >
                       <X className="w-4 h-4" />
                       {language === 'ru' ? 'Оставить как есть' : 'Shundayligicha qoldirish'}
@@ -476,7 +476,7 @@ export function ResidentMeetingsPage() {
       {showVotingModal && !selectedMeeting && selectedMeetingId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-orange-500" />
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary-500" />
             <p className="text-gray-600">
               {language === 'ru' ? 'Загрузка собрания...' : 'Yig\'ilish yuklanmoqda...'}
             </p>
@@ -541,6 +541,7 @@ function MeetingVotingModal({
   const [scheduleVoteSuccess, setScheduleVoteSuccess] = useState(false);
   const [previousVote, setPreviousVote] = useState<string | null>(null);
   const [votesSubmitted, setVotesSubmitted] = useState(false);
+  const pendingVotesInitialized = useRef(false);
 
   // Load schedule vote on mount
   useEffect(() => {
@@ -550,9 +551,9 @@ function MeetingVotingModal({
     });
   }, [getScheduleVote]);
 
-  // Initialize pendingVotes with existing votes when in revote mode
+  // Initialize pendingVotes with existing votes when in revote mode (only once)
   useEffect(() => {
-    if (allowRevote) {
+    if (allowRevote && !pendingVotesInitialized.current) {
       const existingVotes: Record<string, VoteChoice> = {};
       meeting.agendaItems.forEach(item => {
         const vote = getVote(item.id);
@@ -562,7 +563,11 @@ function MeetingVotingModal({
       });
       if (Object.keys(existingVotes).length > 0) {
         setPendingVotes(existingVotes);
+        pendingVotesInitialized.current = true;
       }
+    }
+    if (!allowRevote) {
+      pendingVotesInitialized.current = false;
     }
   }, [allowRevote, meeting.agendaItems, getVote]);
 
@@ -733,14 +738,14 @@ function MeetingVotingModal({
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {/* Revote Banner - shown when changing vote after reconsideration request */}
           {allowRevote && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+            <div className="bg-primary-50 border border-primary-200 rounded-xl p-3">
               <div className="flex items-start gap-2">
-                <RefreshCw className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                <RefreshCw className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-orange-800">
+                  <p className="text-sm font-medium text-primary-800">
                     {language === 'ru' ? 'Изменение голоса' : 'Ovozni o\'zgartirish'}
                   </p>
-                  <p className="text-xs text-orange-600">
+                  <p className="text-xs text-primary-600">
                     {language === 'ru'
                       ? 'Выберите новый вариант голоса и подтвердите изменение'
                       : 'Yangi ovoz variantini tanlang va o\'zgartirishni tasdiqlang'}
@@ -1126,8 +1131,8 @@ function MeetingVotingModal({
 
                     {/* Your Vote Indicator - show for submitted votes or pending selection */}
                     {(() => {
-                      const currentChoice = existingVote?.choice || pendingVotes[item.id];
-                      const isSubmitted = !!existingVote;
+                      const currentChoice = pendingVotes[item.id] || existingVote?.choice;
+                      const isSubmitted = !!existingVote && (!pendingVotes[item.id] || pendingVotes[item.id] === existingVote?.choice);
                       if (!currentChoice) return null;
                       return (
                         <div className={`text-sm font-medium flex items-center gap-2 mb-2 ${

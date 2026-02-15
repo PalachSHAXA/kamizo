@@ -1,5 +1,5 @@
-export type UserRole = 'super_admin' | 'admin' | 'director' | 'manager' | 'department_head' | 'executor' | 'resident' | 'commercial_owner' | 'tenant' | 'advertiser' | 'coupon_checker' | 'dispatcher' | 'security' | 'marketplace_manager';
-export type ExecutorSpecialization = 'plumber' | 'electrician' | 'elevator' | 'intercom' | 'cleaning' | 'security' | 'carpenter' | 'boiler' | 'ac' | 'courier' | 'other';
+export type UserRole = 'super_admin' | 'admin' | 'director' | 'manager' | 'department_head' | 'executor' | 'resident' | 'commercial_owner' | 'tenant' | 'advertiser' | 'dispatcher' | 'security' | 'marketplace_manager';
+export type ExecutorSpecialization = 'plumber' | 'electrician' | 'elevator' | 'intercom' | 'cleaning' | 'security' | 'trash' | 'boiler' | 'ac' | 'courier' | 'other';
 export type RequestStatus = 'new' | 'assigned' | 'accepted' | 'in_progress' | 'pending_approval' | 'completed' | 'cancelled';
 export type CancelledBy = 'resident' | 'executor' | 'manager' | 'admin';
 export type RequestPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -41,7 +41,7 @@ export interface User {
   createdAt?: string;
 
   // Special account types (for advertising platform)
-  account_type?: 'advertiser' | 'coupon_checker';
+  account_type?: 'advertiser';
 }
 
 export interface Executor {
@@ -90,6 +90,7 @@ export interface Request {
   feedback?: string;
   workDuration?: number; // in seconds
   pausedAt?: string; // when work was paused
+  pauseReason?: string; // reason for pausing work
   totalPausedTime?: number; // total paused time in seconds
   isPaused?: boolean; // current pause state
   cancelledAt?: string;
@@ -210,6 +211,14 @@ export interface FileAttachment {
   size: number; // in bytes
 }
 
+// Personalized data for debt-based announcements
+export interface AnnouncementPersonalizedData {
+  [login: string]: {
+    name: string;
+    debt: number;
+  };
+}
+
 // Announcement for residents or staff
 export interface Announcement {
   id: string;
@@ -228,6 +237,8 @@ export interface Announcement {
   attachments?: FileAttachment[]; // file attachments
   // Targeting fields
   target?: AnnouncementTarget;
+  // Personalized data for debt-based announcements (template variables per login)
+  personalizedData?: AnnouncementPersonalizedData;
 }
 
 // Chat types
@@ -323,23 +334,25 @@ export const CHAT_CHANNEL_LABELS: Record<ChatChannelType, { label: string; label
 export interface ServiceCategory {
   id: ExecutorSpecialization;
   name: string;
+  nameUz: string;
   icon: string;
   description: string;
+  descriptionUz: string;
 }
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
   // Popular services (first 4 shown in grid)
-  { id: 'plumber', name: 'Сантехника', icon: '🔧', description: 'Ремонт труб, кранов, унитазов' },
-  { id: 'electrician', name: 'Электрика', icon: '💡', description: 'Проводка, розетки, освещение' },
-  { id: 'security', name: 'Охрана', icon: '🛡️', description: 'Безопасность и охрана территории' },
-  { id: 'cleaning', name: 'Уборка', icon: '🧹', description: 'Уборка подъездов и территории' },
+  { id: 'plumber', name: 'Сантехника', nameUz: 'Santexnika', icon: '🔧', description: 'Ремонт труб, кранов, унитазов', descriptionUz: 'Quvurlar, kranlar, unitazlar ta\'miri' },
+  { id: 'electrician', name: 'Электрика', nameUz: 'Elektrika', icon: '💡', description: 'Проводка, розетки, освещение', descriptionUz: 'Simlar, rozetkalar, yoritish' },
+  { id: 'security', name: 'Охрана', nameUz: 'Qo\'riqlash', icon: '🛡️', description: 'Безопасность и охрана территории', descriptionUz: 'Xavfsizlik va hududni qo\'riqlash' },
+  { id: 'cleaning', name: 'Уборка', nameUz: 'Tozalash', icon: '🧹', description: 'Уборка подъездов и территории', descriptionUz: 'Kirish joylari va hududni tozalash' },
   // Other services
-  { id: 'elevator', name: 'Лифт', icon: '🛗', description: 'Ремонт и обслуживание лифтов' },
-  { id: 'intercom', name: 'Домофон', icon: '🔔', description: 'Ремонт домофонов и замков' },
-  { id: 'carpenter', name: 'Столярные работы', icon: '🪚', description: 'Ремонт дверей, окон, мебели' },
-  { id: 'boiler', name: 'Котёл', icon: '🔥', description: 'Ремонт и обслуживание котлов' },
-  { id: 'ac', name: 'Кондиционер', icon: '❄️', description: 'Установка и ремонт кондиционеров' },
-  { id: 'other', name: 'Другое', icon: '📋', description: 'Прочие услуги' },
+  { id: 'elevator', name: 'Лифт', nameUz: 'Lift', icon: '🛗', description: 'Ремонт и обслуживание лифтов', descriptionUz: 'Liftlarni ta\'mirlash va xizmat ko\'rsatish' },
+  { id: 'intercom', name: 'Домофон', nameUz: 'Domofon', icon: '🔔', description: 'Ремонт домофонов и замков', descriptionUz: 'Domofon va qulflarni ta\'mirlash' },
+  { id: 'trash', name: 'Вывоз мусора', nameUz: 'Chiqindi olib ketish', icon: '🗑️', description: 'Вывоз и утилизация мусора', descriptionUz: 'Chiqindilarni olib ketish va qayta ishlash' },
+  { id: 'boiler', name: 'Котёл', nameUz: 'Qozon', icon: '🔥', description: 'Ремонт и обслуживание котлов', descriptionUz: 'Qozonlarni ta\'mirlash va xizmat ko\'rsatish' },
+  { id: 'ac', name: 'Кондиционер', nameUz: 'Konditsioner', icon: '❄️', description: 'Установка и ремонт кондиционеров', descriptionUz: 'Konditsionerlarni o\'rnatish va ta\'mirlash' },
+  { id: 'other', name: 'Другое', nameUz: 'Boshqa', icon: '📋', description: 'Прочие услуги', descriptionUz: 'Boshqa xizmatlar' },
 ];
 
 // Labels
@@ -350,11 +363,25 @@ export const SPECIALIZATION_LABELS: Record<ExecutorSpecialization, string> = {
   intercom: 'Домофон',
   cleaning: 'Уборщица',
   security: 'Охранник',
-  carpenter: 'Столяр',
+  trash: 'Вывоз мусора',
   boiler: 'Котельщик',
   ac: 'Кондиционерщик',
   courier: 'Курьер',
   other: 'Другое'
+};
+
+export const SPECIALIZATION_LABELS_UZ: Record<ExecutorSpecialization, string> = {
+  plumber: 'Santexnik',
+  electrician: 'Elektrik',
+  elevator: 'Liftchi',
+  intercom: 'Domofon',
+  cleaning: 'Tozalovchi',
+  security: 'Qo\'riqchi',
+  trash: 'Chiqindi olib ketish',
+  boiler: 'Qozonchi',
+  ac: 'Konditsionerchi',
+  courier: 'Kuryer',
+  other: 'Boshqa'
 };
 
 export const STATUS_LABELS: Record<RequestStatus, string> = {
@@ -367,11 +394,36 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   cancelled: 'Отменена'
 };
 
+export const STATUS_LABELS_UZ: Record<RequestStatus, string> = {
+  new: 'Yangi',
+  assigned: 'Tayinlangan',
+  accepted: 'Qabul qilingan',
+  in_progress: 'Bajarilmoqda',
+  pending_approval: 'Tasdiqlash kutilmoqda',
+  completed: 'Bajarildi',
+  cancelled: 'Bekor qilindi'
+};
+
 export const PRIORITY_LABELS: Record<RequestPriority, string> = {
   low: 'Низкий',
   medium: 'Средний',
   high: 'Высокий',
   urgent: 'Срочный'
+};
+
+export const PRIORITY_LABELS_UZ: Record<RequestPriority, string> = {
+  low: 'Past',
+  medium: 'O\'rtacha',
+  high: 'Yuqori',
+  urgent: 'Shoshilinch'
+};
+
+export const PAUSE_REASON_LABELS: Record<string, { label: string; labelUz: string; icon: string }> = {
+  waiting_materials: { label: 'Ожидание материалов', labelUz: 'Materiallar kutilmoqda', icon: '📦' },
+  waiting_resident: { label: 'Ожидание жителя', labelUz: 'Aholini kutish', icon: '🏠' },
+  lunch_break: { label: 'Обеденный перерыв', labelUz: 'Tushlik tanaffusi', icon: '🍽️' },
+  other_task: { label: 'Другая задача', labelUz: 'Boshqa vazifa', icon: '📋' },
+  personal: { label: 'Личные причины', labelUz: 'Shaxsiy sabablar', icon: '👤' },
 };
 
 // ============================================
@@ -2378,6 +2430,11 @@ export interface GuestAccessCode {
   createdAt: string;
   updatedAt?: string;
   lastUsedAt?: string;
+
+  // Информация о создателе (для management view)
+  creatorName?: string;
+  creatorApartment?: string;
+  creatorPhone?: string;
 }
 
 // Лог использования QR-пропуска

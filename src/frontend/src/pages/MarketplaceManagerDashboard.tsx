@@ -284,7 +284,7 @@ export function MarketplaceManagerDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -305,8 +305,8 @@ export function MarketplaceManagerDashboard() {
       <div className="grid grid-cols-3 gap-3 p-4">
         <div className="bg-white rounded-xl p-3 shadow-sm">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Package className="w-4 h-4 text-orange-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <Package className="w-4 h-4 text-primary-600" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900">{products.length}</p>
@@ -347,7 +347,7 @@ export function MarketplaceManagerDashboard() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 min-w-0 py-3 px-4 flex items-center justify-center gap-2 border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? 'border-orange-600 text-orange-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -355,7 +355,7 @@ export function MarketplaceManagerDashboard() {
               <span className="text-sm font-medium truncate">{tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  tab.id === 'stock' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                  tab.id === 'stock' ? 'bg-red-100 text-red-700' : 'bg-primary-100 text-primary-700'
                 }`}>
                   {tab.count}
                 </span>
@@ -378,7 +378,7 @@ export function MarketplaceManagerDashboard() {
                   placeholder={language === 'ru' ? 'Поиск товаров...' : 'Mahsulot qidirish...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500"
                 />
               </div>
               <button
@@ -386,7 +386,7 @@ export function MarketplaceManagerDashboard() {
                   resetProductForm();
                   setShowProductModal(true);
                 }}
-                className="px-4 py-2.5 bg-orange-600 text-white rounded-xl font-medium flex items-center gap-2"
+                className="px-4 py-2.5 bg-primary-600 text-white rounded-xl font-medium flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
               </button>
@@ -398,7 +398,7 @@ export function MarketplaceManagerDashboard() {
                 onClick={() => setCategoryFilter('all')}
                 className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
                   categoryFilter === 'all'
-                    ? 'bg-orange-600 text-white'
+                    ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
@@ -410,7 +410,7 @@ export function MarketplaceManagerDashboard() {
                   onClick={() => setCategoryFilter(cat.id)}
                   className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap flex items-center gap-1 ${
                     categoryFilter === cat.id
-                      ? 'bg-orange-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-gray-100 text-gray-600'
                   }`}
                 >
@@ -439,7 +439,7 @@ export function MarketplaceManagerDashboard() {
                         {categories.find(c => c.id === product.category_id)?.[language === 'ru' ? 'name_ru' : 'name_uz']}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="font-bold text-orange-600">{formatPrice(product.price)}</span>
+                        <span className="font-bold text-primary-600">{formatPrice(product.price)}</span>
                         {product.old_price && (
                           <span className="text-xs text-gray-400 line-through">{formatPrice(product.old_price)}</span>
                         )}
@@ -464,7 +464,7 @@ export function MarketplaceManagerDashboard() {
                     <div className="flex flex-col gap-2">
                       <button
                         onClick={() => editProduct(product)}
-                        className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg"
+                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -662,7 +662,7 @@ export function MarketplaceManagerDashboard() {
                     onClick={() => setImageMode('file')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border transition-colors ${
                       imageMode === 'file'
-                        ? 'bg-orange-50 border-orange-300 text-orange-700'
+                        ? 'bg-primary-50 border-primary-300 text-primary-700'
                         : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -674,7 +674,7 @@ export function MarketplaceManagerDashboard() {
                     onClick={() => setImageMode('url')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border transition-colors ${
                       imageMode === 'url'
-                        ? 'bg-orange-50 border-orange-300 text-orange-700'
+                        ? 'bg-primary-50 border-primary-300 text-primary-700'
                         : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -689,13 +689,13 @@ export function MarketplaceManagerDashboard() {
                     <label className="block w-full">
                       <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
                         uploadingImage
-                          ? 'border-orange-300 bg-orange-50'
-                          : 'border-gray-300 hover:border-orange-400 hover:bg-orange-50'
+                          ? 'border-primary-300 bg-primary-50'
+                          : 'border-gray-300 hover:border-primary-400 hover:bg-primary-50'
                       }`}>
                         {uploadingImage ? (
                           <div className="flex flex-col items-center gap-2">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-                            <span className="text-sm text-orange-600">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                            <span className="text-sm text-primary-600">
                               {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
                             </span>
                           </div>
@@ -878,7 +878,7 @@ export function MarketplaceManagerDashboard() {
               <button
                 onClick={saveProduct}
                 disabled={!productForm.category_id || !productForm.name_ru || !productForm.name_uz || !productForm.price}
-                className="w-full py-3 bg-orange-600 text-white rounded-xl font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 {editingProduct
                   ? (language === 'ru' ? 'Сохранить изменения' : 'O\'zgarishlarni saqlash')
@@ -936,7 +936,7 @@ export function MarketplaceManagerDashboard() {
 
               <button
                 onClick={updateStock}
-                className="w-full py-3 bg-orange-600 text-white rounded-xl font-medium"
+                className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium"
               >
                 {language === 'ru' ? 'Сохранить' : 'Saqlash'}
               </button>

@@ -11,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
+import { useLanguageStore } from '../stores/languageStore';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../types';
 import type { ExecutorSpecialization } from '../types';
 
@@ -21,6 +22,7 @@ export function DepartmentHeadDashboard() {
     fetchRequests, fetchExecutors,
     isLoadingRequests, isLoadingExecutors
   } = useDataStore();
+  const { language } = useLanguageStore();
 
   // Fetch data on mount
   useEffect(() => {
@@ -51,10 +53,10 @@ export function DepartmentHeadDashboard() {
 
   // Chart data
   const statusData = [
-    { name: 'Новые', value: stats.new, color: '#3b82f6' },
-    { name: 'В работе', value: stats.inProgress, color: '#f59e0b' },
-    { name: 'Ожидают', value: stats.pendingApproval, color: '#8b5cf6' },
-    { name: 'Завершены', value: stats.completed, color: '#10b981' },
+    { name: language === 'ru' ? 'Новые' : 'Yangi', value: stats.new, color: '#3b82f6' },
+    { name: language === 'ru' ? 'В работе' : 'Jarayonda', value: stats.inProgress, color: '#f59e0b' },
+    { name: language === 'ru' ? 'Ожидают' : 'Kutilmoqda', value: stats.pendingApproval, color: '#8b5cf6' },
+    { name: language === 'ru' ? 'Завершены' : 'Bajarilgan', value: stats.completed, color: '#10b981' },
   ];
 
   // Executor stats for chart
@@ -65,7 +67,7 @@ export function DepartmentHeadDashboard() {
   }));
 
   const getSpecializationLabel = () => {
-    return SPECIALIZATION_LABELS[departmentSpecialization as ExecutorSpecialization] || 'Специалисты';
+    return SPECIALIZATION_LABELS[departmentSpecialization as ExecutorSpecialization] || (language === 'ru' ? 'Специалисты' : 'Mutaxassislar');
   };
 
   const isLoading = isLoadingRequests || isLoadingExecutors;
@@ -80,8 +82,8 @@ export function DepartmentHeadDashboard() {
               <Wrench className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Отдел: {getSpecializationLabel()}</h1>
-              <p className="text-gray-500 text-sm">Глава отдела</p>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Отдел' : 'Bo\'lim'}: {getSpecializationLabel()}</h1>
+              <p className="text-gray-500 text-sm">{language === 'ru' ? 'Глава отдела' : 'Bo\'lim boshlig\'i'}</p>
             </div>
           </div>
         </div>
@@ -91,7 +93,7 @@ export function DepartmentHeadDashboard() {
       {isLoading && (
         <div className="glass-card p-8 flex flex-col items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
-          <p className="text-gray-600">Загрузка данных отдела...</p>
+          <p className="text-gray-600">{language === 'ru' ? 'Загрузка данных отдела...' : 'Bo\'lim ma\'lumotlari yuklanmoqda...'}</p>
         </div>
       )}
 
@@ -107,7 +109,7 @@ export function DepartmentHeadDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.new}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">Новые заявки</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Новые заявки' : 'Yangi arizalar'}</div>
                 </div>
               </div>
             </Link>
@@ -119,7 +121,7 @@ export function DepartmentHeadDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.inProgress}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">В работе</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'В работе' : 'Jarayonda'}</div>
                 </div>
               </div>
             </div>
@@ -131,7 +133,7 @@ export function DepartmentHeadDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.completed}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">Завершено</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Завершено' : 'Bajarildi'}</div>
                 </div>
               </div>
             </div>
@@ -143,7 +145,7 @@ export function DepartmentHeadDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.executorsOnline}/{stats.executorsTotal}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">Сотрудники</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Сотрудники' : 'Xodimlar'}</div>
                 </div>
               </div>
             </Link>
@@ -153,7 +155,7 @@ export function DepartmentHeadDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Status Distribution */}
             <div className="glass-card p-4 md:p-6">
-              <h3 className="font-semibold mb-4">Распределение заявок</h3>
+              <h3 className="font-semibold mb-4">{language === 'ru' ? 'Распределение заявок' : 'Arizalar taqsimoti'}</h3>
               <div className="h-[200px]">
                 {statusData.some(d => d.value > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -177,7 +179,7 @@ export function DepartmentHeadDashboard() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">
-                    Нет заявок для отображения
+                    {language === 'ru' ? 'Нет заявок для отображения' : 'Ko\'rsatish uchun arizalar yo\'q'}
                   </div>
                 )}
               </div>
@@ -185,7 +187,7 @@ export function DepartmentHeadDashboard() {
 
             {/* Executor Performance */}
             <div className="glass-card p-4 md:p-6">
-              <h3 className="font-semibold mb-4">Производительность сотрудников</h3>
+              <h3 className="font-semibold mb-4">{language === 'ru' ? 'Производительность сотрудников' : 'Xodimlar samaradorligi'}</h3>
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={executorChartData}>
@@ -193,7 +195,7 @@ export function DepartmentHeadDashboard() {
                     <XAxis dataKey="name" />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="completed" fill="#3b82f6" name="Завершено" />
+                    <Bar dataKey="completed" fill="#3b82f6" name={language === 'ru' ? 'Завершено' : 'Bajarildi'} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -203,12 +205,12 @@ export function DepartmentHeadDashboard() {
           {/* Recent Requests */}
           <div className="glass-card p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Последние заявки</h3>
+              <h3 className="font-semibold">{language === 'ru' ? 'Последние заявки' : 'Oxirgi arizalar'}</h3>
               <Link
                 to="/requests"
                 className="text-primary-600 text-sm hover:underline flex items-center gap-1"
               >
-                Все заявки <ChevronRight className="w-4 h-4" />
+                {language === 'ru' ? 'Все заявки' : 'Barcha arizalar'} <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
             <div className="space-y-3">
@@ -225,6 +227,20 @@ export function DepartmentHeadDashboard() {
                     }`} />
                     <div className="min-w-0">
                       <div className="font-medium truncate">#{request.number} {request.title}</div>
+                      {request.category === 'trash' && (
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {request.title.includes(': ') && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-medium">
+                              {request.title.split(': ').slice(1).join(': ')}
+                            </span>
+                          )}
+                          {request.description?.includes(language === 'ru' ? 'Объём: ' : 'Hajmi: ') && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-medium">
+                              {request.description.split('Объём: ')[1]?.split('\n')[0] || request.description.split('Hajmi: ')[1]?.split('\n')[0]}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="text-sm text-gray-500 truncate">{request.residentName}</div>
                     </div>
                   </div>
@@ -250,7 +266,7 @@ export function DepartmentHeadDashboard() {
               ))}
               {departmentRequests.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  Нет заявок по вашему отделу
+                  {language === 'ru' ? 'Нет заявок по вашему отделу' : 'Bo\'limingiz bo\'yicha arizalar yo\'q'}
                 </div>
               )}
             </div>
@@ -259,12 +275,12 @@ export function DepartmentHeadDashboard() {
           {/* Top Executors */}
           <div className="glass-card p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Лучшие сотрудники</h3>
+              <h3 className="font-semibold">{language === 'ru' ? 'Лучшие сотрудники' : 'Eng yaxshi xodimlar'}</h3>
               <Link
                 to="/executors"
                 className="text-primary-600 text-sm hover:underline flex items-center gap-1"
               >
-                Все сотрудники <ChevronRight className="w-4 h-4" />
+                {language === 'ru' ? 'Все сотрудники' : 'Barcha xodimlar'} <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
             <div className="space-y-3">
@@ -282,7 +298,7 @@ export function DepartmentHeadDashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{executor.name}</div>
-                      <div className="text-sm text-gray-500">{executor.completedCount} выполнено</div>
+                      <div className="text-sm text-gray-500">{executor.completedCount} {language === 'ru' ? 'выполнено' : 'bajarildi'}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -290,8 +306,8 @@ export function DepartmentHeadDashboard() {
                         executor.status === 'busy' ? 'bg-amber-100 text-amber-700' :
                         'bg-gray-100 text-gray-600'
                       }`}>
-                        {executor.status === 'available' ? 'Свободен' :
-                         executor.status === 'busy' ? 'Занят' : 'Офлайн'}
+                        {executor.status === 'available' ? (language === 'ru' ? 'Свободен' : 'Bo\'sh') :
+                         executor.status === 'busy' ? (language === 'ru' ? 'Занят' : 'Band') : (language === 'ru' ? 'Офлайн' : 'Oflayn')}
                       </span>
                       <div className="flex items-center gap-1 text-amber-500">
                         <Star className="w-4 h-4 fill-current" />
@@ -302,7 +318,7 @@ export function DepartmentHeadDashboard() {
                 ))}
               {departmentExecutors.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  Нет сотрудников в вашем отделе
+                  {language === 'ru' ? 'Нет сотрудников в вашем отделе' : 'Bo\'limingizda xodimlar yo\'q'}
                 </div>
               )}
             </div>

@@ -14,6 +14,7 @@ run_worker_first = true
 
 [vars]
 ENVIRONMENT = "production"
+ENCRYPTION_KEY = "K4m1z0-S3cur3-Encrypt10n-2026!"
 
 [[d1_databases]]
 binding = "DB"

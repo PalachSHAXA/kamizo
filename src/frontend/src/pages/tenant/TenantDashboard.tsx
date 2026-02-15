@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { Key, Calendar, ChevronLeft, ChevronRight, Users, Home, DollarSign, TrendingUp, Clock, MapPin, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
+import { useLanguageStore } from '../../stores/languageStore';
 
 export function TenantDashboard() {
   const { user } = useAuthStore();
   const { rentalApartments, rentalRecords, fetchMyRentals } = useDataStore();
+  const { language } = useLanguageStore();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
@@ -44,14 +46,16 @@ export function TenantDashboard() {
 
   const formatAmount = (amount: number, currency: string) => {
     if (currency === 'UZS') {
-      return amount.toLocaleString('ru-RU') + ' сум';
+      return amount.toLocaleString('ru-RU') + (language === 'ru' ? ' сум' : ' so\'m');
     }
     return '$' + amount.toLocaleString('en-US');
   };
 
+  // Total earnings in UZS (convert USD to UZS with hardcoded rate)
   const totalEarnings = myApartments.reduce((sum, apt) => {
     const aptRecords = getApartmentRecords(apt.id);
-    return sum + aptRecords.reduce((s, r) => s + (r.currency === 'UZS' ? r.amount : r.amount * 12500), 0);
+    return sum + aptRecords.reduce((s, r) =>
+      s + (r.currency === 'UZS' ? r.amount : r.amount * 12500), 0);
   }, 0);
 
 
@@ -123,7 +127,9 @@ export function TenantDashboard() {
 
   const renderCalendar = () => {
     const days = [];
-    const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    const dayNames = language === 'ru'
+      ? ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+      : ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 
     for (let i = 1; i < startingDay; i++) {
       days.push(<div key={`empty-${i}`} className="h-12 md:h-16" />);
@@ -195,7 +201,7 @@ export function TenantDashboard() {
                 !selectedApartment ? 'bg-primary-500 text-black' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Все квартиры
+              {language === 'ru' ? 'Все квартиры' : 'Barcha kvartiralar'}
             </button>
             {myApartments.map(apt => (
               <button
@@ -226,15 +232,15 @@ export function TenantDashboard() {
         <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500">
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span>Заезд</span>
+            <span>{language === 'ru' ? 'Заезд' : 'Kirish'}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-orange-500" />
-            <span>Выезд</span>
+            <span>{language === 'ru' ? 'Выезд' : 'Chiqish'}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span>Занято</span>
+            <span>{language === 'ru' ? 'Занято' : 'Band'}</span>
           </div>
         </div>
       </div>
@@ -246,12 +252,12 @@ export function TenantDashboard() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Мои квартиры</h1>
-          <p className="text-gray-500">Добро пожаловать, {user?.name}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Мои квартиры' : 'Mening kvartiralarim'}</h1>
+          <p className="text-gray-500">{language === 'ru' ? 'Добро пожаловать' : 'Xush kelibsiz'}, {user?.name}</p>
         </div>
         <div className="glass-card p-8 text-center">
           <Loader2 className="w-12 h-12 text-primary-500 mx-auto mb-4 animate-spin" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Загрузка данных...</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{language === 'ru' ? 'Загрузка данных...' : 'Ma\'lumotlar yuklanmoqda...'}</h3>
         </div>
       </div>
     );
@@ -262,14 +268,16 @@ export function TenantDashboard() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isCommercialOwner ? 'Моя недвижимость' : 'Мои квартиры'}
+            {isCommercialOwner
+              ? (language === 'ru' ? 'Моя недвижимость' : 'Mening ko\'chmas mulkim')
+              : (language === 'ru' ? 'Мои квартиры' : 'Mening kvartiralarim')}
           </h1>
-          <p className="text-gray-500">Добро пожаловать, {user?.name}</p>
+          <p className="text-gray-500">{language === 'ru' ? 'Добро пожаловать' : 'Xush kelibsiz'}, {user?.name}</p>
         </div>
         <div className="glass-card p-8 text-center">
           <Key className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Нет назначенных квартир</h3>
-          <p className="text-gray-500">Обратитесь к менеджеру для добавления квартиры</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{language === 'ru' ? 'Нет назначенных квартир' : 'Belgilangan kvartiralar yo\'q'}</h3>
+          <p className="text-gray-500">{language === 'ru' ? 'Обратитесь к менеджеру для добавления квартиры' : 'Kvartira qo\'shish uchun menejerga murojaat qiling'}</p>
         </div>
       </div>
     );
@@ -280,13 +288,15 @@ export function TenantDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          {isCommercialOwner ? 'Моя недвижимость' : 'Мои квартиры'}
+          {isCommercialOwner
+            ? (language === 'ru' ? 'Моя недвижимость' : 'Mening ko\'chmas mulkim')
+            : (language === 'ru' ? 'Мои квартиры' : 'Mening kvartiralarim')}
         </h1>
         <p className="text-gray-500">
-          Добро пожаловать, {user?.name}
+          {language === 'ru' ? 'Добро пожаловать' : 'Xush kelibsiz'}, {user?.name}
           {isCommercialOwner && (
             <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-              Коммерческий владелец
+              {language === 'ru' ? 'Коммерческий владелец' : 'Tijoriy egasi'}
             </span>
           )}
         </p>
@@ -301,7 +311,7 @@ export function TenantDashboard() {
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{myApartments.length}</div>
-              <div className="text-xs text-gray-500">Квартир</div>
+              <div className="text-xs text-gray-500">{language === 'ru' ? 'Квартир' : 'Kvartiralar'}</div>
             </div>
           </div>
         </div>
@@ -312,7 +322,7 @@ export function TenantDashboard() {
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{activeBookings}</div>
-              <div className="text-xs text-gray-500">Проживают сейчас</div>
+              <div className="text-xs text-gray-500">{language === 'ru' ? 'Проживают сейчас' : 'Hozir yashayaptilar'}</div>
             </div>
           </div>
         </div>
@@ -323,7 +333,7 @@ export function TenantDashboard() {
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{totalGuests}</div>
-              <div className="text-xs text-gray-500">Гостей всего</div>
+              <div className="text-xs text-gray-500">{language === 'ru' ? 'Гостей всего' : 'Jami mehmonlar'}</div>
             </div>
           </div>
         </div>
@@ -334,7 +344,7 @@ export function TenantDashboard() {
             </div>
             <div>
               <div className="text-lg font-bold text-gray-900">{(totalEarnings / 1000000).toFixed(1)}М</div>
-              <div className="text-xs text-gray-500">Доход (сум)</div>
+              <div className="text-xs text-gray-500">{language === 'ru' ? 'Доход (сум)' : 'Daromad (so\'m)'}</div>
             </div>
           </div>
         </div>
@@ -358,7 +368,7 @@ export function TenantDashboard() {
                 })}
               </h4>
               {selectedDateRecords.length === 0 ? (
-                <p className="text-gray-500 text-sm py-4 text-center">Нет бронирований на эту дату</p>
+                <p className="text-gray-500 text-sm py-4 text-center">{language === 'ru' ? 'Нет бронирований на эту дату' : 'Bu sanada band qilishlar yo\'q'}</p>
               ) : (
                 <div className="space-y-2">
                   {selectedDateRecords.map(record => {
@@ -379,17 +389,17 @@ export function TenantDashboard() {
                           <div className="text-right">
                             {isCheckIn && (
                               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                Заезд
+                                {language === 'ru' ? 'Заезд' : 'Kirish'}
                               </span>
                             )}
                             {isCheckOut && (
                               <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                                Выезд
+                                {language === 'ru' ? 'Выезд' : 'Chiqish'}
                               </span>
                             )}
                             {!isCheckIn && !isCheckOut && (
                               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                                Проживание
+                                {language === 'ru' ? 'Проживание' : 'Yashash'}
                               </span>
                             )}
                           </div>
@@ -415,10 +425,10 @@ export function TenantDashboard() {
           <div className="glass-card p-4">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Users className="w-4 h-4 text-green-600" />
-              Текущие гости
+              {language === 'ru' ? 'Текущие гости' : 'Hozirgi mehmonlar'}
             </h4>
             {currentGuests.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center py-4">Нет активных бронирований</p>
+              <p className="text-gray-500 text-sm text-center py-4">{language === 'ru' ? 'Нет активных бронирований' : 'Faol bandlovlar yo\'q'}</p>
             ) : (
               <div className="space-y-2">
                 {currentGuests.map(record => {
@@ -434,7 +444,9 @@ export function TenantDashboard() {
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-xs text-green-600 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {daysLeft} {daysLeft === 1 ? 'день' : daysLeft < 5 ? 'дня' : 'дней'} до выезда
+                          {daysLeft} {language === 'ru'
+                            ? (daysLeft === 1 ? 'день' : daysLeft < 5 ? 'дня' : 'дней')
+                            : 'kun'} {language === 'ru' ? 'до выезда' : 'chiqishgacha'}
                         </span>
                         <span className="text-xs font-semibold text-green-700">
                           {formatAmount(record.amount, record.currency)}
@@ -451,10 +463,10 @@ export function TenantDashboard() {
           <div className="glass-card p-4">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-600" />
-              Ближайшие заезды
+              {language === 'ru' ? 'Ближайшие заезды' : 'Yaqin kiruvchilar'}
             </h4>
             {upcomingCheckIns.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center py-4">Нет запланированных заездов</p>
+              <p className="text-gray-500 text-sm text-center py-4">{language === 'ru' ? 'Нет запланированных заездов' : 'Rejalashtirilgan kirishlar yo\'q'}</p>
             ) : (
               <div className="space-y-2">
                 {upcomingCheckIns.map(record => {
@@ -476,7 +488,11 @@ export function TenantDashboard() {
                           isTomorrow ? 'bg-orange-100 text-orange-700' :
                           'bg-blue-100 text-blue-700'
                         }`}>
-                          {isToday ? 'Сегодня' : isTomorrow ? 'Завтра' : formatDate(record.checkInDate)}
+                          {isToday
+                            ? (language === 'ru' ? 'Сегодня' : 'Bugun')
+                            : isTomorrow
+                            ? (language === 'ru' ? 'Завтра' : 'Ertaga')
+                            : formatDate(record.checkInDate)}
                         </span>
                       </div>
                     </div>
@@ -490,7 +506,7 @@ export function TenantDashboard() {
           <div className="glass-card p-4">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Home className="w-4 h-4 text-primary-600" />
-              Мои квартиры
+              {language === 'ru' ? 'Мои квартиры' : 'Mening kvartiralarim'}
             </h4>
             <div className="space-y-2">
               {myApartments.map(apartment => {
@@ -519,7 +535,9 @@ export function TenantDashboard() {
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         activeRecord ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-600'
                       }`}>
-                        {activeRecord ? 'Занята' : 'Свободна'}
+                        {activeRecord
+                          ? (language === 'ru' ? 'Занята' : 'Band')
+                          : (language === 'ru' ? 'Свободна' : 'Bo\'sh')}
                       </span>
                     </div>
                     {activeRecord && (
@@ -528,9 +546,9 @@ export function TenantDashboard() {
                       </div>
                     )}
                     <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-                      <span>{records.length} бронирований</span>
+                      <span>{records.length} {language === 'ru' ? 'бронирований' : 'bandlov'}</span>
                       <span>•</span>
-                      <span>{records.reduce((s, r) => s + r.guestNames.split(',').length, 0)} гостей</span>
+                      <span>{records.reduce((s, r) => s + r.guestNames.split(',').length, 0)} {language === 'ru' ? 'гостей' : 'mehmon'}</span>
                     </div>
                   </div>
                 );

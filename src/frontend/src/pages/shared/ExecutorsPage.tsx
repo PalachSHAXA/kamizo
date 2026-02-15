@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { Phone, Star, X, Eye, EyeOff, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useLanguageStore } from '../../stores/languageStore';
 import { executorsApi } from '../../services/api';
-import { SPECIALIZATION_LABELS } from '../../types';
 import type { Executor, ExecutorSpecialization } from '../../types';
 
 export function ExecutorsPage() {
   const { user } = useAuthStore();
+  const { language } = useLanguageStore();
   const { executors, addExecutor, updateExecutor, deleteExecutor, fetchExecutors, isLoadingExecutors } = useDataStore();
 
   // Check if user is department head - they can only see and manage their department's executors
@@ -61,6 +62,33 @@ export function ExecutorsPage() {
   const [addError, setAddError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  // Specialization labels with language support
+  const specLabels: Record<ExecutorSpecialization, string> = language === 'ru' ? {
+    plumber: 'Сантехник',
+    electrician: 'Электрик',
+    elevator: 'Лифтёр',
+    intercom: 'Домофон',
+    cleaning: 'Уборщица',
+    security: 'Охранник',
+    trash: 'Вывоз мусора',
+    boiler: 'Котельщик',
+    ac: 'Кондиционерщик',
+    courier: 'Курьер',
+    other: 'Другое',
+  } : {
+    plumber: 'Santexnik',
+    electrician: 'Elektrik',
+    elevator: 'Liftchi',
+    intercom: 'Domofon',
+    cleaning: 'Tozalovchi',
+    security: 'Qo\'riqchi',
+    trash: 'Chiqindi tashish',
+    boiler: 'Qozonchi',
+    ac: 'Konditsionerchi',
+    courier: 'Kuryer',
+    other: 'Boshqa',
+  };
 
   const handleOpenDetails = async (executor: Executor) => {
     console.log('=== OPENING EXECUTOR DETAILS ===');
@@ -134,13 +162,13 @@ export function ExecutorsPage() {
 
   const handleDeleteExecutor = async () => {
     if (!selectedExecutor) return;
-    if (confirm('Вы уверены, что хотите удалить этого исполнителя?')) {
+    if (confirm(language === 'ru' ? 'Вы уверены, что хотите удалить этого исполнителя?' : 'Ushbu ijrochini o\'chirishni xohlaysizmi?')) {
       setIsDeleting(true);
       try {
         await deleteExecutor(selectedExecutor.id);
         handleCloseDetails();
       } catch (error: any) {
-        alert(error.message || 'Ошибка при удалении');
+        alert(error.message || (language === 'ru' ? 'Ошибка при удалении' : 'O\'chirishda xatolik'));
       } finally {
         setIsDeleting(false);
       }
@@ -149,16 +177,16 @@ export function ExecutorsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'available': return <span className="badge badge-done">Доступен</span>;
-      case 'busy': return <span className="badge badge-progress">Занят</span>;
-      case 'offline': return <span className="badge bg-gray-100 text-gray-600">Не в сети</span>;
+      case 'available': return <span className="badge badge-done">{language === 'ru' ? 'Доступен' : 'Mavjud'}</span>;
+      case 'busy': return <span className="badge badge-progress">{language === 'ru' ? 'Занят' : 'Band'}</span>;
+      case 'offline': return <span className="badge bg-gray-100 text-gray-600">{language === 'ru' ? 'Не в сети' : 'Oflayn'}</span>;
       default: return <span className="badge">{status}</span>;
     }
   };
 
   const handleAddExecutor = async () => {
     if (!newExecutor.name || !newExecutor.phone || !newExecutor.login || !newExecutor.password) {
-      setAddError('Заполните все обязательные поля');
+      setAddError(language === 'ru' ? 'Заполните все обязательные поля' : 'Barcha majburiy maydonlarni to\'ldiring');
       return;
     }
     setIsAdding(true);
@@ -182,7 +210,7 @@ export function ExecutorsPage() {
       // Refresh the list
       fetchExecutors();
     } catch (error: any) {
-      setAddError(error.message || 'Ошибка при добавлении исполнителя');
+      setAddError(error.message || (language === 'ru' ? 'Ошибка при добавлении исполнителя' : 'Ijrochi qo\'shishda xatolik'));
     } finally {
       setIsAdding(false);
     }
@@ -193,11 +221,13 @@ export function ExecutorsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isDepartmentHead ? 'Мои сотрудники' : 'Исполнители'}
+            {isDepartmentHead
+              ? (language === 'ru' ? 'Мои сотрудники' : 'Mening xodimlarim')
+              : (language === 'ru' ? 'Исполнители' : 'Ijrochilar')}
           </h1>
           {isDepartmentHead && userSpecialization && (
             <p className="text-gray-500 text-sm mt-1">
-              Отдел: {SPECIALIZATION_LABELS[userSpecialization as ExecutorSpecialization]}
+              {language === 'ru' ? 'Отдел' : 'Bo\'lim'}: {specLabels[userSpecialization as ExecutorSpecialization]}
             </p>
           )}
         </div>
@@ -205,7 +235,7 @@ export function ExecutorsPage() {
           <button
             onClick={() => fetchExecutors()}
             className="btn-secondary p-2"
-            title="Обновить"
+            title={language === 'ru' ? 'Обновить' : 'Yangilash'}
             disabled={isLoadingExecutors}
           >
             <RefreshCw className={`w-5 h-5 ${isLoadingExecutors ? 'animate-spin' : ''}`} />
@@ -225,7 +255,7 @@ export function ExecutorsPage() {
             }}
             className="btn-primary"
           >
-            + Добавить исполнителя
+            + {language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}
           </button>
         </div>
       </div>
@@ -247,7 +277,7 @@ export function ExecutorsPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold">{executor.name}</h3>
-                  <div className="text-sm text-gray-500">{SPECIALIZATION_LABELS[executor.specialization] || 'Не указана'}</div>
+                  <div className="text-sm text-gray-500">{specLabels[executor.specialization] || (language === 'ru' ? 'Не указана' : 'Ko\'rsatilmagan')}</div>
                 </div>
               </div>
               {getStatusBadge(executor.status)}
@@ -259,7 +289,7 @@ export function ExecutorsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Star className="w-4 h-4 text-amber-400" />
-                {executor.rating} • {executor.completedCount} выполнено
+                {executor.rating} • {executor.completedCount} {language === 'ru' ? 'выполнено' : 'bajarildi'}
               </div>
             </div>
             <button
@@ -267,7 +297,7 @@ export function ExecutorsPage() {
               className="w-full btn-secondary text-sm py-2"
               onClick={() => handleOpenDetails(executor)}
             >
-              Подробнее
+              {language === 'ru' ? 'Подробнее' : 'Batafsil'}
             </button>
           </div>
         ))}
@@ -279,11 +309,13 @@ export function ExecutorsPage() {
         <div className="modal-backdrop">
           <div className="modal-content p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold mb-4">
-              {isDepartmentHead ? 'Добавить сотрудника в отдел' : 'Добавить сотрудника'}
+              {isDepartmentHead
+                ? (language === 'ru' ? 'Добавить сотрудника в отдел' : 'Bo\'limga xodim qo\'shish')
+                : (language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish')}
             </h2>
             {isDepartmentHead && userSpecialization && (
               <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
-                Отдел: <strong>{SPECIALIZATION_LABELS[userSpecialization as ExecutorSpecialization]}</strong>
+                {language === 'ru' ? 'Отдел' : 'Bo\'lim'}: <strong>{specLabels[userSpecialization as ExecutorSpecialization]}</strong>
               </div>
             )}
             {addError && (
@@ -295,39 +327,40 @@ export function ExecutorsPage() {
               {/* Role selector - only for admins/managers, not for department heads */}
               {!isDepartmentHead && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Роль *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Роль' : 'Rol'} *</label>
                   <select
                     value={newExecutor.role}
                     onChange={(e) => setNewExecutor({ ...newExecutor, role: e.target.value as any })}
                     className="input-field"
                   >
-                    <option value="executor">Исполнитель</option>
-                    <option value="department_head">Начальник отдела</option>
+                    <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
+                    <option value="department_head">{language === 'ru' ? 'Начальник отдела' : 'Bo\'lim boshlig\'i'}</option>
                   </select>
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ФИО *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.Sh'} *</label>
                 <input
                   type="text"
                   value={newExecutor.name}
                   onChange={(e) => setNewExecutor({ ...newExecutor, name: e.target.value })}
                   className="input-field"
-                  placeholder="Фамилия Имя Отчество"
+                  placeholder={language === 'ru' ? 'Фамилия Имя Отчество' : 'Familiya Ism Sharif'}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'} *</label>
                 <input
                   type="text"
                   value={newExecutor.phone}
                   onChange={(e) => setNewExecutor({ ...newExecutor, phone: e.target.value })}
                   className="input-field"
                   placeholder="+998 90 123 45 67"
+                  maxLength={13}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Логин *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'} *</label>
                 <input
                   type="text"
                   value={newExecutor.login}
@@ -337,7 +370,7 @@ export function ExecutorsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Пароль *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'} *</label>
                 <input
                   type="password"
                   value={newExecutor.password}
@@ -349,24 +382,24 @@ export function ExecutorsPage() {
               {/* Specialization selector - only for admins/managers, not for department heads */}
               {!isDepartmentHead && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Специализация/Отдел *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация/Отдел' : 'Mutaxassislik/Bo\'lim'} *</label>
                   <select
                     value={newExecutor.specialization}
                     onChange={(e) => setNewExecutor({ ...newExecutor, specialization: e.target.value as any })}
                     className="input-field"
                   >
-                    <option value="plumber">Сантехник</option>
-                    <option value="electrician">Электрик</option>
-                    <option value="elevator">Лифтёр</option>
-                    <option value="intercom">Домофон</option>
-                    <option value="cleaning">Уборщица</option>
-                    <option value="gardener">Садовник</option>
-                    <option value="security">Охранник</option>
-                    <option value="carpenter">Столяр</option>
-                    <option value="boiler">Котельщик</option>
-                    <option value="ac">Кондиционерщик</option>
-                    <option value="courier">Курьер</option>
-                    <option value="other">Другое</option>
+                    <option value="plumber">{specLabels.plumber}</option>
+                    <option value="electrician">{specLabels.electrician}</option>
+                    <option value="elevator">{specLabels.elevator}</option>
+                    <option value="intercom">{specLabels.intercom}</option>
+                    <option value="cleaning">{specLabels.cleaning}</option>
+                    <option value="gardener">{language === 'ru' ? 'Садовник' : 'Bog\'bon'}</option>
+                    <option value="security">{specLabels.security}</option>
+                    <option value="trash">{specLabels.trash}</option>
+                    <option value="boiler">{specLabels.boiler}</option>
+                    <option value="ac">{specLabels.ac}</option>
+                    <option value="courier">{specLabels.courier}</option>
+                    <option value="other">{specLabels.other}</option>
                   </select>
                 </div>
               )}
@@ -377,7 +410,7 @@ export function ExecutorsPage() {
                 className="btn-secondary flex-1"
                 disabled={isAdding}
               >
-                Отмена
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={handleAddExecutor}
@@ -387,10 +420,10 @@ export function ExecutorsPage() {
                 {isAdding ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Добавление...
+                    {language === 'ru' ? 'Добавление...' : 'Qo\'shilmoqda...'}
                   </>
                 ) : (
-                  'Добавить'
+                  language === 'ru' ? 'Добавить' : 'Qo\'shish'
                 )}
               </button>
             </div>
@@ -410,7 +443,7 @@ export function ExecutorsPage() {
                 </div>
                 <div>
                   <h2 className="text-xl font-bold">{selectedExecutor.name}</h2>
-                  <div className="text-gray-500">{SPECIALIZATION_LABELS[selectedExecutor.specialization] || 'Не указана'}</div>
+                  <div className="text-gray-500">{specLabels[selectedExecutor.specialization] || (language === 'ru' ? 'Не указана' : 'Ko\'rsatilmagan')}</div>
                   {getStatusBadge(selectedExecutor.status)}
                 </div>
               </div>
@@ -426,21 +459,21 @@ export function ExecutorsPage() {
                   <Star className="w-4 h-4" />
                   <span className="font-bold text-lg">{selectedExecutor.rating}</span>
                 </div>
-                <div className="text-xs text-gray-500">Рейтинг</div>
+                <div className="text-xs text-gray-500">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</div>
               </div>
               <div className="bg-green-50 rounded-xl p-3 text-center">
                 <div className="flex items-center justify-center gap-1 text-green-600 mb-1">
                   <Award className="w-4 h-4" />
                   <span className="font-bold text-lg">{selectedExecutor.completedCount}</span>
                 </div>
-                <div className="text-xs text-gray-500">Выполнено</div>
+                <div className="text-xs text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
               </div>
               <div className="bg-blue-50 rounded-xl p-3 text-center">
                 <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
                   <Clock className="w-4 h-4" />
                   <span className="font-bold text-lg">{selectedExecutor.activeRequests || 0}</span>
                 </div>
-                <div className="text-xs text-gray-500">Активных</div>
+                <div className="text-xs text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
               </div>
             </div>
 
@@ -448,7 +481,7 @@ export function ExecutorsPage() {
             {isEditing ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ФИО</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.Sh'}</label>
                   <input
                     type="text"
                     value={editForm.name}
@@ -457,7 +490,7 @@ export function ExecutorsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                   <input
                     type="text"
                     value={editForm.phone}
@@ -466,7 +499,7 @@ export function ExecutorsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
                   <input
                     type="text"
                     value={editForm.login}
@@ -475,34 +508,34 @@ export function ExecutorsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Новый пароль</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Новый пароль' : 'Yangi parol'}</label>
                   <input
                     type="text"
                     value={editForm.password}
                     onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
                     className="input-field"
-                    placeholder="Оставьте пустым, чтобы не менять"
+                    placeholder={language === 'ru' ? 'Оставьте пустым, чтобы не менять' : 'O\'zgartirmaslik uchun bo\'sh qoldiring'}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Специализация</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'}</label>
                   <select
                     value={editForm.specialization}
                     onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value as ExecutorSpecialization })}
                     className="input-field"
                   >
-                    <option value="plumber">Сантехник</option>
-                    <option value="electrician">Электрик</option>
-                    <option value="elevator">Лифтёр</option>
-                    <option value="intercom">Домофон</option>
-                    <option value="cleaning">Уборщица</option>
-                    <option value="gardener">Садовник</option>
-                    <option value="security">Охранник</option>
-                    <option value="carpenter">Столяр</option>
-                    <option value="boiler">Котельщик</option>
-                    <option value="ac">Кондиционерщик</option>
-                    <option value="courier">Курьер</option>
-                    <option value="other">Другое</option>
+                    <option value="plumber">{specLabels.plumber}</option>
+                    <option value="electrician">{specLabels.electrician}</option>
+                    <option value="elevator">{specLabels.elevator}</option>
+                    <option value="intercom">{specLabels.intercom}</option>
+                    <option value="cleaning">{specLabels.cleaning}</option>
+                    <option value="gardener">{language === 'ru' ? 'Садовник' : 'Bog\'bon'}</option>
+                    <option value="security">{specLabels.security}</option>
+                    <option value="trash">{specLabels.trash}</option>
+                    <option value="boiler">{specLabels.boiler}</option>
+                    <option value="ac">{specLabels.ac}</option>
+                    <option value="courier">{specLabels.courier}</option>
+                    <option value="other">{specLabels.other}</option>
                   </select>
                 </div>
               </div>
@@ -513,7 +546,7 @@ export function ExecutorsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Phone className="w-4 h-4" />
-                      <span className="text-sm">Телефон</span>
+                      <span className="text-sm">{language === 'ru' ? 'Телефон' : 'Telefon'}</span>
                     </div>
                     <span className="font-medium">{selectedExecutor.phone}</span>
                   </div>
@@ -521,16 +554,16 @@ export function ExecutorsPage() {
 
                 {/* Credentials */}
                 <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-                  <div className="text-sm font-medium text-blue-800 mb-2">Данные для входа</div>
+                  <div className="text-sm font-medium text-blue-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Логин</span>
+                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
                     <div className="flex items-center gap-2">
                       <code className="bg-white px-2 py-1 rounded text-sm font-mono">{selectedExecutor.login}</code>
                       <button
                         onClick={() => handleCopy(selectedExecutor.login, 'login')}
                         className="p-1 hover:bg-blue-100 rounded"
-                        title="Копировать"
+                        title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                       >
                         {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                       </button>
@@ -538,12 +571,12 @@ export function ExecutorsPage() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Пароль</span>
+                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
                     <div className="flex items-center gap-2">
                       {isLoadingDetails ? (
                         <span className="flex items-center gap-2 text-sm text-gray-400">
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          Загрузка...
+                          {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
                         </span>
                       ) : (selectedExecutor.password || createdPasswords[selectedExecutor.id]) ? (
                         <>
@@ -558,20 +591,22 @@ export function ExecutorsPage() {
                               setShowPassword(!showPassword);
                             }}
                             className="p-2 hover:bg-blue-100 active:bg-blue-200 rounded touch-manipulation z-10"
-                            title={showPassword ? 'Скрыть' : 'Показать'}
+                            title={showPassword ? (language === 'ru' ? 'Скрыть' : 'Yashirish') : (language === 'ru' ? 'Показать' : 'Ko\'rsatish')}
                           >
                             {showPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
                           </button>
                           <button
                             onClick={() => handleCopy(selectedExecutor.password || createdPasswords[selectedExecutor.id] || '', 'password')}
                             className="p-1 hover:bg-blue-100 rounded"
-                            title="Копировать"
+                            title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                           >
                             {copiedField === 'password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                           </button>
                         </>
                       ) : (
-                        <span className="text-sm text-gray-400 italic">Сбросить через "Редактировать"</span>
+                        <span className="text-sm text-gray-400 italic">
+                          {language === 'ru' ? 'Сбросить через "Редактировать"' : '"Tahrirlash" orqali tiklash'}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -579,7 +614,7 @@ export function ExecutorsPage() {
 
                 {/* Created date */}
                 <div className="text-sm text-gray-500 text-center">
-                  Добавлен: {new Date(selectedExecutor.createdAt).toLocaleDateString('ru-RU')}
+                  {language === 'ru' ? 'Добавлен' : 'Qo\'shilgan'}: {new Date(selectedExecutor.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
                 </div>
               </div>
             )}
@@ -589,11 +624,11 @@ export function ExecutorsPage() {
               {isEditing ? (
                 <>
                   <button onClick={() => setIsEditing(false)} className="btn-secondary flex-1">
-                    Отмена
+                    {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
                   </button>
                   <button onClick={handleSaveChanges} className="btn-primary flex-1 flex items-center justify-center gap-2">
                     <Save className="w-4 h-4" />
-                    Сохранить
+                    {language === 'ru' ? 'Сохранить' : 'Saqlash'}
                   </button>
                 </>
               ) : (
@@ -608,16 +643,16 @@ export function ExecutorsPage() {
                       {isDeleting ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          Удаление...
+                          {language === 'ru' ? 'Удаление...' : 'O\'chirilmoqda...'}
                         </>
                       ) : (
-                        'Удалить'
+                        language === 'ru' ? 'Удалить' : 'O\'chirish'
                       )}
                     </button>
                   )}
                   <button onClick={() => setIsEditing(true)} className={`btn-primary flex items-center justify-center gap-2 ${isDepartmentHead ? 'w-full' : 'flex-1'}`}>
                     <Edit3 className="w-4 h-4" />
-                    Редактировать
+                    {language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                   </button>
                 </>
               )}
@@ -634,13 +669,13 @@ export function ExecutorsPage() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-8 h-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Исполнитель создан!</h3>
-              <p className="text-gray-500 mt-2">Сохраните учетные данные для входа</p>
+              <h3 className="text-xl font-bold text-gray-900">{language === 'ru' ? 'Исполнитель создан!' : 'Ijrochi yaratildi!'}</h3>
+              <p className="text-gray-500 mt-2">{language === 'ru' ? 'Сохраните учетные данные для входа' : 'Kirish ma\'lumotlarini saqlang'}</p>
             </div>
 
             <div className="space-y-4 bg-gray-50 rounded-xl p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Логин</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
                 <div className="flex items-center gap-2">
                   <code className="bg-white px-3 py-1.5 rounded-lg text-sm font-mono font-medium">
                     {showCredentialsModal.login}
@@ -659,7 +694,7 @@ export function ExecutorsPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Пароль</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
                 <div className="flex items-center gap-2">
                   <code className="bg-white px-3 py-1.5 rounded-lg text-sm font-mono font-medium">
                     {showCredentialsModal.password}
@@ -680,7 +715,9 @@ export function ExecutorsPage() {
 
             <div className="mt-6 p-3 bg-yellow-50 rounded-xl border border-yellow-200">
               <p className="text-sm text-yellow-800">
-                ⚠️ Сохраните эти данные! Пароль показывается только один раз.
+                {language === 'ru'
+                  ? '⚠️ Сохраните эти данные! Пароль показывается только один раз.'
+                  : '⚠️ Bu ma\'lumotlarni saqlang! Parol faqat bir marta ko\'rsatiladi.'}
               </p>
             </div>
 
@@ -688,7 +725,7 @@ export function ExecutorsPage() {
               onClick={() => setShowCredentialsModal(null)}
               className="btn-primary w-full mt-6"
             >
-              Готово
+              {language === 'ru' ? 'Готово' : 'Tayyor'}
             </button>
           </div>
         </div>

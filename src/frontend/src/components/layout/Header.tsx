@@ -5,8 +5,9 @@ import { Bell, Clock, Search, Lock, Phone, FileText, Car, ChevronRight, Megaphon
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
-import { SPECIALIZATION_LABELS } from '../../types';
+import { SPECIALIZATION_LABELS, SPECIALIZATION_LABELS_UZ } from '../../types';
 import type { ExecutorSpecialization } from '../../types';
+import { useLanguageStore } from '../../stores/languageStore';
 
 // Onboarding tasks for residents
 interface OnboardingTask {
@@ -72,6 +73,7 @@ export function Header() {
   const { user } = useAuthStore();
   const { notifications, requests, vehicles, getUnreadCount, markNotificationAsRead, markAllNotificationsAsRead, getAnnouncementsForResidents, getAnnouncementsForEmployees } = useDataStore();
   const { meetings } = useMeetingStore();
+  const { language } = useLanguageStore();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -85,23 +87,29 @@ export function Header() {
   // Check if user is tenant or commercial_owner (rental users - don't have access to requests)
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
   const pendingOnboardingTasks = isResident
-    ? ONBOARDING_TASKS.filter(task => !task.checkComplete(user, vehicles))
+    ? ONBOARDING_TASKS
+        .filter(task => !(isRentalUser && (task.id === 'sign_contract' || task.id === 'add_vehicle')))
+        .filter(task => !task.checkComplete(user, vehicles))
     : [];
 
   // Get unread announcements count
+  const isAdvertiserRole = user?.role === 'advertiser';
   const userAnnouncements = isResident
     ? getAnnouncementsForResidents(user?.login || '', user?.buildingId || '', user?.entrance || '', user?.floor || '', user?.branch || '')
     : getAnnouncementsForEmployees();
   const unreadAnnouncementsCount = userAnnouncements.filter(a => !a.viewedBy.includes(user?.id || '')).length;
 
   // Get upcoming meetings count (meetings in next 7 days that user hasn't seen)
+  // Tenant/commercial_owner don't participate in meetings
+  // Advertiser also doesn't participate in resident meetings
+  const showMeetings = !isRentalUser && !isAdvertiserRole;
   const nowDate = new Date();
   const weekFromNow = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const upcomingMeetings = meetings.filter(m => {
+  const upcomingMeetings = showMeetings ? meetings.filter(m => {
     if (!m.confirmedDateTime) return false;
     const meetingDate = new Date(m.confirmedDateTime);
     return meetingDate >= nowDate && meetingDate <= weekFromNow && m.status !== 'cancelled';
-  });
+  }) : [];
   const unreadMeetingsCount = upcomingMeetings.length;
 
   const handleTaskClick = (task: OnboardingTask) => {
@@ -222,13 +230,37 @@ export function Header() {
   };
 
   const getRoleLabel = () => {
-    switch (user?.role) {
-      case 'admin': return 'Администратор';
-      case 'manager': return 'Менеджер';
-      case 'department_head': return `Глава отдела ${SPECIALIZATION_LABELS[user?.specialization as ExecutorSpecialization] || ''}`.trim();
-      case 'executor': return SPECIALIZATION_LABELS[user?.specialization as ExecutorSpecialization] || 'Исполнитель';
-      case 'resident': return 'Житель';
-      default: return 'Пользователь';
+    const specLabels = language === 'ru' ? SPECIALIZATION_LABELS : SPECIALIZATION_LABELS_UZ;
+    if (language === 'ru') {
+      switch (user?.role) {
+        case 'super_admin': return 'Суперадмин';
+        case 'director': return 'Директор';
+        case 'admin': return 'Администратор';
+        case 'manager': return 'Менеджер';
+        case 'department_head': return `Глава отдела ${specLabels[user?.specialization as ExecutorSpecialization] || ''}`.trim();
+        case 'executor': return specLabels[user?.specialization as ExecutorSpecialization] || 'Исполнитель';
+        case 'resident': return 'Житель';
+        case 'dispatcher': return 'Диспетчер';
+        case 'security': return 'Охранник';
+        case 'marketplace_manager': return 'Менеджер маркетплейса';
+        case 'advertiser': return 'Рекламодатель';
+        default: return 'Пользователь';
+      }
+    } else {
+      switch (user?.role) {
+        case 'super_admin': return 'Super admin';
+        case 'director': return 'Direktor';
+        case 'admin': return 'Administrator';
+        case 'manager': return 'Menejer';
+        case 'department_head': return `Bo'lim boshlig'i ${specLabels[user?.specialization as ExecutorSpecialization] || ''}`.trim();
+        case 'executor': return specLabels[user?.specialization as ExecutorSpecialization] || 'Ijrochi';
+        case 'resident': return 'Aholik';
+        case 'dispatcher': return 'Dispetcher';
+        case 'security': return 'Qo\'riqchi';
+        case 'marketplace_manager': return 'Marketplace menejeri';
+        case 'advertiser': return 'Reklama menejeri';
+        default: return 'Foydalanuvchi';
+      }
     }
   };
 
@@ -276,18 +308,17 @@ export function Header() {
   // Handle clock click - navigate based on user role
   const handleClockClick = () => {
     if (user?.role === 'super_admin') {
-      // Super admin - go to dashboard (management companies)
       navigate('/');
     } else if (user?.role === 'executor') {
-      // For executors - go to schedule view
       navigate('/');
-      // Will need to trigger schedule view in ExecutorDashboard
       window.dispatchEvent(new CustomEvent('openSchedule'));
-    } else if (user?.role === 'resident') {
-      // For residents - go to my requests
+    } else if (user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner') {
+      navigate('/');
+    } else if (user?.role === 'advertiser' || user?.role === 'marketplace_manager') {
+      // These roles don't work with requests - just go to dashboard
       navigate('/');
     } else {
-      // For managers/admins - go to requests page
+      // For managers/admins/directors - go to requests page
       navigate('/requests');
     }
   };
@@ -295,8 +326,8 @@ export function Header() {
   return (
     <header className="h-16 glass-card rounded-none border-x-0 border-t-0 flex items-center justify-between px-6">
       <div className="flex items-center gap-4">
-        {/* Hide search for rental users (tenant/commercial_owner) and super_admin - they don't manage individual requests */}
-        {!isRentalUser && user?.role !== 'super_admin' && (
+        {/* Hide search for rental users, super_admin, advertiser, marketplace_manager - they don't manage individual requests */}
+        {!isRentalUser && !isAdvertiserRole && user?.role !== 'super_admin' && user?.role !== 'marketplace_manager' && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -473,7 +504,7 @@ export function Header() {
                     key={announcement.id}
                     onClick={() => {
                       setShowNotifications(false);
-                      navigate(isResident ? '/announcements' : '/staff/announcements');
+                      navigate('/announcements');
                     }}
                     className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 bg-blue-50/50"
                   >
@@ -506,7 +537,7 @@ export function Header() {
                     key={meeting.id}
                     onClick={() => {
                       setShowNotifications(false);
-                      navigate(isResident ? '/meetings' : '/staff/meetings');
+                      navigate('/meetings');
                     }}
                     className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 bg-purple-50/50"
                   >

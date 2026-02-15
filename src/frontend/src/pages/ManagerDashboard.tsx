@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
+import { useLanguageStore } from '../stores/languageStore';
 import { formatAddress } from '../utils/formatAddress';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS, RESCHEDULE_REASON_LABELS, RESCHEDULE_STATUS_LABELS } from '../types';
 import type { ExecutorSpecialization, Request, RequestStatus, RequestPriority, Executor, RescheduleRequest } from '../types';
@@ -29,6 +30,7 @@ const formatRequestNumber = (num: number | string): string => {
 
 export function ManagerDashboard() {
   const navigate = useNavigate();
+  const { language } = useLanguageStore();
   const {
     executors, requests, getStats, getChartData,
     addExecutor, deleteExecutor, updateExecutor, assignRequest, rescheduleRequests
@@ -62,7 +64,7 @@ export function ManagerDashboard() {
     cleaning: '#10b981',      // green/emerald
     elevator: '#8b5cf6',      // purple/violet
     intercom: '#6366f1',      // indigo
-    carpenter: '#d97706',     // amber darker
+    trash: '#d97706',         // amber darker
     locksmith: '#6b7280',     // gray
     other: '#ec4899',         // pink
   };
@@ -83,8 +85,8 @@ export function ManagerDashboard() {
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
       <div className="min-w-0">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">Панель менеджера</h1>
-        <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1 truncate">Управление заявками и исполнителями</p>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель менеджера' : 'Menejer paneli'}</h1>
+        <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1 truncate">{language === 'ru' ? 'Управление заявками и исполнителями' : 'Arizalar va ijrochilarni boshqarish'}</p>
       </div>
 
       {/* Overview - Stats Cards */}
@@ -101,7 +103,7 @@ export function ManagerDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.newRequests}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">Новые</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Новые' : 'Yangi'}</div>
                 </div>
               </div>
             </div>
@@ -116,7 +118,7 @@ export function ManagerDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.inProgress}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">В работе</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'В работе' : 'Jarayonda'}</div>
                 </div>
               </div>
             </div>
@@ -131,7 +133,7 @@ export function ManagerDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.pendingApproval}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">Ожидают</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Ожидают' : 'Kutilmoqda'}</div>
                 </div>
               </div>
             </div>
@@ -146,7 +148,7 @@ export function ManagerDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.completedWeek}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">За неделю</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'За неделю' : 'Hafta davomida'}</div>
                 </div>
               </div>
             </div>
@@ -155,7 +157,7 @@ export function ManagerDashboard() {
           {/* Charts Row - Stack on mobile */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             <div className="glass-card p-4 md:p-6">
-              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Заявки за неделю</h2>
+              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Заявки за неделю' : 'Haftalik arizalar'}</h2>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -170,14 +172,14 @@ export function ManagerDashboard() {
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Bar dataKey="created" name="Создано" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="completed" name="Выполнено" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="created" name={language === 'ru' ? 'Создано' : 'Yaratilgan'} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="completed" name={language === 'ru' ? 'Выполнено' : 'Bajarilgan'} fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
             <div className="glass-card p-4 md:p-6">
-              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">По категориям</h2>
+              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'По категориям' : 'Kategoriya bo\'yicha'}</h2>
               {categoryData.length > 0 && categoryData.some(d => d.value > 0) ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -200,7 +202,7 @@ export function ManagerDashboard() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-[250px] flex items-center justify-center text-gray-400">
-                  Нет данных для отображения
+                  {language === 'ru' ? 'Нет данных для отображения' : 'Ko\'rsatish uchun ma\'lumot yo\'q'}
                 </div>
               )}
             </div>
@@ -214,9 +216,9 @@ export function ManagerDashboard() {
                   <RefreshCw className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-lg font-bold text-amber-800">Запросы на перенос времени</h2>
+                  <h2 className="text-lg font-bold text-amber-800">{language === 'ru' ? 'Запросы на перенос времени' : 'Vaqtni ko\'chirish so\'rovlari'}</h2>
                   <p className="text-sm text-amber-600">
-                    {pendingReschedules.length} {pendingReschedules.length === 1 ? 'запрос ожидает' : 'запросов ожидают'} ответа
+                    {pendingReschedules.length} {language === 'ru' ? (pendingReschedules.length === 1 ? 'запрос ожидает' : 'запросов ожидают') : (pendingReschedules.length === 1 ? 'so\'rov kutmoqda' : 'so\'rov kutmoqda')} {language === 'ru' ? 'ответа' : 'javob'}
                   </p>
                 </div>
               </div>
@@ -236,7 +238,7 @@ export function ManagerDashboard() {
           {/* Recent Reschedules History */}
           {recentReschedules.length > 0 && (
             <div className="glass-card p-4 md:p-6">
-              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">История переносов</h2>
+              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'История переносов' : 'Ko\'chirishlar tarixi'}</h2>
               <div className="space-y-2">
                 {recentReschedules.map((reschedule) => (
                   <RescheduleHistoryCard
@@ -251,9 +253,9 @@ export function ManagerDashboard() {
           {/* Recent Requests */}
           <div className="glass-card p-4 md:p-6">
             <div className="flex items-center justify-between mb-3 md:mb-4">
-              <h2 className="text-base md:text-lg font-semibold">Последние заявки</h2>
+              <h2 className="text-base md:text-lg font-semibold">{language === 'ru' ? 'Последние заявки' : 'Oxirgi arizalar'}</h2>
               <a href="/requests" className="text-primary-600 text-sm font-medium hover:underline touch-manipulation">
-                Все →
+                {language === 'ru' ? 'Все' : 'Hammasi'} →
               </a>
             </div>
             <div className="space-y-2 md:space-y-3">
@@ -343,6 +345,7 @@ function RequestCard({
   onAssign: () => void;
   compact?: boolean;
 }) {
+  const { language } = useLanguageStore();
   const getStatusBadge = (status: RequestStatus) => {
     const colors: Record<RequestStatus, string> = {
       new: 'bg-purple-100 text-purple-700',
@@ -387,7 +390,7 @@ function RequestCard({
           <span className="text-xs md:text-sm text-gray-500 truncate">{request.residentName}</span>
           {request.status === 'new' && (
             <button onClick={onAssign} className="btn-secondary text-xs md:text-sm py-1 px-2 md:px-3 touch-manipulation flex-shrink-0">
-              Назначить
+              {language === 'ru' ? 'Назначить' : 'Tayinlash'}
             </button>
           )}
         </div>
@@ -406,6 +409,21 @@ function RequestCard({
             {getPriorityBadge(request.priority)}
           </div>
           <p className="text-gray-600 mb-2 md:mb-3 text-sm md:text-base line-clamp-2">{request.description}</p>
+          {/* Trash type and volume badges */}
+          {request.category === 'trash' && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {request.title.includes(': ') && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                  🗑️ {request.title.split(': ').slice(1).join(': ')}
+                </span>
+              )}
+              {request.description?.includes('Объём: ') && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                  📦 {request.description.split('Объём: ')[1].split('\n')[0]}
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-gray-500">
             <span className="flex items-center gap-1">
               <User className="w-3 h-3 md:w-4 md:h-4" />
@@ -426,7 +444,7 @@ function RequestCard({
           </div>
           {request.executorName && (
             <div className="mt-2 text-xs md:text-sm">
-              <span className="text-gray-500">Исполнитель: </span>
+              <span className="text-gray-500">{language === 'ru' ? 'Исполнитель: ' : 'Ijrochi: '}</span>
               <span className="font-medium">{request.executorName}</span>
             </div>
           )}
@@ -435,14 +453,14 @@ function RequestCard({
           {request.status === 'new' && (
             <button onClick={onAssign} className="btn-primary flex items-center gap-2 py-2 px-3 md:py-2.5 md:px-4 touch-manipulation text-sm">
               <UserPlus className="w-4 h-4" />
-              <span className="hidden sm:inline">Назначить</span>
-              <span className="sm:hidden">Назн.</span>
+              <span className="hidden sm:inline">{language === 'ru' ? 'Назначить' : 'Tayinlash'}</span>
+              <span className="sm:hidden">{language === 'ru' ? 'Назн.' : 'Tay.'}</span>
             </button>
           )}
           {request.status === 'assigned' && (
             <button onClick={onAssign} className="btn-secondary flex items-center gap-2 py-2 px-3 touch-manipulation text-sm">
-              <span className="hidden sm:inline">Переназначить</span>
-              <span className="sm:hidden">Перен.</span>
+              <span className="hidden sm:inline">{language === 'ru' ? 'Переназначить' : 'Qayta tayinlash'}</span>
+              <span className="sm:hidden">{language === 'ru' ? 'Перен.' : 'Qayta'}</span>
             </button>
           )}
         </div>
@@ -463,11 +481,12 @@ export function ExecutorCard({
   onDelete: () => void;
   onStatusChange: (status: 'available' | 'busy' | 'offline') => void;
 }) {
+  const { language } = useLanguageStore();
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'available': return <span className="badge bg-green-100 text-green-700 text-xs">Доступен</span>;
-      case 'busy': return <span className="badge bg-amber-100 text-amber-700 text-xs">Занят</span>;
-      case 'offline': return <span className="badge bg-gray-100 text-gray-600 text-xs">Оффлайн</span>;
+      case 'available': return <span className="badge bg-green-100 text-green-700 text-xs">{language === 'ru' ? 'Доступен' : 'Mavjud'}</span>;
+      case 'busy': return <span className="badge bg-amber-100 text-amber-700 text-xs">{language === 'ru' ? 'Занят' : 'Band'}</span>;
+      case 'offline': return <span className="badge bg-gray-100 text-gray-600 text-xs">{language === 'ru' ? 'Оффлайн' : 'Oflayn'}</span>;
       default: return <span className="badge text-xs">{status}</span>;
     }
   };
@@ -498,8 +517,8 @@ export function ExecutorCard({
               <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
               {executor.rating.toFixed(1)}
             </span>
-            <span className="hidden sm:inline">{executor.completedCount} вып.</span>
-            <span>{executor.activeRequests} акт.</span>
+            <span className="hidden sm:inline">{executor.completedCount} {language === 'ru' ? 'вып.' : 'baj.'}</span>
+            <span>{executor.activeRequests} {language === 'ru' ? 'акт.' : 'faol'}</span>
           </div>
         </div>
       </div>
@@ -513,9 +532,9 @@ export function ExecutorCard({
           }}
           className="glass-input text-xs md:text-sm py-1.5 md:py-2 px-2 md:px-3"
         >
-          <option value="available">Доступен</option>
-          <option value="busy">Занят</option>
-          <option value="offline">Оффлайн</option>
+          <option value="available">{language === 'ru' ? 'Доступен' : 'Mavjud'}</option>
+          <option value="busy">{language === 'ru' ? 'Занят' : 'Band'}</option>
+          <option value="offline">{language === 'ru' ? 'Оффлайн' : 'Oflayn'}</option>
         </select>
         <button
           onClick={(e) => {
@@ -523,7 +542,7 @@ export function ExecutorCard({
             onDelete();
           }}
           className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors touch-manipulation"
-          title="Удалить"
+          title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
         >
           <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
         </button>
@@ -536,6 +555,7 @@ export function ExecutorCard({
 // Residents Section - used in ResidentsPage
 export function ResidentsSection() {
   const { requests } = useDataStore();
+  const { language } = useLanguageStore();
 
   // Get unique residents from requests
   const residents = Array.from(
@@ -564,8 +584,8 @@ export function ResidentsSection() {
       <div className="glass-card p-3 md:p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base md:text-lg font-semibold">Жители</h2>
-            <p className="text-xs md:text-sm text-gray-500">{residents.length} жителей в системе</p>
+            <h2 className="text-base md:text-lg font-semibold">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h2>
+            <p className="text-xs md:text-sm text-gray-500">{residents.length} {language === 'ru' ? 'жителей в системе' : 'tizimda yashovchilar'}</p>
           </div>
         </div>
       </div>
@@ -574,8 +594,8 @@ export function ResidentsSection() {
         {residents.length === 0 ? (
           <div className="glass-card p-6 md:p-8 text-center">
             <Home className="w-10 h-10 md:w-12 md:h-12 text-gray-300 mx-auto mb-2 md:mb-3" />
-            <h3 className="text-base md:text-lg font-medium text-gray-600">Жителей пока нет</h3>
-            <p className="text-gray-400 mt-1 text-sm">Жители появятся после создания заявок</p>
+            <h3 className="text-base md:text-lg font-medium text-gray-600">{language === 'ru' ? 'Жителей пока нет' : 'Yashovchilar hali yo\'q'}</h3>
+            <p className="text-gray-400 mt-1 text-sm">{language === 'ru' ? 'Жители появятся после создания заявок' : 'Arizalar yaratilgandan keyin yashovchilar paydo bo\'ladi'}</p>
           </div>
         ) : (
           residents.map((resident) => {
@@ -596,7 +616,7 @@ export function ResidentsSection() {
                         </span>
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3" />
-                          <span className="truncate max-w-[100px] md:max-w-none">кв. {resident.apartment}</span>
+                          <span className="truncate max-w-[100px] md:max-w-none">{language === 'ru' ? 'кв.' : 'kv.'} {resident.apartment}</span>
                         </span>
                       </div>
                     </div>
@@ -604,15 +624,15 @@ export function ResidentsSection() {
                   <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm justify-end sm:justify-start flex-shrink-0">
                     <div className="text-center">
                       <div className="font-bold">{stats.total}</div>
-                      <div className="text-gray-500">всего</div>
+                      <div className="text-gray-500">{language === 'ru' ? 'всего' : 'jami'}</div>
                     </div>
                     <div className="text-center">
                       <div className="font-bold text-green-600">{stats.completed}</div>
-                      <div className="text-gray-500">вып.</div>
+                      <div className="text-gray-500">{language === 'ru' ? 'вып.' : 'baj.'}</div>
                     </div>
                     <div className="text-center">
                       <div className="font-bold text-amber-600">{stats.active}</div>
-                      <div className="text-gray-500">акт.</div>
+                      <div className="text-gray-500">{language === 'ru' ? 'акт.' : 'faol'}</div>
                     </div>
                   </div>
                 </div>
@@ -627,6 +647,7 @@ export function ResidentsSection() {
 
 // Reports Section - used in ReportsPage
 export function ReportsSection({ requests, executors }: { requests: Request[]; executors: Executor[] }) {
+  const { language } = useLanguageStore();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'custom'>('week');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -712,7 +733,14 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
   // Export to Excel
   const exportToExcel = () => {
     // Create CSV content
-    const headers = ['Исполнитель', 'Специализация', 'Всего заявок', 'Выполнено', 'Средний рейтинг', 'Среднее время (мин)'];
+    const headers = [
+      language === 'ru' ? 'Исполнитель' : 'Ijrochi',
+      language === 'ru' ? 'Специализация' : 'Mutaxassislik',
+      language === 'ru' ? 'Всего заявок' : 'Jami arizalar',
+      language === 'ru' ? 'Выполнено' : 'Bajarilgan',
+      language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting',
+      language === 'ru' ? 'Среднее время (мин)' : 'O\'rtacha vaqt (daq)'
+    ];
     const rows = executorStats.map(e => [
       e.name,
       e.specialization,
@@ -754,7 +782,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
       <div className="glass-card p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Отчёты</h2>
+            <h2 className="text-lg font-semibold">{language === 'ru' ? 'Отчёты' : 'Hisobotlar'}</h2>
             <p className="text-sm text-gray-500">
               {formatDate(start)} — {formatDate(end)}
             </p>
@@ -762,10 +790,10 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
           <div className="flex items-center gap-2">
             <div className="flex bg-white/30 rounded-xl p-1 gap-1">
               {[
-                { id: 'today' as const, label: 'Сегодня' },
-                { id: 'week' as const, label: 'Неделя' },
-                { id: 'month' as const, label: 'Месяц' },
-                { id: 'custom' as const, label: 'Период' },
+                { id: 'today' as const, label: language === 'ru' ? 'Сегодня' : 'Bugun' },
+                { id: 'week' as const, label: language === 'ru' ? 'Неделя' : 'Hafta' },
+                { id: 'month' as const, label: language === 'ru' ? 'Месяц' : 'Oy' },
+                { id: 'custom' as const, label: language === 'ru' ? 'Период' : 'Davr' },
               ].map(p => (
                 <button
                   key={p.id}
@@ -781,10 +809,10 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
             <button
               onClick={exportToExcel}
               className="btn-secondary flex items-center gap-2 py-2 px-3"
-              title="Экспорт в Excel"
+              title={language === 'ru' ? 'Экспорт в Excel' : 'Excelga eksport'}
             >
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Экспорт</span>
+              <span className="hidden sm:inline">{language === 'ru' ? 'Экспорт' : 'Eksport'}</span>
             </button>
           </div>
         </div>
@@ -794,7 +822,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
           <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-500">С:</span>
+              <span className="text-sm text-gray-500">{language === 'ru' ? 'С:' : 'Dan:'}</span>
               <input
                 type="date"
                 value={startDate}
@@ -803,7 +831,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">По:</span>
+              <span className="text-sm text-gray-500">{language === 'ru' ? 'По:' : 'Gacha:'}</span>
               <input
                 type="date"
                 value={endDate}
@@ -819,27 +847,27 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
         <div className="glass-card p-3 text-center">
           <div className="text-2xl font-bold">{stats.total}</div>
-          <div className="text-xs text-gray-500">Всего</div>
+          <div className="text-xs text-gray-500">{language === 'ru' ? 'Всего' : 'Jami'}</div>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-2xl font-bold text-purple-600">{stats.new}</div>
-          <div className="text-xs text-gray-500">Новые</div>
+          <div className="text-xs text-gray-500">{language === 'ru' ? 'Новые' : 'Yangi'}</div>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-2xl font-bold text-amber-600">{stats.inProgress}</div>
-          <div className="text-xs text-gray-500">В работе</div>
+          <div className="text-xs text-gray-500">{language === 'ru' ? 'В работе' : 'Jarayonda'}</div>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-2xl font-bold text-orange-600">{stats.pendingApproval}</div>
-          <div className="text-xs text-gray-500">Ожидают</div>
+          <div className="text-xs text-gray-500">{language === 'ru' ? 'Ожидают' : 'Kutilmoqda'}</div>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-          <div className="text-xs text-gray-500">Выполнено</div>
+          <div className="text-xs text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</div>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-2xl font-bold text-red-600">{stats.cancelled}</div>
-          <div className="text-xs text-gray-500">Отменено</div>
+          <div className="text-xs text-gray-500">{language === 'ru' ? 'Отменено' : 'Bekor qilingan'}</div>
         </div>
       </div>
 
@@ -847,10 +875,10 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* By Category */}
         <div className="glass-card p-4">
-          <h3 className="text-base font-semibold mb-3">По категориям</h3>
+          <h3 className="text-base font-semibold mb-3">{language === 'ru' ? 'По категориям' : 'Kategoriya bo\'yicha'}</h3>
           {categoryStats.length === 0 ? (
             <div className="text-center py-6 text-gray-400 text-sm">
-              Нет данных за выбранный период
+              {language === 'ru' ? 'Нет данных за выбранный период' : 'Tanlangan davr uchun ma\'lumot yo\'q'}
             </div>
           ) : (
             <div className="space-y-2">
@@ -874,10 +902,10 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
 
         {/* Executor Performance */}
         <div className="glass-card p-4">
-          <h3 className="text-base font-semibold mb-3">Исполнители</h3>
+          <h3 className="text-base font-semibold mb-3">{language === 'ru' ? 'Исполнители' : 'Ijrochilar'}</h3>
           {executorStats.length === 0 ? (
             <div className="text-center py-6 text-gray-400 text-sm">
-              Нет данных за выбранный период
+              {language === 'ru' ? 'Нет данных за выбранный период' : 'Tanlangan davr uchun ma\'lumot yo\'q'}
             </div>
           ) : (
             <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -893,10 +921,10 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>{exec.specialization}</span>
                     <div className="flex items-center gap-3">
-                      <span>Заявок: <b className="text-gray-700">{exec.total}</b></span>
-                      <span>Выполнено: <b className="text-green-600">{exec.completed}</b></span>
+                      <span>{language === 'ru' ? 'Заявок' : 'Arizalar'}: <b className="text-gray-700">{exec.total}</b></span>
+                      <span>{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}: <b className="text-green-600">{exec.completed}</b></span>
                       {exec.avgTime > 0 && (
-                        <span>Ср. время: <b className="text-gray-700">{exec.avgTime} мин</b></span>
+                        <span>{language === 'ru' ? 'Ср. время' : 'O\'rt. vaqt'}: <b className="text-gray-700">{exec.avgTime} {language === 'ru' ? 'мин' : 'daq'}</b></span>
                       )}
                     </div>
                   </div>
@@ -909,17 +937,17 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
 
       {/* Full Executor Table for Desktop */}
       <div className="glass-card p-4 hidden lg:block">
-        <h3 className="text-base font-semibold mb-3">Детальная статистика исполнителей</h3>
+        <h3 className="text-base font-semibold mb-3">{language === 'ru' ? 'Детальная статистика исполнителей' : 'Ijrochilarning batafsil statistikasi'}</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left py-2 px-3 font-medium text-gray-500">Исполнитель</th>
-                <th className="text-left py-2 px-3 font-medium text-gray-500">Специализация</th>
-                <th className="text-center py-2 px-3 font-medium text-gray-500">Всего</th>
-                <th className="text-center py-2 px-3 font-medium text-gray-500">Выполнено</th>
-                <th className="text-center py-2 px-3 font-medium text-gray-500">Рейтинг</th>
-                <th className="text-center py-2 px-3 font-medium text-gray-500">Ср. время</th>
+                <th className="text-left py-2 px-3 font-medium text-gray-500">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</th>
+                <th className="text-left py-2 px-3 font-medium text-gray-500">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'}</th>
+                <th className="text-center py-2 px-3 font-medium text-gray-500">{language === 'ru' ? 'Всего' : 'Jami'}</th>
+                <th className="text-center py-2 px-3 font-medium text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</th>
+                <th className="text-center py-2 px-3 font-medium text-gray-500">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</th>
+                <th className="text-center py-2 px-3 font-medium text-gray-500">{language === 'ru' ? 'Ср. время' : 'O\'rt. vaqt'}</th>
               </tr>
             </thead>
             <tbody>
@@ -936,7 +964,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
                     </span>
                   </td>
                   <td className="py-2 px-3 text-center text-gray-500">
-                    {exec.avgTime > 0 ? `${exec.avgTime} мин` : '-'}
+                    {exec.avgTime > 0 ? `${exec.avgTime} ${language === 'ru' ? 'мин' : 'daq'}` : '-'}
                   </td>
                 </tr>
               ))}
@@ -960,6 +988,7 @@ function AssignExecutorModal({
   onClose: () => void;
   onAssign: (executorId: string) => void;
 }) {
+  const { language } = useLanguageStore();
   // Filter executors by specialization
   const matchingExecutors = executors.filter(e => e.specialization === request.category);
   const otherExecutors = executors.filter(e => e.specialization !== request.category);
@@ -979,7 +1008,7 @@ function AssignExecutorModal({
           <div className="min-w-0">
             <div className="font-semibold flex items-center gap-1.5 md:gap-2 flex-wrap text-sm md:text-base">
               <span className="truncate">{executor.name}</span>
-              {recommended && <span className="text-[10px] md:text-xs bg-green-500 text-white px-1.5 md:px-2 py-0.5 rounded-full flex-shrink-0">Рек.</span>}
+              {recommended && <span className="text-[10px] md:text-xs bg-green-500 text-white px-1.5 md:px-2 py-0.5 rounded-full flex-shrink-0">{language === 'ru' ? 'Рек.' : 'Tav.'}</span>}
             </div>
             <div className="text-xs md:text-sm text-gray-500 truncate">
               {SPECIALIZATION_LABELS[executor.specialization as ExecutorSpecialization]}
@@ -991,7 +1020,7 @@ function AssignExecutorModal({
             <Star className="w-3 h-3 md:w-4 md:h-4 fill-amber-500" />
             {executor.rating}
           </div>
-          <div className="text-gray-500">{executor.activeRequests} акт.</div>
+          <div className="text-gray-500">{executor.activeRequests} {language === 'ru' ? 'акт.' : 'faol'}</div>
         </div>
       </div>
     </button>
@@ -1002,8 +1031,8 @@ function AssignExecutorModal({
       <div className="glass-card p-4 md:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[85vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4 md:mb-6 gap-2">
           <div className="min-w-0">
-            <h2 className="text-lg md:text-xl font-bold">Назначить исполнителя</h2>
-            <p className="text-xs md:text-sm text-gray-500 mt-1 truncate">Заявка {formatRequestNumber(request.number)}: {request.title}</p>
+            <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}</h2>
+            <p className="text-xs md:text-sm text-gray-500 mt-1 truncate">{language === 'ru' ? 'Заявка' : 'Ariza'} {formatRequestNumber(request.number)}: {request.title}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg touch-manipulation flex-shrink-0">
             <X className="w-5 h-5" />
@@ -1026,7 +1055,7 @@ function AssignExecutorModal({
 
           {otherExecutors.length > 0 && (
             <div>
-              <h3 className="text-xs md:text-sm font-medium text-gray-500 mb-2">Другие специалисты</h3>
+              <h3 className="text-xs md:text-sm font-medium text-gray-500 mb-2">{language === 'ru' ? 'Другие специалисты' : 'Boshqa mutaxassislar'}</h3>
               <div className="space-y-2">
                 {otherExecutors.map(executor => (
                   <ExecutorOption key={executor.id} executor={executor} />
@@ -1037,7 +1066,7 @@ function AssignExecutorModal({
 
           {executors.length === 0 && (
             <div className="text-center py-6 md:py-8 text-gray-500 text-sm">
-              Нет доступных исполнителей
+              {language === 'ru' ? 'Нет доступных исполнителей' : 'Mavjud ijrochilar yo\'q'}
             </div>
           )}
         </div>
@@ -1054,6 +1083,7 @@ function AddExecutorModal({
   onClose: () => void;
   onAdd: (data: { name: string; phone: string; login: string; password: string; specialization: ExecutorSpecialization }) => void;
 }) {
+  const { language } = useLanguageStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [login, setLogin] = useState('');
@@ -1083,7 +1113,7 @@ function AddExecutorModal({
     setError('');
 
     if (!name || !phone || !login || !password) {
-      setError('Заполните все поля');
+      setError(language === 'ru' ? 'Заполните все поля' : 'Barcha maydonlarni to\'ldiring');
       return;
     }
 
@@ -1094,7 +1124,7 @@ function AddExecutorModal({
     <div className="modal-backdrop">
       <div className="glass-card p-4 md:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4 md:mb-6">
-          <h2 className="text-lg md:text-xl font-bold">Добавить исполнителя</h2>
+          <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg touch-manipulation">
             <X className="w-5 h-5" />
           </button>
@@ -1102,19 +1132,19 @@ function AddExecutorModal({
 
         <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">ФИО</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.O.'}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Иванов Иван Иванович"
+              placeholder={language === 'ru' ? 'Иванов Иван Иванович' : 'Ismingizni kiriting'}
               className="glass-input text-sm md:text-base"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Телефон</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
             <input
               type="tel"
               value={phone}
@@ -1126,7 +1156,7 @@ function AddExecutorModal({
           </div>
 
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Специализация</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'}</label>
             <select
               value={specialization}
               onChange={(e) => setSpecialization(e.target.value as ExecutorSpecialization)}
@@ -1139,7 +1169,7 @@ function AddExecutorModal({
           </div>
 
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Логин</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -1150,14 +1180,14 @@ function AddExecutorModal({
                 required
               />
               <button type="button" onClick={generateLogin} className="btn-secondary px-2 md:px-4 text-xs md:text-sm touch-manipulation">
-                <span className="hidden sm:inline">Сгенерировать</span>
-                <span className="sm:hidden">Ген.</span>
+                <span className="hidden sm:inline">{language === 'ru' ? 'Сгенерировать' : 'Yaratish'}</span>
+                <span className="sm:hidden">{language === 'ru' ? 'Ген.' : 'Yar.'}</span>
               </button>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Пароль</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'}</label>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
@@ -1177,8 +1207,8 @@ function AddExecutorModal({
                 </button>
               </div>
               <button type="button" onClick={generatePassword} className="btn-secondary px-2 md:px-4 text-xs md:text-sm touch-manipulation">
-                <span className="hidden sm:inline">Сгенерировать</span>
-                <span className="sm:hidden">Ген.</span>
+                <span className="hidden sm:inline">{language === 'ru' ? 'Сгенерировать' : 'Yaratish'}</span>
+                <span className="sm:hidden">{language === 'ru' ? 'Ген.' : 'Yar.'}</span>
               </button>
             </div>
           </div>
@@ -1192,10 +1222,10 @@ function AddExecutorModal({
 
           <div className="flex gap-2 md:gap-3 pt-3 md:pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5 text-sm touch-manipulation">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
-              Добавить
+              {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
             </button>
           </div>
         </form>
@@ -1218,6 +1248,7 @@ const BRANCHES = [
 
 // Add Resident Modal
 function AddResidentModal({ onClose }: { onClose: () => void }) {
+  const { language } = useLanguageStore();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [branch, setBranch] = useState('YS');
@@ -1232,7 +1263,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
   // Auto-generate credentials when building/apartment changes
   const generateCredentials = () => {
     if (!building || !apartment) {
-      setError('Сначала укажите дом и квартиру');
+      setError(language === 'ru' ? 'Сначала укажите дом и квартиру' : 'Avval uy va kvartirani ko\'rsating');
       return;
     }
     // Login: branch_building_apartment (e.g., YS_8A_23)
@@ -1257,7 +1288,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
   // Generate address from branch
   const getAddress = () => {
     const branchInfo = BRANCHES.find(b => b.code === branch);
-    return branchInfo ? `${branchInfo.name}, дом ${building}` : `Дом ${building}`;
+    return branchInfo ? `${branchInfo.name}, ${language === 'ru' ? 'дом' : 'uy'} ${building}` : `${language === 'ru' ? 'Дом' : 'Uy'} ${building}`;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1265,7 +1296,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
     setError('');
 
     if (!name || !phone || !building || !apartment || !login || !password) {
-      setError('Заполните все обязательные поля');
+      setError(language === 'ru' ? 'Заполните все обязательные поля' : 'Barcha majburiy maydonlarni to\'ldiring');
       return;
     }
 
@@ -1283,7 +1314,10 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
       building
     });
 
-    alert(`Житель добавлен!\nЛогин: ${login}\nПароль: ${password}`);
+    alert(language === 'ru'
+      ? `Житель добавлен!\nЛогин: ${login}\nПароль: ${password}`
+      : `Yashovchi qo'shildi!\nLogin: ${login}\nParol: ${password}`
+    );
     onClose();
   };
 
@@ -1291,7 +1325,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop">
       <div className="glass-card p-4 md:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4 md:mb-6">
-          <h2 className="text-lg md:text-xl font-bold">Добавить жителя</h2>
+          <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg touch-manipulation">
             <X className="w-5 h-5" />
           </button>
@@ -1299,19 +1333,19 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
 
         <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">ФИО</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.O.'}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Иванов Иван Иванович"
+              placeholder={language === 'ru' ? 'Иванов Иван Иванович' : 'Ismingizni kiriting'}
               className="glass-input text-sm md:text-base"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">Телефон</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
             <input
               type="tel"
               value={phone}
@@ -1324,10 +1358,10 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
 
           {/* Location: Branch / Building / Apartment */}
           <div className="border-t pt-3 md:pt-4">
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-2">Расположение</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Расположение' : 'Joylashuv'}</label>
             <div className="grid grid-cols-3 gap-2 md:gap-3">
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">Филиал</label>
+                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Филиал' : 'Filial'}</label>
                 <select
                   value={branch}
                   onChange={(e) => {
@@ -1342,7 +1376,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">Дом</label>
+                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дом' : 'Uy'}</label>
                 <input
                   type="text"
                   value={building}
@@ -1356,7 +1390,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">Кв.</label>
+                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Кв.' : 'Kv.'}</label>
                 <input
                   type="text"
                   value={apartment}
@@ -1374,7 +1408,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
             {building && (
               <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
                 <MapPin className="w-3 h-3" />
-                {getAddress()}, кв. {apartment || '...'}
+                {getAddress()}, {language === 'ru' ? 'кв.' : 'kv.'} {apartment || '...'}
               </div>
             )}
           </div>
@@ -1382,22 +1416,22 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
           {/* Login credentials */}
           <div className="border-t pt-3 md:pt-4">
             <div className="flex items-center justify-between mb-2 md:mb-3">
-              <span className="text-xs md:text-sm font-medium text-gray-700">Данные для входа</span>
+              <span className="text-xs md:text-sm font-medium text-gray-700">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</span>
               <button type="button" onClick={generateCredentials} className="btn-secondary text-xs md:text-sm py-1 px-2 md:px-3 touch-manipulation">
-                Сгенерировать
+                {language === 'ru' ? 'Сгенерировать' : 'Yaratish'}
               </button>
             </div>
 
             {/* Hint about password format */}
             <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-600">
-              💡 Пароль будет в формате: <span className="font-mono font-bold">ФИЛИАЛ/ДОМ/КВАРТИРА</span>
+              💡 {language === 'ru' ? 'Пароль будет в формате:' : 'Parol formatda bo\'ladi:'} <span className="font-mono font-bold">{language === 'ru' ? 'ФИЛИАЛ/ДОМ/КВАРТИРА' : 'FILIAL/UY/KVARTIRA'}</span>
               <br />
-              Например: <span className="font-mono">YS/8A/23</span>
+              {language === 'ru' ? 'Например:' : 'Masalan:'} <span className="font-mono">YS/8A/23</span>
             </div>
 
             <div className="space-y-2 md:space-y-3">
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">Логин</label>
+                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
                 <input
                   type="text"
                   value={login}
@@ -1408,7 +1442,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">Пароль</label>
+                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'}</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -1439,10 +1473,10 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
 
           <div className="flex gap-2 md:gap-3 pt-3 md:pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5 text-sm touch-manipulation">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
-              Добавить
+              {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
             </button>
           </div>
         </form>
@@ -1461,10 +1495,11 @@ function CredentialsModal({
   password: string;
   onClose: () => void;
 }) {
+  const { language } = useLanguageStore();
   const [copied, setCopied] = useState(false);
 
   const copyCredentials = () => {
-    navigator.clipboard.writeText(`Логин: ${login}\nПароль: ${password}`);
+    navigator.clipboard.writeText(`${language === 'ru' ? 'Логин' : 'Login'}: ${login}\n${language === 'ru' ? 'Пароль' : 'Parol'}: ${password}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -1476,17 +1511,17 @@ function CredentialsModal({
           <div className="w-14 h-14 md:w-16 md:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
             <Check className="w-7 h-7 md:w-8 md:h-8 text-green-600" />
           </div>
-          <h2 className="text-lg md:text-xl font-bold">Исполнитель добавлен!</h2>
-          <p className="text-gray-500 mt-1.5 md:mt-2 text-sm md:text-base">Сохраните данные для входа</p>
+          <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Исполнитель добавлен!' : 'Ijrochi qo\'shildi!'}</h2>
+          <p className="text-gray-500 mt-1.5 md:mt-2 text-sm md:text-base">{language === 'ru' ? 'Сохраните данные для входа' : 'Kirish ma\'lumotlarini saqlang'}</p>
         </div>
 
         <div className="bg-gray-50 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3">
           <div>
-            <div className="text-xs md:text-sm text-gray-500">Логин</div>
+            <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Логин' : 'Login'}</div>
             <div className="font-mono text-base md:text-lg font-semibold">{login}</div>
           </div>
           <div>
-            <div className="text-xs md:text-sm text-gray-500">Пароль</div>
+            <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Пароль' : 'Parol'}</div>
             <div className="font-mono text-base md:text-lg font-semibold">{password}</div>
           </div>
         </div>
@@ -1497,10 +1532,10 @@ function CredentialsModal({
             className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2.5 text-sm touch-manipulation"
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'Скопировано!' : 'Копировать'}
+            {copied ? (language === 'ru' ? 'Скопировано!' : 'Nusxalandi!') : (language === 'ru' ? 'Копировать' : 'Nusxalash')}
           </button>
           <button onClick={onClose} className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
-            Готово
+            {language === 'ru' ? 'Готово' : 'Tayyor'}
           </button>
         </div>
       </div>
@@ -1522,6 +1557,7 @@ function ExecutorDetailsModal({
   onStatusChange: (status: 'available' | 'busy' | 'offline') => void;
   onDelete: () => void;
 }) {
+  const { language } = useLanguageStore();
   const executorRequests = requests.filter(r => r.executorId === executor.id);
   const completedRequests = executorRequests.filter(r => r.status === 'completed');
   const activeRequests = executorRequests.filter(r => ['assigned', 'accepted', 'in_progress', 'pending_approval'].includes(r.status));
@@ -1532,9 +1568,9 @@ function ExecutorDetailsModal({
     : 0;
 
   const formatDuration = (seconds: number) => {
-    if (seconds < 60) return `${seconds} сек`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} мин`;
-    return `${Math.floor(seconds / 3600)}ч ${Math.floor((seconds % 3600) / 60)}мин`;
+    if (seconds < 60) return `${seconds} ${language === 'ru' ? 'сек' : 'son'}`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} ${language === 'ru' ? 'мин' : 'daq'}`;
+    return `${Math.floor(seconds / 3600)}${language === 'ru' ? 'ч' : 's'} ${Math.floor((seconds % 3600) / 60)}${language === 'ru' ? 'мин' : 'daq'}`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -1547,20 +1583,20 @@ function ExecutorDetailsModal({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'available': return <span className="badge bg-green-100 text-green-700">Доступен</span>;
-      case 'busy': return <span className="badge bg-amber-100 text-amber-700">Занят</span>;
-      case 'offline': return <span className="badge bg-gray-100 text-gray-600">Оффлайн</span>;
+      case 'available': return <span className="badge bg-green-100 text-green-700">{language === 'ru' ? 'Доступен' : 'Mavjud'}</span>;
+      case 'busy': return <span className="badge bg-amber-100 text-amber-700">{language === 'ru' ? 'Занят' : 'Band'}</span>;
+      case 'offline': return <span className="badge bg-gray-100 text-gray-600">{language === 'ru' ? 'Оффлайн' : 'Oflayn'}</span>;
       default: return <span className="badge">{status}</span>;
     }
   };
 
   const getRequestStatusBadge = (status: string) => {
     const labels: Record<string, { bg: string; text: string; label: string }> = {
-      'assigned': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Назначена' },
-      'accepted': { bg: 'bg-cyan-100', text: 'text-cyan-700', label: 'Принята' },
-      'in_progress': { bg: 'bg-amber-100', text: 'text-amber-700', label: 'В работе' },
-      'pending_approval': { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Ожидает' },
-      'completed': { bg: 'bg-green-100', text: 'text-green-700', label: 'Выполнена' },
+      'assigned': { bg: 'bg-blue-100', text: 'text-blue-700', label: language === 'ru' ? 'Назначена' : 'Tayinlangan' },
+      'accepted': { bg: 'bg-cyan-100', text: 'text-cyan-700', label: language === 'ru' ? 'Принята' : 'Qabul qilingan' },
+      'in_progress': { bg: 'bg-amber-100', text: 'text-amber-700', label: language === 'ru' ? 'В работе' : 'Jarayonda' },
+      'pending_approval': { bg: 'bg-purple-100', text: 'text-purple-700', label: language === 'ru' ? 'Ожидает' : 'Kutilmoqda' },
+      'completed': { bg: 'bg-green-100', text: 'text-green-700', label: language === 'ru' ? 'Выполнена' : 'Bajarilgan' },
     };
     const info = labels[status] || { bg: 'bg-gray-100', text: 'text-gray-700', label: status };
     return <span className={`badge ${info.bg} ${info.text} text-xs`}>{info.label}</span>;
@@ -1603,11 +1639,11 @@ function ExecutorDetailsModal({
           </div>
           <div className="flex items-center gap-2 text-sm mt-2">
             <User className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-600">Логин: <span className="font-mono">{executor.login}</span></span>
+            <span className="text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}: <span className="font-mono">{executor.login}</span></span>
           </div>
           <div className="flex items-center gap-2 text-sm mt-2">
             <Calendar className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-600">Добавлен: {formatDate(executor.createdAt)}</span>
+            <span className="text-gray-600">{language === 'ru' ? 'Добавлен' : 'Qo\'shilgan'}: {formatDate(executor.createdAt)}</span>
           </div>
         </div>
 
@@ -1618,40 +1654,40 @@ function ExecutorDetailsModal({
               <Star className="w-4 h-4 fill-amber-400" />
               <span className="text-xl md:text-2xl font-bold">{executor.rating.toFixed(1)}</span>
             </div>
-            <div className="text-xs text-gray-500">Рейтинг</div>
+            <div className="text-xs text-gray-500">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</div>
           </div>
           <div className="glass-card bg-white/30 p-3 text-center rounded-xl">
             <div className="text-xl md:text-2xl font-bold text-green-600">{completedRequests.length}</div>
-            <div className="text-xs text-gray-500">Выполнено</div>
+            <div className="text-xs text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</div>
           </div>
           <div className="glass-card bg-white/30 p-3 text-center rounded-xl">
             <div className="text-xl md:text-2xl font-bold text-blue-600">{activeRequests.length}</div>
-            <div className="text-xs text-gray-500">Активных</div>
+            <div className="text-xs text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
           </div>
           <div className="glass-card bg-white/30 p-3 text-center rounded-xl">
             <div className="text-xl md:text-2xl font-bold text-purple-600">{formatDuration(avgTime)}</div>
-            <div className="text-xs text-gray-500">Ср. время</div>
+            <div className="text-xs text-gray-500">{language === 'ru' ? 'Ср. время' : 'O\'rt. vaqt'}</div>
           </div>
         </div>
 
         {/* Status Change */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Статус</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Статус' : 'Holat'}</label>
           <select
             value={executor.status}
             onChange={(e) => onStatusChange(e.target.value as 'available' | 'busy' | 'offline')}
             className="glass-input w-full"
           >
-            <option value="available">Доступен</option>
-            <option value="busy">Занят</option>
-            <option value="offline">Оффлайн</option>
+            <option value="available">{language === 'ru' ? 'Доступен' : 'Mavjud'}</option>
+            <option value="busy">{language === 'ru' ? 'Занят' : 'Band'}</option>
+            <option value="offline">{language === 'ru' ? 'Оффлайн' : 'Oflayn'}</option>
           </select>
         </div>
 
         {/* Active Requests */}
         {activeRequests.length > 0 && (
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Активные заявки</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">{language === 'ru' ? 'Активные заявки' : 'Faol arizalar'}</h3>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {activeRequests.map(request => (
                 <div key={request.id} className="glass-card bg-white/30 p-2.5 rounded-lg">
@@ -1673,7 +1709,7 @@ function ExecutorDetailsModal({
         {/* Recent Completed */}
         {completedRequests.length > 0 && (
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Последние выполненные</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">{language === 'ru' ? 'Последние выполненные' : 'Oxirgi bajarilganlar'}</h3>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {completedRequests.slice(0, 5).map(request => (
                 <div key={request.id} className="glass-card bg-white/30 p-2.5 rounded-lg">
@@ -1709,10 +1745,10 @@ function ExecutorDetailsModal({
             className="btn-secondary flex-1 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center justify-center gap-2 touch-manipulation"
           >
             <Trash2 className="w-4 h-4" />
-            Удалить
+            {language === 'ru' ? 'Удалить' : 'O\'chirish'}
           </button>
           <button onClick={onClose} className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
-            Закрыть
+            {language === 'ru' ? 'Закрыть' : 'Yopish'}
           </button>
         </div>
       </div>
@@ -1728,6 +1764,7 @@ function RescheduleRequestCard({
   reschedule: RescheduleRequest;
   onClick: () => void;
 }) {
+  const { language } = useLanguageStore();
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('ru-RU', {
       day: 'numeric',
@@ -1751,7 +1788,7 @@ function RescheduleRequestCard({
                 ? 'bg-blue-100 text-blue-700'
                 : 'bg-purple-100 text-purple-700'
             }`}>
-              {reschedule.initiator === 'resident' ? 'От жителя' : 'От исполнителя'}
+              {reschedule.initiator === 'resident' ? (language === 'ru' ? 'От жителя' : 'Yashovchidan') : (language === 'ru' ? 'От исполнителя' : 'Ijrochidan')}
             </span>
           </div>
 
@@ -1764,17 +1801,17 @@ function RescheduleRequestCard({
           <div className="flex items-center gap-2 text-sm">
             <CalendarDays className="w-4 h-4 text-amber-600" />
             <span className="font-medium text-amber-700">
-              {reschedule.proposedDate} в {reschedule.proposedTime}
+              {reschedule.proposedDate} {language === 'ru' ? 'в' : 'da'} {reschedule.proposedTime}
             </span>
           </div>
 
           <div className="text-xs text-gray-500 mt-2">
-            Причина: {RESCHEDULE_REASON_LABELS[reschedule.reason].label}
+            {language === 'ru' ? 'Причина' : 'Sabab'}: {RESCHEDULE_REASON_LABELS[reschedule.reason].label}
             {reschedule.reasonText && ` - ${reschedule.reasonText}`}
           </div>
 
           <div className="text-xs text-gray-400 mt-1">
-            Создан: {formatDate(reschedule.createdAt)}
+            {language === 'ru' ? 'Создан' : 'Yaratilgan'}: {formatDate(reschedule.createdAt)}
           </div>
         </div>
 
@@ -1790,6 +1827,7 @@ function RescheduleHistoryCard({
 }: {
   reschedule: RescheduleRequest;
 }) {
+  const { language } = useLanguageStore();
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('ru-RU', {
       day: 'numeric',
@@ -1815,7 +1853,7 @@ function RescheduleHistoryCard({
                 ? 'bg-blue-100 text-blue-700'
                 : 'bg-purple-100 text-purple-700'
             }`}>
-              {reschedule.initiator === 'resident' ? 'От жителя' : 'От исполнителя'}
+              {reschedule.initiator === 'resident' ? (language === 'ru' ? 'От жителя' : 'Yashovchidan') : (language === 'ru' ? 'От исполнителя' : 'Ijrochidan')}
             </span>
           </div>
 
@@ -1828,21 +1866,21 @@ function RescheduleHistoryCard({
           {reschedule.status === 'accepted' && (
             <div className="flex items-center gap-2 text-sm text-green-700 mb-1">
               <Check className="w-4 h-4" />
-              <span>Перенесено на {reschedule.proposedDate} в {reschedule.proposedTime}</span>
+              <span>{language === 'ru' ? 'Перенесено на' : 'Ko\'chirilgan'} {reschedule.proposedDate} {language === 'ru' ? 'в' : 'da'} {reschedule.proposedTime}</span>
             </div>
           )}
 
           {reschedule.status === 'rejected' && (
             <div className="text-sm text-red-700 mb-1">
               <X className="w-4 h-4 inline mr-1" />
-              Отклонено
+              {language === 'ru' ? 'Отклонено' : 'Rad etilgan'}
               {reschedule.responseNote && `: ${reschedule.responseNote}`}
             </div>
           )}
 
           {reschedule.respondedAt && (
             <div className="text-xs text-gray-400">
-              Ответ: {formatDate(reschedule.respondedAt)}
+              {language === 'ru' ? 'Ответ' : 'Javob'}: {formatDate(reschedule.respondedAt)}
             </div>
           )}
         </div>
@@ -1859,6 +1897,7 @@ function RescheduleDetailsModal({
   reschedule: RescheduleRequest;
   onClose: () => void;
 }) {
+  const { language } = useLanguageStore();
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('ru-RU', {
       day: '2-digit',
@@ -1877,7 +1916,7 @@ function RescheduleDetailsModal({
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <RefreshCw className="w-5 h-5 text-amber-600" />
-            Запрос на перенос
+            {language === 'ru' ? 'Запрос на перенос' : 'Ko\'chirish so\'rovi'}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
@@ -1886,19 +1925,19 @@ function RescheduleDetailsModal({
 
         <div className="space-y-4">
           <div>
-            <div className="text-sm text-gray-500 mb-1">Заявка</div>
+            <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Заявка' : 'Ariza'}</div>
             <div className="font-mono text-lg">#{reschedule.requestNumber}</div>
           </div>
 
           <div>
-            <div className="text-sm text-gray-500 mb-1">Статус</div>
+            <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Статус' : 'Holat'}</div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium bg-${statusInfo.color}-100 text-${statusInfo.color}-700`}>
               {statusInfo.label}
             </span>
           </div>
 
           <div>
-            <div className="text-sm text-gray-500 mb-1">Инициатор</div>
+            <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Инициатор' : 'Tashabbuskor'}</div>
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-gray-400" />
               <span className="font-medium">{reschedule.initiatorName}</span>
@@ -1907,13 +1946,13 @@ function RescheduleDetailsModal({
                   ? 'bg-blue-100 text-blue-700'
                   : 'bg-purple-100 text-purple-700'
               }`}>
-                {reschedule.initiator === 'resident' ? 'Житель' : 'Исполнитель'}
+                {reschedule.initiator === 'resident' ? (language === 'ru' ? 'Житель' : 'Yashovchi') : (language === 'ru' ? 'Исполнитель' : 'Ijrochi')}
               </span>
             </div>
           </div>
 
           <div>
-            <div className="text-sm text-gray-500 mb-1">Получатель</div>
+            <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Получатель' : 'Qabul qiluvchi'}</div>
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-gray-400" />
               <span className="font-medium">{reschedule.recipientName}</span>
@@ -1922,7 +1961,7 @@ function RescheduleDetailsModal({
 
           {reschedule.currentDate && (
             <div>
-              <div className="text-sm text-gray-500 mb-1">Текущее время</div>
+              <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Текущее время' : 'Hozirgi vaqt'}</div>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-gray-400" />
                 <span>{reschedule.currentDate} {reschedule.currentTime}</span>
@@ -1931,15 +1970,15 @@ function RescheduleDetailsModal({
           )}
 
           <div>
-            <div className="text-sm text-gray-500 mb-1">Предложенное время</div>
+            <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Предложенное время' : 'Taklif qilingan vaqt'}</div>
             <div className="flex items-center gap-2 text-amber-700 font-medium">
               <CalendarDays className="w-4 h-4" />
-              <span>{reschedule.proposedDate} в {reschedule.proposedTime}</span>
+              <span>{reschedule.proposedDate} {language === 'ru' ? 'в' : 'da'} {reschedule.proposedTime}</span>
             </div>
           </div>
 
           <div>
-            <div className="text-sm text-gray-500 mb-1">Причина</div>
+            <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Причина' : 'Sabab'}</div>
             <div className="p-3 bg-gray-50 rounded-lg">
               <div className="font-medium">{RESCHEDULE_REASON_LABELS[reschedule.reason].label}</div>
               {reschedule.reasonText && (
@@ -1950,7 +1989,7 @@ function RescheduleDetailsModal({
 
           {reschedule.responseNote && (
             <div>
-              <div className="text-sm text-gray-500 mb-1">Комментарий при ответе</div>
+              <div className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Комментарий при ответе' : 'Javob izohi'}</div>
               <div className="p-3 bg-gray-50 rounded-lg text-sm">
                 {reschedule.responseNote}
               </div>
@@ -1958,11 +1997,11 @@ function RescheduleDetailsModal({
           )}
 
           <div className="text-xs text-gray-400 pt-2 border-t">
-            <div>Создан: {formatDate(reschedule.createdAt)}</div>
+            <div>{language === 'ru' ? 'Создан' : 'Yaratilgan'}: {formatDate(reschedule.createdAt)}</div>
             {reschedule.respondedAt && (
-              <div>Ответ: {formatDate(reschedule.respondedAt)}</div>
+              <div>{language === 'ru' ? 'Ответ' : 'Javob'}: {formatDate(reschedule.respondedAt)}</div>
             )}
-            <div>Истекает: {formatDate(reschedule.expiresAt)}</div>
+            <div>{language === 'ru' ? 'Истекает' : 'Muddati tugaydi'}: {formatDate(reschedule.expiresAt)}</div>
           </div>
         </div>
 
@@ -1970,7 +2009,7 @@ function RescheduleDetailsModal({
           onClick={onClose}
           className="w-full mt-6 py-2.5 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 transition-colors"
         >
-          Закрыть
+          {language === 'ru' ? 'Закрыть' : 'Yopish'}
         </button>
       </div>
     </div>

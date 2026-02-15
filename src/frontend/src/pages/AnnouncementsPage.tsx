@@ -34,6 +34,15 @@ export function AnnouncementsPage() {
   const [uploadedFileName, setUploadedFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Debt-based announcement state
+  const [isDebtMode, setIsDebtMode] = useState(false);
+  const [debtThreshold, setDebtThreshold] = useState<number>(0);
+  const [debtData, setDebtData] = useState<Array<{ login: string; name: string; debt: number }>>([]);
+  const [debtTemplate, setDebtTemplate] = useState(
+    'Уважаемый {name}, просим оплатить задолженность по квартплате в размере {debt} сум. С уважением, УК.'
+  );
+  const debtFileInputRef = useRef<HTMLInputElement>(null);
+
   // File attachments state
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -113,6 +122,15 @@ export function AnnouncementsPage() {
 
   const currentAnnouncements = activeTab === 'residents' ? residentAnnouncements : employeeAnnouncements;
 
+  const filteredDebtData = useMemo(() => {
+    if (!isDebtMode || debtThreshold <= 0) return debtData;
+    return debtData.filter(d => d.debt >= debtThreshold);
+  }, [debtData, debtThreshold, isDebtMode]);
+
+  const debtFilteredLogins = useMemo(() => {
+    return filteredDebtData.map(d => d.login);
+  }, [filteredDebtData]);
+
   // Handle Excel file upload for custom targeting
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -132,18 +150,107 @@ export function AnnouncementsPage() {
         const sheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
 
-        // Extract logins from first column (skip header)
+        // Smart column detection: search for Л/С column by header name
+        const loginPatterns = ['л/с', 'лицевой', 'счет', 'login', 'лс', 'абонент'];
+        let loginColIndex = -1;
+        let headerRowIndex = -1;
+
+        for (let rowIdx = 0; rowIdx < Math.min(5, jsonData.length); rowIdx++) {
+          const row = jsonData[rowIdx];
+          if (!row) continue;
+          for (let colIdx = 0; colIdx < row.length; colIdx++) {
+            const cellValue = String(row[colIdx] || '').toLowerCase().trim();
+            if (cellValue && loginPatterns.some(p => cellValue.includes(p))) {
+              loginColIndex = colIdx;
+              headerRowIndex = rowIdx;
+              break;
+            }
+          }
+          if (loginColIndex !== -1) break;
+        }
+
+        // Fallback to column B (index 1) if header not found
+        if (loginColIndex === -1) loginColIndex = 1;
+        if (headerRowIndex === -1) headerRowIndex = 0;
+
         const logins: string[] = [];
-        jsonData.slice(1).forEach(row => {
-          if (row[0]) {
-            const value = String(row[0]).trim();
+        jsonData.slice(headerRowIndex + 1).forEach(row => {
+          if (!row || row.length === 0) return;
+          const loginValue = row[loginColIndex];
+          if (loginValue !== undefined && loginValue !== null) {
+            const value = String(loginValue).trim();
             if (value) logins.push(value);
           }
         });
 
+        console.log(`[List mode] Found login column at index ${loginColIndex}, parsed ${logins.length} logins`);
         setCustomLogins(logins);
       } catch (err) {
         console.error('Error parsing Excel file:', err);
+        alert(language === 'ru' ? 'Ошибка чтения файла' : 'Faylni o\'qishda xato');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // Handle debt Excel file upload
+  const handleDebtFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFileName(file.name);
+    const XLSX = await import('xlsx');
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = event.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+        let headerRowIndex = -1, loginColIndex = -1, nameColIndex = -1, debtColIndex = -1;
+        const loginPatterns = ['л/с', 'лицевой', 'счет', 'login', 'лс', 'абонент'];
+        const namePatterns = ['фио', 'наименование', 'name', 'имя', 'владелец', 'собственник'];
+        const debtPatterns = ['сальдо', 'задолженность', 'долг', 'debt', 'баланс', 'на конец'];
+
+        for (let rowIdx = 0; rowIdx < Math.min(5, jsonData.length); rowIdx++) {
+          const row = jsonData[rowIdx];
+          if (!row) continue;
+          for (let colIdx = 0; colIdx < row.length; colIdx++) {
+            const cellValue = String(row[colIdx] || '').toLowerCase().trim();
+            if (!cellValue) continue;
+            if (loginColIndex === -1 && loginPatterns.some(p => cellValue.includes(p))) { loginColIndex = colIdx; headerRowIndex = rowIdx; }
+            if (nameColIndex === -1 && namePatterns.some(p => cellValue.includes(p))) { nameColIndex = colIdx; headerRowIndex = rowIdx; }
+            if (debtColIndex === -1 && debtPatterns.some(p => cellValue.includes(p))) { debtColIndex = colIdx; headerRowIndex = rowIdx; }
+          }
+        }
+
+        if (loginColIndex === -1) loginColIndex = 1;
+        if (nameColIndex === -1) nameColIndex = 2;
+        if (debtColIndex === -1) debtColIndex = 10;
+        if (headerRowIndex === -1) headerRowIndex = 0;
+
+        const debtRecords: Array<{ login: string; name: string; debt: number }> = [];
+        const logins: string[] = [];
+
+        jsonData.slice(headerRowIndex + 1).forEach(row => {
+          if (!row || row.length === 0) return;
+          const loginValue = String(row[loginColIndex] || '').trim();
+          const nameValue = String(row[nameColIndex] || '').trim();
+          const debtRaw = String(row[debtColIndex] || '0');
+          const debtValue = parseFloat(debtRaw.replace(/[^\d.-]/g, '').replace(',', '.')) || 0;
+
+          if (loginValue && !isNaN(Number(loginValue)) && debtValue > 0) {
+            debtRecords.push({ login: loginValue, name: nameValue, debt: debtValue });
+            logins.push(loginValue);
+          }
+        });
+
+        console.log(`[Debt mode] Found ${debtRecords.length} records with debt`);
+        setDebtData(debtRecords);
+        setCustomLogins(logins);
+      } catch (err) {
+        console.error('Error parsing debt Excel file:', err);
         alert(language === 'ru' ? 'Ошибка чтения файла' : 'Faylni o\'qishda xato');
       }
     };
@@ -162,7 +269,8 @@ export function AnnouncementsPage() {
       case 'building':
         return selectedBuilding ? { type: 'building', buildingId: selectedBuilding } : undefined;
       case 'custom':
-        return customLogins.length > 0 ? { type: 'custom', customLogins } : undefined;
+        const loginsToUse = isDebtMode ? debtFilteredLogins : customLogins;
+        return loginsToUse.length > 0 ? { type: 'custom', customLogins: loginsToUse } : undefined;
       default:
         return { type: 'all' };
     }
@@ -181,8 +289,9 @@ export function AnnouncementsPage() {
         const building = buildings.find(b => b.id === selectedBuilding);
         return building ? building.name : '';
       case 'custom':
-        return customLogins.length > 0
-          ? `${customLogins.length} ${language === 'ru' ? 'получателей' : 'qabul qiluvchi'}`
+        const recipientCount = isDebtMode ? filteredDebtData.length : customLogins.length;
+        return recipientCount > 0
+          ? `${recipientCount} ${language === 'ru' ? 'получателей' : 'qabul qiluvchi'}`
           : '';
       default:
         return '';
@@ -195,7 +304,11 @@ export function AnnouncementsPage() {
     setSelectedBuilding('');
     setCustomLogins([]);
     setUploadedFileName('');
+    setIsDebtMode(false);
+    setDebtData([]);
+    setDebtThreshold(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (debtFileInputRef.current) debtFileInputRef.current.value = '';
   };
 
   // Handle file attachment upload
@@ -236,22 +349,44 @@ export function AnnouncementsPage() {
   };
 
   const handleAddAnnouncement = async () => {
-    if (!newAnnouncement.title.trim() || !newAnnouncement.content.trim() || !user) return;
+    if (!newAnnouncement.title.trim() || !user) return;
+    if (!isDebtMode && !newAnnouncement.content.trim()) return;
 
     const target = buildTarget();
 
-    await addAnnouncement({
-      title: newAnnouncement.title,
-      content: newAnnouncement.content,
-      type: newAnnouncement.type,
-      priority: newAnnouncement.priority,
-      authorId: user.id,
-      authorName: user.name,
-      authorRole: user.role,
-      expiresAt: newAnnouncement.expiresAt || undefined,
-      target,
-      attachments: attachments.length > 0 ? attachments : undefined,
-    });
+    if (isDebtMode && filteredDebtData.length > 0) {
+      const personalizedData: Record<string, { name: string; debt: number }> = {};
+      filteredDebtData.forEach(d => {
+        personalizedData[d.login] = { name: d.name, debt: d.debt };
+      });
+
+      await addAnnouncement({
+        title: newAnnouncement.title,
+        content: debtTemplate,
+        type: newAnnouncement.type,
+        priority: newAnnouncement.priority,
+        authorId: user.id,
+        authorName: user.name,
+        authorRole: user.role,
+        expiresAt: newAnnouncement.expiresAt || undefined,
+        target,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        personalizedData,
+      });
+    } else {
+      await addAnnouncement({
+        title: newAnnouncement.title,
+        content: newAnnouncement.content,
+        type: newAnnouncement.type,
+        priority: newAnnouncement.priority,
+        authorId: user.id,
+        authorName: user.name,
+        authorRole: user.role,
+        expiresAt: newAnnouncement.expiresAt || undefined,
+        target,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+    }
 
     setNewAnnouncement({
       title: '',
@@ -335,7 +470,7 @@ export function AnnouncementsPage() {
             onClick={() => setActiveTab('residents')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
               activeTab === 'residents'
-                ? 'bg-orange-400 text-gray-900'
+                ? 'bg-primary-400 text-gray-900'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -351,7 +486,7 @@ export function AnnouncementsPage() {
             onClick={() => setActiveTab('employees')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
               activeTab === 'employees'
-                ? 'bg-orange-400 text-gray-900'
+                ? 'bg-primary-400 text-gray-900'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -371,7 +506,7 @@ export function AnnouncementsPage() {
           <select
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-            className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             <option value="all">{language === 'ru' ? 'Все время' : 'Barcha vaqt'}</option>
             <option value="today">{language === 'ru' ? 'Сегодня' : 'Bugun'}</option>
@@ -420,7 +555,7 @@ export function AnnouncementsPage() {
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-xl font-bold">{t('announcements.add')}</h2>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => { setShowAddModal(false); setNewAnnouncement({ title: '', content: '', type: 'residents', priority: 'normal', expiresAt: '' }); resetTargeting(); setAttachments([]); }}
                 className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -531,36 +666,143 @@ export function AnnouncementsPage() {
 
                   {/* Custom Upload */}
                   {targetType === 'custom' && (
-                    <div className="space-y-2">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-primary-400 hover:bg-primary-50 transition-colors"
-                      >
-                        <Upload className="w-5 h-5 text-gray-500" />
-                        <span className="text-sm text-gray-600">
-                          {uploadedFileName || (language === 'ru' ? 'Загрузить Excel файл' : 'Excel fayl yuklang')}
-                        </span>
-                      </button>
-                      {customLogins.length > 0 && (
-                        <div className="text-sm text-green-600 flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4" />
-                          {language === 'ru'
-                            ? `Загружено ${customLogins.length} лицевых счетов`
-                            : `${customLogins.length} ta shaxsiy hisob yuklandi`}
-                        </div>
+                    <div className="space-y-3">
+                      {/* Toggle: По списку / По задолженности */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setIsDebtMode(false);
+                            setDebtData([]);
+                            setUploadedFileName('');
+                            setCustomLogins([]);
+                          }}
+                          className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-colors ${
+                            !isDebtMode
+                              ? 'bg-blue-100 text-blue-700 border-2 border-blue-400'
+                              : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
+                          }`}
+                        >
+                          {language === 'ru' ? 'По списку' : 'Ro\'yxat bo\'yicha'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsDebtMode(true);
+                            setCustomLogins([]);
+                            setUploadedFileName('');
+                          }}
+                          className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-colors ${
+                            isDebtMode
+                              ? 'bg-red-100 text-red-700 border-2 border-red-400'
+                              : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
+                          }`}
+                        >
+                          {language === 'ru' ? 'По задолженности' : 'Qarzdorlik bo\'yicha'}
+                        </button>
+                      </div>
+
+                      {/* Simple List Mode */}
+                      {!isDebtMode && (
+                        <>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls,.csv"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-primary-400 hover:bg-primary-50 transition-colors"
+                          >
+                            <Upload className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm text-gray-600">
+                              {uploadedFileName || (language === 'ru' ? 'Загрузить Excel файл' : 'Excel fayl yuklang')}
+                            </span>
+                          </button>
+                          {customLogins.length > 0 && (
+                            <div className="text-sm text-green-600 flex items-center gap-2">
+                              <FileSpreadsheet className="w-4 h-4" />
+                              {language === 'ru'
+                                ? `Загружено ${customLogins.length} лицевых счетов`
+                                : `${customLogins.length} ta shaxsiy hisob yuklandi`}
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-400">
+                            {language === 'ru'
+                              ? 'Файл должен содержать лицевые счета (логины) в колонке'
+                              : 'Fayl ustunda shaxsiy hisoblarni (loginlarni) o\'z ichiga olishi kerak'}
+                          </p>
+                        </>
                       )}
-                      <p className="text-xs text-gray-400">
-                        {language === 'ru'
-                          ? 'Файл должен содержать лицевые счета (логины) в первой колонке'
-                          : 'Fayl birinchi ustunda shaxsiy hisoblarni (loginlarni) o\'z ichiga olishi kerak'}
-                      </p>
+
+                      {/* Debt Mode */}
+                      {isDebtMode && (
+                        <>
+                          {/* Debt Template */}
+                          <div>
+                            <textarea
+                              value={debtTemplate}
+                              onChange={(e) => setDebtTemplate(e.target.value)}
+                              className="w-full px-3 py-2 border-2 border-red-200 rounded-xl bg-red-50/30 text-sm resize-none min-h-[80px] focus:outline-none focus:border-red-400"
+                              placeholder={language === 'ru' ? 'Используйте {name} и {debt} для подстановки' : '{name} va {debt} ni qo\'llang'}
+                            />
+                            <p className="text-xs text-gray-400 mt-1">
+                              {language === 'ru'
+                                ? '{name} — ФИО жителя, {debt} — сумма задолженности'
+                                : '{name} — aholi ismi, {debt} — qarzdorlik summasi'}
+                            </p>
+                          </div>
+
+                          {/* File Upload */}
+                          <input
+                            ref={debtFileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls,.csv"
+                            onChange={handleDebtFileUpload}
+                            className="hidden"
+                          />
+                          <button
+                            onClick={() => debtFileInputRef.current?.click()}
+                            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-red-300 rounded-xl hover:border-red-400 hover:bg-red-50 transition-colors"
+                          >
+                            <Upload className="w-5 h-5 text-red-400" />
+                            <span className="text-sm text-red-500">
+                              {uploadedFileName || (language === 'ru' ? 'Загрузить файл должников' : 'Qarzdorlar faylini yuklang')}
+                            </span>
+                          </button>
+                          <p className="text-xs text-gray-400">
+                            {language === 'ru'
+                              ? 'Файл: Л/С, ФИО, Задолженность'
+                              : 'Fayl: Shaxsiy hisob, FIO, Qarzdorlik'}
+                          </p>
+                          {debtData.length > 0 && (
+                            <div className="text-sm text-green-600 flex items-center gap-2">
+                              <FileSpreadsheet className="w-4 h-4" />
+                              {language === 'ru'
+                                ? `Загружено ${debtData.length} записей, с задолженностью: ${filteredDebtData.length}`
+                                : `${debtData.length} ta yozuv yuklandi, qarzdorlar: ${filteredDebtData.length}`}
+                            </div>
+                          )}
+                          {debtData.length > 0 && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                {language === 'ru' ? 'Минимальная сумма задолженности' : 'Minimal qarzdorlik summasi'}
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={debtThreshold || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/[^\d]/g, '');
+                                  setDebtThreshold(val ? Number(val) : 0);
+                                }}
+                                className="glass-input"
+                                placeholder="0"
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -610,18 +852,20 @@ export function AnnouncementsPage() {
                 />
               </div>
 
-              {/* Content */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('announcements.content')}
-                </label>
-                <textarea
-                  value={newAnnouncement.content}
-                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
-                  className="glass-input min-h-[120px] resize-none"
-                  placeholder={language === 'ru' ? 'Введите содержание объявления...' : 'E\'lon mazmunini kiriting...'}
-                />
-              </div>
+              {/* Content (hidden only when debt mode is active with custom targeting for residents) */}
+              {!(isDebtMode && targetType === 'custom' && newAnnouncement.type === 'residents') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('announcements.content')}
+                  </label>
+                  <textarea
+                    value={newAnnouncement.content}
+                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                    className="glass-input min-h-[120px] resize-none"
+                    placeholder={language === 'ru' ? 'Введите содержание объявления...' : 'E\'lon mazmunini kiriting...'}
+                  />
+                </div>
+              )}
 
               {/* Expires At */}
               <div>
@@ -662,7 +906,7 @@ export function AnnouncementsPage() {
                     <>
                       <Upload className="w-5 h-5 text-gray-500" />
                       <span className="text-sm text-gray-600">
-                        {language === 'ru' ? 'Добавить файлы (до 5 МБ)' : 'Fayl qo\'shish (5 MB gacha)'}
+                        {language === 'ru' ? 'Добавить файлы (до 25 МБ)' : 'Fayl qo\'shish (25 MB gacha)'}
                       </span>
                     </>
                   )}
@@ -692,15 +936,20 @@ export function AnnouncementsPage() {
               {/* Actions */}
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => { setShowAddModal(false); setNewAnnouncement({ title: '', content: '', type: 'residents', priority: 'normal', expiresAt: '' }); resetTargeting(); setAttachments([]); }}
                   className="flex-1 py-3 rounded-xl font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                 >
                   {t('form.cancel')}
                 </button>
                 <button
                   onClick={handleAddAnnouncement}
-                  disabled={!newAnnouncement.title.trim() || !newAnnouncement.content.trim()}
-                  className="flex-1 py-3 rounded-xl font-medium bg-orange-400 text-gray-900 hover:bg-orange-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={
+                    !newAnnouncement.title.trim() ||
+                    (isDebtMode
+                      ? filteredDebtData.length === 0 || !debtTemplate.trim()
+                      : !newAnnouncement.content.trim())
+                  }
+                  className="flex-1 py-3 rounded-xl font-medium bg-primary-400 text-gray-900 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {t('form.add')}
                 </button>
@@ -798,7 +1047,7 @@ export function AnnouncementsPage() {
                     }
                   }}
                   disabled={!editingAnnouncement.title.trim() || !editingAnnouncement.content.trim()}
-                  className="flex-1 py-3 rounded-xl font-medium bg-orange-400 text-gray-900 hover:bg-orange-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 rounded-xl font-medium bg-primary-400 text-gray-900 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {language === 'ru' ? 'Сохранить' : 'Saqlash'}
                 </button>

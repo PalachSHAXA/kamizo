@@ -11,6 +11,7 @@ import {
 import { useDataStore } from '../stores/dataStore';
 import { SPECIALIZATION_LABELS } from '../types';
 import { apiRequest } from '../services/api';
+import { useLanguageStore } from '../stores/languageStore';
 import ExcelJS from 'exceljs';
 
 interface MarketplaceReport {
@@ -66,6 +67,7 @@ type TabType = 'overview' | 'marketplace';
 
 export function AdminDashboard() {
   const { requests, executors, getStats } = useDataStore();
+  const { language } = useLanguageStore();
 
   const stats = getStats();
 
@@ -118,7 +120,7 @@ export function AdminDashboard() {
     workbook.creator = 'Kamizo';
     workbook.created = new Date();
 
-    const formatCurrency = (value: number) => `${value.toLocaleString('ru-RU')} сум`;
+    const formatCurrency = (value: number) => `${value.toLocaleString('ru-RU')} ${language === 'ru' ? 'сум' : 'so\'m'}`;
 
     // Common styles
     const headerStyle: Partial<ExcelJS.Style> = {
@@ -161,36 +163,36 @@ export function AdminDashboard() {
     };
 
     // ============ Sheet 1: Summary ============
-    const ws1 = workbook.addWorksheet('Сводный отчёт');
+    const ws1 = workbook.addWorksheet(language === 'ru' ? 'Сводный отчёт' : 'Umumiy hisobot');
     ws1.columns = [
       { width: 25 }, { width: 35 }, { width: 18 }, { width: 22 }, { width: 15 }
     ];
 
     // Title - merged and centered
-    const titleRow = ws1.addRow(['ОТЧЁТ ПО МАРКЕТПЛЕЙСУ']);
+    const titleRow = ws1.addRow([language === 'ru' ? 'ОТЧЁТ ПО МАРКЕТПЛЕЙСУ' : 'MARKETPLACE HISOBOTI']);
     ws1.mergeCells(`A${titleRow.number}:E${titleRow.number}`);
     titleRow.getCell(1).style = { font: { bold: true, size: 16 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    ws1.addRow(['Период:', `${marketplaceReport.period.start_date} — ${marketplaceReport.period.end_date}`]);
-    ws1.addRow(['Дата формирования:', new Date().toLocaleDateString('ru-RU')]);
+    ws1.addRow([language === 'ru' ? 'Период:' : 'Davr:', `${marketplaceReport.period.start_date} — ${marketplaceReport.period.end_date}`]);
+    ws1.addRow([language === 'ru' ? 'Дата формирования:' : 'Shakllantirilgan sana:', new Date().toLocaleDateString('ru-RU')]);
     ws1.addRow([]);
 
     // Overall Stats Section
-    const statsTitle = ws1.addRow(['ОБЩАЯ СТАТИСТИКА']);
+    const statsTitle = ws1.addRow([language === 'ru' ? 'ОБЩАЯ СТАТИСТИКА' : 'UMUMIY STATISTIKA']);
     ws1.mergeCells(`A${statsTitle.number}:E${statsTitle.number}`);
     statsTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const statsHeader = ws1.addRow(['Показатель', 'Значение']);
+    const statsHeader = ws1.addRow([language === 'ru' ? 'Показатель' : 'Ko\'rsatkich', language === 'ru' ? 'Значение' : 'Qiymat']);
     statsHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     const statsData = [
-      ['Всего заказов', marketplaceReport.overall.total_orders],
-      ['Доставлено заказов', marketplaceReport.overall.delivered_orders],
-      ['Отменено заказов', marketplaceReport.overall.cancelled_orders],
-      ['Общая выручка', formatCurrency(marketplaceReport.overall.total_revenue)],
-      ['Доход от доставки', formatCurrency(marketplaceReport.overall.total_delivery_fees)],
-      ['Средний рейтинг', `${marketplaceReport.overall.avg_rating.toFixed(1)} ⭐`],
-      ['Количество оценок', marketplaceReport.overall.rated_orders],
+      [language === 'ru' ? 'Всего заказов' : 'Jami buyurtmalar', marketplaceReport.overall.total_orders],
+      [language === 'ru' ? 'Доставлено заказов' : 'Yetkazilgan buyurtmalar', marketplaceReport.overall.delivered_orders],
+      [language === 'ru' ? 'Отменено заказов' : 'Bekor qilingan buyurtmalar', marketplaceReport.overall.cancelled_orders],
+      [language === 'ru' ? 'Общая выручка' : 'Umumiy tushum', formatCurrency(marketplaceReport.overall.total_revenue)],
+      [language === 'ru' ? 'Доход от доставки' : 'Yetkazish daromadi', formatCurrency(marketplaceReport.overall.total_delivery_fees)],
+      [language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting', `${marketplaceReport.overall.avg_rating.toFixed(1)} ⭐`],
+      [language === 'ru' ? 'Количество оценок' : 'Baholar soni', marketplaceReport.overall.rated_orders],
     ];
     statsData.forEach(row => {
       const r = ws1.addRow(row);
@@ -202,11 +204,17 @@ export function AdminDashboard() {
     ws1.addRow([]);
 
     // Top Products Section
-    const prodTitle = ws1.addRow(['ТОП-10 ТОВАРОВ ПО ПРОДАЖАМ']);
+    const prodTitle = ws1.addRow([language === 'ru' ? 'ТОП-10 ТОВАРОВ ПО ПРОДАЖАМ' : 'ENG KO\'P SOTILGAN TOP-10 TOVAR']);
     ws1.mergeCells(`A${prodTitle.number}:E${prodTitle.number}`);
     prodTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const prodHeader = ws1.addRow(['№', 'Название товара', 'Продано (шт)', 'Выручка', 'Заказов']);
+    const prodHeader = ws1.addRow([
+      '№',
+      language === 'ru' ? 'Название товара' : 'Tovar nomi',
+      language === 'ru' ? 'Продано (шт)' : 'Sotilgan (dona)',
+      language === 'ru' ? 'Выручка' : 'Tushum',
+      language === 'ru' ? 'Заказов' : 'Buyurtmalar'
+    ]);
     prodHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_products.forEach((p, i) => {
@@ -222,11 +230,17 @@ export function AdminDashboard() {
     ws1.addRow([]);
 
     // Categories Section
-    const catTitle = ws1.addRow(['ПРОДАЖИ ПО КАТЕГОРИЯМ']);
+    const catTitle = ws1.addRow([language === 'ru' ? 'ПРОДАЖИ ПО КАТЕГОРИЯМ' : 'KATEGORIYA BO\'YICHA SOTUVLAR']);
     ws1.mergeCells(`A${catTitle.number}:E${catTitle.number}`);
     catTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const catHeader = ws1.addRow(['№', 'Категория', 'Продано (шт)', 'Выручка', 'Заказов']);
+    const catHeader = ws1.addRow([
+      '№',
+      language === 'ru' ? 'Категория' : 'Kategoriya',
+      language === 'ru' ? 'Продано (шт)' : 'Sotilgan (dona)',
+      language === 'ru' ? 'Выручка' : 'Tushum',
+      language === 'ru' ? 'Заказов' : 'Buyurtmalar'
+    ]);
     catHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.categories.forEach((c, i) => {
@@ -242,11 +256,16 @@ export function AdminDashboard() {
     ws1.addRow([]);
 
     // Couriers Stats Section on Summary sheet
-    const courSummaryTitle = ws1.addRow(['СТАТИСТИКА КУРЬЕРОВ']);
+    const courSummaryTitle = ws1.addRow([language === 'ru' ? 'СТАТИСТИКА КУРЬЕРОВ' : 'KURYERLAR STATISTIKASI']);
     ws1.mergeCells(`A${courSummaryTitle.number}:E${courSummaryTitle.number}`);
     courSummaryTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const courSummaryHeader = ws1.addRow(['№', 'Имя курьера', 'Доставлено заказов', 'Средний рейтинг']);
+    const courSummaryHeader = ws1.addRow([
+      '№',
+      language === 'ru' ? 'Имя курьера' : 'Kuryer ismi',
+      language === 'ru' ? 'Доставлено заказов' : 'Yetkazilgan buyurtmalar',
+      language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting'
+    ]);
     courSummaryHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.executor_stats.forEach((e, i) => {
@@ -261,11 +280,17 @@ export function AdminDashboard() {
     ws1.addRow([]);
 
     // Top Customers Section on Summary sheet
-    const custSummaryTitle = ws1.addRow(['ТОП-10 ПОКУПАТЕЛЕЙ']);
+    const custSummaryTitle = ws1.addRow([language === 'ru' ? 'ТОП-10 ПОКУПАТЕЛЕЙ' : 'TOP-10 XARIDORLAR']);
     ws1.mergeCells(`A${custSummaryTitle.number}:E${custSummaryTitle.number}`);
     custSummaryTitle.getCell(1).style = { font: { bold: true, size: 12 }, alignment: { horizontal: 'center' } };
     ws1.addRow([]);
-    const custSummaryHeader = ws1.addRow(['№', 'Имя клиента', 'Телефон', 'Заказов', 'Сумма покупок']);
+    const custSummaryHeader = ws1.addRow([
+      '№',
+      language === 'ru' ? 'Имя клиента' : 'Mijoz ismi',
+      language === 'ru' ? 'Телефон' : 'Telefon',
+      language === 'ru' ? 'Заказов' : 'Buyurtmalar',
+      language === 'ru' ? 'Сумма покупок' : 'Xaridlar summasi'
+    ]);
     custSummaryHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_customers.forEach((c, i) => {
@@ -278,14 +303,18 @@ export function AdminDashboard() {
     });
 
     // ============ Sheet 2: Daily Sales ============
-    const ws2 = workbook.addWorksheet('По дням');
+    const ws2 = workbook.addWorksheet(language === 'ru' ? 'По дням' : 'Kunlar bo\'yicha');
     ws2.columns = [{ width: 18 }, { width: 22 }, { width: 25 }];
 
-    const dailyTitle = ws2.addRow(['ПРОДАЖИ ПО ДНЯМ']);
+    const dailyTitle = ws2.addRow([language === 'ru' ? 'ПРОДАЖИ ПО ДНЯМ' : 'KUNLIK SOTUVLAR']);
     ws2.mergeCells(`A${dailyTitle.number}:C${dailyTitle.number}`);
     dailyTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws2.addRow([]);
-    const dailyHeader = ws2.addRow(['Дата', 'Количество заказов', 'Выручка']);
+    const dailyHeader = ws2.addRow([
+      language === 'ru' ? 'Дата' : 'Sana',
+      language === 'ru' ? 'Количество заказов' : 'Buyurtmalar soni',
+      language === 'ru' ? 'Выручка' : 'Tushum'
+    ]);
     dailyHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.daily_sales.forEach(d => {
@@ -297,7 +326,7 @@ export function AdminDashboard() {
 
     ws2.addRow([]);
     const totalRow = ws2.addRow([
-      'ИТОГО:',
+      language === 'ru' ? 'ИТОГО:' : 'JAMI:',
       marketplaceReport.daily_sales.reduce((sum, d) => sum + d.orders, 0),
       formatCurrency(marketplaceReport.daily_sales.reduce((sum, d) => sum + d.revenue, 0))
     ]);
@@ -306,14 +335,20 @@ export function AdminDashboard() {
     totalRow.getCell(3).style = { ...currencyStyle, font: { bold: true } };
 
     // ============ Sheet 3: Products ============
-    const ws3 = workbook.addWorksheet('Товары');
+    const ws3 = workbook.addWorksheet(language === 'ru' ? 'Товары' : 'Tovarlar');
     ws3.columns = [{ width: 6 }, { width: 45 }, { width: 16 }, { width: 22 }, { width: 12 }];
 
-    const prodListTitle = ws3.addRow(['ДЕТАЛЬНЫЙ ОТЧЁТ ПО ТОВАРАМ']);
+    const prodListTitle = ws3.addRow([language === 'ru' ? 'ДЕТАЛЬНЫЙ ОТЧЁТ ПО ТОВАРАМ' : 'TOVARLAR BO\'YICHA BATAFSIL HISOBOT']);
     ws3.mergeCells(`A${prodListTitle.number}:E${prodListTitle.number}`);
     prodListTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws3.addRow([]);
-    const prodListHeader = ws3.addRow(['№', 'Название товара', 'Продано (шт)', 'Выручка', 'Заказов']);
+    const prodListHeader = ws3.addRow([
+      '№',
+      language === 'ru' ? 'Название товара' : 'Tovar nomi',
+      language === 'ru' ? 'Продано (шт)' : 'Sotilgan (dona)',
+      language === 'ru' ? 'Выручка' : 'Tushum',
+      language === 'ru' ? 'Заказов' : 'Buyurtmalar'
+    ]);
     prodListHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_products.forEach((p, i) => {
@@ -326,14 +361,20 @@ export function AdminDashboard() {
     });
 
     // ============ Sheet 4: Customers ============
-    const ws4 = workbook.addWorksheet('Покупатели');
+    const ws4 = workbook.addWorksheet(language === 'ru' ? 'Покупатели' : 'Xaridorlar');
     ws4.columns = [{ width: 6 }, { width: 30 }, { width: 18 }, { width: 20 }, { width: 25 }];
 
-    const custTitle = ws4.addRow(['ДЕТАЛЬНЫЙ ОТЧЁТ ПО ПОКУПАТЕЛЯМ']);
+    const custTitle = ws4.addRow([language === 'ru' ? 'ДЕТАЛЬНЫЙ ОТЧЁТ ПО ПОКУПАТЕЛЯМ' : 'XARIDORLAR BO\'YICHA BATAFSIL HISOBOT']);
     ws4.mergeCells(`A${custTitle.number}:E${custTitle.number}`);
     custTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws4.addRow([]);
-    const custHeader = ws4.addRow(['№', 'Имя клиента', 'Телефон', 'Количество заказов', 'Сумма покупок']);
+    const custHeader = ws4.addRow([
+      '№',
+      language === 'ru' ? 'Имя клиента' : 'Mijoz ismi',
+      language === 'ru' ? 'Телефон' : 'Telefon',
+      language === 'ru' ? 'Количество заказов' : 'Buyurtmalar soni',
+      language === 'ru' ? 'Сумма покупок' : 'Xaridlar summasi'
+    ]);
     custHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.top_customers.forEach((c, i) => {
@@ -346,14 +387,19 @@ export function AdminDashboard() {
     });
 
     // ============ Sheet 5: Couriers ============
-    const ws5 = workbook.addWorksheet('Курьеры');
+    const ws5 = workbook.addWorksheet(language === 'ru' ? 'Курьеры' : 'Kuryerlar');
     ws5.columns = [{ width: 6 }, { width: 30 }, { width: 22 }, { width: 18 }];
 
-    const courTitle = ws5.addRow(['ОТЧЁТ ПО КУРЬЕРАМ']);
+    const courTitle = ws5.addRow([language === 'ru' ? 'ОТЧЁТ ПО КУРЬЕРАМ' : 'KURYERLAR HISOBOTI']);
     ws5.mergeCells(`A${courTitle.number}:D${courTitle.number}`);
     courTitle.getCell(1).style = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
     ws5.addRow([]);
-    const courHeader = ws5.addRow(['№', 'Имя курьера', 'Доставлено заказов', 'Средний рейтинг']);
+    const courHeader = ws5.addRow([
+      '№',
+      language === 'ru' ? 'Имя курьера' : 'Kuryer ismi',
+      language === 'ru' ? 'Доставлено заказов' : 'Yetkazilgan buyurtmalar',
+      language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting'
+    ]);
     courHeader.eachCell((cell) => { cell.style = headerStyle; });
 
     marketplaceReport.executor_stats.forEach((e, i) => {
@@ -370,7 +416,9 @@ export function AdminDashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Отчёт_маркетплейс_${reportStartDate}_${reportEndDate}.xlsx`;
+    a.download = language === 'ru'
+      ? `Отчёт_маркетплейс_${reportStartDate}_${reportEndDate}.xlsx`
+      : `Hisobot_marketplace_${reportStartDate}_${reportEndDate}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -380,12 +428,12 @@ export function AdminDashboard() {
       {/* Header - mobile optimized */}
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">Панель администратора</h1>
-          <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1">Мониторинг системы</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель администратора' : 'Administrator paneli'}</h1>
+          <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1">{language === 'ru' ? 'Мониторинг системы' : 'Tizim monitoringi'}</p>
         </div>
         <button className="btn-secondary flex items-center gap-2 flex-shrink-0 py-2 px-3 md:py-2.5 md:px-4 touch-manipulation">
           <RefreshCw className="w-4 h-4" />
-          <span className="hidden sm:inline">Обновить</span>
+          <span className="hidden sm:inline">{language === 'ru' ? 'Обновить' : 'Yangilash'}</span>
         </button>
       </div>
 
@@ -395,23 +443,23 @@ export function AdminDashboard() {
           onClick={() => setActiveTab('overview')}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === 'overview'
-              ? 'border-orange-500 text-orange-600'
+              ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           <Activity className="w-4 h-4 inline mr-2" />
-          Обзор
+          {language === 'ru' ? 'Обзор' : 'Umumiy ko\'rinish'}
         </button>
         <button
           onClick={() => setActiveTab('marketplace')}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             activeTab === 'marketplace'
-              ? 'border-orange-500 text-orange-600'
+              ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           <ShoppingBag className="w-4 h-4 inline mr-2" />
-          Маркетплейс
+          {language === 'ru' ? 'Маркетплейс' : 'Marketplace'}
         </button>
       </div>
 
@@ -426,10 +474,10 @@ export function AdminDashboard() {
                     <AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-red-800 text-sm md:text-base">
-                        {staleApprovals.length} заявок &gt;24ч
+                        {staleApprovals.length} {language === 'ru' ? 'заявок >24ч' : 'ariza >24s'}
                       </div>
                       <div className="text-xs md:text-sm text-red-600 hidden sm:block">
-                        Ожидают подтверждения
+                        {language === 'ru' ? 'Ожидают подтверждения' : 'Tasdiqlash kutilmoqda'}
                       </div>
                     </div>
                   </div>
@@ -442,7 +490,7 @@ export function AdminDashboard() {
                     <Clock className="w-5 h-5 md:w-6 md:h-6 text-purple-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-purple-800 text-sm md:text-base">
-                        {pendingApprovalRequests.length} ожидают подтверждения
+                        {pendingApprovalRequests.length} {language === 'ru' ? 'ожидают подтверждения' : 'tasdiqlash kutilmoqda'}
                       </div>
                     </div>
                   </div>
@@ -460,19 +508,19 @@ export function AdminDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.totalRequests}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">Всего</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Всего' : 'Jami'}</div>
                 </div>
               </div>
             </div>
 
             <div className="glass-card p-3 md:p-5">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
                   <Clock className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.inProgress}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">В работе</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'В работе' : 'Jarayonda'}</div>
                 </div>
               </div>
             </div>
@@ -484,7 +532,7 @@ export function AdminDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.pendingApproval}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">Ожидание</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Ожидание' : 'Kutilmoqda'}</div>
                 </div>
               </div>
             </div>
@@ -496,7 +544,7 @@ export function AdminDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-2xl md:text-3xl font-bold">{stats.completedWeek}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">За неделю</div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'За неделю' : 'Haftalik'}</div>
                 </div>
               </div>
             </div>
@@ -509,9 +557,9 @@ export function AdminDashboard() {
               <div className="flex items-center justify-between mb-3 md:mb-4">
                 <h3 className="font-semibold text-base md:text-lg flex items-center gap-2">
                   <Users className="w-5 h-5 text-blue-500" />
-                  Исполнители
+                  {language === 'ru' ? 'Исполнители' : 'Ijrochilar'}
                 </h3>
-                <span className="text-sm text-gray-500">{executors.length} всего</span>
+                <span className="text-sm text-gray-500">{executors.length} {language === 'ru' ? 'всего' : 'jami'}</span>
               </div>
               <div className="space-y-2 md:space-y-3">
                 {executors.slice(0, 6).map((executor) => (
@@ -530,13 +578,13 @@ export function AdminDashboard() {
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
                       <div className="font-semibold text-sm md:text-base">{executor.activeRequests}</div>
-                      <div className="text-xs md:text-sm text-gray-500">заявок</div>
+                      <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'заявок' : 'arizalar'}</div>
                     </div>
                   </div>
                 ))}
                 {executors.length === 0 && (
                   <div className="text-center text-gray-500 py-4 text-sm">
-                    Нет исполнителей
+                    {language === 'ru' ? 'Нет исполнителей' : 'Ijrochilar yo\'q'}
                   </div>
                 )}
               </div>
@@ -546,15 +594,15 @@ export function AdminDashboard() {
             <div className="glass-card p-4 md:p-5">
               <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-500" />
-                Заявки по статусам
+                {language === 'ru' ? 'Заявки по статусам' : 'Arizalar holati bo\'yicha'}
               </h3>
               <div className="space-y-3 md:space-y-4">
                 {[
-                  { status: 'new', label: 'Новые', color: 'bg-blue-500', gradientFrom: 'from-blue-400', gradientTo: 'to-blue-500' },
-                  { status: 'assigned', label: 'Назначенные', color: 'bg-indigo-500', gradientFrom: 'from-indigo-400', gradientTo: 'to-indigo-500' },
-                  { status: 'in_progress', label: 'В работе', color: 'bg-amber-500', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-500' },
-                  { status: 'pending_approval', label: 'Ожидают', color: 'bg-purple-500', gradientFrom: 'from-purple-400', gradientTo: 'to-purple-500' },
-                  { status: 'completed', label: 'Выполненные', color: 'bg-green-500', gradientFrom: 'from-green-400', gradientTo: 'to-green-500' },
+                  { status: 'new', label: language === 'ru' ? 'Новые' : 'Yangi', color: 'bg-blue-500', gradientFrom: 'from-blue-400', gradientTo: 'to-blue-500' },
+                  { status: 'assigned', label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', color: 'bg-indigo-500', gradientFrom: 'from-indigo-400', gradientTo: 'to-indigo-500' },
+                  { status: 'in_progress', label: language === 'ru' ? 'В работе' : 'Jarayonda', color: 'bg-amber-500', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-500' },
+                  { status: 'pending_approval', label: language === 'ru' ? 'Ожидают' : 'Kutilmoqda', color: 'bg-purple-500', gradientFrom: 'from-purple-400', gradientTo: 'to-purple-500' },
+                  { status: 'completed', label: language === 'ru' ? 'Выполненные' : 'Bajarilgan', color: 'bg-green-500', gradientFrom: 'from-green-400', gradientTo: 'to-green-500' },
                 ].map(({ status, label, gradientFrom, gradientTo }) => {
                   const count = requests.filter(r => r.status === status).length;
                   const percentage = stats.totalRequests > 0 ? (count / stats.totalRequests) * 100 : 0;
@@ -580,7 +628,7 @@ export function AdminDashboard() {
             <div className="glass-card p-4 md:p-5">
               <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
                 <span className="text-yellow-500">★</span>
-                Лучшие исполнители
+                {language === 'ru' ? 'Лучшие исполнители' : 'Eng yaxshi ijrochilar'}
               </h3>
               <div className="space-y-2 md:space-y-3">
                 {[...executors]
@@ -601,7 +649,7 @@ export function AdminDashboard() {
                           <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-gray-500">
                             <span>★ {executor.rating}</span>
                             <span className="hidden sm:inline">•</span>
-                            <span className="hidden sm:inline">{executor.completedCount} заявок</span>
+                            <span className="hidden sm:inline">{executor.completedCount} {language === 'ru' ? 'заявок' : 'arizalar'}</span>
                             <span className="sm:hidden">{executor.completedCount}</span>
                           </div>
                         </div>
@@ -610,7 +658,7 @@ export function AdminDashboard() {
                   ))}
                 {executors.length === 0 && (
                   <div className="text-center text-gray-500 py-4 text-sm">
-                    Нет данных
+                    {language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}
                   </div>
                 )}
               </div>
@@ -620,23 +668,23 @@ export function AdminDashboard() {
             <div className="glass-card p-4 md:p-5">
               <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-500" />
-                Сводка
+                {language === 'ru' ? 'Сводка' : 'Xulosa'}
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white/30 rounded-lg p-3">
-                  <div className="text-gray-500 text-xs md:text-sm">Всего заявок</div>
+                  <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}</div>
                   <div className="font-bold text-xl md:text-2xl">{stats.totalRequests}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
-                  <div className="text-gray-500 text-xs md:text-sm">Исполнителей</div>
+                  <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Исполнителей' : 'Ijrochilar'}</div>
                   <div className="font-bold text-xl md:text-2xl">{executors.length}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
-                  <div className="text-gray-500 text-xs md:text-sm">Выполнено</div>
+                  <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
                   <div className="font-bold text-xl md:text-2xl text-green-600">{stats.completedWeek}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
-                  <div className="text-gray-500 text-xs md:text-sm">Активных</div>
+                  <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Активных' : 'Faol'}</div>
                   <div className="font-bold text-xl md:text-2xl text-amber-600">{stats.inProgress}</div>
                 </div>
               </div>
@@ -653,7 +701,7 @@ export function AdminDashboard() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-wrap">
                 <Calendar className="w-5 h-5 text-gray-500" />
-                <span className="text-sm text-gray-600">Период:</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Период:' : 'Davr:'}</span>
                 <input
                   type="date"
                   value={reportStartDate}
@@ -674,15 +722,15 @@ export function AdminDashboard() {
                 className="btn-primary flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
-                Скачать Excel
+                {language === 'ru' ? 'Скачать Excel' : 'Excel yuklash'}
               </button>
             </div>
           </div>
 
           {isLoadingReport ? (
             <div className="flex items-center justify-center py-20">
-              <RefreshCw className="w-8 h-8 animate-spin text-orange-500" />
-              <span className="ml-3 text-gray-600">Загрузка...</span>
+              <RefreshCw className="w-8 h-8 animate-spin text-primary-500" />
+              <span className="ml-3 text-gray-600">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</span>
             </div>
           ) : marketplaceReport ? (
             <>
@@ -693,11 +741,11 @@ export function AdminDashboard() {
                     <ShoppingBag className="w-8 h-8 text-blue-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.total_orders}</div>
-                  <div className="text-sm text-gray-500">Всего заказов</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Всего заказов' : 'Jami buyurtmalar'}</div>
                   <div className="mt-2 text-xs">
-                    <span className="text-green-600">{marketplaceReport.overall.delivered_orders} доставлено</span>
+                    <span className="text-green-600">{marketplaceReport.overall.delivered_orders} {language === 'ru' ? 'доставлено' : 'yetkazildi'}</span>
                     <span className="text-gray-400 mx-1">|</span>
-                    <span className="text-red-600">{marketplaceReport.overall.cancelled_orders} отменено</span>
+                    <span className="text-red-600">{marketplaceReport.overall.cancelled_orders} {language === 'ru' ? 'отменено' : 'bekor qilindi'}</span>
                   </div>
                 </div>
 
@@ -706,9 +754,9 @@ export function AdminDashboard() {
                     <DollarSign className="w-8 h-8 text-green-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.total_revenue.toLocaleString()}</div>
-                  <div className="text-sm text-gray-500">Выручка (сум)</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Выручка (сум)' : 'Tushum (so\'m)'}</div>
                   <div className="mt-2 text-xs text-gray-600">
-                    Доставка: {marketplaceReport.overall.total_delivery_fees.toLocaleString()} сум
+                    {language === 'ru' ? 'Доставка' : 'Yetkazish'}: {marketplaceReport.overall.total_delivery_fees.toLocaleString()} {language === 'ru' ? 'сум' : 'so\'m'}
                   </div>
                 </div>
 
@@ -717,9 +765,9 @@ export function AdminDashboard() {
                     <Star className="w-8 h-8 text-yellow-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.avg_rating.toFixed(1)}</div>
-                  <div className="text-sm text-gray-500">Средний рейтинг</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting'}</div>
                   <div className="mt-2 text-xs text-gray-600">
-                    {marketplaceReport.overall.rated_orders} оценок
+                    {marketplaceReport.overall.rated_orders} {language === 'ru' ? 'оценок' : 'baholar'}
                   </div>
                 </div>
 
@@ -730,9 +778,9 @@ export function AdminDashboard() {
                   <div className="text-2xl font-bold">
                     {marketplaceReport.top_products.reduce((sum, p) => sum + p.total_sold, 0)}
                   </div>
-                  <div className="text-sm text-gray-500">Продано (шт)</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Продано (шт)' : 'Sotilgan (dona)'}</div>
                   <div className="mt-2 text-xs text-gray-600">
-                    {marketplaceReport.top_products.length} товаров
+                    {marketplaceReport.top_products.length} {language === 'ru' ? 'товаров' : 'tovar'}
                   </div>
                 </div>
               </div>
@@ -741,7 +789,7 @@ export function AdminDashboard() {
               <div className="glass-card p-5">
                 <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-blue-500" />
-                  Динамика продаж
+                  {language === 'ru' ? 'Динамика продаж' : 'Sotuvlar dinamikasi'}
                 </h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <AreaChart data={marketplaceReport.daily_sales}>
@@ -760,8 +808,8 @@ export function AdminDashboard() {
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip
                       formatter={(value: number, name: string) => [
-                        name === 'revenue' ? `${value.toLocaleString()} сум` : value,
-                        name === 'revenue' ? 'Выручка' : 'Заказов'
+                        name === 'revenue' ? `${value.toLocaleString()} ${language === 'ru' ? 'сум' : 'so\'m'}` : value,
+                        name === 'revenue' ? (language === 'ru' ? 'Выручка' : 'Tushum') : (language === 'ru' ? 'Заказов' : 'Buyurtmalar')
                       ]}
                       labelFormatter={(label: string) => new Date(label).toLocaleDateString('ru-RU')}
                     />
@@ -772,7 +820,7 @@ export function AdminDashboard() {
                       stroke="#10B981"
                       strokeWidth={2}
                       fill="url(#colorRevenue)"
-                      name="Выручка"
+                      name={language === 'ru' ? 'Выручка' : 'Tushum'}
                     />
                     <Area
                       type="monotone"
@@ -780,7 +828,7 @@ export function AdminDashboard() {
                       stroke="#3B82F6"
                       strokeWidth={2}
                       fill="none"
-                      name="Заказов"
+                      name={language === 'ru' ? 'Заказов' : 'Buyurtmalar'}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -792,7 +840,7 @@ export function AdminDashboard() {
                 <div className="glass-card p-5">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                     <Package className="w-5 h-5 text-purple-500" />
-                    Топ товаров
+                    {language === 'ru' ? 'Топ товаров' : 'Top tovarlar'}
                   </h3>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {marketplaceReport.top_products.slice(0, 10).map((product, idx) => (
@@ -810,19 +858,19 @@ export function AdminDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm truncate">{product.product_name}</div>
                           <div className="text-xs text-gray-500">
-                            {product.total_sold} шт • {product.order_count} заказов
+                            {product.total_sold} {language === 'ru' ? 'шт' : 'dona'} • {product.order_count} {language === 'ru' ? 'заказов' : 'buyurtma'}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-sm text-green-600">
                             {product.total_revenue.toLocaleString()}
                           </div>
-                          <div className="text-xs text-gray-400">сум</div>
+                          <div className="text-xs text-gray-400">{language === 'ru' ? 'сум' : 'so\'m'}</div>
                         </div>
                       </div>
                     ))}
                     {marketplaceReport.top_products.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">Нет данных</div>
+                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
                     )}
                   </div>
                 </div>
@@ -831,7 +879,7 @@ export function AdminDashboard() {
                 <div className="glass-card p-5">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-orange-500" />
-                    По категориям
+                    {language === 'ru' ? 'По категориям' : 'Kategoriyalar bo\'yicha'}
                   </h3>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {marketplaceReport.categories.map((cat) => (
@@ -839,19 +887,19 @@ export function AdminDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm">{cat.category_name}</div>
                           <div className="text-xs text-gray-500">
-                            {cat.total_sold} шт • {cat.order_count} заказов
+                            {cat.total_sold} {language === 'ru' ? 'шт' : 'dona'} • {cat.order_count} {language === 'ru' ? 'заказов' : 'buyurtma'}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-sm text-green-600">
                             {cat.total_revenue.toLocaleString()}
                           </div>
-                          <div className="text-xs text-gray-400">сум</div>
+                          <div className="text-xs text-gray-400">{language === 'ru' ? 'сум' : 'so\'m'}</div>
                         </div>
                       </div>
                     ))}
                     {marketplaceReport.categories.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">Нет данных</div>
+                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
                     )}
                   </div>
                 </div>
@@ -863,7 +911,7 @@ export function AdminDashboard() {
                 <div className="glass-card p-5">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                     <Users className="w-5 h-5 text-blue-500" />
-                    Топ покупателей
+                    {language === 'ru' ? 'Топ покупателей' : 'Top xaridorlar'}
                   </h3>
                   <div className="space-y-3 max-h-80 overflow-y-auto">
                     {marketplaceReport.top_customers.map((customer, idx) => (
@@ -876,13 +924,13 @@ export function AdminDashboard() {
                           <div className="text-xs text-gray-500">{customer.user_phone}</div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold text-sm">{customer.order_count} заказов</div>
-                          <div className="text-xs text-green-600">{customer.total_spent.toLocaleString()} сум</div>
+                          <div className="font-semibold text-sm">{customer.order_count} {language === 'ru' ? 'заказов' : 'buyurtma'}</div>
+                          <div className="text-xs text-green-600">{customer.total_spent.toLocaleString()} {language === 'ru' ? 'сум' : 'so\'m'}</div>
                         </div>
                       </div>
                     ))}
                     {marketplaceReport.top_customers.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">Нет данных</div>
+                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
                     )}
                   </div>
                 </div>
@@ -891,7 +939,7 @@ export function AdminDashboard() {
                 <div className="glass-card p-5">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                     <UserCheck className="w-5 h-5 text-green-500" />
-                    Курьеры
+                    {language === 'ru' ? 'Курьеры' : 'Kuryerlar'}
                   </h3>
                   <div className="space-y-3 max-h-80 overflow-y-auto">
                     {marketplaceReport.executor_stats.map((executor) => (
@@ -902,7 +950,7 @@ export function AdminDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm">{executor.executor_name}</div>
                           <div className="text-xs text-gray-500">
-                            {executor.delivered_count} доставок
+                            {executor.delivered_count} {language === 'ru' ? 'доставок' : 'yetkazish'}
                           </div>
                         </div>
                         <div className="flex items-center gap-1 text-yellow-600">
@@ -912,7 +960,7 @@ export function AdminDashboard() {
                       </div>
                     ))}
                     {marketplaceReport.executor_stats.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">Нет данных</div>
+                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
                     )}
                   </div>
                 </div>
@@ -922,13 +970,13 @@ export function AdminDashboard() {
               <div className="glass-card p-5">
                 <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-purple-500" />
-                  Заказы по статусам
+                  {language === 'ru' ? 'Заказы по статусам' : 'Buyurtmalar holati bo\'yicha'}
                 </h3>
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
                     <Pie
                       data={marketplaceReport.orders_by_status.map(s => ({
-                        name: {
+                        name: language === 'ru' ? ({
                           new: 'Новые',
                           confirmed: 'Подтверждённые',
                           preparing: 'Готовятся',
@@ -936,7 +984,15 @@ export function AdminDashboard() {
                           delivering: 'В доставке',
                           delivered: 'Доставлены',
                           cancelled: 'Отменены',
-                        }[s.status] || s.status,
+                        }[s.status] || s.status) : ({
+                          new: 'Yangi',
+                          confirmed: 'Tasdiqlangan',
+                          preparing: 'Tayyorlanmoqda',
+                          ready: 'Tayyor',
+                          delivering: 'Yetkazilmoqda',
+                          delivered: 'Yetkazildi',
+                          cancelled: 'Bekor qilindi',
+                        }[s.status] || s.status),
                         value: s.count,
                         color: {
                           new: '#3B82F6',
@@ -974,7 +1030,7 @@ export function AdminDashboard() {
               </div>
             </>
           ) : (
-            <div className="text-center text-gray-400 py-20">Нет данных</div>
+            <div className="text-center text-gray-400 py-20">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
           )}
         </div>
       )}

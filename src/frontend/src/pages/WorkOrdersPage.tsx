@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useCRMStore } from '../stores/crmStore';
 import { useDataStore } from '../stores/dataStore';
+import { useLanguageStore } from '../stores/languageStore';
 
 type WorkOrderStatus = 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 type WorkOrderPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -131,6 +132,7 @@ const mockWorkOrders: WorkOrder[] = [
 ];
 
 export function WorkOrdersPage() {
+  const { language } = useLanguageStore();
   const { buildings } = useCRMStore();
   const { executors } = useDataStore();
 
@@ -178,11 +180,11 @@ export function WorkOrdersPage() {
 
   const getStatusLabel = (status: WorkOrderStatus) => {
     switch (status) {
-      case 'pending': return 'Ожидает';
-      case 'scheduled': return 'Запланирован';
-      case 'in_progress': return 'Выполняется';
-      case 'completed': return 'Завершен';
-      case 'cancelled': return 'Отменен';
+      case 'pending': return language === 'ru' ? 'Ожидает' : 'Kutilmoqda';
+      case 'scheduled': return language === 'ru' ? 'Запланирован' : 'Rejalashtirilgan';
+      case 'in_progress': return language === 'ru' ? 'Выполняется' : 'Bajarilmoqda';
+      case 'completed': return language === 'ru' ? 'Завершен' : 'Yakunlangan';
+      case 'cancelled': return language === 'ru' ? 'Отменен' : 'Bekor qilingan';
     }
   };
 
@@ -197,10 +199,10 @@ export function WorkOrdersPage() {
 
   const getPriorityLabel = (priority: WorkOrderPriority) => {
     switch (priority) {
-      case 'low': return 'Низкий';
-      case 'medium': return 'Средний';
-      case 'high': return 'Высокий';
-      case 'urgent': return 'Срочный';
+      case 'low': return language === 'ru' ? 'Низкий' : 'Past';
+      case 'medium': return language === 'ru' ? 'Средний' : 'O\'rta';
+      case 'high': return language === 'ru' ? 'Высокий' : 'Yuqori';
+      case 'urgent': return language === 'ru' ? 'Срочный' : 'Shoshilinch';
     }
   };
 
@@ -213,9 +215,9 @@ export function WorkOrdersPage() {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     if (hours > 0) {
-      return `${hours}ч ${mins}м`;
+      return language === 'ru' ? `${hours}ч ${mins}м` : `${hours}s ${mins}d`;
     }
-    return `${mins}м`;
+    return language === 'ru' ? `${mins}м` : `${mins}d`;
   };
 
   const updateOrderStatus = (orderId: string, newStatus: WorkOrderStatus) => {
@@ -242,15 +244,15 @@ export function WorkOrdersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Наряды на работы</h1>
-          <p className="text-gray-500 mt-1">Управление плановыми и аварийными работами</p>
+          <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Наряды на работы' : 'Ish buyurtmalari'}</h1>
+          <p className="text-gray-500 mt-1">{language === 'ru' ? 'Управление плановыми и аварийными работами' : 'Rejalashtirilgan va favqulodda ishlarni boshqarish'}</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="btn-primary flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Создать наряд
+          {language === 'ru' ? 'Создать наряд' : 'Buyurtma yaratish'}
         </button>
       </div>
 
@@ -262,7 +264,7 @@ export function WorkOrdersPage() {
               <FileText className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Всего</p>
+              <p className="text-sm text-gray-500">{language === 'ru' ? 'Всего' : 'Jami'}</p>
               <p className="text-xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
@@ -274,7 +276,7 @@ export function WorkOrdersPage() {
               <Clock className="w-5 h-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Ожидают</p>
+              <p className="text-sm text-gray-500">{language === 'ru' ? 'Ожидают' : 'Kutilmoqda'}</p>
               <p className="text-xl font-bold text-gray-900">{stats.pending}</p>
             </div>
           </div>
@@ -286,7 +288,7 @@ export function WorkOrdersPage() {
               <Play className="w-5 h-5 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">В работе</p>
+              <p className="text-sm text-gray-500">{language === 'ru' ? 'В работе' : 'Bajarilmoqda'}</p>
               <p className="text-xl font-bold text-yellow-600">{stats.inProgress}</p>
             </div>
           </div>
@@ -298,7 +300,7 @@ export function WorkOrdersPage() {
               <CheckCircle className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Завершено</p>
+              <p className="text-sm text-gray-500">{language === 'ru' ? 'Завершено' : 'Yakunlangan'}</p>
               <p className="text-xl font-bold text-green-600">{stats.completed}</p>
             </div>
           </div>
@@ -310,7 +312,7 @@ export function WorkOrdersPage() {
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Срочных</p>
+              <p className="text-sm text-gray-500">{language === 'ru' ? 'Срочных' : 'Shoshilinch'}</p>
               <p className="text-xl font-bold text-red-600">{stats.urgent}</p>
             </div>
           </div>
@@ -325,7 +327,7 @@ export function WorkOrdersPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Поиск по номеру или названию..."
+                placeholder={language === 'ru' ? 'Поиск по номеру или названию...' : 'Raqam yoki nomi bo\'yicha qidirish...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -338,12 +340,12 @@ export function WorkOrdersPage() {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Все статусы</option>
-            <option value="pending">Ожидает</option>
-            <option value="scheduled">Запланирован</option>
-            <option value="in_progress">Выполняется</option>
-            <option value="completed">Завершен</option>
-            <option value="cancelled">Отменен</option>
+            <option value="all">{language === 'ru' ? 'Все статусы' : 'Barcha statuslar'}</option>
+            <option value="pending">{language === 'ru' ? 'Ожидает' : 'Kutilmoqda'}</option>
+            <option value="scheduled">{language === 'ru' ? 'Запланирован' : 'Rejalashtirilgan'}</option>
+            <option value="in_progress">{language === 'ru' ? 'Выполняется' : 'Bajarilmoqda'}</option>
+            <option value="completed">{language === 'ru' ? 'Завершен' : 'Yakunlangan'}</option>
+            <option value="cancelled">{language === 'ru' ? 'Отменен' : 'Bekor qilingan'}</option>
           </select>
 
           <select
@@ -351,11 +353,11 @@ export function WorkOrdersPage() {
             onChange={(e) => setFilterType(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Все типы</option>
-            <option value="planned">Плановый</option>
-            <option value="preventive">Профилактика</option>
-            <option value="emergency">Аварийный</option>
-            <option value="seasonal">Сезонный</option>
+            <option value="all">{language === 'ru' ? 'Все типы' : 'Barcha turlar'}</option>
+            <option value="planned">{language === 'ru' ? 'Плановый' : 'Rejalashtirilgan'}</option>
+            <option value="preventive">{language === 'ru' ? 'Профилактика' : 'Profilaktika'}</option>
+            <option value="emergency">{language === 'ru' ? 'Аварийный' : 'Favqulodda'}</option>
+            <option value="seasonal">{language === 'ru' ? 'Сезонный' : 'Mavsumiy'}</option>
           </select>
 
           <select
@@ -363,11 +365,11 @@ export function WorkOrdersPage() {
             onChange={(e) => setFilterPriority(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Все приоритеты</option>
-            <option value="low">Низкий</option>
-            <option value="medium">Средний</option>
-            <option value="high">Высокий</option>
-            <option value="urgent">Срочный</option>
+            <option value="all">{language === 'ru' ? 'Все приоритеты' : 'Barcha ustuvorliklar'}</option>
+            <option value="low">{language === 'ru' ? 'Низкий' : 'Past'}</option>
+            <option value="medium">{language === 'ru' ? 'Средний' : 'O\'rta'}</option>
+            <option value="high">{language === 'ru' ? 'Высокий' : 'Yuqori'}</option>
+            <option value="urgent">{language === 'ru' ? 'Срочный' : 'Shoshilinch'}</option>
           </select>
 
           <select
@@ -375,7 +377,7 @@ export function WorkOrdersPage() {
             onChange={(e) => setFilterBuilding(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Все дома</option>
+            <option value="all">{language === 'ru' ? 'Все дома' : 'Barcha binolar'}</option>
             {buildings.map(b => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
@@ -426,7 +428,7 @@ export function WorkOrdersPage() {
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
                         <Building2 className="w-4 h-4" />
-                        <span>{building?.name || 'Не указано'}</span>
+                        <span>{building?.name || (language === 'ru' ? 'Не указано' : 'Ko\'rsatilmagan')}</span>
                       </div>
                       {order.scheduledDate && (
                         <div className="flex items-center gap-1">
@@ -453,7 +455,7 @@ export function WorkOrdersPage() {
                     <button
                       onClick={() => updateOrderStatus(order.id, 'scheduled')}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Запланировать"
+                      title={language === 'ru' ? 'Запланировать' : 'Rejalashtirish'}
                     >
                       <Calendar className="w-5 h-5" />
                     </button>
@@ -462,7 +464,7 @@ export function WorkOrdersPage() {
                     <button
                       onClick={() => updateOrderStatus(order.id, 'in_progress')}
                       className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="Начать выполнение"
+                      title={language === 'ru' ? 'Начать выполнение' : 'Bajarishni boshlash'}
                     >
                       <Play className="w-5 h-5" />
                     </button>
@@ -472,14 +474,14 @@ export function WorkOrdersPage() {
                       <button
                         onClick={() => updateOrderStatus(order.id, 'scheduled')}
                         className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
-                        title="Приостановить"
+                        title={language === 'ru' ? 'Приостановить' : 'To\'xtatib turish'}
                       >
                         <Pause className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => updateOrderStatus(order.id, 'completed')}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Завершить"
+                        title={language === 'ru' ? 'Завершить' : 'Yakunlash'}
                       >
                         <Check className="w-5 h-5" />
                       </button>
@@ -494,7 +496,7 @@ export function WorkOrdersPage() {
         {filteredOrders.length === 0 && (
           <div className="glass-card p-12 text-center">
             <Wrench className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">Наряды не найдены</p>
+            <p className="text-gray-500">{language === 'ru' ? 'Наряды не найдены' : 'Buyurtmalar topilmadi'}</p>
           </div>
         )}
       </div>
@@ -542,6 +544,7 @@ function WorkOrderDetailModal({
   onClose: () => void;
   onUpdateStatus: (status: WorkOrderStatus) => void;
 }) {
+  const { language } = useLanguageStore();
   const { buildings, apartments } = useCRMStore();
   const { executors } = useDataStore();
 
@@ -561,11 +564,11 @@ function WorkOrderDetailModal({
 
   const getStatusLabel = (status: WorkOrderStatus) => {
     switch (status) {
-      case 'pending': return 'Ожидает';
-      case 'scheduled': return 'Запланирован';
-      case 'in_progress': return 'Выполняется';
-      case 'completed': return 'Завершен';
-      case 'cancelled': return 'Отменен';
+      case 'pending': return language === 'ru' ? 'Ожидает' : 'Kutilmoqda';
+      case 'scheduled': return language === 'ru' ? 'Запланирован' : 'Rejalashtirilgan';
+      case 'in_progress': return language === 'ru' ? 'Выполняется' : 'Bajarilmoqda';
+      case 'completed': return language === 'ru' ? 'Завершен' : 'Yakunlangan';
+      case 'cancelled': return language === 'ru' ? 'Отменен' : 'Bekor qilingan';
     }
   };
 
@@ -578,9 +581,9 @@ function WorkOrderDetailModal({
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     if (hours > 0) {
-      return `${hours}ч ${mins}м`;
+      return language === 'ru' ? `${hours}ч ${mins}м` : `${hours}s ${mins}d`;
     }
-    return `${mins}м`;
+    return language === 'ru' ? `${mins}м` : `${mins}d`;
   };
 
   return (
@@ -606,30 +609,30 @@ function WorkOrderDetailModal({
         <div className="p-6 space-y-6">
           {/* Description */}
           <div>
-            <h3 className="font-semibold text-gray-900 mb-2">Описание</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">{language === 'ru' ? 'Описание' : 'Tavsif'}</h3>
             <p className="text-gray-600">{order.description}</p>
           </div>
 
           {/* Details Grid */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 mb-1">Объект</p>
+              <p className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Объект' : 'Obyekt'}</p>
               <p className="font-medium">{building?.name || '-'}</p>
-              {apartment && <p className="text-sm text-gray-500">Кв. {apartment.number}</p>}
+              {apartment && <p className="text-sm text-gray-500">{language === 'ru' ? 'Кв.' : 'Kv.'} {apartment.number}</p>}
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 mb-1">Исполнитель</p>
-              <p className="font-medium">{executor?.name || 'Не назначен'}</p>
+              <p className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</p>
+              <p className="font-medium">{executor?.name || (language === 'ru' ? 'Не назначен' : 'Tayinlanmagan')}</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 mb-1">Запланировано</p>
+              <p className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Запланировано' : 'Rejalashtirilgan'}</p>
               <p className="font-medium">{order.scheduledDate ? `${order.scheduledDate} ${order.scheduledTime || ''}` : '-'}</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 mb-1">Длительность</p>
+              <p className="text-sm text-gray-500 mb-1">{language === 'ru' ? 'Длительность' : 'Davomiyligi'}</p>
               <p className="font-medium">{formatDuration(order.estimatedDuration)}</p>
               {order.actualDuration && (
-                <p className="text-sm text-gray-500">Факт: {formatDuration(order.actualDuration)}</p>
+                <p className="text-sm text-gray-500">{language === 'ru' ? 'Факт:' : 'Haqiqiy:'} {formatDuration(order.actualDuration)}</p>
               )}
             </div>
           </div>
@@ -637,22 +640,22 @@ function WorkOrderDetailModal({
           {/* Timeline */}
           {(order.startedAt || order.completedAt) && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Хронология</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">{language === 'ru' ? 'Хронология' : 'Tarix'}</h3>
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-gray-400 rounded-full" />
-                  <span className="text-sm text-gray-600">Создан: {formatDate(order.createdAt)}</span>
+                  <span className="text-sm text-gray-600">{language === 'ru' ? 'Создан:' : 'Yaratilgan:'} {formatDate(order.createdAt)}</span>
                 </div>
                 {order.startedAt && (
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-orange-400 rounded-full" />
-                    <span className="text-sm text-gray-600">Начат: {formatDate(order.startedAt)}</span>
+                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Начат:' : 'Boshlangan:'} {formatDate(order.startedAt)}</span>
                   </div>
                 )}
                 {order.completedAt && (
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-green-400 rounded-full" />
-                    <span className="text-sm text-gray-600">Завершен: {formatDate(order.completedAt)}</span>
+                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Завершен:' : 'Yakunlangan:'} {formatDate(order.completedAt)}</span>
                   </div>
                 )}
               </div>
@@ -662,7 +665,7 @@ function WorkOrderDetailModal({
           {/* Checklist */}
           {order.checklist && order.checklist.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Чек-лист</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">{language === 'ru' ? 'Чек-лист' : 'Nazorat ro\'yxati'}</h3>
               <div className="space-y-2">
                 {order.checklist.map((item, index) => (
                   <div key={index} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
@@ -683,14 +686,14 @@ function WorkOrderDetailModal({
           {/* Materials */}
           {order.materials && order.materials.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Материалы</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">{language === 'ru' ? 'Материалы' : 'Materiallar'}</h3>
               <div className="bg-gray-50 rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-4 py-2 text-left text-gray-600">Наименование</th>
-                      <th className="px-4 py-2 text-right text-gray-600">Количество</th>
-                      <th className="px-4 py-2 text-left text-gray-600">Ед.</th>
+                      <th className="px-4 py-2 text-left text-gray-600">{language === 'ru' ? 'Наименование' : 'Nomi'}</th>
+                      <th className="px-4 py-2 text-right text-gray-600">{language === 'ru' ? 'Количество' : 'Miqdori'}</th>
+                      <th className="px-4 py-2 text-left text-gray-600">{language === 'ru' ? 'Ед.' : 'O\'lch.'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -714,7 +717,7 @@ function WorkOrderDetailModal({
                 onClick={() => onUpdateStatus('scheduled')}
                 className="btn-primary"
               >
-                Запланировать
+                {language === 'ru' ? 'Запланировать' : 'Rejalashtirish'}
               </button>
             )}
             {order.status === 'scheduled' && (
@@ -722,7 +725,7 @@ function WorkOrderDetailModal({
                 onClick={() => onUpdateStatus('in_progress')}
                 className="btn-primary"
               >
-                Начать выполнение
+                {language === 'ru' ? 'Начать выполнение' : 'Bajarishni boshlash'}
               </button>
             )}
             {order.status === 'in_progress' && (
@@ -730,7 +733,7 @@ function WorkOrderDetailModal({
                 onClick={() => onUpdateStatus('completed')}
                 className="btn-primary"
               >
-                Завершить
+                {language === 'ru' ? 'Завершить' : 'Yakunlash'}
               </button>
             )}
             {order.status !== 'completed' && order.status !== 'cancelled' && (
@@ -738,7 +741,7 @@ function WorkOrderDetailModal({
                 onClick={() => onUpdateStatus('cancelled')}
                 className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               >
-                Отменить
+                {language === 'ru' ? 'Отменить' : 'Bekor qilish'}
               </button>
             )}
           </div>
@@ -755,6 +758,7 @@ function WorkOrderFormModal({
   onClose: () => void;
   onSave: (order: Omit<WorkOrder, 'id' | 'number' | 'status' | 'createdAt' | 'updatedAt'>) => void;
 }) {
+  const { language } = useLanguageStore();
   const { buildings, apartments } = useCRMStore();
   const { executors } = useDataStore();
 
@@ -794,7 +798,7 @@ function WorkOrderFormModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Новый наряд</h2>
+            <h2 className="text-xl font-bold text-gray-900">{language === 'ru' ? 'Новый наряд' : 'Yangi buyurtma'}</h2>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <X className="w-5 h-5 text-gray-500" />
             </button>
@@ -803,68 +807,68 @@ function WorkOrderFormModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Название *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Название *' : 'Nomi *'}</label>
             <input
               type="text"
               required
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Краткое описание работы"
+              placeholder={language === 'ru' ? 'Краткое описание работы' : 'Ishning qisqacha tavsifi'}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Описание</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Описание' : 'Tavsif'}</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Подробное описание работ"
+              placeholder={language === 'ru' ? 'Подробное описание работ' : 'Ishlarning batafsil tavsifi'}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Тип работы</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Тип работы' : 'Ish turi'}</label>
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value as WorkOrderType })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="planned">Плановый</option>
-                <option value="preventive">Профилактика</option>
-                <option value="emergency">Аварийный</option>
-                <option value="seasonal">Сезонный</option>
+                <option value="planned">{language === 'ru' ? 'Плановый' : 'Rejalashtirilgan'}</option>
+                <option value="preventive">{language === 'ru' ? 'Профилактика' : 'Profilaktika'}</option>
+                <option value="emergency">{language === 'ru' ? 'Аварийный' : 'Favqulodda'}</option>
+                <option value="seasonal">{language === 'ru' ? 'Сезонный' : 'Mavsumiy'}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Приоритет</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Приоритет' : 'Ustuvorlik'}</label>
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value as WorkOrderPriority })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="low">Низкий</option>
-                <option value="medium">Средний</option>
-                <option value="high">Высокий</option>
-                <option value="urgent">Срочный</option>
+                <option value="low">{language === 'ru' ? 'Низкий' : 'Past'}</option>
+                <option value="medium">{language === 'ru' ? 'Средний' : 'O\'rta'}</option>
+                <option value="high">{language === 'ru' ? 'Высокий' : 'Yuqori'}</option>
+                <option value="urgent">{language === 'ru' ? 'Срочный' : 'Shoshilinch'}</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Дом *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Дом *' : 'Bino *'}</label>
               <select
                 required
                 value={formData.buildingId}
                 onChange={(e) => setFormData({ ...formData, buildingId: e.target.value, apartmentId: '' })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Выберите дом</option>
+                <option value="">{language === 'ru' ? 'Выберите дом' : 'Binoni tanlang'}</option>
                 {buildings.map(b => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
@@ -872,29 +876,29 @@ function WorkOrderFormModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Квартира</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Квартира' : 'Kvartira'}</label>
               <select
                 value={formData.apartmentId}
                 onChange={(e) => setFormData({ ...formData, apartmentId: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={!formData.buildingId}
               >
-                <option value="">Общедомовые работы</option>
+                <option value="">{language === 'ru' ? 'Общедомовые работы' : 'Umumuy ishlar'}</option>
                 {filteredApartments.map(a => (
-                  <option key={a.id} value={a.id}>Кв. {a.number}</option>
+                  <option key={a.id} value={a.id}>{language === 'ru' ? 'Кв.' : 'Kv.'} {a.number}</option>
                 ))}
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Исполнитель</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</label>
             <select
               value={formData.assignedTo}
               onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Не назначен</option>
+              <option value="">{language === 'ru' ? 'Не назначен' : 'Tayinlanmagan'}</option>
               {executors.map(e => (
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
@@ -903,7 +907,7 @@ function WorkOrderFormModal({
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Дата</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Дата' : 'Sana'}</label>
               <input
                 type="date"
                 value={formData.scheduledDate}
@@ -913,7 +917,7 @@ function WorkOrderFormModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Время</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Время' : 'Vaqt'}</label>
               <input
                 type="time"
                 value={formData.scheduledTime}
@@ -923,7 +927,7 @@ function WorkOrderFormModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Длительность (мин)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Длительность (мин)' : 'Davomiyligi (daq)'}</label>
               <input
                 type="number"
                 min="15"
@@ -941,10 +945,10 @@ function WorkOrderFormModal({
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary">
-              Создать
+              {language === 'ru' ? 'Создать' : 'Yaratish'}
             </button>
           </div>
         </form>

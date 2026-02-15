@@ -5,6 +5,7 @@ import {
   DollarSign, User
 } from 'lucide-react';
 import { useCRMStore } from '../stores/crmStore';
+import { useLanguageStore } from '../stores/languageStore';
 import type { PersonalAccount } from '../types';
 
 export function PersonalAccountsPage() {
@@ -14,6 +15,7 @@ export function PersonalAccountsPage() {
     buildings,
     updatePersonalAccount,
   } = useCRMStore();
+  const { language } = useLanguageStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBuilding, setFilterBuilding] = useState<string>('all');
@@ -56,10 +58,10 @@ export function PersonalAccountsPage() {
       archived: 'bg-yellow-100 text-yellow-700',
     };
     const labels = {
-      active: 'Активен',
-      closed: 'Закрыт',
-      blocked: 'Заблокирован',
-      archived: 'Архив',
+      active: language === 'ru' ? 'Активен' : 'Faol',
+      closed: language === 'ru' ? 'Закрыт' : 'Yopiq',
+      blocked: language === 'ru' ? 'Заблокирован' : 'Bloklangan',
+      archived: language === 'ru' ? 'Архив' : 'Arxiv',
     };
     return (
       <span className={`px-2 py-0.5 rounded-full text-xs ${styles[status]}`}>
@@ -73,15 +75,19 @@ export function PersonalAccountsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Лицевые счета</h1>
-          <p className="text-gray-500 mt-1">Управление лицевыми счетами жильцов</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {language === 'ru' ? 'Лицевые счета' : 'Shaxsiy hisoblar'}
+          </h1>
+          <p className="text-gray-500 mt-1">
+            {language === 'ru' ? 'Управление лицевыми счетами жильцов' : 'Yashovchilarning shaxsiy hisoblarini boshqarish'}
+          </p>
         </div>
         <button
           className="btn-primary flex items-center gap-2 opacity-50 cursor-not-allowed"
-          title="Создание через страницу квартир"
+          title={language === 'ru' ? 'Создание через страницу квартир' : 'Kvartiralar sahifasidan yaratish'}
         >
           <Plus className="w-4 h-4" />
-          Новый ЛС
+          {language === 'ru' ? 'Новый ЛС' : 'Yangi SH'}
         </button>
       </div>
 
@@ -94,7 +100,9 @@ export function PersonalAccountsPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{totalAccounts}</div>
-              <div className="text-xs text-gray-500">Всего ЛС</div>
+              <div className="text-xs text-gray-500">
+                {language === 'ru' ? 'Всего ЛС' : 'Jami SH'}
+              </div>
             </div>
           </div>
         </div>
@@ -106,7 +114,9 @@ export function PersonalAccountsPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{activeAccounts}</div>
-              <div className="text-xs text-gray-500">Активных</div>
+              <div className="text-xs text-gray-500">
+                {language === 'ru' ? 'Активных' : 'Faollar'}
+              </div>
             </div>
           </div>
         </div>
@@ -118,7 +128,9 @@ export function PersonalAccountsPage() {
             </div>
             <div>
               <div className="text-xl font-bold text-red-600">{formatMoney(totalDebt)}</div>
-              <div className="text-xs text-gray-500">Общий долг</div>
+              <div className="text-xs text-gray-500">
+                {language === 'ru' ? 'Общий долг' : 'Umumiy qarz'}
+              </div>
             </div>
           </div>
         </div>
@@ -130,7 +142,9 @@ export function PersonalAccountsPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{debtorsCount}</div>
-              <div className="text-xs text-gray-500">Должников</div>
+              <div className="text-xs text-gray-500">
+                {language === 'ru' ? 'Должников' : 'Qarzdorlar'}
+              </div>
             </div>
           </div>
         </div>
@@ -143,7 +157,7 @@ export function PersonalAccountsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Поиск по номеру ЛС, ФИО или квартире..."
+              placeholder={language === 'ru' ? 'Поиск по номеру ЛС, ФИО или квартире...' : 'SH raqami, F.I.O. yoki kvartira bo\'yicha qidirish...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="input-field pl-10"
@@ -155,7 +169,7 @@ export function PersonalAccountsPage() {
             onChange={(e) => setFilterBuilding(e.target.value)}
             className="input-field w-full md:w-48"
           >
-            <option value="all">Все дома</option>
+            <option value="all">{language === 'ru' ? 'Все дома' : 'Barcha uylar'}</option>
             {buildings.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
@@ -166,10 +180,10 @@ export function PersonalAccountsPage() {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="input-field w-full md:w-36"
           >
-            <option value="all">Все статусы</option>
-            <option value="active">Активные</option>
-            <option value="closed">Закрытые</option>
-            <option value="blocked">Заблокированные</option>
+            <option value="all">{language === 'ru' ? 'Все статусы' : 'Barcha statuslar'}</option>
+            <option value="active">{language === 'ru' ? 'Активные' : 'Faollar'}</option>
+            <option value="closed">{language === 'ru' ? 'Закрытые' : 'Yopiqlar'}</option>
+            <option value="blocked">{language === 'ru' ? 'Заблокированные' : 'Bloklangan'}</option>
           </select>
 
           <select
@@ -177,9 +191,9 @@ export function PersonalAccountsPage() {
             onChange={(e) => setFilterDebt(e.target.value)}
             className="input-field w-full md:w-36"
           >
-            <option value="all">Все</option>
-            <option value="with_debt">С долгом</option>
-            <option value="no_debt">Без долга</option>
+            <option value="all">{language === 'ru' ? 'Все' : 'Hammasi'}</option>
+            <option value="with_debt">{language === 'ru' ? 'С долгом' : 'Qarzli'}</option>
+            <option value="no_debt">{language === 'ru' ? 'Без долга' : 'Qarzsiz'}</option>
           </select>
         </div>
       </div>
@@ -190,14 +204,30 @@ export function PersonalAccountsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left p-4 font-medium text-gray-600">Номер ЛС</th>
-                <th className="text-left p-4 font-medium text-gray-600">Владелец</th>
-                <th className="text-left p-4 font-medium text-gray-600">Адрес</th>
-                <th className="text-right p-4 font-medium text-gray-600">Площадь</th>
-                <th className="text-right p-4 font-medium text-gray-600">Жителей</th>
-                <th className="text-right p-4 font-medium text-gray-600">Баланс</th>
-                <th className="text-center p-4 font-medium text-gray-600">Статус</th>
-                <th className="text-right p-4 font-medium text-gray-600">Действия</th>
+                <th className="text-left p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Номер ЛС' : 'SH raqami'}
+                </th>
+                <th className="text-left p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Владелец' : 'Egasi'}
+                </th>
+                <th className="text-left p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Адрес' : 'Manzil'}
+                </th>
+                <th className="text-right p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Площадь' : 'Maydoni'}
+                </th>
+                <th className="text-right p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Жителей' : 'Yashovchilar'}
+                </th>
+                <th className="text-right p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Баланс' : 'Balans'}
+                </th>
+                <th className="text-center p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Статус' : 'Status'}
+                </th>
+                <th className="text-right p-4 font-medium text-gray-600">
+                  {language === 'ru' ? 'Действия' : 'Amallar'}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -222,7 +252,9 @@ export function PersonalAccountsPage() {
                     </td>
                     <td className="p-4">
                       <div>{building?.name}</div>
-                      <div className="text-xs text-gray-500">кв. {account.apartmentNumber}</div>
+                      <div className="text-xs text-gray-500">
+                        {language === 'ru' ? 'кв.' : 'kv.'} {account.apartmentNumber}
+                      </div>
                     </td>
                     <td className="p-4 text-right">{account.totalArea} м²</td>
                     <td className="p-4 text-right">{account.residentsCount}</td>
@@ -232,7 +264,7 @@ export function PersonalAccountsPage() {
                       </div>
                       {account.penaltyAmount > 0 && (
                         <div className="text-xs text-red-500">
-                          + {formatMoney(account.penaltyAmount)} пени
+                          + {formatMoney(account.penaltyAmount)} {language === 'ru' ? 'пени' : 'jarima'}
                         </div>
                       )}
                     </td>
@@ -242,7 +274,7 @@ export function PersonalAccountsPage() {
                         <button
                           onClick={() => setEditingAccount(account)}
                           className="p-2 hover:bg-white/50 rounded-lg"
-                          title="Редактировать"
+                          title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                         >
                           <Edit className="w-4 h-4 text-gray-500" />
                         </button>
@@ -257,8 +289,12 @@ export function PersonalAccountsPage() {
           {filteredAccounts.length === 0 && (
             <div className="p-8 text-center">
               <CreditCard className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-600">Счета не найдены</h3>
-              <p className="text-gray-400 mt-1">Попробуйте изменить параметры поиска</p>
+              <h3 className="text-lg font-medium text-gray-600">
+                {language === 'ru' ? 'Счета не найдены' : 'Hisoblar topilmadi'}
+              </h3>
+              <p className="text-gray-400 mt-1">
+                {language === 'ru' ? 'Попробуйте изменить параметры поиска' : 'Qidiruv parametrlarini o\'zgartirib ko\'ring'}
+              </p>
             </div>
           )}
         </div>
@@ -296,6 +332,7 @@ function AccountDetailModal({
   onClose: () => void;
 }) {
   const { owners, buildings, meters, getResidentsByApartment } = useCRMStore();
+  const { language } = useLanguageStore();
 
   const owner = owners.find(o => o.id === account.primaryOwnerId);
   const building = buildings.find(b => b.id === account.buildingId);
@@ -316,7 +353,9 @@ function AccountDetailModal({
       <div className="modal-content p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold">Лицевой счет {account.number}</h2>
+            <h2 className="text-xl font-bold">
+              {language === 'ru' ? 'Лицевой счет' : 'Shaxsiy hisob'} {account.number}
+            </h2>
             <p className="text-gray-500">{account.address}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
@@ -328,19 +367,23 @@ function AccountDetailModal({
         <div className={`p-6 rounded-xl mb-6 ${account.currentDebt > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-gray-600">Текущий баланс</div>
+              <div className="text-sm text-gray-600">
+                {language === 'ru' ? 'Текущий баланс' : 'Joriy balans'}
+              </div>
               <div className={`text-3xl font-bold ${account.currentDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
                 {account.currentDebt > 0 ? '-' : '+'}{formatMoney(Math.abs(account.balance))} сум
               </div>
               {account.penaltyAmount > 0 && (
                 <div className="text-sm text-red-500 mt-1">
-                  Пени: {formatMoney(account.penaltyAmount)} сум
+                  {language === 'ru' ? 'Пени' : 'Jarima'}: {formatMoney(account.penaltyAmount)} сум
                 </div>
               )}
             </div>
             {account.lastPaymentDate && (
               <div className="text-right">
-                <div className="text-sm text-gray-600">Последний платеж</div>
+                <div className="text-sm text-gray-600">
+                  {language === 'ru' ? 'Последний платеж' : 'Oxirgi to\'lov'}
+                </div>
                 <div className="font-medium">{formatMoney(account.lastPaymentAmount || 0)} сум</div>
                 <div className="text-sm text-gray-500">{formatDate(account.lastPaymentDate)}</div>
               </div>
@@ -353,7 +396,7 @@ function AccountDetailModal({
           <div>
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <User className="w-4 h-4" />
-              Владелец
+              {language === 'ru' ? 'Владелец' : 'Egasi'}
             </h3>
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <div className="font-medium">{owner?.fullName || account.ownerName}</div>
@@ -371,7 +414,13 @@ function AccountDetailModal({
               )}
               {owner?.ownershipType && (
                 <div className="text-sm text-gray-500">
-                  Тип: {owner.ownershipType === 'owner' ? 'Собственник' : owner.ownershipType === 'tenant' ? 'Арендатор' : 'Совладелец'}
+                  {language === 'ru' ? 'Тип' : 'Turi'}: {
+                    owner.ownershipType === 'owner'
+                      ? (language === 'ru' ? 'Собственник' : 'Egasi')
+                      : owner.ownershipType === 'tenant'
+                      ? (language === 'ru' ? 'Арендатор' : 'Ijarachi')
+                      : (language === 'ru' ? 'Совладелец' : 'Sherik egasi')
+                  }
                 </div>
               )}
             </div>
@@ -381,27 +430,27 @@ function AccountDetailModal({
           <div>
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Home className="w-4 h-4" />
-              Квартира
+              {language === 'ru' ? 'Квартира' : 'Kvartira'}
             </h3>
             <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Дом:</span>
+                <span className="text-gray-500">{language === 'ru' ? 'Дом:' : 'Uy:'}</span>
                 <span>{building?.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Квартира:</span>
+                <span className="text-gray-500">{language === 'ru' ? 'Квартира:' : 'Kvartira:'}</span>
                 <span>№ {account.apartmentNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Площадь:</span>
+                <span className="text-gray-500">{language === 'ru' ? 'Площадь:' : 'Maydoni:'}</span>
                 <span>{account.totalArea} м²</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Жителей:</span>
+                <span className="text-gray-500">{language === 'ru' ? 'Жителей:' : 'Yashovchilar:'}</span>
                 <span>{account.residentsCount}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Зарегистрировано:</span>
+                <span className="text-gray-500">{language === 'ru' ? 'Зарегистрировано:' : 'Ro\'yxatga olingan:'}</span>
                 <span>{account.registeredCount}</span>
               </div>
             </div>
@@ -411,20 +460,28 @@ function AccountDetailModal({
         {/* Subsidies & Discounts */}
         {(account.hasSubsidy || account.hasDiscount) && (
           <div className="mb-6">
-            <h3 className="font-semibold mb-3">Льготы</h3>
+            <h3 className="font-semibold mb-3">
+              {language === 'ru' ? 'Льготы' : 'Imtiyozlar'}
+            </h3>
             <div className="flex gap-3">
               {account.hasSubsidy && (
                 <div className="bg-blue-50 rounded-lg p-3 flex-1">
-                  <div className="text-sm text-blue-600 font-medium">Субсидия</div>
+                  <div className="text-sm text-blue-600 font-medium">
+                    {language === 'ru' ? 'Субсидия' : 'Subsidiya'}
+                  </div>
                   <div className="text-lg font-bold">{formatMoney(account.subsidyAmount || 0)} сум</div>
                   {account.subsidyEndDate && (
-                    <div className="text-xs text-gray-500">до {formatDate(account.subsidyEndDate)}</div>
+                    <div className="text-xs text-gray-500">
+                      {language === 'ru' ? 'до' : 'gacha'} {formatDate(account.subsidyEndDate)}
+                    </div>
                   )}
                 </div>
               )}
               {account.hasDiscount && (
                 <div className="bg-green-50 rounded-lg p-3 flex-1">
-                  <div className="text-sm text-green-600 font-medium">Скидка</div>
+                  <div className="text-sm text-green-600 font-medium">
+                    {language === 'ru' ? 'Скидка' : 'Chegirma'}
+                  </div>
                   <div className="text-lg font-bold">{account.discountPercent}%</div>
                   {account.discountReason && (
                     <div className="text-xs text-gray-500">{account.discountReason}</div>
@@ -438,14 +495,22 @@ function AccountDetailModal({
         {/* Residents List */}
         {residents.length > 0 && (
           <div className="mb-6">
-            <h3 className="font-semibold mb-3">Проживающие ({residents.length})</h3>
+            <h3 className="font-semibold mb-3">
+              {language === 'ru' ? 'Проживающие' : 'Yashovchilar'} ({residents.length})
+            </h3>
             <div className="bg-gray-50 rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="text-left p-3">ФИО</th>
-                    <th className="text-left p-3">Тип</th>
-                    <th className="text-left p-3">Регистрация</th>
+                    <th className="text-left p-3">
+                      {language === 'ru' ? 'ФИО' : 'F.I.O.'}
+                    </th>
+                    <th className="text-left p-3">
+                      {language === 'ru' ? 'Тип' : 'Turi'}
+                    </th>
+                    <th className="text-left p-3">
+                      {language === 'ru' ? 'Регистрация' : 'Ro\'yxat'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -453,16 +518,16 @@ function AccountDetailModal({
                     <tr key={resident.id} className="border-t border-gray-200">
                       <td className="p-3">{resident.fullName}</td>
                       <td className="p-3">
-                        {resident.residentType === 'owner' && 'Собственник'}
-                        {resident.residentType === 'family_member' && 'Член семьи'}
-                        {resident.residentType === 'tenant' && 'Арендатор'}
-                        {resident.residentType === 'registered' && 'Зарегистрирован'}
-                        {resident.residentType === 'temporary' && 'Временно'}
+                        {resident.residentType === 'owner' && (language === 'ru' ? 'Собственник' : 'Egasi')}
+                        {resident.residentType === 'family_member' && (language === 'ru' ? 'Член семьи' : 'Oila a\'zosi')}
+                        {resident.residentType === 'tenant' && (language === 'ru' ? 'Арендатор' : 'Ijarachi')}
+                        {resident.residentType === 'registered' && (language === 'ru' ? 'Зарегистрирован' : 'Ro\'yxatga olingan')}
+                        {resident.residentType === 'temporary' && (language === 'ru' ? 'Временно' : 'Vaqtinchalik')}
                       </td>
                       <td className="p-3">
-                        {resident.registrationType === 'permanent' && 'Постоянная'}
-                        {resident.registrationType === 'temporary' && 'Временная'}
-                        {resident.registrationType === 'none' && 'Нет'}
+                        {resident.registrationType === 'permanent' && (language === 'ru' ? 'Постоянная' : 'Doimiy')}
+                        {resident.registrationType === 'temporary' && (language === 'ru' ? 'Временная' : 'Vaqtinchalik')}
+                        {resident.registrationType === 'none' && (language === 'ru' ? 'Нет' : 'Yo\'q')}
                       </td>
                     </tr>
                   ))}
@@ -475,26 +540,28 @@ function AccountDetailModal({
         {/* Meters */}
         {apartmentMeters.length > 0 && (
           <div className="mb-6">
-            <h3 className="font-semibold mb-3">Счетчики ({apartmentMeters.length})</h3>
+            <h3 className="font-semibold mb-3">
+              {language === 'ru' ? 'Счетчики' : 'Hisoblagichlar'} ({apartmentMeters.length})
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {apartmentMeters.map((meter) => (
                 <div key={meter.id} className="bg-gray-50 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium">
-                      {meter.type === 'cold_water' && 'ХВС'}
-                      {meter.type === 'hot_water' && 'ГВС'}
-                      {meter.type === 'electricity' && 'Электричество'}
-                      {meter.type === 'gas' && 'Газ'}
-                      {meter.type === 'heat' && 'Отопление'}
+                      {meter.type === 'cold_water' && (language === 'ru' ? 'ХВС' : 'SIV')}
+                      {meter.type === 'hot_water' && (language === 'ru' ? 'ГВС' : 'IIV')}
+                      {meter.type === 'electricity' && (language === 'ru' ? 'Электричество' : 'Elektr')}
+                      {meter.type === 'gas' && (language === 'ru' ? 'Газ' : 'Gaz')}
+                      {meter.type === 'heat' && (language === 'ru' ? 'Отопление' : 'Isitish')}
                     </span>
                     <span className={`px-2 py-0.5 rounded text-xs ${meter.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {meter.isActive ? 'Активен' : 'Неактивен'}
+                      {meter.isActive ? (language === 'ru' ? 'Активен' : 'Faol') : (language === 'ru' ? 'Неактивен' : 'Nofaol')}
                     </span>
                   </div>
                   <div className="text-sm text-gray-500">
-                    <div>Номер: {meter.serialNumber}</div>
-                    <div>Показание: {meter.currentValue}</div>
-                    <div>Поверка до: {formatDate(meter.nextVerificationDate)}</div>
+                    <div>{language === 'ru' ? 'Номер' : 'Raqam'}: {meter.serialNumber}</div>
+                    <div>{language === 'ru' ? 'Показание' : 'Ko\'rsatkich'}: {meter.currentValue}</div>
+                    <div>{language === 'ru' ? 'Поверка до' : 'Tekshirish muddati'}: {formatDate(meter.nextVerificationDate)}</div>
                   </div>
                 </div>
               ))}
@@ -504,7 +571,7 @@ function AccountDetailModal({
 
         <div className="flex justify-end pt-4">
           <button onClick={onClose} className="btn-primary">
-            Закрыть
+            {language === 'ru' ? 'Закрыть' : 'Yopish'}
           </button>
         </div>
       </div>
@@ -522,6 +589,7 @@ function AccountEditModal({
   onClose: () => void;
   onSave: (data: Partial<PersonalAccount>) => void;
 }) {
+  const { language } = useLanguageStore();
   const [formData, setFormData] = useState({
     residentsCount: account.residentsCount,
     registeredCount: account.registeredCount,
@@ -544,7 +612,9 @@ function AccountEditModal({
     <div className="modal-backdrop">
       <div className="modal-content p-6 w-full max-w-lg mx-4">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">Редактировать ЛС {account.number}</h2>
+          <h2 className="text-xl font-bold">
+            {language === 'ru' ? 'Редактировать ЛС' : 'SH tahrirlash'} {account.number}
+          </h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
           </button>
@@ -554,7 +624,7 @@ function AccountEditModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Количество жителей
+                {language === 'ru' ? 'Количество жителей' : 'Yashovchilar soni'}
               </label>
               <input
                 type="number"
@@ -566,7 +636,7 @@ function AccountEditModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Зарегистрировано
+                {language === 'ru' ? 'Зарегистрировано' : 'Ro\'yxatga olingan'}
               </label>
               <input
                 type="number"
@@ -580,31 +650,31 @@ function AccountEditModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Статус
+              {language === 'ru' ? 'Статус' : 'Status'}
             </label>
             <select
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
               className="input-field"
             >
-              <option value="active">Активен</option>
-              <option value="blocked">Заблокирован</option>
-              <option value="closed">Закрыт</option>
-              <option value="archived">Архив</option>
+              <option value="active">{language === 'ru' ? 'Активен' : 'Faol'}</option>
+              <option value="blocked">{language === 'ru' ? 'Заблокирован' : 'Bloklangan'}</option>
+              <option value="closed">{language === 'ru' ? 'Закрыт' : 'Yopiq'}</option>
+              <option value="archived">{language === 'ru' ? 'Архив' : 'Arxiv'}</option>
             </select>
           </div>
 
           {formData.status === 'blocked' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Причина блокировки
+                {language === 'ru' ? 'Причина блокировки' : 'Bloklash sababi'}
               </label>
               <input
                 type="text"
                 value={formData.blockReason}
                 onChange={(e) => setFormData({ ...formData, blockReason: e.target.value })}
                 className="input-field"
-                placeholder="Укажите причину"
+                placeholder={language === 'ru' ? 'Укажите причину' : 'Sababni ko\'rsating'}
               />
             </div>
           )}
@@ -617,13 +687,15 @@ function AccountEditModal({
                 onChange={(e) => setFormData({ ...formData, hasSubsidy: e.target.checked })}
                 className="w-4 h-4"
               />
-              <span className="font-medium">Субсидия</span>
+              <span className="font-medium">
+                {language === 'ru' ? 'Субсидия' : 'Subsidiya'}
+              </span>
             </div>
             {formData.hasSubsidy && (
               <div className="grid grid-cols-2 gap-4 ml-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Сумма (сум)
+                    {language === 'ru' ? 'Сумма (сум)' : 'Summa (so\'m)'}
                   </label>
                   <input
                     type="number"
@@ -635,7 +707,7 @@ function AccountEditModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Действует до
+                    {language === 'ru' ? 'Действует до' : 'Amal qilish muddati'}
                   </label>
                   <input
                     type="date"
@@ -656,13 +728,15 @@ function AccountEditModal({
                 onChange={(e) => setFormData({ ...formData, hasDiscount: e.target.checked })}
                 className="w-4 h-4"
               />
-              <span className="font-medium">Скидка</span>
+              <span className="font-medium">
+                {language === 'ru' ? 'Скидка' : 'Chegirma'}
+              </span>
             </div>
             {formData.hasDiscount && (
               <div className="grid grid-cols-2 gap-4 ml-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Процент
+                    {language === 'ru' ? 'Процент' : 'Foiz'}
                   </label>
                   <input
                     type="number"
@@ -675,14 +749,14 @@ function AccountEditModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Причина
+                    {language === 'ru' ? 'Причина' : 'Sabab'}
                   </label>
                   <input
                     type="text"
                     value={formData.discountReason}
                     onChange={(e) => setFormData({ ...formData, discountReason: e.target.value })}
                     className="input-field"
-                    placeholder="Основание"
+                    placeholder={language === 'ru' ? 'Основание' : 'Asos'}
                   />
                 </div>
               </div>
@@ -691,10 +765,10 @@ function AccountEditModal({
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary flex-1">
-              Сохранить
+              {language === 'ru' ? 'Сохранить' : 'Saqlash'}
             </button>
           </div>
         </form>

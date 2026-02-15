@@ -89,7 +89,7 @@ export function PopupNotification({
       case 'delivery_completed':
         return 'bg-orange-500 hover:bg-orange-600 text-white';
       default:
-        return 'bg-orange-400 hover:bg-orange-500 text-black';
+        return 'bg-primary-400 hover:bg-primary-500 text-black';
     }
   };
 

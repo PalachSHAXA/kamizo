@@ -3,7 +3,7 @@
 -- Users table (all user types)
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  login TEXT UNIQUE NOT NULL,
+  login TEXT NOT NULL,
   phone TEXT,
   password_hash TEXT NOT NULL,
   password_plain TEXT,              -- Plain password for admin convenience (optional)
@@ -812,6 +812,16 @@ CREATE TABLE IF NOT EXISTS chat_channel_reads (
   user_id TEXT NOT NULL ) ON DELETE CASCADE,
   last_read_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (channel_id, user_id)
+);
+
+-- Notes (personal notepad for users)
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Announcements

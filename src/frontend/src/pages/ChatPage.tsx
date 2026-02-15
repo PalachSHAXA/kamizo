@@ -24,6 +24,10 @@ interface ChatChannel {
   last_sender_id?: string;
   unread_count?: number;
   created_at: string;
+  // Resident info for private_support channels
+  resident_apartment?: string;
+  resident_building_name?: string;
+  resident_branch_name?: string;
 }
 
 interface ChatMessage {
@@ -100,12 +104,6 @@ function RoleBadge({ role, language }: { role: UserRole; language: string }) {
       color: 'bg-pink-100 text-pink-700',
       icon: <User className="w-3 h-3" />
     },
-    coupon_checker: {
-      label: 'Чекер',
-      labelUz: 'Tekshiruvchi',
-      color: 'bg-teal-100 text-teal-700',
-      icon: <User className="w-3 h-3" />
-    },
     dispatcher: {
       label: 'Диспетчер',
       labelUz: 'Dispetcher',
@@ -136,6 +134,9 @@ function RoleBadge({ role, language }: { role: UserRole; language: string }) {
   );
 }
 
+// Tab type for channel list filtering
+type ChannelTab = 'all' | 'unread' | string; // string for branch names
+
 // Channel list for admin/manager - shows private support chats from residents
 function AdminChannelList({
   channels,
@@ -150,6 +151,7 @@ function AdminChannelList({
 }) {
   const { language } = useLanguageStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<ChannelTab>('all');
 
   // Filter channels by search query
   const filteredChannels = channels.filter(ch => {
@@ -185,6 +187,26 @@ function AdminChannelList({
   // Calculate total unread
   const totalUnread = channels.reduce((sum, ch) => sum + (ch.unread_count || 0), 0);
 
+  // Get channels with unread messages
+  const unreadChannels = privateSupportChannels.filter(ch => ch.unread_count && ch.unread_count > 0);
+
+  // Get unique branch names from channels
+  const branchNames = [...new Set(
+    privateSupportChannels
+      .map(ch => ch.resident_branch_name)
+      .filter((name): name is string => !!name)
+  )].sort();
+
+  // Filter channels based on active tab
+  const getDisplayedPrivateSupportChannels = () => {
+    if (activeTab === 'all') return privateSupportChannels;
+    if (activeTab === 'unread') return unreadChannels;
+    // Filter by branch name
+    return privateSupportChannels.filter(ch => ch.resident_branch_name === activeTab);
+  };
+
+  const displayedPrivateSupportChannels = getDisplayedPrivateSupportChannels();
+
   const getChannelIcon = (type: ChatChannelType) => {
     switch (type) {
       case 'uk_general': return <Building2 className="w-5 h-5" />;
@@ -216,6 +238,60 @@ function AdminChannelList({
         </div>
       </div>
 
+      {/* Quick filter tabs - scrollable resident tabs */}
+      <div className="p-2 border-b bg-gray-50 flex gap-2 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+            activeTab === 'all'
+              ? 'bg-primary-500 text-gray-900'
+              : 'bg-white text-gray-600 hover:bg-gray-100 border'
+          }`}
+        >
+          {language === 'ru' ? 'Все' : 'Hammasi'} ({privateSupportChannels.length})
+        </button>
+        {unreadChannels.length > 0 && (
+          <button
+            onClick={() => setActiveTab('unread')}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 flex-shrink-0 ${
+              activeTab === 'unread'
+                ? 'bg-red-500 text-white'
+                : 'bg-white text-red-600 hover:bg-red-50 border border-red-200'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-current" />
+            {language === 'ru' ? 'Новые' : 'Yangi'} ({unreadChannels.length})
+          </button>
+        )}
+        {/* Show branch tabs as scrollable chips */}
+        {branchNames.map(branchName => {
+          const branchChannels = privateSupportChannels.filter(ch => ch.resident_branch_name === branchName);
+          const branchUnread = branchChannels.reduce((sum, ch) => sum + (ch.unread_count || 0), 0);
+
+          return (
+            <button
+              key={branchName}
+              onClick={() => setActiveTab(branchName)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 flex-shrink-0 ${
+                activeTab === branchName
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border'
+              }`}
+            >
+              <Building2 className="w-3 h-3" />
+              {branchName} ({branchChannels.length})
+              {branchUnread > 0 && (
+                <span className={`min-w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                  activeTab === branchName ? 'bg-white text-blue-500' : 'bg-red-500 text-white'
+                }`}>
+                  {branchUnread}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Search */}
       <div className="p-3 border-b">
         <div className="relative">
@@ -239,13 +315,13 @@ function AdminChannelList({
         ) : (
           <>
             {/* Private support chats section */}
-            {privateSupportChannels.length > 0 && (
+            {displayedPrivateSupportChannels.length > 0 && (
               <div>
                 <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {language === 'ru' ? 'Обращения жителей' : 'Aholi murojatları'} ({privateSupportChannels.length})
+                  {language === 'ru' ? 'Обращения жителей' : 'Aholi murojatları'} ({displayedPrivateSupportChannels.length})
                 </div>
                 <div className="divide-y">
-                  {privateSupportChannels.map((channel) => {
+                  {displayedPrivateSupportChannels.map((channel) => {
                     const isSelected = selectedChannelId === channel.id;
 
                     return (
@@ -275,7 +351,7 @@ function AdminChannelList({
                               {channel.name}
                             </span>
                             {channel.last_message_at && (
-                              <span className={`text-xs ${channel.unread_count && channel.unread_count > 0 ? 'text-blue-500 font-medium' : 'text-gray-400'}`}>
+                              <span className={`text-xs flex-shrink-0 ml-2 ${channel.unread_count && channel.unread_count > 0 ? 'text-blue-500 font-medium' : 'text-gray-400'}`}>
                                 {new Date(channel.last_message_at).toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
                                   hour: '2-digit',
                                   minute: '2-digit'
@@ -283,12 +359,18 @@ function AdminChannelList({
                               </span>
                             )}
                           </div>
+                          {/* Show branch, building and apartment info */}
+                          {(channel.resident_building_name || channel.resident_apartment || channel.resident_branch_name) && (
+                            <div className="text-xs text-gray-400 truncate">
+                              {channel.resident_branch_name && (
+                                <span>{channel.resident_branch_name} • </span>
+                              )}
+                              {channel.resident_building_name && <span>{channel.resident_building_name}</span>}
+                              {channel.resident_building_name && channel.resident_apartment && <span> • </span>}
+                              {channel.resident_apartment && <span>{language === 'ru' ? 'кв.' : 'xon.'} {channel.resident_apartment}</span>}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2">
-                            {channel.description && (
-                              <span className="text-xs text-gray-400">
-                                {channel.description}
-                              </span>
-                            )}
                             <span className={`text-sm truncate ${channel.unread_count && channel.unread_count > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
                               {channel.last_message || ''}
                             </span>
@@ -301,59 +383,68 @@ function AdminChannelList({
               </div>
             )}
 
-            {/* Group channels section */}
-            <div>
-              <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                {language === 'ru' ? 'Групповые чаты' : 'Guruh chatlari'}
+            {activeTab === 'all' && displayedPrivateSupportChannels.length === 0 && privateSupportChannels.length === 0 && (
+              <div className="p-8 text-center text-gray-500">
+                <User className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                <p>{language === 'ru' ? 'Нет обращений от жителей' : 'Aholidan murojaatlar yo\'q'}</p>
               </div>
-              <div className="divide-y">
-                {groupChannels.map((channel) => {
-                  const labels = CHAT_CHANNEL_LABELS[channel.type];
-                  const isSelected = selectedChannelId === channel.id;
+            )}
 
-                  return (
-                    <button
-                      key={channel.id}
-                      onClick={() => onSelectChannel(channel.id)}
-                      className={`w-full p-4 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors ${
-                        isSelected ? 'bg-primary-50' : ''
-                      }`}
-                    >
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        channel.type === 'uk_general' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'
-                      }`}>
-                        {getChannelIcon(channel.type)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium truncate">
-                            {language === 'ru' ? labels.label : labels.labelUz}
-                          </span>
-                          {channel.last_message_at && (
-                            <span className="text-xs text-gray-400">
-                              {new Date(channel.last_message_at).toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
+            {/* Group channels section - only show in "all" tab */}
+            {activeTab === 'all' && (
+              <div>
+                <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {language === 'ru' ? 'Групповые чаты' : 'Guruh chatlari'}
+                </div>
+                <div className="divide-y">
+                  {groupChannels.map((channel) => {
+                    const labels = CHAT_CHANNEL_LABELS[channel.type];
+                    const isSelected = selectedChannelId === channel.id;
+
+                    return (
+                      <button
+                        key={channel.id}
+                        onClick={() => onSelectChannel(channel.id)}
+                        className={`w-full p-4 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors ${
+                          isSelected ? 'bg-primary-50' : ''
+                        }`}
+                      >
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                          channel.type === 'uk_general' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'
+                        }`}>
+                          {getChannelIcon(channel.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium truncate">
+                              {language === 'ru' ? labels.label : labels.labelUz}
                             </span>
+                            {channel.last_message_at && (
+                              <span className="text-xs text-gray-400">
+                                {new Date(channel.last_message_at).toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          {channel.message_count && channel.message_count > 0 ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Users className="w-3.5 h-3.5" />
+                              <span>{channel.message_count} {language === 'ru' ? 'сообщений' : 'xabar'}</span>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400">
+                              {language === 'ru' ? 'Нет сообщений' : 'Xabar yo\'q'}
+                            </p>
                           )}
                         </div>
-                        {channel.message_count && channel.message_count > 0 ? (
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Users className="w-3.5 h-3.5" />
-                            <span>{channel.message_count} {language === 'ru' ? 'сообщений' : 'xabar'}</span>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-400">
-                            {language === 'ru' ? 'Нет сообщений' : 'Xabar yo\'q'}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>
@@ -481,7 +572,7 @@ function ChatView({
       console.error('Failed to send message:', error);
       // Restore message on error
       setNewMessage(messageToSend);
-      alert('Не удалось отправить сообщение');
+      alert(language === 'ru' ? 'Не удалось отправить сообщение' : 'Xabar yuborib bo\'lmadi');
     } finally {
       setIsSending(false);
     }
@@ -495,7 +586,7 @@ function ChatView({
         return language === 'ru' ? 'Чат с администрацией' : 'Administratsiya bilan chat';
       }
       // For admin/manager - show resident name
-      return channel.name || 'Чат';
+      return channel.name || (language === 'ru' ? 'Чат' : 'Chat');
     }
     if (channel) {
       const labels = CHAT_CHANNEL_LABELS[channel.type];

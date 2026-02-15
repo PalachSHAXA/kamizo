@@ -3,7 +3,7 @@
 -- Users table (all user types)
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  login TEXT UNIQUE NOT NULL,
+  login TEXT NOT NULL,
   phone TEXT,
   password_hash TEXT NOT NULL,
   password_plain TEXT,              -- Plain password for admin convenience (optional)
@@ -596,6 +596,7 @@ CREATE TABLE IF NOT EXISTS requests (
   closed_at TEXT,
   is_paused INTEGER DEFAULT 0,
   paused_at TEXT,
+  pause_reason TEXT,
   total_paused_time INTEGER DEFAULT 0,
   rating INTEGER CHECK (rating >= 1 AND rating <= 5),
   feedback TEXT,
@@ -814,6 +815,19 @@ CREATE TABLE IF NOT EXISTS chat_channel_reads (
   last_read_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (channel_id, user_id)
 );
+
+-- Notes (personal notepad for users)
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at);
 
 -- Announcements
 CREATE TABLE IF NOT EXISTS announcements (

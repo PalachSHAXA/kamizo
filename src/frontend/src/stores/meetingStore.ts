@@ -81,7 +81,7 @@ const mapMeetingFromApi = (data: any): Meeting => {
     votingSettings: parseJson(data.voting_settings || data.votingSettings, {}),
     eligibleVoters: parseJson(data.eligible_voters || data.eligibleVoters, []),
     totalEligibleCount: data.total_eligible_count || data.totalEligibleCount || 0,
-    participatedVoters: parseJson(data.participated_voters || data.participatedVoters, []),
+    participatedVoters: [...new Set(parseJson(data.participated_voters || data.participatedVoters, []))] as string[],
     quorumReached: Boolean(data.quorum_reached || data.quorumReached),
     participationPercent: data.participation_percent || data.participationPercent || 0,
     moderatedAt: data.moderated_at || data.moderatedAt,
@@ -101,6 +101,17 @@ const mapMeetingFromApi = (data: any): Meeting => {
     createdAt: data.created_at || data.createdAt,
   };
 };
+
+// Merge partial API response (base meeting fields) with existing full meeting (preserving sub-data)
+const mergeMeetingUpdate = (existing: Meeting, updated: Meeting): Meeting => ({
+  ...existing,
+  ...updated,
+  scheduleOptions: updated.scheduleOptions.length > 0 ? updated.scheduleOptions : existing.scheduleOptions,
+  agendaItems: updated.agendaItems.length > 0 ? updated.agendaItems : existing.agendaItems,
+  participatedVoters: updated.participatedVoters.length > 0 ? updated.participatedVoters : existing.participatedVoters,
+  eligibleVoters: updated.eligibleVoters.length > 0 ? updated.eligibleVoters : existing.eligibleVoters,
+  materials: updated.materials.length > 0 ? updated.materials : existing.materials,
+});
 
 interface VoteRecordApiData {
   id: string;
@@ -285,6 +296,7 @@ interface MeetingState {
   error: string | null;
 
   // Data fetching
+  _silentRefetch: () => Promise<void>;
   fetchMeetings: () => Promise<void>;
   fetchMeetingsByBuilding: (buildingId: string) => Promise<void>;
   fetchVotingUnitsByBuilding: (buildingId: string) => Promise<void>;
@@ -478,6 +490,17 @@ export const useMeetingStore = create<MeetingState>()(
 
       // ========== Data Fetching ==========
 
+      // Silent refetch without loading state - used after mutations to get complete data with sub-tables
+      _silentRefetch: async () => {
+        try {
+          const response = await meetingsFullApi.getAll({ onlyActive: true });
+          if (response.success && response.data) {
+            const meetings = Array.isArray(response.data) ? response.data.map(mapMeetingFromApi) : [];
+            set({ meetings });
+          }
+        } catch {}
+      },
+
       fetchMeetings: async () => {
         set({ loading: true, error: null });
         try {
@@ -573,9 +596,9 @@ export const useMeetingStore = create<MeetingState>()(
 
           const response = await meetingsFullApi.update(id, apiData);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === id ? meeting : m),
+              meetings: state.meetings.map(m => m.id === id ? mergeMeetingUpdate(m, updated) : m),
               loading: false
             }));
           } else {
@@ -636,10 +659,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.submit(meetingId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to submit for moderation:', error);
@@ -650,10 +674,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.approve(meetingId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to approve meeting:', error);
@@ -664,10 +689,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.reject(meetingId, reason);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to reject meeting:', error);
@@ -678,10 +704,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.openSchedulePoll(meetingId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to open schedule poll:', error);
@@ -692,10 +719,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.confirmSchedule(meetingId, selectedOptionId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to confirm schedule:', error);
@@ -706,10 +734,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.openVoting(meetingId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to open voting:', error);
@@ -720,10 +749,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.closeVoting(meetingId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to close voting:', error);
@@ -734,10 +764,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.publishResults(meetingId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to publish results:', error);
@@ -756,6 +787,7 @@ export const useMeetingStore = create<MeetingState>()(
                 m.id === meetingId ? { ...m, status: 'protocol_generated' as const } : m
               )
             }));
+            get()._silentRefetch();
             return protocol;
           }
           throw new Error('Failed to generate protocol');
@@ -769,10 +801,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.approveProtocol(meetingId);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to approve protocol:', error);
@@ -783,10 +816,11 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.cancel(meetingId, reason);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
+            get()._silentRefetch();
           }
         } catch (error) {
           console.error('Failed to cancel meeting:', error);
@@ -848,6 +882,10 @@ export const useMeetingStore = create<MeetingState>()(
             ownershipShare: verificationData.ownershipShare,
             comment, // Комментарий к голосу
           });
+
+          if (!response.success) {
+            throw new Error(response.error || 'Ошибка при голосовании');
+          }
 
           // Create a temporary vote record based on the response
           const voteRecord: VoteRecord = {
@@ -1042,10 +1080,15 @@ export const useMeetingStore = create<MeetingState>()(
           return { participated: 0, total: 0, percent: 0, quorumReached: false };
         }
 
-        const participated = meeting.participatedVoters?.length || 0;
+        // Deduplicate participatedVoters (table may have duplicates without UNIQUE constraint)
+        const uniqueVoters = new Set(meeting.participatedVoters || []);
+        const participated = uniqueVoters.size;
         const total = meeting.totalEligibleCount || meeting.eligibleVoters?.length || 0;
-        const percent = total > 0 ? (participated / total) * 100 : 0;
-        // Use quorumReached from server if available, otherwise calculate from votingSettings
+        // Use server-provided area-based participationPercent if available,
+        // otherwise fall back to count-based calculation (capped at 100%)
+        const percent = meeting.participationPercent > 0
+          ? Math.min(meeting.participationPercent, 100)
+          : total > 0 ? Math.min((participated / total) * 100, 100) : 0;
         const quorumPercent = meeting.votingSettings?.quorumPercent || 50;
         const quorumReached = meeting.quorumReached ?? (percent >= quorumPercent);
 
@@ -1183,9 +1226,9 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingEligibleVotersApi.set(meetingId, voterIds, totalCount);
           if (response.success && response.data) {
-            const meeting = mapMeetingFromApi(response.data);
+            const updated = mapMeetingFromApi(response.data);
             set((state) => ({
-              meetings: state.meetings.map(m => m.id === meetingId ? meeting : m)
+              meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
             }));
           }
         } catch (error) {

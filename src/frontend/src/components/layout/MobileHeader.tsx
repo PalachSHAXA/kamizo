@@ -32,8 +32,12 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
   const unreadAnnouncementsCount = userAnnouncements.filter(a => !a.viewedBy?.includes(user?.id || '')).length;
 
+  // Tenant/commercial_owner don't participate in meetings
+  const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
+
   // Get upcoming meetings
   const upcomingMeetings = useMemo(() => {
+    if (isRentalUser) return [];
     const nowDate = new Date();
     const weekFromNow = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
     return meetings.filter(m => {
@@ -41,7 +45,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
       const meetingDate = new Date(m.confirmedDateTime);
       return meetingDate >= nowDate && meetingDate <= weekFromNow && m.status !== 'cancelled';
     });
-  }, [meetings]);
+  }, [meetings, isRentalUser]);
 
   // Calculate pending onboarding tasks with details
   const pendingTasks = useMemo(() => {
@@ -63,7 +67,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
         path: '/profile',
         completed: !!(user.phone && user.phone.length >= 5)
       },
-      {
+      ...(!isRentalUser ? [{
         id: 'contract',
         title: 'Подписать договор',
         description: 'Договор с управляющей компанией',
@@ -78,10 +82,10 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
         icon: Car,
         path: '/vehicles',
         completed: vehicles.some(v => v.ownerId === user.id)
-      }
+      }] : [])
     ];
     return tasks;
-  }, [isResident, user, vehicles]);
+  }, [isResident, isRentalUser, user, vehicles]);
 
   const pendingTasksCount = pendingTasks.filter(t => !t.completed).length;
 

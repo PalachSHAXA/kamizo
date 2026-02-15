@@ -19,7 +19,6 @@ const DEMO_ACCOUNTS = [
 // Hidden accounts (not shown in demo buttons, but can login manually)
 // admin: login='admin', password='kamizo'
 // dispatcher: login='dispatcher', password='kamizo'
-// coupon_checker: login='coupon_checker', password='kamizo'
 // advertiser: login='advertiser', password='kamizo'
 
 // Convert hex color to rgba string
@@ -33,7 +32,7 @@ const hexToRgba = (hex: string, alpha: number) => {
 export function LoginPage() {
   const { login, isLoading: authLoading, error: authError } = useAuthStore();
   const { language, setLanguage, t } = useLanguageStore();
-  const { config: tenantConfig } = useTenantStore();
+  const { config: tenantConfig, isConfigFetched } = useTenantStore();
   const tenant = tenantConfig?.tenant;
 
   // Tenant brand colors
@@ -108,6 +107,11 @@ export function LoginPage() {
 
   const displayError = error || authError;
 
+  // Show blank screen while tenant config is loading to prevent flash of wrong layout
+  if (!isConfigFetched) {
+    return <div className="min-h-screen bg-gray-50" />;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       {/* Language Switcher */}
@@ -152,10 +156,10 @@ export function LoginPage() {
             <div className="flex items-center justify-center gap-3">
               {/* Tenant Logo + Name */}
               {tenant.logo ? (
-                <img src={tenant.logo} alt={tenant.name} className="w-12 h-12 rounded-xl object-cover" />
+                <img src={tenant.logo} alt={tenant.name} className="w-20 h-20 flex-shrink-0 rounded-2xl object-cover shadow-sm" />
               ) : (
                 <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                  className="w-20 h-20 flex-shrink-0 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-sm"
                   style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
                 >
                   {tenant.name[0]}
@@ -170,7 +174,7 @@ export function LoginPage() {
               <span className="text-gray-300 text-xl mx-1">×</span>
 
               {/* Kamizo Logo */}
-              <AppLogo size="lg" />
+              <AppLogo size="xl-login" />
               <div className="text-left">
                 <h2 className="text-lg font-bold text-gray-900 leading-tight">kamizo</h2>
                 <p className="text-xs text-gray-400 font-medium">CRM</p>

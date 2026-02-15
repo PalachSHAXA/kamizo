@@ -164,7 +164,7 @@ export function useExecutorsBySpecialization(executors: Executor[]) {
       intercom: [],
       cleaning: [],
       security: [],
-      carpenter: [],
+      trash: [],
       boiler: [],
       ac: [],
       other: [],

@@ -77,7 +77,7 @@ const getDepartmentName = (specialization: ExecutorSpecialization): string => {
     intercom: 'Домофонная служба',
     cleaning: 'Клининг',
     security: 'Служба безопасности',
-    carpenter: 'Столярный отдел',
+    trash: 'Служба вывоза мусора',
     boiler: 'Котельная служба',
     ac: 'Климат-контроль',
     courier: 'Служба доставки',
@@ -218,7 +218,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
 
           <button
             onClick={handleSubmit}
-            className="w-full mt-6 bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 rounded-lg transition-colors"
+            className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
           >
             Отправить оценку
           </button>
@@ -276,7 +276,7 @@ function ThankModal({ employee, onClose, onSubmit }: {
 
           <button
             onClick={handleSubmit}
-            className="w-full mt-6 bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 rounded-lg transition-colors"
+            className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
           >
             Отправить спасибо
           </button>
@@ -447,9 +447,9 @@ function TopColleagues({ employees }: { employees: Employee[] }) {
             <div
               key={emp.id}
               className={`p-3 rounded-xl border-2 flex items-center gap-3 ${
-                i === 0 ? 'border-orange-400 bg-orange-50' :
+                i === 0 ? 'border-primary-400 bg-primary-50' :
                 i === 1 ? 'border-gray-300 bg-gray-50' :
-                'border-orange-300 bg-orange-50'
+                'border-primary-300 bg-primary-50'
               }`}
             >
               <span className="text-xl flex-shrink-0">

@@ -338,8 +338,8 @@ export function ResidentProfilePage() {
 
           {/* Phone - Editable */}
           <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Phone className="w-5 h-5 text-orange-600" />
+            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Phone className="w-5 h-5 text-primary-600" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-xs text-gray-500 font-medium">{t.phone}</div>
@@ -354,6 +354,7 @@ export function ResidentProfilePage() {
                   onChange={(e) => setNewPhone(e.target.value)}
                   placeholder="+998 90 123 45 67"
                   className="input-field py-1.5 text-sm"
+                  maxLength={13}
                   autoFocus
                 />
               )}
@@ -528,7 +529,7 @@ export function ResidentProfilePage() {
             <button
               onClick={handleDownloadContract}
               disabled={isDownloading || !qrCodeUrl}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-orange-400 hover:bg-orange-500 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium text-gray-900 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-primary-400 hover:bg-primary-500 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium text-gray-900 transition-colors"
             >
               {isDownloading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

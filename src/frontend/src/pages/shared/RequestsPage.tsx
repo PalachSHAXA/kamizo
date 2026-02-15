@@ -1,15 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch } from 'lucide-react';
+import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
-import { SPECIALIZATION_LABELS } from '../../types';
+import { useLanguageStore } from '../../stores/languageStore';
+import { SPECIALIZATION_LABELS, PAUSE_REASON_LABELS } from '../../types';
 import { branchesApi, buildingsApi, usersApi } from '../../services/api';
 import { formatAddress } from '../../utils/formatAddress';
 import type { ExecutorSpecialization, RequestPriority } from '../../types';
 
 export function RequestsPage() {
   const { user } = useAuthStore();
+  const { language } = useLanguageStore();
   const { requests, executors, assignRequest, addRequest, fetchRequests, fetchExecutors, isLoadingRequests } = useDataStore();
   const [searchParams] = useSearchParams();
   const statusFilter = searchParams.get('status') || 'all';
@@ -59,15 +61,27 @@ export function RequestsPage() {
     }
   }, [showAssignModal, fetchExecutors]);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'new': return <span className="badge badge-new">Новая</span>;
-      case 'assigned': return <span className="badge bg-indigo-100 text-indigo-700">Назначена</span>;
-      case 'accepted': return <span className="badge bg-cyan-100 text-cyan-700">Принята</span>;
-      case 'in_progress': return <span className="badge badge-progress">В работе</span>;
-      case 'pending_approval': return <span className="badge bg-purple-100 text-purple-700">Ожидает подтверждения</span>;
-      case 'completed': return <span className="badge badge-done">Выполнена</span>;
-      default: return <span className="badge">{status}</span>;
+  const getStatusBadge = (req: { status: string; isPaused?: boolean; pauseReason?: string }) => {
+    // Show paused badge if request is paused (regardless of underlying status)
+    if (req.isPaused) {
+      const reasonLabel = req.pauseReason && PAUSE_REASON_LABELS[req.pauseReason]
+        ? PAUSE_REASON_LABELS[req.pauseReason].label
+        : req.pauseReason || (language === 'ru' ? 'На паузе' : 'Pauzada');
+      return (
+        <span className="badge bg-gray-200 text-gray-700 flex items-center gap-1" title={reasonLabel}>
+          <Pause className="w-3 h-3" />
+          {language === 'ru' ? 'На паузе' : 'Pauzada'}
+        </span>
+      );
+    }
+    switch (req.status) {
+      case 'new': return <span className="badge badge-new">{language === 'ru' ? 'Новая' : 'Yangi'}</span>;
+      case 'assigned': return <span className="badge bg-indigo-100 text-indigo-700">{language === 'ru' ? 'Назначена' : 'Tayinlandi'}</span>;
+      case 'accepted': return <span className="badge bg-cyan-100 text-cyan-700">{language === 'ru' ? 'Принята' : 'Qabul qilindi'}</span>;
+      case 'in_progress': return <span className="badge badge-progress">{language === 'ru' ? 'В работе' : 'Jarayonda'}</span>;
+      case 'pending_approval': return <span className="badge bg-purple-100 text-purple-700">{language === 'ru' ? 'Ожидает подтверждения' : 'Tasdiqlash kutilmoqda'}</span>;
+      case 'completed': return <span className="badge badge-done">{language === 'ru' ? 'Выполнена' : 'Bajarildi'}</span>;
+      default: return <span className="badge">{req.status}</span>;
     }
   };
 
@@ -97,11 +111,13 @@ export function RequestsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isDepartmentHead ? 'Заявки отдела' : 'Заявки'}
+            {isDepartmentHead
+              ? (language === 'ru' ? 'Заявки отдела' : 'Bo\'lim arizalari')
+              : (language === 'ru' ? 'Заявки' : 'Arizalar')}
           </h1>
           {isDepartmentHead && userSpecialization && (
             <p className="text-gray-500 text-sm mt-1">
-              Отдел: {SPECIALIZATION_LABELS[userSpecialization as ExecutorSpecialization]}
+              {language === 'ru' ? 'Отдел' : 'Bo\'lim'}: {SPECIALIZATION_LABELS[userSpecialization as ExecutorSpecialization]}
             </p>
           )}
         </div>
@@ -111,18 +127,18 @@ export function RequestsPage() {
             className="btn-primary flex items-center gap-2"
           >
             <Plus className="w-5 h-5" />
-            <span className="hidden sm:inline">Создать заявку</span>
+            <span className="hidden sm:inline">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</span>
           </button>
         )}
       </div>
 
       {/* Filters */}
-      <div className="glass-card p-4 flex items-center gap-4">
+      <div className="glass-card p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Поиск по номеру, названию, адресу..."
+            placeholder={language === 'ru' ? 'Поиск по номеру, названию, адресу...' : 'Raqam, nom, manzil bo\'yicha qidirish...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="glass-input pl-10"
@@ -131,15 +147,15 @@ export function RequestsPage() {
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="glass-input w-48"
+          className="glass-input w-full sm:w-48"
         >
-          <option value="all">Все статусы</option>
-          <option value="new">Новые</option>
-          <option value="assigned">Назначенные</option>
-          <option value="accepted">Принятые</option>
-          <option value="in_progress">В работе</option>
-          <option value="pending_approval">Ожидают подтверждения</option>
-          <option value="completed">Выполненные</option>
+          <option value="all">{language === 'ru' ? 'Все статусы' : 'Barcha holatlar'}</option>
+          <option value="new">{language === 'ru' ? 'Новые' : 'Yangilar'}</option>
+          <option value="assigned">{language === 'ru' ? 'Назначенные' : 'Tayinlanganlar'}</option>
+          <option value="accepted">{language === 'ru' ? 'Принятые' : 'Qabul qilinganlar'}</option>
+          <option value="in_progress">{language === 'ru' ? 'В работе' : 'Jarayonda'}</option>
+          <option value="pending_approval">{language === 'ru' ? 'Ожидают подтверждения' : 'Tasdiqlash kutilmoqda'}</option>
+          <option value="completed">{language === 'ru' ? 'Выполненные' : 'Bajarilganlar'}</option>
         </select>
       </div>
 
@@ -147,28 +163,43 @@ export function RequestsPage() {
       {isLoadingRequests ? (
         <div className="flex justify-center items-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-          <span className="ml-3 text-gray-600">Загрузка заявок...</span>
+          <span className="ml-3 text-gray-600">{language === 'ru' ? 'Загрузка заявок...' : 'Arizalar yuklanmoqda...'}</span>
         </div>
       ) : filteredRequests.length === 0 ? (
         <div className="glass-card p-8 text-center text-gray-500">
-          Заявки не найдены
+          {language === 'ru' ? 'Заявки не найдены' : 'Arizalar topilmadi'}
         </div>
       ) : (
       <div className="space-y-3">
         {filteredRequests.map((req) => (
-          <div key={req.id} className="glass-card p-5">
-            <div className="flex items-start justify-between">
-              <div className="flex gap-4">
-                <div className={`w-3 h-3 mt-1.5 rounded-full ${req.priority === 'urgent' ? 'bg-red-500' : req.priority === 'high' ? 'bg-orange-500' : req.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`}></div>
-                <div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-500">#{req.number}</span>
-                    <h3 className="font-semibold text-lg">{req.title}</h3>
-                    {getStatusBadge(req.status)}
+          <div key={req.id} className="glass-card p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div className="flex gap-3 sm:gap-4 min-w-0">
+                <div className={`w-3 h-3 mt-1.5 rounded-full flex-shrink-0 ${req.priority === 'urgent' ? 'bg-red-500' : req.priority === 'high' ? 'bg-orange-500' : req.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`}></div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs sm:text-sm text-gray-500 flex-shrink-0">#{req.number}</span>
+                    <h3 className="font-semibold text-base sm:text-lg">{req.title}</h3>
+                    {getStatusBadge(req)}
                   </div>
                   <div className="text-sm text-gray-600 mt-1">
                     <span className="font-medium">{SPECIALIZATION_LABELS[req.category]}</span> • {req.residentName}
                   </div>
+                  {/* Show trash type and volume badges */}
+                  {req.category === 'trash' && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {req.title.includes(': ') && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                          {TRASH_TYPES.find(t => req.title.endsWith(t.label))?.icon || '🗑️'} {req.title.split(': ').slice(1).join(': ')}
+                        </span>
+                      )}
+                      {req.description?.includes('Объём: ') && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                          📦 {req.description.split('Объём: ')[1].split('\n')[0]}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                     <span className="flex items-center gap-1">
                       <MapPin className="w-4 h-4" />
@@ -177,21 +208,33 @@ export function RequestsPage() {
                   </div>
                   {req.executorName && (
                     <div className="mt-2 text-sm text-primary-600">
-                      Исполнитель: {req.executorName}
+                      {language === 'ru' ? 'Исполнитель' : 'Ijrochi'}: {req.executorName}
+                    </div>
+                  )}
+                  {/* Show pause reason if request is paused */}
+                  {req.isPaused && req.pauseReason && (
+                    <div className="mt-2 p-2 bg-gray-100 border border-gray-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Pause className="w-4 h-4" />
+                        <span className="font-medium">{language === 'ru' ? 'Причина паузы:' : 'Pauza sababi:'}</span>
+                        <span>
+                          {PAUSE_REASON_LABELS[req.pauseReason]?.label || req.pauseReason}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                {req.status === 'new' && (
+              {req.status === 'new' && (
+                <div className="flex sm:flex-shrink-0">
                   <button
                     onClick={() => setShowAssignModal(req.id)}
-                    className="btn-primary text-sm py-2 px-4"
+                    className="btn-primary text-sm py-2 px-4 w-full sm:w-auto"
                   >
-                    Назначить
+                    {language === 'ru' ? 'Назначить' : 'Tayinlash'}
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -202,10 +245,10 @@ export function RequestsPage() {
       {showAssignModal && (
         <div className="modal-backdrop">
           <div className="modal-content p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-bold mb-4">Назначить исполнителя</h2>
+            <h2 className="text-xl font-bold mb-4">{language === 'ru' ? 'Назначить исполнителя' : 'Ijrochini tayinlash'}</h2>
             <div className="space-y-3">
               {departmentExecutors.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">Загрузка исполнителей...</p>
+                <p className="text-gray-500 text-center py-4">{language === 'ru' ? 'Загрузка исполнителей...' : 'Ijrochilar yuklanmoqda...'}</p>
               ) : (
                 departmentExecutors.map((executor) => (
                   <button
@@ -218,7 +261,7 @@ export function RequestsPage() {
                   >
                     <div className="font-medium">{executor.name}</div>
                     <div className="text-sm text-gray-500">
-                      {SPECIALIZATION_LABELS[executor.specialization]} • {executor.activeRequests} активных заявок
+                      {SPECIALIZATION_LABELS[executor.specialization]} • {executor.activeRequests} {language === 'ru' ? 'активных заявок' : 'faol arizalar'}
                     </div>
                   </button>
                 ))
@@ -228,7 +271,7 @@ export function RequestsPage() {
               onClick={() => setShowAssignModal(null)}
               className="btn-secondary w-full mt-4"
             >
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
           </div>
         </div>
@@ -272,6 +315,42 @@ interface Resident {
 }
 
 // Create Request Modal for managers/admins
+// Trash type options
+const TRASH_TYPES = [
+  { value: 'construction', label: 'Строительный мусор', icon: '🧱', description: 'Кирпич, бетон, штукатурка' },
+  { value: 'furniture', label: 'Старая мебель', icon: '🛋️', description: 'Диваны, шкафы, кровати' },
+  { value: 'household', label: 'Бытовой мусор', icon: '🗑️', description: 'Обычные бытовые отходы' },
+  { value: 'appliances', label: 'Бытовая техника', icon: '📺', description: 'Холодильники, стиральные машины' },
+  { value: 'garden', label: 'Садовый мусор', icon: '🌿', description: 'Ветки, листья, трава' },
+  { value: 'mixed', label: 'Смешанный', icon: '📦', description: 'Разные виды мусора' },
+];
+
+// Trash volume options
+const TRASH_VOLUME = [
+  { value: 'small', label: 'До 1 м³', description: '1-2 мешка, небольшие предметы', icon: '📦' },
+  { value: 'medium', label: '1-3 м³', description: 'Несколько мешков, мелкая мебель', icon: '📦📦' },
+  { value: 'large', label: '3-5 м³', description: 'Много мусора, крупная мебель', icon: '🚛' },
+  { value: 'truck', label: 'Более 5 м³', description: 'Полная машина, капремонт', icon: '🚚' },
+];
+
+// Uzbek translations for trash types
+const TRASH_TYPES_UZ: Record<string, { label: string; description: string }> = {
+  construction: { label: 'Qurilish axlati', description: 'G\'isht, beton, suvoq' },
+  furniture: { label: 'Eski mebel', description: 'Divan, shkaf, karavot' },
+  household: { label: 'Maishiy axlat', description: 'Oddiy maishiy chiqindilar' },
+  appliances: { label: 'Maishiy texnika', description: 'Muzlatgich, kir yuvish mashinalari' },
+  garden: { label: 'Bog\' axlati', description: 'Shoxlar, barglar, o\'t' },
+  mixed: { label: 'Aralash', description: 'Turli xil axlatlar' },
+};
+
+// Uzbek translations for trash volume
+const TRASH_VOLUME_UZ: Record<string, { label: string; description: string }> = {
+  small: { label: '1 m³ gacha', description: '1-2 qop, kichik narsalar' },
+  medium: { label: '1-3 m³', description: 'Bir nechta qop, kichik mebel' },
+  large: { label: '3-5 m³', description: 'Ko\'p axlat, katta mebel' },
+  truck: { label: '5 m³ dan ko\'p', description: 'To\'liq mashina, kapital ta\'mir' },
+};
+
 function CreateRequestModal({
   onClose,
   onSubmit
@@ -291,6 +370,7 @@ function CreateRequestModal({
     scheduledTime?: string;
   }) => void;
 }) {
+  const { language } = useLanguageStore();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<ExecutorSpecialization>('plumber');
@@ -298,6 +378,20 @@ function CreateRequestModal({
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Trash-specific fields
+  const [trashType, setTrashType] = useState('');
+  const [trashVolume, setTrashVolume] = useState('');
+  const [trashDetails, setTrashDetails] = useState('');
+
+  // Reset trash fields when category changes
+  useEffect(() => {
+    if (category !== 'trash') {
+      setTrashType('');
+      setTrashVolume('');
+      setTrashDetails('');
+    }
+  }, [category]);
 
   // Cascading selection state
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -381,16 +475,28 @@ function CreateRequestModal({
     loadResidents();
   }, [selectedBuilding]);
 
-  const categories: { value: ExecutorSpecialization; label: string }[] = [
+  const categories: { value: ExecutorSpecialization; label: string }[] = language === 'ru' ? [
     { value: 'plumber', label: 'Сантехник' },
     { value: 'electrician', label: 'Электрик' },
     { value: 'security', label: 'Охрана' },
     { value: 'cleaning', label: 'Уборка' },
     { value: 'elevator', label: 'Лифт' },
     { value: 'intercom', label: 'Домофон' },
-    { value: 'carpenter', label: 'Плотник' },
+    { value: 'trash', label: 'Вывоз мусора' },
     { value: 'boiler', label: 'Котёл' },
+    { value: 'ac', label: 'Кондиционер' },
     { value: 'other', label: 'Другое' },
+  ] : [
+    { value: 'plumber', label: 'Santexnik' },
+    { value: 'electrician', label: 'Elektrik' },
+    { value: 'security', label: 'Qorovul' },
+    { value: 'cleaning', label: 'Tozalash' },
+    { value: 'elevator', label: 'Lift' },
+    { value: 'intercom', label: 'Domofon' },
+    { value: 'trash', label: 'Axlat chiqarish' },
+    { value: 'boiler', label: 'Qozon' },
+    { value: 'ac', label: 'Konditsioner' },
+    { value: 'other', label: 'Boshqa' },
   ];
 
   const timeSlots = [
@@ -419,18 +525,40 @@ function CreateRequestModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim() || !selectedResident) return;
+    if (!selectedResident) return;
+
+    // For trash category, validate trash-specific fields
+    if (category === 'trash') {
+      if (!trashType || !trashVolume || !scheduledDate || !scheduledTime) return;
+    } else {
+      if (!title.trim() || !description.trim()) return;
+    }
 
     setIsSubmitting(true);
     try {
+      // Build title and description for trash category
+      let finalTitle = title;
+      let finalDescription = description;
+
+      if (category === 'trash') {
+        const typeInfo = TRASH_TYPES.find(t => t.value === trashType);
+        const volumeInfo = TRASH_VOLUME.find(v => v.value === trashVolume);
+
+        finalTitle = `Вывоз мусора: ${typeInfo?.label || trashType}`;
+        finalDescription = `Тип мусора: ${typeInfo?.label || trashType}\nОбъём: ${volumeInfo?.label || trashVolume}`;
+        if (trashDetails.trim()) {
+          finalDescription += `\n\nДополнительно: ${trashDetails.trim()}`;
+        }
+      }
+
       await onSubmit({
-        title,
-        description,
+        title: finalTitle,
+        description: finalDescription,
         category,
         priority,
         residentId: selectedResident.id,
         residentName: selectedResident.name,
-        residentPhone: selectedResident.phone || 'Не указан',
+        residentPhone: selectedResident.phone || (language === 'ru' ? 'Не указан' : 'Ko\'rsatilmagan'),
         address: selectedResident.address || buildings.find(b => b.id === selectedBuilding)?.address || '',
         apartment: selectedResident.apartment || '0',
         scheduledDate: scheduledDate || undefined,
@@ -448,7 +576,7 @@ function CreateRequestModal({
     <div className="modal-backdrop">
       <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">Создать заявку</h2>
+          <h2 className="text-xl font-bold">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5" />
           </button>
@@ -458,7 +586,7 @@ function CreateRequestModal({
           {/* Category */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Категория *
+              {language === 'ru' ? 'Категория' : 'Kategoriya'} *
             </label>
             <select
               value={category}
@@ -472,39 +600,117 @@ function CreateRequestModal({
             </select>
           </div>
 
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Заголовок *
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="glass-input w-full"
-              placeholder="Кратко опишите проблему"
-              required
-            />
-          </div>
+          {/* Conditional fields based on category */}
+          {category === 'trash' ? (
+            <>
+              {/* Trash Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Тип мусора' : 'Axlat turi'} *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TRASH_TYPES.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setTrashType(type.value)}
+                      className={`p-3 rounded-xl text-left transition-all border ${
+                        trashType === type.value
+                          ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{type.icon}</span>
+                        <div>
+                          <div className="font-medium text-sm">{language === 'ru' ? type.label : (TRASH_TYPES_UZ[type.value]?.label || type.label)}</div>
+                          <div className="text-xs text-gray-500">{language === 'ru' ? type.description : (TRASH_TYPES_UZ[type.value]?.description || type.description)}</div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Описание *
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="glass-input w-full min-h-[100px] resize-none"
-              placeholder="Подробное описание проблемы"
-              required
-            />
-          </div>
+              {/* Trash Volume Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Объём мусора' : 'Axlat hajmi'} *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TRASH_VOLUME.map((vol) => (
+                    <button
+                      key={vol.value}
+                      type="button"
+                      onClick={() => setTrashVolume(vol.value)}
+                      className={`p-3 rounded-xl text-left transition-all border ${
+                        trashVolume === vol.value
+                          ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{vol.icon}</span>
+                        <div>
+                          <div className="font-medium text-sm">{language === 'ru' ? vol.label : (TRASH_VOLUME_UZ[vol.value]?.label || vol.label)}</div>
+                          <div className="text-xs text-gray-500">{language === 'ru' ? vol.description : (TRASH_VOLUME_UZ[vol.value]?.description || vol.description)}</div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additional Details for Trash */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Дополнительная информация' : 'Qo\'shimcha ma\'lumot'}
+                </label>
+                <textarea
+                  value={trashDetails}
+                  onChange={(e) => setTrashDetails(e.target.value)}
+                  className="glass-input w-full min-h-[80px] resize-none"
+                  placeholder={language === 'ru' ? 'Особые указания, этаж, подъезд и т.д.' : 'Maxsus ko\'rsatmalar, qavat, kirish va h.k.'}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Заголовок' : 'Sarlavha'} *
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="glass-input w-full"
+                  placeholder={language === 'ru' ? 'Кратко опишите проблему' : 'Muammoni qisqacha tavsiflang'}
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Описание' : 'Tavsif'} *
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="glass-input w-full min-h-[100px] resize-none"
+                  placeholder={language === 'ru' ? 'Подробное описание проблемы' : 'Muammoning batafsil tavsifi'}
+                  required
+                />
+              </div>
+            </>
+          )}
 
           {/* Priority */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Приоритет
+              {language === 'ru' ? 'Приоритет' : 'Ustuvorlik'}
             </label>
             <div className="grid grid-cols-4 gap-2">
               {(['low', 'medium', 'high', 'urgent'] as RequestPriority[]).map((p) => (
@@ -521,7 +727,13 @@ function CreateRequestModal({
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  {p === 'low' ? 'Низкий' : p === 'medium' ? 'Средний' : p === 'high' ? 'Высокий' : 'Срочный'}
+                  {p === 'low'
+                    ? (language === 'ru' ? 'Низкий' : 'Past')
+                    : p === 'medium'
+                    ? (language === 'ru' ? 'Средний' : 'O\'rta')
+                    : p === 'high'
+                    ? (language === 'ru' ? 'Высокий' : 'Yuqori')
+                    : (language === 'ru' ? 'Срочный' : 'Shoshilinch')}
                 </button>
               ))}
             </div>
@@ -531,14 +743,14 @@ function CreateRequestModal({
           <div className="border-t pt-4 mt-4">
             <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
               <User className="w-5 h-5" />
-              Выбор жителя
+              {language === 'ru' ? 'Выбор жителя' : 'Yashovchini tanlash'}
             </h3>
 
             {/* Branch Selection */}
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
                 <GitBranch className="w-4 h-4" />
-                Филиал *
+                {language === 'ru' ? 'Филиал' : 'Filial'} *
               </label>
               <select
                 value={selectedBranch}
@@ -547,7 +759,9 @@ function CreateRequestModal({
                 disabled={loadingBranches}
               >
                 <option value="">
-                  {loadingBranches ? 'Загрузка...' : 'Выберите филиал'}
+                  {loadingBranches
+                    ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                    : (language === 'ru' ? 'Выберите филиал' : 'Filialni tanlang')}
                 </option>
                 {branches.map(branch => (
                   <option key={branch.code} value={branch.code}>{branch.name}</option>
@@ -559,7 +773,7 @@ function CreateRequestModal({
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
                 <Building2 className="w-4 h-4" />
-                Дом *
+                {language === 'ru' ? 'Дом' : 'Uy'} *
               </label>
               <select
                 value={selectedBuilding}
@@ -568,7 +782,11 @@ function CreateRequestModal({
                 disabled={!selectedBranch || loadingBuildings}
               >
                 <option value="">
-                  {loadingBuildings ? 'Загрузка...' : !selectedBranch ? 'Сначала выберите филиал' : 'Выберите дом'}
+                  {loadingBuildings
+                    ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                    : !selectedBranch
+                    ? (language === 'ru' ? 'Сначала выберите филиал' : 'Avval filialni tanlang')
+                    : (language === 'ru' ? 'Выберите дом' : 'Uyni tanlang')}
                 </option>
                 {buildings.map(building => (
                   <option key={building.id} value={building.id}>
@@ -582,7 +800,7 @@ function CreateRequestModal({
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
                 <User className="w-4 h-4" />
-                Житель *
+                {language === 'ru' ? 'Житель' : 'Yashovchi'} *
               </label>
               <select
                 value={selectedResident?.id || ''}
@@ -591,11 +809,15 @@ function CreateRequestModal({
                 disabled={!selectedBuilding || loadingResidents}
               >
                 <option value="">
-                  {loadingResidents ? 'Загрузка...' : !selectedBuilding ? 'Сначала выберите дом' : 'Выберите жителя'}
+                  {loadingResidents
+                    ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                    : !selectedBuilding
+                    ? (language === 'ru' ? 'Сначала выберите дом' : 'Avval uyni tanlang')
+                    : (language === 'ru' ? 'Выберите жителя' : 'Yashovchini tanlang')}
                 </option>
                 {residents.map(resident => (
                   <option key={resident.id} value={resident.id}>
-                    {resident.name} {resident.apartment ? `- кв. ${resident.apartment}` : ''}
+                    {resident.name} {resident.apartment ? `- ${language === 'ru' ? 'кв.' : 'kv.'} ${resident.apartment}` : ''}
                   </option>
                 ))}
               </select>
@@ -611,12 +833,12 @@ function CreateRequestModal({
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900">{selectedResident.name}</p>
                     <p className="text-sm text-gray-600">
-                      {selectedResident.phone || 'Телефон не указан'}
+                      {selectedResident.phone || (language === 'ru' ? 'Телефон не указан' : 'Telefon ko\'rsatilmagan')}
                     </p>
                     <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
                       <MapPin className="w-3 h-3" />
                       {selectedBuildingData?.address || selectedResident.address}
-                      {selectedResident.apartment && `, кв. ${selectedResident.apartment}`}
+                      {selectedResident.apartment && `, ${language === 'ru' ? 'кв.' : 'kv.'} ${selectedResident.apartment}`}
                     </p>
                   </div>
                 </div>
@@ -649,11 +871,15 @@ function CreateRequestModal({
 
           {/* Schedule */}
           <div className="border-t pt-4 mt-4">
-            <h3 className="font-medium text-gray-900 mb-3">Желаемое время (опционально)</h3>
+            <h3 className="font-medium text-gray-900 mb-3">
+              {category === 'trash'
+                ? (language === 'ru' ? 'Дата и время вывоза *' : 'Chiqarish sanasi va vaqti *')
+                : (language === 'ru' ? 'Желаемое время (опционально)' : 'Istalgan vaqt (ixtiyoriy)')}
+            </h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Дата
+                  {language === 'ru' ? 'Дата' : 'Sana'} {category === 'trash' && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   type="date"
@@ -662,18 +888,22 @@ function CreateRequestModal({
                   className="glass-input w-full"
                   min={getMinDate()}
                   max={getMaxDate()}
+                  required={category === 'trash'}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Время
+                  {language === 'ru' ? 'Время' : 'Vaqt'} {category === 'trash' && <span className="text-red-500">*</span>}
                 </label>
                 <select
                   value={scheduledTime}
                   onChange={(e) => setScheduledTime(e.target.value)}
                   className="glass-input w-full"
+                  required={category === 'trash'}
                 >
-                  <option value="">Любое время</option>
+                  <option value="">{category === 'trash'
+                    ? (language === 'ru' ? 'Выберите время' : 'Vaqtni tanlang')
+                    : (language === 'ru' ? 'Любое время' : 'Istalgan vaqt')}</option>
                   {timeSlots.map(slot => (
                     <option key={slot.value} value={slot.value}>{slot.label}</option>
                   ))}
@@ -689,14 +919,22 @@ function CreateRequestModal({
               onClick={onClose}
               className="btn-secondary flex-1"
             >
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !title.trim() || !description.trim() || !selectedResident}
+              disabled={
+                isSubmitting ||
+                !selectedResident ||
+                (category === 'trash'
+                  ? !trashType || !trashVolume || !scheduledDate || !scheduledTime
+                  : !title.trim() || !description.trim())
+              }
               className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Создание...' : 'Создать заявку'}
+              {isSubmitting
+                ? (language === 'ru' ? 'Создание...' : 'Yaratilmoqda...')
+                : (language === 'ru' ? 'Создать заявку' : 'Ariza yaratish')}
             </button>
           </div>
         </form>

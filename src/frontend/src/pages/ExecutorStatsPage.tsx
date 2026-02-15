@@ -101,7 +101,7 @@ export function ExecutorStatsPage() {
         </div>
 
         <div className="glass-card p-5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-400/20 to-amber-500/20 rounded-full -translate-y-8 translate-x-8" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary-400/20 to-primary-500/20 rounded-full -translate-y-8 translate-x-8" />
           <div className="relative">
             <div className="flex items-center gap-2 text-amber-600 mb-2">
               <Star className="w-5 h-5" />
@@ -161,7 +161,7 @@ export function ExecutorStatsPage() {
                     <div
                       className={`w-full rounded-t-xl transition-all duration-500 ${
                         isToday
-                          ? 'bg-gradient-to-t from-primary-500 to-orange-400'
+                          ? 'bg-gradient-to-t from-primary-500 to-primary-400'
                           : 'bg-gradient-to-t from-blue-500 to-blue-400'
                       }`}
                       style={{ height: `${Math.max(height, 8)}%`, minHeight: '16px' }}
@@ -222,7 +222,7 @@ export function ExecutorStatsPage() {
               </div>
               <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-full transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-primary-500 to-primary-400 rounded-full transition-all duration-500"
                   style={{ width: `${((currentExecutor?.rating || 5) / 5) * 100}%` }}
                 />
               </div>

@@ -6,6 +6,7 @@ import {
   GitBranch, DoorOpen, ArrowLeft
 } from 'lucide-react';
 import { useCRMStore } from '../stores/crmStore';
+import { useLanguageStore } from '../stores/languageStore';
 import { apiRequest } from '../services/api';
 import type { BuildingFull } from '../types';
 import { BUILDING_TYPE_LABELS } from '../types';
@@ -47,6 +48,8 @@ export function BuildingsPage() {
     fetchBuildings,
     isLoadingBuildings,
   } = useCRMStore();
+
+  const { language } = useLanguageStore();
 
   // Navigation state
   const [viewLevel, setViewLevel] = useState<ViewLevel>('branches');
@@ -169,7 +172,7 @@ export function BuildingsPage() {
       fetchBranches();
       setShowAddBranchModal(false);
     } catch (error: any) {
-      alert('Ошибка: ' + (error.message || 'Не удалось создать филиал'));
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || (language === 'ru' ? 'Не удалось создать филиал' : 'Filial yaratib bo\'lmadi')));
     }
   };
 
@@ -182,17 +185,17 @@ export function BuildingsPage() {
       fetchBranches();
       setEditingBranch(null);
     } catch (error: any) {
-      alert('Ошибка: ' + (error.message || 'Не удалось обновить филиал'));
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || (language === 'ru' ? 'Не удалось обновить филиал' : 'Filialni yangilab bo\'lmadi')));
     }
   };
 
   const handleDeleteBranch = async (id: string) => {
-    if (!confirm('Удалить этот филиал? Сначала удалите все дома в этом филиале.')) return;
+    if (!confirm(language === 'ru' ? 'Удалить этот филиал? Сначала удалите все дома в этом филиале.' : 'Bu filialni o\'chirasizmi? Avval bu filialdagi barcha uylarni o\'chiring.')) return;
     try {
       await apiRequest(`/api/branches/${id}`, { method: 'DELETE' });
       fetchBranches();
     } catch (error: any) {
-      alert('Ошибка: ' + (error.message || 'Не удалось удалить филиал'));
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || (language === 'ru' ? 'Не удалось удалить филиал' : 'Filialni o\'chirib bo\'lmadi')));
     }
   };
 
@@ -214,8 +217,8 @@ export function BuildingsPage() {
   // Quick add building (simplified - just building number)
   const handleQuickAddBuilding = async (buildingNumber: string) => {
     const buildingData: any = {
-      name: `Дом ${buildingNumber}`,
-      address: selectedBranch?.address || `Дом ${buildingNumber}`,
+      name: `${language === 'ru' ? 'Дом' : 'Uy'} ${buildingNumber}`,
+      address: selectedBranch?.address || `${language === 'ru' ? 'Дом' : 'Uy'} ${buildingNumber}`,
       buildingNumber: buildingNumber.toUpperCase(),
       branchId: selectedBranch?.id,
       branchCode: selectedBranch?.code,
@@ -246,7 +249,7 @@ export function BuildingsPage() {
   };
 
   const handleDeleteBuilding = async (id: string) => {
-    if (!confirm('Удалить это здание? Все связанные данные также будут удалены.')) return;
+    if (!confirm(language === 'ru' ? 'Удалить это здание? Все связанные данные также будут удалены.' : 'Bu binoni o\'chirasizmi? Barcha bog\'liq ma\'lumotlar ham o\'chiriladi.')) return;
     try {
       await deleteBuilding(id);
       if (selectedBranch) {
@@ -254,7 +257,7 @@ export function BuildingsPage() {
       }
       fetchBranches(); // Refresh counts
     } catch (error: any) {
-      alert('Ошибка: ' + (error.message || 'Не удалось удалить здание'));
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || (language === 'ru' ? 'Не удалось удалить здание' : 'Binoni o\'chirib bo\'lmadi')));
     }
   };
 
@@ -269,7 +272,7 @@ export function BuildingsPage() {
       fetchEntrancesForBuilding(selectedBuilding.id);
       setShowAddEntranceModal(false);
     } catch (error: any) {
-      alert('Ошибка: ' + (error.message || 'Не удалось добавить подъезд'));
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || (language === 'ru' ? 'Не удалось добавить подъезд' : 'Podyezd qo\'shib bo\'lmadi')));
     }
   };
 
@@ -280,7 +283,7 @@ export function BuildingsPage() {
         onClick={() => { setViewLevel('branches'); setSelectedBranch(null); setSelectedBuilding(null); }}
         className={`hover:text-primary-600 ${viewLevel === 'branches' ? 'text-gray-900 font-medium' : ''}`}
       >
-        Филиалы
+        {language === 'ru' ? 'Филиалы' : 'Filiallar'}
       </button>
       {selectedBranch && (
         <>
@@ -308,7 +311,7 @@ export function BuildingsPage() {
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-          <p className="text-gray-500">Загрузка...</p>
+          <p className="text-gray-500">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</p>
         </div>
       </div>
     );
@@ -329,14 +332,14 @@ export function BuildingsPage() {
           )}
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {viewLevel === 'branches' && 'Филиалы / Объекты'}
-              {viewLevel === 'buildings' && `Дома: ${selectedBranch?.name}`}
-              {viewLevel === 'entrances' && `Подъезды: ${selectedBuilding?.name}`}
+              {viewLevel === 'branches' && (language === 'ru' ? 'Филиалы / Объекты' : 'Filiallar / Obyektlar')}
+              {viewLevel === 'buildings' && `${language === 'ru' ? 'Дома' : 'Uylar'}: ${selectedBranch?.name}`}
+              {viewLevel === 'entrances' && `${language === 'ru' ? 'Подъезды' : 'Podyezdlar'}: ${selectedBuilding?.name}`}
             </h1>
             <p className="text-gray-500 mt-1">
-              {viewLevel === 'branches' && 'Выберите филиал для просмотра домов'}
-              {viewLevel === 'buildings' && 'Выберите дом для просмотра подъездов'}
-              {viewLevel === 'entrances' && 'Управление подъездами и квартирами'}
+              {viewLevel === 'branches' && (language === 'ru' ? 'Выберите филиал для просмотра домов' : 'Uylarni ko\'rish uchun filialni tanlang')}
+              {viewLevel === 'buildings' && (language === 'ru' ? 'Выберите дом для просмотра подъездов' : 'Podyezdlarni ko\'rish uchun uyni tanlang')}
+              {viewLevel === 'entrances' && (language === 'ru' ? 'Управление подъездами и квартирами' : 'Podyezdlar va xonadonlarni boshqarish')}
             </p>
           </div>
         </div>
@@ -360,9 +363,9 @@ export function BuildingsPage() {
             className="btn-primary flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            {viewLevel === 'branches' && 'Добавить филиал'}
-            {viewLevel === 'buildings' && 'Добавить ЖК'}
-            {viewLevel === 'entrances' && 'Добавить подъезд'}
+            {viewLevel === 'branches' && (language === 'ru' ? 'Добавить филиал' : 'Filial qo\'shish')}
+            {viewLevel === 'buildings' && (language === 'ru' ? 'Добавить ЖК' : 'TJM qo\'shish')}
+            {viewLevel === 'entrances' && (language === 'ru' ? 'Добавить подъезд' : 'Podyezd qo\'shish')}
           </button>
         </div>
       </div>
@@ -376,7 +379,7 @@ export function BuildingsPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder={viewLevel === 'branches' ? 'Поиск по филиалам...' : 'Поиск по домам...'}
+            placeholder={viewLevel === 'branches' ? (language === 'ru' ? 'Поиск по филиалам...' : 'Filiallar bo\'yicha qidirish...') : (language === 'ru' ? 'Поиск по домам...' : 'Uylar bo\'yicha qidirish...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-field pl-10"
@@ -409,14 +412,14 @@ export function BuildingsPage() {
                   <button
                     onClick={() => setEditingBranch(branch)}
                     className="p-2 hover:bg-white/30 rounded-lg"
-                    title="Редактировать"
+                    title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                   >
                     <Edit className="w-4 h-4 text-gray-500" />
                   </button>
                   <button
                     onClick={() => handleDeleteBranch(branch.id)}
                     className="p-2 hover:bg-red-50 rounded-lg"
-                    title="Удалить"
+                    title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
                   >
                     <Trash2 className="w-4 h-4 text-red-500" />
                   </button>
@@ -433,16 +436,16 @@ export function BuildingsPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-white/30 rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-blue-600">{branch.buildings_count}</div>
-                  <div className="text-xs text-gray-500">Домов</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Домов' : 'Uylar'}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-green-600">{branch.residents_count}</div>
-                  <div className="text-xs text-gray-500">Жителей</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Жителей' : 'Yashovchilar'}</div>
                 </div>
               </div>
 
               <div className="mt-4 flex items-center justify-center text-sm text-primary-600">
-                <span>Открыть</span>
+                <span>{language === 'ru' ? 'Открыть' : 'Ochish'}</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
@@ -451,8 +454,8 @@ export function BuildingsPage() {
           {searchedBranches.length === 0 && (
             <div className="col-span-full glass-card p-8 text-center">
               <GitBranch className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-600">Филиалы не найдены</h3>
-              <p className="text-gray-400 mt-1">Добавьте первый филиал</p>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Филиалы не найдены' : 'Filiallar topilmadi'}</h3>
+              <p className="text-gray-400 mt-1">{language === 'ru' ? 'Добавьте первый филиал' : 'Birinchi filialni qo\'shing'}</p>
             </div>
           )}
         </div>
@@ -484,7 +487,7 @@ export function BuildingsPage() {
                       </span>
                       {building.buildingNumber && (
                         <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full font-mono">
-                          Дом {building.buildingNumber}
+                          {language === 'ru' ? 'Дом' : 'Uy'} {building.buildingNumber}
                         </span>
                       )}
                     </div>
@@ -494,14 +497,14 @@ export function BuildingsPage() {
                   <button
                     onClick={() => setEditingBuilding(building)}
                     className="p-2 hover:bg-white/30 rounded-lg"
-                    title="Редактировать"
+                    title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                   >
                     <Edit className="w-4 h-4 text-gray-500" />
                   </button>
                   <button
                     onClick={() => handleDeleteBuilding(building.id)}
                     className="p-2 hover:bg-red-50 rounded-lg"
-                    title="Удалить"
+                    title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
                   >
                     <Trash2 className="w-4 h-4 text-red-500" />
                   </button>
@@ -511,47 +514,47 @@ export function BuildingsPage() {
               <div className="grid grid-cols-4 gap-2 mb-4">
                 <div className="bg-white/30 rounded-lg p-2 text-center">
                   <div className="text-lg font-bold">{building.floors}</div>
-                  <div className="text-xs text-gray-500">Этажей</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Этажей' : 'Qavatlar'}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-2 text-center">
                   <div className="text-lg font-bold">{building.entrances}</div>
-                  <div className="text-xs text-gray-500">Подъездов</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Подъездов' : 'Podyezdlar'}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-2 text-center">
                   <div className="text-lg font-bold">{building.totalApartments}</div>
-                  <div className="text-xs text-gray-500">Квартир</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Квартир' : 'Xonadonlar'}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-2 text-center">
                   <div className="text-lg font-bold">{building.residentsCount}</div>
-                  <div className="text-xs text-gray-500">Жителей</div>
+                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Жителей' : 'Yashovchilar'}</div>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2 mb-3">
                 {building.hasElevator && (
                   <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-gray-100 rounded-full">
-                    <Layers className="w-3 h-3" /> Лифт
+                    <Layers className="w-3 h-3" /> {language === 'ru' ? 'Лифт' : 'Lift'}
                   </span>
                 )}
                 {building.hasGas && (
                   <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-gray-100 rounded-full">
-                    <Thermometer className="w-3 h-3" /> Газ
+                    <Thermometer className="w-3 h-3" /> {language === 'ru' ? 'Газ' : 'Gaz'}
                   </span>
                 )}
                 {building.hasHotWater && (
                   <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-gray-100 rounded-full">
-                    <Droplets className="w-3 h-3" /> ГВС
+                    <Droplets className="w-3 h-3" /> {language === 'ru' ? 'ГВС' : 'ISS'}
                   </span>
                 )}
                 {building.hasParkingLot && (
                   <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-gray-100 rounded-full">
-                    <Car className="w-3 h-3" /> Парковка
+                    <Car className="w-3 h-3" /> {language === 'ru' ? 'Парковка' : 'Parking'}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center justify-center text-sm text-primary-600">
-                <span>Подъезды</span>
+                <span>{language === 'ru' ? 'Подъезды' : 'Podyezdlar'}</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
@@ -560,8 +563,8 @@ export function BuildingsPage() {
           {searchedBuildings.length === 0 && (
             <div className="col-span-full glass-card p-8 text-center">
               <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-600">Дома не найдены</h3>
-              <p className="text-gray-400 mt-1">Добавьте первый дом в этом филиале</p>
+              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Дома не найдены' : 'Uylar topilmadi'}</h3>
+              <p className="text-gray-400 mt-1">{language === 'ru' ? 'Добавьте первый дом в этом филиале' : 'Bu filialga birinchi uyni qo\'shing'}</p>
             </div>
           )}
         </div>
@@ -583,9 +586,9 @@ export function BuildingsPage() {
                       <DoorOpen className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-lg">Подъезд {entrance.number}</h3>
+                      <h3 className="font-semibold text-lg">{language === 'ru' ? 'Подъезд' : 'Podyezd'} {entrance.number}</h3>
                       {entrance.intercom_code && (
-                        <span className="text-xs text-gray-500">Код: {entrance.intercom_code}</span>
+                        <span className="text-xs text-gray-500">{language === 'ru' ? 'Код' : 'Kod'}: {entrance.intercom_code}</span>
                       )}
                     </div>
                   </div>
@@ -594,13 +597,13 @@ export function BuildingsPage() {
                     {entrance.floors_from !== undefined && entrance.floors_to !== undefined && (
                       <div className="bg-white/30 rounded-lg p-2 text-center">
                         <div className="text-sm font-medium">{entrance.floors_from}-{entrance.floors_to}</div>
-                        <div className="text-xs text-gray-500">Этажи</div>
+                        <div className="text-xs text-gray-500">{language === 'ru' ? 'Этажи' : 'Qavatlar'}</div>
                       </div>
                     )}
                     {entrance.apartments_from !== undefined && entrance.apartments_to !== undefined && (
                       <div className="bg-white/30 rounded-lg p-2 text-center">
                         <div className="text-sm font-medium">{entrance.apartments_from}-{entrance.apartments_to}</div>
-                        <div className="text-xs text-gray-500">Квартиры</div>
+                        <div className="text-xs text-gray-500">{language === 'ru' ? 'Квартиры' : 'Xonadonlar'}</div>
                       </div>
                     )}
                   </div>
@@ -608,7 +611,7 @@ export function BuildingsPage() {
                   {entrance.has_elevator === 1 && (
                     <div className="mt-3 flex items-center gap-1 text-xs text-green-600">
                       <Layers className="w-3 h-3" />
-                      Есть лифт
+                      {language === 'ru' ? 'Есть лифт' : 'Lift bor'}
                     </div>
                   )}
                 </div>
@@ -617,8 +620,8 @@ export function BuildingsPage() {
               {entrances.length === 0 && (
                 <div className="col-span-full glass-card p-8 text-center">
                   <DoorOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-600">Подъезды не добавлены</h3>
-                  <p className="text-gray-400 mt-1">Добавьте подъезды для этого дома</p>
+                  <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Подъезды не добавлены' : 'Podyezdlar qo\'shilmagan'}</h3>
+                  <p className="text-gray-400 mt-1">{language === 'ru' ? 'Добавьте подъезды для этого дома' : 'Bu uy uchun podyezdlarni qo\'shing'}</p>
                 </div>
               )}
             </>
@@ -632,6 +635,7 @@ export function BuildingsPage() {
           branch={null}
           onClose={() => setShowAddBranchModal(false)}
           onSave={handleAddBranch}
+          language={language}
         />
       )}
 
@@ -641,6 +645,7 @@ export function BuildingsPage() {
           branch={editingBranch}
           onClose={() => setEditingBranch(null)}
           onSave={(data) => handleUpdateBranch(editingBranch.id, data)}
+          language={language}
         />
       )}
 
@@ -650,6 +655,7 @@ export function BuildingsPage() {
           onClose={() => setShowQuickAddBuildingModal(false)}
           onSave={handleQuickAddBuilding}
           branchCode={selectedBranch?.code || ''}
+          language={language}
         />
       )}
 
@@ -663,6 +669,7 @@ export function BuildingsPage() {
             setShowAddBuildingModal(false);
             setShowQuickAddBuildingModal(true);
           }}
+          language={language}
         />
       )}
 
@@ -672,6 +679,7 @@ export function BuildingsPage() {
           building={editingBuilding}
           onClose={() => setEditingBuilding(null)}
           onSave={(data) => handleUpdateBuilding(editingBuilding.id, data)}
+          language={language}
         />
       )}
 
@@ -681,6 +689,7 @@ export function BuildingsPage() {
           onClose={() => setShowAddEntranceModal(false)}
           onSave={handleAddEntrance}
           existingEntrances={entrances}
+          language={language}
         />
       )}
     </div>
@@ -691,11 +700,13 @@ export function BuildingsPage() {
 function BranchModal({
   branch,
   onClose,
-  onSave
+  onSave,
+  language
 }: {
   branch: Branch | null;
   onClose: () => void;
   onSave: (data: { code: string; name: string; address?: string; phone?: string }) => void;
+  language: string;
 }) {
   const [formData, setFormData] = useState({
     code: branch?.code || '',
@@ -710,7 +721,7 @@ function BranchModal({
     setError('');
 
     if (!formData.code.trim() || !formData.name.trim()) {
-      setError('Заполните обязательные поля');
+      setError(language === 'ru' ? 'Заполните обязательные поля' : 'Majburiy maydonlarni to\'ldiring');
       return;
     }
 
@@ -722,7 +733,7 @@ function BranchModal({
       <div className="modal-content p-6 w-full max-w-md mx-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">
-            {branch ? 'Редактировать филиал' : 'Новый филиал'}
+            {branch ? (language === 'ru' ? 'Редактировать филиал' : 'Filialni tahrirlash') : (language === 'ru' ? 'Новый филиал' : 'Yangi filial')}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
@@ -738,7 +749,7 @@ function BranchModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Код филиала *
+              {language === 'ru' ? 'Код филиала' : 'Filial kodi'} *
             </label>
             <input
               type="text"
@@ -750,39 +761,39 @@ function BranchModal({
               required
               disabled={!!branch}
             />
-            <p className="text-xs text-gray-500 mt-1">Используется для генерации паролей жильцов</p>
+            <p className="text-xs text-gray-500 mt-1">{language === 'ru' ? 'Используется для генерации паролей жильцов' : 'Yashovchilar parollarini yaratish uchun ishlatiladi'}</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Название *
+              {language === 'ru' ? 'Название' : 'Nomi'} *
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="input-field"
-              placeholder="Юнусабад"
+              placeholder={language === 'ru' ? 'Юнусабад' : 'Yunusobod'}
               required
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Адрес
+              {language === 'ru' ? 'Адрес' : 'Manzil'}
             </label>
             <input
               type="text"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="input-field"
-              placeholder="ул. Примера, 1"
+              placeholder={language === 'ru' ? 'ул. Примера, 1' : 'Namuna ko\'chasi, 1'}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Телефон
+              {language === 'ru' ? 'Телефон' : 'Telefon'}
             </label>
             <input
               type="tel"
@@ -795,10 +806,10 @@ function BranchModal({
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary flex-1">
-              {branch ? 'Сохранить' : 'Создать'}
+              {branch ? (language === 'ru' ? 'Сохранить' : 'Saqlash') : (language === 'ru' ? 'Создать' : 'Yaratish')}
             </button>
           </div>
         </form>
@@ -812,12 +823,14 @@ function BuildingModal({
   building,
   onClose,
   onSave,
-  onSwitchToQuick
+  onSwitchToQuick,
+  language
 }: {
   building: BuildingFull | null;
   onClose: () => void;
   onSave: (data: any) => void;
   onSwitchToQuick?: () => void;
+  language: string;
 }) {
   const [formData, setFormData] = useState({
     name: building?.name || '',
@@ -842,7 +855,7 @@ function BuildingModal({
     setError('');
 
     if (!formData.name.trim() || !formData.address.trim()) {
-      setError('Заполните обязательные поля');
+      setError(language === 'ru' ? 'Заполните обязательные поля' : 'Majburiy maydonlarni to\'ldiring');
       return;
     }
 
@@ -854,7 +867,7 @@ function BuildingModal({
       <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">
-            {building ? 'Редактировать ЖК' : 'Новый ЖК'}
+            {building ? (language === 'ru' ? 'Редактировать ЖК' : 'TJMni tahrirlash') : (language === 'ru' ? 'Новый ЖК' : 'Yangi TJM')}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
@@ -869,7 +882,7 @@ function BuildingModal({
             className="w-full mb-4 p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50 transition-all flex items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Добавить просто дом (5Б, 121, 8А...)
+            {language === 'ru' ? 'Добавить просто дом (5Б, 121, 8А...)' : 'Oddiy uy qo\'shish (5B, 121, 8A...)'}
           </button>
         )}
 
@@ -882,28 +895,28 @@ function BuildingModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Название *
+              {language === 'ru' ? 'Название' : 'Nomi'} *
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="input-field"
-              placeholder='ЖК "Название"'
+              placeholder={language === 'ru' ? 'ЖК "Название"' : 'TJM "Nomi"'}
               required
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Адрес *
+              {language === 'ru' ? 'Адрес' : 'Manzil'} *
             </label>
             <input
               type="text"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="input-field"
-              placeholder="ул. Пример, 1"
+              placeholder={language === 'ru' ? 'ул. Пример, 1' : 'Namuna ko\'chasi, 1'}
               required
             />
           </div>
@@ -911,7 +924,7 @@ function BuildingModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Номер дома
+                {language === 'ru' ? 'Номер дома' : 'Uy raqami'}
               </label>
               <input
                 type="text"
@@ -923,7 +936,7 @@ function BuildingModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Год постройки
+                {language === 'ru' ? 'Год постройки' : 'Qurilgan yili'}
               </label>
               <input
                 type="number"
@@ -937,7 +950,7 @@ function BuildingModal({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Этажей
+                {language === 'ru' ? 'Этажей' : 'Qavatlar'}
               </label>
               <input
                 type="number"
@@ -949,7 +962,7 @@ function BuildingModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Подъездов
+                {language === 'ru' ? 'Подъездов' : 'Podyezdlar'}
               </label>
               <input
                 type="number"
@@ -961,7 +974,7 @@ function BuildingModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Квартир
+                {language === 'ru' ? 'Квартир' : 'Xonadonlar'}
               </label>
               <input
                 type="number"
@@ -975,17 +988,17 @@ function BuildingModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Тип здания
+              {language === 'ru' ? 'Тип здания' : 'Bino turi'}
             </label>
             <select
               value={formData.buildingType}
               onChange={(e) => setFormData({ ...formData, buildingType: e.target.value as any })}
               className="input-field"
             >
-              <option value="panel">Панельный</option>
-              <option value="brick">Кирпичный</option>
-              <option value="monolith">Монолитный</option>
-              <option value="block">Блочный</option>
+              <option value="panel">{language === 'ru' ? 'Панельный' : 'Panelli'}</option>
+              <option value="brick">{language === 'ru' ? 'Кирпичный' : 'G\'ishtli'}</option>
+              <option value="monolith">{language === 'ru' ? 'Монолитный' : 'Monolitik'}</option>
+              <option value="block">{language === 'ru' ? 'Блочный' : 'Blokli'}</option>
             </select>
           </div>
 
@@ -996,7 +1009,7 @@ function BuildingModal({
                 checked={formData.hasElevator}
                 onChange={(e) => setFormData({ ...formData, hasElevator: e.target.checked })}
               />
-              <span>Лифт</span>
+              <span>{language === 'ru' ? 'Лифт' : 'Lift'}</span>
             </label>
             <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg cursor-pointer">
               <input
@@ -1004,7 +1017,7 @@ function BuildingModal({
                 checked={formData.hasGas}
                 onChange={(e) => setFormData({ ...formData, hasGas: e.target.checked })}
               />
-              <span>Газ</span>
+              <span>{language === 'ru' ? 'Газ' : 'Gaz'}</span>
             </label>
             <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg cursor-pointer">
               <input
@@ -1012,7 +1025,7 @@ function BuildingModal({
                 checked={formData.hasHotWater}
                 onChange={(e) => setFormData({ ...formData, hasHotWater: e.target.checked })}
               />
-              <span>Горячая вода</span>
+              <span>{language === 'ru' ? 'Горячая вода' : 'Issiq suv'}</span>
             </label>
             <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg cursor-pointer">
               <input
@@ -1020,16 +1033,16 @@ function BuildingModal({
                 checked={formData.hasParkingLot}
                 onChange={(e) => setFormData({ ...formData, hasParkingLot: e.target.checked })}
               />
-              <span>Парковка</span>
+              <span>{language === 'ru' ? 'Парковка' : 'Parking'}</span>
             </label>
           </div>
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary flex-1">
-              {building ? 'Сохранить' : 'Создать'}
+              {building ? (language === 'ru' ? 'Сохранить' : 'Saqlash') : (language === 'ru' ? 'Создать' : 'Yaratish')}
             </button>
           </div>
         </form>
@@ -1042,11 +1055,13 @@ function BuildingModal({
 function EntranceModal({
   onClose,
   onSave,
-  existingEntrances
+  existingEntrances,
+  language
 }: {
   onClose: () => void;
   onSave: (data: { number: number; floors_from?: number; floors_to?: number; apartments_from?: number; apartments_to?: number }) => void;
   existingEntrances: Entrance[];
+  language: string;
 }) {
   const nextNumber = existingEntrances.length > 0
     ? Math.max(...existingEntrances.map(e => e.number)) + 1
@@ -1066,7 +1081,7 @@ function EntranceModal({
     setError('');
 
     if (formData.number < 1) {
-      setError('Номер подъезда должен быть больше 0');
+      setError(language === 'ru' ? 'Номер подъезда должен быть больше 0' : 'Podyezd raqami 0 dan katta bo\'lishi kerak');
       return;
     }
 
@@ -1077,7 +1092,7 @@ function EntranceModal({
     <div className="modal-backdrop">
       <div className="modal-content p-6 w-full max-w-md mx-4">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">Новый подъезд</h2>
+          <h2 className="text-xl font-bold">{language === 'ru' ? 'Новый подъезд' : 'Yangi podyezd'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
           </button>
@@ -1092,7 +1107,7 @@ function EntranceModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Номер подъезда *
+              {language === 'ru' ? 'Номер подъезда' : 'Podyezd raqami'} *
             </label>
             <input
               type="number"
@@ -1107,7 +1122,7 @@ function EntranceModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Этаж с
+                {language === 'ru' ? 'Этаж с' : 'Qavatdan'}
               </label>
               <input
                 type="number"
@@ -1119,7 +1134,7 @@ function EntranceModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Этаж по
+                {language === 'ru' ? 'Этаж по' : 'Qavatgacha'}
               </label>
               <input
                 type="number"
@@ -1134,7 +1149,7 @@ function EntranceModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Квартира с
+                {language === 'ru' ? 'Квартира с' : 'Xonadondan'}
               </label>
               <input
                 type="number"
@@ -1146,7 +1161,7 @@ function EntranceModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Квартира по
+                {language === 'ru' ? 'Квартира по' : 'Xonadongacha'}
               </label>
               <input
                 type="number"
@@ -1160,10 +1175,10 @@ function EntranceModal({
 
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary flex-1">
-              Создать
+              {language === 'ru' ? 'Создать' : 'Yaratish'}
             </button>
           </div>
         </form>
@@ -1176,11 +1191,13 @@ function EntranceModal({
 function QuickBuildingModal({
   onClose,
   onSave,
-  branchCode
+  branchCode,
+  language
 }: {
   onClose: () => void;
   onSave: (buildingNumber: string) => void;
   branchCode: string;
+  language: string;
 }) {
   const [buildingNumber, setBuildingNumber] = useState('');
   const [error, setError] = useState('');
@@ -1190,7 +1207,7 @@ function QuickBuildingModal({
     setError('');
 
     if (!buildingNumber.trim()) {
-      setError('Введите номер дома');
+      setError(language === 'ru' ? 'Введите номер дома' : 'Uy raqamini kiriting');
       return;
     }
 
@@ -1201,7 +1218,7 @@ function QuickBuildingModal({
     <div className="modal-backdrop">
       <div className="modal-content p-6 w-full max-w-sm mx-4">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">Добавить дом</h2>
+          <h2 className="text-xl font-bold">{language === 'ru' ? 'Добавить дом' : 'Uy qo\'shish'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
           </button>
@@ -1216,28 +1233,28 @@ function QuickBuildingModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Номер дома *
+              {language === 'ru' ? 'Номер дома' : 'Uy raqami'} *
             </label>
             <input
               type="text"
               value={buildingNumber}
               onChange={(e) => setBuildingNumber(e.target.value.toUpperCase())}
               className="input-field text-2xl text-center font-bold"
-              placeholder="5Б, 121, 8А..."
+              placeholder="5B, 121, 8A..."
               autoFocus
               required
             />
             <p className="text-xs text-gray-500 mt-2 text-center">
-              Пароль жителей: <span className="font-mono bg-gray-100 px-1 rounded">{branchCode}/{buildingNumber || '?'}/[кв]</span>
+              {language === 'ru' ? 'Пароль жителей' : 'Yashovchilar paroli'}: <span className="font-mono bg-gray-100 px-1 rounded">{branchCode}/{buildingNumber || '?'}/{language === 'ru' ? '[кв]' : '[xn]'}</span>
             </p>
           </div>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button type="submit" className="btn-primary flex-1">
-              Добавить
+              {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
             </button>
           </div>
         </form>

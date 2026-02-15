@@ -217,10 +217,15 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
               <span className="text-gray-500">{language === 'ru' ? 'Действует до' : 'Gacha amal qiladi'}:</span>
               <span className="font-medium">{new Date(code.validUntil).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}</span>
             </div>
-            {code.accessType !== 'single_use' && (
-              <div className="flex justify-between">
-                <span className="text-gray-500">{language === 'ru' ? 'Использовано' : 'Ishlatilgan'}:</span>
-                <span className="font-medium">{code.currentUses} / {code.maxUses === 999 ? '∞' : code.maxUses}</span>
+            {/* Revocation reason */}
+            {code.status === 'revoked' && code.revocationReason && (
+              <div className="mt-3 p-3 bg-red-50 rounded-xl border border-red-200">
+                <div className="text-red-700 text-sm font-medium">
+                  {language === 'ru' ? 'Причина отмены' : 'Bekor qilish sababi'}:
+                </div>
+                <div className="text-red-600 text-sm mt-1">
+                  {code.revocationReason}
+                </div>
               </div>
             )}
           </div>
@@ -758,6 +763,13 @@ export function ResidentGuestAccessPage() {
                     {code.accessType !== 'single_use' && !isExpired && !isRevoked && (
                       <div className="text-xs text-gray-400 mt-1">
                         {language === 'ru' ? 'Использований' : 'Ishlatilgan'}: {code.currentUses}
+                      </div>
+                    )}
+
+                    {/* Revocation reason for revoked passes */}
+                    {isRevoked && code.revocationReason && (
+                      <div className="mt-2 text-xs text-red-600 bg-red-50 px-2 py-1 rounded inline-block">
+                        {language === 'ru' ? 'Причина' : 'Sabab'}: {code.revocationReason}
                       </div>
                     )}
                   </div>

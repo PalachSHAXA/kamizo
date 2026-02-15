@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Megaphone, AlertTriangle, AlertCircle, Info, ChevronRight, Check } from 'lucide-react';
+import { Megaphone, AlertTriangle, AlertCircle, Info, ChevronRight, Check, Download, FileText, File, Image } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -23,8 +23,9 @@ export function ResidentAnnouncementsPage() {
   const userEntrance = user?.entrance || '';
   const userFloor = user?.floor || '';
   const userBranch = user?.branch || '';
+  const userApartment = user?.apartment || '';
 
-  const announcements = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch);
+  const announcements = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
 
   const filteredAnnouncements = filter === 'unread'
     ? announcements.filter(a => !a.viewedBy.includes(user?.id || ''))
@@ -173,6 +174,33 @@ export function ResidentAnnouncementsPage() {
                     <p className={`text-gray-600 text-sm ${isExpanded ? '' : 'line-clamp-2'}`}>
                       {announcement.content}
                     </p>
+
+                    {/* Attachments */}
+                    {announcement.attachments && announcement.attachments.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {announcement.attachments.map((attachment, index) => (
+                          <a
+                            key={index}
+                            href={attachment.url}
+                            download={attachment.name}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-2 bg-white/80 hover:bg-white rounded-lg text-sm text-gray-700 transition-colors border border-gray-200"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {attachment.type.startsWith('image/') ? (
+                              <Image className="w-4 h-4 text-blue-500" />
+                            ) : attachment.type.includes('pdf') ? (
+                              <FileText className="w-4 h-4 text-red-500" />
+                            ) : (
+                              <File className="w-4 h-4 text-gray-500" />
+                            )}
+                            <span className="truncate max-w-[150px]">{attachment.name}</span>
+                            <Download className="w-4 h-4 text-gray-400" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Meta */}
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">

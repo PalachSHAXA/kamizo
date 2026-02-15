@@ -17,6 +17,7 @@ export interface TenantConfig {
 interface TenantState {
   config: TenantConfig | null;
   isLoading: boolean;
+  isConfigFetched: boolean;
   error: string | null;
   fetchConfig: () => Promise<void>;
   hasFeature: (feature: string) => boolean;
@@ -27,6 +28,7 @@ export const useTenantStore = create<TenantState>()(
     (set, get) => ({
       config: null,
       isLoading: false,
+      isConfigFetched: false,
       error: null,
 
       fetchConfig: async () => {
@@ -40,11 +42,12 @@ export const useTenantStore = create<TenantState>()(
           }
 
           const config = await response.json();
-          set({ config, isLoading: false });
+          set({ config, isLoading: false, isConfigFetched: true });
         } catch (error: unknown) {
           console.error('Error fetching tenant config:', error);
           set({
             isLoading: false,
+            isConfigFetched: true,
             error: (error as Error).message,
             config: { tenant: null, features: [] }
           });
@@ -63,6 +66,7 @@ export const useTenantStore = create<TenantState>()(
     {
       name: 'tenant-config',
       version: 1,
+      partialize: (state) => ({ config: state.config }),
     }
   )
 );

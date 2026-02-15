@@ -104,15 +104,6 @@ const ORDER_STAGES = [
     descUz: 'Buyurtma yig\'ilmoqda',
   },
   {
-    id: 'delivering',
-    statuses: ['delivering'],
-    labelRu: 'Доставляется',
-    labelUz: 'Yetkazilmoqda',
-    icon: User,
-    descRu: 'В пути к вам',
-    descUz: 'Sizga yo\'lda',
-  },
-  {
     id: 'ready',
     statuses: ['ready'],
     labelRu: 'Готов',
@@ -120,6 +111,15 @@ const ORDER_STAGES = [
     icon: CheckCircle,
     descRu: 'Готов к получению',
     descUz: 'Qabul qilishga tayyor',
+  },
+  {
+    id: 'delivering',
+    statuses: ['delivering'],
+    labelRu: 'Доставляется',
+    labelUz: 'Yetkazilmoqda',
+    icon: User,
+    descRu: 'В пути к вам',
+    descUz: 'Sizga yo\'lda',
   },
   {
     id: 'delivered',
@@ -456,7 +456,7 @@ export function MarketplacePage() {
       setCancellingOrderId(orderId);
       await apiRequest(`/api/marketplace/orders/${orderId}/cancel`, {
         method: 'POST',
-        body: JSON.stringify({ reason: 'Отменено пользователем' }),
+        body: JSON.stringify({ reason: language === 'ru' ? 'Отменено пользователем' : 'Foydalanuvchi tomonidan bekor qilindi' }),
       });
       // Refresh orders
       const ordersRes = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
@@ -490,7 +490,7 @@ export function MarketplacePage() {
   }, 0);
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('ru-RU').format(price) + ' сум';
+    return new Intl.NumberFormat('ru-RU').format(price) + (language === 'ru' ? ' сум' : ' so\'m');
   };
 
   // Split orders into active and history
@@ -520,7 +520,7 @@ export function MarketplacePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 bg-orange-50/50"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 bg-primary-50/50"></div>
       </div>
     );
   }
@@ -544,14 +544,14 @@ export function MarketplacePage() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-3 px-2 sm:px-4 flex items-center justify-center gap-1 sm:gap-2 border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? 'border-orange-500 text-orange-600 bg-orange-50/50'
+                  ? 'border-primary-500 text-primary-600 bg-primary-50/50'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               <tab.icon className="w-5 h-5 flex-shrink-0" />
               <span className="text-xs sm:text-sm font-medium whitespace-nowrap">{tab.shortLabel || tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
-                <span className="bg-orange-500 text-white text-xs px-1.5 sm:px-2 py-0.5 rounded-full flex-shrink-0">
+                <span className="bg-primary-500 text-white text-xs px-1.5 sm:px-2 py-0.5 rounded-full flex-shrink-0">
                   {tab.count}
                 </span>
               )}
@@ -573,7 +573,7 @@ export function MarketplacePage() {
                 placeholder={language === 'ru' ? 'Поиск товаров...' : 'Mahsulot qidirish...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
 
@@ -583,7 +583,7 @@ export function MarketplacePage() {
                 onClick={() => setSelectedCategory(null)}
                 className={`flex flex-col items-center justify-center p-3 rounded-xl transition-all ${
                   !selectedCategory
-                    ? 'bg-orange-500 text-white shadow-md'
+                    ? 'bg-primary-500 text-white shadow-md'
                     : 'glass-card text-gray-700 hover:bg-white/60'
                 }`}
               >
@@ -596,7 +596,7 @@ export function MarketplacePage() {
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`flex flex-col items-center justify-center p-3 rounded-xl transition-all ${
                     selectedCategory === cat.id
-                      ? 'bg-orange-500 text-white shadow-md'
+                      ? 'bg-primary-500 text-white shadow-md'
                       : 'glass-card text-gray-700 hover:bg-white/60'
                   }`}
                 >
@@ -647,7 +647,7 @@ export function MarketplacePage() {
                       </button>
                       {/* Featured Badge */}
                       {product.is_featured && (
-                        <div className="absolute top-2 left-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
+                        <div className="absolute top-2 left-2 bg-primary-500 text-white text-xs px-2 py-0.5 rounded-full">
                           {language === 'ru' ? 'Хит' : 'Hit'}
                         </div>
                       )}
@@ -676,7 +676,7 @@ export function MarketplacePage() {
                       </p>
                       <div className="flex items-center justify-between mt-2">
                         <div>
-                          <p className="font-bold text-orange-600">
+                          <p className="font-bold text-primary-600">
                             {formatPrice(product.price)}
                           </p>
                           {product.old_price && (
@@ -689,19 +689,19 @@ export function MarketplacePage() {
 
                       {/* Add to Cart */}
                       {cartQty > 0 ? (
-                        <div className="flex items-center justify-between mt-3 bg-orange-50 rounded-lg p-1">
+                        <div className="flex items-center justify-between mt-3 bg-primary-50 rounded-lg p-1">
                           <button
                             onClick={() => updateCartQuantity(product.id, cartQty - 1)}
                             className="p-1.5 rounded-md bg-white shadow-sm"
                           >
-                            <Minus className="w-4 h-4 text-orange-600" />
+                            <Minus className="w-4 h-4 text-primary-600" />
                           </button>
-                          <span className="font-medium text-orange-600">{cartQty}</span>
+                          <span className="font-medium text-primary-600">{cartQty}</span>
                           <button
                             onClick={() => updateCartQuantity(product.id, cartQty + 1)}
                             className="p-1.5 rounded-md bg-white shadow-sm"
                           >
-                            <Plus className="w-4 h-4 text-orange-600" />
+                            <Plus className="w-4 h-4 text-primary-600" />
                           </button>
                         </div>
                       ) : (
@@ -711,7 +711,7 @@ export function MarketplacePage() {
                           className={`w-full mt-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
                             product.stock_quantity === 0
                               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                              : 'bg-orange-500 text-white hover:bg-orange-600'
+                              : 'bg-primary-500 text-white hover:bg-primary-600'
                           }`}
                         >
                           <Plus className="w-4 h-4" />
@@ -772,7 +772,7 @@ export function MarketplacePage() {
                 </p>
                 <button
                   onClick={() => setActiveTab('shop')}
-                  className="text-orange-600 font-medium"
+                  className="text-primary-600 font-medium"
                 >
                   {language === 'ru' ? 'Перейти к покупкам' : 'Xaridga o\'tish'}
                 </button>
@@ -804,7 +804,7 @@ export function MarketplacePage() {
                             {language === 'ru' ? product.name_ru : product.name_uz}
                           </h3>
                           <p className="text-sm text-gray-500">{product.unit}</p>
-                          <p className="font-bold text-orange-600 mt-1">
+                          <p className="font-bold text-primary-600 mt-1">
                             {formatPrice(product.price * item.quantity)}
                           </p>
                         </div>
@@ -842,17 +842,17 @@ export function MarketplacePage() {
                     <span className="text-gray-600">
                       {language === 'ru' ? 'Товаров:' : 'Mahsulotlar:'}
                     </span>
-                    <span className="font-medium">{cart.reduce((sum, i) => sum + i.quantity, 0)} шт</span>
+                    <span className="font-medium">{cart.reduce((sum, i) => sum + i.quantity, 0)} {language === 'ru' ? 'шт' : 'dona'}</span>
                   </div>
                   <div className="flex items-center justify-between text-lg font-bold">
                     <span>{language === 'ru' ? 'Итого:' : 'Jami:'}</span>
-                    <span className="text-orange-600">{formatPrice(cartTotal)}</span>
+                    <span className="text-primary-600">{formatPrice(cartTotal)}</span>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setShowOrderModal(true)}
-                  className="w-full py-4 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors"
+                  className="w-full py-4 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors"
                 >
                   {language === 'ru' ? 'Оформить заказ' : 'Buyurtma berish'}
                 </button>
@@ -872,7 +872,7 @@ export function MarketplacePage() {
                 </p>
                 <button
                   onClick={() => setActiveTab('shop')}
-                  className="text-orange-600 font-medium"
+                  className="text-primary-600 font-medium"
                 >
                   {language === 'ru' ? 'Перейти к покупкам' : 'Xaridga o\'tish'}
                 </button>
@@ -887,7 +887,7 @@ export function MarketplacePage() {
                   return (
                     <div key={order.id} className="glass-card overflow-hidden">
                       {/* Header */}
-                      <div className="p-4 bg-gradient-to-r from-orange-500/10 to-amber-400/10 border-b border-orange-100">
+                      <div className="p-4 bg-gradient-to-r from-primary-500/10 to-primary-400/10 border-b border-primary-100">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-bold text-gray-900">
@@ -902,7 +902,7 @@ export function MarketplacePage() {
                               })}
                             </p>
                           </div>
-                          <span className="font-bold text-orange-600">
+                          <span className="font-bold text-primary-600">
                             {formatPrice(order.total_amount)}
                           </span>
                         </div>
@@ -925,7 +925,7 @@ export function MarketplacePage() {
                           <div className="absolute top-4 left-4 right-4 h-1 bg-gray-200 rounded-full" />
                           {/* Progress Line Active */}
                           <div
-                            className="absolute top-4 left-4 h-1 bg-orange-500 rounded-full transition-all duration-500"
+                            className="absolute top-4 left-4 h-1 bg-primary-500 rounded-full transition-all duration-500"
                             style={{
                               width: `calc(${Math.min((currentStageIndex / (ORDER_STAGES.length - 1)) * 100, 100)}% - 32px)`
                             }}
@@ -943,8 +943,8 @@ export function MarketplacePage() {
                                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
                                     isCompleted
                                       ? isCurrent
-                                        ? 'bg-orange-500 text-white ring-4 ring-orange-200 shadow-lg'
-                                        : 'bg-orange-500 text-white'
+                                        ? 'bg-primary-500 text-white ring-4 ring-primary-200 shadow-lg'
+                                        : 'bg-primary-500 text-white'
                                       : 'bg-gray-200 text-gray-400'
                                   }`}
                                 >
@@ -980,7 +980,7 @@ export function MarketplacePage() {
                                 </span>
                               </div>
                               <span className="text-xs text-gray-500 whitespace-nowrap">
-                                {item.quantity} × {(item.unit_price || item.price || 0).toLocaleString()} сум
+                                {item.quantity} × {(item.unit_price || item.price || 0).toLocaleString()} {language === 'ru' ? 'сум' : 'so\'m'}
                               </span>
                             </div>
                           ))}
@@ -989,8 +989,8 @@ export function MarketplacePage() {
                           <span className="text-sm text-gray-500">
                             {(order.items || []).reduce((sum, i) => sum + i.quantity, 0)} {language === 'ru' ? 'товаров' : 'mahsulot'}
                           </span>
-                          <span className="text-sm font-semibold text-orange-600">
-                            {order.total_amount.toLocaleString()} сум
+                          <span className="text-sm font-semibold text-primary-600">
+                            {order.total_amount.toLocaleString()} {language === 'ru' ? 'сум' : 'so\'m'}
                           </span>
                         </div>
 
@@ -1052,7 +1052,7 @@ export function MarketplacePage() {
                 </p>
                 <button
                   onClick={() => setActiveTab('shop')}
-                  className="text-orange-600 font-medium"
+                  className="text-primary-600 font-medium"
                 >
                   {language === 'ru' ? 'Перейти к покупкам' : 'Xaridga o\'tish'}
                 </button>
@@ -1130,7 +1130,7 @@ export function MarketplacePage() {
                               setRatingOrderId(order.id);
                               setShowDeliveryRatingModal(true);
                             }}
-                            className="w-full py-2 px-4 bg-orange-50 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-2 px-4 bg-primary-50 text-primary-600 rounded-lg text-sm font-medium hover:bg-primary-100 transition-colors flex items-center justify-center gap-2"
                           >
                             <Star className="w-4 h-4" />
                             {language === 'ru' ? 'Оценить доставку' : 'Yetkazishni baholash'}
@@ -1196,7 +1196,7 @@ export function MarketplacePage() {
                 </p>
                 <button
                   onClick={() => setActiveTab('shop')}
-                  className="text-orange-600 font-medium"
+                  className="text-primary-600 font-medium"
                 >
                   {language === 'ru' ? 'Перейти к покупкам' : 'Xaridga o\'tish'}
                 </button>
@@ -1231,29 +1231,29 @@ export function MarketplacePage() {
                         <h3 className="font-medium text-sm text-gray-900 line-clamp-2 min-h-[40px]">
                           {language === 'ru' ? product.name_ru : product.name_uz}
                         </h3>
-                        <p className="font-bold text-orange-600 mt-2">
+                        <p className="font-bold text-primary-600 mt-2">
                           {formatPrice(product.price)}
                         </p>
                         {cartQty > 0 ? (
-                          <div className="flex items-center justify-between mt-3 bg-orange-50 rounded-lg p-1">
+                          <div className="flex items-center justify-between mt-3 bg-primary-50 rounded-lg p-1">
                             <button
                               onClick={() => updateCartQuantity(product.id, cartQty - 1)}
                               className="p-1.5 rounded-md bg-white shadow-sm"
                             >
-                              <Minus className="w-4 h-4 text-orange-600" />
+                              <Minus className="w-4 h-4 text-primary-600" />
                             </button>
-                            <span className="font-medium text-orange-600">{cartQty}</span>
+                            <span className="font-medium text-primary-600">{cartQty}</span>
                             <button
                               onClick={() => updateCartQuantity(product.id, cartQty + 1)}
                               className="p-1.5 rounded-md bg-white shadow-sm"
                             >
-                              <Plus className="w-4 h-4 text-orange-600" />
+                              <Plus className="w-4 h-4 text-primary-600" />
                             </button>
                           </div>
                         ) : (
                           <button
                             onClick={() => addToCart(product.id)}
-                            className="w-full mt-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex items-center justify-center gap-1"
+                            className="w-full mt-3 py-2 bg-primary-500 text-white rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-1"
                           >
                             <Plus className="w-4 h-4" />
                             <span>{language === 'ru' ? 'В корзину' : 'Savatga'}</span>
@@ -1306,7 +1306,7 @@ export function MarketplacePage() {
 
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-2xl font-bold text-orange-600">
+                  <p className="text-2xl font-bold text-primary-600">
                     {formatPrice(selectedProduct.price)}
                   </p>
                   {selectedProduct.old_price && (
@@ -1347,7 +1347,7 @@ export function MarketplacePage() {
                     setSelectedProduct(null);
                   }}
                   disabled={selectedProduct.stock_quantity === 0}
-                  className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <ShoppingCart className="w-5 h-5" />
                   <span>{language === 'ru' ? 'Добавить в корзину' : 'Savatga qo\'shish'}</span>
@@ -1380,7 +1380,7 @@ export function MarketplacePage() {
                   {language === 'ru' ? 'Адрес доставки:' : 'Yetkazish manzili:'}
                 </p>
                 <p className="font-medium">
-                  {user?.address || 'Адрес не указан'}, {language === 'ru' ? 'кв.' : 'xonadon'} {user?.apartment || '-'}
+                  {user?.address || (language === 'ru' ? 'Адрес не указан' : 'Manzil ko\'rsatilmagan')}, {language === 'ru' ? 'кв.' : 'xonadon'} {user?.apartment || '-'}
                 </p>
               </div>
 
@@ -1397,12 +1397,12 @@ export function MarketplacePage() {
                 />
               </div>
 
-              <div className="bg-orange-50 rounded-xl p-4 mb-4">
+              <div className="bg-primary-50 rounded-xl p-4 mb-4">
                 <div className="flex items-center justify-between">
                   <span className="text-gray-700">
                     {language === 'ru' ? 'Итого к оплате:' : 'To\'lanishi kerak:'}
                   </span>
-                  <span className="text-xl font-bold text-orange-600">
+                  <span className="text-xl font-bold text-primary-600">
                     {formatPrice(cartTotal)}
                   </span>
                 </div>
@@ -1410,7 +1410,7 @@ export function MarketplacePage() {
 
               <button
                 onClick={createOrder}
-                className="w-full py-4 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors"
+                className="w-full py-4 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors"
               >
                 {language === 'ru' ? 'Подтвердить заказ' : 'Buyurtmani tasdiqlash'}
               </button>
@@ -1424,7 +1424,7 @@ export function MarketplacePage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-orange-500 to-amber-500">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-primary-500 to-primary-400">
               <h2 className="text-lg font-bold text-white">
                 {language === 'ru' ? 'Оцените доставку' : 'Yetkazishni baholang'}
               </h2>
@@ -1443,10 +1443,10 @@ export function MarketplacePage() {
 
             <div className="p-6">
               {/* Order Info */}
-              <div className="bg-orange-50 rounded-xl p-4 mb-6">
+              <div className="bg-primary-50 rounded-xl p-4 mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <ShoppingBag className="w-6 h-6 text-orange-600" />
+                  <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
+                    <ShoppingBag className="w-6 h-6 text-primary-600" />
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">
@@ -1499,7 +1499,7 @@ export function MarketplacePage() {
                   value={deliveryReview}
                   onChange={(e) => setDeliveryReview(e.target.value)}
                   placeholder={language === 'ru' ? 'Напишите отзыв о доставке...' : 'Yetkazish haqida sharh yozing...'}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   rows={3}
                 />
               </div>
@@ -1508,7 +1508,7 @@ export function MarketplacePage() {
               <button
                 onClick={submitDeliveryRating}
                 disabled={isSubmittingRating}
-                className="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-400 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isSubmittingRating ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

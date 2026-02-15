@@ -5,9 +5,11 @@ import {
   FileText, CreditCard, Trash2
 } from 'lucide-react';
 import { useCRMStore } from '../stores/crmStore';
+import { useLanguageStore } from '../stores/languageStore';
 import type { Owner } from '../types';
 
 export function OwnersPage() {
+  const { language } = useLanguageStore();
   const {
     owners,
     apartments,
@@ -58,15 +60,19 @@ export function OwnersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Собственники</h1>
-          <p className="text-gray-500 mt-1">Управление собственниками и нанимателями</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {language === 'ru' ? 'Собственники' : 'Mulkdorlar'}
+          </h1>
+          <p className="text-gray-500 mt-1">
+            {language === 'ru' ? 'Управление собственниками и нанимателями' : 'Mulkdorlar va ijarachilarni boshqarish'}
+          </p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="btn-primary flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Новый собственник
+          {language === 'ru' ? 'Новый собственник' : 'Yangi mulkdor'}
         </button>
       </div>
 
@@ -78,7 +84,9 @@ export function OwnersPage() {
               <Users className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Всего</p>
+              <p className="text-sm text-gray-500">
+                {language === 'ru' ? 'Всего' : 'Jami'}
+              </p>
               <p className="text-xl font-bold text-gray-900">{totalOwners}</p>
             </div>
           </div>
@@ -90,7 +98,9 @@ export function OwnersPage() {
               <User className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Физ. лица</p>
+              <p className="text-sm text-gray-500">
+                {language === 'ru' ? 'Физ. лица' : 'Jismoniy shaxslar'}
+              </p>
               <p className="text-xl font-bold text-gray-900">{individualOwners}</p>
             </div>
           </div>
@@ -102,7 +112,9 @@ export function OwnersPage() {
               <FileText className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Юр. лица</p>
+              <p className="text-sm text-gray-500">
+                {language === 'ru' ? 'Юр. лица' : 'Yuridik shaxslar'}
+              </p>
               <p className="text-xl font-bold text-gray-900">{legalOwners}</p>
             </div>
           </div>
@@ -114,7 +126,9 @@ export function OwnersPage() {
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">С долгом</p>
+              <p className="text-sm text-gray-500">
+                {language === 'ru' ? 'С долгом' : 'Qarzdorlar'}
+              </p>
               <p className="text-xl font-bold text-red-600">{ownersWithDebt}</p>
             </div>
           </div>
@@ -129,7 +143,7 @@ export function OwnersPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Поиск по имени, телефону, email..."
+                placeholder={language === 'ru' ? 'Поиск по имени, телефону, email...' : 'Ism, telefon, email bo\'yicha qidirish...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -142,7 +156,9 @@ export function OwnersPage() {
             onChange={(e) => setFilterBuilding(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Все дома</option>
+            <option value="all">
+              {language === 'ru' ? 'Все дома' : 'Barcha uylar'}
+            </option>
             {buildings.map(b => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
@@ -153,9 +169,15 @@ export function OwnersPage() {
             onChange={(e) => setFilterType(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Все типы</option>
-            <option value="individual">Физ. лица</option>
-            <option value="legal_entity">Юр. лица</option>
+            <option value="all">
+              {language === 'ru' ? 'Все типы' : 'Barcha turlar'}
+            </option>
+            <option value="individual">
+              {language === 'ru' ? 'Физ. лица' : 'Jismoniy shaxslar'}
+            </option>
+            <option value="legal_entity">
+              {language === 'ru' ? 'Юр. лица' : 'Yuridik shaxslar'}
+            </option>
           </select>
         </div>
       </div>
@@ -166,13 +188,27 @@ export function OwnersPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Собственник</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Тип</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Квартиры</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Доля</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Контакты</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Статус</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Действия</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                  {language === 'ru' ? 'Собственник' : 'Mulkdor'}
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                  {language === 'ru' ? 'Тип' : 'Tur'}
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                  {language === 'ru' ? 'Квартиры' : 'Kvartiralar'}
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                  {language === 'ru' ? 'Доля' : 'Ulush'}
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                  {language === 'ru' ? 'Контакты' : 'Aloqa'}
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                  {language === 'ru' ? 'Статус' : 'Holat'}
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">
+                  {language === 'ru' ? 'Действия' : 'Amallar'}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -196,7 +232,7 @@ export function OwnersPage() {
                           <p className="font-medium text-gray-900">{owner.fullName}</p>
                           {owner.passportSeries && (
                             <p className="text-xs text-gray-500">
-                              Паспорт: {owner.passportSeries} {owner.passportNumber}
+                              {language === 'ru' ? 'Паспорт' : 'Pasport'}: {owner.passportSeries} {owner.passportNumber}
                             </p>
                           )}
                         </div>
@@ -208,7 +244,10 @@ export function OwnersPage() {
                           ? 'bg-blue-100 text-blue-700'
                           : 'bg-purple-100 text-purple-700'
                       }`}>
-                        {owner.type === 'individual' ? 'Физ. лицо' : 'Юр. лицо'}
+                        {owner.type === 'individual'
+                          ? (language === 'ru' ? 'Физ. лицо' : 'Jismoniy shaxs')
+                          : (language === 'ru' ? 'Юр. лицо' : 'Yuridik shaxs')
+                        }
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -218,7 +257,7 @@ export function OwnersPage() {
                           <span>
                             {ownerApartments.map(apt => {
                               const building = buildings.find(b => b.id === apt.buildingId);
-                              return `${building?.name || ''}, кв. ${apt.number}`;
+                              return `${building?.name || ''}, ${language === 'ru' ? 'кв.' : 'kv.'} ${apt.number}`;
                             }).join('; ')}
                           </span>
                         </div>
@@ -249,12 +288,12 @@ export function OwnersPage() {
                       {hasDebt ? (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
                           <AlertTriangle className="w-3 h-3" />
-                          Есть долг
+                          {language === 'ru' ? 'Есть долг' : 'Qarz bor'}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                           <CheckCircle className="w-3 h-3" />
-                          Нет долга
+                          {language === 'ru' ? 'Нет долга' : 'Qarz yo\'q'}
                         </span>
                       )}
                     </td>
@@ -263,18 +302,18 @@ export function OwnersPage() {
                         <button
                           onClick={() => setEditingOwner(owner)}
                           className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Редактировать"
+                          title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm('Удалить собственника?')) {
+                            if (confirm(language === 'ru' ? 'Удалить собственника?' : 'Mulkdorni o\'chirish?')) {
                               deleteOwner(owner.id);
                             }
                           }}
                           className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Удалить"
+                          title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -288,7 +327,7 @@ export function OwnersPage() {
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                     <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>Собственники не найдены</p>
+                    <p>{language === 'ru' ? 'Собственники не найдены' : 'Mulkdorlar topilmadi'}</p>
                   </td>
                 </tr>
               )}
@@ -341,6 +380,7 @@ function OwnerDetailModal({
   onClose: () => void;
   onEdit: () => void;
 }) {
+  const { language } = useLanguageStore();
   const { apartments, buildings, personalAccounts, getResidentsByApartment } = useCRMStore();
 
   const ownerApartments = apartments.filter(a => owner.apartmentIds.includes(a.id));
@@ -372,7 +412,10 @@ function OwnerDetailModal({
                     ? 'bg-blue-100 text-blue-700'
                     : 'bg-purple-100 text-purple-700'
                 }`}>
-                  {owner.type === 'individual' ? 'Физическое лицо' : 'Юридическое лицо'}
+                  {owner.type === 'individual'
+                    ? (language === 'ru' ? 'Физическое лицо' : 'Jismoniy shaxs')
+                    : (language === 'ru' ? 'Юридическое лицо' : 'Yuridik shaxs')
+                  }
                 </span>
               </div>
             </div>
@@ -396,7 +439,9 @@ function OwnerDetailModal({
         <div className="p-6 space-y-6">
           {/* Contact Info */}
           <div>
-            <h3 className="font-semibold text-gray-900 mb-3">Контактная информация</h3>
+            <h3 className="font-semibold text-gray-900 mb-3">
+              {language === 'ru' ? 'Контактная информация' : 'Aloqa ma\'lumotlari'}
+            </h3>
             <div className="grid grid-cols-2 gap-4">
               {owner.phone && (
                 <div className="flex items-center gap-2">
@@ -422,18 +467,26 @@ function OwnerDetailModal({
           {/* Passport Data */}
           {owner.passportSeries && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Паспортные данные</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">
+                {language === 'ru' ? 'Паспортные данные' : 'Pasport ma\'lumotlari'}
+              </h3>
               <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span className="text-gray-500">Серия и номер:</span>
+                  <span className="text-gray-500">
+                    {language === 'ru' ? 'Серия и номер:' : 'Seriya va raqam:'}
+                  </span>
                   <p className="font-medium">{owner.passportSeries} {owner.passportNumber}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500">Дата выдачи:</span>
+                  <span className="text-gray-500">
+                    {language === 'ru' ? 'Дата выдачи:' : 'Berilgan sana:'}
+                  </span>
                   <p className="font-medium">{formatDate(owner.passportIssuedDate)}</p>
                 </div>
                 <div className="col-span-2">
-                  <span className="text-gray-500">Кем выдан:</span>
+                  <span className="text-gray-500">
+                    {language === 'ru' ? 'Кем выдан:' : 'Kim tomonidan berilgan:'}
+                  </span>
                   <p className="font-medium">{owner.passportIssuedBy}</p>
                 </div>
               </div>
@@ -443,7 +496,9 @@ function OwnerDetailModal({
           {/* Property Info */}
           {ownerApartments.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Объекты недвижимости ({ownerApartments.length})</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">
+                {language === 'ru' ? `Объекты недвижимости (${ownerApartments.length})` : `Ko'chmas mulk ob'ektlari (${ownerApartments.length})`}
+              </h3>
               <div className="space-y-3">
                 {ownerApartments.map(apartment => {
                   const building = buildings.find(b => b.id === apartment.buildingId);
@@ -452,21 +507,29 @@ function OwnerDetailModal({
                       <div className="flex items-center gap-3 mb-3">
                         <Home className="w-5 h-5 text-blue-500" />
                         <div>
-                          <p className="font-medium">{building?.name}, кв. {apartment.number}</p>
+                          <p className="font-medium">
+                            {building?.name}, {language === 'ru' ? 'кв.' : 'kv.'} {apartment.number}
+                          </p>
                           <p className="text-sm text-gray-500">{building?.address}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-sm">
                         <div>
-                          <span className="text-gray-500">Площадь:</span>
+                          <span className="text-gray-500">
+                            {language === 'ru' ? 'Площадь:' : 'Maydoni:'}
+                          </span>
                           <p className="font-medium">{apartment.totalArea} м²</p>
                         </div>
                         <div>
-                          <span className="text-gray-500">Комнат:</span>
+                          <span className="text-gray-500">
+                            {language === 'ru' ? 'Комнат:' : 'Xonalar:'}
+                          </span>
                           <p className="font-medium">{apartment.rooms}</p>
                         </div>
                         <div>
-                          <span className="text-gray-500">Доля:</span>
+                          <span className="text-gray-500">
+                            {language === 'ru' ? 'Доля:' : 'Ulush:'}
+                          </span>
                           <p className="font-medium">{(owner.ownershipShare || 0) * 100}%</p>
                         </div>
                       </div>
@@ -480,7 +543,9 @@ function OwnerDetailModal({
           {/* Account Info */}
           {account && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Лицевой счет</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">
+                {language === 'ru' ? 'Лицевой счет' : 'Shaxsiy hisob'}
+              </h3>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -492,18 +557,25 @@ function OwnerDetailModal({
                       ? 'bg-red-100 text-red-700'
                       : 'bg-green-100 text-green-700'
                   }`}>
-                    {account.currentDebt > 0 ? 'Есть задолженность' : 'Нет задолженности'}
+                    {account.currentDebt > 0
+                      ? (language === 'ru' ? 'Есть задолженность' : 'Qarz mavjud')
+                      : (language === 'ru' ? 'Нет задолженности' : 'Qarz yo\'q')
+                    }
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-500">Текущий баланс:</span>
+                    <span className="text-gray-500">
+                      {language === 'ru' ? 'Текущий баланс:' : 'Joriy balans:'}
+                    </span>
                     <p className={`font-medium ${account.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {formatMoney(account.balance)} ₽
                     </p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Задолженность:</span>
+                    <span className="text-gray-500">
+                      {language === 'ru' ? 'Задолженность:' : 'Qarz:'}
+                    </span>
                     <p className={`font-medium ${account.currentDebt > 0 ? 'text-red-600' : ''}`}>
                       {formatMoney(account.currentDebt)} ₽
                     </p>
@@ -516,7 +588,9 @@ function OwnerDetailModal({
           {/* Residents */}
           {ownerResidents.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Проживающие ({ownerResidents.length})</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">
+                {language === 'ru' ? `Проживающие (${ownerResidents.length})` : `Yashovchilar (${ownerResidents.length})`}
+              </h3>
               <div className="space-y-2">
                 {ownerResidents.map(resident => (
                   <div key={resident.id} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
@@ -527,16 +601,18 @@ function OwnerDetailModal({
                       <div>
                         <p className="font-medium text-sm">{resident.fullName}</p>
                         <p className="text-xs text-gray-500">
-                          {resident.relationToOwner === 'self' && 'Собственник'}
-                          {resident.relationToOwner === 'spouse' && 'Супруг(а)'}
-                          {resident.relationToOwner === 'child' && 'Ребенок'}
-                          {resident.relationToOwner === 'parent' && 'Родитель'}
-                          {resident.relationToOwner === 'other' && 'Другое'}
+                          {resident.relationToOwner === 'self' && (language === 'ru' ? 'Собственник' : 'Mulkdor')}
+                          {resident.relationToOwner === 'spouse' && (language === 'ru' ? 'Супруг(а)' : 'Turmush o\'rtog\'i')}
+                          {resident.relationToOwner === 'child' && (language === 'ru' ? 'Ребенок' : 'Bola')}
+                          {resident.relationToOwner === 'parent' && (language === 'ru' ? 'Родитель' : 'Ota-ona')}
+                          {resident.relationToOwner === 'other' && (language === 'ru' ? 'Другое' : 'Boshqa')}
                         </p>
                       </div>
                     </div>
                     <div className="text-right text-xs text-gray-500">
-                      <p>Зарег.: {formatDate(resident.registrationDate)}</p>
+                      <p>
+                        {language === 'ru' ? 'Зарег.' : 'Ro\'yxatga olingan'}: {formatDate(resident.registrationDate)}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -558,6 +634,7 @@ function OwnerFormModal({
   onClose: () => void;
   onSave: (data: Omit<Owner, 'id'>) => void;
 }) {
+  const { language } = useLanguageStore();
   const { apartments, buildings } = useCRMStore();
 
   const [formData, setFormData] = useState({
@@ -621,7 +698,10 @@ function OwnerFormModal({
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900">
-              {owner ? 'Редактировать собственника' : 'Новый собственник'}
+              {owner
+                ? (language === 'ru' ? 'Редактировать собственника' : 'Mulkdorni tahrirlash')
+                : (language === 'ru' ? 'Новый собственник' : 'Yangi mulkdor')
+              }
             </h2>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <X className="w-5 h-5 text-gray-500" />
@@ -633,7 +713,9 @@ function OwnerFormModal({
           {/* Basic Info */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Фамилия *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {language === 'ru' ? 'Фамилия *' : 'Familiya *'}
+              </label>
               <input
                 type="text"
                 required
@@ -643,7 +725,9 @@ function OwnerFormModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Имя *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {language === 'ru' ? 'Имя *' : 'Ism *'}
+              </label>
               <input
                 type="text"
                 required
@@ -653,7 +737,9 @@ function OwnerFormModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Отчество</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {language === 'ru' ? 'Отчество' : 'Otasining ismi'}
+              </label>
               <input
                 type="text"
                 value={formData.middleName}
@@ -665,34 +751,52 @@ function OwnerFormModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Тип</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {language === 'ru' ? 'Тип' : 'Tur'}
+              </label>
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value as 'individual' | 'legal_entity' })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="individual">Физическое лицо</option>
-                <option value="legal_entity">Юридическое лицо</option>
+                <option value="individual">
+                  {language === 'ru' ? 'Физическое лицо' : 'Jismoniy shaxs'}
+                </option>
+                <option value="legal_entity">
+                  {language === 'ru' ? 'Юридическое лицо' : 'Yuridik shaxs'}
+                </option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Тип права</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {language === 'ru' ? 'Тип права' : 'Huquq turi'}
+              </label>
               <select
                 value={formData.ownershipType}
                 onChange={(e) => setFormData({ ...formData, ownershipType: e.target.value as 'owner' | 'co_owner' | 'tenant' | 'representative' })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="owner">Собственник</option>
-                <option value="co_owner">Совладелец</option>
-                <option value="tenant">Наниматель</option>
-                <option value="representative">Представитель</option>
+                <option value="owner">
+                  {language === 'ru' ? 'Собственник' : 'Mulkdor'}
+                </option>
+                <option value="co_owner">
+                  {language === 'ru' ? 'Совладелец' : 'Hammulkdor'}
+                </option>
+                <option value="tenant">
+                  {language === 'ru' ? 'Наниматель' : 'Ijarachi'}
+                </option>
+                <option value="representative">
+                  {language === 'ru' ? 'Представитель' : 'Vakil'}
+                </option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Квартиры</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {language === 'ru' ? 'Квартиры' : 'Kvartiralar'}
+            </label>
             <select
               multiple
               value={formData.apartmentIds}
@@ -706,16 +810,20 @@ function OwnerFormModal({
                 const building = buildings.find(b => b.id === apt.buildingId);
                 return (
                   <option key={apt.id} value={apt.id}>
-                    {building?.name}, кв. {apt.number}
+                    {building?.name}, {language === 'ru' ? 'кв.' : 'kv.'} {apt.number}
                   </option>
                 );
               })}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Удерживайте Ctrl/Cmd для выбора нескольких</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {language === 'ru' ? 'Удерживайте Ctrl/Cmd для выбора нескольких' : 'Bir nechtasini tanlash uchun Ctrl/Cmd tugmasini bosib turing'}
+            </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Доля собственности (%)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {language === 'ru' ? 'Доля собственности (%)' : 'Mulkchilik ulushi (%)'}
+            </label>
             <input
               type="number"
               min="0"
@@ -729,7 +837,9 @@ function OwnerFormModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Телефон *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {language === 'ru' ? 'Телефон *' : 'Telefon *'}
+              </label>
               <input
                 type="tel"
                 required
@@ -751,7 +861,9 @@ function OwnerFormModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Адрес регистрации</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {language === 'ru' ? 'Адрес регистрации' : 'Ro\'yxatga olish manzili'}
+            </label>
             <input
               type="text"
               value={formData.registrationAddress}
@@ -764,10 +876,14 @@ function OwnerFormModal({
           {formData.type === 'individual' && (
             <>
               <div className="pt-4 border-t border-gray-100">
-                <h4 className="font-medium text-gray-900 mb-3">Паспортные данные</h4>
+                <h4 className="font-medium text-gray-900 mb-3">
+                  {language === 'ru' ? 'Паспортные данные' : 'Pasport ma\'lumotlari'}
+                </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Серия</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {language === 'ru' ? 'Серия' : 'Seriya'}
+                    </label>
                     <input
                       type="text"
                       value={formData.passportSeries}
@@ -776,7 +892,9 @@ function OwnerFormModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Номер</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {language === 'ru' ? 'Номер' : 'Raqam'}
+                    </label>
                     <input
                       type="text"
                       value={formData.passportNumber}
@@ -786,7 +904,9 @@ function OwnerFormModal({
                   </div>
                 </div>
                 <div className="mt-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Кем выдан</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {language === 'ru' ? 'Кем выдан' : 'Kim tomonidan berilgan'}
+                  </label>
                   <input
                     type="text"
                     value={formData.passportIssuedBy}
@@ -795,7 +915,9 @@ function OwnerFormModal({
                   />
                 </div>
                 <div className="mt-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Дата выдачи</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {language === 'ru' ? 'Дата выдачи' : 'Berilgan sana'}
+                  </label>
                   <input
                     type="date"
                     value={formData.passportIssuedDate}
@@ -807,7 +929,9 @@ function OwnerFormModal({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ИНН</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {language === 'ru' ? 'ИНН' : 'STIR'}
+                  </label>
                   <input
                     type="text"
                     value={formData.inn}
@@ -816,7 +940,9 @@ function OwnerFormModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">СНИЛС</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {language === 'ru' ? 'СНИЛС' : 'JSHSHIR'}
+                  </label>
                   <input
                     type="text"
                     value={formData.snils}
@@ -835,13 +961,16 @@ function OwnerFormModal({
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              Отмена
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
             <button
               type="submit"
               className="btn-primary"
             >
-              {owner ? 'Сохранить' : 'Создать'}
+              {owner
+                ? (language === 'ru' ? 'Сохранить' : 'Saqlash')
+                : (language === 'ru' ? 'Создать' : 'Yaratish')
+              }
             </button>
           </div>
         </form>

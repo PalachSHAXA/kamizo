@@ -51,7 +51,7 @@ const ORDER_STATUS_LABELS: Record<MarketplaceOrderStatus, { label: string; label
   cancelled: { label: 'Отменён', labelUz: 'Bekor qilindi', color: 'red' },
 };
 
-const ORDER_STATUS_FLOW: MarketplaceOrderStatus[] = ['new', 'confirmed', 'preparing', 'delivering', 'ready', 'delivered'];
+const ORDER_STATUS_FLOW: MarketplaceOrderStatus[] = ['new', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered'];
 
 const STATUS_COLORS: Record<string, string> = {
   blue: 'bg-blue-100 text-blue-700',
@@ -79,20 +79,7 @@ export function MarketplaceOrdersPage() {
     try {
       setLoading(true);
       const response = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/admin/orders');
-
-      // For each order, fetch items
-      const ordersWithItems = await Promise.all(
-        (response?.orders || []).map(async (order) => {
-          try {
-            const itemsRes = await apiRequest<{ items: MarketplaceOrderItemAPI[] }>(`/api/marketplace/orders/${order.id}/items`);
-            return { ...order, items: itemsRes?.items || [] };
-          } catch {
-            return { ...order, items: [] };
-          }
-        })
-      );
-
-      setOrders(ordersWithItems);
+      setOrders(response?.orders || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -158,7 +145,7 @@ export function MarketplaceOrdersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -231,7 +218,7 @@ export function MarketplaceOrdersPage() {
               placeholder={language === 'ru' ? 'Поиск заказов...' : 'Buyurtma qidirish...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500"
             />
           </div>
         </div>
@@ -242,7 +229,7 @@ export function MarketplaceOrdersPage() {
             onClick={() => setStatusFilter('all')}
             className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
               statusFilter === 'all'
-                ? 'bg-orange-600 text-white'
+                ? 'bg-primary-600 text-white'
                 : 'bg-gray-100 text-gray-600'
             }`}
           >
@@ -257,7 +244,7 @@ export function MarketplaceOrdersPage() {
                 onClick={() => setStatusFilter(key as MarketplaceOrderStatus)}
                 className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
                   statusFilter === key
-                    ? 'bg-orange-600 text-white'
+                    ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
@@ -317,7 +304,7 @@ export function MarketplaceOrdersPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500">{order.items_count || order.items?.length || 0} товаров</span>
-                    <span className="font-bold text-orange-600">{formatPrice(order.final_amount || order.total_amount)}</span>
+                    <span className="font-bold text-primary-600">{formatPrice(order.final_amount || order.total_amount)}</span>
                   </div>
                 </div>
               </div>
@@ -329,7 +316,7 @@ export function MarketplaceOrdersPage() {
                     e.stopPropagation();
                     setShowAssignModal(order);
                   }}
-                  className="w-full py-3 bg-orange-50 text-orange-600 font-medium border-t hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-primary-50 text-primary-600 font-medium border-t hover:bg-primary-100 transition-colors flex items-center justify-center gap-2"
                 >
                   <UserPlus className="w-4 h-4" />
                   {language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}
@@ -378,11 +365,11 @@ export function MarketplaceOrdersPage() {
                     return (
                       <div key={status} className="flex flex-col items-center flex-1">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          isCompleted ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-400'
-                        } ${isCurrent ? 'ring-2 ring-orange-300 ring-offset-2' : ''}`}>
+                          isCompleted ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'
+                        } ${isCurrent ? 'ring-2 ring-primary-300 ring-offset-2' : ''}`}>
                           <StatusIcon className="w-4 h-4" />
                         </div>
-                        <span className={`text-xs mt-1 text-center ${isCompleted ? 'text-orange-600 font-medium' : 'text-gray-400'}`}>
+                        <span className={`text-xs mt-1 text-center ${isCompleted ? 'text-primary-600 font-medium' : 'text-gray-400'}`}>
                           {language === 'ru' ? ORDER_STATUS_LABELS[status].label : ORDER_STATUS_LABELS[status].labelUz}
                         </span>
                       </div>
@@ -394,7 +381,7 @@ export function MarketplaceOrdersPage() {
                     const currentIndex = ORDER_STATUS_FLOW.indexOf(selectedOrder.status);
                     const isCompleted = index < currentIndex;
                     return (
-                      <div key={status} className={`flex-1 h-1 ${isCompleted ? 'bg-orange-600' : 'bg-gray-200'} ${index === 0 ? 'rounded-l-full' : ''} ${index === 3 ? 'rounded-r-full' : ''}`} />
+                      <div key={status} className={`flex-1 h-1 ${isCompleted ? 'bg-primary-600' : 'bg-gray-200'} ${index === 0 ? 'rounded-l-full' : ''} ${index === 3 ? 'rounded-r-full' : ''}`} />
                     );
                   })}
                 </div>
@@ -475,12 +462,12 @@ export function MarketplaceOrdersPage() {
               </div>
 
               {/* Total */}
-              <div className="bg-orange-50 rounded-xl p-4 mb-4">
+              <div className="bg-primary-50 rounded-xl p-4 mb-4">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-gray-700">
                     {language === 'ru' ? 'Итого:' : 'Jami:'}
                   </span>
-                  <span className="text-xl font-bold text-orange-600">
+                  <span className="text-xl font-bold text-primary-600">
                     {formatPrice(selectedOrder.final_amount || selectedOrder.total_amount)}
                   </span>
                 </div>
@@ -517,7 +504,7 @@ export function MarketplaceOrdersPage() {
                 {selectedOrder.status === 'new' && (
                   <button
                     onClick={() => setShowAssignModal(selectedOrder)}
-                    className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-medium flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium flex items-center justify-center gap-2"
                   >
                     <UserPlus className="w-5 h-5" />
                     {language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}
@@ -565,10 +552,10 @@ export function MarketplaceOrdersPage() {
                   <button
                     key={executor.id}
                     onClick={() => assignExecutor(showAssignModal.id, executor.id)}
-                    className="w-full p-4 bg-gray-50 rounded-xl flex items-center gap-3 hover:bg-orange-50 transition-colors text-left"
+                    className="w-full p-4 bg-gray-50 rounded-xl flex items-center gap-3 hover:bg-primary-50 transition-colors text-left"
                   >
-                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-orange-600" />
+                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                      <User className="w-5 h-5 text-primary-600" />
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{executor.name}</p>

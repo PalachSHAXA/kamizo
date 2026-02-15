@@ -89,13 +89,13 @@ export function SettingsPage() {
           isSubscribed: true,
           endpoint: subscription.endpoint
         }));
-        setPushTestResult('Push-уведомления успешно включены!');
+        setPushTestResult(language === 'ru' ? 'Push-уведомления успешно включены!' : 'Push-bildirishnomalar muvaffaqiyatli yoqildi!');
       } else {
-        setPushTestResult('Не удалось подписаться. Проверьте разрешения браузера.');
+        setPushTestResult(language === 'ru' ? 'Не удалось подписаться. Проверьте разрешения браузера.' : 'Obuna bo\'lmadi. Brauzer ruxsatlarini tekshiring.');
       }
     } catch (error) {
       console.error('[Settings] Push enable error:', error);
-      setPushTestResult(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+      setPushTestResult(`${language === 'ru' ? 'Ошибка' : 'Xato'}: ${error instanceof Error ? error.message : (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xato')}`);
     } finally {
       setIsPushLoading(false);
     }
@@ -111,13 +111,13 @@ export function SettingsPage() {
         method: 'POST'
       });
       if (response.success) {
-        setPushTestResult('Тестовое уведомление отправлено! Проверьте телефон.');
+        setPushTestResult(language === 'ru' ? 'Тестовое уведомление отправлено! Проверьте телефон.' : 'Test bildirishnoma yuborildi! Telefonni tekshiring.');
       } else {
-        setPushTestResult(response.message || 'Не удалось отправить уведомление');
+        setPushTestResult(response.message || (language === 'ru' ? 'Не удалось отправить уведомление' : 'Bildirishnomani yuborib bo\'lmadi'));
       }
     } catch (error) {
       console.error('[Settings] Test push error:', error);
-      setPushTestResult(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+      setPushTestResult(`${language === 'ru' ? 'Ошибка' : 'Xato'}: ${error instanceof Error ? error.message : (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xato')}`);
     } finally {
       setIsPushLoading(false);
     }
@@ -213,7 +213,7 @@ export function SettingsPage() {
       if (result.user && user) {
         updateUserProfile(user.login, { name: result.user.name, phone: result.user.phone });
       }
-      setProfileMessage({ type: 'success', text: 'Профиль успешно сохранён' });
+      setProfileMessage({ type: 'success', text: language === 'ru' ? 'Профиль успешно сохранён' : 'Profil muvaffaqiyatli saqlandi' });
       setTimeout(() => setProfileMessage(null), 3000);
     } catch (err: any) {
       setProfileMessage({ type: 'error', text: err.message || 'Ошибка при сохранении профиля' });
@@ -228,26 +228,26 @@ export function SettingsPage() {
 
     // Validation
     if (!currentPassword) {
-      setPasswordMessage({ type: 'error', text: 'Введите текущий пароль' });
+      setPasswordMessage({ type: 'error', text: language === 'ru' ? 'Введите текущий пароль' : 'Joriy parolni kiriting' });
       return;
     }
     if (!newPassword) {
-      setPasswordMessage({ type: 'error', text: 'Введите новый пароль' });
+      setPasswordMessage({ type: 'error', text: language === 'ru' ? 'Введите новый пароль' : 'Yangi parolni kiriting' });
       return;
     }
     if (newPassword.length < 4) {
-      setPasswordMessage({ type: 'error', text: 'Пароль должен быть минимум 4 символа' });
+      setPasswordMessage({ type: 'error', text: language === 'ru' ? 'Пароль должен быть минимум 4 символа' : 'Parol kamida 4 ta belgi bo\'lishi kerak' });
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordMessage({ type: 'error', text: 'Пароли не совпадают' });
+      setPasswordMessage({ type: 'error', text: language === 'ru' ? 'Пароли не совпадают' : 'Parollar mos kelmaydi' });
       return;
     }
 
     setIsPasswordSaving(true);
     try {
       await usersApi.changePassword(currentPassword, newPassword);
-      setPasswordMessage({ type: 'success', text: 'Пароль успешно изменён' });
+      setPasswordMessage({ type: 'success', text: language === 'ru' ? 'Пароль успешно изменён' : 'Parol muvaffaqiyatli o\'zgartirildi' });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -262,15 +262,15 @@ export function SettingsPage() {
   // Different tabs for admin vs manager
   const tabs = isAdmin
     ? [
-        { id: 'profile' as const, label: 'Профиль', icon: User },
-        { id: 'general' as const, label: 'Общие', icon: Settings },
-        { id: 'notifications' as const, label: 'Уведомления', icon: Bell },
-        { id: 'integrations' as const, label: 'Интеграции', icon: Globe },
-        { id: 'users' as const, label: 'Пользователи', icon: Users },
+        { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
+        { id: 'general' as const, label: language === 'ru' ? 'Общие' : 'Umumiy', icon: Settings },
+        { id: 'notifications' as const, label: language === 'ru' ? 'Уведомления' : 'Bildirishnomalar', icon: Bell },
+        { id: 'integrations' as const, label: language === 'ru' ? 'Интеграции' : 'Integratsiyalar', icon: Globe },
+        { id: 'users' as const, label: language === 'ru' ? 'Пользователи' : 'Foydalanuvchilar', icon: Users },
       ]
     : [
-        { id: 'profile' as const, label: 'Профиль', icon: User },
-        { id: 'notifications' as const, label: 'Уведомления', icon: Bell },
+        { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
+        { id: 'notifications' as const, label: language === 'ru' ? 'Уведомления' : 'Bildirishnomalar', icon: Bell },
       ];
 
   return (
@@ -278,13 +278,13 @@ export function SettingsPage() {
       {/* Header - mobile optimized */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Настройки</h1>
-          <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1">Параметры системы</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</h1>
+          <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1">{language === 'ru' ? 'Параметры системы' : 'Tizim parametrlari'}</p>
         </div>
         {saved && (
           <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm">
             <CheckCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Сохранено</span>
+            <span className="hidden sm:inline">{language === 'ru' ? 'Сохранено' : 'Saqlandi'}</span>
           </div>
         )}
       </div>
@@ -314,7 +314,7 @@ export function SettingsPage() {
           <div className="glass-card p-4 md:p-6">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-gray-400" />
-              Мой профиль
+              {language === 'ru' ? 'Мой профиль' : 'Mening profilim'}
             </h2>
             <div className="flex flex-col md:flex-row gap-6">
               {/* Avatar */}
@@ -328,17 +328,17 @@ export function SettingsPage() {
               <div className="flex-1 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Имя</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Имя' : 'Ism'}</label>
                     <input
                       type="text"
                       value={profileName}
                       onChange={(e) => setProfileName(e.target.value)}
                       className="input-field text-base"
-                      placeholder="Введите имя"
+                      placeholder={language === 'ru' ? 'Введите имя' : 'Ismni kiriting'}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
                     <input
                       type="text"
                       value={user?.login || ''}
@@ -357,7 +357,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                     <input
                       type="tel"
                       value={profilePhone}
@@ -368,16 +368,21 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Роль</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Роль' : 'Lavozim'}</label>
                   <div className="flex items-center gap-2">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                       user?.role === 'admin' ? 'bg-red-100 text-red-700' :
                       user?.role === 'manager' ? 'bg-blue-100 text-blue-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {user?.role === 'admin' ? 'Администратор' :
-                       user?.role === 'manager' ? 'Менеджер' :
-                       user?.role || 'Пользователь'}
+                      {user?.role === 'super_admin' ? (language === 'ru' ? 'Суперадмин' : 'Super admin') :
+                       user?.role === 'director' ? (language === 'ru' ? 'Директор' : 'Direktor') :
+                       user?.role === 'admin' ? (language === 'ru' ? 'Администратор' : 'Administrator') :
+                       user?.role === 'manager' ? (language === 'ru' ? 'Менеджер' : 'Menejer') :
+                       user?.role === 'department_head' ? (language === 'ru' ? 'Глава отдела' : 'Bo\'lim boshlig\'i') :
+                       user?.role === 'executor' ? (language === 'ru' ? 'Исполнитель' : 'Ijrochi') :
+                       user?.role === 'resident' ? (language === 'ru' ? 'Житель' : 'Aholik') :
+                       user?.role || (language === 'ru' ? 'Пользователь' : 'Foydalanuvchi')}
                     </span>
                   </div>
                 </div>
@@ -398,10 +403,10 @@ export function SettingsPage() {
                   {isProfileSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Сохранение...
+                      {language === 'ru' ? 'Сохранение...' : 'Saqlanmoqda...'}
                     </>
                   ) : (
-                    'Сохранить профиль'
+                    language === 'ru' ? 'Сохранить профиль' : 'Profilni saqlash'
                   )}
                 </button>
               </div>
@@ -412,7 +417,7 @@ export function SettingsPage() {
           <div className="glass-card p-4 md:p-6">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Globe className="w-5 h-5 text-gray-400" />
-              Язык интерфейса
+              {language === 'ru' ? 'Язык интерфейса' : 'Interfeys tili'}
             </h2>
             <div className="flex gap-3">
               <button
@@ -442,10 +447,10 @@ export function SettingsPage() {
 
           {/* Change Password */}
           <div className="glass-card p-4 md:p-6">
-            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Изменить пароль</h2>
+            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish'}</h2>
             <div className="space-y-4 max-w-md">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Текущий пароль</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Текущий пароль' : 'Joriy parol'}</label>
                 <div className="relative">
                   <input
                     type={showCurrentPassword ? 'text' : 'password'}
@@ -464,7 +469,7 @@ export function SettingsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Новый пароль</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Новый пароль' : 'Yangi parol'}</label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? 'text' : 'password'}
@@ -483,7 +488,7 @@ export function SettingsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Подтвердите пароль</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Подтвердите пароль' : 'Parolni tasdiqlang'}</label>
                 <input
                   type="password"
                   value={confirmPassword}
@@ -509,10 +514,10 @@ export function SettingsPage() {
                 {isPasswordSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Сохранение...
+                    {language === 'ru' ? 'Сохранение...' : 'Saqlanmoqda...'}
                   </>
                 ) : (
-                  'Изменить пароль'
+                  language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish'
                 )}
               </button>
             </div>
@@ -526,11 +531,11 @@ export function SettingsPage() {
           <div className="glass-card p-4 md:p-6">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Building2 className="w-5 h-5 text-gray-400" />
-              Информация о компании
+              {language === 'ru' ? 'Информация о компании' : 'Kompaniya haqida'}
             </h2>
             <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Название компании</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Название компании' : 'Kompaniya nomi'}</label>
                 <input
                   type="text"
                   value={companyName}
@@ -539,15 +544,15 @@ export function SettingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ИНН</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ИНН' : 'STIR'}</label>
                 <input type="text" value={companyInn} onChange={(e) => setCompanyInn(e.target.value)} className="input-field text-base" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Адрес</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Адрес' : 'Manzil'}</label>
                 <input type="text" value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} className="input-field text-base" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                 <input type="tel" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} className="input-field text-base" />
               </div>
             </div>
@@ -556,35 +561,35 @@ export function SettingsPage() {
           <div className="glass-card p-4 md:p-6">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Settings className="w-5 h-5 text-gray-400" />
-              Режим работы
+              {language === 'ru' ? 'Режим работы' : 'Ish tartibi'}
             </h2>
             <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Режим маршрутизации</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Режим маршрутизации' : 'Marshrutlash tartibi'}</label>
                 <select
                   value={routingMode}
                   onChange={(e) => setRoutingMode(e.target.value as 'manual' | 'auto' | 'hybrid')}
                   className="input-field text-base"
                 >
-                  <option value="hybrid">Гибридный</option>
-                  <option value="auto">Автоматический</option>
-                  <option value="manual">Ручной</option>
+                  <option value="hybrid">{language === 'ru' ? 'Гибридный' : 'Gibrid'}</option>
+                  <option value="auto">{language === 'ru' ? 'Автоматический' : 'Avtomatik'}</option>
+                  <option value="manual">{language === 'ru' ? 'Ручной' : 'Qo\'lda'}</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1 hidden md:block">
                   Гибридный: система предлагает исполнителя, менеджер подтверждает
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Приоритет распределения</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Приоритет распределения' : 'Taqsimlash ustivorligi'}</label>
                 <select className="input-field text-base">
-                  <option value="rating">По рейтингу</option>
-                  <option value="workload">По загруженности</option>
-                  <option value="distance">По расстоянию</option>
-                  <option value="fifo">По очереди</option>
+                  <option value="rating">{language === 'ru' ? 'По рейтингу' : 'Reyting bo\'yicha'}</option>
+                  <option value="workload">{language === 'ru' ? 'По загруженности' : 'Bandlik bo\'yicha'}</option>
+                  <option value="distance">{language === 'ru' ? 'По расстоянию' : 'Masofa bo\'yicha'}</option>
+                  <option value="fifo">{language === 'ru' ? 'По очереди' : 'Navbat bo\'yicha'}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Начало рабочего дня</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Начало рабочего дня' : 'Ish kunining boshlanishi'}</label>
                 <input
                   type="time"
                   value={workingHoursStart}
@@ -593,7 +598,7 @@ export function SettingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Конец рабочего дня</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Конец рабочего дня' : 'Ish kunining tugashi'}</label>
                 <input
                   type="time"
                   value={workingHoursEnd}
@@ -611,7 +616,7 @@ export function SettingsPage() {
                   onChange={(e) => setAutoAssign(e.target.checked)}
                   className="w-5 h-5 mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Автоматически назначать заявки</span>
+                <span className="text-sm">{language === 'ru' ? 'Автоматически назначать заявки' : 'Arizalarni avtomatik tayinlash'}</span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer p-2 -mx-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -619,7 +624,7 @@ export function SettingsPage() {
                   defaultChecked
                   className="w-5 h-5 mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Исполнители могут брать заявки</span>
+                <span className="text-sm">{language === 'ru' ? 'Исполнители могут брать заявки' : 'Ijrochilar arizalarni olishi mumkin'}</span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer p-2 -mx-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -627,34 +632,34 @@ export function SettingsPage() {
                   defaultChecked
                   className="w-5 h-5 mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Подтверждение от жителя</span>
+                <span className="text-sm">{language === 'ru' ? 'Подтверждение от жителя' : 'Aholikdan tasdiqlash'}</span>
               </label>
             </div>
           </div>
 
           <button onClick={handleSave} className="btn-primary w-full md:w-auto py-3 md:py-2 text-base touch-manipulation">
-            Сохранить изменения
+            {language === 'ru' ? 'Сохранить изменения' : 'O\'zgarishlarni saqlash'}
           </button>
 
           {/* Danger Zone */}
           <div className="glass-card p-4 md:p-6 border-2 border-red-200 bg-red-50/30">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2 text-red-700">
               <AlertTriangle className="w-5 h-5" />
-              Опасная зона
+              {language === 'ru' ? 'Опасная зона' : 'Xavfli zona'}
             </h2>
             <div className="space-y-4">
               <div className="p-4 bg-white/50 rounded-xl">
                 <div className="flex items-start md:items-center justify-between gap-4 flex-col md:flex-row">
                   <div>
-                    <div className="font-medium text-red-700">Сбросить все заявки</div>
-                    <div className="text-sm text-gray-600 mt-1">Удалить все заявки, историю и сообщения. Это действие нельзя отменить.</div>
+                    <div className="font-medium text-red-700">{language === 'ru' ? 'Сбросить все заявки' : 'Barcha arizalarni o\'chirish'}</div>
+                    <div className="text-sm text-gray-600 mt-1">{language === 'ru' ? 'Удалить все заявки, историю и сообщения. Это действие нельзя отменить.' : 'Barcha arizalarni, tarixni va xabarlarni o\'chirish. Bu amalni bekor qilib bo\'lmaydi.'}</div>
                   </div>
                   <button
                     onClick={() => setShowResetModal(true)}
                     className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2 touch-manipulation flex-shrink-0"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Сбросить
+                    {language === 'ru' ? 'Сбросить' : 'O\'chirish'}
                   </button>
                 </div>
               </div>
@@ -674,13 +679,13 @@ export function SettingsPage() {
           <div className="glass-card p-4 md:p-6">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Bell className="w-5 h-5 text-gray-400" />
-              Каналы уведомлений
+              {language === 'ru' ? 'Каналы уведомлений' : 'Bildirishnoma kanallari'}
             </h2>
             <div className="space-y-3">
               <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="font-medium text-sm md:text-base">Push-уведомления</div>
-                  <div className="text-xs md:text-sm text-gray-500">В приложении и браузере</div>
+                  <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Push-уведомления' : 'Push-bildirishnomalar'}</div>
+                  <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'В приложении и браузере' : 'Ilova va brauzerda'}</div>
                 </div>
                 <input
                   type="checkbox"
@@ -691,8 +696,8 @@ export function SettingsPage() {
               </label>
               <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="font-medium text-sm md:text-base">SMS-уведомления</div>
-                  <div className="text-xs md:text-sm text-gray-500">На телефон</div>
+                  <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'SMS-уведомления' : 'SMS-bildirishnomalar'}</div>
+                  <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'На телефон' : 'Telefonga'}</div>
                 </div>
                 <input
                   type="checkbox"
@@ -703,8 +708,8 @@ export function SettingsPage() {
               </label>
               <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="font-medium text-sm md:text-base">Email-уведомления</div>
-                  <div className="text-xs md:text-sm text-gray-500">На почту</div>
+                  <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Email-уведомления' : 'Email-bildirishnomalar'}</div>
+                  <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'На почту' : 'Emailga'}</div>
                 </div>
                 <input
                   type="checkbox"
@@ -715,8 +720,8 @@ export function SettingsPage() {
               </label>
               <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="font-medium text-sm md:text-base">Telegram-бот</div>
-                  <div className="text-xs md:text-sm text-gray-500">Через Telegram</div>
+                  <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}</div>
+                  <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Через Telegram' : 'Telegram orqali'}</div>
                 </div>
                 <input
                   type="checkbox"
@@ -727,7 +732,7 @@ export function SettingsPage() {
           </div>
 
           <div className="glass-card p-4 md:p-6">
-            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">События для уведомлений</h2>
+            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'События для уведомлений' : 'Bildirishnoma hodisalari'}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -736,7 +741,7 @@ export function SettingsPage() {
                   onChange={(e) => setNotifyOnNew(e.target.checked)}
                   className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Новая заявка</span>
+                <span className="text-sm">{language === 'ru' ? 'Новая заявка' : 'Yangi ariza'}</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -744,7 +749,7 @@ export function SettingsPage() {
                   defaultChecked
                   className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Назначена исполнителю</span>
+                <span className="text-sm">{language === 'ru' ? 'Назначена исполнителю' : 'Ijrochiga tayinlandi'}</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -752,7 +757,7 @@ export function SettingsPage() {
                   defaultChecked
                   className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Принята исполнителем</span>
+                <span className="text-sm">{language === 'ru' ? 'Принята исполнителем' : 'Ijrochi qabul qildi'}</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -760,7 +765,7 @@ export function SettingsPage() {
                   defaultChecked
                   className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Работа начата</span>
+                <span className="text-sm">{language === 'ru' ? 'Работа начата' : 'Ish boshlandi'}</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -769,7 +774,7 @@ export function SettingsPage() {
                   onChange={(e) => setNotifyOnComplete(e.target.checked)}
                   className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Выполнена</span>
+                <span className="text-sm">{language === 'ru' ? 'Выполнена' : 'Bajarildi'}</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -778,7 +783,7 @@ export function SettingsPage() {
                   onChange={(e) => setNotifyOnRating(e.target.checked)}
                   className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Получена оценка</span>
+                <span className="text-sm">{language === 'ru' ? 'Получена оценка' : 'Baho olindi'}</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
                 <input
@@ -786,7 +791,7 @@ export function SettingsPage() {
                   defaultChecked
                   className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
                 />
-                <span className="text-sm">Срочная заявка</span>
+                <span className="text-sm">{language === 'ru' ? 'Срочная заявка' : 'Shoshilinch ariza'}</span>
               </label>
             </div>
           </div>
@@ -796,12 +801,12 @@ export function SettingsPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
                 <Smartphone className="w-5 h-5 text-gray-400" />
-                Настройка Push-уведомлений
+                {language === 'ru' ? 'Настройка Push-уведомлений' : 'Push-bildirishnomalarni sozlash'}
               </h2>
               <button
                 onClick={handleRefreshPushStatus}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Обновить статус"
+                title={language === 'ru' ? 'Обновить статус' : 'Statusni yangilash'}
               >
                 <RefreshCw className="w-4 h-4 text-gray-500" />
               </button>
@@ -810,33 +815,33 @@ export function SettingsPage() {
             {/* Status Info */}
             <div className="space-y-3 mb-4">
               <div className="flex items-center justify-between p-3 bg-white/30 rounded-xl">
-                <span className="text-sm text-gray-600">Поддержка браузера:</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Поддержка браузера:' : 'Brauzer qo\'llab-quvvatlashi:'}</span>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                   pushStatus.isSupported ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                 }`}>
-                  {pushStatus.isSupported ? 'Поддерживается' : 'Не поддерживается'}
+                  {pushStatus.isSupported ? (language === 'ru' ? 'Поддерживается' : 'Qo\'llab-quvvatlanadi') : (language === 'ru' ? 'Не поддерживается' : 'Qo\'llab-quvvatlanmaydi')}
                 </span>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-white/30 rounded-xl">
-                <span className="text-sm text-gray-600">Разрешение:</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Разрешение:' : 'Ruxsat:'}</span>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                   pushStatus.permission === 'granted' ? 'bg-green-100 text-green-700' :
                   pushStatus.permission === 'denied' ? 'bg-red-100 text-red-700' :
                   'bg-yellow-100 text-yellow-700'
                 }`}>
-                  {pushStatus.permission === 'granted' ? 'Разрешено' :
-                   pushStatus.permission === 'denied' ? 'Запрещено' :
-                   pushStatus.permission === 'default' ? 'Не запрошено' : 'Недоступно'}
+                  {pushStatus.permission === 'granted' ? (language === 'ru' ? 'Разрешено' : 'Ruxsat berilgan') :
+                   pushStatus.permission === 'denied' ? (language === 'ru' ? 'Запрещено' : 'Taqiqlangan') :
+                   pushStatus.permission === 'default' ? (language === 'ru' ? 'Не запрошено' : 'So\'ralmagan') : (language === 'ru' ? 'Недоступно' : 'Mavjud emas')}
                 </span>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-white/30 rounded-xl">
-                <span className="text-sm text-gray-600">Подписка на сервере:</span>
+                <span className="text-sm text-gray-600">{language === 'ru' ? 'Подписка на сервере:' : 'Serverdagi obuna:'}</span>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                   pushStatus.isSubscribed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                 }`}>
-                  {pushStatus.isSubscribed ? 'Активна' : 'Не активна'}
+                  {pushStatus.isSubscribed ? (language === 'ru' ? 'Активна' : 'Faol') : (language === 'ru' ? 'Не активна' : 'Faol emas')}
                 </span>
               </div>
 
@@ -856,10 +861,10 @@ export function SettingsPage() {
                 <button
                   onClick={handleEnablePush}
                   disabled={isPushLoading}
-                  className="flex-1 px-4 py-3 bg-orange-400 hover:bg-orange-500 text-black font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
+                  className="flex-1 px-4 py-3 bg-primary-400 hover:bg-primary-500 text-black font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
                 >
                   {isPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
-                  Включить уведомления
+                  {language === 'ru' ? 'Включить уведомления' : 'Bildirishnomalarni yoqish'}
                 </button>
               )}
 
@@ -870,7 +875,7 @@ export function SettingsPage() {
                   className="flex-1 px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
                 >
                   {isPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  Отправить тест
+                  {language === 'ru' ? 'Отправить тест' : 'Test yuborish'}
                 </button>
               )}
             </div>
@@ -878,7 +883,7 @@ export function SettingsPage() {
             {/* Result Message */}
             {pushTestResult && (
               <div className={`mt-3 p-3 rounded-xl text-sm ${
-                pushTestResult.includes('успешно') || pushTestResult.includes('отправлено')
+                pushTestResult.includes('успешно') || pushTestResult.includes('отправлено') || pushTestResult.includes('muvaffaqiyatli') || pushTestResult.includes('yuborildi')
                   ? 'bg-green-100 text-green-700'
                   : 'bg-red-100 text-red-700'
               }`}>
@@ -889,20 +894,20 @@ export function SettingsPage() {
             {/* Help Text */}
             <div className="mt-4 p-3 bg-blue-50 rounded-xl">
               <div className="text-sm text-blue-800">
-                <strong>Для iOS:</strong> Чтобы получать уведомления на iPhone/iPad:
+                <strong>{language === 'ru' ? 'Для iOS:' : 'iOS uchun:'}</strong> {language === 'ru' ? 'Чтобы получать уведомления на iPhone/iPad:' : 'iPhone/iPad\'da bildirishnomalarni olish uchun:'}
                 <ol className="list-decimal ml-4 mt-2 space-y-1 text-xs">
-                  <li>Откройте Safari и перейдите на app.kamizo.uz</li>
-                  <li>Нажмите кнопку "Поделиться" (квадрат со стрелкой)</li>
-                  <li>Выберите "На экран Домой"</li>
-                  <li>Откройте приложение с домашнего экрана</li>
-                  <li>Нажмите "Включить уведомления" выше</li>
+                  <li>{language === 'ru' ? 'Откройте Safari и перейдите на app.kamizo.uz' : 'Safari\'ni oching va app.kamizo.uz\'ga o\'ting'}</li>
+                  <li>{language === 'ru' ? 'Нажмите кнопку "Поделиться" (квадрат со стрелкой)' : '"Baham ko\'rish" tugmasini bosing (strelkali kvadrat)'}</li>
+                  <li>{language === 'ru' ? 'Выберите "На экран Домой"' : '"Bosh ekranga qo\'shish"ni tanlang'}</li>
+                  <li>{language === 'ru' ? 'Откройте приложение с домашнего экрана' : 'Ilovani bosh ekrandan oching'}</li>
+                  <li>{language === 'ru' ? 'Нажмите "Включить уведомления" выше' : 'Yuqoridagi "Bildirishnomalarni yoqish" tugmasini bosing'}</li>
                 </ol>
               </div>
             </div>
           </div>
 
           <button onClick={handleSave} className="btn-primary w-full md:w-auto py-3 md:py-2 text-base touch-manipulation">
-            Сохранить изменения
+            {language === 'ru' ? 'Сохранить изменения' : 'O\'zgarishlarni saqlash'}
           </button>
         </div>
       )}
@@ -911,7 +916,7 @@ export function SettingsPage() {
       {activeTab === 'integrations' && isAdmin && (
         <div className="space-y-4 md:space-y-6">
           <div className="glass-card p-4 md:p-6">
-            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Интеграции</h2>
+            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Интеграции' : 'Integratsiyalar'}</h2>
             <div className="space-y-3">
               <div className="p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex items-center gap-3">
@@ -921,9 +926,9 @@ export function SettingsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-medium text-sm md:text-base truncate">MENING UYIM</div>
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs flex-shrink-0">Подключено</span>
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Подключено' : 'Ulangan'}</span>
                     </div>
-                    <div className="text-xs md:text-sm text-gray-500 mt-0.5">Синхр. 5 мин назад</div>
+                    <div className="text-xs md:text-sm text-gray-500 mt-0.5">{language === 'ru' ? 'Синхр. 5 мин назад' : 'Sinxr. 5 daqiqa oldin'}</div>
                   </div>
                 </div>
               </div>
@@ -935,8 +940,8 @@ export function SettingsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium text-sm md:text-base">Платежи</div>
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs flex-shrink-0">Подключено</span>
+                      <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Платежи' : 'To\'lovlar'}</div>
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Подключено' : 'Ulangan'}</span>
                     </div>
                     <div className="text-xs md:text-sm text-gray-500 mt-0.5">Click, Payme, Uzum</div>
                   </div>
@@ -951,9 +956,9 @@ export function SettingsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-medium text-sm md:text-base">1С:Бухгалтерия</div>
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs flex-shrink-0">Скоро</span>
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Скоро' : 'Tez kunda'}</span>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">В разработке</div>
+                    <div className="text-xs text-gray-400 mt-1">{language === 'ru' ? 'В разработке' : 'Ishlab chiqilmoqda'}</div>
                   </div>
                 </div>
               </div>
@@ -966,9 +971,9 @@ export function SettingsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-medium text-sm md:text-base">Telegram Bot</div>
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs flex-shrink-0">Скоро</span>
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Скоро' : 'Tez kunda'}</span>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">В разработке</div>
+                    <div className="text-xs text-gray-400 mt-1">{language === 'ru' ? 'В разработке' : 'Ishlab chiqilmoqda'}</div>
                   </div>
                 </div>
               </div>
@@ -983,7 +988,7 @@ export function SettingsPage() {
           <div className="glass-card p-4 md:p-6">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-gray-400" />
-              Менеджеры системы
+              {language === 'ru' ? 'Менеджеры системы' : 'Tizim menejerlari'}
             </h2>
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 md:p-4 bg-white/30 rounded-xl">
@@ -992,8 +997,8 @@ export function SettingsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-sm md:text-base">Админ</div>
-                    <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs flex-shrink-0">Админ</span>
+                    <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Админ' : 'Admin'}</div>
+                    <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Админ' : 'Admin'}</span>
                   </div>
                   <div className="text-xs md:text-sm text-gray-500 truncate">admin@uk.uz</div>
                 </div>
@@ -1004,23 +1009,23 @@ export function SettingsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-sm md:text-base">Менеджер</div>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs flex-shrink-0">Менеджер</span>
+                    <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Менеджер' : 'Menejer'}</div>
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Менеджер' : 'Menejer'}</span>
                   </div>
                   <div className="text-xs md:text-sm text-gray-500 truncate">manager@uk.uz</div>
                 </div>
               </div>
             </div>
-            <button className="btn-secondary mt-4 w-full md:w-auto py-2.5 touch-manipulation">+ Добавить менеджера</button>
+            <button className="btn-secondary mt-4 w-full md:w-auto py-2.5 touch-manipulation">{language === 'ru' ? '+ Добавить менеджера' : '+ Menejer qo\'shish'}</button>
           </div>
 
           <div className="glass-card p-4 md:p-6">
-            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Права доступа</h2>
+            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Права доступа' : 'Kirish huquqlari'}</h2>
             <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
               <table className="w-full text-xs md:text-sm min-w-[400px]">
                 <thead>
                   <tr className="text-left border-b border-gray-200">
-                    <th className="pb-2 md:pb-3 font-medium">Право</th>
+                    <th className="pb-2 md:pb-3 font-medium">{language === 'ru' ? 'Право' : 'Huquq'}</th>
                     <th className="pb-2 md:pb-3 font-medium text-center px-1">А</th>
                     <th className="pb-2 md:pb-3 font-medium text-center px-1">М</th>
                     <th className="pb-2 md:pb-3 font-medium text-center px-1">И</th>
@@ -1029,42 +1034,42 @@ export function SettingsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   <tr>
-                    <td className="py-2 md:py-3">Все заявки</td>
+                    <td className="py-2 md:py-3">{language === 'ru' ? 'Все заявки' : 'Barcha arizalar'}</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                   </tr>
                   <tr>
-                    <td className="py-2 md:py-3">Создание заявок</td>
+                    <td className="py-2 md:py-3">{language === 'ru' ? 'Создание заявок' : 'Ariza yaratish'}</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                   </tr>
                   <tr>
-                    <td className="py-2 md:py-3">Назначение</td>
+                    <td className="py-2 md:py-3">{language === 'ru' ? 'Назначение' : 'Tayinlash'}</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                   </tr>
                   <tr>
-                    <td className="py-2 md:py-3">Пользователи</td>
+                    <td className="py-2 md:py-3">{language === 'ru' ? 'Пользователи' : 'Foydalanuvchilar'}</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                   </tr>
                   <tr>
-                    <td className="py-2 md:py-3">Настройки</td>
+                    <td className="py-2 md:py-3">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
                   </tr>
                   <tr>
-                    <td className="py-2 md:py-3">Отчёты</td>
+                    <td className="py-2 md:py-3">{language === 'ru' ? 'Отчёты' : 'Hisobotlar'}</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">✅</td>
                     <td className="py-2 md:py-3 text-center">❌</td>
@@ -1073,7 +1078,7 @@ export function SettingsPage() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-gray-500 mt-3">А - Админ, М - Менеджер, И - Исполнитель, Ж - Житель</p>
+            <p className="text-xs text-gray-500 mt-3">{language === 'ru' ? 'А - Админ, М - Менеджер, И - Исполнитель, Ж - Житель' : 'A - Admin, M - Menejer, I - Ijrochi, J - Aholik'}</p>
           </div>
         </div>
       )}
@@ -1087,12 +1092,16 @@ export function SettingsPage() {
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Подтвердите действие</h3>
-                <p className="text-sm text-gray-500">Это действие нельзя отменить</p>
+                <h3 className="text-lg font-semibold text-gray-900">{language === 'ru' ? 'Подтвердите действие' : 'Amalni tasdiqlang'}</h3>
+                <p className="text-sm text-gray-500">{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni ortga qaytarib bo\'lmaydi'}</p>
               </div>
             </div>
             <p className="text-gray-700 mb-6">
-              Вы уверены, что хотите удалить <strong>все заявки</strong>? Это также удалит всю историю изменений и сообщения в чатах заявок.
+              {language === 'ru' ? (
+                <>Вы уверены, что хотите удалить <strong>все заявки</strong>? Это также удалит всю историю изменений и сообщения в чатах заявок.</>
+              ) : (
+                <>Ishonchingiz komilmi <strong>barcha arizalarni</strong> o\'chirmoqchimisiz? Bu shuningdek, barcha o\'zgarishlar tarixini va ariza chatlaridagi xabarlarni o\'chiradi.</>
+              )}
             </p>
             <div className="flex gap-3">
               <button
@@ -1100,7 +1109,7 @@ export function SettingsPage() {
                 className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
                 disabled={isResetting}
               >
-                Отмена
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={handleResetRequests}
@@ -1110,12 +1119,12 @@ export function SettingsPage() {
                 {isResetting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Удаление...
+                    {language === 'ru' ? 'Удаление...' : 'O\'chirilmoqda...'}
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4" />
-                    Удалить все
+                    {language === 'ru' ? 'Удалить все' : 'Hammasini o\'chirish'}
                   </>
                 )}
               </button>
