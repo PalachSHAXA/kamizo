@@ -259,8 +259,13 @@ export function SettingsPage() {
     }
   };
 
-  // Different tabs for admin vs manager
-  const tabs = isAdmin
+  // Different tabs for admin vs manager vs super_admin
+  const isSuperAdmin = user?.role === 'super_admin';
+  const tabs = isSuperAdmin
+    ? [
+        { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
+      ]
+    : isAdmin
     ? [
         { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
         { id: 'general' as const, label: language === 'ru' ? 'Общие' : 'Umumiy', icon: Settings },

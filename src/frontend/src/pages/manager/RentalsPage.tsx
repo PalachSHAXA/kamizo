@@ -435,7 +435,7 @@ export function RentalsPage() {
                           <div className="text-xs text-gray-400">{language === 'ru' ? 'Логин' : 'Login'}</div>
                           <div className="font-mono text-sm font-medium text-gray-700">{apartment.ownerLogin}</div>
                         </div>
-                        {user?.role === 'director' && (
+                        {(user?.role === 'director' || user?.role === 'admin' || user?.role === 'manager') && (
                         <div>
                           <div className="text-xs text-gray-400">{language === 'ru' ? 'Пароль' : 'Parol'}</div>
                           <div className="font-mono text-sm font-medium text-gray-700">{apartment.ownerPassword || '—'}</div>

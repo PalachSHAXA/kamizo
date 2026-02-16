@@ -57,7 +57,7 @@ export function useWebSocketSync() {
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
 
   const syncData = useCallback(async () => {
-    if (!user) return;
+    if (!user || user.role === 'super_admin') return;
 
     // Debounce: prevent multiple syncs in quick succession
     const now = Date.now();
@@ -81,7 +81,7 @@ export function useWebSocketSync() {
   }, [user, fetchRequests, fetchExecutors]);
 
   const syncMeetings = useCallback(async () => {
-    if (!user) return;
+    if (!user || user.role === 'super_admin') return;
     try {
       console.log('[WS] Syncing meetings...');
       await fetchMeetings();
@@ -111,7 +111,7 @@ export function useWebSocketSync() {
   }, []);
 
   const connect = useCallback(() => {
-    if (!user || !token) return;
+    if (!user || !token || user.role === 'super_admin') return;
 
     // Close existing connection
     if (wsRef.current) {

@@ -91,6 +91,9 @@ function setCorsOrigin(request: Request): void {
   // Return the origin if it's in our allowed list, otherwise return the main domain
   if (ALLOWED_ORIGINS.includes(origin)) {
     currentCorsOrigin = origin;
+  } else if (/^https:\/\/[a-z0-9-]+\.kamizo\.uz$/.test(origin)) {
+    // Allow any tenant subdomain (e.g. https://test66.kamizo.uz)
+    currentCorsOrigin = origin;
   } else if (!origin) {
     // For same-origin requests (no Origin header), allow the request
     currentCorsOrigin = 'https://app.kamizo.uz';
@@ -187,7 +190,8 @@ function generateId() {
 // Helper: Check if user has management-level access (admin, director, or manager)
 function isManagement(user: User | null): boolean {
   if (!user) return false;
-  return user.role === 'admin' || user.role === 'director' || user.role === 'manager';
+  const role = (user.role || '').trim().toLowerCase();
+  return role === 'admin' || role === 'director' || role === 'manager';
 }
 
 // Helper: Check if user has admin-level access (admin or director)
@@ -939,9 +943,9 @@ route('POST', '/api/auth/register', async (request, env) => {
     return error('Login, password, and name required');
   }
 
-  // SECURITY: Only admin or director can create admin accounts
-  if (role === 'admin' && !isAdminLevel(authUser)) {
-    return error('Only admin or director can create admin accounts', 403);
+  // SECURITY: Only super_admin can create admin accounts (directors cannot create admins)
+  if (role === 'admin' && !isSuperAdmin(authUser)) {
+    return error('Only super admin can create admin accounts', 403);
   }
 
   // SECURITY: Only admin can create director accounts
@@ -1492,7 +1496,10 @@ route('GET', '/api/rentals/my-apartments', async (request, env) => {
 route('GET', '/api/rentals/apartments', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isManagement(user)) return error('Access denied', 403);
+  if (!isManagement(user)) {
+    console.error(`[403] GET /api/rentals/apartments - user role: "${user.role}", id: "${user.id}"`);
+    return error('Access denied', 403);
+  }
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -1703,7 +1710,10 @@ route('DELETE', '/api/rentals/apartments/:id', async (request, env, params) => {
 route('GET', '/api/rentals/records', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isManagement(user)) return error('Access denied', 403);
+  if (!isManagement(user)) {
+    console.error(`[403] GET /api/rentals/records - user role: "${user.role}", id: "${user.id}"`);
+    return error('Access denied', 403);
+  }
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -1770,7 +1780,10 @@ route('GET', '/api/exchange-rate', async (request, env) => {
 route('POST', '/api/rentals/records', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isManagement(user)) return error('Access denied', 403);
+  if (!isManagement(user)) {
+    console.error(`[403] POST /api/rentals/records - user role: "${user.role}", id: "${user.id}"`);
+    return error('Access denied', 403);
+  }
 
   const body = await request.json() as any;
   const { apartmentId, guestNames, passportInfo, checkInDate, checkOutDate, amount, currency, notes } = body;
@@ -1976,6 +1989,13 @@ route('POST', '/api/guest-codes', async (request, env) => {
       break;
     case 'month':
       validUntil = body.valid_until || new Date(validFrom.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      maxUses = 999;
+      break;
+    case 'custom':
+      if (!body.valid_until) {
+        return error('valid_until is required for custom access type');
+      }
+      validUntil = body.valid_until;
       maxUses = 999;
       break;
     default:
@@ -3632,7 +3652,9 @@ route('GET', '/api/executors', async (request, env) => {
 
   // SECURITY: Allow staff roles and residents (for rating executors) to see executors
   const allowedRoles = ['admin', 'director', 'manager', 'department_head', 'executor', 'resident', 'marketplace_manager'];
-  if (!allowedRoles.includes(user.role)) {
+  const userRole = (user.role || '').trim().toLowerCase();
+  if (!allowedRoles.includes(userRole)) {
+    console.error(`[403] GET /api/executors - user role: "${user.role}", id: "${user.id}"`);
     return error('Access denied', 403);
   }
 
@@ -3826,69 +3848,67 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Total completed
-  const totalCompleted = await env.DB.prepare(`
-    SELECT COUNT(*) as count FROM requests
-    WHERE executor_id = ? AND status IN ('completed', 'closed') ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { count: number };
-
-  // This week completed
-  const weekCompleted = await env.DB.prepare(`
-    SELECT COUNT(*) as count FROM requests
-    WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, weekAgo, ...(tenantId ? [tenantId] : [])).first() as { count: number };
-
-  // This month completed
-  const monthCompleted = await env.DB.prepare(`
-    SELECT COUNT(*) as count FROM requests
-    WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, monthAgo, ...(tenantId ? [tenantId] : [])).first() as { count: number };
-
-  // Average rating from requests
-  const avgRating = await env.DB.prepare(`
-    SELECT AVG(rating) as avg FROM requests
-    WHERE executor_id = ? AND rating IS NOT NULL ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { avg: number | null };
-
-  // Average completion time (in minutes) - calculate from started_at to completed_at
-  const avgTime = await env.DB.prepare(`
-    SELECT AVG((julianday(completed_at) - julianday(started_at)) * 24 * 60) as avg_minutes
-    FROM requests
-    WHERE executor_id = ? AND started_at IS NOT NULL AND completed_at IS NOT NULL ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { avg_minutes: number | null };
-
-  // Count requests by status for this executor
-  const statusCounts = await env.DB.prepare(`
-    SELECT status, COUNT(*) as count FROM requests
-    WHERE executor_id = ?
-    GROUP BY status
-  `).bind(params.id).all();
+  // Run all 6 independent stats queries in parallel
+  const [totalCompleted, weekCompleted, monthCompleted, avgRating, avgTime, statusCounts] = await Promise.all([
+    // Total completed
+    env.DB.prepare(`
+      SELECT COUNT(*) as count FROM requests
+      WHERE executor_id = ? AND status IN ('completed', 'closed') ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as Promise<{ count: number }>,
+    // This week completed
+    env.DB.prepare(`
+      SELECT COUNT(*) as count FROM requests
+      WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, weekAgo, ...(tenantId ? [tenantId] : [])).first() as Promise<{ count: number }>,
+    // This month completed
+    env.DB.prepare(`
+      SELECT COUNT(*) as count FROM requests
+      WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, monthAgo, ...(tenantId ? [tenantId] : [])).first() as Promise<{ count: number }>,
+    // Average rating from requests
+    env.DB.prepare(`
+      SELECT AVG(rating) as avg FROM requests
+      WHERE executor_id = ? AND rating IS NOT NULL ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as Promise<{ avg: number | null }>,
+    // Average completion time (in minutes)
+    env.DB.prepare(`
+      SELECT AVG((julianday(completed_at) - julianday(started_at)) * 24 * 60) as avg_minutes
+      FROM requests
+      WHERE executor_id = ? AND started_at IS NOT NULL AND completed_at IS NOT NULL ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as Promise<{ avg_minutes: number | null }>,
+    // Count requests by status
+    env.DB.prepare(`
+      SELECT status, COUNT(*) as count FROM requests
+      WHERE executor_id = ?
+      GROUP BY status
+    `).bind(params.id).all(),
+  ]);
 
   // For couriers - get delivery stats and rating from marketplace_orders
   let deliveryStats = { totalDelivered: 0, deliveredThisWeek: 0, deliveryRating: null as number | null, avgDeliveryTime: 0 };
   if ((executor as any).specialization === 'courier') {
-    const totalDelivered = await env.DB.prepare(`
-      SELECT COUNT(*) as count FROM marketplace_orders
-      WHERE executor_id = ? AND status = 'delivered'
-    `).bind(params.id).first() as { count: number };
-
-    const deliveredThisWeek = await env.DB.prepare(`
-      SELECT COUNT(*) as count FROM marketplace_orders
-      WHERE executor_id = ? AND status = 'delivered' AND delivered_at >= ?
-    `).bind(params.id, weekAgo).first() as { count: number };
-
-    // Average rating from delivery orders
-    const deliveryAvgRating = await env.DB.prepare(`
-      SELECT AVG(rating) as avg FROM marketplace_orders
-      WHERE executor_id = ? AND rating IS NOT NULL
-    `).bind(params.id).first() as { avg: number | null };
-
-    // Average delivery time (from delivering_at to delivered_at) in minutes
-    const avgDeliveryTime = await env.DB.prepare(`
-      SELECT AVG((julianday(delivered_at) - julianday(delivering_at)) * 24 * 60) as avg_minutes
-      FROM marketplace_orders
-      WHERE executor_id = ? AND delivering_at IS NOT NULL AND delivered_at IS NOT NULL
-    `).bind(params.id).first() as { avg_minutes: number | null };
+    // Run all 4 independent courier stats queries in parallel
+    const [totalDelivered, deliveredThisWeek, deliveryAvgRating, avgDeliveryTime] = await Promise.all([
+      env.DB.prepare(`
+        SELECT COUNT(*) as count FROM marketplace_orders
+        WHERE executor_id = ? AND status = 'delivered'
+      `).bind(params.id).first() as Promise<{ count: number }>,
+      env.DB.prepare(`
+        SELECT COUNT(*) as count FROM marketplace_orders
+        WHERE executor_id = ? AND status = 'delivered' AND delivered_at >= ?
+      `).bind(params.id, weekAgo).first() as Promise<{ count: number }>,
+      // Average rating from delivery orders
+      env.DB.prepare(`
+        SELECT AVG(rating) as avg FROM marketplace_orders
+        WHERE executor_id = ? AND rating IS NOT NULL
+      `).bind(params.id).first() as Promise<{ avg: number | null }>,
+      // Average delivery time (from delivering_at to delivered_at) in minutes
+      env.DB.prepare(`
+        SELECT AVG((julianday(delivered_at) - julianday(delivering_at)) * 24 * 60) as avg_minutes
+        FROM marketplace_orders
+        WHERE executor_id = ? AND delivering_at IS NOT NULL AND delivered_at IS NOT NULL
+      `).bind(params.id).first() as Promise<{ avg_minutes: number | null }>,
+    ]);
 
     deliveryStats = {
       totalDelivered: totalDelivered?.count || 0,
@@ -12870,7 +12890,7 @@ route('GET', '/api/marketplace/categories', async (request, env) => {
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
   const { results } = await env.DB.prepare(`
-    SELECT * FROM marketplace_categories WHERE is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}
+    SELECT * FROM marketplace_categories WHERE is_active = 1 ${tenantId ? "AND (tenant_id = ? OR tenant_id IS NULL OR tenant_id = '')" : ''}
     ORDER BY sort_order
   `).bind(...(tenantId ? [tenantId] : [])).all();
   return json({ categories: results });
@@ -13379,7 +13399,9 @@ route('POST', '/api/marketplace/favorites/:productId', async (request, env, para
 // Manager: Get all orders
 route('GET', '/api/marketplace/admin/orders', async (request, env) => {
   const user = await getUser(request, env);
-  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
+  const userRoleNorm = (user?.role || '').trim().toLowerCase();
+  if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(userRoleNorm)) {
+    console.error(`[403] GET /api/marketplace/admin/orders - user role: "${user?.role}", id: "${user?.id}"`);
     return error('Access denied', 403);
   }
 
@@ -14205,15 +14227,29 @@ route('POST', '/api/tenants', async (request, env) => {
   if (body.director_login && body.director_password && body.director_name) {
     const directorId = generateId();
     const passwordHash = await hashPassword(body.director_password);
+    const directorPasswordPlain = await encryptPassword(body.director_password, env.ENCRYPTION_KEY);
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
-    `).bind(directorId, body.director_login, passwordHash, body.director_name, id).run();
+      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
+    `).bind(directorId, body.director_login, passwordHash, directorPasswordPlain, body.director_name, id).run();
     directorCreated = true;
   }
 
+  // Create initial admin user for the tenant
+  let adminCreated = false;
+  if (body.admin_login && body.admin_password && body.admin_name) {
+    const adminId = generateId();
+    const adminPasswordHash = await hashPassword(body.admin_password);
+    const adminPasswordPlain = await encryptPassword(body.admin_password, env.ENCRYPTION_KEY);
+    await env.DB.prepare(`
+      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
+    `).bind(adminId, body.admin_login, adminPasswordHash, adminPasswordPlain, body.admin_name, id).run();
+    adminCreated = true;
+  }
+
   const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(id).first();
-  return json({ tenant, directorCreated }, 201);
+  return json({ tenant, directorCreated, adminCreated }, 201);
 });
 
 // PATCH /api/tenants/:id - update tenant
@@ -14261,6 +14297,156 @@ route('DELETE', '/api/tenants/:id', async (request, env, params) => {
 
   await env.DB.prepare(`DELETE FROM tenants WHERE id = ?`).bind(params.id).run();
   return json({ success: true });
+});
+
+// GET /api/super-admin/tenants/:id/details - detailed tenant data for super admin
+route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const tenantId = params.id;
+  const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(tenantId).first();
+  if (!tenant) return error('Tenant not found', 404);
+
+  try {
+    const url = new URL(request.url);
+    const tab = url.searchParams.get('tab') || 'stats';
+
+    // Safe count query helper - returns 0 if table/column doesn't exist
+    const safeCount = async (sql: string, binds: any[]) => {
+      try {
+        const result = await env.DB.prepare(sql).bind(...binds).first();
+        return Number((result as any)?.cnt || 0);
+      } catch (e) {
+        console.error('safeCount failed:', sql, e);
+        return 0;
+      }
+    };
+
+    // Always return stats (each query is individually safe)
+    const [residents, requests, votes, qr_codes, buildings, staff] = await Promise.all([
+      safeCount(`SELECT COUNT(*) as cnt FROM users WHERE tenant_id = ? AND role = 'resident'`, [tenantId]),
+      safeCount(`SELECT COUNT(*) as cnt FROM requests WHERE tenant_id = ?`, [tenantId]),
+      safeCount(`SELECT COUNT(*) as cnt FROM meetings WHERE tenant_id = ?`, [tenantId]),
+      safeCount(`SELECT COUNT(*) as cnt FROM guest_access_codes WHERE tenant_id = ?`, [tenantId]),
+      safeCount(`SELECT COUNT(*) as cnt FROM buildings WHERE tenant_id = ?`, [tenantId]),
+      safeCount(`SELECT COUNT(*) as cnt FROM users WHERE tenant_id = ? AND role NOT IN ('resident', 'director')`, [tenantId]),
+    ]);
+
+    const stats = { residents, requests, votes, qr_codes, buildings, staff };
+
+    let tabData: any = [];
+
+    // Safe query helper - returns empty array on failure
+    const safeQuery = async (sql: string, binds: any[]) => {
+      try {
+        const result = await env.DB.prepare(sql).bind(...binds).all();
+        return result.results || [];
+      } catch (e) {
+        console.error('safeQuery failed:', sql, e);
+        return [];
+      }
+    };
+
+    if (tab === 'requests') {
+      tabData = await safeQuery(`
+        SELECT r.id, r.title, r.status, r.priority, r.category, r.created_at,
+               u.name as creator_name, e.name as executor_name
+        FROM requests r
+        LEFT JOIN users u ON r.user_id = u.id
+        LEFT JOIN users e ON r.assigned_to = e.id
+        WHERE r.tenant_id = ?
+        ORDER BY r.created_at DESC
+        LIMIT 50
+      `, [tenantId]);
+    } else if (tab === 'residents') {
+      tabData = await safeQuery(`
+        SELECT u.id, u.name, u.phone, u.login, u.building_id, u.apartment, u.created_at,
+               b.address as building_address
+        FROM users u
+        LEFT JOIN buildings b ON u.building_id = b.id
+        WHERE u.tenant_id = ? AND u.role = 'resident'
+        ORDER BY u.created_at DESC
+        LIMIT 50
+      `, [tenantId]);
+    } else if (tab === 'votes') {
+      tabData = await safeQuery(`
+        SELECT m.id, m.title, m.status, m.meeting_type, m.scheduled_date, m.created_at,
+               u.name as creator_name
+        FROM meetings m
+        LEFT JOIN users u ON m.created_by = u.id
+        WHERE m.tenant_id = ?
+        ORDER BY m.created_at DESC
+        LIMIT 50
+      `, [tenantId]);
+    } else if (tab === 'qr') {
+      tabData = await safeQuery(`
+        SELECT g.id, g.code, g.guest_name, g.status, g.valid_from, g.valid_until, g.created_at,
+               u.name as creator_name
+        FROM guest_access_codes g
+        LEFT JOIN users u ON g.user_id = u.id
+        WHERE g.tenant_id = ?
+        ORDER BY g.created_at DESC
+        LIMIT 50
+      `, [tenantId]);
+    } else if (tab === 'staff') {
+      tabData = await safeQuery(`
+        SELECT u.id, u.name, u.phone, u.login, u.role, u.specialization, u.status, u.created_at
+        FROM users u
+        WHERE u.tenant_id = ? AND u.role NOT IN ('resident')
+        ORDER BY
+          CASE u.role
+            WHEN 'director' THEN 1
+            WHEN 'admin' THEN 2
+            WHEN 'manager' THEN 3
+            WHEN 'department_head' THEN 4
+            WHEN 'executor' THEN 5
+            ELSE 6
+          END,
+          u.created_at DESC
+        LIMIT 100
+      `, [tenantId]);
+    } else if (tab === 'settings') {
+      try {
+        tabData = {
+          features: JSON.parse((tenant as any).features || '[]'),
+          plan: (tenant as any).plan,
+          color: (tenant as any).color,
+          color_secondary: (tenant as any).color_secondary,
+          is_active: (tenant as any).is_active,
+        };
+      } catch (e) {
+        tabData = { features: [], plan: 'basic' };
+      }
+    }
+
+    return json({ tenant, stats, tabData });
+  } catch (err: any) {
+    console.error('Tenant details error:', err?.message || err, err?.stack);
+    return error(`Failed to load tenant details: ${err?.message || 'Unknown error'}`, 500);
+  }
+});
+
+// POST /api/super-admin/impersonate/:tenantId - get admin credentials for auto-login
+route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const tenantId = params.id;
+  const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(tenantId).first() as any;
+  if (!tenant) return error('Tenant not found', 404);
+
+  // Find admin user for this tenant (prefer admin, fallback to director)
+  const adminUser = await env.DB.prepare(
+    `SELECT id, login, name, role, phone, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, account_type, tenant_id
+     FROM users WHERE tenant_id = ? AND role IN ('admin', 'director') AND is_active = 1
+     ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'director' THEN 2 ELSE 3 END
+     LIMIT 1`
+  ).bind(tenantId).first() as any;
+
+  if (!adminUser) return error('No admin user found for this tenant', 404);
+
+  return json({ user: adminUser, token: adminUser.id, tenantUrl: tenant.url });
 });
 
 // GET /api/super-admin/analytics - cross-tenant analytics

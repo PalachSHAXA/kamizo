@@ -288,49 +288,66 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
 
   const [isCreating, setIsCreating] = useState(false);
 
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const handleCreate = async () => {
     if (!visitorType || !accessType || !user || isCreating) {
-      console.error('Missing required data:', { visitorType, accessType, user });
       return;
     }
 
     setIsCreating(true);
+    setCreateError(null);
 
-    let validUntil: string | undefined;
-    if (accessType === 'custom' && customDate) {
-      validUntil = new Date(customDate).toISOString();
-    }
+    try {
+      let validUntil: string | undefined;
+      if (accessType === 'custom' && customDate) {
+        const parsed = new Date(customDate);
+        if (isNaN(parsed.getTime())) {
+          setCreateError(language === 'ru' ? 'Некорректная дата' : 'Noto\'g\'ri sana');
+          setIsCreating(false);
+          return;
+        }
+        // Prevent dates too far in the future (max 1 year)
+        const maxDate = new Date();
+        maxDate.setFullYear(maxDate.getFullYear() + 1);
+        if (parsed > maxDate) {
+          setCreateError(language === 'ru' ? 'Дата не может быть более 1 года от текущей' : 'Sana joriy sanadan 1 yildan oshmasligi kerak');
+          setIsCreating(false);
+          return;
+        }
+        if (parsed <= new Date()) {
+          setCreateError(language === 'ru' ? 'Дата должна быть в будущем' : 'Sana kelajakda bo\'lishi kerak');
+          setIsCreating(false);
+          return;
+        }
+        validUntil = parsed.toISOString();
+      }
 
-    console.log('Creating guest access code with:', {
-      residentId: user.id,
-      residentName: user.name,
-      residentPhone: user.phone || 'Не указан',
-      residentApartment: user.apartment || '',
-      residentAddress: user.address || '',
-      visitorType,
-      accessType,
-    });
+      const code = await createGuestAccessCode({
+        residentId: user.id,
+        residentName: user.name,
+        residentPhone: user.phone || 'Не указан',
+        residentApartment: user.apartment || '',
+        residentAddress: user.address || '',
+        visitorType,
+        visitorName: visitorName || undefined,
+        visitorPhone: visitorPhone || undefined,
+        visitorVehiclePlate: visitorVehiclePlate || undefined,
+        accessType,
+        validUntil,
+        notes: notes || undefined,
+      });
 
-    const code = await createGuestAccessCode({
-      residentId: user.id,
-      residentName: user.name,
-      residentPhone: user.phone || 'Не указан',
-      residentApartment: user.apartment || '',
-      residentAddress: user.address || '',
-      visitorType,
-      visitorName: visitorName || undefined,
-      visitorPhone: visitorPhone || undefined,
-      visitorVehiclePlate: visitorVehiclePlate || undefined,
-      accessType,
-      validUntil,
-      notes: notes || undefined,
-    });
-
-    setIsCreating(false);
-
-    if (code) {
-      console.log('Created code:', code);
-      onCreated(code);
+      if (code) {
+        onCreated(code);
+      } else {
+        setCreateError(language === 'ru' ? 'Не удалось создать пропуск' : 'Ruxsatnoma yaratib bo\'lmadi');
+      }
+    } catch (err: any) {
+      console.error('Failed to create pass:', err);
+      setCreateError(err.message || (language === 'ru' ? 'Ошибка создания' : 'Yaratishda xatolik'));
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -465,9 +482,10 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
                   <input
                     type="datetime-local"
                     value={customDate}
-                    onChange={(e) => setCustomDate(e.target.value)}
+                    onChange={(e) => { setCustomDate(e.target.value); setCreateError(null); }}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0"
                     min={new Date().toISOString().slice(0, 16)}
+                    max={(() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d.toISOString().slice(0, 16); })()}
                   />
                 </div>
               )}
@@ -528,6 +546,12 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 resize-none"
                 />
               </div>
+
+              {createError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-center">
+                  {createError}
+                </div>
+              )}
 
               <button
                 onClick={handleCreate}

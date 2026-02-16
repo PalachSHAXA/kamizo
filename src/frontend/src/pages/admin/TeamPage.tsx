@@ -7,6 +7,7 @@ import {
   Hammer, Flame, Wind, Trash2, Key, Truck
 } from 'lucide-react';
 import { teamApi } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { SPECIALIZATION_LABELS } from '../../types';
@@ -96,8 +97,10 @@ const SPECIALIZATION_LABELS_UZ: Record<string, string> = {
 };
 
 export function TeamPage() {
+  const { user: currentUser } = useAuthStore();
   const { hasFeature } = useTenantStore();
   const { language } = useLanguageStore();
+  const isDirector = currentUser?.role === 'director';
   const [admins, setAdmins] = useState<StaffMember[]>([]);
   const [managers, setManagers] = useState<StaffMember[]>([]);
   const [departmentHeads, setDepartmentHeads] = useState<StaffMember[]>([]);
@@ -137,7 +140,7 @@ export function TeamPage() {
     phone: '',
     login: '',
     password: '',
-    role: 'executor' as 'admin' | 'manager' | 'department_head' | 'executor',
+    role: 'executor' as 'manager' | 'department_head' | 'executor',
     managerType: 'manager' as 'manager' | 'advertiser',
     specialization: '' as ExecutorSpecialization | '',
   });
@@ -324,7 +327,7 @@ export function TeamPage() {
     }
   };
 
-  const openAddModal = (role: 'admin' | 'manager' | 'department_head' | 'executor' = 'executor') => {
+  const openAddModal = (role: 'manager' | 'department_head' | 'executor' = 'executor') => {
     setAddForm({
       name: '',
       phone: '',
@@ -594,7 +597,7 @@ export function TeamPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Персонал' : 'Xodimlar'}</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {language === 'ru' ? 'Всего' : 'Jami'}: {admins.length + managers.length + departmentHeads.length + executors.length} {language === 'ru' ? 'сотрудников' : 'xodimlar'}
+            {language === 'ru' ? 'Всего' : 'Jami'}: {(isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length} {language === 'ru' ? 'сотрудников' : 'xodimlar'}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -657,7 +660,7 @@ export function TeamPage() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-        {admins.length > 0 && (
+        {!isDirector && admins.length > 0 && (
           <div className="glass-card p-3 sm:p-5">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -707,7 +710,7 @@ export function TeamPage() {
 
       {/* Sections */}
       <div className="space-y-3 sm:space-y-4">
-        {filteredAdmins.length > 0 && renderSection(
+        {!isDirector && filteredAdmins.length > 0 && renderSection(
           language === 'ru' ? 'Администраторы' : 'Administratorlar',
           <Shield className="w-5 h-5 text-red-500" />,
           filteredAdmins,
@@ -756,13 +759,12 @@ export function TeamPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Роль' : 'Rol'} *</label>
                   <select
                     value={addForm.role}
-                    onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'admin' | 'manager' | 'department_head' | 'executor', managerType: 'manager' })}
+                    onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'manager' | 'department_head' | 'executor', managerType: 'manager' })}
                     className="input-field"
                   >
                     <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
                     <option value="department_head">{language === 'ru' ? 'Глава отдела' : 'Bo\'lim boshlig\'i'}</option>
                     <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
-                    <option value="admin">{language === 'ru' ? 'Администратор' : 'Administrator'}</option>
                   </select>
                 </div>
 

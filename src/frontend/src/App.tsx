@@ -9,6 +9,31 @@ import { LoginPage } from './pages/LoginPage';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
+// Handle auto_auth parameter from super admin impersonation
+// Must run before React mounts to set localStorage before zustand rehydrates
+(() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const autoAuth = params.get('auto_auth');
+    if (autoAuth) {
+      const decoded = JSON.parse(decodeURIComponent(atob(autoAuth)));
+      if (decoded?.state?.user && decoded?.state?.token) {
+        // Set zustand persist storage
+        localStorage.setItem('uk-auth-storage', JSON.stringify(decoded));
+        // Set auth_token for API requests
+        localStorage.setItem('auth_token', decoded.state.token);
+        // Remove the param from URL and reload cleanly
+        params.delete('auto_auth');
+        const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        window.history.replaceState({}, '', cleanUrl);
+        window.location.reload();
+      }
+    }
+  } catch (e) {
+    console.error('Auto-auth failed:', e);
+  }
+})();
+
 // Convert hex color to RGB components
 const hexToRgb = (hex: string) => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -68,9 +93,9 @@ function App() {
     }
   }, [tenantConfig]);
 
-  // Load data from API when user logs in
+  // Load data from API when user logs in (super_admin only manages tenants, skip tenant data)
   useEffect(() => {
-    if (user) {
+    if (user && user.role !== 'super_admin') {
       console.log('User logged in, fetching data from API...');
       fetchBuildings();
 

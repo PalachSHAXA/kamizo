@@ -174,7 +174,7 @@ export function LoginPage() {
               <span className="text-gray-300 text-xl mx-1">×</span>
 
               {/* Kamizo Logo */}
-              <AppLogo size="xl-login" />
+              <AppLogo size="xl-login" forceDefault />
               <div className="text-left">
                 <h2 className="text-lg font-bold text-gray-900 leading-tight">kamizo</h2>
                 <p className="text-xs text-gray-400 font-medium">CRM</p>
@@ -182,7 +182,7 @@ export function LoginPage() {
             </div>
           ) : (
             <div className="flex items-center justify-center gap-5">
-              <AppLogo size="xl" />
+              <AppLogo size="xl" forceDefault />
               <div className="text-left">
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-900">kamizo</h1>
                 <p className="text-gray-500 text-sm md:text-base">{language === 'ru' ? 'Управление жильём' : 'Uy-joy boshqaruvi'}</p>

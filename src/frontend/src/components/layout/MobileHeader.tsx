@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { AppLogo } from '../common/AppLogo';
+import { useTenantStore } from '../../stores/tenantStore';
 import { useNavigate } from 'react-router-dom';
 
 interface MobileHeaderProps {
@@ -18,6 +19,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const { notifications, markNotificationAsRead, markAllNotificationsAsRead, getAnnouncementsForResidents, getAnnouncementsForEmployees, vehicles } = useDataStore();
   const { meetings } = useMeetingStore();
+  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
 
   // Check if resident and get onboarding tasks
   const isResident = user?.role?.toLowerCase() === 'resident' || user?.role?.toLowerCase() === 'tenant';
@@ -140,7 +142,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
         <div className="flex items-center gap-2">
           <AppLogo size="sm" />
-          <span className="font-bold text-gray-900 text-sm">Kamizo</span>
+          <span className="font-bold text-gray-900 text-sm">{tenantName}</span>
         </div>
 
         <button

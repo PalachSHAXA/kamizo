@@ -27,7 +27,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { t, language } = useLanguageStore();
   const { requests, announcements, executors, getAnnouncementsForEmployees } = useDataStore();
   const { meetings } = useMeetingStore();
-  const { hasFeature } = useTenantStore();
+  const { hasFeature, config } = useTenantStore();
+  const tenantName = config?.tenant?.name || 'Kamizo';
 
   // Chat unread count state
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
@@ -255,6 +256,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
         { path: '/buildings', icon: Building2, label: t('nav.buildings') },
         { path: '/work-orders', icon: Wrench, label: t('nav.workOrders') },
+        { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
+        { path: '/rentals', icon: Key, label: language === 'ru' ? 'Аренда квартир' : 'Kvartira ijarasi' },
         { path: '/meetings', icon: Vote, label: t('meetings.title') },
         { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
         { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
@@ -327,7 +330,6 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     'marketplace': ['/marketplace', '/marketplace-orders', '/marketplace-products'],
     'announcements': ['/announcements'],
     'trainings': ['/trainings'],
-    'vehicles': ['/vehicles', '/vehicle-search'],
     'rentals': ['/rentals'],
     'colleagues': ['/colleagues'],
   };
@@ -344,7 +346,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       const alwaysAllowed = [
         '/', '/settings', '/profile', '/buildings', '/residents',
         '/useful-contacts', '/contract', '/rate-employees', '/team',
-        '/notepad', '/reports'
+        '/notepad', '/reports', '/vehicles', '/vehicle-search'
       ];
 
       if (alwaysAllowed.includes(item.path)) {
@@ -384,9 +386,9 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         <div className="p-4 md:p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <AppLogo size="md" />
+              <AppLogo size="lg" />
               <div>
-                <div className="font-bold text-gray-900">Kamizo</div>
+                <div className="font-bold text-gray-900">{tenantName}</div>
                 <div className="text-xs text-gray-500">CRM</div>
               </div>
             </div>
