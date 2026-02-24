@@ -7,10 +7,24 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { guestCodesApi, apiRequest } from '../services/api';
 import {
   VISITOR_TYPE_LABELS,
   type GuestAccessCode
 } from '../types';
+
+interface ScanLog {
+  id: string;
+  code_id: string;
+  scanned_by_id: string;
+  scanned_by_name: string;
+  scanned_by_role: string;
+  action: string;
+  visitor_type: string;
+  resident_name: string;
+  resident_apartment: string;
+  scanned_at: string;
+}
 
 type ScanResult = {
   status: 'success' | 'expired' | 'used' | 'revoked' | 'invalid' | 'not_yet_valid';
@@ -20,7 +34,7 @@ type ScanResult = {
 
 export function GuardQRScannerPage() {
   const { user } = useAuthStore();
-  const { validateGuestAccessCode, useGuestAccessCode, addGuestAccessLog, getGuestAccessLogs, guestAccessCodes } = useDataStore();
+  const { validateGuestAccessCode, useGuestAccessCode, guestAccessCodes } = useDataStore();
   const { language } = useLanguageStore();
 
   // Debug: log available codes on mount
@@ -40,6 +54,7 @@ export function GuardQRScannerPage() {
   const [manualCode, setManualCode] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [scanLogs, setScanLogs] = useState<ScanLog[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,7 +62,12 @@ export function GuardQRScannerPage() {
   const animationRef = useRef<number | null>(null);
   const scanningRef = useRef(false);
 
-  const recentLogs = getGuestAccessLogs().slice(0, 20);
+  // Fetch scan history from backend on mount
+  useEffect(() => {
+    apiRequest<{ logs: ScanLog[] }>('/api/guest-codes/scan-history')
+      .then(res => setScanLogs(res.logs || []))
+      .catch(err => console.error('Failed to fetch scan history:', err));
+  }, []);
 
   const processQRCode = useCallback((qrData: string) => {
     console.log('Processing QR code:', qrData);
@@ -82,22 +102,6 @@ export function GuardQRScannerPage() {
       }
 
       setScanResult({ status, code: result.code, message });
-
-      // Log the scan attempt
-      if (user && result.code) {
-        addGuestAccessLog({
-          accessCodeId: result.code.id,
-          scannedById: user.id,
-          scannedByName: user.name,
-          scannedByRole: user.role,
-          action: status === 'expired' ? 'scan_expired' :
-                  status === 'used' ? 'scan_used' :
-                  status === 'revoked' ? 'scan_revoked' : 'scan_invalid',
-          visitorType: result.code.visitorType,
-          residentName: result.code.residentName,
-          residentApartment: result.code.residentApartment,
-        });
-      }
     } else {
       setScanResult({
         status: 'success',
@@ -105,7 +109,7 @@ export function GuardQRScannerPage() {
         message: language === 'ru' ? 'Пропуск действителен' : 'Ruxsatnoma amal qiladi'
       });
     }
-  }, [validateGuestAccessCode, addGuestAccessLog, user, language]);
+  }, [validateGuestAccessCode, user, language]);
 
   const scanFrame = useCallback(async () => {
     if (!scanningRef.current || !videoRef.current || !canvasRef.current) {
@@ -278,23 +282,32 @@ export function GuardQRScannerPage() {
     };
   }, [stopCamera]);
 
-  const handleAllowEntry = () => {
+  const handleAllowEntry = async () => {
     if (!scanResult?.code || !user) return;
 
-    // Mark as used - pass full code for self-contained tokens
+    try {
+      // Call backend to increment current_uses and log the entry in DB
+      await guestCodesApi.use(scanResult.code.id);
+    } catch (err) {
+      console.error('Failed to register code use on backend:', err);
+    }
+
+    // Update local state for immediate UI feedback
     useGuestAccessCode(scanResult.code.id, scanResult.code);
 
-    // Log the entry
-    addGuestAccessLog({
-      accessCodeId: scanResult.code.id,
-      scannedById: user.id,
-      scannedByName: user.name,
-      scannedByRole: user.role,
+    // Add to local scanLogs for immediate display in history
+    setScanLogs(prev => [{
+      id: crypto.randomUUID(),
+      code_id: scanResult.code!.id,
+      scanned_by_id: user.id,
+      scanned_by_name: user.name,
+      scanned_by_role: user.role,
       action: 'entry_allowed',
-      visitorType: scanResult.code.visitorType,
-      residentName: scanResult.code.residentName,
-      residentApartment: scanResult.code.residentApartment,
-    });
+      visitor_type: scanResult.code!.visitorType,
+      resident_name: scanResult.code!.residentName,
+      resident_apartment: scanResult.code!.residentApartment || '',
+      scanned_at: new Date().toISOString(),
+    }, ...prev]);
 
     setScanResult(null);
   };
@@ -302,17 +315,19 @@ export function GuardQRScannerPage() {
   const handleDenyEntry = () => {
     if (!scanResult?.code || !user) return;
 
-    // Log the denial
-    addGuestAccessLog({
-      accessCodeId: scanResult.code.id,
-      scannedById: user.id,
-      scannedByName: user.name,
-      scannedByRole: user.role,
+    // Add denial to local scan history
+    setScanLogs(prev => [{
+      id: crypto.randomUUID(),
+      code_id: scanResult.code!.id,
+      scanned_by_id: user.id,
+      scanned_by_name: user.name,
+      scanned_by_role: user.role,
       action: 'entry_denied',
-      visitorType: scanResult.code.visitorType,
-      residentName: scanResult.code.residentName,
-      residentApartment: scanResult.code.residentApartment,
-    });
+      visitor_type: scanResult.code!.visitorType,
+      resident_name: scanResult.code!.residentName,
+      resident_apartment: scanResult.code!.residentApartment || '',
+      scanned_at: new Date().toISOString(),
+    }, ...prev]);
 
     setScanResult(null);
   };
@@ -635,15 +650,16 @@ export function GuardQRScannerPage() {
             </button>
           </div>
 
-          {recentLogs.length === 0 ? (
+          {scanLogs.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               {language === 'ru' ? 'История пуста' : 'Tarix bo\'sh'}
             </div>
           ) : (
             <div className="divide-y">
-              {recentLogs.map((log) => {
+              {scanLogs.map((log) => {
                 const isAllowed = log.action === 'entry_allowed' || log.action === 'scan_success';
                 const isDenied = log.action === 'entry_denied';
+                const vtype = log.visitor_type as keyof typeof VISITOR_TYPE_LABELS;
 
                 return (
                   <div key={log.id} className="p-4 flex items-start gap-3">
@@ -658,16 +674,16 @@ export function GuardQRScannerPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">{VISITOR_TYPE_LABELS[log.visitorType].icon}</span>
+                        <span className="text-lg">{VISITOR_TYPE_LABELS[vtype]?.icon || '👤'}</span>
                         <span className="font-medium truncate">
-                          {log.residentName}
+                          {log.resident_name}
                         </span>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {language === 'ru' ? 'кв.' : 'xona'} {log.residentApartment}
+                        {language === 'ru' ? 'кв.' : 'xona'} {log.resident_apartment}
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
-                        {new Date(log.timestamp).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
+                        {new Date(log.scanned_at).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
                       </div>
                     </div>
                   </div>

@@ -222,7 +222,9 @@ export async function withMonitoring(
       requestId,
     });
 
-    // Return 500 response with detailed error message
+    // Return 500 response with CORS headers (without CORS, browser blocks the response
+    // and fetch() throws TypeError: Failed to fetch instead of showing the actual error)
+    const origin = request.headers.get('Origin') || '*';
     response = new Response(
       JSON.stringify({
         error: error.message || 'Internal Server Error',
@@ -230,7 +232,12 @@ export async function withMonitoring(
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
       }
     );
   }

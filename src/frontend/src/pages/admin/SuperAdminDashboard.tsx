@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, DollarSign, Plus, Edit2, Trash2, CheckCircle, XCircle, RefreshCw, FileText, TrendingUp, BarChart3, Upload, X, QrCode, Vote, ClipboardList, Settings, ExternalLink, UserCog, Search, LayoutDashboard } from 'lucide-react';
+import { Building2, Users, DollarSign, Plus, Edit2, Trash2, CheckCircle, XCircle, RefreshCw, FileText, TrendingUp, BarChart3, Upload, X, QrCode, Vote, ClipboardList, Settings, ExternalLink, UserCog, Search, LayoutDashboard, LogOut } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
+import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -94,7 +96,7 @@ interface TenantStats {
 
 type DetailTab = 'requests' | 'residents' | 'votes' | 'qr' | 'staff' | 'settings';
 
-type TabType = 'companies' | 'dashboard' | 'analytics';
+type TabType = 'dashboard' | 'analytics';
 type TimePeriod = 'daily' | 'weekly' | 'monthly';
 
 const INITIAL_FORM_DATA: TenantFormData = {
@@ -157,13 +159,15 @@ const FEATURE_LABELS: Record<string, string> = {
 };
 
 export function SuperAdminDashboard() {
+  const { logout } = useAuthStore();
+  const navigate = useNavigate();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [formData, setFormData] = useState<TenantFormData>(INITIAL_FORM_DATA);
   const [error, setError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<TabType>('companies');
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('monthly');
@@ -176,6 +180,7 @@ export function SuperAdminDashboard() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isLoadingTabData, setIsLoadingTabData] = useState(false);
   const [dashboardSearch, setDashboardSearch] = useState('');
+  const [statFilter, setStatFilter] = useState<'all' | 'active' | 'users' | 'revenue'>('all');
 
   useEffect(() => {
     loadTenants();
@@ -299,13 +304,30 @@ export function SuperAdminDashboard() {
   };
 
   const handleToggleActive = async (tenant: Tenant) => {
+    const newStatus = tenant.is_active ? 0 : 1;
+    // Optimistic UI update
+    const updated = { ...tenant, is_active: newStatus };
+    setTenants(prev => prev.map(t => t.id === tenant.id ? updated : t));
+    if (selectedTenant?.id === tenant.id) {
+      setSelectedTenant(updated);
+    }
     try {
-      await apiRequest(`/api/tenants/${tenant.id}`, {
+      const resp = await apiRequest<{ tenant: Tenant }>(`/api/tenants/${tenant.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ is_active: tenant.is_active ? 0 : 1 }),
+        body: JSON.stringify({ is_active: newStatus }),
       });
-      await loadTenants();
+      if (resp.tenant) {
+        setTenants(prev => prev.map(t => t.id === resp.tenant.id ? resp.tenant : t));
+        if (selectedTenant?.id === resp.tenant.id) {
+          setSelectedTenant(resp.tenant);
+        }
+      }
     } catch (err: any) {
+      // Revert on error
+      setTenants(prev => prev.map(t => t.id === tenant.id ? tenant : t));
+      if (selectedTenant?.id === tenant.id) {
+        setSelectedTenant(tenant);
+      }
       alert(err.message || 'Ошибка обновления статуса');
     }
   };
@@ -482,11 +504,16 @@ export function SuperAdminDashboard() {
                 }`}>
                   {PLAN_LABELS[selectedTenant.plan] || selectedTenant.plan}
                 </span>
-                {selectedTenant.is_active ? (
-                  <span className="flex items-center gap-1 text-green-600 text-xs"><CheckCircle className="w-3 h-3" /> Активен</span>
-                ) : (
-                  <span className="flex items-center gap-1 text-gray-400 text-xs"><XCircle className="w-3 h-3" /> Неактивен</span>
-                )}
+                <button
+                  onClick={() => handleToggleActive(selectedTenant)}
+                  className="flex items-center gap-1 text-xs hover:opacity-70 transition-opacity"
+                >
+                  {selectedTenant.is_active ? (
+                    <><CheckCircle className="w-3 h-3 text-green-600" /> <span className="text-green-600">Активен</span></>
+                  ) : (
+                    <><XCircle className="w-3 h-3 text-gray-400" /> <span className="text-gray-400">Неактивен</span></>
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -742,27 +769,53 @@ export function SuperAdminDashboard() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-5">
+      {/* Header with clock, settings, logout */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Super Admin</h1>
-        {activeTab === 'companies' && (
+        <div className="flex items-center gap-3">
+          {activeTab === 'dashboard' && (
+            <>
+              <button
+                onClick={loadTenants}
+                className="p-2 border rounded-lg hover:bg-gray-50 text-gray-500"
+                title="Обновить"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleCreateTenant}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Добавить УК
+              </button>
+            </>
+          )}
+          {activeTab === 'analytics' && (
+            <button
+              onClick={() => { setAnalytics(null); loadAnalytics(); }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Обновить
+            </button>
+          )}
           <button
-            onClick={handleCreateTenant}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+            onClick={() => navigate('/settings')}
+            className="p-2 border rounded-lg hover:bg-gray-50 text-gray-500"
+            title="Настройки"
           >
-            <Plus className="w-4 h-4" />
-            Добавить УК
+            <Settings className="w-4 h-4" />
           </button>
-        )}
-        {activeTab === 'analytics' && (
           <button
-            onClick={() => { setAnalytics(null); loadAnalytics(); }}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+            onClick={logout}
+            className="p-2 border rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600"
+            title="Выйти"
           >
-            <RefreshCw className="w-4 h-4" />
-            Обновить
+            <LogOut className="w-4 h-4" />
           </button>
-        )}
+        </div>
       </div>
 
       {error && (
@@ -773,17 +826,6 @@ export function SuperAdminDashboard() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('companies')}
-          className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'companies'
-              ? 'border-indigo-500 text-indigo-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          Управляющие компании
-        </button>
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-colors flex items-center gap-2 ${
@@ -808,178 +850,79 @@ export function SuperAdminDashboard() {
         </button>
       </div>
 
-      {/* ========== TAB: Companies ========== */}
-      {activeTab === 'companies' && (
+      {/* ========== TAB: Dashboard ========== */}
+      {activeTab === 'dashboard' && (
         <>
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-indigo-100 rounded-lg">
-                  <Building2 className="w-6 h-6 text-indigo-600" />
+          {/* Stat Cards - clickable */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div
+              onClick={() => setStatFilter(statFilter === 'all' ? 'all' : 'all')}
+              className={`p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
+                statFilter === 'all' ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200' : 'bg-white hover:shadow-md'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-100 rounded-lg">
+                  <Building2 className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Всего УК</div>
+                  <div className="text-xs text-gray-500">Всего УК</div>
                   <div className="text-2xl font-bold">{totalStats.total}</div>
                 </div>
               </div>
             </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
+            <div
+              onClick={() => setStatFilter(statFilter === 'active' ? 'all' : 'active')}
+              className={`p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
+                statFilter === 'active' ? 'bg-green-50 border-green-300 ring-2 ring-green-200' : 'bg-white hover:shadow-md'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-green-100 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Активных</div>
+                  <div className="text-xs text-gray-500">Активных</div>
                   <div className="text-2xl font-bold">{totalStats.active}</div>
                 </div>
               </div>
             </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <Users className="w-6 h-6 text-blue-600" />
+            <div
+              onClick={() => setStatFilter(statFilter === 'users' ? 'all' : 'users')}
+              className={`p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
+                statFilter === 'users' ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' : 'bg-white hover:shadow-md'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-100 rounded-lg">
+                  <Users className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Всего жителей</div>
+                  <div className="text-xs text-gray-500">Всего жителей</div>
                   <div className="text-2xl font-bold">{totalStats.users}</div>
                 </div>
               </div>
             </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-purple-600" />
+            <div
+              onClick={() => setStatFilter(statFilter === 'revenue' ? 'all' : 'revenue')}
+              className={`p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
+                statFilter === 'revenue' ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-200' : 'bg-white hover:shadow-md'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-purple-100 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Общий доход</div>
+                  <div className="text-xs text-gray-500">Общий доход</div>
                   <div className="text-2xl font-bold">${totalStats.revenue.toLocaleString('en-US')}</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Tenants Table */}
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">УК</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Тариф</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Жители</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Заявки</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Доход</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Действия</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {tenants.map((tenant) => (
-                    <tr key={tenant.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          {tenant.logo ? (
-                            <img
-                              src={tenant.logo}
-                              alt={tenant.name}
-                              className="w-10 h-10 rounded-lg object-cover border"
-                            />
-                          ) : (
-                            <div
-                              className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-                              style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
-                            >
-                              {tenant.name[0]}
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-medium">{tenant.name}</div>
-                            <div className="text-sm text-gray-500">{tenant.slug}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <a
-                          href={tenant.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-600 hover:underline text-sm"
-                        >
-                          {tenant.url}
-                        </a>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          tenant.plan === 'enterprise' ? 'bg-purple-100 text-purple-700' :
-                          tenant.plan === 'pro' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {PLAN_LABELS[tenant.plan] || tenant.plan}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm">{tenant.users_count}</td>
-                      <td className="px-6 py-4 text-sm">{tenant.requests_count}</td>
-                      <td className="px-6 py-4 text-sm">${Number(tenant.revenue || 0).toLocaleString('en-US')}</td>
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => handleToggleActive(tenant)}
-                          className="flex items-center gap-1"
-                        >
-                          {tenant.is_active ? (
-                            <span className="flex items-center gap-1 text-green-600">
-                              <CheckCircle className="w-4 h-4" />
-                              <span className="text-sm">Активен</span>
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-gray-400">
-                              <XCircle className="w-4 h-4" />
-                              <span className="text-sm">Неактивен</span>
-                            </span>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditTenant(tenant)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded"
-                            title="Редактировать"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTenant(tenant)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded"
-                            title="Удалить"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {tenants.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <Building2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Нет управляющих компаний</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ========== TAB: Dashboard (Master-Detail) ========== */}
-      {activeTab === 'dashboard' && (
-        <div className="flex gap-4" style={{ height: 'calc(100vh - 220px)' }}>
+          {/* Master-Detail */}
+          <div className="flex gap-4" style={{ height: 'calc(100vh - 370px)' }}>
           {/* Left: Tenant List (Dark Theme) */}
           <div className="w-80 flex-shrink-0 bg-slate-800 rounded-xl p-4 space-y-3 overflow-y-auto">
             <div className="relative">
@@ -993,14 +936,28 @@ export function SuperAdminDashboard() {
               />
             </div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-1">
-              Управляющие компании ({tenants.filter(t => !dashboardSearch || t.name.toLowerCase().includes(dashboardSearch.toLowerCase()) || t.slug.toLowerCase().includes(dashboardSearch.toLowerCase())).length})
+              {statFilter === 'active' ? 'Активные' : statFilter === 'users' ? 'По жителям ↓' : statFilter === 'revenue' ? 'По доходу ↓' : 'Управляющие компании'} ({tenants
+                .filter(t => {
+                  if (statFilter === 'active' && !t.is_active) return false;
+                  if (!dashboardSearch) return true;
+                  return t.name.toLowerCase().includes(dashboardSearch.toLowerCase()) || t.slug.toLowerCase().includes(dashboardSearch.toLowerCase());
+                }).length})
             </div>
             {tenants
-              .filter(t => !dashboardSearch || t.name.toLowerCase().includes(dashboardSearch.toLowerCase()) || t.slug.toLowerCase().includes(dashboardSearch.toLowerCase()))
+              .filter(t => {
+                if (statFilter === 'active' && !t.is_active) return false;
+                if (!dashboardSearch) return true;
+                return t.name.toLowerCase().includes(dashboardSearch.toLowerCase()) || t.slug.toLowerCase().includes(dashboardSearch.toLowerCase());
+              })
+              .sort((a, b) => {
+                if (statFilter === 'users') return b.users_count - a.users_count;
+                if (statFilter === 'revenue') return Number(b.revenue || 0) - Number(a.revenue || 0);
+                return 0;
+              })
               .map(tenant => (
               <div
                 key={tenant.id}
-                className={`p-3 rounded-xl cursor-pointer transition-all ${
+                className={`p-3 rounded-xl cursor-pointer transition-all group ${
                   selectedTenant?.id === tenant.id
                     ? 'bg-indigo-600/30 border border-indigo-500/50'
                     : 'bg-slate-700/40 border border-slate-700 hover:bg-slate-700/70'
@@ -1023,20 +980,30 @@ export function SuperAdminDashboard() {
                     <div className="text-xs text-slate-400 truncate">{tenant.slug}.kamizo.uz</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 pl-[52px]">
-                  <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count}</span>
-                  <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count}</span>
-                  <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> {Number(tenant.revenue || 0)}</span>
+                <div className="flex items-center justify-between mt-2 pl-[52px]">
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count}</span>
+                    <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count}</span>
+                    <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> {Number(tenant.revenue || 0)}</span>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteTenant(tenant); }}
+                    className="p-1 text-slate-500 hover:text-red-400 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Удалить"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Right: Detail View */}
-          <div className="flex-1 bg-gray-50 rounded-xl border p-5 overflow-y-auto">
-            {renderTenantDetail()}
+            {/* Right: Detail View */}
+            <div className="flex-1 bg-gray-50 rounded-xl border p-5 overflow-y-auto">
+              {renderTenantDetail()}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* ========== TAB: Analytics ========== */}

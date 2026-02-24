@@ -36,10 +36,11 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
   // Tenant/commercial_owner don't participate in meetings
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
+  const isExecutor = user?.role === 'executor';
 
   // Get upcoming meetings
   const upcomingMeetings = useMemo(() => {
-    if (isRentalUser) return [];
+    if (isRentalUser || isExecutor) return [];
     const nowDate = new Date();
     const weekFromNow = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
     return meetings.filter(m => {

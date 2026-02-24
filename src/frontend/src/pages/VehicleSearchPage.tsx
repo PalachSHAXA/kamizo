@@ -395,7 +395,7 @@ export function VehicleSearchPage() {
     notes: '',
   });
 
-  const isManager = user?.role === 'manager' || user?.role === 'admin';
+  const isManager = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'director';
   const ownerTypes: VehicleOwnerType[] = ['service', 'legal_entity'];
 
   const resetForm = () => {

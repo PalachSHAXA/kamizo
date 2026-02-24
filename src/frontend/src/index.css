@@ -298,6 +298,11 @@ body {
   transition: margin-left 0.3s ease;
 }
 
+.main-content-full {
+  flex: 1;
+  margin-left: 0;
+}
+
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;

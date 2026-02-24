@@ -85,10 +85,12 @@ export function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Fetch announcements on mount (for badge in sidebar)
+  // Fetch announcements on mount (for badge in sidebar) - skip for super_admin
   useEffect(() => {
-    fetchAnnouncements();
-  }, [fetchAnnouncements]);
+    if (user?.role !== 'super_admin') {
+      fetchAnnouncements();
+    }
+  }, [fetchAnnouncements, user?.role]);
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -153,21 +155,27 @@ export function Layout() {
     return <ManagerGuestAccessPage />;
   };
 
+  const isSuperAdmin = user?.role === 'super_admin';
+
   return (
     <div className="min-h-screen min-h-dvh">
-      <Sidebar
-        onLogout={logout}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
+      {!isSuperAdmin && (
+        <Sidebar
+          onLogout={logout}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* Mobile Header */}
-      <MobileHeader
-        onMenuClick={() => setSidebarOpen(true)}
-        unreadCount={unreadCount}
-      />
+      {!isSuperAdmin && (
+        <MobileHeader
+          onMenuClick={() => setSidebarOpen(true)}
+          unreadCount={unreadCount}
+        />
+      )}
 
-      <div className="main-content">
+      <div className={isSuperAdmin ? "main-content-full" : "main-content"}>
         {/* Desktop Header */}
         <div className="hide-mobile">
           <Header />

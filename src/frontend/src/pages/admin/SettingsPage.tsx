@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -7,6 +8,7 @@ import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const { settings, updateSettings } = useDataStore();
   const { user, updateUserProfile } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
@@ -280,6 +282,17 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {/* Back button for super_admin (no sidebar) */}
+      {isSuperAdmin && (
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
+        </button>
+      )}
+
       {/* Header - mobile optimized */}
       <div className="flex items-center justify-between">
         <div>

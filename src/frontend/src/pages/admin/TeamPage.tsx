@@ -255,14 +255,43 @@ export function TeamPage() {
     }
   };
 
-  // Generate random password
+  // Transliterate Cyrillic to Latin
+  const transliterate = (text: string): string => {
+    const map: Record<string, string> = {
+      'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+      'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+      'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+      'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+      'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+      'ў': 'o', 'қ': 'q', 'ғ': 'g', 'ҳ': 'h',
+    };
+    return text.toLowerCase().split('').map(c => map[c] ?? c).join('');
+  };
+
+  // Generate login from full name: "Иванов Иван Иванович" → "ivanov.ii"
+  const generateLogin = (fullName: string): string => {
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '';
+    const surname = transliterate(parts[0]);
+    const initials = parts.slice(1).map(p => transliterate(p[0] || '')).join('');
+    return initials ? `${surname}.${initials}` : surname;
+  };
+
+  // Generate readable password: "Abc1234" format
   const generatePassword = () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let password = '';
-    for (let i = 0; i < 8; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    const consonants = 'bcdfghjkmnpqrstvwxyz';
+    const vowels = 'aeiou';
+    const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+    // 1 uppercase + 2 syllables (consonant+vowel) + 4 digits
+    let pwd = upper[Math.floor(Math.random() * upper.length)];
+    for (let i = 0; i < 2; i++) {
+      pwd += consonants[Math.floor(Math.random() * consonants.length)];
+      pwd += vowels[Math.floor(Math.random() * vowels.length)];
     }
-    return password;
+    for (let i = 0; i < 4; i++) {
+      pwd += Math.floor(Math.random() * 10);
+    }
+    return pwd;
   };
 
   // Handle add new member
@@ -810,7 +839,11 @@ export function TeamPage() {
                 <input
                   type="text"
                   value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const login = generateLogin(name);
+                    setAddForm({ ...addForm, name, login });
+                  }}
                   className="input-field"
                   placeholder={language === 'ru' ? 'Иванов Иван Иванович' : 'Ismailov Ismoil Ismailovich'}
                 />
@@ -831,7 +864,7 @@ export function TeamPage() {
               <div className="border-t pt-3 mt-3">
                 <div className="text-sm font-medium text-gray-700 mb-3">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'} *</label>
                     <input
@@ -839,23 +872,24 @@ export function TeamPage() {
                       value={addForm.login}
                       onChange={(e) => setAddForm({ ...addForm, login: e.target.value })}
                       className="input-field"
-                      placeholder="ivanov"
+                      placeholder="ivanov.ii"
                     />
+                    <p className="text-xs text-gray-400 mt-1">{language === 'ru' ? 'Генерируется из ФИО, можно изменить' : 'F.I.O. dan yaratiladi, o\'zgartirish mumkin'}</p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'} *</label>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         value={addForm.password}
                         onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                        className="input-field flex-1 min-w-0"
+                        className="input-field flex-1 min-w-0 font-mono tracking-wide"
                       />
                       <button
                         type="button"
                         onClick={() => setAddForm({ ...addForm, password: generatePassword() })}
-                        className="btn-secondary px-2.5 flex-shrink-0"
+                        className="btn-secondary px-3 flex-shrink-0"
                         title={language === 'ru' ? 'Сгенерировать пароль' : 'Parol yaratish'}
                       >
                         <RefreshCw className="w-4 h-4" />
@@ -863,7 +897,7 @@ export function TeamPage() {
                       <button
                         type="button"
                         onClick={() => handleCopy(addForm.password, 'addPassword')}
-                        className="btn-secondary px-2.5 flex-shrink-0"
+                        className="btn-secondary px-3 flex-shrink-0"
                         title={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
                       >
                         {copiedField === 'addPassword' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}

@@ -92,17 +92,22 @@ export function Header() {
         .filter(task => !task.checkComplete(user, vehicles))
     : [];
 
+  // Super admin doesn't receive tenant notifications
+  const isSuperAdmin = user?.role === 'super_admin';
+
   // Get unread announcements count
   const isAdvertiserRole = user?.role === 'advertiser';
-  const userAnnouncements = isResident
+  const userAnnouncements = isSuperAdmin ? [] : (isResident
     ? getAnnouncementsForResidents(user?.login || '', user?.buildingId || '', user?.entrance || '', user?.floor || '', user?.branch || '')
-    : getAnnouncementsForEmployees();
+    : getAnnouncementsForEmployees());
   const unreadAnnouncementsCount = userAnnouncements.filter(a => !a.viewedBy.includes(user?.id || '')).length;
 
   // Get upcoming meetings count (meetings in next 7 days that user hasn't seen)
   // Tenant/commercial_owner don't participate in meetings
   // Advertiser also doesn't participate in resident meetings
-  const showMeetings = !isRentalUser && !isAdvertiserRole;
+  // Super admin doesn't participate in tenant meetings
+  const isExecutor = user?.role === 'executor';
+  const showMeetings = !isRentalUser && !isAdvertiserRole && !isSuperAdmin && !isExecutor;
   const nowDate = new Date();
   const weekFromNow = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
   const upcomingMeetings = showMeetings ? meetings.filter(m => {
@@ -415,7 +420,8 @@ export function Header() {
           </div>
         </button>
 
-        {/* Notifications Button */}
+        {/* Notifications Button - hidden for super_admin */}
+        {!isSuperAdmin && (
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
@@ -429,6 +435,7 @@ export function Header() {
             )}
           </button>
         </div>
+        )}
 
         <div className="text-right">
           <div className="text-sm font-medium">{user?.name}</div>

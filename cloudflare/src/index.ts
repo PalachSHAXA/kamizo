@@ -2056,6 +2056,22 @@ route('POST', '/api/guest-codes', async (request, env) => {
   return json({ code: created }, 201);
 });
 
+// Guest codes: Get recent scan logs (for guard scan history) - MUST be before :id route
+route('GET', '/api/guest-codes/scan-history', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const tenantId = getTenantId(request);
+  const { results } = await env.DB.prepare(`
+    SELECT * FROM guest_access_logs
+    WHERE ${tenantId ? 'tenant_id = ?' : '1=1'}
+    ORDER BY scanned_at DESC
+    LIMIT 50
+  `).bind(...(tenantId ? [tenantId] : [])).all();
+
+  return json({ logs: results });
+});
+
 // Guest codes: Get single code
 route('GET', '/api/guest-codes/:id', async (request, env, params) => {
   const user = await getUser(request, env);
@@ -14989,61 +15005,75 @@ export default {
     if (url.pathname.startsWith('/api')) {
       const matched = matchRoute(request.method, url.pathname);
       if (matched) {
-        // Wrap in monitoring middleware
-        return await withMonitoring(request, async () => {
-          try {
-            // Apply rate limiting to non-auth endpoints (auth handles it internally)
-            if (!url.pathname.startsWith('/api/auth/login') && !url.pathname.startsWith('/api/health')) {
-              const user = await getUser(request, env);
-              const identifier = getClientIdentifier(request, user);
-              const endpoint = `${request.method}:${url.pathname}`;
-              const rateLimit = await checkRateLimit(env, identifier, endpoint);
+        // Wrap in monitoring middleware with safety net
+        try {
+          return await withMonitoring(request, async () => {
+            try {
+              // Apply rate limiting to non-auth endpoints (auth handles it internally)
+              if (!url.pathname.startsWith('/api/auth/login') && !url.pathname.startsWith('/api/health')) {
+                const user = await getUser(request, env);
+                const identifier = getClientIdentifier(request, user);
+                const endpoint = `${request.method}:${url.pathname}`;
+                const rateLimit = await checkRateLimit(env, identifier, endpoint);
 
-              if (!rateLimit.allowed) {
-                const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
-                return new Response(JSON.stringify({
-                  error: `Rate limit exceeded. Try again in ${resetIn} seconds.`
-                }), {
-                  status: 429,
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': currentCorsOrigin,
-                    'X-RateLimit-Limit': (RATE_LIMITS[endpoint] || RATE_LIMITS['default']).maxRequests.toString(),
-                    'X-RateLimit-Remaining': '0',
-                    'X-RateLimit-Reset': rateLimit.resetAt.toString(),
-                    'Retry-After': resetIn.toString()
-                  }
+                if (!rateLimit.allowed) {
+                  const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+                  return new Response(JSON.stringify({
+                    error: `Rate limit exceeded. Try again in ${resetIn} seconds.`
+                  }), {
+                    status: 429,
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Access-Control-Allow-Origin': currentCorsOrigin,
+                      'X-RateLimit-Limit': (RATE_LIMITS[endpoint] || RATE_LIMITS['default']).maxRequests.toString(),
+                      'X-RateLimit-Remaining': '0',
+                      'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+                      'Retry-After': resetIn.toString()
+                    }
+                  });
+                }
+
+                // Add rate limit headers to successful response
+                const response = await matched.handler(request, env, matched.params);
+
+                // WebSocket responses have immutable headers, so we can't modify them
+                // For WebSocket upgrade responses, skip adding rate limit headers
+                if (response.status === 101 || response.headers.get('Upgrade') === 'websocket') {
+                  return response;
+                }
+
+                // For regular responses, create a new Response with rate limit headers
+                const newHeaders = new Headers(response.headers);
+                newHeaders.set('X-RateLimit-Limit', (RATE_LIMITS[endpoint] || RATE_LIMITS['default']).maxRequests.toString());
+                newHeaders.set('X-RateLimit-Remaining', rateLimit.remaining.toString());
+                newHeaders.set('X-RateLimit-Reset', rateLimit.resetAt.toString());
+
+                return new Response(response.body, {
+                  status: response.status,
+                  statusText: response.statusText,
+                  headers: newHeaders
                 });
               }
 
-              // Add rate limit headers to successful response
-              const response = await matched.handler(request, env, matched.params);
-
-              // WebSocket responses have immutable headers, so we can't modify them
-              // For WebSocket upgrade responses, skip adding rate limit headers
-              if (response.status === 101 || response.headers.get('Upgrade') === 'websocket') {
-                return response;
-              }
-
-              // For regular responses, create a new Response with rate limit headers
-              const newHeaders = new Headers(response.headers);
-              newHeaders.set('X-RateLimit-Limit', (RATE_LIMITS[endpoint] || RATE_LIMITS['default']).maxRequests.toString());
-              newHeaders.set('X-RateLimit-Remaining', rateLimit.remaining.toString());
-              newHeaders.set('X-RateLimit-Reset', rateLimit.resetAt.toString());
-
-              return new Response(response.body, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: newHeaders
-              });
+              return await matched.handler(request, env, matched.params);
+            } catch (err: any) {
+              console.error('API Error:', err);
+              return error(err.message || 'Internal server error', 500);
             }
-
-            return await matched.handler(request, env, matched.params);
-          } catch (err: any) {
-            console.error('API Error:', err);
-            return error(err.message || 'Internal server error', 500);
-          }
-        });
+          });
+        } catch (outerErr: any) {
+          // Safety net: if withMonitoring itself crashes, still return a valid CORS response
+          console.error('Critical API Error (outside monitoring):', outerErr);
+          return new Response(JSON.stringify({ error: outerErr.message || 'Internal server error' }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': currentCorsOrigin,
+              'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            },
+          });
+        }
       }
       return error('Not found', 404);
     }
