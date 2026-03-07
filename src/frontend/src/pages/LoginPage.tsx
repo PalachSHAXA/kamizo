@@ -16,6 +16,18 @@ const DEMO_ACCOUNTS = [
   { login: 'security', password: 'kamizo', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-slate-500' },
 ];
 
+// Kamizo Demo tenant accounts (shown on kamizo-demo subdomain)
+const KAMIZO_DEMO_ACCOUNTS = [
+  { login: 'demo-director', password: 'kamizo', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-orange-600' },
+  { login: 'demo-manager', password: 'kamizo', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-orange-500' },
+  { login: 'demo-resident1', password: 'kamizo', role: 'resident', labelRu: 'Житель 1', labelUz: 'Aholi 1', icon: Users, color: 'bg-amber-500' },
+  { login: 'demo-resident2', password: 'kamizo', role: 'resident', labelRu: 'Житель 2', labelUz: 'Aholi 2', icon: Users, color: 'bg-amber-400' },
+  { login: 'demo-executor', password: 'kamizo', role: 'executor', labelRu: 'Сантехник', labelUz: 'Santexnik', icon: Wrench, color: 'bg-orange-400' },
+  { login: 'demo-electrician', password: 'kamizo', role: 'executor', labelRu: 'Электрик', labelUz: 'Elektrik', icon: Wrench, color: 'bg-yellow-500' },
+  { login: 'demo-security', password: 'kamizo', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-orange-700' },
+  { login: 'demo-dispatcher', password: 'kamizo', role: 'dispatcher', labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Crown, color: 'bg-amber-600' },
+];
+
 // Hidden accounts (not shown in demo buttons, but can login manually)
 // admin: login='admin', password='kamizo'
 // dispatcher: login='dispatcher', password='kamizo'
@@ -298,38 +310,44 @@ export function LoginPage() {
           </button>
         </form>
 
-        {/* Demo Accounts Section - only on main domain */}
-        {!tenant && <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-xs text-gray-500 text-center mb-3">
-            {language === 'ru' ? 'Демо-входы для тестирования:' : 'Test uchun demo-kirish:'}
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {DEMO_ACCOUNTS.map((account) => {
-              const Icon = account.icon;
-              return (
-                <button
-                  key={account.login}
-                  type="button"
-                  onClick={() => {
-                    setLoginValue(account.login);
-                    setPassword(account.password);
-                    if (!agreedToTerms) {
-                      setShowOfferModal(true);
-                    }
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-left"
-                >
-                  <div className={`w-7 h-7 ${account.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                    <Icon className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700 truncate">
-                    {language === 'ru' ? account.labelRu : account.labelUz}
-                  </span>
-                </button>
-              );
-            })}
+        {/* Demo Accounts Section - main domain or kamizo-demo tenant */}
+        {(!tenant || tenant.slug === 'kamizo-demo') && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center mb-3">
+              {language === 'ru' ? 'Демо-входы для тестирования:' : 'Test uchun demo-kirish:'}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(tenant?.slug === 'kamizo-demo' ? KAMIZO_DEMO_ACCOUNTS : DEMO_ACCOUNTS).map((account) => {
+                const Icon = account.icon;
+                return (
+                  <button
+                    key={account.login}
+                    type="button"
+                    onClick={() => {
+                      setLoginValue(account.login);
+                      setPassword(account.password);
+                      if (!agreedToTerms) {
+                        setShowOfferModal(true);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-left"
+                    style={tenant?.slug === 'kamizo-demo' ? { backgroundColor: hexToRgba(brandColor || '#f97316', 0.08) } : undefined}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${!tenant ? account.color : ''}`}
+                      style={tenant?.slug === 'kamizo-demo' ? { background: `linear-gradient(135deg, ${brandColor || '#f97316'}, ${brandColor2 || brandColor || '#fb923c'})` } : undefined}
+                    >
+                      <Icon className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="text-xs font-medium text-gray-700 truncate">
+                      {language === 'ru' ? account.labelRu : account.labelUz}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>}
+        )}
       </div>
 
       {/* Public Offer Modal */}

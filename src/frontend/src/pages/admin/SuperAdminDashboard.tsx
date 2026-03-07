@@ -270,6 +270,21 @@ export function SuperAdminDashboard() {
     setShowModal(true);
   };
 
+  const [isCreatingDemo, setIsCreatingDemo] = useState(false);
+  const handleCreateKamizoDemo = async () => {
+    if (!confirm('Создать демо-тенант "Kamizo Demo" со всеми демо-данными (жители, заявки, здания, авто, собрания)?')) return;
+    setIsCreatingDemo(true);
+    try {
+      await apiRequest('/api/seed-kamizo-demo', { method: 'POST' });
+      alert('Kamizo Demo успешно создан! Доступен на kamizo-demo.kamizo.uz');
+      await loadTenants();
+    } catch (err: any) {
+      alert(err.message || 'Ошибка создания демо');
+    } finally {
+      setIsCreatingDemo(false);
+    }
+  };
+
   const handleEditTenant = (tenant: Tenant) => {
     setEditingTenant(tenant);
     const features = tenant.features ? JSON.parse(tenant.features) : [];
@@ -804,6 +819,14 @@ export function SuperAdminDashboard() {
                 title="Обновить"
               >
                 <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleCreateKamizoDemo}
+                disabled={isCreatingDemo}
+                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 flex items-center gap-2 text-sm disabled:opacity-50"
+              >
+                {isCreatingDemo ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
+                Kamizo Demo
               </button>
               <button
                 onClick={handleCreateTenant}

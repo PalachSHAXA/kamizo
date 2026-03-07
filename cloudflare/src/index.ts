@@ -828,6 +828,214 @@ route('POST', '/api/seed', async (request, env) => {
   return json({ results });
 });
 
+// POST /api/seed-kamizo-demo - create Kamizo demo tenant with full demo data
+route('POST', '/api/seed-kamizo-demo', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  // Check if already exists
+  const existing = await env.DB.prepare(`SELECT id FROM tenants WHERE slug = 'kamizo-demo'`).first();
+  if (existing) {
+    return error('Kamizo Demo tenant already exists. Delete it first to recreate.');
+  }
+
+  const tenantId = generateId();
+  const features = JSON.stringify(["requests","votes","qr","rentals","notepad","reports","meetings","marketplace","vehicles","training"]);
+
+  // 1. Create the Kamizo Demo tenant
+  await env.DB.prepare(`
+    INSERT INTO tenants (id, name, slug, url, admin_url, color, color_secondary, plan, features, admin_email, admin_phone)
+    VALUES (?, 'Kamizo Demo', 'kamizo-demo', 'https://kamizo-demo.kamizo.uz', 'https://kamizo-demo.kamizo.uz/admin', '#f97316', '#fb923c', 'enterprise', ?, 'demo@kamizo.uz', '+998901234567')
+  `).bind(tenantId, features).run();
+
+  // 2. Create demo users
+  const demoUsers = [
+    { id: generateId(), login: 'demo-director', password: 'kamizo', name: 'Alisher Karimov', role: 'director', phone: '+998901000001' },
+    { id: generateId(), login: 'demo-manager', password: 'kamizo', name: 'Nodira Rahimova', role: 'manager', phone: '+998901000002' },
+    { id: generateId(), login: 'demo-admin', password: 'kamizo', name: 'Sardor Umarov', role: 'admin', phone: '+998901000003' },
+    { id: generateId(), login: 'demo-dispatcher', password: 'kamizo', name: 'Dilnoza Azimova', role: 'dispatcher', phone: '+998901000004' },
+    { id: generateId(), login: 'demo-executor', password: 'kamizo', name: 'Bobur Toshmatov', role: 'executor', phone: '+998901000005', specialization: 'plumber' },
+    { id: generateId(), login: 'demo-electrician', password: 'kamizo', name: 'Jasur Mirzayev', role: 'executor', phone: '+998901000006', specialization: 'electrician' },
+    { id: generateId(), login: 'demo-security', password: 'kamizo', name: 'Otabek Normatov', role: 'security', phone: '+998901000007' },
+    { id: generateId(), login: 'demo-resident1', password: 'kamizo', name: 'Aziza Sultanova', role: 'resident', phone: '+998901000010', address: 'ул. Навои, 25', apartment: '12' },
+    { id: generateId(), login: 'demo-resident2', password: 'kamizo', name: 'Farhod Ismoilov', role: 'resident', phone: '+998901000011', address: 'ул. Навои, 25', apartment: '45' },
+    { id: generateId(), login: 'demo-resident3', password: 'kamizo', name: 'Malika Abdullayeva', role: 'resident', phone: '+998901000012', address: 'ул. Амира Темура, 10', apartment: '78' },
+  ];
+
+  for (const u of demoUsers) {
+    const passwordHash = await hashPassword(u.password);
+    const passwordPlain = await encryptPassword(u.password, env.ENCRYPTION_KEY);
+    await env.DB.prepare(`
+      INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, specialization, address, apartment, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))
+    `).bind(
+      u.id, u.login, passwordHash, passwordPlain, u.name, u.role, u.phone,
+      (u as any).specialization || null,
+      (u as any).address || null,
+      (u as any).apartment || null,
+      tenantId
+    ).run();
+  }
+
+  // Get user IDs by login for references
+  const getUser = (login: string) => demoUsers.find(u => u.login === login)!;
+  const director = getUser('demo-director');
+  const manager = getUser('demo-manager');
+  const executor = getUser('demo-executor');
+  const electrician = getUser('demo-electrician');
+  const resident1 = getUser('demo-resident1');
+  const resident2 = getUser('demo-resident2');
+  const resident3 = getUser('demo-resident3');
+  const security = getUser('demo-security');
+
+  // 3. Create demo buildings
+  const building1Id = generateId();
+  const building2Id = generateId();
+
+  await env.DB.prepare(`
+    INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
+    VALUES (?, 'ЖК Навои Резиденс', 'ул. Навои, 25', 16, 4, 128, 12500.0, 2021, 'monolith', 1, 4, 1, 1, ?, datetime('now'), datetime('now'))
+  `).bind(building1Id, tenantId).run();
+
+  await env.DB.prepare(`
+    INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
+    VALUES (?, 'ЖК Темур Плаза', 'ул. Амира Темура, 10', 12, 2, 48, 5200.0, 2019, 'brick', 1, 2, 1, 1, ?, datetime('now'), datetime('now'))
+  `).bind(building2Id, tenantId).run();
+
+  // 4. Create demo apartments
+  const apartments = [
+    { id: generateId(), building_id: building1Id, number: '12', floor: 3, total_area: 72.5, rooms: 3, status: 'occupied', primary_owner_id: resident1.id },
+    { id: generateId(), building_id: building1Id, number: '45', floor: 8, total_area: 55.0, rooms: 2, status: 'occupied', primary_owner_id: resident2.id },
+    { id: generateId(), building_id: building1Id, number: '67', floor: 12, total_area: 95.0, rooms: 4, status: 'rented' },
+    { id: generateId(), building_id: building2Id, number: '78', floor: 6, total_area: 48.0, rooms: 2, status: 'occupied', primary_owner_id: resident3.id },
+    { id: generateId(), building_id: building2Id, number: '31', floor: 4, total_area: 62.0, rooms: 3, status: 'vacant' },
+  ];
+
+  for (const apt of apartments) {
+    await env.DB.prepare(`
+      INSERT INTO apartments (id, building_id, number, floor, total_area, rooms, status, primary_owner_id, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(apt.id, apt.building_id, apt.number, apt.floor, apt.total_area, apt.rooms, apt.status, apt.primary_owner_id || null, tenantId).run();
+  }
+
+  // 5. Create rental apartment (apt 67 for rent)
+  const rentalAptId = generateId();
+  await env.DB.prepare(`
+    INSERT INTO rental_apartments (id, name, address, apartment, owner_id, is_active, tenant_id, created_at, updated_at)
+    VALUES (?, 'Квартира 67, ЖК Навои Резиденс', 'ул. Навои, 25', '67', ?, 1, ?, datetime('now'), datetime('now'))
+  `).bind(rentalAptId, director.id, tenantId).run();
+
+  // 6. Create demo vehicles
+  const vehicles = [
+    { id: generateId(), user_id: resident1.id, plate_number: '01 A 777 AA', brand: 'Chevrolet', model: 'Malibu', color: 'Белый', year: 2023, vehicle_type: 'car' },
+    { id: generateId(), user_id: resident2.id, plate_number: '01 B 123 BB', brand: 'Kia', model: 'K5', color: 'Серебристый', year: 2022, vehicle_type: 'car' },
+    { id: generateId(), user_id: resident3.id, plate_number: '01 C 456 CC', brand: 'Hyundai', model: 'Tucson', color: 'Чёрный', year: 2024, vehicle_type: 'suv' },
+  ];
+
+  for (const v of vehicles) {
+    await env.DB.prepare(`
+      INSERT INTO vehicles (id, user_id, plate_number, brand, model, color, year, vehicle_type, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(v.id, v.user_id, v.plate_number, v.brand, v.model, v.color, v.year, v.vehicle_type, tenantId).run();
+  }
+
+  // 7. Create demo executors in executors table
+  const executorRecordId = generateId();
+  const electricianRecordId = generateId();
+  await env.DB.prepare(`
+    INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, tenant_id, created_at)
+    VALUES (?, ?, 'plumber', 'available', 4.8, 47, ?, datetime('now'))
+  `).bind(executorRecordId, executor.id, tenantId).run();
+
+  await env.DB.prepare(`
+    INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, tenant_id, created_at)
+    VALUES (?, ?, 'electrician', 'available', 4.9, 35, ?, datetime('now'))
+  `).bind(electricianRecordId, electrician.id, tenantId).run();
+
+  // 8. Create demo requests (different statuses for full cycle)
+  const now = new Date();
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
+
+  const requests = [
+    { id: generateId(), number: 1001, request_number: 'KD-1001', resident_id: resident1.id, category_id: 'plumbing', title: 'Течёт кран на кухне', description: 'Кран на кухне постоянно капает, нужно заменить прокладку или весь смеситель', priority: 'medium', status: 'new', created_at: threeHoursAgo },
+    { id: generateId(), number: 1002, request_number: 'KD-1002', resident_id: resident2.id, category_id: 'electrical', title: 'Не работает розетка в прихожей', description: 'Розетка в коридоре перестала работать после скачка напряжения', priority: 'high', status: 'assigned', executor_id: electrician.id, created_at: oneDayAgo },
+    { id: generateId(), number: 1003, request_number: 'KD-1003', resident_id: resident3.id, category_id: 'plumbing', title: 'Засор канализации', description: 'Вода не уходит в ванной комнате, засорилась труба', priority: 'urgent', status: 'in_progress', executor_id: executor.id, created_at: twoDaysAgo, started_at: oneDayAgo },
+    { id: generateId(), number: 1004, request_number: 'KD-1004', resident_id: resident1.id, category_id: 'electrical', title: 'Замена автомата в щитке', description: 'Автоматический выключатель в электрощитке выбивает при включении стиральной машины', priority: 'high', status: 'completed', executor_id: electrician.id, created_at: twoDaysAgo, started_at: twoDaysAgo, completed_at: oneDayAgo, rating: 5, feedback: 'Отлично! Быстро и качественно.' },
+  ];
+
+  for (const r of requests) {
+    await env.DB.prepare(`
+      INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, status, executor_id, created_at, updated_at, started_at, completed_at, rating, feedback, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      r.id, r.number, r.request_number, r.resident_id, r.category_id, r.title, r.description,
+      r.priority, r.status, r.executor_id || null,
+      r.created_at, r.created_at,
+      (r as any).started_at || null, (r as any).completed_at || null,
+      (r as any).rating || null, (r as any).feedback || null,
+      tenantId
+    ).run();
+  }
+
+  // 9. Create demo guest access codes (QR)
+  const qrCodes = [
+    { id: generateId(), user_id: resident1.id, qr_token: `kamizo-demo-qr-${Date.now()}-1`, visitor_type: 'guest', visitor_name: 'Камола Рашидова', access_type: 'single_use', status: 'active', resident_name: resident1.name },
+    { id: generateId(), user_id: resident2.id, qr_token: `kamizo-demo-qr-${Date.now()}-2`, visitor_type: 'courier', visitor_name: 'Яндекс Доставка', access_type: 'day', status: 'active', resident_name: resident2.name },
+  ];
+
+  for (const qr of qrCodes) {
+    await env.DB.prepare(`
+      INSERT INTO guest_access_codes (id, user_id, qr_token, visitor_type, visitor_name, access_type, status, resident_name, valid_from, valid_until, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now', '+7 days'), ?, datetime('now'))
+    `).bind(qr.id, qr.user_id, qr.qr_token, qr.visitor_type, qr.visitor_name, qr.access_type, qr.status, qr.resident_name, tenantId).run();
+  }
+
+  // 10. Create demo meeting
+  const meetingId = generateId();
+  const futureDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] + 'T18:00:00';
+  await env.DB.prepare(`
+    INSERT INTO meetings (id, number, building_id, building_address, description, organizer_type, organizer_id, organizer_name, format, status, confirmed_date_time, location, voting_unit, quorum_percent, total_area, tenant_id, created_at, updated_at)
+    VALUES (?, 1, ?, 'ул. Навои, 25', 'Годовое общее собрание собственников ЖК Навои Резиденс. Обсуждение бюджета на 2026 год, ремонт подъездов и благоустройство двора.', 'uk', ?, 'Kamizo Demo', 'offline', 'voting_open', ?, 'Актовый зал, 1 этаж', 'apartment', 51, 12500.0, ?, datetime('now'), datetime('now'))
+  `).bind(meetingId, building1Id, director.id, futureDate, tenantId).run();
+
+  // Create agenda items for the meeting
+  const agendaItems = [
+    { id: generateId(), title: 'Утверждение бюджета на 2026 год', description: 'Рассмотрение и утверждение сметы расходов на содержание и обслуживание общего имущества на 2026 год', order_num: 1 },
+    { id: generateId(), title: 'Капитальный ремонт подъездов', description: 'Принятие решения о проведении ремонта подъездов 1-4 с заменой дверей, покраской стен и обновлением освещения', order_num: 2 },
+    { id: generateId(), title: 'Благоустройство придомовой территории', description: 'Установка детской площадки, скамеек и озеленение двора', order_num: 3 },
+  ];
+
+  for (const item of agendaItems) {
+    await env.DB.prepare(`
+      INSERT INTO meeting_agenda_items (id, meeting_id, title, description, order_num, created_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `).bind(item.id, meetingId, item.title, item.description, item.order_num).run();
+  }
+
+  // 11. Create demo announcement
+  const announcementId = generateId();
+  await env.DB.prepare(`
+    INSERT INTO announcements (id, title, content, author_id, author_name, type, priority, target_type, is_active, tenant_id, created_at, updated_at)
+    VALUES (?, 'Плановое отключение горячей воды', 'Уважаемые жители! В связи с проведением профилактических работ 15 марта с 9:00 до 18:00 будет отключена горячая вода. Приносим извинения за неудобства.', ?, ?, 'maintenance', 'high', 'all', 1, ?, datetime('now'), datetime('now'))
+  `).bind(announcementId, manager.id, manager.name, tenantId).run();
+
+  return json({
+    success: true,
+    tenant_id: tenantId,
+    slug: 'kamizo-demo',
+    users_created: demoUsers.length,
+    buildings_created: 2,
+    apartments_created: apartments.length,
+    vehicles_created: vehicles.length,
+    requests_created: requests.length,
+    qr_codes_created: qrCodes.length,
+    meetings_created: 1,
+    message: 'Kamizo Demo tenant created with all demo data!'
+  }, 201);
+});
+
 // Auth: Login
 route('POST', '/api/auth/login', async (request, env) => {
   // Check rate limit (by IP before authentication)
