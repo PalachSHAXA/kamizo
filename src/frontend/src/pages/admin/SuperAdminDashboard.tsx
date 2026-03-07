@@ -19,6 +19,7 @@ interface Tenant {
   plan: 'basic' | 'pro' | 'enterprise';
   features: string;
   logo: string | null;
+  contract_template: string | null;
   admin_email: string | null;
   admin_phone: string | null;
   users_count: number;
@@ -43,6 +44,8 @@ interface TenantFormData {
   admin_email: string;
   admin_phone: string;
   logo: string;
+  contract_template: string;
+  contract_template_name: string;
   director_login: string;
   director_password: string;
   director_name: string;
@@ -111,6 +114,8 @@ const INITIAL_FORM_DATA: TenantFormData = {
   admin_email: '',
   admin_phone: '',
   logo: '',
+  contract_template: '',
+  contract_template_name: '',
   director_login: '',
   director_password: '',
   director_name: '',
@@ -280,6 +285,8 @@ export function SuperAdminDashboard() {
       admin_email: tenant.admin_email || '',
       admin_phone: tenant.admin_phone || '',
       logo: tenant.logo || '',
+      contract_template: tenant.contract_template || '',
+      contract_template_name: tenant.contract_template ? 'Шаблон загружен' : '',
       director_login: '',
       director_password: '',
       director_name: '',
@@ -337,8 +344,9 @@ export function SuperAdminDashboard() {
     setError('');
 
     try {
+      const { contract_template_name, ...rest } = formData;
       const body = {
-        ...formData,
+        ...rest,
         features: formData.features,
       };
 
@@ -380,6 +388,20 @@ export function SuperAdminDashboard() {
     const reader = new FileReader();
     reader.onload = () => {
       setFormData(prev => ({ ...prev, logo: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleContractTemplateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Максимальный размер шаблона: 5 МБ');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormData(prev => ({ ...prev, contract_template: reader.result as string, contract_template_name: file.name }));
     };
     reader.readAsDataURL(file);
   };
@@ -1397,6 +1419,40 @@ export function SuperAdminDashboard() {
                   )}
                   <div className="text-xs text-gray-500">
                     PNG, JPG до 2 МБ
+                  </div>
+                </div>
+              </div>
+
+              {/* Contract Template Upload */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Шаблон договора (.docx)</label>
+                <div className="flex items-center gap-3">
+                  {formData.contract_template ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                      <FileText className="w-4 h-4 text-green-600" />
+                      <span className="text-sm text-green-700">{formData.contract_template_name || 'Шаблон загружен'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, contract_template: '', contract_template_name: '' }))}
+                        className="p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors">
+                      <Upload className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-500">Загрузить шаблон</span>
+                      <input
+                        type="file"
+                        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        onChange={handleContractTemplateChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  <div className="text-xs text-gray-500">
+                    DOCX до 5 МБ
                   </div>
                 </div>
               </div>

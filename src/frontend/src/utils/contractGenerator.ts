@@ -112,9 +112,22 @@ export async function generateContractDocx(
   // Generate UK company QR code
   const ukQrCodeDataUrl = await generateUKQRCode();
 
-  // Fetch the template file
-  const response = await fetch(templateUrl);
-  const arrayBuffer = await response.arrayBuffer();
+  // Fetch the template: try tenant's custom template first, fallback to default
+  let arrayBuffer: ArrayBuffer;
+  try {
+    const token = localStorage.getItem('auth_token');
+    const customResponse = await fetch('/api/contract/template', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+    if (customResponse.ok) {
+      arrayBuffer = await customResponse.arrayBuffer();
+    } else {
+      throw new Error('No custom template');
+    }
+  } catch {
+    const response = await fetch(templateUrl);
+    arrayBuffer = await response.arrayBuffer();
+  }
 
   // Load the template with PizZip
   const zip = new PizZip(arrayBuffer);

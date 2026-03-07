@@ -233,9 +233,10 @@ export function ResidentsPage() {
       return DEFAULT_PASSWORD;
     }
     const branch = building.branchCode.toUpperCase();
-    let bldg = address ? extractBuildingFromAddress(address) : '';
-    if (!bldg && building?.buildingNumber) {
-      bldg = building.buildingNumber.toUpperCase();
+    // Prioritize building.buildingNumber (canonical "5/А") over address extraction ("5а")
+    let bldg = building.buildingNumber ? building.buildingNumber.toUpperCase() : '';
+    if (!bldg && address) {
+      bldg = extractBuildingFromAddress(address);
     }
     if (!bldg) {
       return DEFAULT_PASSWORD;
@@ -260,14 +261,15 @@ export function ResidentsPage() {
     const buildingFromAddress = resident.address ? extractBuildingFromAddress(resident.address) : '';
 
     if (residentBuilding?.branchCode) {
-      const bldgNum = buildingFromAddress || residentBuilding?.buildingNumber?.toUpperCase() || '';
+      // Prioritize buildingNumber (canonical "5/А") over address extraction ("5а")
+      const bldgNum = residentBuilding?.buildingNumber?.toUpperCase() || buildingFromAddress || '';
       if (bldgNum) {
         return `${residentBuilding.branchCode.toUpperCase()}/${bldgNum}/${apartmentNumber}`;
       }
     }
 
-    if (resident.branch && (buildingFromAddress || resident.building)) {
-      const bldgNum = buildingFromAddress || resident.building?.toUpperCase() || '';
+    if (resident.branch && (resident.building || buildingFromAddress)) {
+      const bldgNum = resident.building?.toUpperCase() || buildingFromAddress || '';
       return `${resident.branch.toUpperCase()}/${bldgNum}/${apartmentNumber}`;
     }
 
@@ -752,14 +754,14 @@ export function ResidentsPage() {
     <div className="space-y-3">
       {/* Search */}
       <div className="glass-card p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div className="flex items-center gap-2 input-field">
+          <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
           <input
             type="text"
             placeholder={language === 'ru' ? 'Поиск по имени, телефону, квартире...' : 'Ism, telefon, xonadon bo\'yicha qidirish...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field pl-10"
+            className="flex-1 bg-transparent outline-none text-sm"
           />
         </div>
       </div>

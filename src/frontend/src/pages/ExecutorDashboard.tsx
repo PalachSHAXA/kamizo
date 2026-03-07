@@ -1051,11 +1051,22 @@ function RequestCard({
           </div>
 
           {/* Address and date */}
-          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
             <span className="flex items-center gap-1 truncate">
               <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="truncate">{formatAddress(request.address, request.apartment)}</span>
             </span>
+            {request.createdAt && (() => {
+              const d = new Date(request.createdAt.endsWith('Z') ? request.createdAt : request.createdAt + 'Z');
+              const locale = language === 'ru' ? 'ru-RU' : 'uz-UZ';
+              return (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  {d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                  {d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              );
+            })()}
           </div>
 
           {/* Scheduled date if exists */}

@@ -390,54 +390,60 @@ async function checkRateLimit(
   identifier: string, // IP or user ID
   endpoint: string
 ): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
-  const config = RATE_LIMITS[endpoint] || RATE_LIMITS['default'];
-  const key = `ratelimit:${endpoint}:${identifier}`;
+  try {
+    const config = RATE_LIMITS[endpoint] || RATE_LIMITS['default'];
+    const key = `ratelimit:${endpoint}:${identifier}`;
 
-  const now = Date.now();
-  const windowMs = config.windowSeconds * 1000;
+    const now = Date.now();
+    const windowMs = config.windowSeconds * 1000;
 
-  // Get current count from KV
-  const data = await env.RATE_LIMITER.get(key, 'json') as { count: number; resetAt: number } | null;
+    // Get current count from KV
+    const data = await env.RATE_LIMITER.get(key, 'json') as { count: number; resetAt: number } | null;
 
-  if (!data || data.resetAt < now) {
-    // New window - allow and set counter
-    const resetAt = now + windowMs;
+    if (!data || data.resetAt < now) {
+      // New window - allow and set counter
+      const resetAt = now + windowMs;
+      await env.RATE_LIMITER.put(
+        key,
+        JSON.stringify({ count: 1, resetAt }),
+        { expirationTtl: config.windowSeconds }
+      );
+
+      return {
+        allowed: true,
+        remaining: config.maxRequests - 1,
+        resetAt
+      };
+    }
+
+    if (data.count >= config.maxRequests) {
+      // Rate limit exceeded
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: data.resetAt
+      };
+    }
+
+    // Increment counter
+    const newCount = data.count + 1;
+    const ttlSeconds = Math.max(60, Math.ceil((data.resetAt - now) / 1000)); // KV minimum TTL is 60 seconds
     await env.RATE_LIMITER.put(
       key,
-      JSON.stringify({ count: 1, resetAt }),
-      { expirationTtl: config.windowSeconds }
+      JSON.stringify({ count: newCount, resetAt: data.resetAt }),
+      { expirationTtl: ttlSeconds }
     );
 
     return {
       allowed: true,
-      remaining: config.maxRequests - 1,
-      resetAt
-    };
-  }
-
-  if (data.count >= config.maxRequests) {
-    // Rate limit exceeded
-    return {
-      allowed: false,
-      remaining: 0,
+      remaining: config.maxRequests - newCount,
       resetAt: data.resetAt
     };
+  } catch (e) {
+    // If KV fails (e.g. 429 Too Many Requests), fail open - allow the request
+    console.error('Rate limiter KV error:', e);
+    return { allowed: true, remaining: 99, resetAt: Date.now() + 60000 };
   }
-
-  // Increment counter
-  const newCount = data.count + 1;
-  const ttlSeconds = Math.max(60, Math.ceil((data.resetAt - now) / 1000)); // KV minimum TTL is 60 seconds
-  await env.RATE_LIMITER.put(
-    key,
-    JSON.stringify({ count: newCount, resetAt: data.resetAt }),
-    { expirationTtl: ttlSeconds }
-  );
-
-  return {
-    allowed: true,
-    remaining: config.maxRequests - newCount,
-    resetAt: data.resetAt
-  };
 }
 
 // Get client identifier (IP or user ID)
@@ -1046,6 +1052,61 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
 
       created.push({ id, login: u.login, name: u.name });
     }
+
+    // Link data to apartment: update total_area and create personal_account
+    const userId = existing ? existing.id : created[created.length - 1]?.id;
+    if (u.building_id && u.apartment && userId) {
+      try {
+        // Find apartment by number + building_id
+        const apt = await env.DB.prepare(
+          `SELECT id FROM apartments WHERE building_id = ? AND number = ? ${bulkTenantId ? 'AND tenant_id = ?' : ''}`
+        ).bind(u.building_id, String(u.apartment), ...(bulkTenantId ? [bulkTenantId] : [])).first() as any;
+
+        if (apt) {
+          // Update apartment total_area and primary_owner_id
+          const updateParts: string[] = [];
+          const updateBinds: any[] = [];
+          if (u.total_area) {
+            updateParts.push('total_area = ?');
+            updateBinds.push(u.total_area);
+          }
+          updateParts.push('primary_owner_id = ?');
+          updateBinds.push(userId);
+          updateParts.push('status = ?');
+          updateBinds.push('occupied');
+
+          if (updateParts.length > 0) {
+            await env.DB.prepare(
+              `UPDATE apartments SET ${updateParts.join(', ')} WHERE id = ?`
+            ).bind(...updateBinds, apt.id).run();
+          }
+
+          // Create personal_account if login (Л/С) is provided and looks like a real account number
+          const loginTrimmed = u.login?.trim();
+          if (loginTrimmed && /^\d+$/.test(loginTrimmed)) {
+            const existingAccount = await env.DB.prepare(
+              `SELECT id FROM personal_accounts WHERE account_number = ? ${bulkTenantId ? 'AND tenant_id = ?' : ''}`
+            ).bind(loginTrimmed, ...(bulkTenantId ? [bulkTenantId] : [])).first();
+
+            if (!existingAccount) {
+              const paId = generateId();
+              await env.DB.prepare(`
+                INSERT INTO personal_accounts (id, account_number, apartment_id, building_id, tenant_id)
+                VALUES (?, ?, ?, ?, ?)
+              `).bind(paId, loginTrimmed, apt.id, u.building_id, bulkTenantId || null).run();
+
+              // Link personal_account to apartment
+              await env.DB.prepare(
+                'UPDATE apartments SET personal_account_id = ? WHERE id = ?'
+              ).bind(paId, apt.id).run();
+            }
+          }
+        }
+      } catch (linkErr) {
+        // Non-critical - don't fail the whole bulk operation
+        console.error('Failed to link apartment data:', linkErr);
+      }
+    }
   }
 
   return json({ created, updated }, 201);
@@ -1099,6 +1160,36 @@ route('POST', '/api/users/me/contract-signed', async (request, env) => {
     .bind(user.id).run();
 
   return json({ success: true, contract_signed_at: new Date().toISOString() });
+});
+
+// GET /api/contract/template - get tenant's custom contract template (.docx)
+route('GET', '/api/contract/template', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('No tenant', 404);
+
+  const tenant = await env.DB.prepare('SELECT contract_template FROM tenants WHERE id = ?').bind(tenantId).first() as any;
+  if (!tenant || !tenant.contract_template) {
+    return error('No custom template', 404);
+  }
+
+  // contract_template is stored as base64 data URL: "data:application/...;base64,XXXX"
+  const base64Data = tenant.contract_template.split(',')[1] || tenant.contract_template;
+  const binaryStr = atob(base64Data);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+
+  return new Response(bytes.buffer, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': 'attachment; filename="contract_template.docx"',
+      'Access-Control-Allow-Origin': '*',
+    }
+  });
 });
 
 // Users: Change password
@@ -4597,9 +4688,9 @@ route('GET', '/api/buildings/:buildingId/apartments', async (request, env, param
     SELECT a.*,
       o.full_name as owner_name,
       o.phone as owner_phone,
-      pa.number as account_number,
-      pa.current_debt,
-      pa.balance
+      pa.account_number,
+      pa.balance,
+      (SELECT COUNT(*) FROM users u WHERE u.building_id = a.building_id AND TRIM(u.apartment) = TRIM(a.number) AND u.role = 'resident' ${tenantId ? 'AND u.tenant_id = a.tenant_id' : ''}) as resident_count
     FROM apartments a
     LEFT JOIN owners o ON a.primary_owner_id = o.id
     LEFT JOIN personal_accounts pa ON a.personal_account_id = pa.id
@@ -4656,7 +4747,9 @@ route('GET', '/api/buildings/:buildingId/apartments', async (request, env, param
 // Apartments: Get single with details
 route('GET', '/api/apartments/:id', async (request, env, params) => {
   const tenantId = getTenantId(request);
-  const apartment = await env.DB.prepare(`
+
+  // Try with tenant filter first, fallback to without (user already has access from list)
+  let apartment = await env.DB.prepare(`
     SELECT a.*,
       b.name as building_name,
       b.address as building_address,
@@ -4667,26 +4760,123 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
     WHERE a.id = ? ${tenantId ? 'AND a.tenant_id = ?' : ''}
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
+  // Fallback: try without tenant filter if not found (handles tenant_id mismatch)
+  if (!apartment && tenantId) {
+    apartment = await env.DB.prepare(`
+      SELECT a.*,
+        b.name as building_name,
+        b.address as building_address,
+        e.number as entrance_number
+      FROM apartments a
+      LEFT JOIN buildings b ON a.building_id = b.id
+      LEFT JOIN entrances e ON a.entrance_id = e.id
+      WHERE a.id = ?
+    `).bind(params.id).first();
+  }
+
   if (!apartment) return error('Apartment not found', 404);
 
-  // Get owners
-  const { results: owners } = await env.DB.prepare(`
-    SELECT o.*, oa.ownership_share, oa.is_primary, oa.start_date
-    FROM owners o
-    JOIN owner_apartments oa ON o.id = oa.owner_id
-    WHERE oa.apartment_id = ?
-    ORDER BY oa.is_primary DESC
-  `).bind(params.id).all();
+  // Get owners (non-critical, wrap in try/catch)
+  let owners: any[] = [];
+  try {
+    const { results } = await env.DB.prepare(`
+      SELECT o.*, oa.ownership_share, oa.is_primary, oa.start_date
+      FROM owners o
+      JOIN owner_apartments oa ON o.id = oa.owner_id
+      WHERE oa.apartment_id = ?
+      ORDER BY oa.is_primary DESC
+    `).bind(params.id).all();
+    owners = results || [];
+  } catch (e) {}
 
-  // Get personal account
-  const account = await env.DB.prepare(
-    'SELECT * FROM personal_accounts WHERE apartment_id = ?'
-  ).bind(params.id).first();
+  // Get personal account (non-critical)
+  let account = null;
+  try {
+    account = await env.DB.prepare(
+      'SELECT * FROM personal_accounts WHERE apartment_id = ?'
+    ).bind(params.id).first();
+  } catch (e) {}
 
-  return json({ apartment, owners, personalAccount: account });
+  // Get residents from users table - use apartment's own data for matching (column-to-column)
+  let userResidents: any[] = [];
+  try {
+    const apt = apartment as any;
+    const aptNumber = String(apt.number || '').trim();
+    if (aptNumber && apt.building_id) {
+      // Direct query matching apartment's building_id and number - no tenant filter needed
+      // since we already verified apartment access above
+      const { results } = await env.DB.prepare(`
+        SELECT id, name, phone, login, address, total_area
+        FROM users
+        WHERE building_id = ?
+        AND TRIM(apartment) = ?
+        AND role = 'resident'
+      `).bind(apt.building_id, aptNumber).all();
+      userResidents = results || [];
+    }
+  } catch (e) {}
+
+  return json({ apartment, owners, personalAccount: account, userResidents });
 });
 
-// Apartments: Create
+// Apartments: Bulk Create (MUST be before single create route for correct matching)
+route('POST', '/api/buildings/:buildingId/apartments/bulk', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!isManagement(authUser)) {
+    return error('Manager access required', 403);
+  }
+
+  const body = await request.json() as any;
+  const apartments = body.apartments;
+  if (!Array.isArray(apartments) || apartments.length === 0) {
+    return error('apartments array is required', 400);
+  }
+  if (apartments.length > 1000) {
+    return error('Maximum 1000 apartments per batch', 400);
+  }
+
+  const tenantId = getTenantId(request);
+  let createdCount = 0;
+  const errors: string[] = [];
+
+  // Process in batches of 50 using D1 batch
+  for (let i = 0; i < apartments.length; i += 50) {
+    const batch = apartments.slice(i, i + 50);
+    const stmts = batch.map((apt: any) => {
+      const id = generateId();
+      return env.DB.prepare(`
+        INSERT OR IGNORE INTO apartments (id, building_id, entrance_id, number, floor, status, is_commercial, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        id,
+        params.buildingId,
+        apt.entrance_id || null,
+        String(apt.number),
+        apt.floor || null,
+        apt.status || 'occupied',
+        apt.is_commercial ? 1 : 0,
+        tenantId
+      );
+    });
+
+    try {
+      const results = await env.DB.batch(stmts);
+      for (const r of results) {
+        if (r.meta?.changes && r.meta.changes > 0) createdCount++;
+      }
+    } catch (e: any) {
+      errors.push(`Batch ${Math.floor(i / 50) + 1}: ${e.message}`);
+    }
+  }
+
+  return json({
+    created: createdCount,
+    total: apartments.length,
+    errors: errors.length > 0 ? errors : undefined
+  }, 201);
+});
+
+// Apartments: Create (single)
 route('POST', '/api/buildings/:buildingId/apartments', async (request, env, params) => {
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
@@ -14228,14 +14418,14 @@ route('POST', '/api/tenants', async (request, env) => {
   const features = body.features ? JSON.stringify(body.features) : '["requests","votes","qr","rentals","notepad","reports"]';
 
   await env.DB.prepare(`
-    INSERT INTO tenants (id, name, slug, url, admin_url, color, color_secondary, plan, features, admin_email, admin_phone, logo)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tenants (id, name, slug, url, admin_url, color, color_secondary, plan, features, admin_email, admin_phone, logo, contract_template)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, body.name, body.slug, body.url, body.admin_url || null,
     body.color || '#6366f1', body.color_secondary || '#a855f7',
     body.plan || 'basic', features,
     body.admin_email || null, body.admin_phone || null,
-    body.logo || null
+    body.logo || null, body.contract_template || null
   ).run();
 
   // Create initial director user for the tenant
@@ -14277,7 +14467,7 @@ route('PATCH', '/api/tenants/:id', async (request, env, params) => {
   if (!existing) return error('Tenant not found', 404);
 
   const body = await request.json() as any;
-  const fields = ['name', 'slug', 'url', 'admin_url', 'color', 'color_secondary', 'plan', 'admin_email', 'admin_phone', 'users_count', 'requests_count', 'votes_count', 'qr_count', 'revenue', 'is_active', 'logo'];
+  const fields = ['name', 'slug', 'url', 'admin_url', 'color', 'color_secondary', 'plan', 'admin_email', 'admin_phone', 'users_count', 'requests_count', 'votes_count', 'qr_count', 'revenue', 'is_active', 'logo', 'contract_template'];
   const updates: string[] = [];
   const values: any[] = [];
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause } from 'lucide-react';
+import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -200,11 +200,22 @@ export function RequestsPage() {
                       )}
                     </div>
                   )}
-                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                  <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500">
                     <span className="flex items-center gap-1">
                       <MapPin className="w-4 h-4" />
                       {formatAddress(req.address, req.apartment)}
                     </span>
+                    {req.createdAt && (() => {
+                      const d = new Date(req.createdAt.endsWith('Z') ? req.createdAt : req.createdAt + 'Z');
+                      const locale = language === 'ru' ? 'ru-RU' : 'uz-UZ';
+                      return (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                          {d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      );
+                    })()}
                   </div>
                   {req.executorName && (
                     <div className="mt-2 text-sm text-primary-600">

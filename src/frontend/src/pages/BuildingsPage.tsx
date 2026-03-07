@@ -3,7 +3,8 @@ import {
   Building2, Plus, Search, MapPin,
   Trash2, Edit, X, ChevronRight,
   Layers, Thermometer, Droplets, Car, Loader2, RefreshCw,
-  GitBranch, DoorOpen, ArrowLeft
+  GitBranch, DoorOpen, ArrowLeft, User, Phone, Zap, Home,
+  Save, PlusCircle
 } from 'lucide-react';
 import { useCRMStore } from '../stores/crmStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -34,6 +35,22 @@ interface Entrance {
   has_elevator?: number;
   intercom_type?: string;
   intercom_code?: string;
+}
+
+// Apartment type
+interface Apartment {
+  id: string;
+  building_id: string;
+  entrance_id?: string;
+  number: string;
+  floor?: number;
+  total_area?: number;
+  living_area?: number;
+  rooms?: number;
+  status?: string;
+  is_commercial?: number;
+  ownership_type?: string;
+  resident_count?: number;
 }
 
 // Navigation levels
@@ -72,6 +89,28 @@ export function BuildingsPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Apartments
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [isLoadingApartments, setIsLoadingApartments] = useState(false);
+  const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);
+  const [apartmentResidents, setApartmentResidents] = useState<any[]>([]);
+  const [isLoadingResidents, setIsLoadingResidents] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Apartment editing state
+  const [isEditingApartment, setIsEditingApartment] = useState(false);
+  const [isAddingApartment, setIsAddingApartment] = useState(false);
+  const [editForm, setEditForm] = useState({
+    number: '',
+    floor: '',
+    rooms: '',
+    total_area: '',
+    status: 'occupied',
+    is_commercial: false,
+    entrance_id: '',
+  });
+  const [isSavingApartment, setIsSavingApartment] = useState(false);
+
   // Load branches on mount
   useEffect(() => {
     fetchBranches();
@@ -84,10 +123,12 @@ export function BuildingsPage() {
     }
   }, [selectedBranch]);
 
-  // Load entrances when building is selected
+  // Load entrances and apartments when building is selected
   useEffect(() => {
     if (selectedBuilding) {
       fetchEntrancesForBuilding(selectedBuilding.id);
+      fetchApartmentsForBuilding(selectedBuilding.id);
+      setSelectedApartment(null);
     }
   }, [selectedBuilding]);
 
@@ -117,6 +158,134 @@ export function BuildingsPage() {
       setEntrances([]);
     } finally {
       setIsLoadingEntrances(false);
+    }
+  };
+
+  const fetchApartmentsForBuilding = async (buildingId: string) => {
+    setIsLoadingApartments(true);
+    try {
+      const response = await apiRequest<{ apartments: Apartment[] }>(`/api/buildings/${buildingId}/apartments?limit=2000`);
+      setApartments(response.apartments || []);
+    } catch (error) {
+      console.error('Failed to fetch apartments:', error);
+      setApartments([]);
+    } finally {
+      setIsLoadingApartments(false);
+    }
+  };
+
+  const handleApartmentClick = async (apt: Apartment) => {
+    setSelectedApartment(apt);
+    setApartmentResidents([]);
+    setIsLoadingResidents(true);
+    try {
+      const aptDetail = await apiRequest<any>(`/api/apartments/${apt.id}`);
+      const owners = aptDetail.owners || [];
+      const userResidents = aptDetail.userResidents || [];
+      let crmResidents: any[] = [];
+      try {
+        const crmRes = await apiRequest<{ residents: any[] }>(`/api/apartments/${apt.id}/residents`);
+        crmResidents = crmRes.residents || [];
+      } catch {}
+      const combined = [
+        ...owners.map((o: any) => ({ id: o.id, name: o.name || o.full_name || '', phone: o.phone, type: 'owner' })),
+        ...userResidents.map((u: any) => ({ id: u.id, name: u.name || '', phone: u.phone, login: u.login, type: 'resident' })),
+        ...crmResidents.map((r: any) => ({ id: r.id, name: r.name || r.full_name || '', phone: r.phone, type: 'resident' })),
+      ];
+      // Deduplicate by id
+      const seen = new Set<string>();
+      const unique = combined.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+      setApartmentResidents(unique);
+    } catch (error) {
+      console.error('Failed to fetch apartment residents:', error);
+      setApartmentResidents([]);
+    } finally {
+      setIsLoadingResidents(false);
+    }
+  };
+
+  const handleGenerateApartments = async () => {
+    if (!selectedBuilding) {
+      alert(language === 'ru' ? 'Выберите здание' : 'Binoni tanlang');
+      return;
+    }
+    if (entrances.length === 0) {
+      alert(language === 'ru' ? 'Сначала добавьте подъезды' : 'Avval podyezdlarni qo\'shing');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      // Build apartment data from entrances
+      const aptData: Array<{ number: string; floor: number; entrance_id: string; status: string }> = [];
+      for (const entrance of entrances) {
+        const floorsFrom = entrance.floors_from || 1;
+        const floorsTo = entrance.floors_to || (selectedBuilding.floors || 9);
+        const aptsFrom = entrance.apartments_from || 1;
+        const aptsTo = entrance.apartments_to || 36;
+        const totalApts = aptsTo - aptsFrom + 1;
+        const totalFloors = floorsTo - floorsFrom + 1;
+        const aptsPerFloor = Math.ceil(totalApts / totalFloors);
+        let aptNum = aptsFrom;
+        for (let floor = floorsFrom; floor <= floorsTo && aptNum <= aptsTo; floor++) {
+          for (let i = 0; i < aptsPerFloor && aptNum <= aptsTo; i++) {
+            aptData.push({ number: String(aptNum), floor, entrance_id: entrance.id, status: 'occupied' });
+            aptNum++;
+          }
+        }
+      }
+
+      if (aptData.length === 0) {
+        alert(language === 'ru' ? 'Нет данных для генерации. Проверьте настройки подъездов.' : 'Yaratish uchun ma\'lumot yo\'q. Podyezd sozlamalarini tekshiring.');
+        setIsGenerating(false);
+        return;
+      }
+
+      // Use bulk endpoint - single request
+      const result = await apiRequest<{ created: number; total: number; errors?: string[] }>(`/api/buildings/${selectedBuilding.id}/apartments/bulk`, {
+        method: 'POST',
+        body: JSON.stringify({ apartments: aptData }),
+      });
+
+      // Check for partial failures
+      if (result.errors && result.errors.length > 0) {
+        console.warn('Bulk create had errors:', result.errors);
+        // If all failed, likely UNIQUE constraint - try to show what happened
+        if (result.created <= 0) {
+          alert(language === 'ru'
+            ? 'Квартиры уже существуют для этого здания. Обновите страницу.'
+            : 'Xonadonlar allaqachon mavjud. Sahifani yangilang.');
+        }
+      }
+
+      await fetchApartmentsForBuilding(selectedBuilding.id);
+    } catch (error: any) {
+      console.error('Failed to generate apartments:', error);
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || ''));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const getAptColor = (apt: Apartment) => {
+    if (apt.is_commercial) return 'bg-pink-200 text-pink-800 hover:bg-pink-300';
+    switch (apt.status) {
+      case 'vacant': return 'bg-green-200 text-green-800 hover:bg-green-300';
+      case 'rented': return 'bg-purple-200 text-purple-800 hover:bg-purple-300';
+      case 'renovation': return 'bg-yellow-200 text-yellow-800 hover:bg-yellow-300';
+      case 'commercial': return 'bg-pink-200 text-pink-800 hover:bg-pink-300';
+      default: return 'bg-blue-100 text-blue-800 hover:bg-blue-200';
+    }
+  };
+
+  const getStatusLabel = (apt: Apartment) => {
+    if (apt.is_commercial) return language === 'ru' ? 'Коммерция' : 'Tijorat';
+    switch (apt.status) {
+      case 'vacant': return language === 'ru' ? 'Свободна' : 'Bo\'sh';
+      case 'rented': return language === 'ru' ? 'Аренда' : 'Ijara';
+      case 'renovation': return language === 'ru' ? 'Ремонт' : 'Ta\'mir';
+      case 'commercial': return language === 'ru' ? 'Коммерция' : 'Tijorat';
+      default: return language === 'ru' ? 'Занята' : 'Band';
     }
   };
 
@@ -276,6 +445,113 @@ export function BuildingsPage() {
     }
   };
 
+  // Apartment editing handlers
+  const startEditApartment = (apt: Apartment) => {
+    setIsEditingApartment(true);
+    setIsAddingApartment(false);
+    setEditForm({
+      number: apt.number || '',
+      floor: String(apt.floor || ''),
+      rooms: String(apt.rooms || ''),
+      total_area: String(apt.total_area || ''),
+      status: apt.status || 'occupied',
+      is_commercial: !!apt.is_commercial,
+      entrance_id: apt.entrance_id || '',
+    });
+  };
+
+  const startAddApartment = () => {
+    setSelectedApartment(null);
+    setIsAddingApartment(true);
+    setIsEditingApartment(false);
+    setEditForm({
+      number: '',
+      floor: '1',
+      rooms: '',
+      total_area: '',
+      status: 'occupied',
+      is_commercial: false,
+      entrance_id: entrances.length > 0 ? entrances[0].id : '',
+    });
+  };
+
+  const cancelEditApartment = () => {
+    setIsEditingApartment(false);
+    setIsAddingApartment(false);
+  };
+
+  const handleSaveApartment = async () => {
+    if (!editForm.number.trim()) {
+      alert(language === 'ru' ? 'Укажите номер квартиры' : 'Xonadon raqamini kiriting');
+      return;
+    }
+    setIsSavingApartment(true);
+    try {
+      if (isAddingApartment && selectedBuilding) {
+        // Create new apartment
+        await apiRequest(`/api/buildings/${selectedBuilding.id}/apartments`, {
+          method: 'POST',
+          body: JSON.stringify({
+            number: editForm.number.trim(),
+            floor: editForm.floor ? parseInt(editForm.floor) : 1,
+            rooms: editForm.rooms ? parseInt(editForm.rooms) : null,
+            total_area: editForm.total_area ? parseFloat(editForm.total_area) : null,
+            status: editForm.status,
+            is_commercial: editForm.is_commercial ? 1 : 0,
+            entrance_id: editForm.entrance_id || null,
+          }),
+        });
+        setIsAddingApartment(false);
+        await fetchApartmentsForBuilding(selectedBuilding.id);
+      } else if (selectedApartment) {
+        // Update existing apartment
+        await apiRequest(`/api/apartments/${selectedApartment.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            number: editForm.number.trim(),
+            floor: editForm.floor ? parseInt(editForm.floor) : null,
+            rooms: editForm.rooms ? parseInt(editForm.rooms) : null,
+            total_area: editForm.total_area ? parseFloat(editForm.total_area) : null,
+            status: editForm.status,
+            is_commercial: editForm.is_commercial ? 1 : 0,
+            entrance_id: editForm.entrance_id || null,
+          }),
+        });
+        // Update local state
+        const updated = {
+          ...selectedApartment,
+          number: editForm.number.trim(),
+          floor: editForm.floor ? parseInt(editForm.floor) : undefined,
+          rooms: editForm.rooms ? parseInt(editForm.rooms) : undefined,
+          total_area: editForm.total_area ? parseFloat(editForm.total_area) : undefined,
+          status: editForm.status,
+          is_commercial: editForm.is_commercial ? 1 : 0,
+          entrance_id: editForm.entrance_id || undefined,
+        };
+        setSelectedApartment(updated);
+        setApartments(prev => prev.map(a => a.id === updated.id ? updated : a));
+        setIsEditingApartment(false);
+      }
+    } catch (error: any) {
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || ''));
+    } finally {
+      setIsSavingApartment(false);
+    }
+  };
+
+  const handleDeleteApartment = async () => {
+    if (!selectedApartment) return;
+    if (!confirm(language === 'ru' ? 'Удалить эту квартиру?' : 'Bu xonadonni o\'chirasizmi?')) return;
+    try {
+      await apiRequest(`/api/apartments/${selectedApartment.id}`, { method: 'DELETE' });
+      setApartments(prev => prev.filter(a => a.id !== selectedApartment.id));
+      setSelectedApartment(null);
+      setIsEditingApartment(false);
+    } catch (error: any) {
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (error.message || ''));
+    }
+  };
+
   // Breadcrumb
   const renderBreadcrumb = () => (
     <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
@@ -334,12 +610,12 @@ export function BuildingsPage() {
             <h1 className="text-2xl font-bold text-gray-900">
               {viewLevel === 'branches' && (language === 'ru' ? 'Филиалы / Объекты' : 'Filiallar / Obyektlar')}
               {viewLevel === 'buildings' && `${language === 'ru' ? 'Дома' : 'Uylar'}: ${selectedBranch?.name}`}
-              {viewLevel === 'entrances' && `${language === 'ru' ? 'Подъезды' : 'Podyezdlar'}: ${selectedBuilding?.name}`}
+              {viewLevel === 'entrances' && `${selectedBuilding?.name}`}
             </h1>
             <p className="text-gray-500 mt-1">
               {viewLevel === 'branches' && (language === 'ru' ? 'Выберите филиал для просмотра домов' : 'Uylarni ko\'rish uchun filialni tanlang')}
               {viewLevel === 'buildings' && (language === 'ru' ? 'Выберите дом для просмотра подъездов' : 'Podyezdlarni ko\'rish uchun uyni tanlang')}
-              {viewLevel === 'entrances' && (language === 'ru' ? 'Управление подъездами и квартирами' : 'Podyezdlar va xonadonlarni boshqarish')}
+              {viewLevel === 'entrances' && (language === 'ru' ? 'Сетка квартир по подъездам и этажам' : 'Podyezd va qavatlar bo\'yicha xonadonlar')}
             </p>
           </div>
         </div>
@@ -348,12 +624,31 @@ export function BuildingsPage() {
             onClick={() => {
               if (viewLevel === 'branches') fetchBranches();
               else if (viewLevel === 'buildings' && selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
-              else if (viewLevel === 'entrances' && selectedBuilding) fetchEntrancesForBuilding(selectedBuilding.id);
+              else if (viewLevel === 'entrances' && selectedBuilding) { fetchEntrancesForBuilding(selectedBuilding.id); fetchApartmentsForBuilding(selectedBuilding.id); }
             }}
             className="btn-secondary flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+          {viewLevel === 'entrances' && apartments.length === 0 && entrances.length > 0 && (
+            <button
+              onClick={handleGenerateApartments}
+              disabled={isGenerating}
+              className="btn-secondary flex items-center gap-2"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              {language === 'ru' ? 'Сгенерировать' : 'Yaratish'}
+            </button>
+          )}
+          {viewLevel === 'entrances' && apartments.length > 0 && (
+            <button
+              onClick={startAddApartment}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <PlusCircle className="w-4 h-4" />
+              {language === 'ru' ? 'Добавить кв.' : 'Xonadon qo\'shish'}
+            </button>
+          )}
           <button
             onClick={() => {
               if (viewLevel === 'branches') setShowAddBranchModal(true);
@@ -365,7 +660,7 @@ export function BuildingsPage() {
             <Plus className="w-4 h-4" />
             {viewLevel === 'branches' && (language === 'ru' ? 'Добавить филиал' : 'Filial qo\'shish')}
             {viewLevel === 'buildings' && (language === 'ru' ? 'Добавить ЖК' : 'TJM qo\'shish')}
-            {viewLevel === 'entrances' && (language === 'ru' ? 'Добавить подъезд' : 'Podyezd qo\'shish')}
+            {viewLevel === 'entrances' && (language === 'ru' ? 'Подъезд' : 'Podyezd')}
           </button>
         </div>
       </div>
@@ -375,14 +670,14 @@ export function BuildingsPage() {
 
       {/* Search */}
       {viewLevel !== 'entrances' && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div className="flex items-center gap-2 input-field">
+          <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
           <input
             type="text"
             placeholder={viewLevel === 'branches' ? (language === 'ru' ? 'Поиск по филиалам...' : 'Filiallar bo\'yicha qidirish...') : (language === 'ru' ? 'Поиск по домам...' : 'Uylar bo\'yicha qidirish...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field pl-10"
+            className="flex-1 bg-transparent outline-none text-sm"
           />
         </div>
       )}
@@ -570,61 +865,353 @@ export function BuildingsPage() {
         </div>
       )}
 
-      {/* Entrances Grid */}
+      {/* Apartment Grid */}
       {viewLevel === 'entrances' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {isLoadingEntrances ? (
-            <div className="col-span-full flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
-            </div>
-          ) : (
-            <>
-              {entrances.map((entrance) => (
-                <div key={entrance.id} className="glass-card p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-teal-500 rounded-xl flex items-center justify-center">
-                      <DoorOpen className="w-6 h-6 text-white" />
+        <div className="flex gap-4">
+          {/* Grid area */}
+          <div className="flex-1 min-w-0">
+            {(isLoadingEntrances || isLoadingApartments) ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+              </div>
+            ) : entrances.length === 0 ? (
+              <div className="glass-card p-8 text-center">
+                <DoorOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Подъезды не добавлены' : 'Podyezdlar qo\'shilmagan'}</h3>
+                <p className="text-gray-400 mt-1">{language === 'ru' ? 'Сначала добавьте подъезды' : 'Avval podyezdlarni qo\'shing'}</p>
+              </div>
+            ) : apartments.length === 0 ? (
+              <div className="glass-card p-8 text-center">
+                <Home className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Квартиры не добавлены' : 'Xonadonlar qo\'shilmagan'}</h3>
+                <p className="text-gray-400 mt-1 mb-4">{language === 'ru' ? 'Сгенерируйте квартиры на основе данных подъездов' : 'Podyezd ma\'lumotlari asosida xonadonlarni yarating'}</p>
+                <button
+                  onClick={handleGenerateApartments}
+                  disabled={isGenerating}
+                  className="btn-primary inline-flex items-center gap-2"
+                >
+                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {language === 'ru' ? 'Сгенерировать квартиры' : 'Xonadonlarni yaratish'}
+                </button>
+              </div>
+            ) : (() => {
+              const sortedEntrances = [...entrances].sort((a, b) => a.number - b.number);
+              const entranceMap = new Map<string, Apartment[]>();
+              apartments.forEach(apt => {
+                const key = apt.entrance_id || '__none__';
+                const arr = entranceMap.get(key) || [];
+                arr.push(apt);
+                entranceMap.set(key, arr);
+              });
+              let minFloor = Infinity, maxFloor = -Infinity;
+              apartments.forEach(apt => {
+                if (apt.floor != null) {
+                  minFloor = Math.min(minFloor, apt.floor);
+                  maxFloor = Math.max(maxFloor, apt.floor);
+                }
+              });
+              if (minFloor === Infinity) {
+                entrances.forEach(e => {
+                  if (e.floors_from) minFloor = Math.min(minFloor, e.floors_from);
+                  if (e.floors_to) maxFloor = Math.max(maxFloor, e.floors_to);
+                });
+              }
+              if (minFloor === Infinity) { minFloor = 1; maxFloor = 9; }
+              const floors: number[] = [];
+              for (let f = maxFloor; f >= minFloor; f--) floors.push(f);
+
+              return (
+                <div className="glass-card p-4 overflow-x-auto">
+                  {/* Legend */}
+                  <div className="flex flex-wrap gap-3 mb-4 text-xs">
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 border border-blue-300"></span> {language === 'ru' ? 'Занята' : 'Band'}</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-200 border border-green-400"></span> {language === 'ru' ? 'Свободна' : 'Bo\'sh'}</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-pink-200 border border-pink-400"></span> {language === 'ru' ? 'Коммерция' : 'Tijorat'}</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-200 border border-yellow-400"></span> {language === 'ru' ? 'Ремонт' : 'Ta\'mir'}</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-200 border border-purple-400"></span> {language === 'ru' ? 'Аренда' : 'Ijara'}</span>
+                    <span className="ml-auto text-gray-500">{language === 'ru' ? 'Всего квартир' : 'Jami xonadonlar'}: {apartments.length}</span>
+                  </div>
+
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="p-2 text-xs text-gray-500 font-medium w-12 sticky left-0 bg-white/80 z-10">
+                          {language === 'ru' ? 'Этаж' : 'Qavat'}
+                        </th>
+                        {sortedEntrances.map(ent => (
+                          <th key={ent.id} className="p-2 text-xs font-medium text-gray-700 border-l border-gray-200">
+                            <div className="flex items-center justify-center gap-1">
+                              <DoorOpen className="w-3 h-3" />
+                              {language === 'ru' ? 'Подъезд' : 'Podyezd'} {ent.number}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {floors.map(floor => (
+                        <tr key={floor} className="border-t border-gray-100">
+                          <td className="p-2 text-sm font-bold text-gray-500 text-center sticky left-0 bg-white/80 z-10">
+                            {floor}
+                          </td>
+                          {sortedEntrances.map(ent => {
+                            const aptsOnFloor = (entranceMap.get(ent.id) || [])
+                              .filter(a => a.floor === floor)
+                              .sort((a, b) => parseInt(a.number) - parseInt(b.number));
+                            return (
+                              <td key={ent.id} className="p-1 border-l border-gray-100">
+                                <div className="flex flex-wrap gap-1 justify-center min-h-[2.5rem] items-center">
+                                  {aptsOnFloor.map(apt => (
+                                    <button
+                                      key={apt.id}
+                                      onClick={() => handleApartmentClick(apt)}
+                                      className={`relative min-w-[2.5rem] h-9 px-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                                        selectedApartment?.id === apt.id
+                                          ? 'ring-2 ring-offset-1 ring-blue-500 scale-110 shadow-md'
+                                          : 'shadow-sm'
+                                      } ${getAptColor(apt)}`}
+                                      title={`${language === 'ru' ? 'Кв' : 'Xn'}. ${apt.number}${apt.resident_count ? ` (${apt.resident_count} ${language === 'ru' ? 'жит.' : 'yas.'})` : ''}`}
+                                    >
+                                      {apt.number}
+                                      {(apt.resident_count || 0) > 0 && (
+                                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Detail Panel */}
+          {(selectedApartment || isAddingApartment) && (
+            <div className="w-80 flex-shrink-0">
+              <div className="glass-card p-5 sticky top-4">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Home className="w-5 h-5 text-blue-500" />
+                    {isAddingApartment
+                      ? (language === 'ru' ? 'Новая квартира' : 'Yangi xonadon')
+                      : `${language === 'ru' ? 'Кв' : 'Xn'}. ${selectedApartment?.number}`}
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    {!isEditingApartment && !isAddingApartment && selectedApartment && (
+                      <button onClick={() => startEditApartment(selectedApartment)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500" title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}>
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button onClick={() => { setSelectedApartment(null); cancelEditApartment(); }} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Edit / Add Form */}
+                {(isEditingApartment || isAddingApartment) ? (
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{language === 'ru' ? 'Номер квартиры' : 'Xonadon raqami'} *</label>
+                      <input
+                        type="text"
+                        value={editForm.number}
+                        onChange={(e) => setEditForm({ ...editForm, number: e.target.value })}
+                        className="input-field text-sm"
+                        placeholder="1, 2, 101..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">{language === 'ru' ? 'Этаж' : 'Qavat'}</label>
+                        <input
+                          type="number"
+                          value={editForm.floor}
+                          onChange={(e) => setEditForm({ ...editForm, floor: e.target.value })}
+                          className="input-field text-sm"
+                          min="1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">{language === 'ru' ? 'Комнат' : 'Xonalar'}</label>
+                        <input
+                          type="number"
+                          value={editForm.rooms}
+                          onChange={(e) => setEditForm({ ...editForm, rooms: e.target.value })}
+                          className="input-field text-sm"
+                          min="1"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-lg">{language === 'ru' ? 'Подъезд' : 'Podyezd'} {entrance.number}</h3>
-                      {entrance.intercom_code && (
-                        <span className="text-xs text-gray-500">{language === 'ru' ? 'Код' : 'Kod'}: {entrance.intercom_code}</span>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{language === 'ru' ? 'Площадь (м²)' : 'Maydon (m²)'}</label>
+                      <input
+                        type="number"
+                        value={editForm.total_area}
+                        onChange={(e) => setEditForm({ ...editForm, total_area: e.target.value })}
+                        className="input-field text-sm"
+                        min="0"
+                        step="0.1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{language === 'ru' ? 'Подъезд' : 'Podyezd'}</label>
+                      <select
+                        value={editForm.entrance_id}
+                        onChange={(e) => setEditForm({ ...editForm, entrance_id: e.target.value })}
+                        className="input-field text-sm"
+                      >
+                        <option value="">—</option>
+                        {entrances.sort((a, b) => a.number - b.number).map(ent => (
+                          <option key={ent.id} value={ent.id}>{language === 'ru' ? 'Подъезд' : 'Podyezd'} {ent.number}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">{language === 'ru' ? 'Статус' : 'Holat'}</label>
+                      <select
+                        value={editForm.status}
+                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                        className="input-field text-sm"
+                      >
+                        <option value="occupied">{language === 'ru' ? 'Занята' : 'Band'}</option>
+                        <option value="vacant">{language === 'ru' ? 'Свободна' : 'Bo\'sh'}</option>
+                        <option value="rented">{language === 'ru' ? 'Аренда' : 'Ijara'}</option>
+                        <option value="renovation">{language === 'ru' ? 'Ремонт' : 'Ta\'mir'}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editForm.is_commercial}
+                          onChange={(e) => setEditForm({ ...editForm, is_commercial: e.target.checked })}
+                          className="w-4 h-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500"
+                        />
+                        <span className="text-sm">{language === 'ru' ? 'Коммерческое помещение' : 'Tijorat binosi'}</span>
+                      </label>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={handleSaveApartment}
+                        disabled={isSavingApartment}
+                        className="btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
+                      >
+                        {isSavingApartment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        {language === 'ru' ? 'Сохранить' : 'Saqlash'}
+                      </button>
+                      <button
+                        onClick={cancelEditApartment}
+                        className="btn-secondary flex-1 text-sm"
+                      >
+                        {language === 'ru' ? 'Отмена' : 'Bekor'}
+                      </button>
+                    </div>
+
+                    {/* Delete button (only for existing apartments) */}
+                    {!isAddingApartment && selectedApartment && (
+                      <button
+                        onClick={handleDeleteApartment}
+                        className="w-full flex items-center justify-center gap-2 text-sm py-2 px-3 rounded-lg text-red-600 hover:bg-red-50 border border-red-200 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {language === 'ru' ? 'Удалить квартиру' : 'Xonadonni o\'chirish'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Read-only view */}
+                    <div className="space-y-2 mb-5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">{language === 'ru' ? 'Этаж' : 'Qavat'}</span>
+                        <span className="font-medium">{selectedApartment?.floor || '—'}</span>
+                      </div>
+                      {selectedApartment?.total_area && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">{language === 'ru' ? 'Площадь' : 'Maydon'}</span>
+                          <span className="font-medium">{selectedApartment.total_area} {language === 'ru' ? 'м²' : 'm²'}</span>
+                        </div>
+                      )}
+                      {selectedApartment?.rooms && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">{language === 'ru' ? 'Комнат' : 'Xonalar'}</span>
+                          <span className="font-medium">{selectedApartment.rooms}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">{language === 'ru' ? 'Статус' : 'Holat'}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selectedApartment ? getAptColor(selectedApartment) : ''}`}>
+                          {selectedApartment ? getStatusLabel(selectedApartment) : ''}
+                        </span>
+                      </div>
+                      {selectedApartment?.ownership_type && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">{language === 'ru' ? 'Тип' : 'Turi'}</span>
+                          <span className="font-medium">
+                            {selectedApartment.ownership_type === 'private' ? (language === 'ru' ? 'Частная' : 'Xususiy') :
+                             selectedApartment.ownership_type === 'municipal' ? (language === 'ru' ? 'Муниципальная' : 'Munitsipal') :
+                             selectedApartment.ownership_type === 'commercial' ? (language === 'ru' ? 'Коммерческая' : 'Tijorat') :
+                             selectedApartment.ownership_type}
+                          </span>
+                        </div>
                       )}
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    {entrance.floors_from !== undefined && entrance.floors_to !== undefined && (
-                      <div className="bg-white/30 rounded-lg p-2 text-center">
-                        <div className="text-sm font-medium">{entrance.floors_from}-{entrance.floors_to}</div>
-                        <div className="text-xs text-gray-500">{language === 'ru' ? 'Этажи' : 'Qavatlar'}</div>
-                      </div>
-                    )}
-                    {entrance.apartments_from !== undefined && entrance.apartments_to !== undefined && (
-                      <div className="bg-white/30 rounded-lg p-2 text-center">
-                        <div className="text-sm font-medium">{entrance.apartments_from}-{entrance.apartments_to}</div>
-                        <div className="text-xs text-gray-500">{language === 'ru' ? 'Квартиры' : 'Xonadonlar'}</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {entrance.has_elevator === 1 && (
-                    <div className="mt-3 flex items-center gap-1 text-xs text-green-600">
-                      <Layers className="w-3 h-3" />
-                      {language === 'ru' ? 'Есть лифт' : 'Lift bor'}
+                    {/* Residents Section */}
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                        <User className="w-4 h-4 text-gray-500" />
+                        {language === 'ru' ? 'Жильцы' : 'Yashovchilar'}
+                      </h4>
+                      {isLoadingResidents ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                        </div>
+                      ) : apartmentResidents.length > 0 ? (
+                        <div className="space-y-2">
+                          {apartmentResidents.map((r, idx) => (
+                            <div key={r.id || idx} className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg">
+                              <div className="w-9 h-9 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                <User className="w-4 h-4 text-white" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-medium text-sm truncate">{r.name || (language === 'ru' ? 'Без имени' : 'Ismsiz')}</div>
+                                {r.phone && (
+                                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                                    <Phone className="w-3 h-3" />
+                                    {r.phone}
+                                  </div>
+                                )}
+                                {r.login && (
+                                  <span className="text-xs text-gray-400">Л/С: {r.login}</span>
+                                )}
+                                {r.type === 'owner' && (
+                                  <span className="text-xs text-blue-600">{language === 'ru' ? 'Собственник' : 'Mulkdor'}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 text-center py-3">
+                          {language === 'ru' ? 'Нет зарегистрированных жильцов' : 'Ro\'yxatdan o\'tgan yashovchilar yo\'q'}
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
-
-              {entrances.length === 0 && (
-                <div className="col-span-full glass-card p-8 text-center">
-                  <DoorOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Подъезды не добавлены' : 'Podyezdlar qo\'shilmagan'}</h3>
-                  <p className="text-gray-400 mt-1">{language === 'ru' ? 'Добавьте подъезды для этого дома' : 'Bu uy uchun podyezdlarni qo\'shing'}</p>
-                </div>
-              )}
-            </>
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
