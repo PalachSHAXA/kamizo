@@ -1,0 +1,555 @@
+[
+  {
+    "role": "security",
+    "page": "Login",
+    "element": "demo-security",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "19 кнопок, 11 ссылок, 10 карточек"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "QR Сканер",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "Чат",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "13:31:38ср, 11 мар.",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "Доступные",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "Назначенные",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "В работе",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "Выполненные",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Dashboard",
+    "element": "Обновить",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "security",
+    "page": "Заявки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "security",
+    "page": "Расписание",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /schedule"
+  },
+  {
+    "role": "security",
+    "page": "Статистика",
+    "element": "sidebar nav",
+    "status": "warn",
+    "notes": "Потеря сессии при навигации"
+  },
+  {
+    "role": "security",
+    "page": "Статистика",
+    "element": "sidebar link",
+    "status": "broken",
+    "notes": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('input"
+  },
+  {
+    "role": "security",
+    "page": "Сканер QR",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /qr-scanner"
+  },
+  {
+    "role": "security",
+    "page": "Поиск авто",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /vehicle-search"
+  },
+  {
+    "role": "security",
+    "page": "Чат",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "security",
+    "page": "Объявления",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "security",
+    "page": "Тренинги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /trainings"
+  },
+  {
+    "role": "security",
+    "page": "Коллеги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /colleagues"
+  },
+  {
+    "role": "security",
+    "page": "Заметки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /notepad"
+  },
+  {
+    "role": "security",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "security",
+    "page": "Header",
+    "element": "Search input",
+    "status": "ok",
+    "notes": "Поиск работает"
+  },
+  {
+    "role": "director",
+    "page": "Login",
+    "element": "demo-director",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "20 кнопок, 15 ссылок, 15 карточек"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Заявки",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Отчёты",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Чат",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "13:33:44ср, 11 мар.",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "3",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Обновить",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Обзор",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Маркетплейс",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Отчёты",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Dashboard",
+    "element": "Обновить",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "director",
+    "page": "Обзор компании",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "director",
+    "page": "Отчёты",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /reports"
+  },
+  {
+    "role": "director",
+    "page": "Заявки1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /requests"
+  },
+  {
+    "role": "director",
+    "page": "Чаты5",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "director",
+    "page": "Сотрудники",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /team"
+  },
+  {
+    "role": "director",
+    "page": "Жители",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /residents"
+  },
+  {
+    "role": "director",
+    "page": "Здания",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /buildings"
+  },
+  {
+    "role": "director",
+    "page": "Поиск авто",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /vehicle-search"
+  },
+  {
+    "role": "director",
+    "page": "Гостевые пропуска",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /guest-access"
+  },
+  {
+    "role": "director",
+    "page": "Аренда",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /rentals"
+  },
+  {
+    "role": "director",
+    "page": "Объявления",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "director",
+    "page": "Собрания жильцов1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /meetings"
+  },
+  {
+    "role": "director",
+    "page": "Блокнот",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /notepad"
+  },
+  {
+    "role": "director",
+    "page": "Настройки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /settings"
+  },
+  {
+    "role": "director",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "director",
+    "page": "Header",
+    "element": "Search input",
+    "status": "ok",
+    "notes": "Поиск работает"
+  },
+  {
+    "role": "admin",
+    "page": "Login",
+    "element": "demo-admin",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "19 кнопок, 16 ссылок, 11 карточек"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "Заявки",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "Отчёты",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "Чат",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "13:35:31ср, 11 мар.",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "3",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "Обновить",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "Обзор",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "Маркетплейс",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Dashboard",
+    "element": "Обновить",
+    "status": "ok",
+    "notes": "Кнопка видна и активна"
+  },
+  {
+    "role": "admin",
+    "page": "Мониторинг",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "admin",
+    "page": "Заявки1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /requests"
+  },
+  {
+    "role": "admin",
+    "page": "Наряды на работы",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /work-orders"
+  },
+  {
+    "role": "admin",
+    "page": "Чаты4",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "admin",
+    "page": "Персонал",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /team"
+  },
+  {
+    "role": "admin",
+    "page": "Жители",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /residents"
+  },
+  {
+    "role": "admin",
+    "page": "Здания",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /buildings"
+  },
+  {
+    "role": "admin",
+    "page": "Поиск авто",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /vehicle-search"
+  },
+  {
+    "role": "admin",
+    "page": "Гостевые пропуска",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /guest-access"
+  },
+  {
+    "role": "admin",
+    "page": "Аренда квартир",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /rentals"
+  },
+  {
+    "role": "admin",
+    "page": "Объявления",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "admin",
+    "page": "Собрания жильцов1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /meetings"
+  },
+  {
+    "role": "admin",
+    "page": "Тренинги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /trainings"
+  },
+  {
+    "role": "admin",
+    "page": "Отчёты",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /reports"
+  },
+  {
+    "role": "admin",
+    "page": "Настройки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /settings"
+  },
+  {
+    "role": "admin",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "admin",
+    "page": "Header",
+    "element": "Search input",
+    "status": "ok",
+    "notes": "Поиск работает"
+  }
+]

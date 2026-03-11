@@ -1,0 +1,737 @@
+[
+  {
+    "role": "dept-head",
+    "page": "Login",
+    "element": "demo-dept-head",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "dept-head",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "9 элементов"
+  },
+  {
+    "role": "dept-head",
+    "page": "Sidebar",
+    "element": "menu items",
+    "status": "ok",
+    "notes": "11 пунктов меню"
+  },
+  {
+    "role": "dept-head",
+    "page": "Мой отдел",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "dept-head",
+    "page": "Заявки1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /requests"
+  },
+  {
+    "role": "dept-head",
+    "page": "Сотрудники",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /executors"
+  },
+  {
+    "role": "dept-head",
+    "page": "Чат",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "dept-head",
+    "page": "Поиск авто",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /vehicle-search"
+  },
+  {
+    "role": "dept-head",
+    "page": "Объявления",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "dept-head",
+    "page": "Тренинги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /trainings"
+  },
+  {
+    "role": "dept-head",
+    "page": "Коллеги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /colleagues"
+  },
+  {
+    "role": "dept-head",
+    "page": "Блокнот",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /notepad"
+  },
+  {
+    "role": "dept-head",
+    "page": "Настройки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /settings"
+  },
+  {
+    "role": "dept-head",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "dept-head",
+    "page": "Chat",
+    "element": "UI",
+    "status": "ok",
+    "notes": "Чат загружен"
+  },
+  {
+    "role": "dept-head",
+    "page": "Requests",
+    "element": "page",
+    "status": "ok",
+    "notes": "Страница заявок загружена"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Login",
+    "element": "demo-dispatcher",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "7 элементов"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Sidebar",
+    "element": "menu items",
+    "status": "ok",
+    "notes": "20 пунктов меню"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Дашборд",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Заявки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /requests"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Наряды на работы",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /work-orders"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Чаты",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Исполнители",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /executors"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Жители",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /residents"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Мои коллеги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /colleagues"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Здания",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /buildings"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Поиск авто",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /vehicle-search"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Гостевые пропуска",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /guest-access"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Аренда квартир",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /rentals"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Объявления",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Собрания жильцов",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /meetings"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Тренинги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /trainings"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Заказы магазина",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /marketplace-orders"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Товары и склад",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /marketplace-products"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Отчёты",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /reports"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Заметки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /notepad"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Настройки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /settings"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Chat",
+    "element": "UI",
+    "status": "ok",
+    "notes": "Чат загружен"
+  },
+  {
+    "role": "dispatcher",
+    "page": "Requests",
+    "element": "page",
+    "status": "ok",
+    "notes": "Страница заявок загружена"
+  },
+  {
+    "role": "shop",
+    "page": "Login",
+    "element": "demo-shop",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "shop",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "25 элементов"
+  },
+  {
+    "role": "shop",
+    "page": "Sidebar",
+    "element": "menu items",
+    "status": "ok",
+    "notes": "3 пунктов меню"
+  },
+  {
+    "role": "shop",
+    "page": "Управление магазином",
+    "element": "page content",
+    "status": "warn",
+    "notes": "Возможная ошибка на /"
+  },
+  {
+    "role": "shop",
+    "page": "Заказы магазина",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /marketplace-orders"
+  },
+  {
+    "role": "shop",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "shop",
+    "page": "Chat",
+    "element": "UI",
+    "status": "ok",
+    "notes": "Чат загружен"
+  },
+  {
+    "role": "shop",
+    "page": "Requests",
+    "element": "page",
+    "status": "ok",
+    "notes": "Страница заявок загружена"
+  },
+  {
+    "role": "resident2",
+    "page": "Login",
+    "element": "demo-resident2",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "resident2",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "16 элементов"
+  },
+  {
+    "role": "resident2",
+    "page": "Sidebar",
+    "element": "menu items",
+    "status": "ok",
+    "notes": "11 пунктов меню"
+  },
+  {
+    "role": "resident2",
+    "page": "Услуги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "resident2",
+    "page": "Чат с УК",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "resident2",
+    "page": "Объявления",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "resident2",
+    "page": "Собрания1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /meetings"
+  },
+  {
+    "role": "resident2",
+    "page": "Мои авто",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /vehicles"
+  },
+  {
+    "role": "resident2",
+    "page": "Гостевой доступ",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /guest-access"
+  },
+  {
+    "role": "resident2",
+    "page": "Договор",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /contract"
+  },
+  {
+    "role": "resident2",
+    "page": "Полезные контакты",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /useful-contacts"
+  },
+  {
+    "role": "resident2",
+    "page": "Маркет для дома",
+    "element": "page content",
+    "status": "warn",
+    "notes": "Возможная ошибка на /marketplace"
+  },
+  {
+    "role": "resident2",
+    "page": "Оценить УК",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /rate-employees"
+  },
+  {
+    "role": "resident2",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "resident2",
+    "page": "Chat",
+    "element": "UI",
+    "status": "ok",
+    "notes": "Чат загружен"
+  },
+  {
+    "role": "resident2",
+    "page": "Requests",
+    "element": "page",
+    "status": "ok",
+    "notes": "Страница заявок загружена"
+  },
+  {
+    "role": "resident3",
+    "page": "Login",
+    "element": "demo-resident3",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "resident3",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "19 элементов"
+  },
+  {
+    "role": "resident3",
+    "page": "Sidebar",
+    "element": "menu items",
+    "status": "ok",
+    "notes": "11 пунктов меню"
+  },
+  {
+    "role": "resident3",
+    "page": "Услуги1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "resident3",
+    "page": "Чат с УК",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "resident3",
+    "page": "Объявления2",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "resident3",
+    "page": "Собрания1",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /meetings"
+  },
+  {
+    "role": "resident3",
+    "page": "Мои авто",
+    "element": "sidebar nav",
+    "status": "broken",
+    "notes": "Потеря сессии при навигации"
+  },
+  {
+    "role": "resident3",
+    "page": "Мои авто",
+    "element": "sidebar link",
+    "status": "broken",
+    "notes": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('input"
+  },
+  {
+    "role": "resident3",
+    "page": "Гостевой доступ",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /guest-access"
+  },
+  {
+    "role": "resident3",
+    "page": "Договор",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /contract"
+  },
+  {
+    "role": "resident3",
+    "page": "Полезные контакты",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /useful-contacts"
+  },
+  {
+    "role": "resident3",
+    "page": "Маркет для дома",
+    "element": "page content",
+    "status": "warn",
+    "notes": "Возможная ошибка на /marketplace"
+  },
+  {
+    "role": "resident3",
+    "page": "Оценить УК",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /rate-employees"
+  },
+  {
+    "role": "resident3",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "resident3",
+    "page": "Chat",
+    "element": "UI",
+    "status": "ok",
+    "notes": "Чат загружен"
+  },
+  {
+    "role": "resident3",
+    "page": "Requests",
+    "element": "page",
+    "status": "ok",
+    "notes": "Страница заявок загружена"
+  },
+  {
+    "role": "electrician",
+    "page": "Login",
+    "element": "demo-electrician",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "electrician",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "8 элементов"
+  },
+  {
+    "role": "electrician",
+    "page": "Sidebar",
+    "element": "menu items",
+    "status": "ok",
+    "notes": "10 пунктов меню"
+  },
+  {
+    "role": "electrician",
+    "page": "Заявки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "electrician",
+    "page": "Расписание",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /schedule"
+  },
+  {
+    "role": "electrician",
+    "page": "Статистика",
+    "element": "sidebar nav",
+    "status": "broken",
+    "notes": "Потеря сессии при навигации"
+  },
+  {
+    "role": "electrician",
+    "page": "Статистика",
+    "element": "sidebar link",
+    "status": "broken",
+    "notes": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('input"
+  },
+  {
+    "role": "electrician",
+    "page": "Поиск авто",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /vehicle-search"
+  },
+  {
+    "role": "electrician",
+    "page": "Чат",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /chat"
+  },
+  {
+    "role": "electrician",
+    "page": "Объявления",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /announcements"
+  },
+  {
+    "role": "electrician",
+    "page": "Тренинги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /trainings"
+  },
+  {
+    "role": "electrician",
+    "page": "Коллеги",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /colleagues"
+  },
+  {
+    "role": "electrician",
+    "page": "Заметки",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /notepad"
+  },
+  {
+    "role": "electrician",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "electrician",
+    "page": "Chat",
+    "element": "UI",
+    "status": "ok",
+    "notes": "Чат загружен"
+  },
+  {
+    "role": "electrician",
+    "page": "Requests",
+    "element": "page",
+    "status": "ok",
+    "notes": "Страница заявок загружена"
+  },
+  {
+    "role": "tenant",
+    "page": "Login",
+    "element": "demo-tenant",
+    "status": "ok",
+    "notes": "Успешный вход"
+  },
+  {
+    "role": "tenant",
+    "page": "Dashboard",
+    "element": "interactive elements",
+    "status": "ok",
+    "notes": "3 элементов"
+  },
+  {
+    "role": "tenant",
+    "page": "Sidebar",
+    "element": "menu items",
+    "status": "ok",
+    "notes": "2 пунктов меню"
+  },
+  {
+    "role": "tenant",
+    "page": "Мои квартиры",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /"
+  },
+  {
+    "role": "tenant",
+    "page": "Мой профиль",
+    "element": "sidebar link",
+    "status": "ok",
+    "notes": "Навигация на /profile"
+  },
+  {
+    "role": "tenant",
+    "page": "Chat",
+    "element": "UI",
+    "status": "ok",
+    "notes": "Чат загружен"
+  },
+  {
+    "role": "tenant",
+    "page": "Requests",
+    "element": "page",
+    "status": "ok",
+    "notes": "Страница заявок загружена"
+  }
+]
