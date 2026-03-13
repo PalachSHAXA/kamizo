@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS users (
   contract_end_date TEXT,          -- Contract end date (NULL = indefinite)
   contract_type TEXT DEFAULT 'standard' CHECK (contract_type IN ('standard', 'commercial', 'temporary')),
 
+  password_changed_at TEXT,            -- Date when password was last changed by user
+  last_login_at TEXT,                  -- Date when user last logged in
+
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -1349,8 +1352,9 @@ CREATE TABLE IF NOT EXISTS ads (
   badges TEXT,                                 -- JSON: {"recommended": true, "new": true, "hot": false}
 
   -- Targeting
-  target_type TEXT DEFAULT 'all' CHECK (target_type IN ('all', 'branches')),
+  target_type TEXT DEFAULT 'all' CHECK (target_type IN ('all', 'branches', 'buildings')),
   target_branches TEXT,                        -- JSON array of branch codes (если target_type = 'branches')
+  target_buildings TEXT,                       -- JSON array of building IDs (если target_type = 'buildings')
 
   -- Timing
   starts_at TEXT NOT NULL,                     -- Дата начала показа

@@ -1,0 +1,2 @@
+import{r as t}from"./index-1773392467074-dvlaQ1ul.js";const a=[["path",{d:"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2",key:"169zse"}]],o=t("activity",a);export{o as A};
+//# sourceMappingURL=activity-1773392467074-D0T2QS8U.js.map

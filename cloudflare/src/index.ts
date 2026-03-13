@@ -1,6 +1,7 @@
 // UK CRM API - Cloudflare Workers with D1
-// Оптимизировано для 5000+ одновременных пользователей
+// Modular architecture: imports from middleware/, utils/, cache, monitoring
 
+// --- External modules ---
 import {
   cachedQuery,
   cachedQueryWithArgs,
@@ -17,192 +18,23 @@ import {
   logAnalyticsEvent,
 } from './monitoring';
 
-interface Env {
-  DB: D1Database;
-  ENVIRONMENT: string;
-  ENCRYPTION_KEY: string;
-  ASSETS: Fetcher;
-  RATE_LIMITER: KVNamespace;
-  CONNECTION_MANAGER: DurableObjectNamespace;
-}
+// --- Internal modules (extracted from this file) ---
+import type { Env, User } from './types';
+import { route, matchRoute } from './router';
+import { setCorsOrigin, getCurrentCorsOrigin, corsHeaders } from './middleware/cors';
+import { getUser } from './middleware/auth';
+import { getTenantId, setTenantForRequest, getTenantSlug, setCurrentTenant, getCurrentTenant } from './middleware/tenant';
+import { getCached, setCache, invalidateCache } from './middleware/cache-local';
+import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
+import { json, error, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from './utils/helpers';
+import { encryptPassword, decryptPassword, hashPassword, verifyPassword } from './utils/crypto';
 
-// ==================== PASSWORD ENCRYPTION (AES-GCM) ====================
-async function encryptPassword(plainText: string, keyString: string): Promise<string> {
-  const enc = new TextEncoder();
-  const keyData = enc.encode((keyString || 'default-key-change-me').padEnd(32, '0').slice(0, 32));
-  const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['encrypt']);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plainText));
-  const ivB64 = btoa(String.fromCharCode(...iv));
-  const encB64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
-  return `enc:${ivB64}:${encB64}`;
-}
-
-async function decryptPassword(stored: string | null, keyString: string): Promise<string | null> {
-  if (!stored) return null;
-  // Not encrypted (old plain password) - return as-is
-  if (!stored.startsWith('enc:')) return stored;
-  try {
-    const parts = stored.split(':');
-    const ivB64 = parts[1];
-    const encB64 = parts[2];
-    const enc = new TextEncoder();
-    const keyData = enc.encode((keyString || 'default-key-change-me').padEnd(32, '0').slice(0, 32));
-    const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['decrypt']);
-    const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
-    const encrypted = Uint8Array.from(atob(encB64), c => c.charCodeAt(0));
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
-    return new TextDecoder().decode(decrypted);
-  } catch {
-    return stored; // fallback: return as-is if decryption fails
-  }
-}
-
-interface User {
-  id: string;
-  login: string;
-  phone: string;
-  name: string;
-  role: string;
-  specialization?: string;
-  address?: string;
-  apartment?: string;
-  building_id?: string;
-  entrance?: string;
-  floor?: string;
-  account_type?: string; // 'advertiser' for special accounts
-}
-
-// ==================== CORS CONFIGURATION ====================
-// Allowed origins for CORS (security: restrict to known domains)
-const ALLOWED_ORIGINS = [
-  'https://app.kamizo.uz',
-  'https://kamizo.uz',
-  'https://www.kamizo.uz',
-  'http://localhost:5173', // Dev only
-  'http://localhost:3000', // Dev only
-];
-
-// Current request origin (set at the start of each request)
-let currentCorsOrigin = 'https://app.kamizo.uz';
-
-function setCorsOrigin(request: Request): void {
-  const origin = request.headers.get('Origin') || '';
-  // Return the origin if it's in our allowed list, otherwise return the main domain
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    currentCorsOrigin = origin;
-  } else if (/^https:\/\/[a-z0-9-]+\.kamizo\.uz$/.test(origin)) {
-    // Allow any tenant subdomain (e.g. https://test66.kamizo.uz)
-    currentCorsOrigin = origin;
-  } else if (!origin) {
-    // For same-origin requests (no Origin header), allow the request
-    currentCorsOrigin = 'https://app.kamizo.uz';
-  } else {
-    // For unknown origins, still set a valid origin to avoid CORS errors
-    // The real security is handled by authentication
-    currentCorsOrigin = 'https://app.kamizo.uz';
-  }
-}
-
-// ==================== PERFORMANCE OPTIMIZATIONS ====================
-// Simple in-memory cache for frequently accessed data (per-isolate)
-const cache = new Map<string, { data: any; expires: number }>();
-const CACHE_TTL = 30000; // 30 seconds
-
-function getCached<T>(key: string): T | null {
-  const entry = cache.get(key);
-  if (entry && entry.expires > Date.now()) {
-    return entry.data as T;
-  }
-  cache.delete(key);
-  return null;
-}
-
-function setCache(key: string, data: any, ttl = CACHE_TTL) {
-  cache.set(key, { data, expires: Date.now() + ttl });
-  // Cleanup old entries periodically
-  if (cache.size > 1000) {
-    const now = Date.now();
-    for (const [k, v] of cache.entries()) {
-      if (v.expires < now) cache.delete(k);
-    }
-  }
-}
-
-function invalidateCache(pattern: string) {
-  for (const key of cache.keys()) {
-    if (key.includes(pattern)) {
-      cache.delete(key);
-    }
-  }
-}
-
-// Simple router
-type Handler = (request: Request, env: Env, params: Record<string, string>) => Promise<Response>;
-
-const routes: { method: string; pattern: RegExp; handler: Handler }[] = [];
-
-function route(method: string, path: string, handler: Handler) {
-  const pattern = new RegExp(`^${path.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`);
-  routes.push({ method, pattern, handler });
-}
-
-function matchRoute(method: string, path: string) {
-  for (const r of routes) {
-    if (r.method === method) {
-      const match = path.match(r.pattern);
-      if (match) {
-        return { handler: r.handler, params: match.groups || {} };
-      }
-    }
-  }
-  return null;
-}
-
-// Helpers
-function json(data: any, status = 200, cacheControl?: string) {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': currentCorsOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-
-  // Добавляем Cache-Control для статических данных
-  if (cacheControl) {
-    headers['Cache-Control'] = cacheControl;
-  }
-
-  return new Response(JSON.stringify(data), {
-    status,
-    headers,
-  });
-}
-
-function error(message: string, status = 400) {
-  return json({ error: message }, status);
-}
-
-function generateId() {
-  return crypto.randomUUID();
-}
-
-// Helper: Check if user has management-level access (admin, director, or manager)
-function isManagement(user: User | null): boolean {
-  if (!user) return false;
-  const role = (user.role || '').trim().toLowerCase();
-  return role === 'admin' || role === 'director' || role === 'manager';
-}
-
-// Helper: Check if user has admin-level access (admin or director)
-function isAdminLevel(user: User | null): boolean {
-  if (!user) return false;
-  return user.role === 'admin' || user.role === 'director';
-}
 
 // Helper: Fetch meeting with agenda items and schedule options
-async function getMeetingWithDetails(env: Env, meetingId: string): Promise<any> {
-  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(meetingId).first() as any;
+async function getMeetingWithDetails(env: Env, meetingId: string, tenantId?: string): Promise<any> {
+  const meeting = await env.DB.prepare(
+    `SELECT * FROM meetings WHERE id = ?${tenantId ? ' AND tenant_id = ?' : ''}`
+  ).bind(meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!meeting) return null;
 
   // Fetch agenda items
@@ -226,503 +58,7 @@ async function getMeetingWithDetails(env: Env, meetingId: string): Promise<any> 
   return meeting;
 }
 
-// Secure password hashing with PBKDF2 and salt
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-
-  // Generate random salt (16 bytes)
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-
-  // Import password as key material
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-
-  // Derive key using PBKDF2 with 100,000 iterations
-  const hash = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    256 // 256 bits = 32 bytes
-  );
-
-  // Combine salt and hash in format: base64(salt):base64(hash)
-  const saltB64 = btoa(String.fromCharCode(...salt));
-  const hashB64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
-
-  return `${saltB64}:${hashB64}`;
-}
-
-// Verify password against stored hash
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  const encoder = new TextEncoder();
-
-  // Check if it's old SHA-256 format (no colon) or new PBKDF2 format (has colon)
-  if (!storedHash.includes(':')) {
-    // Legacy SHA-256 verification for backward compatibility
-    const data = encoder.encode(password);
-    const hash = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = new Uint8Array(hash);
-
-    // Try hex format first (most common for legacy)
-    const hexHash = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
-    if (hexHash === storedHash) {
-      return true;
-    }
-
-    // Fallback to base64 format
-    const base64Hash = btoa(String.fromCharCode(...hashArray));
-    return base64Hash === storedHash;
-  }
-
-  // New PBKDF2 verification
-  const [saltB64, expectedHashB64] = storedHash.split(':');
-
-  // Decode salt from base64
-  const salt = new Uint8Array(
-    atob(saltB64).split('').map(c => c.charCodeAt(0))
-  );
-
-  // Import password as key material
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-
-  // Derive key with same parameters
-  const hash = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    256
-  );
-
-  // Compare hashes
-  const hashB64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
-  return hashB64 === expectedHashB64;
-}
-
-// Pagination helper
-interface PaginationParams {
-  page?: number;
-  limit?: number;
-}
-
-interface PaginatedResponse<T> {
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-}
-
-function getPaginationParams(url: URL): PaginationParams {
-  const page = parseInt(url.searchParams.get('page') || '1', 10);
-  const limit = Math.min(parseInt(url.searchParams.get('limit') || '500', 10), 5000); // Max 5000 items per page
-
-  return {
-    page: Math.max(1, page),
-    limit: Math.max(1, limit)
-  };
-}
-
-function createPaginatedResponse<T>(data: T[], total: number, params: PaginationParams): PaginatedResponse<T> {
-  const page = params.page || 1;
-  const limit = params.limit || 500;
-  const totalPages = Math.ceil(total / limit);
-
-  return {
-    data,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages,
-      hasNext: page < totalPages,
-      hasPrev: page > 1
-    }
-  };
-}
-
-// Rate limiting with Workers KV
-interface RateLimitConfig {
-  maxRequests: number;  // Max requests per window
-  windowSeconds: number; // Time window in seconds
-}
-
-const RATE_LIMITS: Record<string, RateLimitConfig> = {
-  // Authentication endpoints - strict limits
-  'POST:/api/auth/login': { maxRequests: 5, windowSeconds: 60 },  // 5 login attempts per minute
-  'POST:/api/auth/register': { maxRequests: 60, windowSeconds: 60 }, // 60 registrations per minute (protected by auth)
-  'POST:/api/auth/register-bulk': { maxRequests: 30, windowSeconds: 60 }, // 30 bulk imports per minute (protected by auth)
-
-  // API endpoints - moderate limits
-  'GET:/api/requests': { maxRequests: 60, windowSeconds: 60 },    // 60 requests per minute
-  'POST:/api/requests': { maxRequests: 20, windowSeconds: 60 },   // 20 creates per minute
-  'GET:/api/users': { maxRequests: 30, windowSeconds: 60 },       // 30 requests per minute
-  'GET:/api/announcements': { maxRequests: 30, windowSeconds: 60 }, // 30 requests per minute
-
-  // Default for other endpoints
-  'default': { maxRequests: 100, windowSeconds: 60 }  // 100 requests per minute
-};
-
-async function checkRateLimit(
-  env: Env,
-  identifier: string, // IP or user ID
-  endpoint: string
-): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
-  try {
-    const config = RATE_LIMITS[endpoint] || RATE_LIMITS['default'];
-    const key = `ratelimit:${endpoint}:${identifier}`;
-
-    const now = Date.now();
-    const windowMs = config.windowSeconds * 1000;
-
-    // Get current count from KV
-    const data = await env.RATE_LIMITER.get(key, 'json') as { count: number; resetAt: number } | null;
-
-    if (!data || data.resetAt < now) {
-      // New window - allow and set counter
-      const resetAt = now + windowMs;
-      await env.RATE_LIMITER.put(
-        key,
-        JSON.stringify({ count: 1, resetAt }),
-        { expirationTtl: config.windowSeconds }
-      );
-
-      return {
-        allowed: true,
-        remaining: config.maxRequests - 1,
-        resetAt
-      };
-    }
-
-    if (data.count >= config.maxRequests) {
-      // Rate limit exceeded
-      return {
-        allowed: false,
-        remaining: 0,
-        resetAt: data.resetAt
-      };
-    }
-
-    // Increment counter
-    const newCount = data.count + 1;
-    const ttlSeconds = Math.max(60, Math.ceil((data.resetAt - now) / 1000)); // KV minimum TTL is 60 seconds
-    await env.RATE_LIMITER.put(
-      key,
-      JSON.stringify({ count: newCount, resetAt: data.resetAt }),
-      { expirationTtl: ttlSeconds }
-    );
-
-    return {
-      allowed: true,
-      remaining: config.maxRequests - newCount,
-      resetAt: data.resetAt
-    };
-  } catch (e) {
-    // If KV fails (e.g. 429 Too Many Requests), fail open - allow the request
-    console.error('Rate limiter KV error:', e);
-    return { allowed: true, remaining: 99, resetAt: Date.now() + 60000 };
-  }
-}
-
-// Get client identifier (IP or user ID)
-function getClientIdentifier(request: Request, user?: User | null): string {
-  // If authenticated, use user ID
-  if (user?.id) {
-    return `user:${user.id}`;
-  }
-
-  // Otherwise use IP address
-  const ip = request.headers.get('CF-Connecting-IP') ||
-             request.headers.get('X-Forwarded-For') ||
-             'unknown';
-  return `ip:${ip}`;
-}
-
-// Auth middleware with caching
-async function getUser(request: Request, env: Env): Promise<User | null> {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-
-  const token = authHeader.slice(7);
-
-  // Use request-scoped tenant (safe from race conditions with concurrent requests)
-  const authTenantId = getTenantId(request);
-
-  // Check cache first (tenant-aware key to prevent cross-tenant cache hits)
-  const cacheKey = `user:${token}:${authTenantId || 'main'}`;
-  const cachedUser = getCached<User>(cacheKey);
-  if (cachedUser) {
-    // On main domain, ensure request tenant is set from user's tenant for data isolation
-    if (!authTenantId) {
-      if ((cachedUser as any).tenant_id) {
-        requestTenantMap.set(request, { id: (cachedUser as any).tenant_id });
-      } else if (cachedUser.role !== 'super_admin') {
-        requestTenantMap.set(request, { id: '__no_tenant__' });
-      }
-    }
-    return cachedUser;
-  }
-
-  // Filter by tenant to prevent cross-tenant token reuse
-  // On subdomain: only find users belonging to that tenant
-  // On main domain: only find non-tenant users (demo + super_admin)
-  let result = await env.DB.prepare(
-    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE id = ? ${authTenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
-  ).bind(...[token, ...(authTenantId ? [authTenantId] : [])]).first();
-
-  if (result) {
-    // Map login to director role (since DB constraint doesn't allow 'director' role yet)
-    const user = result as any;
-    if (user.login === 'ukdirector') {
-      user.role = 'director';
-    }
-
-    // On main domain (no subdomain tenant), derive tenant from user's own tenant_id
-    // This prevents data leaks where main domain users see ALL tenants' data
-    if (!authTenantId) {
-      if (user.tenant_id) {
-        // User belongs to a tenant - filter all subsequent queries by that tenant
-        requestTenantMap.set(request, { id: user.tenant_id });
-      } else if (user.role !== 'super_admin') {
-        // Non-super-admin without tenant (demo users) - use sentinel to prevent seeing all data
-        requestTenantMap.set(request, { id: '__no_tenant__' });
-      }
-      // super_admin with null tenant: leave requestTenantMap as null (sees all data for admin panel)
-    }
-
-    // Block feature-gated roles if feature is disabled
-    if (authTenantId && user.role === 'advertiser') {
-      const tenant = requestTenantMap.get(request);
-      const features: string[] = tenant?.features ? JSON.parse(tenant.features) : [];
-      if (!features.includes(user.role)) {
-        return null; // Treated as unauthorized
-      }
-    }
-
-    setCache(cacheKey, user, 60000); // Cache user for 1 minute
-    return user as User;
-  }
-
-  return null;
-}
-
-// ==================== SSE (Server-Sent Events) ====================
-
-// SSE endpoint for real-time updates
-route('GET', '/api/events', async (request, env) => {
-  // EventSource doesn't support custom headers, so accept token via query param
-  const url = new URL(request.url);
-  const tokenFromQuery = url.searchParams.get('token');
-
-  let user: User | null = null;
-
-  if (tokenFromQuery) {
-    const sseTenantId = getTenantId(request);
-    const result = await env.DB.prepare(
-      `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, tenant_id FROM users WHERE id = ? ${sseTenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
-    ).bind(...[tokenFromQuery, ...(sseTenantId ? [sseTenantId] : [])]).first();
-    user = result as User | null;
-    // On main domain, set tenant from user's tenant_id for data isolation
-    if (!sseTenantId && user) {
-      const u = user as any;
-      if (u.tenant_id) {
-        requestTenantMap.set(request, { id: u.tenant_id });
-      } else if (u.role !== 'super_admin') {
-        requestTenantMap.set(request, { id: '__no_tenant__' });
-      }
-    }
-  } else {
-    user = await getUser(request, env);
-  }
-
-  if (!user) {
-    return error('Unauthorized', 401);
-  }
-
-  // Create a readable stream for SSE
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      // Send initial connection message
-      controller.enqueue(encoder.encode(`event: connected\ndata: ${JSON.stringify({ userId: user.id, role: user.role })}\n\n`));
-
-      // Keep connection alive and send updates
-      let lastCheck = Date.now();
-      let lastRequestsHash = '';
-      let isActive = true;
-
-      let lastMeetingsHash = '';
-      let lastAnnouncementsHash = '';
-      let lastExecutorsHash = '';
-
-      const checkForUpdates = async () => {
-        if (!isActive) return;
-
-        try {
-          // Get latest requests for this user
-          let query = '';
-          let params: any[] = [];
-
-          const sseTenantIdReq = getTenantId(request);
-          if (user.role === 'resident') {
-            query = `SELECT id, status, executor_id, updated_at FROM requests WHERE resident_id = ? ${sseTenantIdReq ? 'AND tenant_id = ?' : ''} ORDER BY updated_at DESC LIMIT 20`;
-            params = [user.id, ...(sseTenantIdReq ? [sseTenantIdReq] : [])];
-          } else if (user.role === 'executor') {
-            query = `SELECT id, status, updated_at FROM requests WHERE (executor_id = ? OR status = 'new') ${sseTenantIdReq ? 'AND tenant_id = ?' : ''} ORDER BY updated_at DESC LIMIT 20`;
-            params = [user.id, ...(sseTenantIdReq ? [sseTenantIdReq] : [])];
-          } else {
-            // Manager/admin sees all within tenant
-            query = `SELECT id, status, executor_id, updated_at FROM requests ${sseTenantIdReq ? 'WHERE tenant_id = ?' : ''} ORDER BY updated_at DESC LIMIT 50`;
-            params = sseTenantIdReq ? [sseTenantIdReq] : [];
-          }
-
-          const { results } = await env.DB.prepare(query).bind(...params).all();
-          const currentHash = JSON.stringify(results);
-
-          // If data changed, send update
-          if (currentHash !== lastRequestsHash) {
-            lastRequestsHash = currentHash;
-            if (lastCheck !== Date.now()) { // Skip first check
-              controller.enqueue(encoder.encode(`event: update\ndata: ${JSON.stringify({ type: 'requests', timestamp: Date.now() })}\n\n`));
-            }
-          }
-
-          // Check for meetings updates (for all users - собрания касаются всех)
-          const buildingId = user.building_id || null;
-          const sseTenantIdMtg = getTenantId(request);
-          let meetingsQuery = `SELECT id, status, updated_at, building_id FROM meetings WHERE status NOT IN ('cancelled', 'protocol_approved') ${sseTenantIdMtg ? 'AND tenant_id = ?' : ''} ORDER BY updated_at DESC LIMIT 10`;
-
-          if (buildingId) {
-            meetingsQuery = `SELECT id, status, updated_at, building_id FROM meetings WHERE building_id = ? AND status NOT IN ('cancelled', 'protocol_approved') ${sseTenantIdMtg ? 'AND tenant_id = ?' : ''} ORDER BY updated_at DESC LIMIT 10`;
-          }
-
-          const meetingsResult = buildingId
-            ? await env.DB.prepare(meetingsQuery).bind(buildingId, ...(sseTenantIdMtg ? [sseTenantIdMtg] : [])).all()
-            : await env.DB.prepare(meetingsQuery).bind(...(sseTenantIdMtg ? [sseTenantIdMtg] : [])).all();
-
-          const meetingsHash = JSON.stringify(meetingsResult.results);
-
-          if (meetingsHash !== lastMeetingsHash) {
-            const hadPreviousData = lastMeetingsHash !== '';
-            lastMeetingsHash = meetingsHash;
-            if (hadPreviousData) {
-              // Отправляем обновление о собраниях
-              controller.enqueue(encoder.encode(`event: meeting_update\ndata: ${JSON.stringify({
-                type: 'meetings',
-                timestamp: Date.now(),
-                meetings: meetingsResult.results
-              })}\n\n`));
-            }
-          }
-
-          // Check for announcements updates
-          const sseTenantId = getTenantId(request);
-          const announcementsQuery = buildingId
-            ? `SELECT id, title, type, priority, created_at FROM announcements WHERE (building_id = ? OR building_id IS NULL) AND is_active = 1 ${sseTenantId ? 'AND tenant_id = ?' : ''} ORDER BY created_at DESC LIMIT 10`
-            : `SELECT id, title, type, priority, created_at FROM announcements WHERE is_active = 1 ${sseTenantId ? 'AND tenant_id = ?' : ''} ORDER BY created_at DESC LIMIT 10`;
-
-          const announcementsResult = buildingId
-            ? await env.DB.prepare(announcementsQuery).bind(buildingId, ...(sseTenantId ? [sseTenantId] : [])).all()
-            : await env.DB.prepare(announcementsQuery).bind(...(sseTenantId ? [sseTenantId] : [])).all();
-
-          const announcementsHash = JSON.stringify(announcementsResult.results);
-
-          if (announcementsHash !== lastAnnouncementsHash) {
-            const hadPreviousAnnouncements = lastAnnouncementsHash !== '';
-            lastAnnouncementsHash = announcementsHash;
-            if (hadPreviousAnnouncements) {
-              // Отправляем обновление об объявлениях
-              controller.enqueue(encoder.encode(`event: announcement_update\ndata: ${JSON.stringify({
-                type: 'announcements',
-                timestamp: Date.now(),
-                announcements: announcementsResult.results
-              })}\n\n`));
-            }
-          }
-
-          // Check for executors updates (for managers, admins, department_heads)
-          if (['admin', 'director', 'manager', 'department_head'].includes(user.role)) {
-            const sseTenantIdExec = getTenantId(request);
-            const executorsQuery = `SELECT id, name, specialization, status, created_at FROM users WHERE role = 'executor' ${sseTenantIdExec ? 'AND tenant_id = ?' : ''} ORDER BY created_at DESC LIMIT 50`;
-            const executorsResult = await env.DB.prepare(executorsQuery).bind(...(sseTenantIdExec ? [sseTenantIdExec] : [])).all();
-            const executorsHash = JSON.stringify(executorsResult.results);
-
-            if (executorsHash !== lastExecutorsHash) {
-              const hadPreviousExecutors = lastExecutorsHash !== '';
-              lastExecutorsHash = executorsHash;
-              if (hadPreviousExecutors) {
-                // Отправляем обновление об исполнителях
-                controller.enqueue(encoder.encode(`event: executor_update\ndata: ${JSON.stringify({
-                  type: 'executors',
-                  timestamp: Date.now()
-                })}\n\n`));
-              }
-            }
-          }
-
-          lastCheck = Date.now();
-
-          // Send heartbeat every 15 seconds to keep connection alive
-          controller.enqueue(encoder.encode(`: heartbeat ${Date.now()}\n\n`));
-
-          // Schedule next check in 2 seconds
-          setTimeout(checkForUpdates, 2000);
-        } catch (e) {
-          console.error('SSE error:', e);
-          isActive = false;
-          controller.close();
-        }
-      };
-
-      // Start checking for updates
-      setTimeout(checkForUpdates, 2000);
-
-      // Handle client disconnect (Cloudflare Workers limitation - we can't detect this directly)
-      // The stream will be closed when the client disconnects
-    },
-    cancel() {
-      // Client disconnected
-      console.log('SSE client disconnected');
-    }
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': currentCorsOrigin,
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
-});
-
 // ==================== WEBSOCKET (DURABLE OBJECTS) ====================
-// New WebSocket endpoint - replaces SSE for real-time updates
-// Reduces D1 reads from 60,000/min to 6/min (99.99% reduction)
 
 route('GET', '/api/ws', async (request, env) => {
   const url = new URL(request.url);
@@ -741,10 +77,6 @@ route('GET', '/api/ws', async (request, env) => {
       'SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at FROM users WHERE id = ?'
     ).bind(tokenFromQuery).first();
     user = result as User | null;
-    // Map login to director role (since DB constraint doesn't allow 'director' role yet)
-    if (user && (user as any).login === 'ukdirector') {
-      (user as any).role = 'director';
-    }
   } else {
     user = await getUser(request, env);
   }
@@ -753,10 +85,8 @@ route('GET', '/api/ws', async (request, env) => {
     return error('Unauthorized', 401);
   }
 
-  // Get or create Durable Object instance
-  // Shard by building for better distribution
-  const shardKey = user.building_id || 'global';
-  const id = env.CONNECTION_MANAGER.idFromName(shardKey);
+  // Single global DO shard — all connections in one instance for reliable broadcasts
+  const id = env.CONNECTION_MANAGER.idFromName('global');
   const stub = env.CONNECTION_MANAGER.get(id);
 
   // Forward request to Durable Object with user info
@@ -786,6 +116,10 @@ route('GET', '/api/admin/cache/stats', async (request, env) => {
 
 // Seed initial users (for setup) - Demo accounts for all roles
 route('POST', '/api/seed', async (request, env) => {
+  // Require super_admin authentication
+  const authUser = await getUser(request, env);
+  if (!isSuperAdmin(authUser)) return error('Access denied', 403);
+
   const initialUsers = [
     // Demo accounts (password: kamizo) - matching LoginPage demo buttons
     { login: 'admin', password: 'palach27', name: 'Администратор', role: 'admin', phone: '+998901234567' },
@@ -840,7 +174,7 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   }
 
   const tenantId = generateId();
-  const features = JSON.stringify(["requests","votes","qr","rentals","notepad","reports","meetings","marketplace","vehicles","training"]);
+  const features = JSON.stringify(["requests","votes","qr","rentals","notepad","reports","meetings","marketplace","vehicles","training","chat","announcements","colleagues"]);
 
   // 1. Create the Kamizo Demo tenant
   await env.DB.prepare(`
@@ -857,9 +191,12 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
     { id: generateId(), login: 'demo-executor', password: 'kamizo', name: 'Bobur Toshmatov', role: 'executor', phone: '+998901000005', specialization: 'plumber' },
     { id: generateId(), login: 'demo-electrician', password: 'kamizo', name: 'Jasur Mirzayev', role: 'executor', phone: '+998901000006', specialization: 'electrician' },
     { id: generateId(), login: 'demo-security', password: 'kamizo', name: 'Otabek Normatov', role: 'security', phone: '+998901000007' },
+    { id: generateId(), login: 'demo-dept-head', password: 'kamizo', name: 'Rustam Xolmatov', role: 'department_head', phone: '+998901000008' },
+    { id: generateId(), login: 'demo-shop', password: 'kamizo', name: 'Gulnora Tosheva', role: 'marketplace_manager', phone: '+998901000009' },
     { id: generateId(), login: 'demo-resident1', password: 'kamizo', name: 'Aziza Sultanova', role: 'resident', phone: '+998901000010', address: 'ул. Навои, 25', apartment: '12' },
     { id: generateId(), login: 'demo-resident2', password: 'kamizo', name: 'Farhod Ismoilov', role: 'resident', phone: '+998901000011', address: 'ул. Навои, 25', apartment: '45' },
     { id: generateId(), login: 'demo-resident3', password: 'kamizo', name: 'Malika Abdullayeva', role: 'resident', phone: '+998901000012', address: 'ул. Амира Темура, 10', apartment: '78' },
+    { id: generateId(), login: 'demo-tenant', password: 'kamizo', name: 'Shahlo Nazarova', role: 'tenant', phone: '+998901000013', address: 'ул. Навои, 25', apartment: '67' },
   ];
 
   for (const u of demoUsers) {
@@ -878,19 +215,22 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   }
 
   // Get user IDs by login for references
-  const getUser = (login: string) => demoUsers.find(u => u.login === login)!;
-  const director = getUser('demo-director');
-  const manager = getUser('demo-manager');
-  const executor = getUser('demo-executor');
-  const electrician = getUser('demo-electrician');
-  const resident1 = getUser('demo-resident1');
-  const resident2 = getUser('demo-resident2');
-  const resident3 = getUser('demo-resident3');
-  const security = getUser('demo-security');
+  const findDemoUser = (login: string) => demoUsers.find(u => u.login === login)!;
+  const director = findDemoUser('demo-director');
+  const manager = findDemoUser('demo-manager');
+  const executor = findDemoUser('demo-executor');
+  const electrician = findDemoUser('demo-electrician');
+  const resident1 = findDemoUser('demo-resident1');
+  const resident2 = findDemoUser('demo-resident2');
+  const resident3 = findDemoUser('demo-resident3');
+  const security = findDemoUser('demo-security');
+  const demoTenant = findDemoUser('demo-tenant');
 
-  // 3. Create demo buildings
+  // 3. Create demo buildings (4 total)
   const building1Id = generateId();
   const building2Id = generateId();
+  const building3Id = generateId();
+  const building4Id = generateId();
 
   await env.DB.prepare(`
     INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
@@ -902,13 +242,34 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
     VALUES (?, 'ЖК Темур Плаза', 'ул. Амира Темура, 10', 12, 2, 48, 5200.0, 2019, 'brick', 1, 2, 1, 1, ?, datetime('now'), datetime('now'))
   `).bind(building2Id, tenantId).run();
 
+  await env.DB.prepare(`
+    INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
+    VALUES (?, 'ЖК Мирзо Улугбек', 'ул. Мирзо Улугбека, 42', 9, 3, 72, 6800.0, 2023, 'monolith', 1, 3, 1, 1, ?, datetime('now'), datetime('now'))
+  `).bind(building3Id, tenantId).run();
+
+  await env.DB.prepare(`
+    INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
+    VALUES (?, 'ЖК Сахил Парк', 'пр. Бунёдкор, 18', 20, 6, 240, 22000.0, 2025, 'monolith', 1, 6, 1, 1, ?, datetime('now'), datetime('now'))
+  `).bind(building4Id, tenantId).run();
+
   // 4. Create demo apartments
   const apartments = [
+    // Building 1 - ЖК Навои Резиденс
     { id: generateId(), building_id: building1Id, number: '12', floor: 3, total_area: 72.5, rooms: 3, status: 'occupied', primary_owner_id: resident1.id },
     { id: generateId(), building_id: building1Id, number: '45', floor: 8, total_area: 55.0, rooms: 2, status: 'occupied', primary_owner_id: resident2.id },
     { id: generateId(), building_id: building1Id, number: '67', floor: 12, total_area: 95.0, rooms: 4, status: 'rented' },
+    // Building 2 - ЖК Темур Плаза
     { id: generateId(), building_id: building2Id, number: '78', floor: 6, total_area: 48.0, rooms: 2, status: 'occupied', primary_owner_id: resident3.id },
     { id: generateId(), building_id: building2Id, number: '31', floor: 4, total_area: 62.0, rooms: 3, status: 'vacant' },
+    // Building 3 - ЖК Мирзо Улугбек
+    { id: generateId(), building_id: building3Id, number: '15', floor: 4, total_area: 68.0, rooms: 3, status: 'occupied' },
+    { id: generateId(), building_id: building3Id, number: '28', floor: 7, total_area: 42.0, rooms: 1, status: 'occupied' },
+    { id: generateId(), building_id: building3Id, number: '33', floor: 9, total_area: 85.0, rooms: 4, status: 'vacant' },
+    // Building 4 - ЖК Сахил Парк
+    { id: generateId(), building_id: building4Id, number: '101', floor: 5, total_area: 110.0, rooms: 4, status: 'occupied' },
+    { id: generateId(), building_id: building4Id, number: '156', floor: 12, total_area: 75.0, rooms: 3, status: 'occupied' },
+    { id: generateId(), building_id: building4Id, number: '189', floor: 15, total_area: 58.0, rooms: 2, status: 'rented' },
+    { id: generateId(), building_id: building4Id, number: '220', floor: 18, total_area: 130.0, rooms: 5, status: 'occupied' },
   ];
 
   for (const apt of apartments) {
@@ -943,14 +304,14 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   const executorRecordId = generateId();
   const electricianRecordId = generateId();
   await env.DB.prepare(`
-    INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, tenant_id, created_at)
-    VALUES (?, ?, 'plumber', 'available', 4.8, 47, ?, datetime('now'))
-  `).bind(executorRecordId, executor.id, tenantId).run();
+    INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, created_at)
+    VALUES (?, ?, 'plumber', 'available', 4.8, 47, datetime('now'))
+  `).bind(executorRecordId, executor.id).run();
 
   await env.DB.prepare(`
-    INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, tenant_id, created_at)
-    VALUES (?, ?, 'electrician', 'available', 4.9, 35, ?, datetime('now'))
-  `).bind(electricianRecordId, electrician.id, tenantId).run();
+    INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, created_at)
+    VALUES (?, ?, 'electrician', 'available', 4.9, 35, datetime('now'))
+  `).bind(electricianRecordId, electrician.id).run();
 
   // 8. Create demo requests (different statuses for full cycle)
   const now = new Date();
@@ -1009,29 +370,181 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
 
   for (const item of agendaItems) {
     await env.DB.prepare(`
-      INSERT INTO meeting_agenda_items (id, meeting_id, title, description, order_num, created_at)
-      VALUES (?, ?, ?, ?, ?, datetime('now'))
-    `).bind(item.id, meetingId, item.title, item.description, item.order_num).run();
+      INSERT INTO meeting_agenda_items (id, meeting_id, title, description, item_order, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(item.id, meetingId, item.title, item.description, item.order_num, tenantId).run();
   }
 
-  // 11. Create demo announcement
-  const announcementId = generateId();
+  // 11. Create demo announcements
+  const announcements = [
+    { id: generateId(), title: 'Плановое отключение горячей воды', content: 'Уважаемые жители! В связи с проведением профилактических работ 15 марта с 9:00 до 18:00 будет отключена горячая вода. Приносим извинения за неудобства.', type: 'maintenance', priority: 'high' },
+    { id: generateId(), title: 'Субботник во дворе', content: 'Приглашаем всех жителей на субботник 20 марта в 10:00. Будем сажать деревья, устанавливать скамейки и убирать территорию. Перчатки и инструменты предоставляются.', type: 'event', priority: 'normal' },
+    { id: generateId(), title: 'Новый график работы консьержа', content: 'С 1 апреля консьерж-служба работает в режиме: Пн-Пт 8:00-22:00, Сб-Вс 9:00-21:00. По вопросам доступа в ночное время звоните на горячую линию.', type: 'info', priority: 'normal' },
+  ];
+
+  for (const ann of announcements) {
+    await env.DB.prepare(`
+      INSERT INTO announcements (id, title, content, created_by, type, priority, target_type, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'all', 1, ?, datetime('now'), datetime('now'))
+    `).bind(ann.id, ann.title, ann.content, manager.id, ann.type, ann.priority, tenantId).run();
+  }
+
+  // 12. Create past completed meeting (for full cycle demo)
+  const pastMeetingId = generateId();
+  const pastDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] + 'T18:00:00';
   await env.DB.prepare(`
-    INSERT INTO announcements (id, title, content, author_id, author_name, type, priority, target_type, is_active, tenant_id, created_at, updated_at)
-    VALUES (?, 'Плановое отключение горячей воды', 'Уважаемые жители! В связи с проведением профилактических работ 15 марта с 9:00 до 18:00 будет отключена горячая вода. Приносим извинения за неудобства.', ?, ?, 'maintenance', 'high', 'all', 1, ?, datetime('now'), datetime('now'))
-  `).bind(announcementId, manager.id, manager.name, tenantId).run();
+    INSERT INTO meetings (id, number, building_id, building_address, description, organizer_type, organizer_id, organizer_name, format, status, confirmed_date_time, location, voting_unit, quorum_percent, total_area, tenant_id, created_at, updated_at)
+    VALUES (?, 2, ?, 'ул. Амира Темура, 10', 'Внеочередное собрание по вопросу установки шлагбаума на придомовой территории. Результат: решение принято большинством голосов.', 'uk', ?, 'Kamizo Demo', 'offline', 'completed', ?, 'Холл 1 этажа', 'apartment', 51, 5200.0, ?, datetime('now', '-30 days'), datetime('now', '-28 days'))
+  `).bind(pastMeetingId, building2Id, director.id, pastDate, tenantId).run();
+
+  const pastAgendaItems = [
+    { id: generateId(), title: 'Установка шлагбаума', description: 'Обсуждение необходимости установки автоматического шлагбаума на въезде во двор для ограничения парковки посторонних', order_num: 1 },
+    { id: generateId(), title: 'Выбор подрядчика', description: 'Рассмотрение предложений от трёх компаний-установщиков шлагбаумов', order_num: 2 },
+  ];
+
+  for (const item of pastAgendaItems) {
+    await env.DB.prepare(`
+      INSERT INTO meeting_agenda_items (id, meeting_id, title, description, item_order, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-30 days'))
+    `).bind(item.id, pastMeetingId, item.title, item.description, item.order_num, tenantId).run();
+  }
+
+  // 13. Create demo marketplace categories and products
+  const catHousehold = generateId();
+  const catPlumbing = generateId();
+  const catElectrical = generateId();
+  const catPersonalCare = generateId();
+  const catGroceries = generateId();
+  const catBeverages = generateId();
+  const catCleaning = generateId();
+
+  await env.DB.prepare(`
+    INSERT INTO marketplace_categories (id, name_ru, name_uz, icon, sort_order, is_active, tenant_id) VALUES
+    (?, 'Продукты', 'Oziq-ovqat', 'shopping-cart', 1, 1, ?),
+    (?, 'Напитки', 'Ichimliklar', 'coffee', 2, 1, ?),
+    (?, 'Личная гигиена', 'Shaxsiy gigiena', 'heart', 3, 1, ?),
+    (?, 'Бытовая химия', 'Maishiy kimyo', 'sparkles', 4, 1, ?),
+    (?, 'Хозтовары', 'Xo''jalik mollari', 'package', 5, 1, ?),
+    (?, 'Сантехника', 'Santexnika', 'wrench', 6, 1, ?),
+    (?, 'Электрика', 'Elektrika', 'zap', 7, 1, ?)
+  `).bind(
+    catGroceries, tenantId, catBeverages, tenantId, catPersonalCare, tenantId,
+    catCleaning, tenantId, catHousehold, tenantId, catPlumbing, tenantId, catElectrical, tenantId
+  ).run();
+
+  const products = [
+    // Продукты (Groceries) — чистые продуктовые фото
+    { id: generateId(), cat: catGroceries, name_ru: 'Соль поваренная 1 кг', name_uz: 'Osh tuzi 1 kg', price: 5000, stock: 200, desc_ru: 'Мелкая поваренная соль высшего сорта', desc_uz: 'Oliy navli mayda osh tuzi', image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catGroceries, name_ru: 'Сахар белый 1 кг', name_uz: 'Oq shakar 1 kg', price: 14000, stock: 150, desc_ru: 'Рафинированный белый сахар-песок', desc_uz: 'Tozalangan oq shakar', image: 'https://images.unsplash.com/photo-1595568139907-d42f4c2c4e63?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catGroceries, name_ru: 'Масло подсолнечное 1л', name_uz: 'Kungaboqar yog\'i 1l', price: 28000, stock: 80, desc_ru: 'Рафинированное подсолнечное масло для жарки и салатов', desc_uz: 'Tozalangan kungaboqar yog\'i', image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catGroceries, name_ru: 'Рис девзира 1 кг', name_uz: 'Devzira guruch 1 kg', price: 32000, stock: 100, desc_ru: 'Узбекский рис девзира для плова', desc_uz: 'Palov uchun o\'zbek devzira guruchi', image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catGroceries, name_ru: 'Макароны спагетти 500г', name_uz: 'Spagetti makaron 500g', price: 12000, stock: 120, desc_ru: 'Макаронные изделия из твёрдых сортов пшеницы', desc_uz: 'Qattiq bug\'doydan tayyorlangan makaron', image: 'https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catGroceries, name_ru: 'Мука пшеничная 2 кг', name_uz: 'Bug\'doy uni 2 kg', price: 18000, stock: 90, desc_ru: 'Мука высшего сорта для выпечки', desc_uz: 'Oliy navli pishirish uchun un', image: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catGroceries, name_ru: 'Чай зелёный 100 пакетиков', name_uz: 'Yashil choy 100 paket', price: 25000, old_price: 32000, stock: 60, desc_ru: 'Ароматный зелёный чай в пакетиках', desc_uz: 'Xushbo\'y yashil choy paketlarda', image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400&h=400&fit=crop&auto=format&q=80', featured: true },
+
+    // Напитки (Beverages)
+    { id: generateId(), cat: catBeverages, name_ru: 'Вода питьевая 5л', name_uz: 'Ichimlik suvi 5l', price: 10000, stock: 200, desc_ru: 'Очищенная питьевая вода в бутылке', desc_uz: 'Tozalangan ichimlik suvi', image: 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catBeverages, name_ru: 'Сок апельсиновый 1л', name_uz: 'Apelsin sharbati 1l', price: 18000, stock: 50, desc_ru: 'Натуральный апельсиновый сок прямого отжима', desc_uz: 'Tabiiy apelsin sharbati', image: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catBeverages, name_ru: 'Молоко 3.2% 1л', name_uz: 'Sut 3.2% 1l', price: 16000, stock: 40, desc_ru: 'Пастеризованное молоко 3.2% жирности', desc_uz: 'Pasterizatsiya qilingan sut 3.2%', image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&h=400&fit=crop&auto=format&q=80' },
+
+    // Личная гигиена (Personal care) — флаконы на белом фоне
+    { id: generateId(), cat: catPersonalCare, name_ru: 'Шампунь для волос 400мл', name_uz: 'Soch uchun shampun 400ml', price: 35000, old_price: 42000, stock: 45, desc_ru: 'Питательный шампунь для всех типов волос с кератином', desc_uz: 'Barcha turdagi sochlar uchun oziqlantiruvchi shampun', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=400&h=400&fit=crop&auto=format&q=80', featured: true },
+    { id: generateId(), cat: catPersonalCare, name_ru: 'Гель для душа 500мл', name_uz: 'Dush uchun gel 500ml', price: 30000, stock: 60, desc_ru: 'Увлажняющий гель для душа с алоэ вера', desc_uz: 'Aloe vera bilan namlantiruvchi dush geli', image: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catPersonalCare, name_ru: 'Мыло жидкое 300мл', name_uz: 'Suyuq sovun 300ml', price: 15000, stock: 80, desc_ru: 'Антибактериальное жидкое мыло для рук', desc_uz: 'Qo\'llar uchun antibakterial suyuq sovun', image: 'https://images.unsplash.com/photo-1584305574647-0cc949a2bb9e?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catPersonalCare, name_ru: 'Зубная паста 100мл', name_uz: 'Tish pastasi 100ml', price: 22000, stock: 70, desc_ru: 'Отбеливающая зубная паста с фтором', desc_uz: 'Ftorli oqartiruvchi tish pastasi', image: 'https://images.unsplash.com/photo-1559590086-c3f5b0891609?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catPersonalCare, name_ru: 'Дезодорант спрей 150мл', name_uz: 'Dezodorant sprey 150ml', price: 28000, stock: 55, desc_ru: 'Дезодорант-антиперспирант 48 часов защиты', desc_uz: '48 soatlik himoya dezodorant-antiperspirant', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catPersonalCare, name_ru: 'Туалетная бумага 12 рулонов', name_uz: 'Hojatxona qog\'ozi 12 rulon', price: 38000, old_price: 45000, stock: 100, desc_ru: 'Трёхслойная мягкая туалетная бумага', desc_uz: 'Uch qatlamli yumshoq hojatxona qog\'ozi', image: 'https://images.unsplash.com/photo-1584556812952-905ffd0c611a?w=400&h=400&fit=crop&auto=format&q=80' },
+
+    // Бытовая химия (Cleaning)
+    { id: generateId(), cat: catCleaning, name_ru: 'Средство для мытья посуды 500мл', name_uz: 'Idish yuvish vositasi 500ml', price: 18000, stock: 90, desc_ru: 'Концентрированное средство с ароматом лимона', desc_uz: 'Limon xushbo\'yidagi konsentrlangan vosita', image: 'https://images.unsplash.com/photo-1556909172-8c2f041fca1e?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catCleaning, name_ru: 'Стиральный порошок 3 кг', name_uz: 'Kir yuvish kukuni 3 kg', price: 55000, old_price: 65000, stock: 40, desc_ru: 'Универсальный стиральный порошок для белого и цветного белья', desc_uz: 'Oq va rangli kiyimlar uchun universal kir yuvish kukuni', image: 'https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=400&h=400&fit=crop&auto=format&q=80', featured: true },
+    { id: generateId(), cat: catCleaning, name_ru: 'Средство для мытья полов 1л', name_uz: 'Pol yuvish vositasi 1l', price: 22000, stock: 65, desc_ru: 'Универсальное средство для мытья полов и кафеля', desc_uz: 'Pol va kafel uchun universal yuvish vositasi', image: 'https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catCleaning, name_ru: 'Средство для стёкол 500мл', name_uz: 'Oyna uchun vosita 500ml', price: 15000, stock: 75, desc_ru: 'Средство для мытья стёкол и зеркал без разводов', desc_uz: 'Oyna va ko\'zgularni dog\'siz yuvish vositasi', image: 'https://images.unsplash.com/photo-1528740561666-dc2479dc08ab?w=400&h=400&fit=crop&auto=format&q=80' },
+
+    // Хозтовары (Household)
+    { id: generateId(), cat: catHousehold, name_ru: 'Мусорные пакеты 120л (10 шт)', name_uz: 'Chiqindi paketlari 120l (10 dona)', price: 15000, stock: 50, desc_ru: 'Прочные мусорные пакеты для больших контейнеров', desc_uz: 'Katta idishlar uchun mustahkam chiqindi paketlari', image: 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catHousehold, name_ru: 'Губки для посуды (5 шт)', name_uz: 'Idish yuvish shimgichlari (5 dona)', price: 8000, stock: 120, desc_ru: 'Набор кухонных губок с абразивной стороной', desc_uz: 'Abraziv tomoni bor oshxona shimgichlari to\'plami', image: 'https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catHousehold, name_ru: 'Перчатки резиновые (пара)', name_uz: 'Rezina qo\'lqoplar (juft)', price: 10000, stock: 100, desc_ru: 'Хозяйственные перчатки для уборки', desc_uz: 'Tozalash uchun xo\'jalik qo\'lqoplari', image: 'https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?w=400&h=400&fit=crop&auto=format&q=80' },
+
+    // Сантехника (Plumbing)
+    { id: generateId(), cat: catPlumbing, name_ru: 'Смеситель для кухни', name_uz: 'Oshxona uchun aralashtirgich', price: 185000, old_price: 220000, stock: 8, desc_ru: 'Однорычажный смеситель из нержавеющей стали с гибким изливом', desc_uz: 'Zanglamaydigan po\'latdan yasalgan tutqichli aralashtirgich', image: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=400&h=400&fit=crop&auto=format&q=80', featured: true },
+    { id: generateId(), cat: catPlumbing, name_ru: 'Гибкая подводка 1/2" 80см', name_uz: 'Egiluvchan quvur 1/2" 80sm', price: 12000, stock: 100, desc_ru: 'Надёжная подводка для подключения смесителей и бачков', desc_uz: 'Aralashtirgich va bachokni ulash uchun ishonchli quvur', image: 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=400&fit=crop&auto=format&q=80' },
+
+    // Электрика (Electrical)
+    { id: generateId(), cat: catElectrical, name_ru: 'Автоматический выключатель 16А', name_uz: 'Avtomatik uzgich 16A', price: 35000, stock: 30, desc_ru: 'Автомат для защиты электрической цепи от перегрузки', desc_uz: 'Elektr zanjirani ortiqcha yuklanishdan himoyalash uchun avtomat', image: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=400&fit=crop&auto=format&q=80' },
+    { id: generateId(), cat: catElectrical, name_ru: 'Светодиодная лампа E27 12Вт', name_uz: 'LED lampa E27 12Vt', price: 18000, old_price: 25000, stock: 200, desc_ru: 'Энергосберегающая лампа тёплого белого света, 3000K', desc_uz: 'Iliq oq nurli energiya tejovchi lampa, 3000K', image: 'https://images.unsplash.com/photo-1533090368676-1fd25485db88?w=400&h=400&fit=crop&auto=format&q=80' },
+  ];
+
+  for (const p of products) {
+    await env.DB.prepare(`
+      INSERT INTO marketplace_products (id, category_id, name_ru, name_uz, description_ru, description_uz, price, old_price, unit, stock_quantity, image_url, min_order_quantity, is_active, is_featured, created_by, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'шт', ?, ?, 1, 1, ?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(p.id, p.cat, p.name_ru, p.name_uz, p.desc_ru, (p as any).desc_uz || null, p.price, (p as any).old_price || null, p.stock, (p as any).image || null, (p as any).featured ? 1 : 0, manager.id, tenantId).run();
+  }
+
+  // 14. Create general chat channel with demo messages
+  const generalChannelId = generateId();
+  await env.DB.prepare(`
+    INSERT INTO chat_channels (id, type, name, description, building_id, created_by, tenant_id, created_at)
+    VALUES (?, 'building', 'ЖК Навои Резиденс — Общий чат', 'Общий чат жителей ЖК Навои Резиденс', ?, ?, ?, datetime('now'))
+  `).bind(generalChannelId, building1Id, manager.id, tenantId).run();
+
+  const chatMessages = [
+    { sender: manager.id, content: 'Добро пожаловать в общий чат ЖК Навои Резиденс! Здесь вы можете задавать вопросы и получать оперативную информацию.', ago: '-2 days' },
+    { sender: resident1.id, content: 'Здравствуйте! Подскажите, когда будет работать детская площадка?', ago: '-1 day' },
+    { sender: manager.id, content: 'Здравствуйте, Азиза! Детская площадка откроется после завершения благоустройства — ориентировочно через 2 недели.', ago: '-1 day' },
+    { sender: resident2.id, content: 'А можно установить камеры на парковке? Уже второй раз кто-то царапает машину.', ago: '-12 hours' },
+    { sender: manager.id, content: 'Фарход, вопрос по камерам вынесем на ближайшее собрание. Пока что рекомендуем зафиксировать повреждения и написать заявку.', ago: '-10 hours' },
+  ];
+
+  for (const msg of chatMessages) {
+    await env.DB.prepare(`
+      INSERT INTO chat_messages (id, channel_id, sender_id, content, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now', ?))
+    `).bind(generateId(), generalChannelId, msg.sender, msg.content, tenantId, msg.ago).run();
+  }
+
+  // 15. Create demo notes (for notepad feature)
+  const notes = [
+    { id: generateId(), user_id: manager.id, title: 'Список задач на неделю', content: '1. Проверить лифты в подъездах 2 и 3\n2. Согласовать смету на ремонт кровли\n3. Провести инвентаризацию инструментов\n4. Подготовить отчёт за февраль' },
+    { id: generateId(), user_id: director.id, title: 'Контакты подрядчиков', content: 'Электрик: +998 90 123-45-67 (Акбар)\nСантехник: +998 90 234-56-78 (Баходир)\nКлининг: +998 90 345-67-89 (Сервис Плюс)' },
+  ];
+
+  for (const note of notes) {
+    await env.DB.prepare(`
+      INSERT INTO notes (id, user_id, title, content, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(note.id, note.user_id, note.title, note.content, tenantId).run();
+  }
+
+  // 16. Create additional QR codes for fuller demo
+  const additionalQrCodes = [
+    { id: generateId(), user_id: resident3.id, qr_token: `kamizo-demo-qr-${Date.now()}-3`, visitor_type: 'guest', visitor_name: 'Мастер по ремонту', access_type: 'single_use', status: 'active', resident_name: resident3.name },
+    { id: generateId(), user_id: resident1.id, qr_token: `kamizo-demo-qr-${Date.now()}-4`, visitor_type: 'guest', visitor_name: 'Родственники (семья Каримовых)', access_type: 'recurring', status: 'active', resident_name: resident1.name },
+  ];
+
+  for (const qr of additionalQrCodes) {
+    await env.DB.prepare(`
+      INSERT INTO guest_access_codes (id, user_id, qr_token, visitor_type, visitor_name, access_type, status, resident_name, valid_from, valid_until, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now', '+30 days'), ?, datetime('now'))
+    `).bind(qr.id, qr.user_id, qr.qr_token, qr.visitor_type, qr.visitor_name, qr.access_type, qr.status, qr.resident_name, tenantId).run();
+  }
 
   return json({
     success: true,
     tenant_id: tenantId,
     slug: 'kamizo-demo',
     users_created: demoUsers.length,
-    buildings_created: 2,
+    buildings_created: 4,
     apartments_created: apartments.length,
     vehicles_created: vehicles.length,
     requests_created: requests.length,
-    qr_codes_created: qrCodes.length,
-    meetings_created: 1,
+    qr_codes_created: qrCodes.length + additionalQrCodes.length,
+    meetings_created: 2,
+    announcements_created: announcements.length,
+    products_created: products.length,
+    chat_messages_created: chatMessages.length,
+    notes_created: notes.length,
     message: 'Kamizo Demo tenant created with all demo data!'
   }, 201);
 });
@@ -1065,12 +578,19 @@ route('POST', '/api/auth/login', async (request, env) => {
   }
 
   // Fetch user with password hash (filter by tenant if on a subdomain)
-  // On main domain: only find non-tenant users (demo + super_admin)
-  // On subdomain: only find users belonging to that tenant
+  // On main domain: find non-tenant users (super_admin) or kamizo-demo users
+  // On subdomain: find users belonging to that tenant OR super_admin users (tenant_id IS NULL)
   const tenantId = getTenantId(request);
-  const userWithHash = await env.DB.prepare(
-    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? ${tenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
+  let userWithHash = await env.DB.prepare(
+    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? ${tenantId ? "AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))" : "AND (tenant_id IS NULL OR tenant_id = '')"}`
   ).bind(...[login.trim(), ...(tenantId ? [tenantId] : [])]).first() as any;
+
+  // On main domain, also try any demo tenant for accounts starting with 'demo-'
+  if (!userWithHash && !tenantId && login.trim().startsWith('demo-')) {
+    userWithHash = await env.DB.prepare(
+      `SELECT u.id, u.login, u.phone, u.name, u.role, u.specialization, u.address, u.apartment, u.building_id, u.branch, u.building, u.entrance, u.floor, u.total_area, u.password_hash, u.password_changed_at, u.contract_signed_at, u.account_type, u.tenant_id FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.login = ? AND t.is_demo = 1 LIMIT 1`
+    ).bind(login.trim()).first() as any;
+  }
 
   if (!userWithHash) {
     return error('Invalid credentials', 401);
@@ -1080,41 +600,40 @@ route('POST', '/api/auth/login', async (request, env) => {
   const isValidPassword = await verifyPassword(password, userWithHash.password_hash);
 
   if (!isValidPassword) {
-    // Fallback: check if password matches plain text (for demo/initial users)
-    if (userWithHash.password_hash !== password) {
-      return error('Invalid credentials', 401);
-    }
+    return error('Invalid credentials', 401);
   }
 
-  // Auto-migrate legacy password to new PBKDF2 format on successful login
-  if (!userWithHash.password_hash.includes(':')) {
+  // Auto-migrate legacy or old-format password hashes to new 10k-iteration format on successful login
+  const parts = userWithHash.password_hash.split(':');
+  const needsRehash = !userWithHash.password_hash.includes(':') || // legacy SHA-256
+    (parts.length === 2) || // old PBKDF2-100k without iteration prefix
+    (parts.length === 3 && parseInt(parts[0], 10) !== 10000); // different iteration count
+  if (needsRehash) {
     const newHash = await hashPassword(password);
-    await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE users SET password_hash = ?, last_login_at = datetime(\'now\') WHERE id = ?')
       .bind(newHash, userWithHash.id).run();
+  } else {
+    await env.DB.prepare('UPDATE users SET last_login_at = datetime(\'now\') WHERE id = ?')
+      .bind(userWithHash.id).run();
   }
 
   // Remove password_hash from response
   const { password_hash, ...user } = userWithHash;
 
-  // Map login to director role (since DB constraint doesn't allow 'director' role yet)
-  if (user.login === 'ukdirector') {
-    user.role = 'director';
-  }
-
   // On main domain, derive tenant from user's own tenant_id for data isolation
   if (!tenantId) {
     if (user.tenant_id) {
-      requestTenantMap.set(request, { id: user.tenant_id });
+      setTenantForRequest(request, { id: user.tenant_id });
     } else if (user.role !== 'super_admin') {
-      requestTenantMap.set(request, { id: '__no_tenant__' });
+      setTenantForRequest(request, { id: '__no_tenant__' });
     }
   }
 
   // Check if feature-gated role is enabled for this tenant
   const featureGatedRoles: Record<string, string> = { advertiser: 'advertiser' };
   if (tenantId && featureGatedRoles[user.role]) {
-    const tenant = requestTenantMap.get(request);
-    const features: string[] = tenant?.features ? JSON.parse(tenant.features) : [];
+    const tenantData = await env.DB.prepare('SELECT features FROM tenants WHERE id = ?').bind(tenantId).first() as any;
+    const features: string[] = tenantData?.features ? JSON.parse(tenantData.features) : [];
     if (!features.includes(featureGatedRoles[user.role])) {
       return error('Ваш аккаунт деактивирован. Обратитесь к администратору.', 403);
     }
@@ -1123,7 +642,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   // Create response with rate limit headers
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': currentCorsOrigin,
+    'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'X-RateLimit-Limit': '5',
@@ -1174,7 +693,7 @@ route('POST', '/api/auth/register', async (request, env) => {
 
   // SECURITY: Department head can only create executors of their own department
   if (authUser.role === 'department_head') {
-    if (role !== 'executor') {
+    if (!isExecutorRole(role)) {
       return error('Department head can only create executors', 403);
     }
     if (specialization !== authUser.specialization) {
@@ -1194,13 +713,46 @@ route('POST', '/api/auth/register', async (request, env) => {
   const passwordHash = await hashPassword(password);
 
   // Store encrypted password only for staff roles (for admin convenience)
-  const staffRoles = ['manager', 'department_head', 'executor', 'advertiser'];
+  const staffRoles = ['manager', 'department_head', 'executor', 'security', 'advertiser'];
   const passwordPlain = staffRoles.includes(role) ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
 
   await env.DB.prepare(`
     INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(id, login.trim(), passwordHash, passwordPlain, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, tenantId).run();
+
+  // Auto-create apartment record if resident has building_id + apartment number
+  if (building_id && apartment && (role === 'resident' || role === 'tenant')) {
+    try {
+      const tenantId2 = getTenantId(request);
+      const existingApt = await env.DB.prepare(
+        `SELECT id FROM apartments WHERE building_id = ? AND number = ? ${tenantId2 ? 'AND tenant_id = ?' : ''}`
+      ).bind(building_id, String(apartment), ...(tenantId2 ? [tenantId2] : [])).first() as any;
+
+      if (!existingApt) {
+        // Find entrance_id by entrance number
+        let entranceId = null;
+        if (entrance) {
+          const ent = await env.DB.prepare(
+            `SELECT id FROM entrances WHERE building_id = ? AND number = ? ${tenantId2 ? 'AND tenant_id = ?' : ''}`
+          ).bind(building_id, parseInt(entrance), ...(tenantId2 ? [tenantId2] : [])).first() as any;
+          if (ent) entranceId = ent.id;
+        }
+
+        const aptId = generateId();
+        await env.DB.prepare(`
+          INSERT INTO apartments (id, building_id, entrance_id, number, floor, status, primary_owner_id, tenant_id)
+          VALUES (?, ?, ?, ?, ?, 'occupied', ?, ?)
+        `).bind(aptId, building_id, entranceId, String(apartment), floor ? parseInt(floor) : null, id, tenantId2 || null).run();
+      } else {
+        // Update existing apartment owner
+        await env.DB.prepare('UPDATE apartments SET primary_owner_id = ?, status = ? WHERE id = ?')
+          .bind(id, 'occupied', existingApt.id).run();
+      }
+    } catch (e) {
+      console.error('Auto-create apartment failed:', e);
+    }
+  }
 
   return json({ user: { id, login, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, password } }, 201);
 });
@@ -1270,6 +822,8 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
           `SELECT id FROM apartments WHERE building_id = ? AND number = ? ${bulkTenantId ? 'AND tenant_id = ?' : ''}`
         ).bind(u.building_id, String(u.apartment), ...(bulkTenantId ? [bulkTenantId] : [])).first() as any;
 
+        let aptId = apt?.id;
+
         if (apt) {
           // Update apartment total_area and primary_owner_id
           const updateParts: string[] = [];
@@ -1288,7 +842,27 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
               `UPDATE apartments SET ${updateParts.join(', ')} WHERE id = ?`
             ).bind(...updateBinds, apt.id).run();
           }
+        } else {
+          // Auto-create apartment if it doesn't exist
+          aptId = generateId();
+          let entranceId = null;
+          if (u.entrance) {
+            const ent = await env.DB.prepare(
+              `SELECT id FROM entrances WHERE building_id = ? AND number = ? ${bulkTenantId ? 'AND tenant_id = ?' : ''}`
+            ).bind(u.building_id, parseInt(u.entrance), ...(bulkTenantId ? [bulkTenantId] : [])).first() as any;
+            if (ent) entranceId = ent.id;
+          }
+          await env.DB.prepare(`
+            INSERT INTO apartments (id, building_id, entrance_id, number, floor, total_area, status, primary_owner_id, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, 'occupied', ?, ?)
+          `).bind(
+            aptId, u.building_id, entranceId, String(u.apartment),
+            u.floor ? parseInt(u.floor) : null, u.total_area || null,
+            userId, bulkTenantId || null
+          ).run();
+        }
 
+        if (aptId) {
           // Create personal_account if login (Л/С) is provided and looks like a real account number
           const loginTrimmed = u.login?.trim();
           if (loginTrimmed && /^\d+$/.test(loginTrimmed)) {
@@ -1301,12 +875,12 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
               await env.DB.prepare(`
                 INSERT INTO personal_accounts (id, account_number, apartment_id, building_id, tenant_id)
                 VALUES (?, ?, ?, ?, ?)
-              `).bind(paId, loginTrimmed, apt.id, u.building_id, bulkTenantId || null).run();
+              `).bind(paId, loginTrimmed, aptId, u.building_id, bulkTenantId || null).run();
 
               // Link personal_account to apartment
               await env.DB.prepare(
                 'UPDATE apartments SET personal_account_id = ? WHERE id = ?'
-              ).bind(paId, apt.id).run();
+              ).bind(paId, aptId).run();
             }
           }
         }
@@ -1485,10 +1059,12 @@ route('GET', '/api/users', async (request, env) => {
   // Fetch paginated data
   const offset = ((pagination.page || 1) - 1) * (pagination.limit || 50);
   const dataQuery = `
-    SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, created_at
-    FROM users
+    SELECT u.id, u.login, u.phone, u.name, u.role, u.specialization, u.address, u.apartment, u.building_id, u.entrance, u.floor, u.created_at,
+           u.contract_signed_at, u.password_changed_at, u.last_login_at,
+           (SELECT COUNT(*) FROM vehicles v WHERE v.user_id = u.id) as vehicle_count
+    FROM users u
     ${whereClause}
-    ORDER BY name
+    ORDER BY u.name
     LIMIT ? OFFSET ?
   `;
 
@@ -1638,7 +1214,7 @@ route('GET', '/api/vehicles/all', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
 
   // Only allow staff roles to see all vehicles
-  const allowedRoles = ['admin', 'director', 'manager', 'executor', 'department_head'];
+  const allowedRoles = ['admin', 'director', 'manager', 'executor', 'department_head', 'security'];
   if (!allowedRoles.includes(user.role)) {
     return error('Forbidden', 403);
   }
@@ -1693,7 +1269,7 @@ route('GET', '/api/vehicles/search', async (request, env) => {
   const url = new URL(request.url);
   const query = url.searchParams.get('q')?.toUpperCase() || url.searchParams.get('plate')?.toUpperCase();
 
-  if (!query || query.length < 2) {
+  if (!query || query.length < 1) {
     return json({ vehicles: [] });
   }
 
@@ -2198,8 +1774,8 @@ route('GET', '/api/guest-codes', async (request, env) => {
 
   const tenantId = getTenantId(request);
 
-  // Check if user is management (admin, director, manager)
-  const isManagementUser = ['admin', 'director', 'manager'].includes(user.role);
+  // Check if user can see all guest codes (management + security roles need full view)
+  const isManagementUser = ['admin', 'director', 'manager', 'security', 'executor', 'department_head'].includes(user.role);
   console.log('[guest-codes] User:', user.id, 'Role:', user.role, 'IsManagement:', isManagementUser);
 
   // Auto-expire old codes
@@ -2249,7 +1825,7 @@ route('GET', '/api/guest-codes', async (request, env) => {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': currentCorsOrigin,
+      'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -2903,9 +2479,9 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
         FROM chat_messages m
         CROSS JOIN users u
         WHERE m.channel_id = ?
-          AND u.role IN ('admin', 'director', 'manager')
+          AND u.role IN ('admin', 'director', 'manager', 'department_head')
           ${tenantId ? 'AND u.tenant_id = ?' : ''}
-          AND m.sender_id NOT IN (SELECT id FROM users WHERE role IN ('admin', 'director', 'manager'))
+          AND m.sender_id NOT IN (SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'department_head'))
       `).bind(channelId, ...(tenantId ? [tenantId] : [])).run();
     } else {
       // Regular marking for non-support channels
@@ -2932,7 +2508,9 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
 
   const { content } = await request.json() as { content: string };
   if (!content) return error('Content required');
+  if (content.length > 5000) return error('Message too long (max 5000 characters)');
 
+  const tenantId = getTenantId(request);
   const id = generateId();
   const channelId = params.id;
 
@@ -2965,8 +2543,8 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
 
     // Get channel info to determine recipient
     const channel = await env.DB.prepare(
-      'SELECT * FROM chat_channels WHERE id = ?'
-    ).bind(channelId).first() as any;
+      `SELECT * FROM chat_channels WHERE id = ?${tenantId ? ' AND tenant_id = ?' : ''}`
+    ).bind(channelId, ...(tenantId ? [tenantId] : [])).first() as any;
 
     if (channel) {
       // Build channels list for WebSocket routing
@@ -3381,11 +2959,19 @@ route('POST', '/api/announcements', async (request, env) => {
       query = `SELECT u.id FROM users u
                INNER JOIN buildings b ON u.building_id = b.id
                WHERE u.role = 'resident' AND u.is_active = 1 AND b.branch_code = ? ${tenantIdForPush ? 'AND u.tenant_id = ?' : ''}`;
+      // Reset params for the new query
+      params.length = 0;
       params.push(body.target_branch);
       if (tenantIdForPush) params.push(tenantIdForPush);
     } else if (targetType === 'building' && body.target_building_id) {
       query += ' AND building_id = ?';
       params.push(body.target_building_id);
+    } else if (targetType === 'entrance' && body.target_building_id && body.target_entrance) {
+      query += ' AND building_id = ? AND entrance = ?';
+      params.push(body.target_building_id, body.target_entrance);
+    } else if (targetType === 'floor' && body.target_building_id && body.target_entrance && body.target_floor) {
+      query += ' AND building_id = ? AND entrance = ? AND floor = ?';
+      params.push(body.target_building_id, body.target_entrance, body.target_floor);
     } else if (targetType === 'custom' && body.target_logins) {
       // Custom targeting by specific logins
       const logins = body.target_logins.split(',').map((l: string) => l.trim()).filter(Boolean);
@@ -3425,7 +3011,8 @@ route('POST', '/api/announcements', async (request, env) => {
           targetType: targetType,
           url: '/announcements'
         },
-        requireInteraction: isUrgent
+        requireInteraction: isUrgent,
+        skipInApp: true // In-app notifications created below with proper tenant_id
       }).catch(err => console.error(`[Push] Failed for user ${targetUser.id}:`, err))
     ));
   }
@@ -3957,6 +3544,108 @@ route('POST', '/api/team/reset-all-passwords', async (request, env) => {
   });
 });
 
+// Staff Export — all staff as JSON
+route('GET', '/api/team/export', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+  const tenantId = getTenantId(request);
+  const STAFF_ROLES = ['admin', 'director', 'manager', 'department_head', 'dispatcher', 'executor', 'security'];
+  const ph = STAFF_ROLES.map(() => '?').join(',');
+  const { results: staff } = await env.DB.prepare(
+    `SELECT id, login, name, phone, role, specialization, password_plain, branch, is_active
+     FROM users WHERE role IN (${ph}) ${tenantId ? 'AND tenant_id=?' : ''} ORDER BY role, name`
+  ).bind(...STAFF_ROLES, ...(tenantId ? [tenantId] : [])).all() as any;
+
+  return json({ exportType: 'staff', exportedAt: new Date().toISOString(), version: '1.0', staff });
+});
+
+// Staff Import — upsert staff from JSON (handles both Kamizo and old platform formats)
+route('POST', '/api/team/import', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+  const tenantId = getTenantId(request);
+  const raw = await request.json() as any;
+
+  // Normalize: accept array, {staff:[...]}, {users:[...]}, {data:{staff:[...]}}
+  let members: any[] = [];
+  if (Array.isArray(raw)) {
+    members = raw;
+  } else if (Array.isArray(raw.staff)) {
+    members = raw.staff;
+  } else if (Array.isArray(raw.users)) {
+    members = raw.users;
+  } else if (Array.isArray(raw.data?.staff)) {
+    members = raw.data.staff;
+  } else if (raw.exportType && raw.data?.branches) {
+    // Old platform residents file — extract staff-role users
+    for (const br of (raw.data.branches || [])) {
+      for (const bld of (br.buildings || [])) {
+        for (const u of (bld.residents || [])) {
+          if (['admin','director','manager','department_head','dispatcher','executor','security'].includes(u.role)) {
+            members.push(u);
+          }
+        }
+      }
+    }
+  }
+
+  if (members.length === 0) return error('No staff data found in file', 400);
+
+  const ALLOWED = ['admin','director','manager','department_head','dispatcher','executor','security'];
+  const stats = { created: 0, updated: 0, skipped: 0 };
+
+  // Pre-fetch existing logins
+  const { results: existingRows } = await env.DB.prepare(
+    tenantId ? `SELECT id, login FROM users WHERE tenant_id=?` : `SELECT id, login FROM users`
+  ).bind(...(tenantId ? [tenantId] : [])).all() as any;
+  const loginMap = new Map<string, string>();
+  for (const r of existingRows) loginMap.set(r.login, r.id);
+
+  const toInsert: any[] = [];
+  const toUpdate: any[] = [];
+
+  for (const m of members) {
+    const role = m.role || 'executor';
+    if (!ALLOWED.includes(role)) { stats.skipped++; continue; }
+    const login = m.login || m.phone;
+    if (!login) { stats.skipped++; continue; }
+
+    if (loginMap.has(login)) {
+      toUpdate.push({ id: loginMap.get(login)!, ...m, role, login });
+    } else {
+      toInsert.push({ ...m, role, login });
+    }
+  }
+
+  const CHUNK = 40;
+  for (let i = 0; i < toInsert.length; i += CHUNK) {
+    const chunk = toInsert.slice(i, i + CHUNK);
+    await env.DB.batch(chunk.map((m: any) =>
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,password_plain,role,specialization,branch,tenant_id,is_active)
+         VALUES (?,?,?,?,?,?,?,?,?,?,1)`
+      ).bind(generateId(), m.login, m.name||m.login, m.phone||null, m.password_hash||'', m.password||m.password_plain||null, m.role, m.specialization||null, m.branch||null, tenantId||null)
+    ));
+    stats.created += chunk.length;
+  }
+
+  for (let i = 0; i < toUpdate.length; i += CHUNK) {
+    const chunk = toUpdate.slice(i, i + CHUNK);
+    await env.DB.batch(chunk.map((m: any) =>
+      env.DB.prepare(`UPDATE users SET name=?,phone=?,role=?,specialization=?,password_plain=COALESCE(NULLIF(?,\\'\\'),password_plain) WHERE id=?`)
+        .bind(m.name||m.login, m.phone||null, m.role, m.specialization||null, m.password||m.password_plain||'', m.id)
+    ));
+    stats.updated += chunk.length;
+  }
+
+  invalidateCache('users:');
+  return json({ success: true, stats });
+});
+
 // Executors: List all (protected with role-based filtering)
 route('GET', '/api/executors', async (request, env) => {
   // SECURITY: Require authentication
@@ -4001,7 +3690,7 @@ route('GET', '/api/executors', async (request, env) => {
 
   // Executors only see colleagues in their department
   // Unless they request all (for colleagues page)
-  if (user.role === 'executor' && user.specialization && !showAll) {
+  if (isExecutorRole(user.role) && user.specialization && !showAll) {
     whereClause += ` AND u.specialization = ?`;
     bindValues.push(user.specialization);
   }
@@ -4400,10 +4089,301 @@ route('DELETE', '/api/branches/:id', async (request, env, params) => {
   return json({ success: true });
 });
 
+// Branch Export — full snapshot (branch + buildings + entrances + apartments + residents + staff)
+route('GET', '/api/branches/:id/export', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const tenantId = getTenantId(request);
+
+  const branch = await env.DB.prepare(
+    `SELECT * FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+
+  if (!branch) return error('Branch not found', 404);
+
+  // Buildings for this branch
+  const { results: buildings } = await env.DB.prepare(
+    `SELECT * FROM buildings WHERE (branch_id = ? OR branch_code = ?) ${tenantId ? 'AND tenant_id = ?' : ''} ORDER BY name`
+  ).bind(params.id, branch.code, ...(tenantId ? [tenantId] : [])).all() as any;
+
+  const buildingIds: string[] = buildings.map((b: any) => b.id);
+
+  // Entrances + apartments per building
+  const buildingsWithData: any[] = [];
+  for (const building of buildings) {
+    const { results: entrances } = await env.DB.prepare(
+      `SELECT * FROM entrances WHERE building_id = ? ORDER BY number`
+    ).bind(building.id).all() as any;
+
+    const { results: apartments } = await env.DB.prepare(
+      `SELECT * FROM apartments WHERE building_id = ? ORDER BY number`
+    ).bind(building.id).all() as any;
+
+    buildingsWithData.push({ ...building, entrances, apartments });
+  }
+
+  // Residents
+  let residents: any[] = [];
+  if (buildingIds.length > 0) {
+    const ph = buildingIds.map(() => '?').join(',');
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM users WHERE building_id IN (${ph}) AND role = 'resident' ORDER BY name`
+    ).bind(...buildingIds).all() as any;
+    residents = results;
+  }
+
+  // Staff (all non-resident tenant users, or building-linked if no tenant)
+  let staff: any[] = [];
+  if (tenantId) {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM users WHERE tenant_id = ? AND role NOT IN ('resident','super_admin','advertiser','tenant') ORDER BY name`
+    ).bind(tenantId).all() as any;
+    staff = results;
+  } else if (buildingIds.length > 0) {
+    const ph = buildingIds.map(() => '?').join(',');
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM users WHERE building_id IN (${ph}) AND role NOT IN ('resident','super_admin') ORDER BY name`
+    ).bind(...buildingIds).all() as any;
+    staff = results;
+  }
+
+  return json({
+    version: '1.0',
+    exported_at: new Date().toISOString(),
+    branch,
+    buildings: buildingsWithData,
+    residents,
+    staff,
+  });
+});
+
+// Branch Import — upsert branch + buildings + entrances + apartments + residents + staff
+route('POST', '/api/branches/import', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
+    return error('Access denied', 403);
+  }
+
+  const tenantId = getTenantId(request);
+  const reqUrl = new URL(request.url);
+  const branchIdParam = reqUrl.searchParams.get('branchId');
+  const raw = await request.json() as any;
+
+  const stats = { branches_created: 0, branches_updated: 0, buildings: 0, entrances: 0, apartments: 0, residents: 0, staff: 0 };
+
+  // ── Resolve target branch ──────────────────────────────────────
+  let branchId: string;
+  let branchCode: string;
+
+  if (branchIdParam) {
+    const row = await env.DB.prepare(
+      `SELECT id, code FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(branchIdParam, ...(tenantId ? [tenantId] : [])).first() as any;
+    if (!row) return error('Branch not found', 404);
+    branchId = row.id;
+    branchCode = row.code;
+    stats.branches_updated++;
+  } else {
+    const b = raw?.branch;
+    if (!b?.code) return error('Invalid import file: missing branch data', 400);
+    branchCode = b.code.toUpperCase();
+    const row = await env.DB.prepare(
+      `SELECT id FROM branches WHERE code = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(branchCode, ...(tenantId ? [tenantId] : [])).first() as any;
+    if (row) {
+      branchId = row.id;
+      await env.DB.prepare(`UPDATE branches SET name=?,address=?,phone=? WHERE id=?`)
+        .bind(b.name, b.address||null, b.phone||null, branchId).run();
+      stats.branches_updated++;
+    } else {
+      branchId = generateId();
+      await env.DB.prepare(`INSERT INTO branches (id,code,name,address,phone,tenant_id) VALUES (?,?,?,?,?,?)`)
+        .bind(branchId, branchCode, b.name, b.address||null, b.phone||null, tenantId||null).run();
+      stats.branches_created++;
+    }
+  }
+
+  // ── Detect format ──────────────────────────────────────────────
+  // Old platform format: { exportType, data: { branches: [{ code, buildings: [{ name, residents: [...] }] }] } }
+  // New Kamizo format:   { branch, buildings: [...], residents: [...], staff: [...] }
+  type NormalBuilding = { name: string; address?: string; floors?: number; entrances_count?: number; apartments_count?: number; entrances?: any[]; apartments?: any[]; residents?: any[] };
+  type NormalResident = { login: string; name?: string; phone?: string; apartment?: string; building?: string; password_plain?: string; password_hash?: string; role?: string; entrance?: string; floor?: string };
+  type NormalStaff = { login: string; name?: string; phone?: string; role: string; specialization?: string; password_plain?: string; password_hash?: string };
+
+  let normalBuildings: NormalBuilding[] = [];
+  let normalResidents: NormalResident[] = [];
+  let normalStaff: NormalStaff[] = [];
+
+  if (raw?.exportType && raw?.data?.branches) {
+    // ── OLD PLATFORM FORMAT ──
+    const fileBranches: any[] = raw.data.branches;
+    // Try to match by code, else import all
+    const matched = fileBranches.filter((fb: any) => fb.code?.toUpperCase() === branchCode);
+    const sourceBranches = matched.length > 0 ? matched : fileBranches;
+
+    for (const fb of sourceBranches) {
+      for (const bld of (fb.buildings || [])) {
+        // old field names: entrances (number) → entrances_count, totalApartments → apartments_count
+        normalBuildings.push({
+          name: bld.name,
+          address: bld.address || '',
+          floors: bld.floors || null,
+          entrances_count: typeof bld.entrances === 'number' ? bld.entrances : null,
+          apartments_count: bld.totalApartments || null,
+          residents: bld.residents || [],
+        });
+        for (const res of (bld.residents || [])) {
+          normalResidents.push({
+            login: res.login,
+            name: res.name,
+            phone: res.phone || null,
+            apartment: res.apartment || null,
+            building: bld.name,
+            entrance: res.entrance || null,
+            floor: res.floor || null,
+            password_plain: res.password || null,
+            password_hash: '',
+            role: res.role || 'resident',
+          });
+        }
+      }
+    }
+  } else {
+    // ── NEW KAMIZO FORMAT ──
+    normalBuildings = raw.buildings || [];
+    normalResidents = raw.residents || [];
+    normalStaff = raw.staff || [];
+  }
+
+  // ── Pre-fetch existing data (bulk, no per-row queries) ────────
+  // All buildings in this branch
+  const { results: existingBldRows } = await env.DB.prepare(
+    `SELECT id, name FROM buildings WHERE branch_code=? ${tenantId ? 'AND tenant_id=?' : ''}`
+  ).bind(branchCode, ...(tenantId ? [tenantId] : [])).all() as any;
+  const existingBldMap = new Map<string, string>(); // name → id
+  for (const r of existingBldRows) existingBldMap.set(r.name, r.id);
+
+  // All existing logins for this tenant
+  const { results: existingUserRows } = await env.DB.prepare(
+    tenantId
+      ? `SELECT id, login FROM users WHERE tenant_id=?`
+      : `SELECT id, login FROM users`
+  ).bind(...(tenantId ? [tenantId] : [])).all() as any;
+  const existingLoginMap = new Map<string, string>(); // login → id
+  for (const r of existingUserRows) existingLoginMap.set(r.login, r.id);
+
+  // ── Upsert buildings (usually few, sequential is fine) ────────
+  const buildingNameToId = new Map<string, string>();
+  for (const bld of normalBuildings) {
+    if (!bld.name) continue;
+    if (existingBldMap.has(bld.name)) {
+      const bid = existingBldMap.get(bld.name)!;
+      buildingNameToId.set(bld.name, bid);
+      await env.DB.prepare(
+        `UPDATE buildings SET address=?,floors=?,entrances_count=?,apartments_count=?,branch_id=? WHERE id=?`
+      ).bind(bld.address||null, bld.floors||null, bld.entrances_count||null, bld.apartments_count||null, branchId, bid).run();
+    } else {
+      const newId = generateId();
+      await env.DB.prepare(
+        `INSERT INTO buildings (id,name,address,branch_code,branch_id,floors,entrances_count,apartments_count,heating_type,building_type,tenant_id)
+         VALUES (?,?,?,?,?,?,?,?,'central','monolith',?)`
+      ).bind(newId, bld.name, bld.address||'', branchCode, branchId, bld.floors||null, bld.entrances_count||null, bld.apartments_count||null, tenantId||null).run();
+      buildingNameToId.set(bld.name, newId);
+      stats.buildings++;
+    }
+
+    const buildingId = buildingNameToId.get(bld.name)!;
+    // Entrances (new format only — usually <10)
+    for (const ent of (bld.entrances || [])) {
+      const ex = await env.DB.prepare(`SELECT id FROM entrances WHERE building_id=? AND number=?`).bind(buildingId, ent.number).first() as any;
+      if (!ex) {
+        await env.DB.prepare(
+          `INSERT INTO entrances (id,building_id,number,floors_from,floors_to,apartments_from,apartments_to,has_elevator,intercom_type,intercom_code) VALUES (?,?,?,?,?,?,?,?,?,?)`
+        ).bind(generateId(),buildingId,ent.number,ent.floors_from||null,ent.floors_to||null,ent.apartments_from||null,ent.apartments_to||null,ent.has_elevator||0,ent.intercom_type||null,ent.intercom_code||null).run();
+        stats.entrances++;
+      }
+    }
+    // Apartments (new format only)
+    for (const apt of (bld.apartments || [])) {
+      const ex = await env.DB.prepare(`SELECT id FROM apartments WHERE building_id=? AND number=?`).bind(buildingId, apt.number).first() as any;
+      if (!ex) {
+        await env.DB.prepare(
+          `INSERT INTO apartments (id,building_id,number,floor,total_area,living_area,rooms,status,is_commercial,ownership_type) VALUES (?,?,?,?,?,?,?,?,?,?)`
+        ).bind(generateId(),buildingId,apt.number,apt.floor||null,apt.total_area||null,apt.living_area||null,apt.rooms||null,apt.status||'vacant',apt.is_commercial||0,apt.ownership_type||'private').run();
+        stats.apartments++;
+      }
+    }
+  }
+
+  // ── Batch upsert residents ─────────────────────────────────────
+  const ALLOWED_USER_ROLES = ['resident','commercial_owner','admin','director','manager','department_head','dispatcher','executor','security'];
+  const toInsert: any[] = [];
+  const toUpdate: any[] = [];
+
+  for (const res of [...normalResidents, ...normalStaff]) {
+    if (!res.login) continue;
+    const role = (res as any).role || 'resident';
+    if (!ALLOWED_USER_ROLES.includes(role)) continue;
+
+    if (existingLoginMap.has(res.login)) {
+      toUpdate.push({ id: existingLoginMap.get(res.login)!, ...res, role });
+    } else {
+      toInsert.push({ ...res, role });
+    }
+  }
+
+  // Batch INSERT in chunks of 40
+  const CHUNK = 40;
+  for (let i = 0; i < toInsert.length; i += CHUNK) {
+    const chunk = toInsert.slice(i, i + CHUNK);
+    const stmts = chunk.map((res: any) => {
+      const isStaff = ['admin','director','manager','department_head','dispatcher','executor','security'].includes(res.role);
+      return env.DB.prepare(
+        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,password_plain,role,apartment,building,branch,entrance,floor,specialization,tenant_id,is_active)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`
+      ).bind(
+        generateId(), res.login, res.name||res.login, res.phone||null,
+        res.password_hash||'', res.password_plain||null,
+        res.role, isStaff ? null : (res.apartment||null), isStaff ? null : (res.building||null),
+        branchCode, res.entrance||null, res.floor||null, res.specialization||null, tenantId||null
+      );
+    });
+    await env.DB.batch(stmts);
+    stats.residents += chunk.filter((r: any) => r.role === 'resident' || r.role === 'commercial_owner').length;
+    stats.staff += chunk.filter((r: any) => ['admin','director','manager','department_head','dispatcher','executor','security'].includes(r.role)).length;
+  }
+
+  // Batch UPDATE existing in chunks of 40
+  for (let i = 0; i < toUpdate.length; i += CHUNK) {
+    const chunk = toUpdate.slice(i, i + CHUNK);
+    const stmts = chunk.map((res: any) => {
+      const isStaff = ['admin','director','manager','department_head','dispatcher','executor','security'].includes(res.role);
+      return isStaff
+        ? env.DB.prepare(`UPDATE users SET name=?,phone=?,role=?,specialization=? WHERE id=?`)
+            .bind(res.name||res.login, res.phone||null, res.role, res.specialization||null, res.id)
+        : env.DB.prepare(`UPDATE users SET name=?,phone=?,apartment=?,building=?,branch=? WHERE id=?`)
+            .bind(res.name||res.login, res.phone||null, res.apartment||null, res.building||null, branchCode, res.id);
+    });
+    await env.DB.batch(stmts);
+  }
+
+  invalidateCache('buildings:');
+  invalidateCache('branches:');
+  invalidateCache('users:');
+
+  return json({ success: true, stats });
+});
+
 // ==================== BUILDINGS ROUTES (CRM) ====================
 
 // Buildings: List all with stats (supports branch_id filter + pagination)
 route('GET', '/api/buildings', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const branchCode = url.searchParams.get('branch_code');
   const search = url.searchParams.get('search')?.toLowerCase();
@@ -4848,6 +4828,7 @@ route('POST', '/api/buildings/:buildingId/documents', async (request, env, param
 
   const body = await request.json() as any;
   const id = generateId();
+  const tenantId = getTenantId(request);
 
   await env.DB.prepare(`
     INSERT INTO building_documents (id, building_id, name, type, file_url, file_size, uploaded_by, expires_at, tenant_id)
@@ -4861,10 +4842,12 @@ route('POST', '/api/buildings/:buildingId/documents', async (request, env, param
     body.file_size || body.fileSize || 0,
     authUser.id,
     body.expires_at || body.expiresAt || null,
-    getTenantId(request)
+    tenantId
   ).run();
 
-  const created = await env.DB.prepare('SELECT * FROM building_documents WHERE id = ?').bind(id).first();
+  const created = await env.DB.prepare(
+    `SELECT * FROM building_documents WHERE id = ?${tenantId ? ' AND tenant_id = ?' : ''}`
+  ).bind(id, ...(tenantId ? [tenantId] : [])).first();
   return json({ document: created }, 201);
 });
 
@@ -5014,13 +4997,20 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
       // Direct query matching apartment's building_id and number - no tenant filter needed
       // since we already verified apartment access above
       const { results } = await env.DB.prepare(`
-        SELECT id, name, phone, login, address, total_area
+        SELECT id, name, phone, login, address, apartment, total_area, password_plain, role
         FROM users
         WHERE building_id = ?
         AND TRIM(apartment) = ?
-        AND role = 'resident'
+        AND role IN ('resident', 'tenant')
       `).bind(apt.building_id, aptNumber).all();
-      userResidents = results || [];
+      // Decrypt passwords for management view
+      userResidents = await Promise.all((results || []).map(async (u: any) => {
+        let decryptedPassword = null;
+        if (u.password_plain) {
+          try { decryptedPassword = await decryptPassword(u.password_plain, env.ENCRYPTION_KEY); } catch {}
+        }
+        return { ...u, password_plain: decryptedPassword ? '***' : null, password_decrypted: decryptedPassword };
+      }));
     }
   } catch (e) {}
 
@@ -5092,6 +5082,25 @@ route('POST', '/api/buildings/:buildingId/apartments', async (request, env, para
   }
 
   const body = await request.json() as any;
+  const tenantId = getTenantId(request);
+
+  // Check if apartment with this number already exists in this building
+  const existing = await env.DB.prepare(
+    `SELECT id, entrance_id FROM apartments WHERE building_id = ? AND number = ?${tenantId ? ' AND tenant_id = ?' : ''}`
+  ).bind(params.buildingId, String(body.number), ...(tenantId ? [tenantId] : [])).first();
+
+  if (existing) {
+    // If apartment exists but in a different entrance, update its entrance_id
+    const newEntranceId = body.entrance_id || body.entranceId || null;
+    if (newEntranceId && existing.entrance_id !== newEntranceId) {
+      await env.DB.prepare('UPDATE apartments SET entrance_id = ? WHERE id = ?')
+        .bind(newEntranceId, existing.id).run();
+      const updated = await env.DB.prepare('SELECT * FROM apartments WHERE id = ?').bind(existing.id).first();
+      return json({ apartment: updated, updated: true });
+    }
+    return error(`Квартира №${body.number} уже существует в этом доме`, 409);
+  }
+
   const id = generateId();
 
   await env.DB.prepare(`
@@ -5267,7 +5276,7 @@ route('GET', '/api/owners/:id', async (request, env, params) => {
   const owner = await env.DB.prepare(`SELECT * FROM owners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   if (!owner) return error('Owner not found', 404);
 
-  // Get apartments
+  // Get apartments (with tenant_id filter for security)
   const { results: apartments } = await env.DB.prepare(`
     SELECT a.*, oa.ownership_share, oa.is_primary,
       b.name as building_name, b.address as building_address
@@ -5275,7 +5284,8 @@ route('GET', '/api/owners/:id', async (request, env, params) => {
     JOIN owner_apartments oa ON a.id = oa.apartment_id
     JOIN buildings b ON a.building_id = b.id
     WHERE oa.owner_id = ?
-  `).bind(params.id).all();
+    ${tenantId ? 'AND a.tenant_id = ?' : ''}
+  `).bind(params.id, ...(tenantId ? [tenantId] : [])).all();
 
   return json({ owner, apartments });
 });
@@ -5337,7 +5347,8 @@ route('POST', '/api/owners', async (request, env) => {
     getTenantId(request) || null
   ).run();
 
-  const created = await env.DB.prepare('SELECT * FROM owners WHERE id = ?').bind(id).first();
+  const createdTenantId = getTenantId(request);
+  const created = await env.DB.prepare(`SELECT * FROM owners WHERE id = ? ${createdTenantId ? 'AND tenant_id = ?' : ''}`).bind(id, ...(createdTenantId ? [createdTenantId] : [])).first();
   return json({ owner: created }, 201);
 });
 
@@ -6153,7 +6164,7 @@ route('POST', '/api/meters/:meterId/readings', async (request, env, params) => {
 
   // Determine source based on user role
   const source = authUser.role === 'resident' ? 'resident' :
-                 (authUser.role === 'executor' ? 'inspector' : body.source || 'resident');
+                 (isExecutorRole(authUser.role) ? 'inspector' : body.source || 'resident');
 
   await env.DB.prepare(`
     INSERT INTO meter_readings (
@@ -6263,10 +6274,10 @@ route('GET', '/api/requests', async (request, env) => {
   if (user.role === 'resident') {
     whereClause += ' AND r.resident_id = ?';
     params.push(user.id);
-  } else if (user.role === 'executor') {
+  } else if (isExecutorRole(user.role)) {
     whereClause += ` AND (r.executor_id = ? OR (r.status = 'new' AND r.category_id IN (SELECT id FROM categories WHERE specialization = ?)))`;
     params.push(user.id);
-    params.push(user.specialization || 'other');
+    params.push(user.specialization || 'security');
   } else if (user.role === 'department_head' && user.specialization) {
     // SECURITY: Department heads only see requests in their department (by category specialization)
     whereClause += ` AND r.category_id IN (SELECT id FROM categories WHERE specialization = ?)`;
@@ -6365,6 +6376,7 @@ route('POST', '/api/requests', async (request, env) => {
     'trash': 'M',        // Мусор (Trash)
     'boiler': 'B',       // Котёл (Boiler)
     'ac': 'A',           // Кондиционер (AC)
+    'gardener': 'G',     // Садовник (Gardener)
     'other': 'X',        // Другое
   };
   const categoryCode = categoryCodeMap[body.category_id] || 'X';
@@ -6402,7 +6414,7 @@ route('POST', '/api/requests', async (request, env) => {
   const categoryLabels: Record<string, string> = {
     'plumber': 'Сантехника', 'electrician': 'Электрика', 'elevator': 'Лифт',
     'intercom': 'Домофон', 'cleaning': 'Уборка', 'security': 'Охрана',
-    'trash': 'Мусор', 'boiler': 'Котёл', 'ac': 'Кондиционер', 'courier': 'Курьер', 'other': 'Другое'
+    'trash': 'Мусор', 'boiler': 'Котёл', 'ac': 'Кондиционер', 'courier': 'Курьер', 'gardener': 'Садовник', 'other': 'Другое'
   };
   const categoryLabel = categoryLabels[body.category_id] || body.category_id;
 
@@ -6412,16 +6424,19 @@ route('POST', '/api/requests', async (request, env) => {
     `SELECT id FROM users WHERE role IN ('manager', 'admin', 'department_head') AND is_active = 1 ${tenantIdForNotify ? 'AND tenant_id = ?' : ''}`
   ).bind(...(tenantIdForNotify ? [tenantIdForNotify] : [])).all();
 
-  // Send notification to each manager (in background, don't await all)
+  // Send notification to each manager (push + save to DB for bell icon)
+  const reqNotifBody = `#${requestNumber} - ${body.title}. ${categoryLabel}. От: ${created?.resident_name || 'Житель'}`;
   for (const manager of (managers || []) as any[]) {
     sendPushNotification(env, manager.id, {
       title: '📝 Новая заявка',
-      body: `#${requestNumber} - ${body.title}. ${categoryLabel}. От: ${created?.resident_name || 'Житель'}`,
+      body: reqNotifBody,
       type: 'request_created',
       tag: `request-new-${id}`,
       data: { requestId: id, url: '/requests' },
       requireInteraction: false
     }).catch(() => {});
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_created', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), manager.id, '📝 Новая заявка', reqNotifBody, JSON.stringify({ request_id: id }), tenantIdForNotify).run().catch(() => {});
   }
 
   return json({ request: created }, 201);
@@ -6473,7 +6488,7 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
 
   await env.DB.prepare(`UPDATE requests SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
 
-  // Send notifications on status change
+  // Send notifications on status change (push + DB)
   if (body.status && requestBefore && body.status !== requestBefore.status) {
     const reqNum = requestBefore.request_number || params.id.slice(0, 8);
 
@@ -6484,26 +6499,32 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
         completed: 'Работа выполнена',
         pending_approval: 'Ожидает подтверждения'
       };
+      const patchStatusBody = statusLabels[body.status] || body.status;
       sendPushNotification(env, requestBefore.resident_id, {
         title: `📋 Заявка #${reqNum}`,
-        body: `${statusLabels[body.status] || body.status}`,
+        body: patchStatusBody,
         type: 'request_status',
         tag: `request-status-${params.id}`,
         data: { requestId: params.id, url: '/' },
         requireInteraction: body.status === 'pending_approval'
       }).catch(() => {});
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_status', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(generateId(), requestBefore.resident_id, `📋 Заявка #${reqNum}`, patchStatusBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
     }
 
     // Notify executor when request rejected back to them
     if (requestBefore.executor_id && body.status === 'in_progress' && requestBefore.status === 'pending_approval') {
+      const patchRejectBody = `Житель отклонил выполнение. Требуется доработка.`;
       sendPushNotification(env, requestBefore.executor_id, {
         title: `⚠️ Заявка #${reqNum} отклонена`,
-        body: `Житель отклонил выполнение. Требуется доработка.`,
+        body: patchRejectBody,
         type: 'request_rejected',
         tag: `request-rejected-${params.id}`,
         data: { requestId: params.id, url: '/' },
         requireInteraction: true
       }).catch(() => {});
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(generateId(), requestBefore.executor_id, `⚠️ Заявка #${reqNum} отклонена`, patchRejectBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
     }
   }
 
@@ -6513,7 +6534,7 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
 // Requests: Assign executor
 route('POST', '/api/requests/:id/assign', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || (user.role !== 'admin' && user.role !== 'director' && user.role !== 'manager' && user.role !== 'dispatcher' && user.role !== 'executor' && user.role !== 'department_head')) {
+  if (!user || (user.role !== 'admin' && user.role !== 'director' && user.role !== 'manager' && user.role !== 'dispatcher' && !isExecutorRole(user.role) && user.role !== 'department_head')) {
     return error('Not authorized to assign requests', 403);
   }
 
@@ -6557,32 +6578,32 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
     WHERE r.id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
-  // Send push notification to executor - new request assigned
+  // Send push + DB notification to executor - new request assigned
+  const assignBodyExec = `Заявка #${updated?.request_number || requestBefore?.request_number}: ${updated?.title || requestBefore?.title}. Адрес: ${updated?.address || 'не указан'}`;
   await sendPushNotification(env, executorId, {
     title: '📋 Новая заявка назначена',
-    body: `Заявка #${updated?.request_number || requestBefore?.request_number}: ${updated?.title || requestBefore?.title}. Адрес: ${updated?.address || 'не указан'}`,
+    body: assignBodyExec,
     type: 'request_assigned',
     tag: `request-assigned-${params.id}`,
-    data: {
-      requestId: params.id,
-      url: '/'
-    },
+    data: { requestId: params.id, url: '/' },
     requireInteraction: true
   });
+  env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_assigned', ?, ?, ?, 0, datetime('now'), ?)`)
+    .bind(generateId(), executorId, '📋 Новая заявка назначена', assignBodyExec, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 
-  // Send push notification to resident - executor assigned
+  // Send push + DB notification to resident - executor assigned
   if (requestBefore?.resident_id) {
+    const assignBodyRes = `На вашу заявку #${updated?.request_number || requestBefore?.request_number} назначен исполнитель: ${executor.name}`;
     await sendPushNotification(env, requestBefore.resident_id, {
       title: '👷 Исполнитель назначен',
-      body: `На вашу заявку #${updated?.request_number || requestBefore?.request_number} назначен исполнитель: ${executor.name}`,
+      body: assignBodyRes,
       type: 'request_status',
       tag: `request-executor-${params.id}`,
-      data: {
-        requestId: params.id,
-        url: '/'
-      },
+      data: { requestId: params.id, url: '/' },
       requireInteraction: false
     });
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_assigned', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), requestBefore.resident_id, '👷 Исполнитель назначен', assignBodyRes, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   return json({ request: updated });
@@ -6591,7 +6612,7 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
 // Requests: Accept (executor accepts assigned request)
 route('POST', '/api/requests/:id/accept', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can accept requests', 403);
   }
 
@@ -6615,19 +6636,19 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
     WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
-  // Send push notification to resident - executor accepted
+  // Send push + DB notification to resident - executor accepted
   if (requestData.resident_id) {
+    const acceptBody = `Исполнитель ${user.name} принял вашу заявку #${requestData.request_number}. Ожидайте начала работ.`;
     await sendPushNotification(env, requestData.resident_id, {
       title: '✅ Заявка принята',
-      body: `Исполнитель ${user.name} принял вашу заявку #${requestData.request_number}. Ожидайте начала работ.`,
+      body: acceptBody,
       type: 'request_status',
       tag: `request-accepted-${params.id}`,
-      data: {
-        requestId: params.id,
-        url: '/'
-      },
+      data: { requestId: params.id, url: '/' },
       requireInteraction: false
     });
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_accepted', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), requestData.resident_id, '✅ Заявка принята', acceptBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   return json({ success: true });
@@ -6636,7 +6657,7 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
 // Requests: Decline/Release (executor declines or releases request - returns to 'new' status)
 route('POST', '/api/requests/:id/decline', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can decline requests', 403);
   }
 
@@ -6680,20 +6701,19 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
     WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
-  // Send push notification to resident (non-blocking)
+  // Send push + DB notification to resident (non-blocking)
   if (requestData.resident_id) {
+    const declineBodyRes = `Исполнитель ${user.name} освободил заявку #${requestData.request_number}. Причина: ${reason}. Заявка возвращена в очередь.`;
     sendPushNotification(env, requestData.resident_id, {
       title: '⚠️ Исполнитель освободил заявку',
-      body: `Исполнитель ${user.name} освободил заявку #${requestData.request_number}. Причина: ${reason}. Заявка возвращена в очередь.`,
+      body: declineBodyRes,
       type: 'request_declined',
       tag: `request-declined-${params.id}`,
-      data: {
-        requestId: params.id,
-        reason,
-        url: '/'
-      },
+      data: { requestId: params.id, reason, url: '/' },
       requireInteraction: true
     }).catch(() => {});
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_declined', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), requestData.resident_id, '⚠️ Исполнитель освободил заявку', declineBodyRes, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   // Notify managers and department heads
@@ -6701,15 +6721,18 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
     `SELECT id FROM users WHERE role IN ('manager', 'admin', 'director', 'department_head') AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(...(tenantId ? [tenantId] : [])).all();
 
+  const declineBodyMgr = `${user.name} отказался от заявки #${requestData.request_number}. Причина: ${reason}`;
   for (const manager of (managers || []) as any[]) {
     sendPushNotification(env, manager.id, {
       title: '⚠️ Исполнитель отказался от заявки',
-      body: `${user.name} отказался от заявки #${requestData.request_number}. Причина: ${reason}`,
+      body: declineBodyMgr,
       type: 'request_declined',
       tag: `request-declined-manager-${params.id}`,
       data: { requestId: params.id, reason, url: '/requests' },
       requireInteraction: true
     }).catch(() => {});
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_declined', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), manager.id, '⚠️ Исполнитель отказался', declineBodyMgr, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   return json({ success: true });
@@ -6723,7 +6746,7 @@ route('POST', '/api/requests/:id/reschedule', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
 
   // Only residents and executors can create reschedule requests
-  if (!['resident', 'executor'].includes(user.role)) {
+  if (!['resident', 'executor', 'security'].includes(user.role)) {
     return error('Only residents and executors can request reschedule', 403);
   }
 
@@ -6752,7 +6775,7 @@ route('POST', '/api/requests/:id/reschedule', async (request, env, params) => {
 
   // Verify user is involved in this request
   const isResident = user.role === 'resident' && requestData.resident_id === user.id;
-  const isExecutor = user.role === 'executor' && requestData.executor_id === user.id;
+  const isExecutor = isExecutorRole(user.role) && requestData.executor_id === user.id;
 
   if (!isResident && !isExecutor) {
     return error('You are not involved in this request', 403);
@@ -6974,7 +6997,7 @@ route('POST', '/api/reschedule-requests/:id/respond', async (request, env, param
 // Requests: Start work
 route('POST', '/api/requests/:id/start', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can start work', 403);
   }
 
@@ -6998,19 +7021,19 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
     WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
-  // Send push notification to resident - work started
+  // Send push + DB notification to resident - work started
   if (requestData.resident_id) {
+    const startBody = `Исполнитель ${user.name} начал работу по заявке #${requestData.request_number}.`;
     await sendPushNotification(env, requestData.resident_id, {
       title: '🔧 Работа началась',
-      body: `Исполнитель ${user.name} начал работу по заявке #${requestData.request_number}.`,
+      body: startBody,
       type: 'request_status',
       tag: `request-started-${params.id}`,
-      data: {
-        requestId: params.id,
-        url: '/'
-      },
+      data: { requestId: params.id, url: '/' },
       requireInteraction: false
     });
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_started', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), requestData.resident_id, '🔧 Работа началась', startBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   // Notify department heads about work started
@@ -7018,15 +7041,18 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
     `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(...(tenantId ? [tenantId] : [])).all();
 
+  const startBodyHead = `${user.name} начал работу по заявке #${requestData.request_number}`;
   for (const head of (deptHeadsStart || []) as any[]) {
     sendPushNotification(env, head.id, {
       title: '🔧 Работа началась',
-      body: `${user.name} начал работу по заявке #${requestData.request_number}`,
+      body: startBodyHead,
       type: 'request_started',
       tag: `request-started-head-${params.id}`,
       data: { requestId: params.id, url: '/requests' },
       requireInteraction: false
     }).catch(() => {});
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_started', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), head.id, '🔧 Работа началась', startBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   return json({ success: true });
@@ -7035,7 +7061,7 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
 // Requests: Complete work (executor marks work as done, waiting for resident approval)
 route('POST', '/api/requests/:id/complete', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can complete work', 403);
   }
 
@@ -7062,17 +7088,17 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
 
   // Send push notification to resident - work completed, please approve
   if (requestData.resident_id) {
+    const completeBody = `Исполнитель ${user.name} завершил работу по заявке #${requestData.request_number}. Пожалуйста, подтвердите выполнение и оцените работу.`;
     await sendPushNotification(env, requestData.resident_id, {
       title: '✅ Работа завершена!',
-      body: `Исполнитель ${user.name} завершил работу по заявке #${requestData.request_number}. Пожалуйста, подтвердите выполнение и оцените работу.`,
+      body: completeBody,
       type: 'request_completed',
       tag: `request-completed-${params.id}`,
-      data: {
-        requestId: params.id,
-        url: '/'
-      },
+      data: { requestId: params.id, url: '/' },
       requireInteraction: true
     });
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_completed', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), requestData.resident_id, '✅ Работа завершена!', completeBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   // Notify department heads about completed work
@@ -7080,15 +7106,18 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
     `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(...(tenantId ? [tenantId] : [])).all();
 
+  const completeBodyHead = `${user.name} завершил заявку #${requestData.request_number}. Ожидается подтверждение жителя.`;
   for (const head of (deptHeads || []) as any[]) {
     sendPushNotification(env, head.id, {
       title: '✅ Исполнитель завершил работу',
-      body: `${user.name} завершил заявку #${requestData.request_number}. Ожидается подтверждение жителя.`,
+      body: completeBodyHead,
       type: 'request_completed',
       tag: `request-completed-head-${params.id}`,
       data: { requestId: params.id, url: '/requests' },
       requireInteraction: false
     }).catch(() => {});
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_completed', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), head.id, '✅ Исполнитель завершил работу', completeBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
   return json({ success: true });
@@ -7097,7 +7126,7 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
 // Requests: Pause work
 route('POST', '/api/requests/:id/pause', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can pause work', 403);
   }
 
@@ -7137,7 +7166,7 @@ route('POST', '/api/requests/:id/pause', async (request, env, params) => {
 // Requests: Resume work
 route('POST', '/api/requests/:id/resume', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can resume work', 403);
   }
 
@@ -7205,21 +7234,20 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
     WHERE id = ? AND resident_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(rating || null, feedback || null, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
-  // Send push notification to executor - work approved
+  // Send push + DB notification to executor - work approved
   if (requestData.executor_id) {
     const ratingText = rating ? ` Оценка: ${'⭐'.repeat(rating)}` : '';
+    const approveBody = `Житель подтвердил выполнение заявки #${requestData.request_number}.${ratingText}`;
     await sendPushNotification(env, requestData.executor_id, {
       title: '🎉 Работа подтверждена!',
-      body: `Житель подтвердил выполнение заявки #${requestData.request_number}.${ratingText}`,
+      body: approveBody,
       type: 'request_approved',
       tag: `request-approved-${params.id}`,
-      data: {
-        requestId: params.id,
-        rating,
-        url: '/'
-      },
+      data: { requestId: params.id, rating, url: '/' },
       requireInteraction: false
     });
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_approved', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), requestData.executor_id, '🎉 Работа подтверждена!', approveBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 
     // Get executor name for notification
     const executor = await env.DB.prepare('SELECT name FROM users WHERE id = ?')
@@ -7231,15 +7259,18 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
     ).bind(...(tenantId ? [tenantId] : [])).all();
 
     const ratingStars = rating ? '⭐'.repeat(rating) : 'без оценки';
+    const approveBodyHead = `${executor?.name || 'Исполнитель'} - заявка #${requestData.request_number} подтверждена. ${ratingStars}`;
     for (const head of (deptHeads || []) as any[]) {
       sendPushNotification(env, head.id, {
         title: '✅ Заявка закрыта',
-        body: `${executor?.name || 'Исполнитель'} - заявка #${requestData.request_number} подтверждена. ${ratingStars}`,
+        body: approveBodyHead,
         type: 'request_approved',
         tag: `request-approved-head-${params.id}`,
         data: { requestId: params.id, rating, url: '/requests' },
         requireInteraction: false
       }).catch(() => {});
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_approved', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(generateId(), head.id, '✅ Заявка закрыта', approveBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
     }
   }
 
@@ -7283,20 +7314,19 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
     WHERE id = ? AND resident_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(reason, currentCount + 1, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
-  // Send push notification to executor - work rejected
+  // Send push + DB notification to executor - work rejected
   if (requestData.executor_id) {
+    const rejectBody = `Житель отклонил работу по заявке #${requestData.request_number}. Причина: ${reason}`;
     await sendPushNotification(env, requestData.executor_id, {
       title: '❌ Работа отклонена',
-      body: `Житель отклонил работу по заявке #${requestData.request_number}. Причина: ${reason}`,
+      body: rejectBody,
       type: 'request_rejected',
       tag: `request-rejected-${params.id}`,
-      data: {
-        requestId: params.id,
-        reason,
-        url: '/'
-      },
+      data: { requestId: params.id, reason, url: '/' },
       requireInteraction: true
     });
+    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
+      .bind(generateId(), requestData.executor_id, '❌ Работа отклонена', rejectBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 
     // Get executor name for notification to department heads
     const executor = await env.DB.prepare('SELECT name FROM users WHERE id = ?')
@@ -7307,15 +7337,18 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
       `SELECT id FROM users WHERE role = 'department_head' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
     ).bind(...(tenantId ? [tenantId] : [])).all();
 
+    const rejectBodyHead = `${executor?.name || 'Исполнитель'} - заявка #${requestData.request_number}. Причина: ${reason}`;
     for (const head of (deptHeadsReject || []) as any[]) {
       sendPushNotification(env, head.id, {
         title: '❌ Работа отклонена жителем',
-        body: `${executor?.name || 'Исполнитель'} - заявка #${requestData.request_number}. Причина: ${reason}`,
+        body: rejectBodyHead,
         type: 'request_rejected',
         tag: `request-rejected-head-${params.id}`,
         data: { requestId: params.id, reason, url: '/requests' },
         requireInteraction: true
       }).catch(() => {});
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(generateId(), head.id, '❌ Работа отклонена жителем', rejectBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
     }
   }
 
@@ -7430,6 +7463,214 @@ route('POST', '/api/requests/:id/rate', async (request, env, params) => {
   return json({ success: true });
 });
 
+// ==================== WORK ORDERS ROUTES ====================
+
+// Work Orders: List
+route('GET', '/api/work-orders', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const url = new URL(request.url);
+  const status = url.searchParams.get('status');
+  const type = url.searchParams.get('type');
+  const priority = url.searchParams.get('priority');
+  const buildingId = url.searchParams.get('building_id');
+
+  let whereClause = 'WHERE 1=1';
+  const params: any[] = [];
+
+  // MULTI-TENANCY: Filter by tenant_id
+  const tenantId = getTenantId(request);
+  if (tenantId) {
+    whereClause += ' AND wo.tenant_id = ?';
+    params.push(tenantId);
+  }
+
+  if (status && status !== 'all') {
+    whereClause += ' AND wo.status = ?';
+    params.push(status);
+  }
+
+  if (type && type !== 'all') {
+    whereClause += ' AND wo.type = ?';
+    params.push(type);
+  }
+
+  if (priority && priority !== 'all') {
+    whereClause += ' AND wo.priority = ?';
+    params.push(priority);
+  }
+
+  if (buildingId) {
+    whereClause += ' AND wo.building_id = ?';
+    params.push(buildingId);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT wo.*,
+           b.name as building_name,
+           u.name as assigned_to_name, u.phone as assigned_to_phone,
+           cu.name as created_by_name
+    FROM work_orders wo
+    LEFT JOIN buildings b ON wo.building_id = b.id
+    LEFT JOIN users u ON wo.assigned_to = u.id
+    LEFT JOIN users cu ON wo.created_by = cu.id
+    ${whereClause}
+    ORDER BY wo.created_at DESC
+  `).bind(...params).all();
+
+  return json({ workOrders: results });
+});
+
+// Work Orders: Create
+route('POST', '/api/work-orders', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const body = await request.json() as any;
+  const id = generateId();
+
+  // MULTI-TENANCY
+  const tenantId = getTenantId(request);
+
+  // Auto-generate work order number: НР-YYYY-NNN
+  const year = new Date().getFullYear();
+  const countResult = await env.DB.prepare(
+    `SELECT COUNT(*) as count FROM work_orders WHERE tenant_id = ?`
+  ).bind(tenantId).first() as any;
+  const count = (countResult?.count || 0) + 1;
+  const number = `НР-${year}-${String(count).padStart(3, '0')}`;
+
+  await env.DB.prepare(`
+    INSERT INTO work_orders (id, tenant_id, number, title, description, type, priority, status, building_id, apartment_id, assigned_to, scheduled_date, scheduled_time, estimated_duration, materials, checklist, notes, request_id, created_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+  `).bind(
+    id, tenantId, number, body.title, body.description || null,
+    body.type || 'planned', body.priority || 'medium', body.status || 'pending',
+    body.building_id || null, body.apartment_id || null, body.assigned_to || null,
+    body.scheduled_date || null, body.scheduled_time || null,
+    body.estimated_duration || 60,
+    body.materials ? JSON.stringify(body.materials) : null,
+    body.checklist ? JSON.stringify(body.checklist) : null,
+    body.notes || null, body.request_id || null, user.id
+  ).run();
+
+  const created = await env.DB.prepare(`
+    SELECT wo.*, b.name as building_name, u.name as assigned_to_name, cu.name as created_by_name
+    FROM work_orders wo
+    LEFT JOIN buildings b ON wo.building_id = b.id
+    LEFT JOIN users u ON wo.assigned_to = u.id
+    LEFT JOIN users cu ON wo.created_by = cu.id
+    WHERE wo.id = ? ${tenantId ? 'AND wo.tenant_id = ?' : ''}
+  `).bind(id, ...(tenantId ? [tenantId] : [])).first();
+
+  return json({ workOrder: created }, 201);
+});
+
+// Work Orders: Update
+route('PATCH', '/api/work-orders/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const tenantId = getTenantId(request);
+  const body = await request.json() as any;
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
+  if (body.description !== undefined) { updates.push('description = ?'); values.push(body.description); }
+  if (body.type !== undefined) { updates.push('type = ?'); values.push(body.type); }
+  if (body.priority !== undefined) { updates.push('priority = ?'); values.push(body.priority); }
+  if (body.status !== undefined) { updates.push('status = ?'); values.push(body.status); }
+  if (body.building_id !== undefined) { updates.push('building_id = ?'); values.push(body.building_id); }
+  if (body.apartment_id !== undefined) { updates.push('apartment_id = ?'); values.push(body.apartment_id); }
+  if (body.assigned_to !== undefined) { updates.push('assigned_to = ?'); values.push(body.assigned_to); }
+  if (body.scheduled_date !== undefined) { updates.push('scheduled_date = ?'); values.push(body.scheduled_date); }
+  if (body.scheduled_time !== undefined) { updates.push('scheduled_time = ?'); values.push(body.scheduled_time); }
+  if (body.estimated_duration !== undefined) { updates.push('estimated_duration = ?'); values.push(body.estimated_duration); }
+  if (body.actual_duration !== undefined) { updates.push('actual_duration = ?'); values.push(body.actual_duration); }
+  if (body.materials !== undefined) { updates.push('materials = ?'); values.push(JSON.stringify(body.materials)); }
+  if (body.checklist !== undefined) { updates.push('checklist = ?'); values.push(JSON.stringify(body.checklist)); }
+  if (body.notes !== undefined) { updates.push('notes = ?'); values.push(body.notes); }
+  if (body.request_id !== undefined) { updates.push('request_id = ?'); values.push(body.request_id); }
+
+  if (updates.length === 0) return error('No fields to update', 400);
+
+  updates.push('updated_at = datetime("now")');
+  values.push(params!.id);
+  if (tenantId) values.push(tenantId);
+
+  await env.DB.prepare(`UPDATE work_orders SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
+
+  const updated = await env.DB.prepare(`
+    SELECT wo.*, b.name as building_name, u.name as assigned_to_name, cu.name as created_by_name
+    FROM work_orders wo
+    LEFT JOIN buildings b ON wo.building_id = b.id
+    LEFT JOIN users u ON wo.assigned_to = u.id
+    LEFT JOIN users cu ON wo.created_by = cu.id
+    WHERE wo.id = ? ${tenantId ? 'AND wo.tenant_id = ?' : ''}
+  `).bind(params!.id, ...(tenantId ? [tenantId] : [])).first();
+
+  return json({ workOrder: updated });
+});
+
+// Work Orders: Change status (with auto-timestamps)
+route('POST', '/api/work-orders/:id/status', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const tenantId = getTenantId(request);
+  const body = await request.json() as any;
+  const newStatus = body.status;
+
+  if (!newStatus || !['pending', 'scheduled', 'in_progress', 'completed', 'cancelled'].includes(newStatus)) {
+    return error('Invalid status', 400);
+  }
+
+  const updates: string[] = ['status = ?', 'updated_at = datetime("now")'];
+  const values: any[] = [newStatus];
+
+  // Auto-set timestamps based on status transition
+  if (newStatus === 'in_progress') {
+    updates.push('started_at = datetime("now")');
+  }
+  if (newStatus === 'completed') {
+    updates.push('completed_at = datetime("now")');
+    // Calculate actual_duration if started_at exists
+    const wo = await env.DB.prepare(
+      `SELECT started_at FROM work_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(params!.id, ...(tenantId ? [tenantId] : [])).first() as any;
+    if (wo?.started_at) {
+      const startedAt = new Date(wo.started_at).getTime();
+      const now = Date.now();
+      const durationMinutes = Math.round((now - startedAt) / 60000);
+      updates.push('actual_duration = ?');
+      values.push(durationMinutes);
+    }
+  }
+
+  values.push(params!.id);
+  if (tenantId) values.push(tenantId);
+
+  await env.DB.prepare(`UPDATE work_orders SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
+
+  return json({ success: true });
+});
+
+// Work Orders: Delete
+route('DELETE', '/api/work-orders/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const tenantId = getTenantId(request);
+
+  await env.DB.prepare(
+    `DELETE FROM work_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params!.id, ...(tenantId ? [tenantId] : [])).run();
+
+  return json({ success: true });
+});
+
 // ==================== CATEGORIES ROUTES ====================
 
 route('GET', '/api/categories', async (request, env) => {
@@ -7477,6 +7718,122 @@ route('GET', '/api/ratings', async (request, env) => {
   `).bind(user.id).all();
 
   return json(results);
+});
+
+// ==================== UK SATISFACTION RATINGS ====================
+
+// Submit monthly UK satisfaction rating
+route('POST', '/api/uk-ratings', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const body = await request.json() as any;
+  const { overall, cleanliness, responsiveness, communication, comment } = body;
+
+  if (!overall || overall < 1 || overall > 5) {
+    return error('Invalid overall rating', 400);
+  }
+
+  const tenantId = getTenantId(request) || 'default';
+  const now = new Date();
+  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const id = crypto.randomUUID();
+
+  try {
+    await env.DB.prepare(`
+      INSERT INTO uk_satisfaction_ratings (id, resident_id, tenant_id, period, overall, cleanliness, responsiveness, communication, comment)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(resident_id, tenant_id, period) DO UPDATE SET
+        overall = excluded.overall,
+        cleanliness = excluded.cleanliness,
+        responsiveness = excluded.responsiveness,
+        communication = excluded.communication,
+        comment = excluded.comment,
+        created_at = datetime('now')
+    `).bind(id, user.id, tenantId, period, overall, cleanliness || null, responsiveness || null, communication || null, comment || null).run();
+
+    return json({ success: true, period });
+  } catch (e: any) {
+    return error('Failed to submit rating: ' + e.message, 500);
+  }
+});
+
+// Get current user's UK rating for current month
+route('GET', '/api/uk-ratings/my', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const tenantId = getTenantId(request) || 'default';
+  const now = new Date();
+  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const result = await env.DB.prepare(`
+    SELECT * FROM uk_satisfaction_ratings WHERE resident_id = ? AND tenant_id = ? AND period = ?
+  `).bind(user.id, tenantId, period).first();
+
+  return json({ rating: result || null, period });
+});
+
+// Get UK rating summary (admin/director/manager)
+route('GET', '/api/uk-ratings/summary', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'manager', 'director', 'department_head'].includes(user.role)) {
+    return error('Unauthorized', 401);
+  }
+
+  const tenantId = getTenantId(request) || 'default';
+  const url = new URL(request.url);
+  const months = parseInt(url.searchParams.get('months') || '6');
+
+  // Get monthly averages for the last N months
+  const { results: monthlyData } = await env.DB.prepare(`
+    SELECT
+      period,
+      COUNT(*) as total_votes,
+      ROUND(AVG(overall), 2) as avg_overall,
+      ROUND(AVG(cleanliness), 2) as avg_cleanliness,
+      ROUND(AVG(responsiveness), 2) as avg_responsiveness,
+      ROUND(AVG(communication), 2) as avg_communication
+    FROM uk_satisfaction_ratings
+    WHERE tenant_id = ?
+    GROUP BY period
+    ORDER BY period DESC
+    LIMIT ?
+  `).bind(tenantId, months).all();
+
+  // Get current month stats
+  const now = new Date();
+  const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1);
+  const prevPeriod = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+
+  const currentMonth = monthlyData.find((m: any) => m.period === currentPeriod);
+  const previousMonth = monthlyData.find((m: any) => m.period === prevPeriod);
+
+  // Calculate trend
+  let trend = 0;
+  if (currentMonth && previousMonth) {
+    trend = Math.round(((currentMonth as any).avg_overall - (previousMonth as any).avg_overall) / (previousMonth as any).avg_overall * 100);
+  }
+
+  // Get recent comments
+  const { results: recentComments } = await env.DB.prepare(`
+    SELECT r.comment, r.overall, r.period, r.created_at, u.name as resident_name
+    FROM uk_satisfaction_ratings r
+    LEFT JOIN users u ON r.resident_id = u.id
+    WHERE r.tenant_id = ? AND r.comment IS NOT NULL AND r.comment != ''
+    ORDER BY r.created_at DESC
+    LIMIT 10
+  `).bind(tenantId).all();
+
+  return json({
+    monthly: monthlyData,
+    current: currentMonth || null,
+    previous: previousMonth || null,
+    trend,
+    recentComments,
+    currentPeriod,
+  });
 });
 
 // ==================== TRAINING SYSTEM ROUTES ====================
@@ -8728,6 +9085,8 @@ route('GET', '/api/meetings/:id', async (request, env, params) => {
     const totalItemWeight = votes.for.weight + votes.against.weight + votes.abstain.weight;
     return {
       ...item,
+      // Parse attachments JSON
+      attachments: item.attachments ? (() => { try { return JSON.parse(item.attachments); } catch { return []; } })() : [],
       // Return numeric weights for proper calculations
       votesFor: votes.for.weight,
       votesAgainst: votes.against.weight,
@@ -8922,15 +9281,20 @@ route('POST', '/api/meetings', async (request, env) => {
     for (let i = 0; i < agendaItems.length; i++) {
       const item = agendaItems[i];
       const itemId = generateId();
+      const attachmentsJson = item.attachments
+        ? (typeof item.attachments === 'string' ? item.attachments : JSON.stringify(item.attachments))
+        : null;
       await env.DB.prepare(`
-        INSERT INTO meeting_agenda_items (id, meeting_id, item_order, title, description, threshold, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO meeting_agenda_items (id, meeting_id, item_order, title, description, description_extended, attachments, threshold, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         itemId,
         id,
         i + 1,
         item.title,
         item.description || null,
+        item.description_extended || item.descriptionExtended || null,
+        attachmentsJson,
         item.threshold || 'simple_majority',
         getTenantId(request)
       ).run();
@@ -9151,7 +9515,29 @@ route('POST', '/api/meetings/:id/reject', async (request, env, params) => {
   `).bind(body.reason || 'Rejected by moderator', params.id, ...(tenantId ? [tenantId] : [])).run();
 
   invalidateCache('meetings:');
-  const updated = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+  const updated = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+
+  // Notify building residents about meeting rejection
+  if (updated?.building_id) {
+    const { results: residents } = await env.DB.prepare(
+      `SELECT id FROM users WHERE role = 'resident' AND is_active = 1 AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(updated.building_id, ...(tenantId ? [tenantId] : [])).all();
+
+    const rejectMeetingBody = `Собрание "${updated.title || ''}" отклонено. Причина: ${body.reason || 'не указана'}`;
+    for (const resident of (residents || []) as any[]) {
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(generateId(), resident.id, '❌ Собрание отклонено', rejectMeetingBody, JSON.stringify({ meeting_id: params.id }), tenantId).run().catch(() => {});
+      sendPushNotification(env, resident.id, {
+        title: '❌ Собрание отклонено',
+        body: rejectMeetingBody,
+        type: 'meeting_rejected',
+        tag: `meeting-rejected-${params.id}`,
+        data: { meetingId: params.id, url: '/meetings' },
+        requireInteraction: false
+      }).catch(() => {});
+    }
+  }
+
   return json({ meeting: updated });
 });
 
@@ -9261,7 +9647,7 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
   `).bind(totalArea, totalEligibleCount, params.id).run();
 
   invalidateCache('meetings:');
-  const updated = await getMeetingWithDetails(env, params.id);
+  const updated = await getMeetingWithDetails(env, params.id, tenantId);
 
   // Send push notifications to building residents - voting opened
   if (meeting?.building_id) {
@@ -9382,7 +9768,7 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
   `).bind(params.id).run();
 
   invalidateCache('meetings:');
-  const updated = await getMeetingWithDetails(env, params.id);
+  const updated = await getMeetingWithDetails(env, params.id, tenantId);
 
   // Send push notifications to building residents - voting closed, results ready
   if (meeting?.building_id) {
@@ -9424,7 +9810,7 @@ route('POST', '/api/meetings/:id/publish-results', async (request, env, params) 
   `).bind(params.id).run();
 
   invalidateCache('meetings:');
-  const updated = await getMeetingWithDetails(env, params.id);
+  const updated = await getMeetingWithDetails(env, params.id, tenantId);
 
   // Send push notifications to building residents - results published
   if (meeting?.building_id) {
@@ -9553,11 +9939,25 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
 
     // Include comments if any
     if (comments.results && comments.results.length > 0) {
-      content += `**Доводы и комментарии участников:**\n\n`;
-      for (const c of comments.results) {
-        const comment = c as any;
-        content += `> "${comment.content || comment.comment}"\n`;
-        content += `> — ${comment.resident_name || comment.user_name || 'Участник'}${comment.apartment_number || comment.apartment ? `, кв. ${comment.apartment_number || comment.apartment}` : ''}\n\n`;
+      const objections = (comments.results as any[]).filter(c => c.comment_type === 'objection');
+      const regularComments = (comments.results as any[]).filter(c => c.comment_type !== 'objection');
+
+      if (objections.length > 0) {
+        content += `**Возражения участников (голосовали ПРОТИВ):**\n\n`;
+        for (const c of objections) {
+          content += `> ⚠️ "${c.content}"\n`;
+          content += `> — ${c.resident_name || 'Участник'}${c.apartment_number ? `, кв. ${c.apartment_number}` : ''}\n\n`;
+          if (c.counter_proposal) {
+            content += `> 💡 **Альтернативное предложение:** ${c.counter_proposal}\n\n`;
+          }
+        }
+      }
+      if (regularComments.length > 0) {
+        content += `**Комментарии участников:**\n\n`;
+        for (const c of regularComments) {
+          content += `> "${c.content}"\n`;
+          content += `> — ${c.resident_name || 'Участник'}${c.apartment_number ? `, кв. ${c.apartment_number}` : ''}\n\n`;
+        }
       }
     }
 
@@ -9804,7 +10204,29 @@ route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
   `).bind(body.reason || 'Cancelled', params.id, ...(tenantId ? [tenantId] : [])).run();
 
   invalidateCache('meetings:');
-  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first() as any;
+
+  // Notify building residents about meeting cancellation
+  if (updated?.building_id) {
+    const { results: residentsCancel } = await env.DB.prepare(
+      `SELECT id FROM users WHERE role = 'resident' AND is_active = 1 AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(updated.building_id, ...(tenantId ? [tenantId] : [])).all();
+
+    const cancelMeetingBody = `Собрание "${updated.title || ''}" отменено. ${body.reason ? 'Причина: ' + body.reason : ''}`;
+    for (const resident of (residentsCancel || []) as any[]) {
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting_cancelled', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(generateId(), resident.id, '❌ Собрание отменено', cancelMeetingBody, JSON.stringify({ meeting_id: params.id }), tenantId).run().catch(() => {});
+      sendPushNotification(env, resident.id, {
+        title: '❌ Собрание отменено',
+        body: cancelMeetingBody,
+        type: 'meeting_cancelled',
+        tag: `meeting-cancelled-${params.id}`,
+        data: { meetingId: params.id, url: '/meetings' },
+        requireInteraction: true
+      }).catch(() => {});
+    }
+  }
+
   return json({ meeting: updated });
 });
 
@@ -10004,39 +10426,21 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
       return error('Revoting is not allowed for this meeting', 400);
     }
 
-    // Mark old vote as revoted and create new vote
+    // UPDATE existing vote in-place (avoids UNIQUE constraint issue)
+    // Previous choice is preserved in the reconsideration requests table
     await env.DB.prepare(`
       UPDATE meeting_vote_records
-      SET is_revote = 1
+      SET choice = ?, vote = ?, vote_hash = ?, voted_at = datetime('now'),
+          vote_weight = ?, verification_method = ?, otp_verified = ?
       WHERE id = ?
-    `).bind(existingVote.id).run();
-
-    // Insert new vote with reference to previous
-    const newId = generateId();
-    await env.DB.prepare(`
-      INSERT INTO meeting_vote_records (
-        id, meeting_id, agenda_item_id,
-        user_id, vote, voter_id, voter_name, apartment_id, apartment_number, ownership_share, vote_weight,
-        choice, verification_method, otp_verified, vote_hash, previous_vote_id, tenant_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      newId,
-      params.meetingId,
-      params.agendaItemId,
-      authUser.id,           // user_id (NOT NULL)
-      body.choice,           // vote (NOT NULL) - same as choice
-      authUser.id,           // voter_id
-      authUser.name,
-      body.apartment_id || body.apartmentId || null,
-      apartmentNumber,
-      apartmentArea,
-      apartmentArea, // vote_weight = apartment area in sq.m
       body.choice,
+      body.choice,
+      voteHash,
+      apartmentArea,
       body.verification_method || body.verificationMethod || 'login',
       body.otp_verified || body.otpVerified ? 1 : 0,
-      voteHash,
-      existingVote.id,
-      getTenantId(request)
+      existingVote.id
     ).run();
   } else {
     // Insert new vote with vote_weight = apartment area
@@ -10077,19 +10481,30 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
     }
   }
 
-  // Save comment/reasoning if provided
+  // Save comment/objection if provided (auto-type: 'objection' for against votes)
   const comment = body.comment?.trim();
-  if (comment && comment.length > 0) {
+  const counterProposal = body.counter_proposal?.trim() || null;
+  const commentType = body.comment_type || (body.choice === 'against' ? 'objection' : 'comment');
+  if ((comment && comment.length > 0) || (counterProposal && counterProposal.length > 0)) {
     const commentId = generateId();
+    const voterData = eligibleVoter || await env.DB.prepare(
+      'SELECT apartment FROM users WHERE id = ?'
+    ).bind(authUser.id).first() as any;
     await env.DB.prepare(`
       INSERT INTO meeting_agenda_comments (
-        id, agenda_item_id, user_id, comment, tenant_id
-      ) VALUES (?, ?, ?, ?, ?)
+        id, agenda_item_id, meeting_id, resident_id, resident_name, apartment_number,
+        content, comment_type, counter_proposal, include_in_protocol, tenant_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
     `).bind(
       commentId,
       params.agendaItemId,
+      params.meetingId,
       authUser.id,
-      comment,
+      authUser.name,
+      apartmentNumber || voterData?.apartment || null,
+      comment || 'Голосовал(а) ПРОТИВ',
+      commentType,
+      counterProposal,
       getTenantId(request)
     ).run();
   }
@@ -10954,9 +11369,9 @@ route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, para
   for (const item of agendaItems) {
     const i = item as any;
     const [votesFor, votesAgainst, votesAbstain, comments] = await Promise.all([
-      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'for' AND is_revote = 0").bind(i.id).first(),
-      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'against' AND is_revote = 0").bind(i.id).first(),
-      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'abstain' AND is_revote = 0").bind(i.id).first(),
+      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'for' AND v.is_revote = 0").bind(i.id).first(),
+      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'against' AND v.is_revote = 0").bind(i.id).first(),
+      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'abstain' AND v.is_revote = 0").bind(i.id).first(),
       env.DB.prepare("SELECT * FROM meeting_agenda_comments WHERE agenda_item_id = ? ORDER BY created_at").bind(i.id).all()
     ]) as any[];
 
@@ -10966,8 +11381,11 @@ route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, para
     const againstWeight = votesAgainst?.weight || 0;
     const abstainCount = votesAbstain?.count || 0;
     const abstainWeight = votesAbstain?.weight || 0;
-    const totalVotes = forCount + againstCount + abstainCount;
-    const percentFor = totalVotes > 0 ? (forCount / totalVotes) * 100 : 0;
+    const totalWeight = forWeight + againstWeight + abstainWeight;
+    // Use weight-based percentages (sq.m area per Uzbekistan law)
+    const percentForByWeight = totalWeight > 0 ? (forWeight / totalWeight) * 100 : 0;
+    const percentAgainstByWeight = totalWeight > 0 ? (againstWeight / totalWeight) * 100 : 0;
+    const percentAbstainByWeight = totalWeight > 0 ? (abstainWeight / totalWeight) * 100 : 0;
 
     const thresholdLabels: Record<string, string> = {
       simple_majority: 'Простое большинство (>50%)',
@@ -10985,13 +11403,13 @@ route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, para
 
     <div class="votes">
       <div class="vote-block">
-        <strong>ЗА:</strong> ${forCount} голосов (${forWeight.toFixed(2)} кв.м) — ${percentFor.toFixed(1)}%
+        <strong>ЗА:</strong> ${forCount} голосов (${forWeight.toFixed(2)} кв.м) — ${percentForByWeight.toFixed(1)}%
       </div>
       <div class="vote-block">
-        <strong>ПРОТИВ:</strong> ${againstCount} голосов (${againstWeight.toFixed(2)} кв.м)
+        <strong>ПРОТИВ:</strong> ${againstCount} голосов (${againstWeight.toFixed(2)} кв.м) — ${percentAgainstByWeight.toFixed(1)}%
       </div>
       <div class="vote-block">
-        <strong>ВОЗДЕРЖАЛИСЬ:</strong> ${abstainCount} голосов (${abstainWeight.toFixed(2)} кв.м)
+        <strong>ВОЗДЕРЖАЛИСЬ:</strong> ${abstainCount} голосов (${abstainWeight.toFixed(2)} кв.м) — ${percentAbstainByWeight.toFixed(1)}%
       </div>
     </div>
 `;
@@ -11091,7 +11509,7 @@ route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, para
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Access-Control-Allow-Origin': currentCorsOrigin,
+      'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
     }
   });
 });
@@ -11261,10 +11679,11 @@ route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, param
   // Add agenda items
   for (const item of agendaItems) {
     const i = item as any;
-    const [votesFor, votesAgainst, votesAbstain] = await Promise.all([
-      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'for' AND is_revote = 0").bind(i.id).first(),
-      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'against' AND is_revote = 0").bind(i.id).first(),
-      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(vote_weight), 0) as weight FROM meeting_vote_records WHERE agenda_item_id = ? AND choice = 'abstain' AND is_revote = 0").bind(i.id).first(),
+    const [votesFor, votesAgainst, votesAbstain, docComments] = await Promise.all([
+      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'for' AND v.is_revote = 0").bind(i.id).first(),
+      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'against' AND v.is_revote = 0").bind(i.id).first(),
+      env.DB.prepare("SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'abstain' AND v.is_revote = 0").bind(i.id).first(),
+      env.DB.prepare("SELECT * FROM meeting_agenda_comments WHERE agenda_item_id = ? ORDER BY created_at").bind(i.id).all(),
     ]) as any[];
 
     const forCount = votesFor?.count || 0;
@@ -11273,8 +11692,11 @@ route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, param
     const againstWeight = votesAgainst?.weight || 0;
     const abstainCount = votesAbstain?.count || 0;
     const abstainWeight = votesAbstain?.weight || 0;
-    const totalVotes = forCount + againstCount + abstainCount;
-    const percentFor = totalVotes > 0 ? (forCount / totalVotes) * 100 : 0;
+    const totalWeight = forWeight + againstWeight + abstainWeight;
+    // Use weight-based percentages (sq.m = vote weight per Uzbekistan law)
+    const percentForByWeight = totalWeight > 0 ? (forWeight / totalWeight) * 100 : 0;
+    const percentAgainstByWeight = totalWeight > 0 ? (againstWeight / totalWeight) * 100 : 0;
+    const percentAbstainByWeight = totalWeight > 0 ? (abstainWeight / totalWeight) * 100 : 0;
 
     const thresholdLabels: Record<string, string> = {
       simple_majority: 'Простое большинство (>50%)',
@@ -11283,6 +11705,25 @@ route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, param
       three_quarters: '3/4 голосов',
       unanimous: 'Единогласно'
     };
+
+    // Build objections HTML
+    const objections = (docComments?.results || []).filter((c: any) => c.comment_type === 'objection');
+    const regularComments = (docComments?.results || []).filter((c: any) => c.comment_type !== 'objection');
+    let objHtml = '';
+    if (objections.length > 0) {
+      objHtml += `<p><b>Возражения участников (голосовали ПРОТИВ):</b></p>`;
+      for (const c of objections as any[]) {
+        objHtml += `<blockquote>⚠️ "${c.content}" — ${c.resident_name || 'Участник'}${c.apartment_number ? `, кв. ${c.apartment_number}` : ''}`;
+        if (c.counter_proposal) objHtml += `<br/>💡 <b>Альтернативное предложение:</b> ${c.counter_proposal}`;
+        objHtml += `</blockquote>`;
+      }
+    }
+    if (regularComments.length > 0) {
+      objHtml += `<p><b>Комментарии участников:</b></p>`;
+      for (const c of regularComments as any[]) {
+        objHtml += `<blockquote>"${c.content}" — ${c.resident_name || 'Участник'}${c.apartment_number ? `, кв. ${c.apartment_number}` : ''}</blockquote>`;
+      }
+    }
 
     docContent += `
   <div class="agenda-item">
@@ -11297,11 +11738,13 @@ route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, param
         <th>ВОЗДЕРЖАЛИСЬ</th>
       </tr>
       <tr>
-        <td>${forCount} голосов (${forWeight.toFixed(2)} кв.м) — ${percentFor.toFixed(1)}%</td>
-        <td>${againstCount} голосов (${againstWeight.toFixed(2)} кв.м)</td>
-        <td>${abstainCount} голосов (${abstainWeight.toFixed(2)} кв.м)</td>
+        <td>${forCount} голосов (${forWeight.toFixed(2)} кв.м) — ${percentForByWeight.toFixed(1)}%</td>
+        <td>${againstCount} голосов (${againstWeight.toFixed(2)} кв.м) — ${percentAgainstByWeight.toFixed(1)}%</td>
+        <td>${abstainCount} голосов (${abstainWeight.toFixed(2)} кв.м) — ${percentAbstainByWeight.toFixed(1)}%</td>
       </tr>
     </table>
+
+    ${objHtml}
 
     <div class="decision ${i.is_approved ? 'decision-approved' : 'decision-rejected'}">
       РЕШЕНИЕ: ${i.is_approved ? 'ПРИНЯТО' : 'НЕ ПРИНЯТО'}
@@ -11367,7 +11810,7 @@ route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, param
     headers: {
       'Content-Type': 'application/msword',
       'Content-Disposition': `attachment; filename="${filename}"`,
-      'Access-Control-Allow-Origin': currentCorsOrigin,
+      'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
     }
   });
 });
@@ -11548,7 +11991,7 @@ route('DELETE', '/api/comments/:commentId', async (request, env, params) => {
 // ==================== STATS ROUTES ====================
 
 // Stats helper function
-async function getStats(env: Env) {
+async function getStats(env: Env, request: Request) {
   const tenantId = getTenantId(request);
   const tenantFilter = tenantId ? ' AND tenant_id = ?' : '';
   const tenantWhere = tenantId ? ' WHERE tenant_id = ?' : '';
@@ -11572,12 +12015,12 @@ async function getStats(env: Env) {
 }
 
 route('GET', '/api/stats', async (request, env) => {
-  return json(await getStats(env));
+  return json(await getStats(env, request));
 });
 
 // Alias for /api/stats/dashboard (frontend compatibility)
 route('GET', '/api/stats/dashboard', async (request, env) => {
-  return json(await getStats(env));
+  return json(await getStats(env, request));
 });
 
 // ==================== SETTINGS ROUTES ====================
@@ -11710,10 +12153,10 @@ route('GET', '/api/notifications/count', async (request, env) => {
   return json({ count: (result as any)?.count || 0 });
 });
 
-// Create notification
+// Create notification (management only)
 route('POST', '/api/notifications', async (request, env) => {
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  if (!isManagement(authUser)) return error('Management access required', 403);
 
   const body = await request.json() as any;
   const id = generateId();
@@ -12223,7 +12666,7 @@ async function sendWebPush(
     console.log('[Push] Creating VAPID auth header...');
     const vapid = await createVapidAuthHeader(
       endpoint,
-      'mailto:admin@kamizo.uz',
+      `mailto:${env.VAPID_EMAIL || 'admin@kamizo.uz'}`,
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
     );
@@ -12273,6 +12716,8 @@ async function sendPushNotification(
     type?: string;
     data?: Record<string, any>;
     requireInteraction?: boolean;
+    skipInApp?: boolean;
+    tenantId?: string | null;
   }
 ): Promise<boolean> {
   // Get user's push subscriptions
@@ -12331,33 +12776,33 @@ async function sendPushNotification(
     }
   }
 
-  // Also store in notifications table for in-app display (only ONCE, not per subscription)
-  // Use tag as unique constraint to prevent duplicates within 1 minute
-  const notifId = generateId();
-  try {
-    // Check if notification with same tag already exists (avoid duplicates)
-    const existingNotif = notification.tag
-      ? await env.DB.prepare(
-          `SELECT id FROM notifications WHERE user_id = ? AND data LIKE ? AND created_at > datetime('now', '-1 minute')`
-        ).bind(userId, `%"tag":"${notification.tag}"%`).first()
-      : null;
+  // Store in-app notification (unless caller handles it separately via skipInApp flag)
+  if (!notification.skipInApp) {
+    const notifId = generateId();
+    try {
+      const existingNotif = notification.tag
+        ? await env.DB.prepare(
+            `SELECT id FROM notifications WHERE user_id = ? AND data LIKE ? AND created_at > datetime('now', '-1 minute')`
+          ).bind(userId, `%"tag":"${notification.tag}"%`).first()
+        : null;
 
-    if (!existingNotif) {
-      await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now'))
-      `).bind(
-        notifId,
-        userId,
-        notification.type || 'push',
-        notification.title,
-        notification.body,
-        JSON.stringify({ ...notification.data, tag: notification.tag })
-      ).run();
+      if (!existingNotif) {
+        await env.DB.prepare(`
+          INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+          VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now'), ?)
+        `).bind(
+          notifId,
+          userId,
+          notification.type || 'push',
+          notification.title,
+          notification.body,
+          JSON.stringify({ ...notification.data, tag: notification.tag }),
+          notification.tenantId || null
+        ).run();
+      }
+    } catch (e) {
+      console.error('[Notification] Failed to store in-app notification:', e);
     }
-  } catch (e) {
-    // Ignore if notifications table doesn't exist
-    console.error('[Notification] Failed to store in-app notification:', e);
   }
 
   return successCount > 0;
@@ -12640,8 +13085,8 @@ route('POST', '/api/ads', async (request, env) => {
       INSERT INTO ads (
         id, advertiser_id, category_id, title, description, phone, phone2, telegram, instagram, facebook, website,
         address, work_hours, work_days, logo_url, photos, discount_percent, badges,
-        target_type, target_branches, starts_at, expires_at, duration_type, status, created_by, tenant_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        target_type, target_branches, target_buildings, starts_at, expires_at, duration_type, status, created_by, tenant_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       authUser.id,
@@ -12663,6 +13108,7 @@ route('POST', '/api/ads', async (request, env) => {
       body.badges ? JSON.stringify(body.badges) : null,
       body.target_type || 'all',
       body.target_branches ? JSON.stringify(body.target_branches) : '[]',
+      body.target_buildings ? JSON.stringify(body.target_buildings) : '[]',
       startsAt,
       expiresAt,
       body.duration_type || 'month',
@@ -12720,6 +13166,10 @@ route('PATCH', '/api/ads/:id', async (request, env, params) => {
   if (body.target_branches !== undefined) {
     updates.push('target_branches = ?');
     values.push(JSON.stringify(body.target_branches));
+  }
+  if (body.target_buildings !== undefined) {
+    updates.push('target_buildings = ?');
+    values.push(JSON.stringify(body.target_buildings));
   }
 
   if (updates.length > 0) {
@@ -12945,6 +13395,8 @@ route('GET', '/api/ads', async (request, env) => {
   userBranch = userBranch || 'YS'; // Default fallback
   const now = new Date().toISOString();
 
+  const userTenantId = (authUser as any).tenant_id;
+
   let query = `
     SELECT a.*, c.name_ru as category_name, c.name_uz as category_name_uz, c.icon as category_icon,
       (SELECT COUNT(*) FROM ad_coupons WHERE ad_id = a.id AND user_id = ?) as user_has_coupon
@@ -12957,6 +13409,18 @@ route('GET', '/api/ads', async (request, env) => {
            OR (a.target_type = 'branches' AND (a.target_branches IS NULL OR a.target_branches = '[]' OR a.target_branches LIKE ?)))
   `;
   const params: any[] = [authUser.id, now, now, `%${userBranch}%`];
+
+  // Filter by tenant: show tenant-specific ads OR enabled platform ads for this tenant
+  if (userTenantId) {
+    query += ` AND (
+      a.tenant_id = ?
+      OR (a.tenant_id IS NULL AND EXISTS (
+        SELECT 1 FROM ad_tenant_assignments ata
+        WHERE ata.ad_id = a.id AND ata.tenant_id = ? AND ata.enabled = 1
+      ))
+    )`;
+    params.push(userTenantId, userTenantId);
+  }
 
   if (categoryId) {
     query += ` AND a.category_id = ?`;
@@ -12987,6 +13451,34 @@ route('GET', '/api/ads', async (request, env) => {
     console.error('Error fetching ads:', err.message, 'Query:', query, 'Params:', params);
     return error(`Database error: ${err.message}`, 500);
   }
+});
+
+// GET /api/ads/assigned - admin/manager/director sees platform ads assigned to their tenant
+route('GET', '/api/ads/assigned', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+  if (!['admin', 'manager', 'director'].includes(authUser.role)) return error('Access denied', 403);
+
+  const tenantId = (authUser as any).tenant_id;
+  if (!tenantId) return json({ ads: [] });
+
+  const { results } = await env.DB.prepare(`
+    SELECT a.*, c.name_ru as category_name, c.name_uz as category_name_uz, c.icon as category_icon,
+      ata.enabled as tenant_enabled, ata.assigned_at
+    FROM ads a
+    JOIN ad_categories c ON a.category_id = c.id
+    JOIN ad_tenant_assignments ata ON ata.ad_id = a.id AND ata.tenant_id = ?
+    WHERE a.tenant_id IS NULL AND a.status != 'archived'
+    ORDER BY a.created_at DESC
+  `).bind(tenantId).all();
+
+  const ads = (results || []).map((ad: any) => ({
+    ...ad,
+    badges: ad.badges ? JSON.parse(ad.badges) : {},
+    photos: ad.photos ? JSON.parse(ad.photos) : [],
+  }));
+
+  return json({ ads });
 });
 
 // Get single ad details
@@ -13132,21 +13624,25 @@ route('GET', '/api/health', async (request, env) => {
 
 // Tenant Config (returns current tenant's configuration)
 route('GET', '/api/tenant/config', async (request, env) => {
-  if (!currentTenant) {
+  const tenant = getCurrentTenant();
+  if (!tenant) {
     return json({ tenant: null, features: [] });
   }
 
   try {
-    const features = JSON.parse(currentTenant.features || '[]');
+    const features = JSON.parse(tenant.features || '[]');
     return json({
       tenant: {
-        id: currentTenant.id,
-        name: currentTenant.name,
-        slug: currentTenant.slug,
-        color: currentTenant.color,
-        color_secondary: currentTenant.color_secondary,
-        plan: currentTenant.plan,
-        logo: currentTenant.logo || null,
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        color: tenant.color,
+        color_secondary: tenant.color_secondary,
+        plan: tenant.plan,
+        logo: tenant.logo || null,
+        is_demo: tenant.is_demo === 1 || tenant.is_demo === true,
+        show_useful_contacts_banner: tenant.show_useful_contacts_banner !== 0 ? 1 : 0,
+        show_marketplace_banner: tenant.show_marketplace_banner !== 0 ? 1 : 0,
       },
       features
     });
@@ -13581,13 +14077,22 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
     // Execute all statements as a batch (atomic transaction)
     await env.DB.batch(statements);
 
-    // Create notification for managers (tenant-filtered)
+    // Create notification for managers (DB + push)
     const managers = await env.DB.prepare(`SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'marketplace_manager') ${tenantIdOrder ? 'AND tenant_id = ?' : ''}`).bind(...(tenantIdOrder ? [tenantIdOrder] : [])).all() as { results: any[] };
+    const orderNotifBody = `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`;
     for (const manager of (managers.results || [])) {
       await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, body, data, created_at, tenant_id)
-        VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'), ?)
-      `).bind(generateId(), manager.id, `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`, JSON.stringify({ order_id: orderId }), getTenantId(request)).run();
+        INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+        VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, 0, datetime('now'), ?)
+      `).bind(generateId(), manager.id, orderNotifBody, JSON.stringify({ order_id: orderId }), getTenantId(request)).run();
+      sendPushNotification(env, manager.id, {
+        title: '🛒 Новый заказ',
+        body: orderNotifBody,
+        type: 'marketplace_order',
+        tag: `order-new-${orderId}`,
+        data: { orderId, url: '/marketplace' },
+        requireInteraction: true
+      }).catch(() => {});
     }
 
     console.log('[Marketplace Order] Order created successfully:', orderNumber);
@@ -13894,20 +14399,38 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
       VALUES (?, ?, 'confirmed', 'Назначен исполнитель', ?, ?)
     `).bind(generateId(), params.id, user.id, getTenantId(request)).run();
 
-    // Notify executor about new order
+    // Notify executor about new order (DB + push)
     if (executor_id) {
       const order = await env.DB.prepare(`SELECT order_number, user_id FROM marketplace_orders WHERE id = ? ${tenantIdAdmOrd ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantIdAdmOrd ? [tenantIdAdmOrd] : [])).first() as any;
+      const execOrderBody = `Вам назначен заказ ${order?.order_number || ''}`;
       await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, body, data, created_at, tenant_id)
-        VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, datetime('now'), ?)
-      `).bind(generateId(), executor_id, `Вам назначен заказ ${order?.order_number || ''}`, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+        INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+        VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, 0, datetime('now'), ?)
+      `).bind(generateId(), executor_id, execOrderBody, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+      sendPushNotification(env, executor_id, {
+        title: '🛒 Новый заказ назначен',
+        body: execOrderBody,
+        type: 'marketplace_order',
+        tag: `order-assigned-${params.id}`,
+        data: { orderId: params.id, url: '/' },
+        requireInteraction: true
+      }).catch(() => {});
 
-      // Notify customer that order is confirmed
+      // Notify customer that order is confirmed (DB + push)
       if (order?.user_id) {
+        const custConfirmBody = `Заказ ${order.order_number} подтверждён`;
         await env.DB.prepare(`
-          INSERT INTO notifications (id, user_id, type, title, body, data, created_at, tenant_id)
-          VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'), ?)
-        `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+          INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+          VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, 0, datetime('now'), ?)
+        `).bind(generateId(), order.user_id, custConfirmBody, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+        sendPushNotification(env, order.user_id, {
+          title: '🛒 Заказ подтверждён',
+          body: custConfirmBody,
+          type: 'marketplace_order',
+          tag: `order-status-${params.id}`,
+          data: { orderId: params.id, url: '/' },
+          requireInteraction: false
+        }).catch(() => {});
       }
     }
 
@@ -13957,7 +14480,7 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(generateId(), params.id, status, comment || null, user.id, getTenantId(request)).run();
 
-    // Notify user
+    // Notify user (DB + push)
     const order = await env.DB.prepare(`SELECT user_id, order_number FROM marketplace_orders WHERE id = ? ${tenantIdAdmOrd ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantIdAdmOrd ? [tenantIdAdmOrd] : [])).first() as any;
     if (order) {
       const statusLabels: Record<string, string> = {
@@ -13968,10 +14491,19 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
         delivered: 'доставлен',
         cancelled: 'отменён'
       };
+      const orderStatusBody = `Заказ ${order.order_number} ${statusLabels[status]}`;
       await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, body, data, created_at, tenant_id)
-        VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'), ?)
-      `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+        INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+        VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, 0, datetime('now'), ?)
+      `).bind(generateId(), order.user_id, orderStatusBody, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+      sendPushNotification(env, order.user_id, {
+        title: status === 'cancelled' ? '❌ Заказ отменён' : '🛒 Статус заказа',
+        body: orderStatusBody,
+        type: 'marketplace_order',
+        tag: `order-status-${params.id}`,
+        data: { orderId: params.id, url: '/' },
+        requireInteraction: status === 'delivered' || status === 'cancelled'
+      }).catch(() => {});
     }
   }
 
@@ -13981,7 +14513,7 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
 // Executor: Get my marketplace orders
 route('GET', '/api/marketplace/executor/orders', async (request, env) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
   }
 
@@ -14021,7 +14553,7 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
 // Executor (courier): Get delivered marketplace orders
 route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
   }
 
@@ -14058,7 +14590,7 @@ route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
 // Executor (courier): Get available marketplace orders to take
 route('GET', '/api/marketplace/executor/available', async (request, env) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
   }
 
@@ -14095,7 +14627,7 @@ route('GET', '/api/marketplace/executor/available', async (request, env) => {
 // Executor (courier): Take a marketplace order
 route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
   }
 
@@ -14130,11 +14662,20 @@ route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, 
     VALUES (?, ?, 'confirmed', 'Курьер взял заказ', ?, ?)
   `).bind(generateId(), params.id, user.id, tenantId).run();
 
-  // Notify customer
+  // Notify customer (DB + push)
+  const execTakeBody = `Заказ ${order.order_number} подтверждён`;
   await env.DB.prepare(`
-    INSERT INTO notifications (id, user_id, type, title, body, data, created_at, tenant_id)
-    VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'), ?)
-  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} подтверждён`, JSON.stringify({ order_id: params.id }), tenantId).run();
+    INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+    VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, 0, datetime('now'), ?)
+  `).bind(generateId(), order.user_id, execTakeBody, JSON.stringify({ order_id: params.id }), tenantId).run();
+  sendPushNotification(env, order.user_id, {
+    title: '🛒 Заказ подтверждён',
+    body: execTakeBody,
+    type: 'marketplace_order',
+    tag: `order-status-${params.id}`,
+    data: { orderId: params.id, url: '/' },
+    requireInteraction: false
+  }).catch(() => {});
 
   return json({ success: true });
 });
@@ -14142,7 +14683,7 @@ route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, 
 // Executor: Update order status (accept, prepare, deliver)
 route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || user.role !== 'executor') {
+  if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
   }
 
@@ -14198,17 +14739,26 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(generateId(), params.id, status, comment || null, user.id, getTenantId(request)).run();
 
-  // Notify customer
+  // Notify customer (DB + push)
   const statusLabels: Record<string, string> = {
     preparing: 'готовится',
     ready: 'готов к выдаче',
     delivering: 'доставляется',
     delivered: 'доставлен'
   };
+  const execStatusBody = `Заказ ${order.order_number} ${statusLabels[status]}`;
   await env.DB.prepare(`
-    INSERT INTO notifications (id, user_id, type, title, body, data, created_at, tenant_id)
-    VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, datetime('now'), ?)
-  `).bind(generateId(), order.user_id, `Заказ ${order.order_number} ${statusLabels[status]}`, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+    INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+    VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, 0, datetime('now'), ?)
+  `).bind(generateId(), order.user_id, execStatusBody, JSON.stringify({ order_id: params.id }), getTenantId(request)).run();
+  sendPushNotification(env, order.user_id, {
+    title: status === 'delivered' ? '✅ Заказ доставлен' : '🛒 Статус заказа',
+    body: execStatusBody,
+    type: 'marketplace_order',
+    tag: `order-status-${params.id}`,
+    data: { orderId: params.id, url: '/' },
+    requireInteraction: status === 'delivered'
+  }).catch(() => {});
 
   return json({ success: true });
 });
@@ -14593,8 +15143,293 @@ route('PATCH', '/api/marketplace/admin/categories/:id', async (request, env, par
   return json({ category: updated });
 });
 
+// ==================== SUPER ADMIN BANNERS ====================
+
+// GET /api/super-admin/banners - list all banners
+route('GET', '/api/super-admin/banners', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  const { results } = await env.DB.prepare('SELECT * FROM super_banners ORDER BY sort_order, created_at DESC').all();
+  return json({ banners: results });
+});
+
+// GET /api/banners?placement=marketplace - public, get active banners for a placement
+route('GET', '/api/banners', async (request, env) => {
+  const url = new URL(request.url);
+  const placement = url.searchParams.get('placement') || 'marketplace';
+  const { results } = await env.DB.prepare('SELECT * FROM super_banners WHERE is_active = 1 AND placement = ? ORDER BY sort_order, created_at DESC').bind(placement).all();
+  return json({ banners: results });
+});
+
+// POST /api/super-admin/banners - create banner
+route('POST', '/api/super-admin/banners', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  const body = await request.json() as any;
+  const id = generateId();
+  await env.DB.prepare(`
+    INSERT INTO super_banners (id, title, description, image_url, link_url, placement, is_active, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, body.title, body.description || null, body.image_url || null, body.link_url || null, body.placement || 'marketplace', body.is_active !== false ? 1 : 0, body.sort_order || 0).run();
+  const banner = await env.DB.prepare('SELECT * FROM super_banners WHERE id = ?').bind(id).first();
+  return json({ banner }, 201);
+});
+
+// PATCH /api/super-admin/banners/:id - update banner
+route('PATCH', '/api/super-admin/banners/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  const body = await request.json() as any;
+  const updates: string[] = [];
+  const values: any[] = [];
+  for (const [key, dbField] of Object.entries({ title: 'title', description: 'description', image_url: 'image_url', link_url: 'link_url', placement: 'placement', is_active: 'is_active', sort_order: 'sort_order' })) {
+    if (body[key] !== undefined) {
+      updates.push(`${dbField} = ?`);
+      values.push(typeof body[key] === 'boolean' ? (body[key] ? 1 : 0) : body[key]);
+    }
+  }
+  if (updates.length === 0) return json({ success: true });
+  updates.push("updated_at = datetime('now')");
+  values.push(params.id);
+  await env.DB.prepare(`UPDATE super_banners SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  const banner = await env.DB.prepare('SELECT * FROM super_banners WHERE id = ?').bind(params.id).first();
+  return json({ banner });
+});
+
+// DELETE /api/super-admin/banners/:id
+route('DELETE', '/api/super-admin/banners/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  await env.DB.prepare('DELETE FROM super_banners WHERE id = ?').bind(params.id).run();
+  return json({ success: true });
+});
+
+// ==================== SUPER ADMIN ADS MANAGEMENT ====================
+
+// GET /api/super-admin/ads - list all ads across all tenants
+route('GET', '/api/super-admin/ads', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const { results } = await env.DB.prepare(`
+    SELECT a.*, c.name_ru as category_name, c.icon as category_icon,
+      t.name as tenant_name, t.slug as tenant_slug,
+      u.name as creator_name,
+      (SELECT COUNT(*) FROM ad_tenant_assignments ata WHERE ata.ad_id = a.id) as assigned_tenants_count,
+      (SELECT GROUP_CONCAT(t2.name, ', ') FROM ad_tenant_assignments ata2
+        JOIN tenants t2 ON ata2.tenant_id = t2.id WHERE ata2.ad_id = a.id) as assigned_tenant_names
+    FROM ads a
+    LEFT JOIN ad_categories c ON a.category_id = c.id
+    LEFT JOIN tenants t ON a.tenant_id = t.id
+    LEFT JOIN users u ON a.created_by = u.id
+    ORDER BY a.created_at DESC
+  `).all();
+
+  return json({ ads: results || [] });
+});
+
+// POST /api/super-admin/ads - create ONE platform ad and assign to selected tenants
+route('POST', '/api/super-admin/ads', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const body = await request.json() as any;
+  if (!body.category_id || !body.title || !body.phone) {
+    return error('category_id, title, and phone are required', 400);
+  }
+
+  const targetTenantIds: string[] = body.target_tenant_ids || [];
+  if (targetTenantIds.length === 0) {
+    return error('Select at least one УК', 400);
+  }
+
+  const now = new Date();
+  const startsAt = body.starts_at || now.toISOString();
+  let expiresAt = body.expires_at;
+  if (!expiresAt) {
+    const expDate = new Date(startsAt);
+    switch (body.duration_type) {
+      case 'week': expDate.setDate(expDate.getDate() + 7); break;
+      case '2weeks': expDate.setDate(expDate.getDate() + 14); break;
+      case '3months': expDate.setMonth(expDate.getMonth() + 3); break;
+      case '6months': expDate.setMonth(expDate.getMonth() + 6); break;
+      case 'year': expDate.setFullYear(expDate.getFullYear() + 1); break;
+      default: expDate.setMonth(expDate.getMonth() + 1);
+    }
+    expiresAt = expDate.toISOString();
+  }
+
+  // Create ONE platform ad (tenant_id = NULL means it belongs to the platform)
+  const adId = generateId();
+  await env.DB.prepare(`
+    INSERT INTO ads (
+      id, category_id, title, description, phone, phone2, telegram, instagram, facebook, website,
+      address, work_hours, work_days, logo_url, photos, discount_percent, badges,
+      target_type, target_branches, target_buildings, starts_at, expires_at, duration_type, status, created_by, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  `).bind(
+    adId, body.category_id, body.title, body.description || null,
+    body.phone, body.phone2 || null, body.telegram || null, body.instagram || null,
+    body.facebook || null, body.website || null, body.address || null,
+    body.work_hours || null, body.work_days || null, body.logo_url || null,
+    body.photos ? JSON.stringify(body.photos) : null,
+    body.discount_percent || 0, body.badges ? JSON.stringify(body.badges) : null,
+    body.target_type || 'all',
+    body.target_branches ? JSON.stringify(body.target_branches) : '[]',
+    body.target_buildings ? JSON.stringify(body.target_buildings) : '[]',
+    startsAt, expiresAt, body.duration_type || 'month',
+    body.status || 'active', user.id
+  ).run();
+
+  // Create assignment records (one per tenant, enabled by default)
+  for (const tenantId of targetTenantIds) {
+    const assignId = generateId();
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO ad_tenant_assignments (id, ad_id, tenant_id, enabled)
+      VALUES (?, ?, ?, 1)
+    `).bind(assignId, adId, tenantId).run();
+  }
+
+  return json({ created: 1, id: adId, assigned_tenants: targetTenantIds.length }, 201);
+});
+
+// GET /api/super-admin/ads/:id/tenants - list tenant assignments for a platform ad
+route('GET', '/api/super-admin/ads/:id/tenants', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const { results: assignments } = await env.DB.prepare(`
+    SELECT ata.tenant_id, ata.enabled, ata.assigned_at,
+      t.name as tenant_name, t.slug as tenant_slug, t.color, t.color_secondary
+    FROM ad_tenant_assignments ata
+    JOIN tenants t ON ata.tenant_id = t.id
+    WHERE ata.ad_id = ?
+    ORDER BY t.name
+  `).bind(params.id).all();
+
+  const { results: allTenants } = await env.DB.prepare(`
+    SELECT id, name, slug, color, color_secondary FROM tenants ORDER BY name
+  `).all();
+
+  return json({ assignments: assignments || [], all_tenants: allTenants || [] });
+});
+
+// POST /api/super-admin/ads/:id/assign-tenants - replace tenant assignments
+route('POST', '/api/super-admin/ads/:id/assign-tenants', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const body = await request.json() as any;
+  const tenantIds: string[] = body.tenant_ids || [];
+
+  // Remove tenants not in new list
+  if (tenantIds.length > 0) {
+    const placeholders = tenantIds.map(() => '?').join(',');
+    await env.DB.prepare(
+      `DELETE FROM ad_tenant_assignments WHERE ad_id = ? AND tenant_id NOT IN (${placeholders})`
+    ).bind(params.id, ...tenantIds).run();
+  } else {
+    await env.DB.prepare(`DELETE FROM ad_tenant_assignments WHERE ad_id = ?`).bind(params.id).run();
+  }
+
+  // Insert new assignments (preserve existing enabled state via INSERT OR IGNORE)
+  for (const tenantId of tenantIds) {
+    const assignId = generateId();
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO ad_tenant_assignments (id, ad_id, tenant_id, enabled)
+      VALUES (?, ?, ?, 1)
+    `).bind(assignId, params.id, tenantId).run();
+  }
+
+  return json({ success: true, assigned: tenantIds.length });
+});
+
+// PATCH /api/super-admin/ads/:id/tenants/:tenantId - toggle enabled for a specific tenant
+// Callable by: super_admin (any tenant) OR admin/manager/director of that tenant
+route('PATCH', '/api/super-admin/ads/:id/tenants/:tenantId', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+
+  const isSA = isSuperAdmin(user);
+  const isOwnTenant = ['admin', 'manager', 'director'].includes(user.role) &&
+    (user as any).tenant_id === params.tenantId;
+
+  if (!isSA && !isOwnTenant) return error('Access denied', 403);
+
+  const body = await request.json() as any;
+  const enabled = body.enabled ? 1 : 0;
+
+  await env.DB.prepare(`
+    UPDATE ad_tenant_assignments SET enabled = ? WHERE ad_id = ? AND tenant_id = ?
+  `).bind(enabled, params.id, params.tenantId).run();
+
+  return json({ success: true, enabled });
+});
+
+// DELETE /api/super-admin/ads/:id - delete ad
+route('DELETE', '/api/super-admin/ads/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  await env.DB.prepare(`DELETE FROM ads WHERE id = ?`).bind(params.id).run();
+  return json({ success: true });
+});
+
+// PATCH /api/super-admin/ads/:id/status - toggle ad status
+route('PATCH', '/api/super-admin/ads/:id/status', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const body = await request.json() as any;
+  await env.DB.prepare(`UPDATE ads SET status = ?, updated_at = datetime('now') WHERE id = ?`)
+    .bind(body.status, params.id).run();
+
+  return json({ success: true });
+});
+
+// GET /api/super-admin/ads/:id/views - who viewed this ad
+route('GET', '/api/super-admin/ads/:id/views', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const { results } = await env.DB.prepare(`
+    SELECT v.id, v.created_at as viewed_at, u.name as user_name, u.phone as user_phone,
+      u.apartment_number, u.role
+    FROM ad_views v
+    JOIN users u ON v.user_id = u.id
+    WHERE v.ad_id = ?
+    ORDER BY v.created_at DESC
+    LIMIT 200
+  `).bind(params.id).all();
+
+  return json({ views: results || [] });
+});
+
+// GET /api/super-admin/ads/:id/coupons - coupons for this ad
+route('GET', '/api/super-admin/ads/:id/coupons', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const { results } = await env.DB.prepare(`
+    SELECT c.*, u.name as user_name, u.phone as user_phone,
+      checker.name as activated_by_name
+    FROM ad_coupons c
+    JOIN users u ON c.user_id = u.id
+    LEFT JOIN users checker ON c.activated_by = checker.id
+    WHERE c.ad_id = ?
+    ORDER BY c.issued_at DESC
+    LIMIT 200
+  `).bind(params.id).all();
+
+  return json({ coupons: results || [] });
+});
+
 // ==================== TENANTS API (SUPER ADMIN ONLY) ====================
 // Helper to check super_admin role
+function isExecutorRole(role: string): boolean {
+  return role === 'executor' || role === 'security';
+}
+
 function isSuperAdmin(user: any): boolean {
   return user?.role === 'super_admin';
 }
@@ -14675,6 +15510,17 @@ route('PATCH', '/api/tenants/:id', async (request, env, params) => {
   if (!existing) return error('Tenant not found', 404);
 
   const body = await request.json() as any;
+
+  // Check slug uniqueness if changing slug
+  if (body.slug && body.slug !== (existing as any).slug) {
+    const slugTaken = await env.DB.prepare(`SELECT id FROM tenants WHERE slug = ? AND id != ?`).bind(body.slug, params.id).first();
+    if (slugTaken) return error('Tenant with this slug already exists');
+    // Auto-update url and admin_url when slug changes
+    const baseDomain = env.BASE_DOMAIN || 'kamizo.uz';
+    if (!body.url) body.url = `https://${body.slug}.${baseDomain}`;
+    if (!body.admin_url) body.admin_url = `https://${body.slug}.${baseDomain}/admin`;
+  }
+
   const fields = ['name', 'slug', 'url', 'admin_url', 'color', 'color_secondary', 'plan', 'admin_email', 'admin_phone', 'users_count', 'requests_count', 'votes_count', 'qr_count', 'revenue', 'is_active', 'logo', 'contract_template'];
   const updates: string[] = [];
   const values: any[] = [];
@@ -14863,6 +15709,82 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
   return json({ user: adminUser, token: adminUser.id, tenantUrl: tenant.url });
 });
 
+// GET /api/super-admin/users - list all users across all tenants with credentials (super_admin only)
+route('GET', '/api/super-admin/users', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const url = new URL(request.url);
+  const search = url.searchParams.get('search') || '';
+  const role = url.searchParams.get('role') || '';
+  const tenantSlug = url.searchParams.get('tenant') || '';
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = parseInt(url.searchParams.get('limit') || '50');
+
+  let whereClause = "WHERE 1=1";
+  const params: any[] = [];
+
+  if (search) {
+    whereClause += " AND (u.login LIKE ? OR u.name LIKE ? OR u.phone LIKE ?)";
+    const s = `%${search}%`;
+    params.push(s, s, s);
+  }
+  if (role) {
+    whereClause += " AND u.role = ?";
+    params.push(role);
+  }
+  if (tenantSlug) {
+    whereClause += " AND t.slug = ?";
+    params.push(tenantSlug);
+  }
+
+  const countResult = await env.DB.prepare(
+    `SELECT COUNT(*) as total FROM users u LEFT JOIN tenants t ON u.tenant_id = t.id ${whereClause}`
+  ).bind(...params).first() as any;
+  const total = countResult?.total || 0;
+
+  const offset = (page - 1) * limit;
+  const { results } = await env.DB.prepare(`
+    SELECT u.id, u.login, u.password_hash as password, u.name, u.phone, u.role, u.specialization,
+           u.tenant_id, t.name as tenant_name, t.slug as tenant_slug,
+           u.branch, u.building, u.created_at, u.is_active
+    FROM users u
+    LEFT JOIN tenants t ON u.tenant_id = t.id
+    ${whereClause}
+    ORDER BY t.name, u.role, u.name
+    LIMIT ? OFFSET ?
+  `).bind(...params, limit, offset).all();
+
+  return json({ users: results, total, page, limit });
+});
+
+// PATCH /api/super-admin/tenants/:id/banners - toggle coming soon banners
+route('PATCH', '/api/super-admin/tenants/:id/banners', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return error('Access denied', 403);
+
+  const body = await request.json() as any;
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (typeof body.show_useful_contacts_banner === 'boolean' || typeof body.show_useful_contacts_banner === 'number') {
+    updates.push('show_useful_contacts_banner = ?');
+    values.push(body.show_useful_contacts_banner ? 1 : 0);
+  }
+  if (typeof body.show_marketplace_banner === 'boolean' || typeof body.show_marketplace_banner === 'number') {
+    updates.push('show_marketplace_banner = ?');
+    values.push(body.show_marketplace_banner ? 1 : 0);
+  }
+
+  if (updates.length === 0) return error('No fields to update', 400);
+
+  await env.DB.prepare(`UPDATE tenants SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`)
+    .bind(...values, params.id).run();
+
+  const tenant = await env.DB.prepare('SELECT * FROM tenants WHERE id = ?').bind(params.id).first();
+  return json({ success: true, tenant });
+});
+
 // GET /api/super-admin/analytics - cross-tenant analytics
 route('GET', '/api/super-admin/analytics', async (request, env) => {
   const user = await getUser(request, env);
@@ -15023,6 +15945,22 @@ async function runMigrations(env: Env) {
       if (!tenantCols.includes('logo')) {
         await env.DB.prepare(`ALTER TABLE tenants ADD COLUMN logo TEXT`).run();
         console.log('Migration: Added logo column to tenants');
+      }
+      // Migration: Add is_demo flag to tenants (replaces slug-based demo checks)
+      if (!tenantCols.includes('is_demo')) {
+        await env.DB.prepare(`ALTER TABLE tenants ADD COLUMN is_demo INTEGER DEFAULT 0`).run();
+        await env.DB.prepare(`UPDATE tenants SET is_demo = 1 WHERE slug IN ('kamizo-demo', 'demo')`).run();
+        console.log('Migration: Added is_demo column to tenants');
+      }
+    } catch (e) {}
+
+    // Migration: Add contract_template column to tenants
+    try {
+      const tenantInfo2 = await env.DB.prepare(`PRAGMA table_info(tenants)`).all();
+      const tenantCols2 = (tenantInfo2.results || []).map((col: any) => col.name);
+      if (!tenantCols2.includes('contract_template')) {
+        await env.DB.prepare(`ALTER TABLE tenants ADD COLUMN contract_template TEXT`).run();
+        console.log('Migration: Added contract_template column to tenants');
       }
     } catch (e) {}
 
@@ -15259,6 +16197,27 @@ async function runMigrations(env: Env) {
       console.error('Migration error (backfill tenant_id):', e);
     }
 
+    // Migration: Create super_banners table
+    try {
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS super_banners (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT,
+          image_url TEXT,
+          link_url TEXT,
+          placement TEXT NOT NULL DEFAULT 'marketplace',
+          is_active INTEGER NOT NULL DEFAULT 1,
+          sort_order INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `).run();
+      console.log('Migration: Created super_banners table');
+    } catch (e) {
+      // Table might already exist
+    }
+
     migrationsRun.add('all_migrations');
   } catch (error) {
     console.error('Migration error:', error);
@@ -15267,42 +16226,16 @@ async function runMigrations(env: Env) {
 
 // ==================== MAIN HANDLER ====================
 
-// Helper function to extract tenant slug from hostname
-function getTenantSlug(hostname: string): string | null {
-  // Check if hostname matches *.kamizo.uz pattern (but not reserved subdomains)
-  const match = hostname.match(/^([a-z0-9-]+)\.kamizo\.uz$/i);
-  if (match) {
-    const slug = match[1].toLowerCase();
-    // Exclude reserved subdomains
-    if (slug === 'app' || slug === 'www' || slug === 'api' || slug === 'admin') {
-      return null;
-    }
-    return slug;
-  }
-  // For main domain (kamizo.uz) or localhost, return null
-  return null;
-}
-
-// Store current tenant context for this request
-let currentTenant: any = null;
-
-// Request-scoped tenant map (prevents race condition with global currentTenant)
-const requestTenantMap = new WeakMap<Request, any>();
-
-// Helper function to get current tenant ID (request-scoped, safe from race conditions)
-function getTenantId(req?: Request): string | null {
-  if (req) {
-    const tenant = requestTenantMap.get(req);
-    return tenant?.id || null;
-  }
-  // Fallback to global (unsafe under concurrent requests)
-  return currentTenant?.id || null;
-}
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    try {
     // Run DB migrations (only once per worker instance)
-    await runMigrations(env);
+    try {
+      await runMigrations(env);
+    } catch (migrationError) {
+      console.error('Critical: runMigrations threw unhandled exception:', migrationError);
+      // Continue — don't fail requests due to migration issues
+    }
 
     // Set CORS origin for this request
     setCorsOrigin(request);
@@ -15311,7 +16244,7 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
-          'Access-Control-Allow-Origin': currentCorsOrigin,
+          'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         }
@@ -15387,16 +16320,15 @@ export default {
           });
         }
 
-        // Store tenant context for this request (both global and per-request)
-        currentTenant = tenant;
-        requestTenantMap.set(request, tenant);
+        // Store tenant context for this request
+        setCurrentTenant(tenant);
+        setTenantForRequest(request, tenant);
       } catch (error) {
         console.error('Error fetching tenant:', error);
         return new Response('Error loading tenant', { status: 500 });
       }
     } else {
-      currentTenant = null;
-      requestTenantMap.set(request, null);
+      setCurrentTenant(null);
     }
 
     // Try to match API routes
@@ -15422,7 +16354,7 @@ export default {
                     status: 429,
                     headers: {
                       'Content-Type': 'application/json',
-                      'Access-Control-Allow-Origin': currentCorsOrigin,
+                      'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
                       'X-RateLimit-Limit': (RATE_LIMITS[endpoint] || RATE_LIMITS['default']).maxRequests.toString(),
                       'X-RateLimit-Remaining': '0',
                       'X-RateLimit-Reset': rateLimit.resetAt.toString(),
@@ -15466,7 +16398,7 @@ export default {
             status: 500,
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': currentCorsOrigin,
+              'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
               'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
               'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             },
@@ -15478,7 +16410,7 @@ export default {
 
     // For SPA: serve static assets or fallback to index.html
     // BUT first verify tenant exists if this is a tenant subdomain
-    if (tenantSlug && !currentTenant) {
+    if (tenantSlug && !getCurrentTenant()) {
       // This shouldn't happen as we checked above, but double-check for safety
       return new Response(`
         <!DOCTYPE html>
@@ -15582,6 +16514,17 @@ export default {
           headers: { 'Content-Type': 'text/html' }
         });
       }
+    }
+    } catch (fatalError: any) {
+      // Last-resort safety net — prevent Cloudflare error 1101 (Worker threw exception)
+      console.error('FATAL unhandled error in fetch handler:', fatalError);
+      return new Response(JSON.stringify({ error: 'Internal server error' }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
   }
 };

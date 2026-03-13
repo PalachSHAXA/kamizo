@@ -1,0 +1,2 @@
+import{r as e}from"./index-1773291452052-Ct2H83gu.js";const t=[["path",{d:"M8 2v4",key:"1cmpym"}],["path",{d:"M16 2v4",key:"4m81vk"}],["rect",{width:"18",height:"18",x:"3",y:"4",rx:"2",key:"1hopcy"}],["path",{d:"M3 10h18",key:"8toen8"}]],c=e("calendar",t);export{c as C};
+//# sourceMappingURL=calendar-1773291452052-BHeprgSh.js.map

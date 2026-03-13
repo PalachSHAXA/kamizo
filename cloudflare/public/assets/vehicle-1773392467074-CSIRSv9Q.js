@@ -1,0 +1,2 @@
+const l={car:{label:"Легковой автомобиль",labelUz:"Yengil avtomobil"},motorcycle:{label:"Мотоцикл",labelUz:"Mototsikl"},truck:{label:"Грузовик",labelUz:"Yuk mashinasi"},other:{label:"Другое",labelUz:"Boshqa"}},a={individual:{label:"Физ. лицо",labelUz:"Jismoniy shaxs",icon:"👤"},legal_entity:{label:"Юр. лицо",labelUz:"Yuridik shaxs",icon:"🏢"},service:{label:"Служебный",labelUz:"Xizmat",icon:"🚐"}};export{a as V,l as a};
+//# sourceMappingURL=vehicle-1773392467074-CSIRSv9Q.js.map

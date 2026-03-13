@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS users (
   contract_end_date TEXT,          -- Contract end date (NULL = indefinite)
   contract_type TEXT DEFAULT 'standard' CHECK (contract_type IN ('standard', 'commercial', 'temporary')),
 
+  password_changed_at TEXT,            -- Date when password was last changed by user
+  last_login_at TEXT,                  -- Date when user last logged in
+
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -969,6 +972,8 @@ CREATE TABLE IF NOT EXISTS meeting_agenda_items (
   item_order INTEGER NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
+  description_extended TEXT, -- Расширенное описание для жителей
+  attachments TEXT, -- JSON array: [{name, url, type, size}] — фото/документы к вопросу
   threshold TEXT DEFAULT 'simple_majority' CHECK (threshold IN (
     'simple_majority', 'qualified_majority', 'two_thirds', 'three_quarters', 'unanimous'
   )),
@@ -1117,7 +1122,10 @@ CREATE TABLE IF NOT EXISTS meeting_agenda_comments (
   resident_name TEXT NOT NULL,
   apartment_number TEXT,
   content TEXT NOT NULL,
+  comment_type TEXT DEFAULT 'comment' CHECK (comment_type IN ('comment', 'objection', 'counter_proposal')),
+  counter_proposal TEXT, -- Альтернативное предложение (при голосовании ПРОТИВ)
   include_in_protocol INTEGER DEFAULT 1, -- Флаг "Включить в протокол"
+  tenant_id TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -1137,6 +1145,25 @@ CREATE TABLE IF NOT EXISTS employee_ratings (
   comment TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- UK (management company) satisfaction ratings - monthly
+CREATE TABLE IF NOT EXISTS uk_satisfaction_ratings (
+  id TEXT PRIMARY KEY,
+  resident_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  period TEXT NOT NULL, -- YYYY-MM format
+  overall INTEGER NOT NULL CHECK (overall >= 1 AND overall <= 5),
+  cleanliness INTEGER CHECK (cleanliness >= 1 AND cleanliness <= 5),
+  responsiveness INTEGER CHECK (responsiveness >= 1 AND responsiveness <= 5),
+  communication INTEGER CHECK (communication >= 1 AND communication <= 5),
+  comment TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(resident_id, tenant_id, period)
+);
+
+CREATE INDEX IF NOT EXISTS idx_uk_ratings_resident ON uk_satisfaction_ratings(resident_id);
+CREATE INDEX IF NOT EXISTS idx_uk_ratings_period ON uk_satisfaction_ratings(period);
+CREATE INDEX IF NOT EXISTS idx_uk_ratings_tenant ON uk_satisfaction_ratings(tenant_id);
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
@@ -1356,8 +1383,9 @@ CREATE TABLE IF NOT EXISTS ads (
   badges TEXT,                                 -- JSON: {"recommended": true, "new": true, "hot": false}
 
   -- Targeting
-  target_type TEXT DEFAULT 'all' CHECK (target_type IN ('all', 'branches')),
+  target_type TEXT DEFAULT 'all' CHECK (target_type IN ('all', 'branches', 'buildings')),
   target_branches TEXT,                        -- JSON array of branch codes (если target_type = 'branches')
+  target_buildings TEXT,                       -- JSON array of building IDs (если target_type = 'buildings')
 
   -- Timing
   starts_at TEXT NOT NULL,                     -- Дата начала показа
@@ -1428,6 +1456,18 @@ CREATE INDEX IF NOT EXISTS idx_ad_coupons_status ON ad_coupons(status);
 -- Indexes for views
 CREATE INDEX IF NOT EXISTS idx_ad_views_ad ON ad_views(ad_id);
 CREATE INDEX IF NOT EXISTS idx_ad_views_user ON ad_views(user_id);
+
+-- Platform ad → tenant assignments (super admin assigns one ad to many tenants)
+CREATE TABLE IF NOT EXISTS ad_tenant_assignments (
+  id TEXT PRIMARY KEY,
+  ad_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  assigned_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(ad_id, tenant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ata_ad_id ON ad_tenant_assignments(ad_id);
+CREATE INDEX IF NOT EXISTS idx_ata_tenant_id ON ad_tenant_assignments(tenant_id, enabled);
 
 -- Initial categories for ads
 INSERT OR IGNORE INTO ad_categories (id, name_ru, name_uz, icon, sort_order) VALUES

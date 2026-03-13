@@ -3,7 +3,7 @@ import {
   Building2, Users, Upload, FileSpreadsheet, X, Check, Search,
   MapPin, UserPlus, Key, Copy, Trash2, Edit3, Eye, EyeOff, Save,
   AlertCircle, ChevronRight, Home, CheckCircle, Phone, Loader2, RefreshCw,
-  GitBranch, ArrowLeft, DoorOpen
+  GitBranch, ArrowLeft, DoorOpen, LogIn, Car, FileText, Shield
 } from 'lucide-react';
 import { useCRMStore } from '../stores/crmStore';
 import { useAuthStore } from '../stores/authStore';
@@ -51,6 +51,10 @@ interface ApiResident {
   entrance?: string;
   floor?: string;
   created_at?: string;
+  contract_signed_at?: string;
+  password_changed_at?: string;
+  last_login_at?: string;
+  vehicle_count?: number;
 }
 
 // Excel parser interface
@@ -297,7 +301,11 @@ export function ResidentsPage() {
         buildingId: r.building_id,
         entrance: r.entrance,
         floor: r.floor,
-        createdAt: r.created_at
+        createdAt: r.created_at,
+        contract_signed_at: r.contract_signed_at,
+        password_changed_at: r.password_changed_at,
+        last_login_at: r.last_login_at,
+        vehicle_count: r.vehicle_count,
       }))
     : localResidents;
 
@@ -813,10 +821,19 @@ export function ResidentsPage() {
           </div>
         </div>
       ) : (
-        filteredResidents.map((resident) => (
+        filteredResidents.map((resident) => {
+          const hasContract = !!(resident as any).contract_signed_at;
+          const hasVehicle = ((resident as any).vehicle_count || 0) > 0;
+          const hasPhone = !!resident.phone;
+          const hasChangedPassword = !!(resident as any).password_changed_at;
+          const hasLoggedIn = !!(resident as any).last_login_at;
+          const completedTasks = [hasContract, hasVehicle, hasPhone, hasChangedPassword, hasLoggedIn].filter(Boolean).length;
+          const totalTasks = 5;
+
+          return (
           <div
             key={resident.login}
-            className="glass-card p-4 cursor-pointer hover:shadow-lg transition-shadow"
+            className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => {
               setShowResidentCard(resident);
               setEditingPassword(false);
@@ -826,13 +843,20 @@ export function ResidentsPage() {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-lg font-medium text-white shadow-sm">
-                  {resident.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                <div className="relative">
+                  <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-lg font-medium text-white shadow-sm">
+                    {resident.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  </div>
+                  {completedTasks === totalTasks && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
+                      <Check className="w-2 h-2 text-white" />
+                    </div>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold text-gray-900">{resident.name}</h3>
                   <div className="flex items-center flex-wrap gap-2 text-sm mt-1">
-                    <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-mono text-xs">
+                    <span className="flex items-center gap-1 bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full font-mono text-xs">
                       <Key className="w-3 h-3" />
                       {resident.login}
                     </span>
@@ -849,18 +873,48 @@ export function ResidentsPage() {
                       <span className="truncate">{resident.address}</span>
                     </div>
                   )}
+                  {/* Progress badges */}
+                  <div className="flex items-center gap-1 mt-1.5">
+                    {/* Contract signed */}
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${hasContract ? 'bg-green-100' : 'bg-gray-100 opacity-40'}`}
+                      title={hasContract ? (language === 'ru' ? 'Договор подписан' : 'Shartnoma imzolangan') : (language === 'ru' ? 'Договор не подписан' : 'Shartnoma imzolanmagan')}>
+                      <FileText className={`w-3 h-3 ${hasContract ? 'text-green-600' : 'text-gray-400'}`} />
+                    </div>
+                    {/* Has vehicle */}
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${hasVehicle ? 'bg-green-100' : 'bg-gray-100 opacity-40'}`}
+                      title={hasVehicle ? (language === 'ru' ? 'Автомобиль добавлен' : 'Avtomobil qo\'shilgan') : (language === 'ru' ? 'Нет автомобиля' : 'Avtomobil yo\'q')}>
+                      <Car className={`w-3 h-3 ${hasVehicle ? 'text-green-600' : 'text-gray-400'}`} />
+                    </div>
+                    {/* Phone */}
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${hasPhone ? 'bg-green-100' : 'bg-gray-100 opacity-40'}`}
+                      title={hasPhone ? (language === 'ru' ? `Телефон: ${resident.phone}` : `Telefon: ${resident.phone}`) : (language === 'ru' ? 'Телефон не указан' : 'Telefon ko\'rsatilmagan')}>
+                      <Phone className={`w-3 h-3 ${hasPhone ? 'text-green-600' : 'text-gray-400'}`} />
+                    </div>
+                    {/* Password changed */}
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${hasChangedPassword ? 'bg-green-100' : 'bg-gray-100 opacity-40'}`}
+                      title={hasChangedPassword ? (language === 'ru' ? 'Пароль изменён' : 'Parol o\'zgartirilgan') : (language === 'ru' ? 'Пароль не менялся' : 'Parol o\'zgartirilmagan')}>
+                      <Shield className={`w-3 h-3 ${hasChangedPassword ? 'text-green-600' : 'text-gray-400'}`} />
+                    </div>
+                    {/* Logged in */}
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${hasLoggedIn ? 'bg-green-100' : 'bg-gray-100 opacity-40'}`}
+                      title={hasLoggedIn ? `${language === 'ru' ? 'Последний вход' : 'Oxirgi kirish'}: ${new Date((resident as any).last_login_at).toLocaleDateString('ru-RU')}` : (language === 'ru' ? 'Ещё не входил в систему' : 'Hali tizimga kirmagan')}>
+                      <LogIn className={`w-3 h-3 ${hasLoggedIn ? 'text-green-600' : 'text-gray-400'}`} />
+                    </div>
+                    <span className="text-xs text-gray-400 ml-1">{completedTasks}/{totalTasks}</span>
+                  </div>
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </div>
           </div>
-        ))
+          );
+        })
       )}
     </div>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -871,54 +925,91 @@ export function ResidentsPage() {
 
       {/* Step 1: Branch Selection */}
       {viewLevel === 'branches' && (
-        <div>
-          <h2 className="text-lg font-semibold mb-4">{language === 'ru' ? 'Выберите филиал' : 'Filialni tanlang'}</h2>
+        <div className="flex-1 flex flex-col items-center gap-6 pt-6">
           {isLoadingBranches ? (
             <div className="glass-card p-8 text-center">
               <Loader2 className="w-8 h-8 mx-auto mb-3 text-primary-500 animate-spin" />
               <p className="text-gray-500">{language === 'ru' ? 'Загрузка филиалов...' : 'Filiallar yuklanmoqda...'}</p>
             </div>
           ) : branches.length === 0 ? (
-            <div className="glass-card p-8 text-center">
-              <GitBranch className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <div className="text-center">
+              <GitBranch className="w-12 h-12 mx-auto mb-3 text-gray-200" />
               <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Филиалы не найдены' : 'Filiallar topilmadi'}</h3>
               <p className="text-gray-400 mt-1">
                 {language === 'ru' ? 'Добавьте филиалы в разделе "Дома/Объекты"' : '"Uylar/Obyektlar" bo\'limida filiallar qo\'shing'}
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {branches.map((branch) => (
-                <button
-                  key={branch.id}
-                  onClick={() => handleBranchClick(branch)}
-                  className="glass-card p-5 text-left hover:shadow-lg transition-shadow group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-xl flex items-center justify-center">
-                        <span className="text-white font-bold text-lg">{branch.code}</span>
+            <>
+              <div className="text-center">
+                <h1 className="text-[28px] font-black tracking-tight">{language === 'ru' ? 'Выберите филиал' : 'Filialni tanlang'}</h1>
+                <p className="text-[14px] text-gray-400 mt-2">{language === 'ru' ? 'Нажмите на филиал чтобы перейти к жителям' : "Yashovchilarga o'tish uchun filialni bosing"}</p>
+              </div>
+
+              {/* Search */}
+              <div className="w-full max-w-[700px]">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl">
+                  <Search className="w-4 h-4 text-gray-300" />
+                  <input
+                    type="text"
+                    placeholder={language === 'ru' ? 'Поиск по филиалам...' : "Filiallar bo'yicha qidirish..."}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 bg-transparent outline-none text-[13px]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-[1100px] w-full">
+                {branches.filter(b => !searchQuery || b.name.toLowerCase().includes(searchQuery.toLowerCase()) || b.code.toLowerCase().includes(searchQuery.toLowerCase())).map((branch) => (
+                  <div
+                    key={branch.id}
+                    onClick={() => handleBranchClick(branch)}
+                    className="bg-white rounded-2xl border-2 border-gray-200 cursor-pointer transition-all hover:border-orange-400 hover:-translate-y-1 hover:shadow-lg group overflow-hidden"
+                  >
+                    {/* Branch header with gradient */}
+                    <div className="h-28 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #1A2A6C 0%, #2D4A8C 50%, #3D5A9C 100%)' }}>
+                      {/* Mini cityscape silhouette */}
+                      <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center gap-[2px] px-6">
+                        {[5,8,6,10,7,9,4,8,6,11,5,7,9,6,8,5,10,7].map((h, i) => (
+                          <div key={i} className="rounded-t-[2px]" style={{ width: 12, height: h * 3.5, background: 'rgba(255,255,255,.1)' }} />
+                        ))}
                       </div>
-                      <div>
-                        <h3 className="font-semibold">{branch.name}</h3>
-                        <div className="text-sm text-gray-500">{language === 'ru' ? 'Филиал' : 'Filial'} {branch.code}</div>
+                    </div>
+
+                    <div className="p-5">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <MapPin className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                        <div className="text-[17px] font-extrabold truncate">{branch.name}</div>
+                      </div>
+                      <div className="text-[13px] text-gray-400 mb-4 ml-[24px]">
+                        {branch.address || (language === 'ru' ? 'Ташкент' : 'Toshkent')}
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                            <Building2 className="w-4.5 h-4.5 text-green-600" />
+                          </div>
+                          <div>
+                            <div className="text-[20px] font-extrabold text-green-600 leading-tight">{branch.buildings_count}</div>
+                            <div className="text-[10px] text-gray-400 uppercase tracking-wide">{language === 'ru' ? 'Домов' : 'Uylar'}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                            <Users className="w-4.5 h-4.5 text-orange-500" />
+                          </div>
+                          <div>
+                            <div className="text-[20px] font-extrabold text-orange-500 leading-tight">{branch.residents_count}</div>
+                            <div className="text-[10px] text-gray-400 uppercase tracking-wide">{language === 'ru' ? 'Жителей' : 'Yashovchilar'}</div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary-500 transition-colors" />
                   </div>
-                  <div className="mt-4 flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <Building2 className="w-4 h-4 text-gray-400" />
-                      <span>{branch.buildings_count} {language === 'ru' ? 'домов' : 'uy'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span>{branch.residents_count} {language === 'ru' ? 'жителей' : 'yashovchi'}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -927,7 +1018,7 @@ export function ResidentsPage() {
       {viewLevel === 'buildings' && selectedBranch && (
         <div>
           {/* Branch Header */}
-          <div className="glass-card p-4 mb-4">
+          <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl mb-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={handleBack}
@@ -935,7 +1026,7 @@ export function ResidentsPage() {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
                 <span className="text-white font-bold">{selectedBranch.code}</span>
               </div>
               <div>
@@ -959,11 +1050,11 @@ export function ResidentsPage() {
                 <button
                   key={building.id}
                   onClick={() => handleBuildingClick(building)}
-                  className="glass-card p-5 text-left hover:shadow-lg transition-shadow group"
+                  className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl text-left hover:shadow-lg transition-shadow group"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center">
+                      <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
                         <Home className="w-6 h-6 text-white" />
                       </div>
                       <div>
@@ -997,7 +1088,7 @@ export function ResidentsPage() {
       {viewLevel === 'entrances' && selectedBuilding && (
         <div>
           {/* Building Header with Breadcrumb */}
-          <div className="glass-card p-4 mb-4">
+          <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl mb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
@@ -1066,7 +1157,7 @@ export function ResidentsPage() {
                   <button
                     key={entrance.id}
                     onClick={() => handleEntranceClick(entrance)}
-                    className="glass-card p-5 text-left hover:shadow-lg transition-shadow group"
+                    className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl text-left hover:shadow-lg transition-shadow group"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
@@ -1112,7 +1203,7 @@ export function ResidentsPage() {
                       setViewLevel('residents');
                       setSearchQuery('');
                     }}
-                    className="glass-card p-5 text-left hover:shadow-lg transition-shadow group border-dashed border-2 border-gray-200"
+                    className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl text-left hover:shadow-lg transition-shadow group border-dashed border-2 border-gray-200"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
@@ -1147,7 +1238,7 @@ export function ResidentsPage() {
       {viewLevel === 'residents' && selectedEntrance && selectedBuilding && (
         <div>
           {/* Entrance Header with Breadcrumb */}
-          <div className="glass-card p-4 mb-4">
+          <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl mb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
@@ -1269,8 +1360,8 @@ export function ResidentsPage() {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="modal-backdrop items-end sm:items-center">
+          <div className="modal-content p-4 sm:p-6 w-full max-w-2xl sm:mx-4 rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold">{language === 'ru' ? 'Загрузка данных жителей' : 'Yashovchilar ma\'lumotlarini yuklash'}</h2>
               <button
@@ -1301,7 +1392,7 @@ export function ResidentsPage() {
                       : <>Faylda ustunlar bo'lishi kerak: <strong>Sh/H</strong>, <strong>F.I.O.</strong>, <strong>Manzil</strong>, <strong>Maydon (kv.m)</strong></>
                     }
                   </p>
-                  <button className="btn-primary">
+                  <button className="btn-primary" onClick={() => fileInputRef.current?.click()}>
                     {language === 'ru' ? 'Выбрать файл' : 'Faylni tanlash'}
                   </button>
                 </div>
@@ -1394,12 +1485,12 @@ export function ResidentsPage() {
                   </div>
                 </div>
 
-                <div className="p-3 bg-blue-50 text-blue-700 rounded-xl mb-4 text-sm">
+                <div className="p-3 bg-primary-50 text-primary-700 rounded-xl mb-4 text-sm">
                   {selectedBuilding?.branchCode && selectedBuilding?.buildingNumber ? (
                     <>
                       <strong>{language === 'ru' ? 'Формат пароля' : 'Parol formati'}:</strong> {selectedBuilding.branchCode}/{selectedBuilding.buildingNumber}/{language === 'ru' ? '[номер квартиры]' : '[xonadon raqami]'}
                       <br />
-                      <span className="text-blue-600">
+                      <span className="text-primary-600">
                         {language === 'ru'
                           ? `Например: ${selectedBuilding.branchCode}/${selectedBuilding.buildingNumber}/23 для квартиры 23`
                           : `Masalan: ${selectedBuilding.branchCode}/${selectedBuilding.buildingNumber}/23 — 23-xonadon uchun`}
@@ -1409,7 +1500,7 @@ export function ResidentsPage() {
                     <>
                       <strong>{language === 'ru' ? 'Пароль по умолчанию' : 'Standart parol'}:</strong> {DEFAULT_PASSWORD}
                       <br />
-                      <span className="text-blue-600">
+                      <span className="text-primary-600">
                         {language === 'ru' ? 'Жители смогут изменить пароль в личном кабинете' : 'Yashovchilar parolni shaxsiy kabinetda o\'zgartira oladi'}
                       </span>
                     </>
@@ -1449,10 +1540,10 @@ export function ResidentsPage() {
 
       {/* Manual Add Modal */}
       {showAddManualModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content p-6 w-full max-w-md mx-4">
+        <div className="modal-backdrop items-end sm:items-center">
+          <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 rounded-t-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">{language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}</h2>
+              <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}</h2>
               <button
                 onClick={() => setShowAddManualModal(false)}
                 className="p-2 hover:bg-white/30 rounded-lg"
@@ -1535,10 +1626,10 @@ export function ResidentsPage() {
 
       {/* Resident Card Modal */}
       {showResidentCard && (
-        <div className="modal-backdrop">
-          <div className="modal-content p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="modal-backdrop items-end sm:items-center">
+          <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">{language === 'ru' ? 'Карточка жителя' : 'Yashovchi kartasi'}</h2>
+              <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Карточка жителя' : 'Yashovchi kartasi'}</h2>
               <button
                 onClick={() => {
                   setShowResidentCard(null);
@@ -1561,23 +1652,23 @@ export function ResidentsPage() {
             </div>
 
             <div className="space-y-3 mb-6">
-              <div className="p-4 bg-blue-50 rounded-xl">
+              <div className="p-4 bg-primary-50 rounded-xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Key className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                      <Key className="w-5 h-5 text-primary-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-blue-600 font-medium">{language === 'ru' ? 'Л/С (Логин)' : 'Sh/H (Login)'}</div>
-                      <div className="font-mono font-bold text-blue-900">{showResidentCard.login}</div>
+                      <div className="text-xs text-primary-600 font-medium">{language === 'ru' ? 'Л/С (Логин)' : 'Sh/H (Login)'}</div>
+                      <div className="font-mono font-bold text-primary-900">{showResidentCard.login}</div>
                     </div>
                   </div>
                   <button
                     onClick={() => copyToClipboard(showResidentCard.login)}
-                    className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
+                    className="p-2 hover:bg-primary-100 rounded-lg transition-colors"
                     title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                   >
-                    <Copy className="w-4 h-4 text-blue-600" />
+                    <Copy className="w-4 h-4 text-primary-600" />
                   </button>
                 </div>
               </div>
@@ -1744,7 +1835,7 @@ export function ResidentsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <AlertCircle className="w-7 h-7 text-red-600" />
@@ -1790,7 +1881,7 @@ export function ResidentsPage() {
 
       {/* Delete All Confirmation Modal */}
       {deleteAllConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <Trash2 className="w-7 h-7 text-red-600" />
