@@ -12,7 +12,7 @@ export function ResidentContractPage() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">
@@ -27,7 +27,7 @@ export function ResidentContractPage() {
       <ContractQRCode language={language} />
 
       {/* User Info Card */}
-      <div className="glass-card p-4 md:p-6">
+      <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <User className="w-5 h-5 text-gray-600" />
           {language === 'ru' ? 'Данные профиля' : 'Profil ma\'lumotlari'}

@@ -160,59 +160,60 @@ export function ResidentMeetingsPage() {
     });
   };
 
-  const getStatusStyles = (status: Meeting['status']) => {
-    switch (status) {
-      case 'schedule_poll_open':
-        return { bg: 'bg-blue-50 border-blue-300', badge: 'bg-blue-100 text-blue-700' };
-      case 'voting_open':
-        return { bg: 'bg-green-50 border-green-300', badge: 'bg-green-100 text-green-700' };
-      case 'results_published':
-        return { bg: 'bg-purple-50 border-purple-300', badge: 'bg-purple-100 text-purple-700' };
-      case 'protocol_approved':
-        return { bg: 'bg-emerald-50 border-emerald-300', badge: 'bg-emerald-100 text-emerald-700' };
-      default:
-        return { bg: 'bg-gray-50 border-gray-300', badge: 'bg-gray-100 text-gray-700' };
-    }
-  };
 
   const handleOpenMeeting = (meeting: Meeting) => {
     setSelectedMeetingId(meeting.id);
     setShowVotingModal(true);
   };
 
+  const getStatusIcon = (status: Meeting['status']) => {
+    switch (status) {
+      case 'schedule_poll_open': return <Calendar className="w-5 h-5" />;
+      case 'voting_open': return <Vote className="w-5 h-5" />;
+      case 'results_published': return <Trophy className="w-5 h-5" />;
+      case 'protocol_approved': return <CheckCircle className="w-5 h-5" />;
+      default: return <Clock className="w-5 h-5" />;
+    }
+  };
+
+  const getStatusGradient = (status: Meeting['status']) => {
+    switch (status) {
+      case 'schedule_poll_open': return 'from-blue-500 to-indigo-600';
+      case 'voting_open': return 'from-emerald-500 to-teal-600';
+      case 'results_published': return 'from-violet-500 to-purple-600';
+      case 'protocol_approved': return 'from-emerald-600 to-green-700';
+      default: return 'from-gray-500 to-gray-600';
+    }
+  };
+
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* New Request Popup Alert */}
       {newRequestAlert && (
         <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-50 animate-in slide-in-from-top-2 duration-300">
-          <div className="glass-card p-4 border-2 border-primary-400 bg-gradient-to-r from-primary-50 to-primary-100 shadow-xl">
+          <div className="rounded-2xl p-4 border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 shadow-xl shadow-amber-100/50">
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-primary-100 rounded-full animate-pulse">
-                <AlertTriangle className="w-5 h-5 text-primary-600" />
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 shadow-lg shadow-amber-200/50">
+                <AlertTriangle className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-primary-800 mb-1">
-                  {language === 'ru' ? 'Новый запрос!' : 'Yangi so\'rov!'}
+                <div className="font-bold text-gray-900 mb-0.5">
+                  {language === 'ru' ? 'Запрос на пересмотр' : 'Qayta ko\'rib chiqish so\'rovi'}
                 </div>
-                <div className="text-sm text-primary-700 mb-2">
-                  {language === 'ru'
-                    ? 'УК просит вас пересмотреть свой голос'
-                    : 'BK sizdan ovozingizni qayta ko\'rib chiqishni so\'raydi'}
-                </div>
-                <div className="text-xs text-gray-600 mb-3 truncate">
+                <div className="text-sm text-gray-600 mb-2 line-clamp-2">
                   {newRequestAlert.agendaItemTitle}
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleRespondToRequest(newRequestAlert)}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-primary-500 text-white rounded-xl text-sm font-medium hover:bg-primary-600 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-sm font-semibold shadow-sm active:scale-[0.98] transition-transform"
                   >
                     <RefreshCw className="w-4 h-4" />
                     {language === 'ru' ? 'Открыть' : 'Ochish'}
                   </button>
                   <button
                     onClick={() => setNewRequestAlert(null)}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                    className="p-2.5 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -224,16 +225,14 @@ export function ResidentMeetingsPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
-          <Vote className="w-7 h-7 text-primary-500" />
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
           {language === 'ru' ? 'Собрания' : 'Yig\'ilishlar'}
         </h1>
-
         {votableMeetings.length > 0 && (
-          <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium">
-            {votableMeetings.length} {language === 'ru' ? 'активных' : 'faol'}
-          </span>
+          <p className="text-sm text-gray-500 mt-1">
+            {votableMeetings.length} {language === 'ru' ? 'ждут вашего голоса' : 'ovozingizni kutmoqda'}
+          </p>
         )}
       </div>
 
@@ -243,29 +242,29 @@ export function ResidentMeetingsPage() {
           {reconsiderationRequests.map((request) => (
             <div
               key={request.id}
-              className="glass-card p-4 border-2 border-primary-300 bg-primary-50"
+              className="rounded-2xl p-4 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 shadow-sm"
             >
               <div className="flex items-start gap-3">
-                <div className="p-2 bg-primary-100 rounded-xl">
-                  <AlertTriangle className="w-5 h-5 text-primary-600" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-primary-800 mb-1">
+                  <div className="font-semibold text-gray-900 mb-1">
                     {language === 'ru' ? 'Просьба пересмотреть голос' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}
                   </div>
-                  <div className="text-sm text-primary-700 mb-2">
-                    {language === 'ru' ? 'Вопрос:' : 'Savol:'} {request.agendaItemTitle}
+                  <div className="text-sm text-gray-600 mb-2">
+                    {request.agendaItemTitle}
                   </div>
                   {request.messageToResident && (
-                    <div className="p-2 bg-white rounded-lg text-sm text-gray-700 mb-2">
-                      <MessageSquare className="w-3 h-3 inline mr-1 text-primary-500" />
+                    <div className="p-2.5 bg-white/80 rounded-xl text-sm text-gray-700 mb-2 border border-amber-100">
+                      <MessageSquare className="w-3.5 h-3.5 inline mr-1.5 text-amber-500" />
                       {request.messageToResident}
                     </div>
                   )}
-                  <div className="text-xs text-primary-600 mb-3">
+                  <div className="text-xs text-gray-500 mb-3">
                     {language === 'ru'
-                      ? 'Это только просьба. Вы сами решаете, менять голос или нет.'
-                      : 'Bu faqat iltimos. Ovozni o\'zgartirish yoki o\'zgartirmaslikni o\'zingiz hal qilasiz.'}
+                      ? 'Это только просьба. Вы сами решаете.'
+                      : 'Bu faqat iltimos. O\'zingiz hal qilasiz.'}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -273,20 +272,20 @@ export function ResidentMeetingsPage() {
                         e.stopPropagation();
                         handleRespondToRequest(request);
                       }}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-xl text-sm font-medium hover:bg-primary-600 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-sm font-semibold shadow-sm active:scale-[0.98] transition-transform"
                     >
                       <RefreshCw className="w-4 h-4" />
-                      {language === 'ru' ? 'Изменить голос' : 'Ovozni o\'zgartirish'}
+                      {language === 'ru' ? 'Пересмотреть' : 'Qayta ko\'rish'}
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleIgnoreRequest(request.id);
                       }}
-                      className="flex items-center gap-2 px-4 py-2 border border-primary-300 text-primary-700 rounded-xl text-sm font-medium hover:bg-primary-100 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-600 rounded-xl text-sm font-medium border border-gray-200 active:scale-[0.98] transition-transform"
                     >
                       <X className="w-4 h-4" />
-                      {language === 'ru' ? 'Оставить как есть' : 'Shundayligicha qoldirish'}
+                      {language === 'ru' ? 'Оставить' : 'Qoldirish'}
                     </button>
                   </div>
                 </div>
@@ -298,142 +297,159 @@ export function ResidentMeetingsPage() {
 
       {/* Meetings List */}
       {activeMeetings.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <Vote className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">
+        <div className="rounded-2xl bg-gray-50 p-10 text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Vote className="w-8 h-8 text-gray-300" />
+          </div>
+          <p className="text-gray-500 font-medium">
             {language === 'ru' ? 'Нет активных собраний' : 'Faol yig\'ilishlar yo\'q'}
+          </p>
+          <p className="text-gray-400 text-sm mt-1">
+            {language === 'ru' ? 'Здесь будут ваши собрания и голосования' : 'Bu yerda yig\'ilishlar va ovoz berishlar bo\'ladi'}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {activeMeetings.map((meeting) => {
-            const styles = getStatusStyles(meeting.status);
             const statusLabel = MEETING_STATUS_LABELS[meeting.status];
             const quorum = calculateMeetingQuorum(meeting.id);
-            // Check if user has already voted (is in participatedVoters)
             const hasVoted = user?.id && meeting.participatedVoters?.includes(user.id);
-            // Note: scheduleVote will be loaded async in the modal
             const scheduleVote: string | null = null;
+            const quorumPercent = Math.min(quorum.percent, 100);
 
             return (
               <div
                 key={meeting.id}
-                className={`glass-card p-4 border-2 ${styles.bg} cursor-pointer hover:shadow-md transition-all`}
+                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 active:scale-[0.99] transition-all touch-manipulation"
                 onClick={() => handleOpenMeeting(meeting)}
               >
-                {/* Header */}
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${styles.badge}`}>
-                        {language === 'ru' ? statusLabel?.label : statusLabel?.labelUz}
+                {/* Gradient status header */}
+                <div className={`bg-gradient-to-r ${getStatusGradient(meeting.status)} px-4 py-3 flex items-center justify-between`}>
+                  <div className="flex items-center gap-2.5 text-white">
+                    {getStatusIcon(meeting.status)}
+                    <span className="font-semibold text-sm">
+                      {language === 'ru' ? statusLabel?.label : statusLabel?.labelUz}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/70 text-xs font-medium">#{meeting.number}</span>
+                    {hasVoted && meeting.status === 'voting_open' && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-sm flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        {language === 'ru' ? 'Голос принят' : 'Ovoz qabul qilindi'}
                       </span>
-                      <span className="text-xs text-gray-500">#{meeting.number}</span>
-                      {/* Show "Voted" badge if user has voted */}
-                      {hasVoted && meeting.status === 'voting_open' && (
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-green-100 text-green-700 flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          {language === 'ru' ? 'Вы проголосовали' : 'Ovoz berdingiz'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Building2 className="w-4 h-4" />
-                      <span className="truncate">{meeting.buildingAddress}</span>
-                    </div>
+                    )}
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
                 </div>
 
-                {/* Agenda Summary */}
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                  <FileText className="w-4 h-4" />
-                  <span>
-                    {meeting.agendaItems.length} {language === 'ru' ? 'вопросов' : 'savol'}
-                  </span>
-                </div>
+                <div className="p-4">
+                  {/* Building address */}
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                    <Building2 className="w-4 h-4 text-gray-400" />
+                    <span className="truncate">{meeting.buildingAddress}</span>
+                  </div>
 
-                {/* Schedule Poll Info */}
-                {meeting.status === 'schedule_poll_open' && (
-                  <div className="bg-white/60 rounded-lg p-3 mb-3">
-                    <div className="text-sm font-medium mb-2">
-                      {language === 'ru' ? 'Голосование за дату' : 'Sana uchun ovoz berish'}
+                  {/* Agenda items count + confirmed date */}
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                      <FileText className="w-4 h-4" />
+                      <span>{meeting.agendaItems.length} {language === 'ru' ? 'вопросов' : 'savol'}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {scheduleVote ? (
-                        <span className="text-xs text-green-600 flex items-center gap-1">
-                          <CheckCircle className="w-4 h-4" />
-                          {language === 'ru' ? 'Вы уже проголосовали' : 'Siz ovoz berdingiz'}
+                    {meeting.confirmedDateTime && meeting.status !== 'schedule_poll_open' && (
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                        <Calendar className="w-4 h-4" />
+                        <span>{formatDate(meeting.confirmedDateTime)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Schedule Poll Info */}
+                  {meeting.status === 'schedule_poll_open' && (
+                    <div className="rounded-xl bg-primary-50 p-3 mb-3 border border-primary-100">
+                      <div className="text-sm font-medium text-primary-800 mb-1">
+                        {language === 'ru' ? 'Выберите удобную дату' : 'Qulay sanani tanlang'}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-primary-600">
+                        {scheduleVote ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {language === 'ru' ? 'Вы уже проголосовали' : 'Siz ovoz berdingiz'}
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-3.5 h-3.5" />
+                            {language === 'ru' ? 'Ожидает вашего выбора' : 'Tanlovingiz kutilmoqda'}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quorum progress bar */}
+                  {['voting_open', 'results_published', 'protocol_approved'].includes(meeting.status) && (
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="text-gray-500 flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" />
+                          {language === 'ru' ? 'Кворум' : 'Kvorum'}
                         </span>
-                      ) : (
-                        <span className="text-xs text-blue-600">
-                          {language === 'ru' ? 'Выберите удобную дату' : 'Qulay sanani tanlang'}
+                        <span className={`font-semibold ${quorum.quorumReached ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {quorum.participated}/{quorum.total} ({quorum.percent.toFixed(0)}%)
                         </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${
+                            quorum.quorumReached
+                              ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                              : 'bg-gradient-to-r from-amber-400 to-orange-400'
+                          }`}
+                          style={{ width: `${quorumPercent}%` }}
+                        />
+                      </div>
+                      {quorum.quorumReached && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <CheckCircle className="w-3 h-3 text-emerald-500" />
+                          <span className="text-[11px] text-emerald-600 font-medium">
+                            {language === 'ru' ? 'Кворум достигнут' : 'Kvorum yig\'ildi'}
+                          </span>
+                        </div>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Confirmed Date */}
-                {meeting.confirmedDateTime && meeting.status !== 'schedule_poll_open' && (
-                  <div className="flex items-center gap-2 text-sm bg-white/60 rounded-lg p-3 mb-3">
-                    <Calendar className="w-4 h-4 text-green-500" />
-                    <span className="font-medium">{formatDate(meeting.confirmedDateTime)}</span>
-                  </div>
-                )}
-
-                {/* Thank you message if already voted */}
-                {hasVoted && meeting.status === 'voting_open' && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-3">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-5 h-5 text-green-500" />
+                  {/* Thank you message if already voted */}
+                  {hasVoted && meeting.status === 'voting_open' && (
+                    <div className="rounded-xl bg-emerald-50 p-3 mb-3 flex items-center gap-3 border border-emerald-100">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                        <CheckCircle className="w-4.5 h-4.5 text-emerald-500" />
+                      </div>
                       <div>
-                        <p className="text-sm font-medium text-green-800">
+                        <p className="text-sm font-medium text-emerald-800">
                           {language === 'ru' ? 'Спасибо за участие!' : 'Ishtirok uchun rahmat!'}
                         </p>
-                        <p className="text-xs text-green-600">
+                        <p className="text-xs text-emerald-600">
                           {language === 'ru' ? 'Ваш голос учтён' : 'Ovozingiz hisobga olindi'}
                         </p>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Voting Call to Action - show only if not voted yet */}
-                {meeting.status === 'voting_open' && !hasVoted && (
-                  <div
-                    className="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
-                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
-                  >
-                    <Vote className="w-5 h-5" />
-                    {language === 'ru' ? 'Проголосовать' : 'Ovoz berish'}
-                  </div>
-                )}
-
-                {/* View Details button if already voted */}
-                {meeting.status === 'voting_open' && hasVoted && (
-                  <div className="w-full py-3 px-4 rounded-xl font-medium bg-gray-100 text-gray-700 flex items-center justify-center gap-2">
-                    <ChevronRight className="w-5 h-5" />
-                    {language === 'ru' ? 'Посмотреть детали' : 'Tafsilotlarni ko\'rish'}
-                  </div>
-                )}
-
-                {/* Quorum Info */}
-                {['voting_open', 'results_published', 'protocol_approved'].includes(meeting.status) && (
-                  <div className="flex items-center justify-between text-sm mt-3 pt-3 border-t border-gray-200/50">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span>{quorum.participated}/{quorum.total} ({quorum.percent.toFixed(0)}%)</span>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      quorum.quorumReached ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {quorum.quorumReached
-                        ? (language === 'ru' ? 'Кворум есть' : 'Kvorum bor')
-                        : (language === 'ru' ? 'Нет кворума' : 'Kvorum yo\'q')}
-                    </span>
-                  </div>
-                )}
+                  {/* CTA Button */}
+                  {meeting.status === 'voting_open' && !hasVoted ? (
+                    <button
+                      className="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation bg-gradient-to-r from-emerald-500 to-teal-600 shadow-md shadow-emerald-200/50"
+                    >
+                      <Vote className="w-5 h-5" />
+                      {language === 'ru' ? 'Проголосовать' : 'Ovoz berish'}
+                    </button>
+                  ) : (
+                    <button className="w-full py-3 px-4 rounded-xl font-medium text-gray-600 bg-gray-50 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation border border-gray-100">
+                      {language === 'ru' ? 'Подробнее' : 'Batafsil'}
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -459,11 +475,11 @@ export function ResidentMeetingsPage() {
             }
             return undefined;
           }}
-          onVote={(agendaItemId, choice, verified, comment) =>
+          onVote={(agendaItemId, choice, verified, comment, counterProposal) =>
             voteOnAgendaItem(selectedMeeting.id, agendaItemId, user.id, user.name, choice, {
               method: 'e_signature',
               otpVerified: verified,
-            }, comment)
+            }, comment, counterProposal)
           }
           getScheduleVote={() => getScheduleVoteByUser(selectedMeeting.id)}
           onScheduleVote={(optionId) => voteForSchedule(selectedMeeting.id, optionId)}
@@ -516,7 +532,7 @@ function MeetingVotingModal({
   allowRevote?: boolean; // Allow changing vote (for reconsideration requests)
   onClose: () => void;
   getVote: (agendaItemId: string) => { choice: VoteChoice } | undefined;
-  onVote: (agendaItemId: string, choice: VoteChoice, verified: boolean, comment?: string) => void;
+  onVote: (agendaItemId: string, choice: VoteChoice, verified: boolean, comment?: string, counterProposal?: string) => void;
   getScheduleVote: () => Promise<string | null>;
   onScheduleVote: (optionId: string) => Promise<{ success: boolean; error?: string }>;
   calculateResult: (agendaItemId: string) => {
@@ -534,6 +550,8 @@ function MeetingVotingModal({
   const [pendingVotes, setPendingVotes] = useState<Record<string, VoteChoice>>({});
   // Track comments for each agenda item vote
   const [pendingComments, setPendingComments] = useState<Record<string, string>>({});
+  // Track counter-proposals for "against" votes
+  const [pendingCounterProposals, setPendingCounterProposals] = useState<Record<string, string>>({});
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedScheduleOption, setSelectedScheduleOption] = useState<string | null>(null);
@@ -610,13 +628,15 @@ function MeetingVotingModal({
     setIsSubmitting(true);
 
     try {
-      // Submit all pending votes with their comments
+      // Submit all pending votes with their comments and counter-proposals
       for (const [agendaItemId, choice] of Object.entries(pendingVotes)) {
         const comment = pendingComments[agendaItemId]?.trim() || undefined;
-        await onVote(agendaItemId, choice, true, comment);
+        const counterProposal = pendingCounterProposals[agendaItemId]?.trim() || undefined;
+        await onVote(agendaItemId, choice, true, comment, counterProposal);
       }
       setPendingVotes({});
       setPendingComments({});
+      setPendingCounterProposals({});
       setVotesSubmitted(true);
     } catch (error: any) {
       console.error('Failed to submit votes:', error);
@@ -707,7 +727,7 @@ function MeetingVotingModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
+    <div className="fixed inset-0 bg-black/50 z-[200] flex items-end md:items-center justify-center">
       <div className="max-h-[85vh] md:max-h-[90vh] w-full md:max-w-lg md:mx-4 bg-white rounded-t-2xl md:rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 duration-200">
         {/* Header - more compact */}
         <div className="flex items-center justify-between p-3 border-b border-gray-100 bg-white sticky top-0 z-10">
@@ -777,7 +797,7 @@ function MeetingVotingModal({
           {isSchedulePoll && (
             <div className="space-y-4">
               {/* Header with deadline */}
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+              <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl p-4 text-white">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold text-lg flex items-center gap-2">
                     <Calendar className="w-5 h-5" />
@@ -790,7 +810,7 @@ function MeetingVotingModal({
                   )}
                 </div>
                 {meeting.schedulePollEndsAt && (
-                  <div className="flex items-center gap-2 text-blue-100 text-sm">
+                  <div className="flex items-center gap-2 text-primary-100 text-sm">
                     <Clock className="w-4 h-4" />
                     {language === 'ru' ? 'Завершится: ' : 'Tugaydi: '}
                     {new Date(meeting.schedulePollEndsAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
@@ -853,14 +873,14 @@ function MeetingVotingModal({
                           ? 'border-green-500 bg-green-50 shadow-md'
                           : alreadyVoted
                             ? 'border-gray-200 bg-gray-50 cursor-default'
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 bg-white cursor-pointer'
+                            : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50/50 bg-white cursor-pointer'
                       } ${scheduleVoteLoading ? 'opacity-70 pointer-events-none' : ''}`}
                     >
                       {/* Progress bar background */}
                       {totalScheduleVotes > 0 && (
                         <div
                           className={`absolute inset-0 transition-all ${
-                            isSelected ? 'bg-green-100' : 'bg-blue-50'
+                            isSelected ? 'bg-green-100' : 'bg-primary-50'
                           }`}
                           style={{ width: `${votePercent}%` }}
                         />
@@ -937,14 +957,14 @@ function MeetingVotingModal({
 
               {/* Current vote status - only shown briefly after first voting, then previousVote gets set */}
               {selectedScheduleOption && !scheduleVoteSuccess && !previousVote && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
                   <div className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <CheckCircle className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-medium text-blue-800">
+                      <div className="font-medium text-primary-800">
                         {language === 'ru' ? 'Ваш голос учтён' : 'Ovozingiz hisobga olindi'}
                       </div>
-                      <p className="text-sm text-blue-600 mt-1">
+                      <p className="text-sm text-primary-600 mt-1">
                         {language === 'ru'
                           ? 'После завершения опроса будет выбрана дата с максимальным числом голосов.'
                           : 'So\'rovnoma tugagach, eng ko\'p ovoz olgan sana tanlanadi.'}
@@ -981,20 +1001,20 @@ function MeetingVotingModal({
                   <div key={step.status} className="flex items-center gap-3">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                       isCompleted ? 'bg-green-500 text-white' :
-                      isCurrent ? 'bg-blue-500 text-white' :
+                      isCurrent ? 'bg-primary-500 text-white' :
                       'bg-gray-200 text-gray-500'
                     }`}>
                       {isCompleted ? <CheckCircle className="w-4 h-4" /> : index + 1}
                     </div>
                     <span className={`text-sm ${
                       isCompleted ? 'text-green-700' :
-                      isCurrent ? 'text-blue-700 font-medium' :
+                      isCurrent ? 'text-primary-700 font-medium' :
                       'text-gray-400'
                     }`}>
                       {step.label}
                     </span>
                     {isCurrent && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                      <span className="text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full">
                         {language === 'ru' ? 'Сейчас' : 'Hozir'}
                       </span>
                     )}
@@ -1014,10 +1034,10 @@ function MeetingVotingModal({
 
           {/* Voting Instructions */}
           {isVotingOpen && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
               <div className="flex items-start gap-3">
-                <Key className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-700">
+                <Key className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-primary-700">
                   {language === 'ru'
                     ? 'Для подтверждения голоса используется ваш уникальный электронный ключ. Это защищает от подделки голосов.'
                     : 'Ovozni tasdiqlash uchun sizning noyob elektron kalitingiz ishlatiladi. Bu ovozlarni soxtalashtirish oldini oladi.'}
@@ -1052,6 +1072,60 @@ function MeetingVotingModal({
                         </span>
                       </div>
                     </div>
+
+                    {/* Attachment Previews */}
+                    {(() => {
+                      const attachments: Array<{ name: string; url: string; type: string; size?: number }> =
+                        Array.isArray((item as any).attachments)
+                          ? (item as any).attachments
+                          : [];
+                      if (attachments.length === 0) return null;
+                      return (
+                        <div className="mb-3">
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
+                            <FileText className="w-3.5 h-3.5" />
+                            {language === 'ru' ? 'Материалы' : 'Materiallar'} ({attachments.length})
+                          </div>
+                          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                            {attachments.map((att, attIdx) => {
+                              const isImage = att.type?.startsWith('image/');
+                              if (isImage) {
+                                return (
+                                  <a
+                                    key={attIdx}
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-100 hover:opacity-90 transition-opacity"
+                                    title={att.name}
+                                  >
+                                    <img
+                                      src={att.url}
+                                      alt={att.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </a>
+                                );
+                              }
+                              return (
+                                <a
+                                  key={attIdx}
+                                  href={att.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download={att.name}
+                                  className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors max-w-[160px]"
+                                  title={att.name}
+                                >
+                                  <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs text-gray-700 truncate">{att.name}</span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Voting Buttons */}
                     {isVotingOpen && !hasVotedOnAll && (
@@ -1103,8 +1177,61 @@ function MeetingVotingModal({
                       </div>
                     )}
 
-                    {/* Comment input - show when vote is selected but not yet submitted */}
-                    {isVotingOpen && !hasVotedOnAll && pendingVotes[item.id] && (
+                    {/* "Against" objection / counter-proposal form */}
+                    {isVotingOpen && !hasVotedOnAll && (pendingVotes[item.id] === 'against' || (existingVote?.choice === 'against' && !pendingVotes[item.id])) && (
+                      <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+                        <div className="flex items-center gap-2 text-red-700 font-semibold text-sm">
+                          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                          {language === 'ru' ? 'Вы голосуете ПРОТИВ' : 'Siz QARSHI ovoz berayapsiz'}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-red-600 font-medium mb-1">
+                            {language === 'ru' ? 'Ваше возражение (обязательно)' : 'Sizning e\'tirozingiz (majburiy)'}
+                          </label>
+                          <textarea
+                            value={pendingComments[item.id] || ''}
+                            onChange={(e) => setPendingComments(prev => ({ ...prev, [item.id]: e.target.value }))}
+                            placeholder={language === 'ru' ? 'Укажите причину возражения (минимум 20 символов)' : 'E\'tiroz sababini ko\'rsating (kamida 20 belgi)'}
+                            className="w-full px-3 py-2 text-sm border border-red-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-red-200 resize-none"
+                            rows={3}
+                            maxLength={1000}
+                          />
+                          <div className="flex justify-between items-center mt-0.5">
+                            {(pendingComments[item.id] || '').length > 0 && (pendingComments[item.id] || '').length < 20 && (
+                              <span className="text-xs text-red-500">
+                                {language === 'ru'
+                                  ? `Ещё ${20 - (pendingComments[item.id] || '').length} символов`
+                                  : `Yana ${20 - (pendingComments[item.id] || '').length} belgi`}
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-400 ml-auto">
+                              {(pendingComments[item.id] || '').length}/1000
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-amber-700 font-medium mb-1">
+                            {language === 'ru' ? 'Альтернативное предложение (необязательно)' : 'Muqobil taklif (ixtiyoriy)'}
+                          </label>
+                          <textarea
+                            value={pendingCounterProposals[item.id] || ''}
+                            onChange={(e) => setPendingCounterProposals(prev => ({ ...prev, [item.id]: e.target.value }))}
+                            placeholder={language === 'ru' ? 'Предложите свой вариант решения...' : 'O\'z yechim variantingizni taklif qiling...'}
+                            className="w-full px-3 py-2 text-sm border border-amber-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none"
+                            rows={2}
+                            maxLength={1000}
+                          />
+                          <div className="text-right mt-0.5">
+                            <span className="text-xs text-gray-400">
+                              {(pendingCounterProposals[item.id] || '').length}/1000
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Comment input - show when vote is selected but not yet submitted (non-against votes only) */}
+                    {isVotingOpen && !hasVotedOnAll && pendingVotes[item.id] && pendingVotes[item.id] !== 'against' && (
                       <div className="mb-3">
                         <label className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
                           <MessageSquare className="w-3 h-3" />
@@ -1114,15 +1241,15 @@ function MeetingVotingModal({
                           value={pendingComments[item.id] || ''}
                           onChange={(e) => setPendingComments(prev => ({ ...prev, [item.id]: e.target.value }))}
                           placeholder={language === 'ru' ? 'Почему вы так проголосовали? (необязательно)' : 'Nima uchun shunday ovoz berdingiz? (ixtiyoriy)'}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-200 resize-none"
                           rows={2}
                           maxLength={500}
                         />
                         <div className="flex justify-between items-center mt-1">
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-xs text-gray-400">
                             {language === 'ru' ? 'Будет виден в протоколе собрания' : 'Yig\'ilish bayonnomasida ko\'rinadi'}
                           </span>
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-xs text-gray-400">
                             {(pendingComments[item.id] || '').length}/500
                           </span>
                         </div>

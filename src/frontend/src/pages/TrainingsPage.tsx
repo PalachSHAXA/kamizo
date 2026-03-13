@@ -119,8 +119,8 @@ const CreateProposalModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">
             {language === 'ru' ? 'Предложить тренинг' : 'Trening taklif qilish'}
@@ -143,7 +143,7 @@ const CreateProposalModal = ({
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               placeholder={language === 'ru' ? 'Введите тему тренинга' : 'Trening mavzusini kiriting'}
               required
             />
@@ -158,7 +158,7 @@ const CreateProposalModal = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               placeholder={language === 'ru' ? 'Опишите, чему хотели бы научиться' : 'Nimani o\'rganmoqchi ekanligingizni yozing'}
             />
           </div>
@@ -171,7 +171,7 @@ const CreateProposalModal = ({
             <select
               value={partnerId}
               onChange={(e) => setPartnerId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               required
             >
               <option value="">{language === 'ru' ? 'Выберите партнёра' : 'Hamkorni tanlang'}</option>
@@ -198,7 +198,7 @@ const CreateProposalModal = ({
                     value={f}
                     checked={format === f}
                     onChange={() => setFormat(f)}
-                    className="text-blue-600 focus:ring-blue-500"
+                    className="text-primary-600 focus:ring-primary-500"
                   />
                   <span className="text-sm text-gray-700">{FORMAT_LABELS[f]}</span>
                 </label>
@@ -218,7 +218,7 @@ const CreateProposalModal = ({
                     key={slot}
                     className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${
                       timeSlots.includes(slot)
-                        ? 'border-blue-500 bg-blue-50'
+                        ? 'border-primary-500 bg-primary-50'
                         : 'border-gray-300 hover:bg-gray-50'
                     }`}
                   >
@@ -226,7 +226,7 @@ const CreateProposalModal = ({
                       type="checkbox"
                       checked={timeSlots.includes(slot)}
                       onChange={() => toggleTimeSlot(slot)}
-                      className="text-blue-600 focus:ring-blue-500"
+                      className="text-primary-600 focus:ring-primary-500"
                     />
                     <span className="text-sm text-gray-700">
                       {TIME_SLOT_LABELS[slot]}
@@ -245,7 +245,7 @@ const CreateProposalModal = ({
                 id="anonymous"
                 checked={isAnonymous}
                 onChange={(e) => setIsAnonymous(e.target.checked)}
-                className="w-5 h-5 md:w-4 md:h-4 text-blue-600 focus:ring-blue-500 rounded"
+                className="w-5 h-5 md:w-4 md:h-4 text-primary-600 focus:ring-primary-500 rounded"
               />
               <span className="text-sm text-gray-700">
                 {language === 'ru'
@@ -266,7 +266,7 @@ const CreateProposalModal = ({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4" />
               {language === 'ru' ? 'Предложить' : 'Taklif qilish'}
@@ -310,8 +310,8 @@ const VoteModal = ({
   if (!isOpen || !proposal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-md w-full">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">{language === 'ru' ? 'Голосование' : 'Ovoz berish'}</h2>
           <button
@@ -342,7 +342,7 @@ const VoteModal = ({
                     key={i}
                     className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
                       intent === i
-                        ? 'border-blue-500 bg-blue-50'
+                        ? 'border-primary-500 bg-primary-50'
                         : 'border-gray-300 hover:bg-gray-50'
                     }`}
                   >
@@ -352,7 +352,7 @@ const VoteModal = ({
                       value={i}
                       checked={intent === i}
                       onChange={() => setIntent(i)}
-                      className="text-blue-600 focus:ring-blue-500"
+                      className="text-primary-600 focus:ring-primary-500"
                     />
                     <span className="text-sm text-gray-700">
                       {PARTICIPATION_LABELS[i]}
@@ -371,7 +371,7 @@ const VoteModal = ({
                 id="voteAnonymous"
                 checked={isAnonymous}
                 onChange={(e) => setIsAnonymous(e.target.checked)}
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 text-primary-600 focus:ring-primary-500"
               />
               <label htmlFor="voteAnonymous" className="text-sm text-gray-700">
                 {language === 'ru' ? 'Голосовать анонимно' : 'Anonim ovoz berish'}
@@ -390,7 +390,7 @@ const VoteModal = ({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
             >
               <ThumbsUp className="w-4 h-4" />
               {language === 'ru' ? 'Проголосовать' : 'Ovoz berish'}
@@ -467,8 +467,8 @@ const ProposalDetailModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-gray-900">
@@ -542,7 +542,7 @@ const ProposalDetailModal = ({
                 {proposal.preferredTimeSlots.map((slot) => (
                   <span
                     key={slot}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                    className="px-3 py-1 bg-primary-100 text-primary-800 text-sm rounded-full"
                   >
                     {TIME_SLOT_LABELS[slot]}
                   </span>
@@ -747,7 +747,7 @@ const ProposalDetailModal = ({
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                       placeholder={language === 'ru' ? 'Поделитесь впечатлениями...' : 'Taassurotlaringizni baham ko\'ring...'}
                     />
                   </div>
@@ -758,7 +758,7 @@ const ProposalDetailModal = ({
                         id="feedbackAnonymous"
                         checked={isFeedbackAnonymous}
                         onChange={(e) => setIsFeedbackAnonymous(e.target.checked)}
-                        className="w-4 h-4 text-blue-600"
+                        className="w-4 h-4 text-primary-600"
                       />
                       <label
                         htmlFor="feedbackAnonymous"
@@ -778,7 +778,7 @@ const ProposalDetailModal = ({
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="flex-1 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                     >
                       {language === 'ru' ? 'Отправить' : 'Yuborish'}
                     </button>
@@ -856,8 +856,8 @@ const AdminPanel = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <Settings className="w-5 h-5" />
@@ -877,7 +877,7 @@ const AdminPanel = ({
             onClick={() => setActiveTab('review')}
             className={`px-6 py-3 text-sm font-medium transition-colors ${
               activeTab === 'review'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? 'text-primary-600 border-b-2 border-primary-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -887,7 +887,7 @@ const AdminPanel = ({
             onClick={() => setActiveTab('stats')}
             className={`px-6 py-3 text-sm font-medium transition-colors ${
               activeTab === 'stats'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? 'text-primary-600 border-b-2 border-primary-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -897,7 +897,7 @@ const AdminPanel = ({
             onClick={() => setActiveTab('settings')}
             className={`px-6 py-3 text-sm font-medium transition-colors ${
               activeTab === 'settings'
-                ? 'text-blue-600 border-b-2 border-blue-600'
+                ? 'text-primary-600 border-b-2 border-primary-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -1075,9 +1075,9 @@ const AdminPanel = ({
           {/* Вкладка статистики */}
           {activeTab === 'stats' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-blue-50 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-blue-600">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
+                <div className="p-4 bg-primary-50 rounded-lg text-center">
+                  <p className="text-3xl font-bold text-primary-600">
                     {stats.totalProposals}
                   </p>
                   <p className="text-sm text-gray-600">{language === 'ru' ? 'Всего предложений' : 'Jami takliflar'}</p>
@@ -1148,7 +1148,7 @@ const AdminPanel = ({
                         allowAnonymousProposals: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 text-blue-600"
+                    className="w-4 h-4 text-primary-600"
                   />
                   <span className="text-sm text-gray-700">
                     {language === 'ru' ? 'Разрешить анонимные предложения' : 'Anonim takliflarga ruxsat berish'}
@@ -1162,7 +1162,7 @@ const AdminPanel = ({
                     onChange={(e) =>
                       updateSettings({ allowAnonymousVotes: e.target.checked })
                     }
-                    className="w-4 h-4 text-blue-600"
+                    className="w-4 h-4 text-primary-600"
                   />
                   <span className="text-sm text-gray-700">
                     {language === 'ru' ? 'Разрешить анонимное голосование' : 'Anonim ovoz berishga ruxsat berish'}
@@ -1178,7 +1178,7 @@ const AdminPanel = ({
                         allowAnonymousFeedback: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 text-blue-600"
+                    className="w-4 h-4 text-primary-600"
                   />
                   <span className="text-sm text-gray-700">
                     {language === 'ru' ? 'Разрешить анонимные отзывы' : 'Anonim sharhlarga ruxsat berish'}
@@ -1194,7 +1194,7 @@ const AdminPanel = ({
                         notifyAllOnNewProposal: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 text-blue-600"
+                    className="w-4 h-4 text-primary-600"
                   />
                   <span className="text-sm text-gray-700">
                     {language === 'ru' ? 'Уведомлять всех о новых предложениях' : 'Yangi takliflar haqida barchaga xabar berish'}
@@ -1273,7 +1273,7 @@ export default function TrainingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <GraduationCap className="w-8 h-8 text-blue-600" />
+            <GraduationCap className="w-8 h-8 text-primary-600" />
             {language === 'ru' ? 'Тренинги' : 'Treninglar'}
           </h1>
           <p className="text-gray-600 mt-1">
@@ -1294,7 +1294,7 @@ export default function TrainingsPage() {
           )}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             {language === 'ru' ? 'Предложить тренинг' : 'Trening taklif qilish'}
@@ -1303,12 +1303,12 @@ export default function TrainingsPage() {
       </div>
 
       {/* Статистика */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           icon={Vote}
           label={language === 'ru' ? 'На голосовании' : 'Ovoz berishda'}
           value={stats.votingProposals}
-          color="bg-blue-500"
+          color="bg-primary-500"
         />
         <StatCard
           icon={Calendar}
@@ -1336,7 +1336,7 @@ export default function TrainingsPage() {
           onClick={() => setFilterStatus('all')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             filterStatus === 'all'
-              ? 'bg-blue-600 text-white'
+              ? 'bg-primary-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
@@ -1352,7 +1352,7 @@ export default function TrainingsPage() {
               onClick={() => setFilterStatus(status)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filterStatus === status
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-primary-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -1434,7 +1434,7 @@ export default function TrainingsPage() {
                         </div>
                         <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-blue-500 rounded-full transition-all"
+                            className="h-full bg-primary-500 rounded-full transition-all"
                             style={{ width: `${Math.min(progress, 100)}%` }}
                           />
                         </div>
@@ -1466,7 +1466,7 @@ export default function TrainingsPage() {
                     {proposal.status === 'voting' && user && !userHasVoted && (
                       <button
                         onClick={() => handleVote(proposal)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
                       >
                         <ThumbsUp className="w-4 h-4" />
                         {language === 'ru' ? 'Голосовать' : 'Ovoz berish'}

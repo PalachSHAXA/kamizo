@@ -81,16 +81,16 @@ export function ExecutorSchedulePage() {
   ];
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
-          <CalendarDays className="w-7 h-7 text-blue-500" />
+          <CalendarDays className="w-7 h-7 text-primary-500" />
           {language === 'ru' ? 'Расписание' : 'Jadval'}
         </h1>
         <div className="flex items-center gap-2">
           {activeRequests.length > 0 && (
-            <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
+            <span className="px-3 py-1 rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
               {activeRequests.length} {language === 'ru' ? 'активных' : 'faol'}
             </span>
           )}
@@ -105,9 +105,9 @@ export function ExecutorSchedulePage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium whitespace-nowrap transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] touch-manipulation active:scale-95 rounded-xl font-medium whitespace-nowrap transition-all ${
                 activeTab === tab.id
-                  ? 'bg-blue-500 text-white shadow-lg'
+                  ? 'bg-primary-500 text-white shadow-lg'
                   : 'bg-white/50 text-gray-600 hover:bg-white/80'
               }`}
             >
@@ -129,12 +129,12 @@ export function ExecutorSchedulePage() {
 
       {/* Schedule Tab */}
       {activeTab === 'schedule' && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6">
         {/* Mini Calendar */}
-        <div className="glass-card p-5">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-blue-500" />
+              <CalendarDays className="w-5 h-5 text-primary-500" />
               {language === 'ru' ? 'Календарь заявок' : 'Arizalar kalendari'}
             </h3>
             <div className="flex items-center gap-2">
@@ -144,7 +144,7 @@ export function ExecutorSchedulePage() {
                   newDate.setMonth(newDate.getMonth() - 1);
                   setSelectedDate(newDate);
                 }}
-                className="p-2 hover:bg-white/30 rounded-lg"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-white/30 rounded-lg"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -157,7 +157,7 @@ export function ExecutorSchedulePage() {
                   newDate.setMonth(newDate.getMonth() + 1);
                   setSelectedDate(newDate);
                 }}
-                className="p-2 hover:bg-white/30 rounded-lg"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-white/30 rounded-lg"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -206,14 +206,14 @@ export function ExecutorSchedulePage() {
                     key={day}
                     onClick={() => setSelectedCalendarDate(dateStr)}
                     className={`h-16 md:h-14 flex flex-col items-center justify-start pt-1 rounded-xl relative cursor-pointer transition-all border-2 ${
-                      isSelected ? 'bg-blue-500 text-white shadow-lg scale-[1.02] border-blue-600' :
-                      isToday ? 'bg-blue-50 border-blue-300 font-bold' :
-                      hasRequests ? 'bg-white/70 border-transparent hover:border-blue-300 hover:shadow-md' :
+                      isSelected ? 'bg-primary-500 text-white shadow-lg scale-[1.02] border-primary-600' :
+                      isToday ? 'bg-primary-50 border-primary-300 font-bold' :
+                      hasRequests ? 'bg-white/70 border-transparent hover:border-primary-300 hover:shadow-md' :
                       isPast ? 'bg-gray-50/50 border-transparent text-gray-400' :
                       'hover:bg-gray-100/50 border-transparent'
                     }`}
                   >
-                    <span className={`text-sm ${isToday && !isSelected ? 'text-blue-600' : ''}`}>{day}</span>
+                    <span className={`text-sm ${isToday && !isSelected ? 'text-primary-600' : ''}`}>{day}</span>
 
                     {/* Booking-style indicators */}
                     {hasRequests && (
@@ -232,7 +232,7 @@ export function ExecutorSchedulePage() {
                         </div>
                         {/* Total count badge */}
                         {requestCount > 1 && (
-                          <span className={`text-[10px] font-bold ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
+                          <span className={`text-xs font-bold ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
                             {requestCount}
                           </span>
                         )}
@@ -248,7 +248,7 @@ export function ExecutorSchedulePage() {
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-blue-50 border-2 border-blue-300 rounded" />
+              <div className="w-3 h-3 bg-primary-50 border-2 border-primary-300 rounded" />
               <span>{language === 'ru' ? 'Сегодня' : 'Bugun'}</span>
             </div>
             <div className="flex items-center gap-1">
@@ -267,8 +267,8 @@ export function ExecutorSchedulePage() {
         </div>
 
         {/* Agenda / Upcoming Requests */}
-        <div className="glass-card p-5">
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
+          <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-amber-500" />
             {selectedCalendarDate
               ? `${language === 'ru' ? 'Заявки на' : 'Arizalar'} ${new Date(selectedCalendarDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
@@ -277,7 +277,7 @@ export function ExecutorSchedulePage() {
             {selectedCalendarDate && (
               <button
                 onClick={() => setSelectedCalendarDate(null)}
-                className="ml-auto text-sm text-blue-600 hover:text-blue-800 font-normal"
+                className="ml-auto text-sm text-primary-600 hover:text-primary-800 font-normal"
               >
                 {language === 'ru' ? 'Показать все' : 'Hammasini ko\'rsatish'}
               </button>
@@ -326,7 +326,7 @@ export function ExecutorSchedulePage() {
                       key={request.id}
                       className={`p-4 rounded-xl border-l-4 cursor-pointer hover:shadow-md transition-shadow ${
                         isToday ? 'bg-amber-50 border-amber-500' :
-                        isTomorrow ? 'bg-blue-50 border-blue-500' :
+                        isTomorrow ? 'bg-primary-50 border-primary-500' :
                         'bg-white/50 border-gray-300'
                       }`}
                       onClick={() => setSelectedRequest(request)}
@@ -340,7 +340,7 @@ export function ExecutorSchedulePage() {
                               </span>
                             )}
                             {isTomorrow && (
-                              <span className="px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+                              <span className="px-2 py-0.5 bg-primary-500 text-white text-xs rounded-full">
                                 {language === 'ru' ? 'Завтра' : 'Ertaga'}
                               </span>
                             )}
@@ -351,7 +351,7 @@ export function ExecutorSchedulePage() {
                           {request.category === 'trash' && (
                             <div className="flex flex-wrap gap-1.5 mt-1">
                               {request.title.includes(': ') && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
                                   🗑️ {request.title.split(': ').slice(1).join(': ')}
                                 </span>
                               )}
@@ -364,7 +364,7 @@ export function ExecutorSchedulePage() {
                           )}
                           <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-500">
                             {request.scheduledTime && (
-                              <span className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-medium">
+                              <span className="flex items-center gap-1 px-2 py-1 bg-primary-100 text-primary-700 rounded-lg font-medium">
                                 <Clock className="w-4 h-4" />
                                 {request.scheduledTime}
                               </span>
@@ -415,11 +415,11 @@ export function ExecutorSchedulePage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
               {activeRequests.map((request) => (
                 <div
                   key={request.id}
-                  className="glass-card p-4 cursor-pointer hover:shadow-lg transition-shadow"
+                  className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-lg transition-shadow"
                   onClick={() => setSelectedRequest(request)}
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -450,7 +450,7 @@ export function ExecutorSchedulePage() {
                   {request.category === 'trash' && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {request.title.includes(': ') && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
                           🗑️ {request.title.split(': ').slice(1).join(': ')}
                         </span>
                       )}
@@ -467,7 +467,7 @@ export function ExecutorSchedulePage() {
                       {request.address}, кв. {request.apartment}
                     </span>
                     {request.scheduledDate && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium">
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-lg text-xs font-medium">
                         <CalendarDays className="w-3 h-3" />
                         {new Date(request.scheduledDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                         {request.scheduledTime && ` ${request.scheduledTime}`}
@@ -492,8 +492,8 @@ export function ExecutorSchedulePage() {
 
       {/* Request Details Modal */}
       {selectedRequest && (
-        <div className="modal-backdrop" onClick={() => setSelectedRequest(null)}>
-          <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop items-end sm:items-center" onClick={() => setSelectedRequest(null)}>
+          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="text-sm text-gray-500">{language === 'ru' ? 'Заявка' : 'Ariza'} #{selectedRequest.number}</div>
@@ -507,12 +507,12 @@ export function ExecutorSchedulePage() {
             <div className="space-y-4">
               {/* Scheduled Date/Time */}
               {selectedRequest.scheduledDate && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <h3 className="font-medium text-blue-800 flex items-center gap-2 mb-2">
+                <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
+                  <h3 className="font-medium text-primary-800 flex items-center gap-2 mb-2">
                     <CalendarDays className="w-4 h-4" />
                     {language === 'ru' ? 'Желаемое время выполнения' : 'Kerakli vaqt'}
                   </h3>
-                  <div className="flex items-center gap-4 text-blue-700">
+                  <div className="flex items-center gap-4 text-primary-700">
                     <span>{new Date(selectedRequest.scheduledDate).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
                     {selectedRequest.scheduledTime && (
                       <span className="flex items-center gap-1">
@@ -588,14 +588,14 @@ export function ExecutorSchedulePage() {
             <div className="flex gap-3 mt-6">
               <a
                 href={`tel:${selectedRequest.residentPhone}`}
-                className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                className="btn-secondary flex-1 flex items-center justify-center gap-2 min-h-[44px] touch-manipulation active:scale-95"
               >
                 <Phone className="w-4 h-4" />
                 {language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq'}
               </a>
               <button
                 onClick={() => setSelectedRequest(null)}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
+                className="btn-primary flex-1 flex items-center justify-center gap-2 min-h-[44px] touch-manipulation active:scale-95"
               >
                 <Check className="w-4 h-4" />
                 {language === 'ru' ? 'Закрыть' : 'Yopish'}

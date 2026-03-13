@@ -311,7 +311,7 @@ export function ReportsPage() {
     })).sort((a, b) => b.completedCount - a.completedCount);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Отчёты и аналитика' : 'Hisobotlar va tahlil'}</h1>
@@ -363,7 +363,7 @@ export function ReportsPage() {
       {reportType === 'branch' && (
         <div className="space-y-6">
           {/* Object Selection */}
-          <div className="glass-card p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-gray-400" />
@@ -385,7 +385,7 @@ export function ReportsPage() {
                 <p className="text-sm mt-1">{language === 'ru' ? 'Добавьте здания в разделе "Дома"' : '"Uylar" bo\'limiga binolarni qo\'shing'}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 <button
                   onClick={() => setSelectedBranch('all')}
                   className={`p-4 rounded-xl border-2 transition-all text-left ${
@@ -415,7 +415,7 @@ export function ReportsPage() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-amber-500 rounded-lg flex items-center justify-center">
                         <Home className="w-5 h-5 text-white" />
                       </div>
                       <div className="min-w-0">
@@ -511,10 +511,10 @@ export function ReportsPage() {
             return (
               <>
                 {/* Key Metrics Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="glass-card p-5">
+                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center">
+                      <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
                         <FileText className="w-6 h-6 text-white" />
                       </div>
                       <div>
@@ -524,7 +524,7 @@ export function ReportsPage() {
                     </div>
                   </div>
 
-                  <div className="glass-card p-5">
+                  <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center">
                         <CheckCircle className="w-6 h-6 text-white" />
@@ -536,7 +536,7 @@ export function ReportsPage() {
                     </div>
                   </div>
 
-                  <div className="glass-card p-5">
+                  <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
                         <Star className="w-6 h-6 text-white" />
@@ -548,7 +548,7 @@ export function ReportsPage() {
                     </div>
                   </div>
 
-                  <div className="glass-card p-5">
+                  <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-violet-500 rounded-xl flex items-center justify-center">
                         <Users className="w-6 h-6 text-white" />
@@ -563,20 +563,20 @@ export function ReportsPage() {
 
                 {/* Time Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="glass-card p-5">
+                  <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-blue-600" />
+                      <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-primary-600" />
                       </div>
                       <div>
                         <div className="font-semibold">{language === 'ru' ? 'Время реакции' : 'Javob vaqti'}</div>
                         <div className="text-sm text-gray-500">{language === 'ru' ? 'от создания до назначения' : 'yaratishdan tayinlashgacha'}</div>
                       </div>
                     </div>
-                    <div className="text-4xl font-bold text-blue-600">{avgResponseTime} {language === 'ru' ? 'мин' : 'daq'}</div>
+                    <div className="text-4xl font-bold text-primary-600">{avgResponseTime} {language === 'ru' ? 'мин' : 'daq'}</div>
                   </div>
 
-                  <div className="glass-card p-5">
+                  <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                         <Clock className="w-5 h-5 text-green-600" />
@@ -593,7 +593,7 @@ export function ReportsPage() {
                 {/* Status & Category Breakdown */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Status Breakdown */}
-                  <div className="glass-card p-6">
+                  <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <Zap className="w-5 h-5 text-gray-400" />
                       {language === 'ru' ? 'Статусы заявок' : 'Arizalar holati'}
@@ -630,7 +630,7 @@ export function ReportsPage() {
                   </div>
 
                   {/* Category Breakdown */}
-                  <div className="glass-card p-6">
+                  <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <PieChart className="w-5 h-5 text-gray-400" />
                       {language === 'ru' ? 'По категориям (специалистам)' : 'Kategoriyalar bo\'yicha (mutaxassislar)'}
@@ -678,12 +678,12 @@ export function ReportsPage() {
                 </div>
 
                 {/* Priority Breakdown */}
-                <div className="glass-card p-6">
+                <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-gray-400" />
                     {language === 'ru' ? 'Приоритеты заявок' : 'Arizalar ustuvorligi'}
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
                     {Object.entries(priorityLabels).map(([priority, info]) => {
                       const count = priorityBreakdown[priority] || 0;
                       return (
@@ -698,7 +698,7 @@ export function ReportsPage() {
 
                 {/* Cancelled Requests Details */}
                 {cancelledRequests.length > 0 && (
-                  <div className="glass-card p-6">
+                  <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
                       <AlertCircle className="w-5 h-5" />
                       {language === 'ru' ? 'Отменённые заявки' : 'Bekor qilingan arizalar'} ({cancelledRequests.length})
@@ -749,10 +749,10 @@ export function ReportsPage() {
       {reportType === 'general' && (
         <>
           {/* Key Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="glass-card p-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
                   <FileText className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -770,7 +770,7 @@ export function ReportsPage() {
               </div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center">
                   <Percent className="w-6 h-6 text-white" />
@@ -790,7 +790,7 @@ export function ReportsPage() {
               </div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
                   <Star className="w-6 h-6 text-white" />
@@ -802,7 +802,7 @@ export function ReportsPage() {
               </div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-violet-500 rounded-xl flex items-center justify-center">
                   <Timer className="w-6 h-6 text-white" />
@@ -817,7 +817,7 @@ export function ReportsPage() {
 
           {/* Efficiency Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -833,7 +833,7 @@ export function ReportsPage() {
               </div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-amber-500" />
@@ -844,7 +844,7 @@ export function ReportsPage() {
               <div className="text-sm text-gray-500">{language === 'ru' ? 'Среднее время работы над заявкой' : 'O\'rtacha ariza ustida ishlash vaqti'}</div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 text-red-500" />
@@ -858,7 +858,7 @@ export function ReportsPage() {
 
           {/* Best Executor Card */}
           {advancedMetrics.bestExecutor && advancedMetrics.bestExecutor.periodCompleted > 0 && (
-            <div className="glass-card p-5 bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
                   <Award className="w-7 h-7 text-white" />
@@ -884,7 +884,7 @@ export function ReportsPage() {
           {/* Charts Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Category Distribution */}
-            <div className="glass-card p-6">
+            <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <PieChart className="w-5 h-5 text-gray-400" />
                 {language === 'ru' ? 'Распределение по категориям' : 'Kategoriyalar bo\'yicha taqsimot'}
@@ -910,7 +910,7 @@ export function ReportsPage() {
             </div>
 
             {/* Status Distribution */}
-            <div className="glass-card p-6">
+            <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-gray-400" />
                 {language === 'ru' ? 'Статусы заявок' : 'Arizalar holati'}
@@ -945,7 +945,7 @@ export function ReportsPage() {
           </div>
 
           {/* Top Executors */}
-          <div className="glass-card p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Топ исполнителей' : 'Top ijrochilar'}

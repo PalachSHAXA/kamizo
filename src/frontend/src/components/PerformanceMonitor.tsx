@@ -236,8 +236,7 @@ export const PerformanceMonitor = memo<PerformanceMonitorProps>(
               <button
                 onClick={() => {
                   if ((window as any).perfReport) {
-                    const report = (window as any).perfReport();
-                    console.log('Performance Report:', report);
+                    (window as any).perfReport();
                   }
                 }}
                 className="flex-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"

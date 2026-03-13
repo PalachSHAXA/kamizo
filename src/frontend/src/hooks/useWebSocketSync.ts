@@ -56,7 +56,7 @@ export function useWebSocketSync() {
   const SYNC_DEBOUNCE = 500; // Debounce sync calls
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
 
-  const syncData = useCallback(async () => {
+  const syncData = useCallback(async (includeExecutors = true) => {
     if (!user || user.role === 'super_admin') return;
 
     // Debounce: prevent multiple syncs in quick succession
@@ -67,10 +67,9 @@ export function useWebSocketSync() {
     lastSyncRef.current = now;
 
     try {
-      // Parallel fetch for speed
       const promises: Promise<void>[] = [fetchRequests()];
 
-      if (['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(user.role)) {
+      if (includeExecutors && ['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(user.role)) {
         promises.push(fetchExecutors());
       }
 
@@ -83,7 +82,6 @@ export function useWebSocketSync() {
   const syncMeetings = useCallback(async () => {
     if (!user || user.role === 'super_admin') return;
     try {
-      console.log('[WS] Syncing meetings...');
       await fetchMeetings();
     } catch (error) {
       console.error('[WS] Error syncing meetings:', error);
@@ -97,7 +95,6 @@ export function useWebSocketSync() {
 
     heartbeatIntervalRef.current = setInterval(() => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        console.log('[WS] Sending heartbeat...');
         wsRef.current.send(JSON.stringify({ type: 'ping' }));
       }
     }, HEARTBEAT_INTERVAL);
@@ -119,8 +116,6 @@ export function useWebSocketSync() {
       wsRef.current = null;
     }
 
-    console.log('[WS] Connecting...');
-
     // Determine protocol (ws:// or wss://)
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`;
@@ -130,7 +125,6 @@ export function useWebSocketSync() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[WS] Connected');
         reconnectAttempts.current = 0;
         startHeartbeat();
       };
@@ -138,11 +132,9 @@ export function useWebSocketSync() {
       ws.onmessage = async (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('[WS] Received:', message.type);
 
           switch (message.type) {
             case 'connected':
-              console.log('[WS] Connection confirmed:', message.data);
               // Initial sync
               await syncData();
               await syncMeetings();
@@ -153,12 +145,10 @@ export function useWebSocketSync() {
               break;
 
             case 'request_update':
-              console.log('[WS] Requests updated');
-              await syncData();
+              await syncData(false); // Only fetch requests, not executors
               break;
 
             case 'meeting_update':
-              console.log('[WS] Meetings updated');
               await syncMeetings();
 
               // Show push notification for new/updated meetings
@@ -181,29 +171,24 @@ export function useWebSocketSync() {
               break;
 
             case 'announcement_update':
-              console.log('[WS] Announcements updated, fetching new data');
               await fetchAnnouncements();
               break;
 
             case 'chat_message':
-              console.log('[WS] New chat message received');
               emitChatMessage(message.data?.message || message.data);
               break;
 
             case 'chat_read':
-              console.log('[WS] Chat read receipt received');
               emitChatMessage({ type: 'read', ...message.data });
               break;
 
             case 'executor_update':
-              console.log('[WS] Executors updated');
               if (['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(user.role)) {
                 await fetchExecutors();
               }
               break;
 
             case 'reschedule_update':
-              console.log('[WS] Reschedule update received');
               await fetchPendingReschedules();
               if (message.data?.reschedule) {
                 emitRescheduleUpdate(message.data.reschedule);
@@ -211,7 +196,7 @@ export function useWebSocketSync() {
               break;
 
             default:
-              console.warn('[WS] Unknown message type:', message.type);
+              break;
           }
         } catch (error) {
           console.error('[WS] Error processing message:', error);
@@ -222,15 +207,13 @@ export function useWebSocketSync() {
         console.error('[WS] Error:', error);
       };
 
-      ws.onclose = (event) => {
-        console.log('[WS] Connection closed:', event.code, event.reason);
+      ws.onclose = () => {
         stopHeartbeat();
         wsRef.current = null;
 
         // Attempt reconnect with exponential backoff
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-          console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1})`);
 
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;

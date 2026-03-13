@@ -75,6 +75,7 @@ export function ExecutorsPage() {
     boiler: 'Котельщик',
     ac: 'Кондиционерщик',
     courier: 'Курьер',
+    gardener: 'Садовник',
     other: 'Другое',
   } : {
     plumber: 'Santexnik',
@@ -87,11 +88,11 @@ export function ExecutorsPage() {
     boiler: 'Qozonchi',
     ac: 'Konditsionerchi',
     courier: 'Kuryer',
+    gardener: 'Bog\'bon',
     other: 'Boshqa',
   };
 
   const handleOpenDetails = async (executor: Executor) => {
-    console.log('=== OPENING EXECUTOR DETAILS ===');
     // Show modal immediately with cached data
     setSelectedExecutor(executor);
     setEditForm({
@@ -123,7 +124,6 @@ export function ExecutorsPage() {
           password: freshData.password || '',
           specialization: freshData.specialization,
         });
-        console.log('Fresh executor data loaded:', freshData.name, 'password:', freshData.password ? 'YES' : 'NO');
       }
     } catch (err) {
       console.error('Failed to fetch executor details:', err);
@@ -217,10 +217,10 @@ export function ExecutorsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             {isDepartmentHead
               ? (language === 'ru' ? 'Мои сотрудники' : 'Mening xodimlarim')
               : (language === 'ru' ? 'Исполнители' : 'Ijrochilar')}
@@ -234,7 +234,7 @@ export function ExecutorsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchExecutors()}
-            className="btn-secondary p-2"
+            className="btn-secondary p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95"
             title={language === 'ru' ? 'Обновить' : 'Yangilash'}
             disabled={isLoadingExecutors}
           >
@@ -253,7 +253,7 @@ export function ExecutorsPage() {
               }
               setShowAddModal(true);
             }}
-            className="btn-primary"
+            className="btn-primary min-h-[44px] touch-manipulation active:scale-95"
           >
             + {language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}
           </button>
@@ -264,11 +264,11 @@ export function ExecutorsPage() {
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
         </div>
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
         {filteredExecutors.map((executor) => (
           <div
             key={executor.id}
-            className="glass-card p-5 hover:shadow-lg transition-shadow"
+            className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl hover:shadow-lg transition-shadow"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -294,7 +294,7 @@ export function ExecutorsPage() {
             </div>
             <button
               type="button"
-              className="w-full btn-secondary text-sm py-2"
+              className="w-full btn-secondary text-sm py-2 min-h-[44px] touch-manipulation active:scale-95"
               onClick={() => handleOpenDetails(executor)}
             >
               {language === 'ru' ? 'Подробнее' : 'Batafsil'}
@@ -306,8 +306,8 @@ export function ExecutorsPage() {
 
       {/* Add Executor Modal */}
       {showAddModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content p-6 w-full max-w-md mx-4">
+        <div className="modal-backdrop items-end sm:items-center">
+          <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 rounded-t-2xl sm:rounded-2xl">
             <h2 className="text-xl font-bold mb-4">
               {isDepartmentHead
                 ? (language === 'ru' ? 'Добавить сотрудника в отдел' : 'Bo\'limga xodim qo\'shish')
@@ -433,8 +433,8 @@ export function ExecutorsPage() {
 
       {/* Executor Details Modal */}
       {selectedExecutor && (
-        <div className="modal-backdrop" onClick={handleCloseDetails}>
-          <div className="modal-content p-6 w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop items-end sm:items-center" onClick={handleCloseDetails}>
+          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-center gap-4">
@@ -663,7 +663,7 @@ export function ExecutorsPage() {
 
       {/* Credentials Modal - shows after creating new executor */}
       {showCredentialsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">

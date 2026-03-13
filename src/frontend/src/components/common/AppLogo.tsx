@@ -28,7 +28,7 @@ export function AppLogo({ size = 'md', forceDefault = false }: AppLogoProps) {
 
   return (
     <img
-      src="/favicon.svg"
+      src="/icons/favicon-192x192.png"
       alt="Kamizo"
       className={`${sizeClasses[size]} flex-shrink-0 object-contain`}
     />

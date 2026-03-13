@@ -60,13 +60,9 @@ class PushNotificationService {
     if ('serviceWorker' in navigator) {
       try {
         this.swRegistration = await navigator.serviceWorker.ready;
-        console.log('[Push] Service Worker ready');
 
         // Check existing subscription
         this.pushSubscription = await this.swRegistration.pushManager.getSubscription();
-        if (this.pushSubscription) {
-          console.log('[Push] Existing subscription found');
-        }
       } catch (error) {
         console.error('[Push] Service Worker init failed:', error);
       }
@@ -112,24 +108,15 @@ class PushNotificationService {
 
   // Подписаться на Web Push уведомления
   async subscribe(): Promise<PushSubscription | null> {
-    console.log('[Push] Starting subscription process...');
-    console.log('[Push] isSupported:', this.isSupported());
-    console.log('[Push] Permission:', this.permission);
 
     if (!this.isSupported()) {
       console.warn('[Push] Web Push not supported in this browser');
-      // Check specific APIs
-      console.log('[Push] Notification API:', 'Notification' in window);
-      console.log('[Push] ServiceWorker API:', 'serviceWorker' in navigator);
-      console.log('[Push] PushManager API:', 'PushManager' in window);
       return null;
     }
 
     // Request permission first
     if (this.permission !== 'granted') {
-      console.log('[Push] Requesting permission...');
       const granted = await this.requestPermission();
-      console.log('[Push] Permission result:', granted, 'Current permission:', this.permission);
       if (!granted) {
         console.warn('[Push] Permission not granted');
         return null;
@@ -138,7 +125,6 @@ class PushNotificationService {
 
     // Wait for service worker
     if (!this.swRegistration) {
-      console.log('[Push] Waiting for Service Worker...');
       await this.initServiceWorker();
     }
 
@@ -146,28 +132,22 @@ class PushNotificationService {
       console.error('[Push] Service Worker not available after init');
       return null;
     }
-    console.log('[Push] Service Worker ready:', this.swRegistration.scope);
 
     try {
       // Check for existing subscription
       const existingSub = await this.swRegistration.pushManager.getSubscription();
       if (existingSub) {
-        console.log('[Push] Found existing subscription, using it');
         this.pushSubscription = existingSub;
       } else {
         // Subscribe to push
-        console.log('[Push] Creating new subscription with VAPID key...');
         this.pushSubscription = await this.swRegistration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
         });
       }
 
-      console.log('[Push] Subscribed successfully!');
-      console.log('[Push] Endpoint:', this.pushSubscription.endpoint.substring(0, 60) + '...');
 
       // Send subscription to server
-      console.log('[Push] Sending subscription to backend...');
       await this.sendSubscriptionToServer(this.pushSubscription);
 
       return this.pushSubscription;
@@ -195,7 +175,6 @@ class PushNotificationService {
       await this.removeSubscriptionFromServer();
 
       this.pushSubscription = null;
-      console.log('[Push] Unsubscribed');
       return true;
     } catch (error) {
       console.error('[Push] Unsubscribe failed:', error);
@@ -207,20 +186,14 @@ class PushNotificationService {
   private async sendSubscriptionToServer(subscription: PushSubscription): Promise<void> {
     try {
       const subscriptionData = subscription.toJSON();
-      console.log('[Push] Sending subscription to server:', {
-        endpoint: subscriptionData.endpoint?.substring(0, 60) + '...',
-        hasP256dh: !!subscriptionData.keys?.p256dh,
-        hasAuth: !!subscriptionData.keys?.auth
-      });
 
-      const result = await apiRequest('/api/push/subscribe', {
+      await apiRequest('/api/push/subscribe', {
         method: 'POST',
         body: JSON.stringify({
           endpoint: subscriptionData.endpoint,
           keys: subscriptionData.keys
         })
       });
-      console.log('[Push] Subscription sent to server, result:', result);
     } catch (error) {
       console.error('[Push] Failed to send subscription to server:', error);
       // Re-throw to let caller know about failure
@@ -234,7 +207,6 @@ class PushNotificationService {
       await apiRequest('/api/push/unsubscribe', {
         method: 'POST'
       });
-      console.log('[Push] Subscription removed from server');
     } catch (error) {
       console.error('[Push] Failed to remove subscription from server:', error);
     }
@@ -264,7 +236,7 @@ class PushNotificationService {
     try {
       const notification = new Notification(options.title, {
         body: options.body,
-        icon: options.icon || '/favicon.ico',
+        icon: options.icon || '/icons/favicon.ico',
         tag: options.tag,
         requireInteraction: options.requireInteraction ?? true, // По умолчанию не исчезает
         data: options.data,

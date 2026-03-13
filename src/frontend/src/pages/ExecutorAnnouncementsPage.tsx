@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Megaphone, AlertTriangle, AlertCircle, Info, Clock, Download, FileText, File, Image } from 'lucide-react';
+import { Megaphone, AlertTriangle, AlertCircle, Info, Clock, Download, FileText, File } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -25,7 +25,7 @@ export function ExecutorAnnouncementsPage() {
       case 'important':
         return <AlertCircle className="w-4 h-4 text-amber-500" />;
       default:
-        return <Info className="w-4 h-4 text-blue-500" />;
+        return <Info className="w-4 h-4 text-primary-500" />;
     }
   };
 
@@ -36,7 +36,7 @@ export function ExecutorAnnouncementsPage() {
       case 'important':
         return 'bg-amber-100 text-amber-700 border-amber-200';
       default:
-        return 'bg-blue-100 text-blue-700 border-blue-200';
+        return 'bg-primary-100 text-primary-700 border-primary-200';
     }
   };
 
@@ -58,7 +58,7 @@ export function ExecutorAnnouncementsPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
@@ -73,7 +73,7 @@ export function ExecutorAnnouncementsPage() {
       </div>
 
       {/* Info Card */}
-      <div className="glass-card p-4 bg-purple-50 border-purple-200">
+      <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl bg-purple-50 border-purple-200">
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-purple-700">
@@ -103,7 +103,7 @@ export function ExecutorAnnouncementsPage() {
             return (
               <div
                 key={announcement.id}
-                className={`glass-card p-5 cursor-pointer transition-all hover:shadow-md ${
+                className={`glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl cursor-pointer transition-all hover:shadow-md ${
                   isUnread ? 'ring-2 ring-purple-400 bg-purple-50/50' : ''
                 }`}
                 onClick={() => handleView(announcement)}
@@ -135,28 +135,48 @@ export function ExecutorAnnouncementsPage() {
 
                     {/* Attachments */}
                     {announcement.attachments && announcement.attachments.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {announcement.attachments.map((attachment, index) => (
-                          <a
-                            key={index}
-                            href={attachment.url}
-                            download={attachment.name}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-gray-700 transition-colors border border-gray-200"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {attachment.type.startsWith('image/') ? (
-                              <Image className="w-4 h-4 text-blue-500" />
-                            ) : attachment.type.includes('pdf') ? (
-                              <FileText className="w-4 h-4 text-red-500" />
-                            ) : (
-                              <File className="w-4 h-4 text-gray-500" />
-                            )}
-                            <span className="truncate max-w-[150px]">{attachment.name}</span>
-                            <Download className="w-4 h-4 text-gray-400" />
-                          </a>
-                        ))}
+                      <div className="mt-3 space-y-2">
+                        {/* Image previews */}
+                        {announcement.attachments.filter(a => a.type.startsWith('image/')).length > 0 && (
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {announcement.attachments.filter(a => a.type.startsWith('image/')).map((attachment, index) => (
+                              <a
+                                key={`img-${index}`}
+                                href={attachment.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 rounded-xl overflow-hidden border border-gray-200 hover:border-primary-400 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <img src={attachment.url} alt={attachment.name} className="h-32 w-auto max-w-[200px] object-cover" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        {/* Non-image files */}
+                        {announcement.attachments.filter(a => !a.type.startsWith('image/')).length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {announcement.attachments.filter(a => !a.type.startsWith('image/')).map((attachment, index) => (
+                              <a
+                                key={`file-${index}`}
+                                href={attachment.url}
+                                download={attachment.name}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-gray-700 transition-colors border border-gray-200"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {attachment.type.includes('pdf') ? (
+                                  <FileText className="w-4 h-4 text-red-500" />
+                                ) : (
+                                  <File className="w-4 h-4 text-gray-500" />
+                                )}
+                                <span className="truncate max-w-[150px]">{attachment.name}</span>
+                                <Download className="w-4 h-4 text-gray-400" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 

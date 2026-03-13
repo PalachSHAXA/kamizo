@@ -276,7 +276,7 @@ export function MonitoringPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -301,7 +301,7 @@ export function MonitoringPage() {
 
           <button
             onClick={fetchMetrics}
-            className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors flex items-center gap-2"
+            className="px-4 py-2 min-h-[44px] touch-manipulation active:scale-95 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             {language === 'ru' ? 'Обновить' : 'Yangilash'}
@@ -319,7 +319,7 @@ export function MonitoringPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 min-h-[44px] touch-manipulation active:scale-95 rounded-lg sm:rounded-xl font-medium transition-colors ${
               activeTab === tab.id
                 ? 'bg-primary-400 text-gray-900'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
@@ -377,11 +377,11 @@ export function MonitoringPage() {
           )}
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="glass-card p-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-primary-600" />
                 </div>
                 <span className="text-sm text-gray-600">
                   {language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}
@@ -390,7 +390,7 @@ export function MonitoringPage() {
               <div className="text-3xl font-bold text-gray-900">{stats.totalRequests}</div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
                   <Users className="w-5 h-5 text-green-600" />
@@ -405,7 +405,7 @@ export function MonitoringPage() {
               </p>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
                   <Clock className="w-5 h-5 text-amber-600" />
@@ -417,7 +417,7 @@ export function MonitoringPage() {
               <div className="text-3xl font-bold text-amber-600">{stats.inProgress}</div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                   <TrendingUp className="w-5 h-5 text-purple-600" />
@@ -433,7 +433,7 @@ export function MonitoringPage() {
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Request Status Pie Chart */}
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                 <BarChart className="w-5 h-5 text-purple-500" />
                 {language === 'ru' ? 'Заявки по статусам' : 'Holat bo\'yicha arizalar'}
@@ -462,16 +462,16 @@ export function MonitoringPage() {
             </div>
 
             {/* Requests by Category */}
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-blue-500" />
+                <Activity className="w-5 h-5 text-primary-500" />
                 {language === 'ru' ? 'По категориям' : 'Kategoriyalar bo\'yicha'}
               </h3>
               <ResponsiveContainer width="100%" height={280}>
                 <RechartsBarChart data={requestsByCategory} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={80} />
+                  <YAxis dataKey="category" type="category" tick={{ fontSize: 12 }} width={80} />
                   <Tooltip />
                   <Bar dataKey="count" fill={CHART_COLORS.primary} radius={[0, 4, 4, 0]} />
                 </RechartsBarChart>
@@ -486,9 +486,9 @@ export function MonitoringPage() {
         <>
           {/* Performance Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
-                <BarChart className="w-5 h-5 text-blue-500" />
+                <BarChart className="w-5 h-5 text-primary-500" />
                 <span className="text-sm text-gray-600">
                   {language === 'ru' ? 'API Запросов' : 'API So\'rovlar'}
                 </span>
@@ -499,7 +499,7 @@ export function MonitoringPage() {
               </p>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
                 <Clock className="w-5 h-5 text-green-500" />
                 <span className="text-sm text-gray-600">
@@ -514,7 +514,7 @@ export function MonitoringPage() {
               </p>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
                 <AlertCircle className="w-5 h-5 text-red-500" />
                 <span className="text-sm text-gray-600">
@@ -529,7 +529,7 @@ export function MonitoringPage() {
               </p>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-3 mb-2">
                 <Server className="w-5 h-5 text-purple-500" />
                 <span className="text-sm text-gray-600">Cache Hit</span>
@@ -544,7 +544,7 @@ export function MonitoringPage() {
           </div>
 
           {/* Response Time Chart */}
-          <div className="glass-card p-5">
+          <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
             <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-green-500" />
               {language === 'ru' ? 'Время отклика (24 часа)' : 'Javob vaqti (24 soat)'}
@@ -552,7 +552,7 @@ export function MonitoringPage() {
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={responseTimeHistory}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="time" tick={{ fontSize: 10 }} />
+                <XAxis dataKey="time" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
                 <Legend />
@@ -623,8 +623,8 @@ export function MonitoringPage() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 {language === 'ru' ? 'Статистика Кэша' : 'Kesh Statistikasi'}
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white/50 rounded-lg p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white/50 rounded-lg p-3 sm:p-4">
                   <p className="text-sm text-gray-600">Memory Size</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{cache.memory.size}</p>
                 </div>
@@ -638,7 +638,7 @@ export function MonitoringPage() {
                 </div>
                 <div className="bg-white/50 rounded-lg p-4">
                   <p className="text-sm text-gray-600">Hit Rate</p>
-                  <p className="text-2xl font-bold text-blue-600 mt-1">{Math.round(cache.memory.hitRate)}%</p>
+                  <p className="text-2xl font-bold text-primary-600 mt-1">{Math.round(cache.memory.hitRate)}%</p>
                 </div>
               </div>
             </div>
@@ -650,9 +650,9 @@ export function MonitoringPage() {
       {activeTab === 'requests' && (
         <>
           {/* Requests by Day */}
-          <div className="glass-card p-5">
+          <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
             <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-500" />
+              <Activity className="w-5 h-5 text-primary-500" />
               {language === 'ru' ? 'Заявки по дням недели' : 'Hafta kunlari bo\'yicha arizalar'}
             </h3>
             <ResponsiveContainer width="100%" height={300}>
@@ -667,7 +667,7 @@ export function MonitoringPage() {
           </div>
 
           {/* Executor Performance */}
-          <div className="glass-card p-5">
+          <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
             <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-green-500" />
               {language === 'ru' ? 'Производительность исполнителей' : 'Ijrochilar unumdorligi'}
@@ -675,7 +675,7 @@ export function MonitoringPage() {
             <ResponsiveContainer width="100%" height={300}>
               <RechartsBarChart data={executorPerformance}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
                 <Legend />
@@ -687,7 +687,7 @@ export function MonitoringPage() {
 
           {/* Request Status Distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <h3 className="font-semibold text-lg mb-4">
                 {language === 'ru' ? 'Распределение по статусам' : 'Holat bo\'yicha taqsimot'}
               </h3>
@@ -712,16 +712,16 @@ export function MonitoringPage() {
               </div>
             </div>
 
-            <div className="glass-card p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
               <h3 className="font-semibold text-lg mb-4">
                 {language === 'ru' ? 'Статистика за неделю' : 'Haftalik statistika'}
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <p className="text-sm text-blue-600">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="bg-primary-50 rounded-lg p-3 sm:p-4">
+                  <p className="text-sm text-primary-600">
                     {language === 'ru' ? 'Новых заявок' : 'Yangi arizalar'}
                   </p>
-                  <p className="text-3xl font-bold text-blue-700 mt-1">{stats.newRequests}</p>
+                  <p className="text-3xl font-bold text-primary-700 mt-1">{stats.newRequests}</p>
                 </div>
                 <div className="bg-amber-50 rounded-lg p-4">
                   <p className="text-sm text-amber-600">

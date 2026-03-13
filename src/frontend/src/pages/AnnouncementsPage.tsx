@@ -183,7 +183,6 @@ export function AnnouncementsPage() {
           }
         });
 
-        console.log(`[List mode] Found login column at index ${loginColIndex}, parsed ${logins.length} logins`);
         setCustomLogins(logins);
       } catch (err) {
         console.error('Error parsing Excel file:', err);
@@ -246,7 +245,6 @@ export function AnnouncementsPage() {
           }
         });
 
-        console.log(`[Debt mode] Found ${debtRecords.length} records with debt`);
         setDebtData(debtRecords);
         setCustomLogins(logins);
       } catch (err) {
@@ -440,24 +438,23 @@ export function AnnouncementsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('announcements.title')}</h1>
-          <p className="text-gray-500">
+          <h1 className="text-[22px] font-extrabold text-gray-900 tracking-tight">{t('announcements.title')}</h1>
+          <p className="text-[13px] text-gray-500 mt-0.5">
             {language === 'ru'
               ? (canManageAnnouncements ? 'Создавайте объявления для жителей и сотрудников' : 'Объявления от управляющей компании')
               : (canManageAnnouncements ? 'Aholi va xodimlar uchun e\'lonlar yarating' : 'Boshqaruv kompaniyasidan e\'lonlar')}
           </p>
         </div>
-        {/* Only admin, manager, director can create announcements */}
         {canManageAnnouncements && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="btn-primary flex items-center gap-2"
+            className="px-4 py-2.5 min-h-[44px] bg-primary-500 text-white rounded-[12px] text-[13px] font-semibold flex items-center gap-2 active:scale-[0.96] transition-transform touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)]"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             {t('announcements.add')}
           </button>
         )}
@@ -468,32 +465,36 @@ export function AnnouncementsPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab('residents')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-[12px] text-[13px] font-semibold transition-all active:scale-[0.96] touch-manipulation ${
               activeTab === 'residents'
-                ? 'bg-primary-400 text-gray-900'
-                : 'bg-white text-gray-600 hover:bg-gray-100'
+                ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
+                : 'bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
             }`}
           >
-            <Users className="w-5 h-5" />
+            <Users className="w-4 h-4" />
             {t('announcements.forResidents')}
             {residentAnnouncements.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-900/10 text-xs">
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'residents' ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
+              }`}>
                 {residentAnnouncements.length}
               </span>
             )}
           </button>
           <button
             onClick={() => setActiveTab('employees')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-[12px] text-[13px] font-semibold transition-all active:scale-[0.96] touch-manipulation ${
               activeTab === 'employees'
-                ? 'bg-primary-400 text-gray-900'
-                : 'bg-white text-gray-600 hover:bg-gray-100'
+                ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
+                : 'bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
             }`}
           >
-            <Briefcase className="w-5 h-5" />
+            <Briefcase className="w-4 h-4" />
             {t('announcements.forStaff')}
             {employeeAnnouncements.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-900/10 text-xs">
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'employees' ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
+              }`}>
                 {employeeAnnouncements.length}
               </span>
             )}
@@ -519,12 +520,14 @@ export function AnnouncementsPage() {
       {/* Announcements List */}
       <div className="space-y-4">
         {currentAnnouncements.length === 0 ? (
-          <div className="glass-card p-12 text-center">
-            <Megaphone className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">
+          <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] p-10 text-center">
+            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Megaphone className="w-7 h-7 text-gray-300" />
+            </div>
+            <h3 className="text-[15px] font-semibold text-gray-500">
               {t('announcements.noAnnouncements')}
             </h3>
-            <p className="text-gray-400">{t('announcements.addFirst')}</p>
+            <p className="text-[13px] text-gray-400 mt-1">{t('announcements.addFirst')}</p>
           </div>
         ) : (
           currentAnnouncements.map((announcement) => (
@@ -550,13 +553,13 @@ export function AnnouncementsPage() {
 
       {/* Add Announcement Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xl font-bold">{t('announcements.add')}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base sm:text-lg md:text-xl font-bold">{t('announcements.add')}</h2>
               <button
                 onClick={() => { setShowAddModal(false); setNewAnnouncement({ title: '', content: '', type: 'residents', priority: 'normal', expiresAt: '' }); resetTargeting(); setAttachments([]); }}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -678,7 +681,7 @@ export function AnnouncementsPage() {
                           }}
                           className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-colors ${
                             !isDebtMode
-                              ? 'bg-blue-100 text-blue-700 border-2 border-blue-400'
+                              ? 'bg-primary-100 text-primary-700 border-2 border-primary-400'
                               : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
                           }`}
                         >
@@ -898,7 +901,7 @@ export function AnnouncementsPage() {
                   type="button"
                   onClick={() => attachmentInputRef.current?.click()}
                   disabled={isUploadingAttachment}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-primary-400 hover:bg-primary-50 transition-colors disabled:opacity-50"
                 >
                   {isUploadingAttachment ? (
                     <span className="text-sm text-gray-500">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</span>
@@ -961,13 +964,13 @@ export function AnnouncementsPage() {
 
       {/* Edit Announcement Modal */}
       {showEditModal && editingAnnouncement && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xl font-bold">{language === 'ru' ? 'Редактировать объявление' : 'E\'lonni tahrirlash'}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-base sm:text-lg md:text-xl font-bold">{language === 'ru' ? 'Редактировать объявление' : 'E\'lonni tahrirlash'}</h2>
               <button
                 onClick={() => { setShowEditModal(false); setEditingAnnouncement(null); }}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1115,7 +1118,7 @@ function AnnouncementCard({
 
   return (
     <>
-      <div className="glass-card p-5 hover:shadow-lg transition-shadow">
+      <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] p-5 active:scale-[0.99] transition-all touch-manipulation">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             {/* Header */}
@@ -1196,7 +1199,7 @@ function AnnouncementCard({
               {/* Clickable view count */}
               <button
                 onClick={handleViewClick}
-                className={`flex items-center gap-1 ${viewCount > 0 ? 'text-blue-600 hover:text-blue-800 cursor-pointer hover:underline' : 'text-gray-400 cursor-default'}`}
+                className={`flex items-center gap-1 ${viewCount > 0 ? 'text-primary-600 hover:text-primary-800 cursor-pointer hover:underline' : 'text-gray-400 cursor-default'}`}
                 disabled={viewCount === 0}
               >
                 <Eye className="w-4 h-4" />
@@ -1211,7 +1214,7 @@ function AnnouncementCard({
               {canEdit && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                  className="p-2 text-primary-500 hover:bg-primary-50 rounded-xl transition-colors"
                   title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1235,14 +1238,14 @@ function AnnouncementCard({
 
       {/* Viewers Modal with Statistics */}
       {showViewers && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowViewers(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowViewers(false)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-semibold text-lg flex items-center gap-2">
+              <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                 <Eye className="w-5 h-5 text-blue-500" />
                 {language === 'ru' ? 'Статистика просмотров' : 'Ko\'rishlar statistikasi'}
               </h3>
-              <button onClick={() => setShowViewers(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+              <button onClick={() => setShowViewers(false)} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation">
                 <X className="w-5 h-5" />
               </button>
             </div>

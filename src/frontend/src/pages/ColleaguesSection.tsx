@@ -81,6 +81,7 @@ const getDepartmentName = (specialization: ExecutorSpecialization): string => {
     boiler: 'Котельная служба',
     ac: 'Климат-контроль',
     courier: 'Служба доставки',
+    gardener: 'Садово-парковая служба',
     other: 'Общий отдел',
   };
   return departments[specialization] || 'Общий отдел';
@@ -179,11 +180,11 @@ function RatingModal({ employee, onClose, onSubmit }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
-          <h2 className="text-xl font-bold truncate pr-4">Оценить: {employee.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center z-10">
+          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">Оценить: {employee.name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -243,11 +244,11 @@ function ThankModal({ employee, onClose, onSubmit }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold truncate pr-4">Поблагодарить: {employee.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center">
+          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">Поблагодарить: {employee.name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -678,10 +679,6 @@ export function ColleaguesSection() {
   // Use user's specialization directly if available (for department_head), otherwise from executor record
   const mySpecialization = userSpecialization || currentExecutor?.specialization;
 
-  // Debug log
-  console.log('[Colleagues] User:', user?.name, 'Role:', user?.role, 'Specialization:', userSpecialization);
-  console.log('[Colleagues] Found executor:', currentExecutor?.name, 'Spec:', currentExecutor?.specialization);
-  console.log('[Colleagues] mySpecialization:', mySpecialization);
 
   // Separate employees into department (my team) and others
   const myTeamEmployees = mySpecialization
@@ -706,7 +703,6 @@ export function ColleaguesSection() {
         return !isCurrentUser;
       });
 
-  console.log('[Colleagues] myTeamEmployees:', myTeamEmployees.length, 'otherEmployees:', otherEmployees.length);
 
   // Group other employees by department for better organization
   const departmentGroups = otherEmployees.reduce((groups, emp) => {
@@ -726,7 +722,7 @@ export function ColleaguesSection() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
@@ -746,13 +742,13 @@ export function ColleaguesSection() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="lg:col-span-2 xl:col-span-3 space-y-6">
             {/* My Team Section - For Department Heads and Executors */}
             {(isDepartmentHead || isExecutor) && myTeamEmployees.length > 0 && (
               <div className="glass-card p-4 sm:p-6">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
                   {language === 'ru'
                     ? (isDepartmentHead ? `Мои сотрудники (${myTeamEmployees.length})` : `Мой отдел: ${getDepartmentName(mySpecialization as ExecutorSpecialization)} (${myTeamEmployees.length})`)
                     : (isDepartmentHead ? `Mening xodimlarim (${myTeamEmployees.length})` : `Mening bo'limim (${myTeamEmployees.length})`)}
@@ -765,7 +761,7 @@ export function ColleaguesSection() {
                     return (
                       <div
                         key={emp.id}
-                        className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-blue-50/50 border border-blue-200 rounded-xl hover:bg-blue-50 hover:shadow-md transition-all"
+                        className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-primary-50/50 border border-primary-200 rounded-xl hover:bg-primary-50 hover:shadow-md transition-all"
                       >
                         <img
                           src={emp.photo}

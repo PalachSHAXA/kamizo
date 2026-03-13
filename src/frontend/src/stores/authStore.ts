@@ -196,8 +196,6 @@ export const useAuthStore = create<AuthState>()(
 
       // Legacy methods for backward compatibility (to be removed after full migration)
       addMockUser: (login: string, password: string, user: User) => {
-        console.log('addMockUser called with:', { login, password, user });
-
         // Also register via API with all fields including building info
         authApi.register({
           login,
@@ -212,8 +210,6 @@ export const useAuthStore = create<AuthState>()(
           floor: (user as any).floor,
           branch: (user as any).branch,
           building: (user as any).building,
-        }).then(() => {
-          console.log('User registered via API successfully');
         }).catch((err) => {
           console.error('API register error:', err);
         });
@@ -224,8 +220,6 @@ export const useAuthStore = create<AuthState>()(
             [login]: { password, user }
           }
         }));
-
-        console.log('User added to local store');
       },
 
       removeUser: (login: string) => {
@@ -295,23 +289,17 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
         if (state?.user?.id) {
-          // CRITICAL FIX: Ensure token always matches user.id
-          // This fixes 401 errors caused by token/user.id mismatch
+          // Ensure token always matches user.id
           const correctToken = state.user.id;
           if (state.token !== correctToken) {
-            console.warn('Token mismatch detected, fixing...', {
-              oldToken: state.token,
-              newToken: correctToken
-            });
-            state.token = correctToken;
+            // Use setState to properly trigger re-renders
+            useAuthStore.setState({ token: correctToken });
           }
           localStorage.setItem('auth_token', correctToken);
-          console.log('Token synced to localStorage on rehydrate:', correctToken);
         } else if (state?.token) {
-          // No user but have token - clear it to avoid stale state
-          console.warn('Token exists but no user, clearing auth state');
+          // No user but have token - clear stale state
           localStorage.removeItem('auth_token');
-          state.token = null;
+          useAuthStore.setState({ token: null });
         }
       },
     }

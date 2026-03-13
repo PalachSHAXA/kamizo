@@ -1,5 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { usePopupNotifications } from '../../hooks/usePopupNotifications';
@@ -9,6 +9,7 @@ import { Header } from './Header';
 import { MobileHeader } from './MobileHeader';
 import { PopupManager } from '../PopupNotification';
 import { PerformanceMonitor } from '../PerformanceMonitor';
+import { BottomBar } from '../BottomBar';
 import { Loader2 } from 'lucide-react';
 
 // Page loading fallback
@@ -45,6 +46,7 @@ const ManagerGuestAccessPage = lazy(() => import('../../pages/ManagerGuestAccess
 const ResidentsPage = lazy(() => import('../../pages/ResidentsPage').then(m => ({ default: m.ResidentsPage })));
 const ChatPage = lazy(() => import('../../pages/ChatPage').then(m => ({ default: m.ChatPage })));
 const ResidentProfilePage = lazy(() => import('../../pages/ResidentProfilePage').then(m => ({ default: m.ResidentProfilePage })));
+const StaffProfilePage = lazy(() => import('../../pages/StaffProfilePage').then(m => ({ default: m.StaffProfilePage })));
 const ResidentContractPage = lazy(() => import('../../pages/ResidentContractPage').then(m => ({ default: m.ResidentContractPage })));
 const ResidentUsefulContactsPage = lazy(() => import('../../pages/ResidentUsefulContactsPage'));
 const AdvertiserDashboard = lazy(() => import('../../pages/AdvertiserDashboard').then(m => ({ default: m.AdvertiserDashboard })));
@@ -64,7 +66,6 @@ const SuperAdminDashboard = lazy(() => import('../../pages/admin/SuperAdminDashb
 
 export function Layout() {
   const location = useLocation();
-  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { getUnreadCount, fetchAnnouncements } = useDataStore();
@@ -76,14 +77,7 @@ export function Layout() {
   // Real-time sync via WebSocket (replaces SSE polling)
   useWebSocketSync();
 
-  // Redirect to dashboard if current path is not "/" on first render (e.g. after login)
-  // This prevents stale URLs from a previous session showing wrong pages
-  useEffect(() => {
-    if (user && location.pathname !== '/') {
-      navigate('/', { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  // Deep linking is supported — users can bookmark and share URLs directly
 
   // Fetch announcements on mount (for badge in sidebar) - skip for super_admin
   useEffect(() => {
@@ -96,6 +90,45 @@ export function Layout() {
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+
+  // Listen for custom event to open sidebar (from ResidentDashboard custom header)
+  useEffect(() => {
+    const handleOpenSidebar = () => setSidebarOpen(true);
+    window.addEventListener('open-sidebar', handleOpenSidebar);
+    return () => window.removeEventListener('open-sidebar', handleOpenSidebar);
+  }, []);
+
+  // Swipe from left edge to open sidebar
+  const swipeRef = useRef<{ startX: number; startY: number; started: boolean }>({ startX: 0, startY: 0, started: false });
+  const handleGlobalTouchStart = useCallback((e: TouchEvent) => {
+    const x = e.touches[0].clientX;
+    // Only trigger from left 25px edge
+    if (x < 25 && !sidebarOpen) {
+      swipeRef.current = { startX: x, startY: e.touches[0].clientY, started: true };
+    }
+  }, [sidebarOpen]);
+
+  const handleGlobalTouchEnd = useCallback((e: TouchEvent) => {
+    if (!swipeRef.current.started) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const diffX = endX - swipeRef.current.startX;
+    const diffY = Math.abs(endY - swipeRef.current.startY);
+    // Swipe right > 60px and mostly horizontal
+    if (diffX > 60 && diffY < diffX) {
+      setSidebarOpen(true);
+    }
+    swipeRef.current.started = false;
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('touchstart', handleGlobalTouchStart, { passive: true });
+    document.addEventListener('touchend', handleGlobalTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', handleGlobalTouchStart);
+      document.removeEventListener('touchend', handleGlobalTouchEnd);
+    };
+  }, [handleGlobalTouchStart, handleGlobalTouchEnd]);
 
   // Determine which dashboard to show based on role and account_type
   const getDashboard = () => {
@@ -118,6 +151,8 @@ export function Layout() {
         return <DepartmentHeadDashboard />;
       case 'executor':
         return <ExecutorDashboard />;
+      case 'security':
+        return <Navigate to="/qr-scanner" replace />;
       case 'resident':
         return <ResidentDashboard />;
       case 'tenant':
@@ -133,7 +168,7 @@ export function Layout() {
     if (user?.role === 'resident') {
       return <ResidentAnnouncementsPage />;
     }
-    if (user?.role === 'executor' || user?.role === 'advertiser') {
+    if (user?.role === 'executor' || user?.role === 'security' || user?.role === 'advertiser') {
       return <ExecutorAnnouncementsPage />;
     }
     return <AnnouncementsPage />;
@@ -167,8 +202,8 @@ export function Layout() {
         />
       )}
 
-      {/* Mobile Header */}
-      {!isSuperAdmin && (
+      {/* Mobile Header - hidden for residents on home page (custom header), marketplace (own header), and profile */}
+      {!isSuperAdmin && !(user?.role === 'resident' && location.pathname === '/') && location.pathname !== '/marketplace' && location.pathname !== '/profile' && (
         <MobileHeader
           onMenuClick={() => setSidebarOpen(true)}
           unreadCount={unreadCount}
@@ -181,7 +216,7 @@ export function Layout() {
           <Header />
         </div>
 
-        <main className="p-4 md:p-6 page-content">
+        <main className="px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content">
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={getDashboard()} />
@@ -199,14 +234,20 @@ export function Layout() {
               <Route path="/meetings" element={getMeetingsPage()} />
               <Route path="/announcements" element={getAnnouncementsPage()} />
               <Route path="/schedule" element={<ExecutorSchedulePage />} />
-              <Route path="/stats" element={<ExecutorStatsPage />} />
+              <Route path="/my-stats" element={<ExecutorStatsPage />} />
               <Route path="/rate-employees" element={<ResidentRateEmployeesPage />} />
               <Route path="/vehicles" element={<ResidentVehiclesPage />} />
               <Route path="/vehicle-search" element={<VehicleSearchPage />} />
               <Route path="/guest-access" element={getGuestAccessPage()} />
               <Route path="/qr-scanner" element={<GuardQRScannerPage />} />
               <Route path="/chat" element={<ChatPage />} />
-              <Route path="/profile" element={<ResidentProfilePage />} />
+              <Route path="/profile" element={
+                ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+                  ? <ResidentProfilePage />
+                  : ['admin', 'director', 'manager'].includes(user?.role || '')
+                    ? <SettingsPage />
+                    : <StaffProfilePage />
+              } />
               <Route path="/contract" element={<ResidentContractPage />} />
               <Route path="/useful-contacts" element={<ResidentUsefulContactsPage />} />
               <Route path="/colleagues" element={<ColleaguesSection />} />
@@ -226,6 +267,9 @@ export function Layout() {
           </Suspense>
         </main>
       </div>
+
+      {/* Unified interactive bottom bar for all roles (mobile) */}
+      <BottomBar />
 
       {/* Popup notifications for urgent announcements and completed requests */}
       <PopupManager popups={popups} onDismiss={dismissPopup} />

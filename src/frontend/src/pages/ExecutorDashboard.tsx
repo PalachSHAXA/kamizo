@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { InstallAppSection } from '../components/InstallAppSection';
 import {
   FileText, Clock, CheckCircle, MapPin, Phone, User,
   Play, Check, X, Star, TrendingUp, Timer, Hand,
-  CalendarDays, XCircle, Ban, AlertCircle,
-  Pause, PlayCircle, RefreshCw, Send, ChevronRight,
+  CalendarDays, XCircle, AlertCircle,
+  Pause, PlayCircle, RefreshCw, ChevronRight,
   ShoppingBag, Package
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
@@ -11,8 +12,11 @@ import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { executorsApi, apiRequest } from '../services/api';
 import { formatAddress } from '../utils/formatAddress';
-import { SPECIALIZATION_LABELS, STATUS_LABELS, RESCHEDULE_REASON_LABELS } from '../types';
-import type { Request, ExecutorSpecialization, RequestStatus, RescheduleReason, RescheduleRequest } from '../types';
+import { SPECIALIZATION_LABELS, STATUS_LABELS } from '../types';
+import type { Request, ExecutorSpecialization, RequestStatus, RescheduleRequest } from '../types';
+import { DeclineRequestModal } from '../components/modals/DeclineRequestModal';
+import RescheduleModal from '../components/modals/RescheduleModal';
+import RescheduleResponseModal from '../components/modals/RescheduleResponseModal';
 
 // Marketplace order item interface
 interface MarketplaceOrderItem {
@@ -226,17 +230,16 @@ export function ExecutorDashboard() {
   const mySpecialization = currentExecutor?.specialization || user?.specialization;
 
   // Filter requests for this executor - use user.id for consistency with handleTakeRequest
-  // This ensures requests assigned via user.id are properly displayed
-  const myRequests = requests.filter(r => r.executorId === user?.id);
+  const myRequests = useMemo(() => requests.filter(r => r.executorId === user?.id), [requests, user?.id]);
 
   // Available requests - new requests matching executor's specialization (not yet assigned)
-  const availableRequests = requests.filter(r =>
+  const availableRequests = useMemo(() => requests.filter(r =>
     r.status === 'new' && r.category === mySpecialization
-  );
+  ), [requests, mySpecialization]);
 
-  const assignedRequests = myRequests.filter(r => r.status === 'assigned' || r.status === 'accepted');
-  const inProgressRequests = myRequests.filter(r => r.status === 'in_progress');
-  const completedRequests = myRequests.filter(r => r.status === 'completed' || r.status === 'pending_approval');
+  const assignedRequests = useMemo(() => myRequests.filter(r => r.status === 'assigned' || r.status === 'accepted'), [myRequests]);
+  const inProgressRequests = useMemo(() => myRequests.filter(r => r.status === 'in_progress'), [myRequests]);
+  const completedRequests = useMemo(() => myRequests.filter(r => r.status === 'completed' || r.status === 'pending_approval'), [myRequests]);
 
   // Get pending reschedule requests for this executor - use user.id for consistency
   const pendingReschedules = user?.id ? getPendingRescheduleForUser(user.id) : [];
@@ -427,25 +430,33 @@ export function ExecutorDashboard() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
-      {/* Header - Mobile optimized */}
+    <div className="space-y-4 md:space-y-6 xl:space-y-8 pb-24 md:pb-0">
+      {/* Header - Mobile optimized with greeting */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">
-            {user?.specialization === 'courier'
-              ? (language === 'ru' ? 'Мои заказы' : 'Mening buyurtmalarim')
-              : (language === 'ru' ? 'Мои заявки' : 'Mening arizalarim')}
+          <p className="text-sm text-gray-400 font-medium">
+            {language === 'ru'
+              ? `${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'} 👋`
+              : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'} 👋`}
+          </p>
+          <h1 className="text-xl md:text-2xl xl:text-3xl font-bold text-gray-900 truncate">
+            {user?.name?.split(' ')[0]}
           </h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1 truncate">
-            {user?.name} • {SPECIALIZATION_LABELS[user?.specialization as ExecutorSpecialization] || (language === 'ru' ? 'Исполнитель' : 'Ijrochi')}
+          <p className="text-sm text-gray-500 mt-0.5 truncate">
+            {SPECIALIZATION_LABELS[user?.specialization as ExecutorSpecialization] || (language === 'ru' ? 'Исполнитель' : 'Ijrochi')}
           </p>
         </div>
         <div className="flex-shrink-0">
-          <div className={`px-3 py-2 rounded-xl text-sm font-medium ${
+          <div className={`px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-1.5 ${
             currentExecutor?.status === 'available' ? 'bg-green-100 text-green-700' :
             currentExecutor?.status === 'busy' ? 'bg-amber-100 text-amber-700' :
             'bg-gray-100 text-gray-600'
           }`}>
+            <span className={`w-2 h-2 rounded-full ${
+              currentExecutor?.status === 'available' ? 'bg-green-500' :
+              currentExecutor?.status === 'busy' ? 'bg-amber-500 animate-pulse' :
+              'bg-gray-400'
+            }`} />
             {currentExecutor?.status === 'available' ? (language === 'ru' ? 'Доступен' : 'Mavjud') :
              currentExecutor?.status === 'busy' ? (language === 'ru' ? 'Занят' : 'Band') : (language === 'ru' ? 'Оффлайн' : 'Oflayn')}
           </div>
@@ -475,7 +486,7 @@ export function ExecutorDashboard() {
                 setRescheduleToRespond(reschedule);
                 setShowRescheduleResponseModal(true);
               }}
-              className="w-full p-3 bg-white/60 rounded-xl text-left flex items-center justify-between active:bg-white/80 transition-colors"
+              className="w-full p-3 min-h-[44px] bg-white/60 rounded-xl text-left flex items-center justify-between active:bg-white/80 transition-colors touch-manipulation"
             >
               <div>
                 <div className="font-medium text-gray-800">
@@ -492,8 +503,8 @@ export function ExecutorDashboard() {
       )}
 
       {/* Stats Cards - Personal Performance - Mobile optimized */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        <div className="glass-card p-3 md:p-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4 xl:gap-5">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
               <Star className="w-5 h-5 md:w-6 md:h-6 text-white" />
@@ -509,7 +520,7 @@ export function ExecutorDashboard() {
           </div>
         </div>
 
-        <div className="glass-card p-3 md:p-5">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
               {user?.specialization === 'courier' ? (
@@ -536,9 +547,9 @@ export function ExecutorDashboard() {
           </div>
         </div>
 
-        <div className="glass-card p-3 md:p-5">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
               <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </div>
             <div className="min-w-0">
@@ -556,7 +567,7 @@ export function ExecutorDashboard() {
           </div>
         </div>
 
-        <div className="glass-card p-3 md:p-5">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-purple-400 to-violet-500 rounded-xl flex items-center justify-center flex-shrink-0">
               <Timer className="w-5 h-5 md:w-6 md:h-6 text-white" />
@@ -579,7 +590,7 @@ export function ExecutorDashboard() {
 
       {/* Active Work Timer - Mobile optimized - Show if there's work in progress */}
       {inProgressRequests.length > 0 && (
-        <div className={`glass-card p-4 md:p-6 border-2 ${inProgressRequests[0]?.isPaused ? 'border-gray-400 bg-gray-50/50' : 'border-amber-400 bg-amber-50/50'}`}>
+        <div className={`glass-card p-4 md:p-6 xl:p-8 border-2 ${inProgressRequests[0]?.isPaused ? 'border-gray-400 bg-gray-50/50' : 'border-amber-400 bg-amber-50/50'}`}>
           <div className="flex items-center gap-2 mb-3 md:mb-4">
             <div className={`w-3 h-3 rounded-full ${inProgressRequests[0]?.isPaused ? 'bg-gray-500' : 'bg-amber-500 animate-pulse'}`} />
             <span className={`font-medium ${inProgressRequests[0]?.isPaused ? 'text-gray-700' : 'text-amber-700'}`}>
@@ -609,7 +620,7 @@ export function ExecutorDashboard() {
                   {req.isPaused ? (
                     <button
                       onClick={() => handleResumeWork(req.id)}
-                      className="py-3 px-4 md:px-5 rounded-xl font-semibold text-white flex items-center gap-2 active:scale-95 transition-transform touch-manipulation"
+                      className="min-h-[44px] py-3 px-4 md:px-5 rounded-xl font-semibold text-white flex items-center gap-2 active:scale-95 transition-transform touch-manipulation"
                       style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}
                     >
                       <PlayCircle className="w-5 h-5" />
@@ -618,7 +629,7 @@ export function ExecutorDashboard() {
                   ) : (
                     <button
                       onClick={() => handlePauseWork(req.id)}
-                      className="py-3 px-4 md:px-5 rounded-xl font-semibold text-gray-700 bg-white border-2 border-gray-300 flex items-center gap-2 active:scale-95 transition-transform touch-manipulation"
+                      className="min-h-[44px] py-3 px-4 md:px-5 rounded-xl font-semibold text-gray-700 bg-white border-2 border-gray-300 flex items-center gap-2 active:scale-95 transition-transform touch-manipulation"
                     >
                       <Pause className="w-5 h-5" />
                       <span className="hidden md:inline">{language === 'ru' ? 'Пауза' : 'Pauza'}</span>
@@ -626,7 +637,7 @@ export function ExecutorDashboard() {
                   )}
                   <button
                     onClick={() => handleComplete(req.id)}
-                    className="py-3 px-4 md:px-5 rounded-xl font-semibold text-white flex items-center gap-2 active:scale-95 transition-transform touch-manipulation"
+                    className="min-h-[44px] py-3 px-4 md:px-5 rounded-xl font-semibold text-white flex items-center gap-2 active:scale-95 transition-transform touch-manipulation"
                     style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
                   >
                     <Check className="w-5 h-5" />
@@ -647,9 +658,9 @@ export function ExecutorDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 md:py-2 rounded-xl font-medium transition-all flex items-center gap-2 whitespace-nowrap touch-manipulation ${
+                  className={`px-4 py-3 md:py-2 min-h-[44px] rounded-xl font-medium transition-all flex items-center gap-2 whitespace-nowrap touch-manipulation ${
                     activeTab === tab.id
-                      ? 'bg-primary-500 text-gray-900 shadow-md'
+                      ? 'bg-primary-500 text-white shadow-md'
                       : 'hover:bg-white/30 active:bg-white/50 text-gray-600'
                   }`}
                 >
@@ -677,10 +688,10 @@ export function ExecutorDashboard() {
                   <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <ShoppingBag className="w-8 h-8 text-primary-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-600">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-500">
                     {language === 'ru' ? 'Нет активных доставок' : 'Faol yetkazishlar yo\'q'}
                   </h3>
-                  <p className="text-gray-400 mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     {language === 'ru' ? 'Возьмите заказ из вкладки "Доступные"' : '"Mavjud" bo\'limidan buyurtma oling'}
                   </p>
                 </div>
@@ -712,10 +723,10 @@ export function ExecutorDashboard() {
                   <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <CheckCircle className="w-8 h-8 text-emerald-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-600">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-500">
                     {language === 'ru' ? 'Нет доставленных заказов' : 'Yetkazilgan buyurtmalar yo\'q'}
                   </h3>
-                  <p className="text-gray-400 mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     {language === 'ru' ? 'Здесь будут отображаться доставленные заказы' : 'Bu yerda yetkazilgan buyurtmalar ko\'rsatiladi'}
                   </p>
                 </div>
@@ -737,8 +748,8 @@ export function ExecutorDashboard() {
               {/* For couriers on "available" tab - show marketplace orders first */}
               {activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-primary-500" />
+                  <h3 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-700 flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-primary-500" />
                     {language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari'}
                     <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
                       {availableMarketplaceOrders.length}
@@ -758,10 +769,10 @@ export function ExecutorDashboard() {
               {/* For couriers on "assigned" tab - show assigned marketplace orders */}
               {activeTab === 'assigned' && user?.specialization === 'courier' && assignedMarketplaceOrders.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-blue-500" />
+                  <h3 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-700 flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-primary-500" />
                     {language === 'ru' ? 'Назначенные заказы' : 'Tayinlangan buyurtmalar'}
-                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                    <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs">
                       {assignedMarketplaceOrders.length}
                     </span>
                   </h3>
@@ -783,8 +794,8 @@ export function ExecutorDashboard() {
                   {/* Show section header if there are also marketplace orders in the same tab */}
                   {((activeTab === 'available' && user?.specialization === 'courier' && availableMarketplaceOrders.length > 0) ||
                     (activeTab === 'assigned' && user?.specialization === 'courier' && assignedMarketplaceOrders.length > 0)) && (
-                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-purple-500" />
+                    <h3 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-700 flex items-center gap-2">
+                      <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />
                       {language === 'ru' ? 'Заявки на услуги' : 'Xizmat so\'rovlari'}
                       <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
                         {currentRequests.length}
@@ -823,12 +834,12 @@ export function ExecutorDashboard() {
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <FileText className="w-8 h-8 text-gray-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-600">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-500">
                     {user?.specialization === 'courier'
                       ? (language === 'ru' ? 'Нет заказов' : 'Buyurtmalar yo\'q')
                       : (language === 'ru' ? 'Нет заявок' : 'Arizalar yo\'q')}
                   </h3>
-                  <p className="text-gray-400 mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     {activeTab === 'available' && (user?.specialization === 'courier'
                       ? (language === 'ru' ? 'Нет доступных заказов по вашей специализации' : 'Sizning mutaxassisligingiz bo\'yicha mavjud buyurtmalar yo\'q')
                       : (language === 'ru' ? 'Нет доступных заявок по вашей специализации' : 'Sizning mutaxassisligingiz bo\'yicha mavjud arizalar yo\'q'))}
@@ -842,6 +853,9 @@ export function ExecutorDashboard() {
               )}
             </div>
           )}
+
+      {/* Install App / Notifications */}
+      <InstallAppSection language={language} roleContext={user?.specialization === 'courier' ? 'executor' : 'executor'} />
 
       {/* Request Details Modal */}
       {selectedRequest && !showDeclineModal && (
@@ -876,14 +890,15 @@ export function ExecutorDashboard() {
       )}
 
       {/* Decline Request Modal */}
-      {showDeclineModal && requestToDecline && (
+      {requestToDecline && (
         <DeclineRequestModal
+          isOpen={showDeclineModal}
           request={requestToDecline}
           onClose={() => {
             setShowDeclineModal(false);
             setRequestToDecline(null);
           }}
-          onConfirm={handleDeclineConfirm}
+          onDecline={(_requestId, reason) => handleDeclineConfirm(reason)}
         />
       )}
 
@@ -905,6 +920,7 @@ export function ExecutorDashboard() {
             setSelectedRequest(null);
           }}
           language={language}
+          role="executor"
         />
       )}
 
@@ -986,7 +1002,7 @@ function RequestCard({
   };
 
   const getStatusBadge = (status: RequestStatus) => {
-    const baseClass = "px-2 py-1 rounded-lg text-xs font-medium";
+    const baseClass = "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium";
     switch (status) {
       case 'new': return <span className={`${baseClass} bg-purple-100 text-purple-700`}>{language === 'ru' ? 'Новая' : 'Yangi'}</span>;
       case 'assigned': return <span className={`${baseClass} bg-blue-100 text-blue-700`}>{language === 'ru' ? 'Назначена' : 'Tayinlangan'}</span>;
@@ -999,7 +1015,7 @@ function RequestCard({
   };
 
   return (
-    <div className="glass-card p-4 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation" onClick={onView}>
+    <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation" onClick={onView}>
       {/* Header with priority indicator */}
       <div className="flex items-start gap-3">
         <div className={`w-2 h-full min-h-[20px] rounded-full ${getPriorityColor(request.priority)} flex-shrink-0`} />
@@ -1009,7 +1025,7 @@ function RequestCard({
             <span className="text-xs text-gray-400">#{request.number}</span>
             {getStatusBadge(request.status)}
             {request.status === 'in_progress' && timerSeconds !== undefined && (
-              <span className={`flex items-center gap-1 px-2 py-1 rounded-lg font-mono text-xs ${request.isPaused ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
+              <span className={`flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg font-mono text-xs ${request.isPaused ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
                 {request.isPaused ? <Pause className="w-3 h-3" /> : <Timer className="w-3 h-3" />}
                 {formatTime(timerSeconds)}
               </span>
@@ -1022,7 +1038,7 @@ function RequestCard({
           {request.category === 'trash' && (
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {request.title.includes(': ') && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
                   🗑️ {request.title.split(': ').slice(1).join(': ')}
                 </span>
               )}
@@ -1071,7 +1087,7 @@ function RequestCard({
 
           {/* Scheduled date if exists */}
           {request.scheduledDate && (
-            <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs">
+            <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs">
               <CalendarDays className="w-3.5 h-3.5" />
               <span>{new Date(request.scheduledDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
               {request.scheduledTime && <span>{request.scheduledTime}</span>}
@@ -1100,7 +1116,7 @@ function RequestCard({
           {['assigned', 'accepted', 'in_progress'].includes(request.status) && (
             <button
               onClick={(e) => { e.stopPropagation(); onReschedule(); }}
-              className="mt-3 w-full py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98] touch-manipulation"
+              className="mt-3 w-full min-h-[44px] py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98] touch-manipulation"
             >
               <RefreshCw className="w-4 h-4" />
               {language === 'ru' ? 'Перенести на другое время' : 'Boshqa vaqtga o\'tkazish'}
@@ -1145,7 +1161,7 @@ function RequestCard({
         {canDecline && (
           <button
             onClick={onDecline}
-            className="py-3 px-4 text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-colors touch-manipulation"
+            className="min-h-[44px] py-3 px-4 text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-colors touch-manipulation"
           >
             <XCircle className="w-4 h-4" />
             <span className="hidden md:inline">{request.status === 'in_progress'
@@ -1156,7 +1172,7 @@ function RequestCard({
         {request.status === 'new' && (
           <button
             onClick={onTakeRequest}
-            className="flex-1 py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+            className="flex-1 min-h-[44px] py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
             style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
           >
             <Hand className="w-5 h-5" />
@@ -1166,7 +1182,7 @@ function RequestCard({
         {request.status === 'assigned' && (
           <button
             onClick={onAccept}
-            className="flex-1 py-3 px-4 rounded-xl font-semibold bg-white border-2 border-gray-200 text-gray-700 flex items-center justify-center gap-2 active:scale-[0.98] active:bg-gray-50 transition-all touch-manipulation"
+            className="flex-1 min-h-[44px] py-3 px-4 rounded-xl font-semibold bg-white border-2 border-gray-200 text-gray-700 flex items-center justify-center gap-2 active:scale-[0.98] active:bg-gray-50 transition-all touch-manipulation"
           >
             <Check className="w-5 h-5" />
             {language === 'ru' ? 'Принять' : 'Qabul qilish'}
@@ -1181,7 +1197,7 @@ function RequestCard({
           ) : (
             <button
               onClick={onStartWork}
-              className="flex-1 py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+              className="flex-1 min-h-[44px] py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
               style={{ background: 'linear-gradient(135deg, #FFE500, #FFC700)', color: '#000' }}
             >
               <Play className="w-5 h-5" />
@@ -1194,7 +1210,7 @@ function RequestCard({
             {request.isPaused ? (
               <button
                 onClick={onResumeWork}
-                className="flex-1 py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+                className="flex-1 min-h-[44px] py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
                 style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}
               >
                 <PlayCircle className="w-5 h-5" />
@@ -1203,14 +1219,14 @@ function RequestCard({
             ) : (
               <button
                 onClick={onPauseWork}
-                className="py-3 px-4 rounded-xl font-semibold text-gray-700 bg-white border-2 border-gray-300 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+                className="min-h-[44px] py-3 px-4 rounded-xl font-semibold text-gray-700 bg-white border-2 border-gray-300 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
               >
                 <Pause className="w-5 h-5" />
               </button>
             )}
             <button
               onClick={onComplete}
-              className="flex-1 py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+              className="flex-1 min-h-[44px] py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
               style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
             >
               <Check className="w-5 h-5" />
@@ -1275,13 +1291,13 @@ function RequestDetailsModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="text-sm text-gray-500">{language === 'ru' ? 'Заявка' : 'Ariza'} #{request.number}</div>
             <h2 className="text-xl font-bold">{request.title}</h2>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1343,12 +1359,12 @@ function RequestDetailsModal({
 
           {/* Scheduled Date/Time */}
           {request.scheduledDate && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <h3 className="font-medium text-blue-800 flex items-center gap-2 mb-2">
+            <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
+              <h3 className="font-medium text-primary-800 flex items-center gap-2 mb-2">
                 <CalendarDays className="w-4 h-4" />
                 {language === 'ru' ? 'Желаемое время выполнения' : 'Bajarish uchun kerakli vaqt'}
               </h3>
-              <div className="flex items-center gap-4 text-blue-700">
+              <div className="flex items-center gap-4 text-primary-700">
                 <span>{new Date(request.scheduledDate).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
                 {request.scheduledTime && (
                   <span className="flex items-center gap-1">
@@ -1459,7 +1475,7 @@ function RequestDetailsModal({
           <div className="flex gap-3">
             <a
               href={`tel:${request.residentPhone}`}
-              className="btn-secondary flex-1 flex items-center justify-center gap-2"
+              className="btn-secondary flex-1 min-h-[44px] flex items-center justify-center gap-2 touch-manipulation"
             >
               <Phone className="w-4 h-4" />
               {language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq qilish'}
@@ -1467,7 +1483,7 @@ function RequestDetailsModal({
             {request.status === 'new' && (
               <button
                 onClick={onTakeRequest}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
+                className="btn-primary flex-1 min-h-[44px] flex items-center justify-center gap-2 touch-manipulation"
                 style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
               >
                 <Hand className="w-4 h-4" />
@@ -1475,13 +1491,13 @@ function RequestDetailsModal({
               </button>
             )}
             {request.status === 'assigned' && (
-              <button onClick={onAccept} className="btn-primary flex-1 flex items-center justify-center gap-2">
+              <button onClick={onAccept} className="btn-primary flex-1 min-h-[44px] flex items-center justify-center gap-2 touch-manipulation">
                 <Check className="w-4 h-4" />
                 {language === 'ru' ? 'Принять заявку' : 'Arizani qabul qilish'}
               </button>
             )}
             {request.status === 'accepted' && (
-              <button onClick={onStartWork} className="btn-primary flex-1 flex items-center justify-center gap-2">
+              <button onClick={onStartWork} className="btn-primary flex-1 min-h-[44px] flex items-center justify-center gap-2 touch-manipulation">
                 <Play className="w-4 h-4" />
                 {language === 'ru' ? 'Начать работу' : 'Ishni boshlash'}
               </button>
@@ -1489,7 +1505,7 @@ function RequestDetailsModal({
             {request.status === 'in_progress' && (
               <button
                 onClick={onComplete}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
+                className="btn-primary flex-1 min-h-[44px] flex items-center justify-center gap-2 touch-manipulation"
                 style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
               >
                 <Check className="w-4 h-4" />
@@ -1500,7 +1516,7 @@ function RequestDetailsModal({
           {canReschedule && (
             <button
               onClick={onReschedule}
-              className="w-full py-3 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-medium flex items-center justify-center gap-2 transition-all"
+              className="w-full min-h-[44px] py-3 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-medium flex items-center justify-center gap-2 transition-all touch-manipulation"
             >
               <RefreshCw className="w-4 h-4" />
               {language === 'ru' ? 'Перенести на другое время' : 'Boshqa vaqtga o\'tkazish'}
@@ -1509,357 +1525,13 @@ function RequestDetailsModal({
           {canDecline && (
             <button
               onClick={onDecline}
-              className="w-full py-2 px-4 rounded-xl font-medium text-red-600 border border-red-300 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full min-h-[44px] py-2 px-4 rounded-xl font-medium text-red-600 border border-red-300 hover:bg-red-50 transition-colors flex items-center justify-center gap-2 touch-manipulation"
             >
               <XCircle className="w-4 h-4" />
               {request.status === 'in_progress'
                 ? (language === 'ru' ? 'Освободить заявку' : 'Arizani bo\'shatish')
                 : (language === 'ru' ? 'Отказаться от заявки' : 'Arizadan voz kechish')}
             </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Decline Request Modal (for executors)
-function DeclineRequestModal({
-  request,
-  onClose,
-  onConfirm
-}: {
-  request: Request;
-  onClose: () => void;
-  onConfirm: (reason: string) => void;
-}) {
-  const { language } = useLanguageStore();
-  const [reason, setReason] = useState('');
-  const isInProgress = request.status === 'in_progress';
-
-  const predefinedReasons = isInProgress ? (
-    language === 'ru' ? [
-      'Заболел/Не могу продолжить работу',
-      'Необходима помощь другого специалиста',
-      'Нет необходимых материалов для завершения',
-      'Срочные личные обстоятельства',
-      'Требуется другая специализация',
-    ] : [
-      'Kasal bo\'ldim/Ishni davom ettira olmayman',
-      'Boshqa mutaxassis yordami kerak',
-      'Tugatish uchun kerakli materiallar yo\'q',
-      'Shoshilinch shaxsiy holatlar',
-      'Boshqa mutaxassislik talab qilinadi',
-    ]
-  ) : (
-    language === 'ru' ? [
-      'Не смогу прибыть в указанное время',
-      'Нет необходимых материалов/инструментов',
-      'Заболел/Не могу работать',
-      'Слишком далеко от текущего местоположения',
-      'Загружен другими заявками',
-    ] : [
-      'Ko\'rsatilgan vaqtda kelolmayman',
-      'Kerakli materiallar/asboblar yo\'q',
-      'Kasal bo\'ldim/Ishlay olmayman',
-      'Hozirgi joydan juda uzoq',
-      'Boshqa arizalar bilan band',
-    ]
-  );
-
-  return (
-    <div className="modal-backdrop">
-      <div className="glass-card p-6 w-full max-w-md mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-red-600 flex items-center gap-2">
-            <Ban className="w-5 h-5" />
-            {isInProgress
-              ? (language === 'ru' ? 'Освободить заявку' : 'Arizani bo\'shatish')
-              : (language === 'ru' ? 'Отказаться от заявки' : 'Arizadan voz kechish')}
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm text-amber-800">
-            {language === 'ru'
-              ? <>Заявка <strong>#{request.number}</strong> будет возвращена в очередь и может быть назначена другому исполнителю.{isInProgress && ' Прогресс работы будет сброшен.'}</>
-              : <><strong>#{request.number}</strong> ariza navbatga qaytariladi va boshqa ijrochiga tayinlanishi mumkin.{isInProgress && ' Ish jarayoni tiklanadi.'}</>}
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {language === 'ru' ? 'Причина отказа' : 'Rad etish sababi'}
-            </label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {predefinedReasons.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setReason(r)}
-                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    reason === r
-                      ? 'bg-red-500 text-white'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="input-field min-h-[80px]"
-              placeholder={language === 'ru' ? 'Или укажите свою причину...' : 'Yoki o\'z sababingizni ko\'rsating...'}
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <button onClick={onClose} className="btn-secondary flex-1">
-              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
-            </button>
-            <button
-              onClick={() => reason.trim() && onConfirm(reason)}
-              className="flex-1 py-2 px-4 rounded-xl font-medium bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!reason.trim()}
-            >
-              <Ban className="w-4 h-4 mr-2 inline" />
-              {isInProgress
-                ? (language === 'ru' ? 'Освободить' : 'Bo\'shatish')
-                : (language === 'ru' ? 'Отказаться' : 'Rad etish')}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Reschedule Request Modal for Executor
-function RescheduleModal({
-  request,
-  onClose,
-  onSubmit,
-  language
-}: {
-  request: Request;
-  onClose: () => void;
-  onSubmit: (data: { proposedDate: string; proposedTime: string; reason: RescheduleReason; reasonText?: string }) => void;
-  language: 'ru' | 'uz';
-}) {
-  const [proposedDate, setProposedDate] = useState('');
-  const [proposedTime, setProposedTime] = useState('');
-  const [reason, setReason] = useState<RescheduleReason>('busy_time');
-  const [reasonText, setReasonText] = useState('');
-
-  const today = new Date().toISOString().split('T')[0];
-
-  return (
-    <div className="modal-backdrop">
-      <div className="glass-card p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-amber-600 flex items-center gap-2">
-            <RefreshCw className="w-5 h-5" />
-            {language === 'ru' ? 'Перенести заявку' : 'Arizani ko\'chirish'}
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-800">
-            {language === 'ru'
-              ? `Предложите новое время для заявки #${request.number}. Житель получит уведомление.`
-              : `#${request.number} ariza uchun yangi vaqt taklif qiling.`}
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {language === 'ru' ? 'Причина переноса' : 'Ko\'chirish sababi'}
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              {/* Filter out 'not_at_home' - this reason is only for residents, not executors */}
-              {(Object.keys(RESCHEDULE_REASON_LABELS) as RescheduleReason[])
-                .filter(r => r !== 'not_at_home')
-                .map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setReason(r)}
-                  className={`px-3 py-2.5 text-sm rounded-xl transition-colors text-left ${
-                    reason === r
-                      ? 'bg-amber-500 text-white'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  {language === 'ru' ? RESCHEDULE_REASON_LABELS[r].label : RESCHEDULE_REASON_LABELS[r].labelUz}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {reason === 'other' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {language === 'ru' ? 'Уточните причину' : 'Sababni aniqlashtiring'}
-              </label>
-              <textarea
-                value={reasonText}
-                onChange={(e) => setReasonText(e.target.value)}
-                className="input-field min-h-[80px]"
-                placeholder={language === 'ru' ? 'Опишите причину...' : 'Sababni yozing...'}
-              />
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {language === 'ru' ? 'Новая дата' : 'Yangi sana'}
-              </label>
-              <input
-                type="date"
-                min={today}
-                value={proposedDate}
-                onChange={(e) => setProposedDate(e.target.value)}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {language === 'ru' ? 'Время' : 'Vaqt'}
-              </label>
-              <input
-                type="time"
-                value={proposedTime}
-                onChange={(e) => setProposedTime(e.target.value)}
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button onClick={onClose} className="btn-secondary flex-1">
-              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
-            </button>
-            <button
-              onClick={() => proposedDate && proposedTime && onSubmit({ proposedDate, proposedTime, reason, reasonText: reason === 'other' ? reasonText : undefined })}
-              className="flex-1 py-2.5 px-4 rounded-xl font-medium bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              disabled={!proposedDate || !proposedTime || (reason === 'other' && !reasonText.trim())}
-            >
-              <Send className="w-4 h-4" />
-              {language === 'ru' ? 'Отправить' : 'Yuborish'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Reschedule Response Modal for Executor
-function RescheduleResponseModal({
-  reschedule,
-  onClose,
-  onAccept,
-  onReject,
-  language
-}: {
-  reschedule: RescheduleRequest;
-  onClose: () => void;
-  onAccept: () => void;
-  onReject: (note?: string) => void;
-  language: 'ru' | 'uz';
-}) {
-  const [rejectNote, setRejectNote] = useState('');
-  const [showRejectForm, setShowRejectForm] = useState(false);
-
-  return (
-    <div className="modal-backdrop">
-      <div className="glass-card p-6 w-full max-w-md mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-amber-600 flex items-center gap-2">
-            <RefreshCw className="w-5 h-5" />
-            {language === 'ru' ? 'Запрос на перенос' : 'Ko\'chirish so\'rovi'}
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-            <div className="text-sm text-gray-600 mb-1">
-              {language === 'ru' ? 'Заявка' : 'Ariza'} #{reschedule.requestNumber}
-            </div>
-            <div className="font-medium text-gray-800">
-              {reschedule.initiatorName} {language === 'ru' ? 'предлагает перенести на:' : 'taklif qiladi:'}
-            </div>
-            <div className="text-xl font-bold text-amber-600 mt-2">
-              {reschedule.proposedDate} {language === 'ru' ? 'в' : 'soat'} {reschedule.proposedTime}
-            </div>
-            <div className="text-sm text-gray-600 mt-2">
-              <strong>{language === 'ru' ? 'Причина:' : 'Sabab:'}</strong>{' '}
-              {language === 'ru'
-                ? RESCHEDULE_REASON_LABELS[reschedule.reason].label
-                : RESCHEDULE_REASON_LABELS[reschedule.reason].labelUz}
-              {reschedule.reasonText && ` - ${reschedule.reasonText}`}
-            </div>
-          </div>
-
-          {reschedule.currentDate && (
-            <div className="text-sm text-gray-600 text-center">
-              {language === 'ru' ? 'Текущее время:' : 'Hozirgi vaqt:'} {reschedule.currentDate} {reschedule.currentTime}
-            </div>
-          )}
-
-          {showRejectForm ? (
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                {language === 'ru' ? 'Причина отказа (необязательно)' : 'Rad etish sababi (ixtiyoriy)'}
-              </label>
-              <textarea
-                value={rejectNote}
-                onChange={(e) => setRejectNote(e.target.value)}
-                className="input-field min-h-[80px]"
-                placeholder={language === 'ru' ? 'Укажите причину...' : 'Sababni yozing...'}
-              />
-              <div className="flex gap-3">
-                <button onClick={() => setShowRejectForm(false)} className="btn-secondary flex-1">
-                  {language === 'ru' ? 'Назад' : 'Orqaga'}
-                </button>
-                <button
-                  onClick={() => onReject(rejectNote || undefined)}
-                  className="flex-1 py-2.5 px-4 rounded-xl font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
-                >
-                  {language === 'ru' ? 'Отклонить' : 'Rad etish'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowRejectForm(true)}
-                className="flex-1 py-3 px-4 rounded-xl font-medium bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-              >
-                {language === 'ru' ? 'Отклонить' : 'Rad etish'}
-              </button>
-              <button
-                onClick={onAccept}
-                className="flex-1 py-3 px-4 rounded-xl font-medium bg-green-500 text-white hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                {language === 'ru' ? 'Принять' : 'Qabul qilish'}
-              </button>
-            </div>
           )}
         </div>
       </div>
@@ -1878,7 +1550,7 @@ function AvailableMarketplaceOrderCard({
   language: 'ru' | 'uz';
 }) {
   return (
-    <div className="glass-card p-4 border-2 border-purple-200 bg-purple-50/30">
+    <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 border-2 border-purple-200 bg-purple-50/30">
       {/* Header */}
       <div className="flex items-start gap-3">
         <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -1887,7 +1559,7 @@ function AvailableMarketplaceOrderCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="text-sm font-semibold text-gray-900">#{order.order_number}</span>
-            <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-100 text-purple-700">
+            <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-700">
               {language === 'ru' ? 'Новый' : 'Yangi'}
             </span>
           </div>
@@ -1950,7 +1622,7 @@ function AvailableMarketplaceOrderCard({
       <div className="mt-4 pt-3 border-t border-purple-200/50">
         <button
           onClick={onTake}
-          className="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+          className="w-full min-h-[44px] py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
           style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
         >
           <Hand className="w-5 h-5" />
@@ -1973,7 +1645,7 @@ function CompletedMarketplaceOrderCard({
 }) {
   return (
     <div
-      className="glass-card p-4 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation border-2 border-green-200 bg-green-50/30"
+      className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation border-2 border-green-200 bg-green-50/30"
       onClick={onView}
     >
       {/* Header */}
@@ -1984,7 +1656,7 @@ function CompletedMarketplaceOrderCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="text-sm font-semibold text-gray-900">#{order.order_number}</span>
-            <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-green-100 text-green-700">
+            <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium bg-green-100 text-green-700">
               {language === 'ru' ? 'Доставлен' : 'Yetkazildi'}
             </span>
           </div>
@@ -2076,7 +1748,7 @@ function MarketplaceOrderCard({
   formatTime?: (seconds: number) => string;
 }) {
   const MARKETPLACE_ORDER_STATUS_LABELS: Record<string, { label: string; labelUz: string; color: string; icon: typeof Package }> = {
-    confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-indigo-100 text-indigo-700', icon: Package },
+    confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-orange-100 text-orange-700', icon: Package },
     preparing: { label: 'Собирается', labelUz: 'Yig\'ilmoqda', color: 'bg-amber-100 text-amber-700', icon: Package },
     delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'bg-blue-100 text-blue-700', icon: User },
     ready: { label: 'Готов', labelUz: 'Tayyor', color: 'bg-green-100 text-green-700', icon: CheckCircle },
@@ -2110,7 +1782,7 @@ function MarketplaceOrderCard({
   const nextStatusLabel = getNextStatusLabel();
 
   return (
-    <div className="glass-card p-4 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation" onClick={onView}>
+    <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:bg-white/40 active:bg-white/60 active:scale-[0.99] transition-all touch-manipulation" onClick={onView}>
       {/* Header */}
       <div className="flex items-start gap-3">
         <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -2119,13 +1791,13 @@ function MarketplaceOrderCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="text-sm font-semibold text-gray-900">#{order.order_number}</span>
-            <span className={`px-2 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1 ${statusInfo.color}`}>
+            <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${statusInfo.color}`}>
               <StatusIcon className="w-3 h-3" />
               {language === 'ru' ? statusInfo.label : statusInfo.labelUz}
             </span>
             {/* Delivery Timer */}
             {order.status === 'delivering' && formatTime && (
-              <span className="px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-blue-500 text-white animate-pulse">
+              <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-bold flex items-center gap-1 bg-primary-500 text-white animate-pulse">
                 <Timer className="w-3 h-3" />
                 {formatTime(deliveryTimer ?? 0)}
               </span>
@@ -2199,7 +1871,7 @@ function MarketplaceOrderCard({
         <div className="mt-4 pt-3 border-t border-gray-200/50" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onUpdateStatus(order.id, getNextStatus())}
-            className="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
+            className="w-full min-h-[44px] py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
             style={{
               background: order.status === 'confirmed' ? 'linear-gradient(135deg, #f59e0b, #d97706)' :
                 order.status === 'preparing' ? 'linear-gradient(135deg, #10b981, #059669)' :
@@ -2232,7 +1904,7 @@ function MarketplaceOrderDetailsModal({
   language: 'ru' | 'uz';
 }) {
   const MARKETPLACE_ORDER_STATUS_LABELS: Record<string, { label: string; labelUz: string; color: string }> = {
-    confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-indigo-100 text-indigo-700' },
+    confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'bg-orange-100 text-orange-700' },
     preparing: { label: 'Собирается', labelUz: 'Yig\'ilmoqda', color: 'bg-amber-100 text-amber-700' },
     delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'bg-blue-100 text-blue-700' },
     ready: { label: 'Готов', labelUz: 'Tayyor', color: 'bg-green-100 text-green-700' },
@@ -2267,19 +1939,19 @@ function MarketplaceOrderDetailsModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="text-sm text-gray-500">
               {language === 'ru' ? 'Заказ магазина' : 'Do\'kon buyurtmasi'} #{order.order_number}
             </div>
             <div className="flex items-center gap-2 mt-1">
-              <span className={`px-2.5 py-1 rounded-lg text-sm font-medium ${statusInfo.color}`}>
+              <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-sm font-medium ${statusInfo.color}`}>
                 {language === 'ru' ? statusInfo.label : statusInfo.labelUz}
               </span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -2356,7 +2028,7 @@ function MarketplaceOrderDetailsModal({
           <div className="flex gap-3">
             <a
               href={`tel:${order.user_phone}`}
-              className="btn-secondary flex-1 flex items-center justify-center gap-2"
+              className="btn-secondary flex-1 min-h-[44px] flex items-center justify-center gap-2 touch-manipulation"
             >
               <Phone className="w-4 h-4" />
               {language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq'}
@@ -2368,7 +2040,7 @@ function MarketplaceOrderDetailsModal({
               onClick={() => {
                 onUpdateStatus(order.id, getNextStatus());
               }}
-              className="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              className="w-full min-h-[44px] py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation"
               style={{
                 background: order.status === 'confirmed' ? 'linear-gradient(135deg, #f59e0b, #d97706)' :
                   order.status === 'preparing' ? 'linear-gradient(135deg, #10b981, #059669)' :

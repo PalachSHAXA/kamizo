@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   UserCog, Wrench, Phone, Star, X, Eye, EyeOff, Plus,
   Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw,
   Shield, ChevronDown, ChevronUp, Search, Filter,
   Droplets, Zap, ArrowUpDown, Bell, Brush, ShieldCheck,
-  Hammer, Flame, Wind, Trash2, Key, Truck
+  Hammer, Flame, Wind, Trash2, Key, Truck, Leaf,
+  Download, Upload, CheckCircle, AlertCircle
 } from 'lucide-react';
-import { teamApi } from '../../services/api';
+import { teamApi, apiRequest } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -64,6 +65,7 @@ const SPECIALIZATION_ICONS: Record<ExecutorSpecialization, React.ReactNode> = {
   boiler: <Flame className="w-4 h-4" />,
   ac: <Wind className="w-4 h-4" />,
   courier: <Truck className="w-4 h-4" />,
+  gardener: <Leaf className="w-4 h-4" />,
   other: <Wrench className="w-4 h-4" />,
 };
 
@@ -79,6 +81,7 @@ const SPECIALIZATION_COLORS: Record<ExecutorSpecialization, string> = {
   boiler: 'bg-orange-100 text-orange-700',
   ac: 'bg-cyan-100 text-cyan-700',
   courier: 'bg-green-100 text-green-700',
+  gardener: 'bg-emerald-100 text-emerald-700',
   other: 'bg-gray-100 text-gray-700',
 };
 
@@ -93,6 +96,7 @@ const SPECIALIZATION_LABELS_UZ: Record<string, string> = {
   boiler: 'Qozonxonachi',
   ac: 'Konditsionerchi',
   courier: 'Kuryer',
+  gardener: 'Bog\'bon',
   other: 'Boshqa',
 };
 
@@ -147,6 +151,14 @@ export function TeamPage() {
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+  // Export/Import
+  const [exportLoading, setExportLoading] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; stats?: any; error?: string } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
   const ROLE_LABELS = language === 'ru' ? ROLE_LABELS_RU : ROLE_LABELS_UZ;
 
   // Fetch team data
@@ -163,6 +175,44 @@ export function TeamPage() {
       setError(err.message || (language === 'ru' ? 'Ошибка загрузки данных' : 'Ma\'lumotlarni yuklashda xatolik'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportStaff = async () => {
+    setExportLoading(true);
+    try {
+      const data = await apiRequest('/api/team/export') as any;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `staff-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(e.message || 'Ошибка экспорта');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleImportStaff = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const text = await importFile.text();
+      const data = JSON.parse(text);
+      const result = await apiRequest('/api/team/import', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }) as any;
+      setImportResult({ success: true, stats: result.stats });
+      fetchTeam();
+    } catch (e: any) {
+      setImportResult({ success: false, error: e.message || 'Ошибка импорта' });
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -549,7 +599,7 @@ export function TeamPage() {
             </div>
             {member.active_count ? (
               <div className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-500" />
                 {member.active_count} {language === 'ru' ? 'активных' : 'faol'}
               </div>
             ) : null}
@@ -591,7 +641,7 @@ export function TeamPage() {
               {language === 'ru' ? 'Нет сотрудников' : 'Xodimlar yo\'q'}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
               {members.map(renderStaffCard)}
             </div>
           )}
@@ -620,7 +670,7 @@ export function TeamPage() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
@@ -677,6 +727,23 @@ export function TeamPage() {
               </button>
             )}
             <button
+              onClick={handleExportStaff}
+              disabled={exportLoading}
+              className="btn-secondary flex items-center gap-2 text-green-600 hover:bg-green-50 disabled:opacity-50"
+              title={language === 'ru' ? 'Экспорт персонала' : 'Xodimlarni eksport qilish'}
+            >
+              {exportLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+              <span className="hidden sm:inline">{language === 'ru' ? 'Экспорт' : 'Eksport'}</span>
+            </button>
+            <button
+              onClick={() => { setImportFile(null); setImportResult(null); setShowImportModal(true); }}
+              className="btn-secondary flex items-center gap-2 text-blue-600 hover:bg-blue-50"
+              title={language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}
+            >
+              <Upload className="w-5 h-5" />
+              <span className="hidden sm:inline">{language === 'ru' ? 'Импорт' : 'Import'}</span>
+            </button>
+            <button
               onClick={() => openAddModal('executor')}
               className="btn-primary flex items-center gap-2"
             >
@@ -688,7 +755,7 @@ export function TeamPage() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-4">
         {!isDirector && admins.length > 0 && (
           <div className="glass-card p-3 sm:p-5">
             <div className="flex items-center gap-2 sm:gap-3">
@@ -715,8 +782,8 @@ export function TeamPage() {
         </div>
         <div className="glass-card p-3 sm:p-5">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <UserCog className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <UserCog className="w-5 h-5 sm:w-6 sm:h-6 text-primary-600" />
             </div>
             <div className="min-w-0">
               <div className="text-xl sm:text-2xl font-bold">{departmentHeads.length}</div>
@@ -753,7 +820,7 @@ export function TeamPage() {
         )}
         {renderSection(
           language === 'ru' ? 'Главы отделов' : 'Bo\'lim boshliqlari',
-          <UserCog className="w-5 h-5 text-blue-500" />,
+          <UserCog className="w-5 h-5 text-primary-500" />,
           filteredDepartmentHeads,
           'departmentHeads'
         )}
@@ -767,8 +834,8 @@ export function TeamPage() {
 
       {/* Add Member Modal */}
       {showAddModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content p-4 sm:p-6 w-full max-w-lg mx-4 flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop items-end sm:items-center" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4 sm:mb-6">
               <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}</h2>
               <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -935,8 +1002,8 @@ export function TeamPage() {
 
       {/* Details Modal */}
       {selectedMember && (
-        <div className="modal-backdrop" onClick={handleCloseDetails}>
-          <div className="modal-content p-6 w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop items-end sm:items-center" onClick={handleCloseDetails}>
+          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-center gap-4">
@@ -980,8 +1047,8 @@ export function TeamPage() {
                   </div>
                   <div className="text-xs text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</div>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
+                <div className="bg-primary-50 rounded-xl p-3 text-center">
+                  <div className="flex items-center justify-center gap-1 text-primary-600 mb-1">
                     <Clock className="w-4 h-4" />
                     <span className="font-bold text-lg">{selectedMember.active_count || 0}</span>
                   </div>
@@ -1069,8 +1136,8 @@ export function TeamPage() {
                 </div>
 
                 {/* Credentials */}
-                <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-                  <div className="text-sm font-medium text-blue-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
+                <div className="bg-primary-50 rounded-xl p-4 space-y-3">
+                  <div className="text-sm font-medium text-primary-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
@@ -1078,7 +1145,7 @@ export function TeamPage() {
                       <code className="bg-white px-2 py-1 rounded text-sm font-mono">{selectedMember.login}</code>
                       <button
                         onClick={() => handleCopy(selectedMember.login, 'login')}
-                        className="p-1 hover:bg-blue-100 rounded"
+                        className="p-1 hover:bg-primary-100 rounded"
                         title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                       >
                         {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
@@ -1106,14 +1173,14 @@ export function TeamPage() {
                               e.stopPropagation();
                               setShowPassword(!showPassword);
                             }}
-                            className="p-2 hover:bg-blue-100 active:bg-blue-200 rounded touch-manipulation z-10"
+                            className="p-2 hover:bg-primary-100 active:bg-primary-200 rounded touch-manipulation z-10"
                             title={showPassword ? (language === 'ru' ? 'Скрыть пароль' : 'Parolni yashirish') : (language === 'ru' ? 'Показать пароль' : 'Parolni ko\'rsatish')}
                           >
                             {showPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
                           </button>
                           <button
                             onClick={() => handleCopy(selectedMember.password || '', 'password')}
-                            className="p-1 hover:bg-blue-100 rounded"
+                            className="p-1 hover:bg-primary-100 rounded"
                             title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
                           >
                             {copiedField === 'password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
@@ -1158,8 +1225,8 @@ export function TeamPage() {
 
       {/* Credentials Modal - shows after creating new user */}
       {showCredentialsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md p-4 sm:p-6 animate-fade-in">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-8 h-8 text-green-600" />
@@ -1222,6 +1289,83 @@ export function TeamPage() {
             >
               {language === 'ru' ? 'Готово' : 'Tayyor'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Staff Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-[18px] font-extrabold">{language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}</h3>
+                <p className="text-[13px] text-gray-400 mt-0.5">{language === 'ru' ? 'Загрузите .json файл с данными сотрудников' : 'Xodimlar ma\'lumotlari bilan .json faylni yuklang'}</p>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div
+              onClick={() => importFileRef.current?.click()}
+              className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
+            >
+              <Upload className="w-8 h-8 mx-auto mb-3 text-gray-300" />
+              {importFile ? (
+                <div>
+                  <p className="text-[14px] font-bold text-gray-700">{importFile.name}</p>
+                  <p className="text-[12px] text-gray-400 mt-1">{(importFile.size / 1024).toFixed(1)} KB</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-[14px] font-bold text-gray-600">{language === 'ru' ? 'Выберите файл' : 'Faylni tanlang'}</p>
+                  <p className="text-[12px] text-gray-400 mt-1">{language === 'ru' ? 'Поддерживается .json формат' : '.json format qo\'llab-quvvatlanadi'}</p>
+                </div>
+              )}
+              <input ref={importFileRef} type="file" accept=".json" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setImportFile(f); setImportResult(null); } }} />
+            </div>
+
+            {importResult && (
+              <div className={`mt-4 p-4 rounded-xl ${importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                {importResult.success ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-[14px] font-bold text-green-700">{language === 'ru' ? 'Импорт успешен!' : 'Import muvaffaqiyatli!'}</span>
+                    </div>
+                    <div className="flex gap-4">
+                      {importResult.stats?.created > 0 && (
+                        <div className="text-center"><div className="text-[22px] font-extrabold text-green-600">{importResult.stats.created}</div><div className="text-[11px] text-gray-400">{language === 'ru' ? 'Создано' : 'Yaratildi'}</div></div>
+                      )}
+                      {importResult.stats?.updated > 0 && (
+                        <div className="text-center"><div className="text-[22px] font-extrabold text-blue-600">{importResult.stats.updated}</div><div className="text-[11px] text-gray-400">{language === 'ru' ? 'Обновлено' : 'Yangilandi'}</div></div>
+                      )}
+                      {importResult.stats?.skipped > 0 && (
+                        <div className="text-center"><div className="text-[22px] font-extrabold text-gray-400">{importResult.stats.skipped}</div><div className="text-[11px] text-gray-400">{language === 'ru' ? 'Пропущено' : 'O\'tkazib yuborildi'}</div></div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <span className="text-[13px] text-red-600">{importResult.error}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setShowImportModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[14px] font-bold text-gray-600 hover:bg-gray-50 transition-all">
+                {language === 'ru' ? 'Закрыть' : 'Yopish'}
+              </button>
+              <button onClick={handleImportStaff} disabled={!importFile || importLoading}
+                className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition-all disabled:opacity-50">
+                {importLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {language === 'ru' ? 'Импортировать' : 'Import qilish'}
+              </button>
+            </div>
           </div>
         </div>
       )}

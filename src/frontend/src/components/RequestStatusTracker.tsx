@@ -362,11 +362,29 @@ export function RequestStatusTracker({
         </div>
       )}
 
-      {/* Время */}
-      {request.scheduledDate && request.scheduledTime && !isCancelled && (
-        <div className="px-6 pb-4">
+      {/* Timestamps */}
+      <div className="px-6 pb-4 space-y-1.5">
+        {request.createdAt && (
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Clock className="w-4 h-4" />
+            <Clock className="w-4 h-4 flex-shrink-0" />
+            <span>
+              {language === 'ru' ? 'Подана: ' : 'Topshirildi: '}
+              {(() => { const d = new Date(request.createdAt.endsWith?.('Z') ? request.createdAt : request.createdAt + 'Z'); const loc = language === 'ru' ? 'ru-RU' : 'uz-UZ'; return d.toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' }); })()}
+            </span>
+          </div>
+        )}
+        {request.assignedAt && (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <User className="w-4 h-4 flex-shrink-0" />
+            <span>
+              {language === 'ru' ? 'Назначена: ' : 'Tayinlandi: '}
+              {(() => { const d = new Date(request.assignedAt.endsWith?.('Z') ? request.assignedAt : request.assignedAt + 'Z'); const loc = language === 'ru' ? 'ru-RU' : 'uz-UZ'; return d.toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' }); })()}
+            </span>
+          </div>
+        )}
+        {request.scheduledDate && request.scheduledTime && !isCancelled && (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Clock className="w-4 h-4 flex-shrink-0" />
             <span>
               {language === 'ru' ? 'Запланировано: ' : 'Rejalashtirilgan: '}
               {new Date(request.scheduledDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
@@ -375,8 +393,17 @@ export function RequestStatusTracker({
               })}, {request.scheduledTime}
             </span>
           </div>
-        </div>
-      )}
+        )}
+        {request.completedAt && (
+          <div className="flex items-center gap-2 text-sm text-green-600">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            <span>
+              {language === 'ru' ? 'Завершена: ' : 'Tugallandi: '}
+              {(() => { const d = new Date(request.completedAt.endsWith?.('Z') ? request.completedAt : request.completedAt + 'Z'); const loc = language === 'ru' ? 'ru-RU' : 'uz-UZ'; return d.toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' }); })()}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Действия */}
       {showActions && !isCancelled && request.status !== 'completed' && (
@@ -384,14 +411,14 @@ export function RequestStatusTracker({
           {onCancel && ['new', 'assigned', 'accepted'].includes(request.status) && (
             <button
               onClick={onCancel}
-              className="flex-1 py-3 border-2 border-gray-200 hover:border-gray-300 rounded-xl text-gray-600 font-medium transition-colors"
+              className="flex-1 py-3 min-h-[44px] border-2 border-gray-200 hover:border-gray-300 active:bg-gray-50 rounded-xl text-gray-600 font-medium transition-colors touch-manipulation"
             >
               {language === 'ru' ? 'Отменить заявку' : 'Arizani bekor qilish'}
             </button>
           )}
           {request.status === 'pending_approval' && (
             <button
-              className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold transition-colors"
+              className="flex-1 py-3 min-h-[44px] bg-green-500 hover:bg-green-600 active:bg-green-700 text-white rounded-xl font-bold transition-colors touch-manipulation"
             >
               {language === 'ru' ? 'Подтвердить выполнение' : 'Bajarilganini tasdiqlash'}
             </button>
@@ -437,42 +464,42 @@ export function RequestStatusTrackerCompact({
   return (
     <button
       onClick={onClick}
-      className="w-full bg-white rounded-2xl shadow-sm overflow-hidden text-left hover:shadow-md transition-shadow active:scale-[0.99]"
+      className="w-full bg-white rounded-[22px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden text-left active:scale-[0.99] transition-all touch-manipulation"
     >
-      {/* Header с градиентом */}
-      <div className="p-4 bg-gradient-to-r from-primary-500/10 to-primary-400/10">
-        <div className="flex items-start gap-3">
-          <div className="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
+      {/* Header */}
+      <div className="p-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-[52px] h-[52px] bg-primary-500 rounded-[16px] flex items-center justify-center text-[22px] flex-shrink-0 shadow-sm">
             {categoryInfo.icon}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-gray-900 truncate">
+              <span className="font-bold text-gray-900 text-[15px]">
                 {language === 'ru' ? categoryInfo.name : categoryInfo.nameUz}
               </span>
-              <span className="text-xs text-gray-400 bg-white/50 px-2 py-0.5 rounded-full">
-                #{request.id.slice(-6).toUpperCase()}
+              <span className="text-[11px] text-gray-400 font-medium">
+                #{request.number || request.id.slice(-6).toUpperCase()}
               </span>
             </div>
-            <div className="text-sm text-gray-700 mt-1 font-semibold">
+            <div className="text-[14px] text-gray-800 mt-1 font-semibold">
               {statusMessage.title}
             </div>
-            <div className="text-xs text-gray-500 mt-0.5">
+            <div className="text-[12px] text-gray-400 mt-0.5 font-medium">
               {statusMessage.subtitle}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Этапы с иконками как в Яндекс.Еда */}
-      <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+      {/* Progress steps */}
+      <div className="px-4 pb-4">
         <div className="flex items-center justify-between relative">
           {/* Линия прогресса */}
-          <div className="absolute top-4 left-5 right-5 h-0.5 bg-gray-200" />
+          <div className="absolute top-[15px] left-[18px] right-[18px] h-[2px] bg-gray-100" />
           <div
-            className="absolute top-4 left-5 h-0.5 bg-primary-500 transition-all duration-500"
+            className="absolute top-[15px] left-[18px] h-[2px] bg-primary-500 transition-all duration-500"
             style={{
-              width: isCancelled ? '0%' : `calc(${Math.min((currentStageIndex / (STAGES.length - 1)) * 100, 100)}% - 40px)`
+              width: isCancelled ? '0%' : `calc(${Math.min((currentStageIndex / (STAGES.length - 1)) * 100, 100)}% - 36px)`
             }}
           />
 
@@ -485,17 +512,17 @@ export function RequestStatusTrackerCompact({
             return (
               <div key={stage.id} className="relative z-10 flex flex-col items-center">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                  className={`w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all duration-300 ${
                     isCancelled
-                      ? 'bg-gray-200 text-gray-400'
+                      ? 'bg-gray-100 text-gray-400'
                       : isCompleted
                         ? isCurrent
-                          ? 'bg-primary-500 text-gray-900 ring-2 ring-primary-200 shadow-md'
-                          : 'bg-primary-500 text-gray-900'
-                        : 'bg-white border-2 border-gray-200 text-gray-400'
+                          ? 'bg-primary-500 text-white ring-[3px] ring-primary-100 shadow-sm'
+                          : 'bg-primary-500 text-white'
+                        : 'bg-gray-100 text-gray-300'
                   }`}
                 >
-                  <StageIcon className="w-4 h-4" />
+                  <StageIcon className="w-3.5 h-3.5" />
                 </div>
               </div>
             );
@@ -524,7 +551,7 @@ export function RequestStatusTrackerCompact({
                 <a
                   href={`tel:${request.executorPhone}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-9 h-9 bg-green-100 hover:bg-green-200 rounded-full flex items-center justify-center transition-colors"
+                  className="w-11 h-11 bg-green-100 hover:bg-green-200 rounded-full flex items-center justify-center transition-colors touch-manipulation"
                 >
                   <Phone className="w-4 h-4 text-green-600" />
                 </a>

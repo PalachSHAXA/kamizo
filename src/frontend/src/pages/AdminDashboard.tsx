@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { InstallAppSection } from '../components/InstallAppSection';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -6,13 +7,16 @@ import {
 import {
   Users, FileText, Clock, CheckCircle, AlertTriangle,
   RefreshCw, UserCheck, ShoppingBag, Download, Calendar,
-  Package, DollarSign, Star, TrendingUp, Briefcase, Activity
+  Package, DollarSign, Star, TrendingUp, Briefcase, Activity,
+  Megaphone, Building2, Eye, ToggleLeft, ToggleRight
 } from 'lucide-react';
+import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { SPECIALIZATION_LABELS } from '../types';
 import { apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
-import ExcelJS from 'exceljs';
+// ExcelJS loaded dynamically in exportMarketplaceReport to reduce initial bundle
+import type { Style } from 'exceljs';
 
 interface MarketplaceReport {
   period: { start_date: string; end_date: string };
@@ -63,9 +67,10 @@ interface MarketplaceReport {
   }>;
 }
 
-type TabType = 'overview' | 'marketplace';
+type TabType = 'overview' | 'marketplace' | 'platform_ads';
 
 export function AdminDashboard() {
+  const { user } = useAuthStore();
   const { requests, executors, getStats } = useDataStore();
   const { language } = useLanguageStore();
 
@@ -80,6 +85,11 @@ export function AdminDashboard() {
     return d.toISOString().slice(0, 10);
   });
   const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  // Platform ads state
+  const [platformAds, setPlatformAds] = useState<any[]>([]);
+  const [isLoadingPlatformAds, setIsLoadingPlatformAds] = useState(false);
+  const [togglingAdId, setTogglingAdId] = useState<string | null>(null);
 
   // Get pending approval requests that need attention
   const pendingApprovalRequests = requests.filter(r => r.status === 'pending_approval');
@@ -97,7 +107,37 @@ export function AdminDashboard() {
     if (activeTab === 'marketplace') {
       loadMarketplaceReport();
     }
+    if (activeTab === 'platform_ads' && platformAds.length === 0) {
+      loadPlatformAds();
+    }
   }, [activeTab, reportStartDate, reportEndDate]);
+
+  const loadPlatformAds = async () => {
+    setIsLoadingPlatformAds(true);
+    try {
+      const res = await apiRequest<{ ads: any[] }>('/api/ads/assigned');
+      setPlatformAds(res.ads || []);
+    } catch {
+      setPlatformAds([]);
+    } finally {
+      setIsLoadingPlatformAds(false);
+    }
+  };
+
+  const handleTogglePlatformAd = async (adId: string, tenantId: string, currentEnabled: number) => {
+    setTogglingAdId(adId);
+    try {
+      await apiRequest(`/api/super-admin/ads/${adId}/tenants/${tenantId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: currentEnabled === 0 }),
+      });
+      setPlatformAds(prev => prev.map(a => a.id === adId ? { ...a, tenant_enabled: currentEnabled === 0 ? 1 : 0 } : a));
+    } catch (err: any) {
+      alert(err.message || 'Ошибка');
+    } finally {
+      setTogglingAdId(null);
+    }
+  };
 
   const loadMarketplaceReport = async () => {
     setIsLoadingReport(true);
@@ -116,6 +156,7 @@ export function AdminDashboard() {
   const exportMarketplaceReport = async () => {
     if (!marketplaceReport) return;
 
+    const ExcelJS = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Kamizo';
     workbook.created = new Date();
@@ -123,7 +164,7 @@ export function AdminDashboard() {
     const formatCurrency = (value: number) => `${value.toLocaleString('ru-RU')} ${language === 'ru' ? 'сум' : 'so\'m'}`;
 
     // Common styles
-    const headerStyle: Partial<ExcelJS.Style> = {
+    const headerStyle: Partial<Style> = {
       font: { bold: true, size: 11 },
       alignment: { horizontal: 'center', vertical: 'middle' },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } },
@@ -134,7 +175,7 @@ export function AdminDashboard() {
         right: { style: 'thin' },
       },
     };
-    const cellStyle: Partial<ExcelJS.Style> = {
+    const cellStyle: Partial<Style> = {
       alignment: { horizontal: 'left', vertical: 'middle' },
       border: {
         top: { style: 'thin' },
@@ -143,7 +184,7 @@ export function AdminDashboard() {
         right: { style: 'thin' },
       },
     };
-    const centerStyle: Partial<ExcelJS.Style> = {
+    const centerStyle: Partial<Style> = {
       alignment: { horizontal: 'center', vertical: 'middle' },
       border: {
         top: { style: 'thin' },
@@ -152,7 +193,7 @@ export function AdminDashboard() {
         right: { style: 'thin' },
       },
     };
-    const currencyStyle: Partial<ExcelJS.Style> = {
+    const currencyStyle: Partial<Style> = {
       alignment: { horizontal: 'right', vertical: 'middle' },
       border: {
         top: { style: 'thin' },
@@ -424,14 +465,21 @@ export function AdminDashboard() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header - mobile optimized */}
+    <div className="space-y-4 md:space-y-6 xl:space-y-8 pb-24 md:pb-0">
+      {/* Header - mobile optimized with greeting */}
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель администратора' : 'Administrator paneli'}</h1>
-          <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1">{language === 'ru' ? 'Мониторинг системы' : 'Tizim monitoringi'}</p>
+          <p className="text-sm text-gray-400 font-medium">
+            {language === 'ru'
+              ? `${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${user?.name?.split(' ')[0] || ''} 👋`
+              : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'}, ${user?.name?.split(' ')[0] || ''} 👋`}
+          </p>
+          <h1 className="text-xl md:text-2xl xl:text-3xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель управления' : 'Boshqaruv paneli'}</h1>
         </div>
-        <button className="btn-secondary flex items-center gap-2 flex-shrink-0 py-2 px-3 md:py-2.5 md:px-4 touch-manipulation">
+        <button
+          onClick={() => window.location.reload()}
+          className="btn-secondary flex items-center gap-2 flex-shrink-0 min-h-[44px] py-2 px-3 md:py-2.5 md:px-4 touch-manipulation active:scale-[0.98]"
+        >
           <RefreshCw className="w-4 h-4" />
           <span className="hidden sm:inline">{language === 'ru' ? 'Обновить' : 'Yangilash'}</span>
         </button>
@@ -441,7 +489,7 @@ export function AdminDashboard() {
       <div className="flex gap-2 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
             activeTab === 'overview'
               ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -452,7 +500,7 @@ export function AdminDashboard() {
         </button>
         <button
           onClick={() => setActiveTab('marketplace')}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
             activeTab === 'marketplace'
               ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -460,6 +508,17 @@ export function AdminDashboard() {
         >
           <ShoppingBag className="w-4 h-4 inline mr-2" />
           {language === 'ru' ? 'Маркетплейс' : 'Marketplace'}
+        </button>
+        <button
+          onClick={() => setActiveTab('platform_ads')}
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
+            activeTab === 'platform_ads'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Megaphone className="w-4 h-4 inline mr-2" />
+          {language === 'ru' ? 'Реклама' : 'Reklama'}
         </button>
       </div>
 
@@ -469,7 +528,7 @@ export function AdminDashboard() {
           {(staleApprovals.length > 0 || pendingApprovalRequests.length > 0) && (
             <div className="space-y-2 md:space-y-3">
               {staleApprovals.length > 0 && (
-                <div className="glass-card p-3 md:p-4 border-2 border-red-400 bg-red-50/50 w-full text-left">
+                <div className="glass-card p-3 md:p-4 xl:p-5 border-2 border-red-400 bg-red-50/50 w-full text-left">
                   <div className="flex items-center gap-2 md:gap-3">
                     <AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -485,7 +544,7 @@ export function AdminDashboard() {
               )}
 
               {pendingApprovalRequests.length > 0 && staleApprovals.length === 0 && (
-                <div className="glass-card p-3 md:p-4 border-2 border-purple-400 bg-purple-50/50">
+                <div className="glass-card p-3 md:p-4 xl:p-5 border-2 border-purple-400 bg-purple-50/50">
                   <div className="flex items-center gap-2 md:gap-3">
                     <Clock className="w-5 h-5 md:w-6 md:h-6 text-purple-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -500,10 +559,10 @@ export function AdminDashboard() {
           )}
 
           {/* Stats Cards - mobile optimized */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-            <div className="glass-card p-3 md:p-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <FileText className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -513,9 +572,9 @@ export function AdminDashboard() {
               </div>
             </div>
 
-            <div className="glass-card p-3 md:p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-primary-400 to-primary-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <Clock className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -525,9 +584,9 @@ export function AdminDashboard() {
               </div>
             </div>
 
-            <div className="glass-card p-3 md:p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-purple-400 to-violet-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-purple-400 to-violet-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <UserCheck className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -537,9 +596,9 @@ export function AdminDashboard() {
               </div>
             </div>
 
-            <div className="glass-card p-3 md:p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -551,12 +610,12 @@ export function AdminDashboard() {
           </div>
 
           {/* Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
             {/* Executors Status */}
-            <div className="glass-card p-4 md:p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
               <div className="flex items-center justify-between mb-3 md:mb-4">
-                <h3 className="font-semibold text-base md:text-lg flex items-center gap-2">
-                  <Users className="w-5 h-5 text-blue-500" />
+                <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary-500" />
                   {language === 'ru' ? 'Исполнители' : 'Ijrochilar'}
                 </h3>
                 <span className="text-sm text-gray-500">{executors.length} {language === 'ru' ? 'всего' : 'jami'}</span>
@@ -591,15 +650,15 @@ export function AdminDashboard() {
             </div>
 
             {/* Requests by Status */}
-            <div className="glass-card p-4 md:p-5">
-              <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-500" />
                 {language === 'ru' ? 'Заявки по статусам' : 'Arizalar holati bo\'yicha'}
               </h3>
               <div className="space-y-3 md:space-y-4">
                 {[
                   { status: 'new', label: language === 'ru' ? 'Новые' : 'Yangi', color: 'bg-blue-500', gradientFrom: 'from-blue-400', gradientTo: 'to-blue-500' },
-                  { status: 'assigned', label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', color: 'bg-indigo-500', gradientFrom: 'from-indigo-400', gradientTo: 'to-indigo-500' },
+                  { status: 'assigned', label: language === 'ru' ? 'Назначенные' : 'Tayinlangan', color: 'bg-orange-500', gradientFrom: 'from-orange-400', gradientTo: 'to-orange-500' },
                   { status: 'in_progress', label: language === 'ru' ? 'В работе' : 'Jarayonda', color: 'bg-amber-500', gradientFrom: 'from-amber-400', gradientTo: 'to-amber-500' },
                   { status: 'pending_approval', label: language === 'ru' ? 'Ожидают' : 'Kutilmoqda', color: 'bg-purple-500', gradientFrom: 'from-purple-400', gradientTo: 'to-purple-500' },
                   { status: 'completed', label: language === 'ru' ? 'Выполненные' : 'Bajarilgan', color: 'bg-green-500', gradientFrom: 'from-green-400', gradientTo: 'to-green-500' },
@@ -625,8 +684,8 @@ export function AdminDashboard() {
             </div>
 
             {/* Top Performers */}
-            <div className="glass-card p-4 md:p-5">
-              <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                 <span className="text-yellow-500">★</span>
                 {language === 'ru' ? 'Лучшие исполнители' : 'Eng yaxshi ijrochilar'}
               </h3>
@@ -665,27 +724,27 @@ export function AdminDashboard() {
             </div>
 
             {/* Quick Stats */}
-            <div className="glass-card p-4 md:p-5">
-              <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-500" />
                 {language === 'ru' ? 'Сводка' : 'Xulosa'}
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                 <div className="bg-white/30 rounded-lg p-3">
                   <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}</div>
-                  <div className="font-bold text-xl md:text-2xl">{stats.totalRequests}</div>
+                  <div className="font-bold text-xl md:text-2xl xl:text-3xl">{stats.totalRequests}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
                   <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Исполнителей' : 'Ijrochilar'}</div>
-                  <div className="font-bold text-xl md:text-2xl">{executors.length}</div>
+                  <div className="font-bold text-xl md:text-2xl xl:text-3xl">{executors.length}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
                   <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
-                  <div className="font-bold text-xl md:text-2xl text-green-600">{stats.completedWeek}</div>
+                  <div className="font-bold text-xl md:text-2xl xl:text-3xl text-green-600">{stats.completedWeek}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
                   <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Активных' : 'Faol'}</div>
-                  <div className="font-bold text-xl md:text-2xl text-amber-600">{stats.inProgress}</div>
+                  <div className="font-bold text-xl md:text-2xl xl:text-3xl text-amber-600">{stats.inProgress}</div>
                 </div>
               </div>
             </div>
@@ -695,7 +754,7 @@ export function AdminDashboard() {
 
       {/* Marketplace Tab */}
       {activeTab === 'marketplace' && (
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6 xl:space-y-8">
           {/* Period selector and download button */}
           <div className="glass-card p-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -706,20 +765,20 @@ export function AdminDashboard() {
                   type="date"
                   value={reportStartDate}
                   onChange={(e) => setReportStartDate(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg sm:rounded-xl text-sm touch-manipulation"
                 />
                 <span className="text-gray-400">—</span>
                 <input
                   type="date"
                   value={reportEndDate}
                   onChange={(e) => setReportEndDate(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg sm:rounded-xl text-sm touch-manipulation"
                 />
               </div>
               <button
                 onClick={exportMarketplaceReport}
                 disabled={!marketplaceReport || isLoadingReport}
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation active:scale-[0.98]"
               >
                 <Download className="w-4 h-4" />
                 {language === 'ru' ? 'Скачать Excel' : 'Excel yuklash'}
@@ -735,10 +794,10 @@ export function AdminDashboard() {
           ) : marketplaceReport ? (
             <>
               {/* Overall Stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="glass-card p-5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
-                    <ShoppingBag className="w-8 h-8 text-blue-500" />
+                    <ShoppingBag className="w-8 h-8 text-primary-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.total_orders}</div>
                   <div className="text-sm text-gray-500">{language === 'ru' ? 'Всего заказов' : 'Jami buyurtmalar'}</div>
@@ -749,7 +808,7 @@ export function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
                     <DollarSign className="w-8 h-8 text-green-500" />
                   </div>
@@ -760,7 +819,7 @@ export function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
                     <Star className="w-8 h-8 text-yellow-500" />
                   </div>
@@ -771,7 +830,7 @@ export function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
                     <Package className="w-8 h-8 text-purple-500" />
                   </div>
@@ -786,9 +845,9 @@ export function AdminDashboard() {
               </div>
 
               {/* Sales Chart */}
-              <div className="glass-card p-5">
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
+              <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary-500" />
                   {language === 'ru' ? 'Динамика продаж' : 'Sotuvlar dinamikasi'}
                 </h3>
                 <ResponsiveContainer width="100%" height={280}>
@@ -835,9 +894,9 @@ export function AdminDashboard() {
               </div>
 
               {/* Two column layout */}
-              <div className="grid lg:grid-cols-2 gap-6">
+              <div className="grid lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
                 {/* Top Products */}
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                     <Package className="w-5 h-5 text-purple-500" />
                     {language === 'ru' ? 'Топ товаров' : 'Top tovarlar'}
@@ -876,7 +935,7 @@ export function AdminDashboard() {
                 </div>
 
                 {/* Categories */}
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-orange-500" />
                     {language === 'ru' ? 'По категориям' : 'Kategoriyalar bo\'yicha'}
@@ -906,17 +965,17 @@ export function AdminDashboard() {
               </div>
 
               {/* Bottom section */}
-              <div className="grid lg:grid-cols-2 gap-6">
+              <div className="grid lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
                 {/* Top Customers */}
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-500" />
+                    <Users className="w-5 h-5 text-primary-500" />
                     {language === 'ru' ? 'Топ покупателей' : 'Top xaridorlar'}
                   </h3>
                   <div className="space-y-3 max-h-80 overflow-y-auto">
                     {marketplaceReport.top_customers.map((customer, idx) => (
                       <div key={customer.user_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">
+                        <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-600">
                           {idx + 1}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -936,7 +995,7 @@ export function AdminDashboard() {
                 </div>
 
                 {/* Couriers */}
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                     <UserCheck className="w-5 h-5 text-green-500" />
                     {language === 'ru' ? 'Курьеры' : 'Kuryerlar'}
@@ -967,8 +1026,8 @@ export function AdminDashboard() {
               </div>
 
               {/* Orders by Status pie chart */}
-              <div className="glass-card p-5">
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+              <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-purple-500" />
                   {language === 'ru' ? 'Заказы по статусам' : 'Buyurtmalar holati bo\'yicha'}
                 </h3>
@@ -1034,6 +1093,114 @@ export function AdminDashboard() {
           )}
         </div>
       )}
+      {/* Platform Ads Tab */}
+      {activeTab === 'platform_ads' && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{language === 'ru' ? 'Реклама от платформы' : 'Platforma reklamalari'}</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {language === 'ru'
+                ? 'Рекламные объявления, назначенные платформой. Включите или выключите видимость для ваших жильцов.'
+                : 'Platforma tomonidan belgilangan reklamalar. Sakinlaringiz uchun ko\'rinishini yoqing yoki o\'chiring.'}
+            </p>
+          </div>
+
+          {isLoadingPlatformAds ? (
+            <div className="flex items-center justify-center py-20">
+              <RefreshCw className="w-8 h-8 animate-spin text-primary-500" />
+            </div>
+          ) : platformAds.length === 0 ? (
+            <div className="glass-card p-16 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                <Megaphone className="w-8 h-8 text-gray-300" />
+              </div>
+              <p className="text-gray-400 font-medium">
+                {language === 'ru' ? 'Нет рекламы от платформы' : 'Platforma reklamalari yo\'q'}
+              </p>
+              <p className="text-gray-300 text-sm mt-1">
+                {language === 'ru' ? 'Суперадмин ещё не назначил рекламу для вашей УК' : 'Superadmin hali reklama belgilamagan'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {platformAds.map(ad => (
+                <div key={ad.id} className="glass-card overflow-hidden">
+                  <div className="p-4 flex items-start gap-3">
+                    {/* Logo */}
+                    {ad.logo_url ? (
+                      <img src={ad.logo_url} alt="" className="w-14 h-14 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center text-2xl flex-shrink-0">
+                        📋
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-gray-900 text-sm truncate">{ad.title}</h3>
+                          <p className="text-xs text-gray-400 mt-0.5">{ad.category_name}</p>
+                        </div>
+                        {/* Toggle switch */}
+                        <button
+                          onClick={() => handleTogglePlatformAd(ad.id, (user as any)?.tenant_id, ad.tenant_enabled)}
+                          disabled={togglingAdId === ad.id}
+                          className="flex-shrink-0 flex items-center gap-2 transition-colors"
+                          title={ad.tenant_enabled ? (language === 'ru' ? 'Показывается жильцам — нажмите чтобы скрыть' : 'Ko\'rinmoqda — yashirish uchun bosing') : (language === 'ru' ? 'Скрыто от жильцов — нажмите чтобы показать' : 'Yashirin — ko\'rsatish uchun bosing')}
+                        >
+                          {togglingAdId === ad.id ? (
+                            <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
+                          ) : ad.tenant_enabled ? (
+                            <ToggleRight className="w-8 h-8 text-emerald-500" />
+                          ) : (
+                            <ToggleLeft className="w-8 h-8 text-gray-300" />
+                          )}
+                        </button>
+                      </div>
+
+                      {ad.description && (
+                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{ad.description}</p>
+                      )}
+
+                      <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50">
+                        {ad.discount_percent > 0 && (
+                          <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs font-bold">-{ad.discount_percent}%</span>
+                        )}
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5" /> {ad.views_count || 0}
+                        </span>
+                        {ad.expires_at && (
+                          <span className="text-xs text-gray-400 ml-auto">
+                            до {new Date(ad.expires_at).toLocaleDateString('ru-RU')}
+                          </span>
+                        )}
+                        <span className={`text-xs font-semibold ml-auto ${ad.tenant_enabled ? 'text-emerald-600' : 'text-gray-400'}`}>
+                          {ad.tenant_enabled
+                            ? (language === 'ru' ? 'Включено' : 'Yoqilgan')
+                            : (language === 'ru' ? 'Выключено' : 'O\'chirilgan')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Building targeting info */}
+                  {ad.target_type && ad.target_type !== 'all' && (
+                    <div className="px-4 pb-3">
+                      <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                        <Building2 className="w-3 h-3" />
+                        {language === 'ru' ? 'Таргетинг:' : 'Maqsad:'} {ad.target_type === 'branches' ? 'по филиалам' : 'по зданиям'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Install App / Notifications */}
+      <InstallAppSection language={language} roleContext="admin" />
     </div>
   );
 }

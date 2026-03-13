@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { InstallAppSection } from '../components/InstallAppSection';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell
@@ -73,17 +74,21 @@ export function DepartmentHeadDashboard() {
   const isLoading = isLoadingRequests || isLoadingExecutors;
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header */}
+    <div className="space-y-4 md:space-y-6 xl:space-y-8 pb-24 md:pb-0">
+      {/* Header with greeting */}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
+          <p className="text-sm text-gray-400 font-medium mb-1">
+            {language === 'ru'
+              ? `${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${user?.name?.split(' ')[0] || ''} 👋`
+              : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'}, ${user?.name?.split(' ')[0] || ''} 👋`}
+          </p>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
               <Wrench className="w-5 h-5 text-white" />
             </div>
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Отдел' : 'Bo\'lim'}: {getSpecializationLabel()}</h1>
-              <p className="text-gray-500 text-sm">{language === 'ru' ? 'Глава отдела' : 'Bo\'lim boshlig\'i'}</p>
             </div>
           </div>
         </div>
@@ -92,7 +97,7 @@ export function DepartmentHeadDashboard() {
       {/* Loading State */}
       {isLoading && (
         <div className="glass-card p-8 flex flex-col items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary-500 mb-3" />
           <p className="text-gray-600">{language === 'ru' ? 'Загрузка данных отдела...' : 'Bo\'lim ma\'lumotlari yuklanmoqda...'}</p>
         </div>
       )}
@@ -101,10 +106,10 @@ export function DepartmentHeadDashboard() {
       {!isLoading && (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-            <Link to="/requests" className="glass-card p-3 md:p-5 hover:scale-[1.02] transition-transform">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 xl:gap-5">
+            <Link to="/requests" className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 hover:scale-[1.02] active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-primary-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <FileText className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -114,9 +119,9 @@ export function DepartmentHeadDashboard() {
               </div>
             </Link>
 
-            <div className="glass-card p-3 md:p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <Clock className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -126,9 +131,9 @@ export function DepartmentHeadDashboard() {
               </div>
             </div>
 
-            <div className="glass-card p-3 md:p-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-green-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -138,9 +143,9 @@ export function DepartmentHeadDashboard() {
               </div>
             </div>
 
-            <Link to="/executors" className="glass-card p-3 md:p-5 hover:scale-[1.02] transition-transform">
+            <Link to="/executors" className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 hover:scale-[1.02] active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                   <Users className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -152,10 +157,10 @@ export function DepartmentHeadDashboard() {
           </div>
 
           {/* Charts */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
             {/* Status Distribution */}
-            <div className="glass-card p-4 md:p-6">
-              <h3 className="font-semibold mb-4">{language === 'ru' ? 'Распределение заявок' : 'Arizalar taqsimoti'}</h3>
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4">{language === 'ru' ? 'Распределение заявок' : 'Arizalar taqsimoti'}</h3>
               <div className="h-[200px]">
                 {statusData.some(d => d.value > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -186,8 +191,8 @@ export function DepartmentHeadDashboard() {
             </div>
 
             {/* Executor Performance */}
-            <div className="glass-card p-4 md:p-6">
-              <h3 className="font-semibold mb-4">{language === 'ru' ? 'Производительность сотрудников' : 'Xodimlar samaradorligi'}</h3>
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4">{language === 'ru' ? 'Производительность сотрудников' : 'Xodimlar samaradorligi'}</h3>
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={executorChartData}>
@@ -203,12 +208,12 @@ export function DepartmentHeadDashboard() {
           </div>
 
           {/* Recent Requests */}
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">{language === 'ru' ? 'Последние заявки' : 'Oxirgi arizalar'}</h3>
+              <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl">{language === 'ru' ? 'Последние заявки' : 'Oxirgi arizalar'}</h3>
               <Link
                 to="/requests"
-                className="text-primary-600 text-sm hover:underline flex items-center gap-1"
+                className="text-primary-600 text-sm hover:underline flex items-center gap-1 min-h-[44px] touch-manipulation active:text-primary-800"
               >
                 {language === 'ru' ? 'Все заявки' : 'Barcha arizalar'} <ChevronRight className="w-4 h-4" />
               </Link>
@@ -217,7 +222,7 @@ export function DepartmentHeadDashboard() {
               {departmentRequests.slice(0, 5).map((request) => (
                 <div
                   key={request.id}
-                  className="flex items-center justify-between p-3 bg-white/50 rounded-xl"
+                  className="flex items-center justify-between p-3 bg-white/50 rounded-lg sm:rounded-xl hover:bg-white/70 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -230,12 +235,12 @@ export function DepartmentHeadDashboard() {
                       {request.category === 'trash' && (
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {request.title.includes(': ') && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-medium">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
                               {request.title.split(': ').slice(1).join(': ')}
                             </span>
                           )}
                           {request.description?.includes(language === 'ru' ? 'Объём: ' : 'Hajmi: ') && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-medium">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
                               {request.description.split('Объём: ')[1]?.split('\n')[0] || request.description.split('Hajmi: ')[1]?.split('\n')[0]}
                             </span>
                           )}
@@ -245,7 +250,7 @@ export function DepartmentHeadDashboard() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium ${
                       request.status === 'new' ? 'bg-blue-100 text-blue-700' :
                       request.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
                       request.status === 'pending_approval' ? 'bg-purple-100 text-purple-700' :
@@ -254,7 +259,7 @@ export function DepartmentHeadDashboard() {
                     }`}>
                       {STATUS_LABELS[request.status]}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium ${
                       request.priority === 'urgent' ? 'bg-red-100 text-red-700' :
                       request.priority === 'high' ? 'bg-orange-100 text-orange-700' :
                       'bg-gray-100 text-gray-600'
@@ -273,12 +278,12 @@ export function DepartmentHeadDashboard() {
           </div>
 
           {/* Top Executors */}
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">{language === 'ru' ? 'Лучшие сотрудники' : 'Eng yaxshi xodimlar'}</h3>
+              <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl">{language === 'ru' ? 'Лучшие сотрудники' : 'Eng yaxshi xodimlar'}</h3>
               <Link
                 to="/executors"
-                className="text-primary-600 text-sm hover:underline flex items-center gap-1"
+                className="text-primary-600 text-sm hover:underline flex items-center gap-1 min-h-[44px] touch-manipulation active:text-primary-800"
               >
                 {language === 'ru' ? 'Все сотрудники' : 'Barcha xodimlar'} <ChevronRight className="w-4 h-4" />
               </Link>
@@ -288,7 +293,7 @@ export function DepartmentHeadDashboard() {
                 .sort((a, b) => b.completedCount - a.completedCount)
                 .slice(0, 5)
                 .map((executor, index) => (
-                  <div key={executor.id} className="flex items-center gap-3 p-3 bg-white/50 rounded-xl">
+                  <div key={executor.id} className="flex items-center gap-3 p-3 bg-white/50 rounded-lg sm:rounded-xl hover:bg-white/70 transition-colors">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
                       index === 0 ? 'bg-orange-500' :
                       index === 1 ? 'bg-gray-400' :
@@ -301,7 +306,7 @@ export function DepartmentHeadDashboard() {
                       <div className="text-sm text-gray-500">{executor.completedCount} {language === 'ru' ? 'выполнено' : 'bajarildi'}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium ${
                         executor.status === 'available' ? 'bg-green-100 text-green-700' :
                         executor.status === 'busy' ? 'bg-amber-100 text-amber-700' :
                         'bg-gray-100 text-gray-600'
@@ -325,6 +330,9 @@ export function DepartmentHeadDashboard() {
           </div>
         </>
       )}
+
+      {/* Install App / Notifications */}
+      <InstallAppSection language={language} roleContext="department_head" />
     </div>
   );
 }

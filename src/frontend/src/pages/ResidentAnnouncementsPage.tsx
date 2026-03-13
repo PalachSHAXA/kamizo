@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Megaphone, AlertTriangle, AlertCircle, Info, ChevronRight, Check, Download, FileText, File, Image } from 'lucide-react';
+import { Megaphone, AlertTriangle, AlertCircle, Info, ChevronRight, Check, Download, FileText, File } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -10,7 +10,7 @@ export function ResidentAnnouncementsPage() {
   const { getAnnouncementsForResidents, markAnnouncementAsViewed, fetchAnnouncements } = useDataStore();
   const { language } = useLanguageStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread'>('unread');
 
   // Fetch announcements on component mount
   useEffect(() => {
@@ -28,10 +28,10 @@ export function ResidentAnnouncementsPage() {
   const announcements = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
 
   const filteredAnnouncements = filter === 'unread'
-    ? announcements.filter(a => !a.viewedBy.includes(user?.id || ''))
+    ? announcements.filter(a => !a.viewedBy?.includes(user?.id || ''))
     : announcements;
 
-  const unreadCount = announcements.filter(a => !a.viewedBy.includes(user?.id || '')).length;
+  const unreadCount = announcements.filter(a => !a.viewedBy?.includes(user?.id || '')).length;
 
   const handleExpand = (announcement: Announcement) => {
     if (expandedId === announcement.id) {
@@ -39,7 +39,7 @@ export function ResidentAnnouncementsPage() {
     } else {
       setExpandedId(announcement.id);
       // Mark as viewed when expanded
-      if (user?.id && !announcement.viewedBy.includes(user.id)) {
+      if (user?.id && !announcement.viewedBy?.includes(user.id)) {
         markAnnouncementAsViewed(announcement.id, user.id);
       }
     }
@@ -83,10 +83,10 @@ export function ResidentAnnouncementsPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold flex items-center gap-3">
           <Megaphone className="w-7 h-7 text-primary-500" />
           {language === 'ru' ? 'Объявления' : 'E\'lonlar'}
         </h1>
@@ -102,7 +102,7 @@ export function ResidentAnnouncementsPage() {
       <div className="flex gap-2">
         <button
           onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
+          className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-sm transition-colors touch-manipulation ${
             filter === 'all'
               ? 'bg-primary-500 text-gray-900'
               : 'bg-white/60 text-gray-600 hover:bg-white/80'
@@ -112,7 +112,7 @@ export function ResidentAnnouncementsPage() {
         </button>
         <button
           onClick={() => setFilter('unread')}
-          className={`px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
+          className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-sm transition-colors touch-manipulation ${
             filter === 'unread'
               ? 'bg-primary-500 text-gray-900'
               : 'bg-white/60 text-gray-600 hover:bg-white/80'
@@ -135,14 +135,14 @@ export function ResidentAnnouncementsPage() {
       ) : (
         <div className="space-y-3">
           {filteredAnnouncements.map((announcement) => {
-            const isUnread = !announcement.viewedBy.includes(user?.id || '');
+            const isUnread = !announcement.viewedBy?.includes(user?.id || '');
             const isExpanded = expandedId === announcement.id;
             const styles = getPriorityStyles(announcement.priority);
 
             return (
               <div
                 key={announcement.id}
-                className={`glass-card p-4 border-2 cursor-pointer transition-all ${styles.bg} ${
+                className={`glass-card p-3 sm:p-4 md:p-5 border-2 cursor-pointer transition-all touch-manipulation ${styles.bg} ${
                   isUnread ? 'ring-2 ring-yellow-400 ring-offset-2' : ''
                 }`}
                 onClick={() => handleExpand(announcement)}
@@ -177,28 +177,48 @@ export function ResidentAnnouncementsPage() {
 
                     {/* Attachments */}
                     {announcement.attachments && announcement.attachments.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {announcement.attachments.map((attachment, index) => (
-                          <a
-                            key={index}
-                            href={attachment.url}
-                            download={attachment.name}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-2 bg-white/80 hover:bg-white rounded-lg text-sm text-gray-700 transition-colors border border-gray-200"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {attachment.type.startsWith('image/') ? (
-                              <Image className="w-4 h-4 text-blue-500" />
-                            ) : attachment.type.includes('pdf') ? (
-                              <FileText className="w-4 h-4 text-red-500" />
-                            ) : (
-                              <File className="w-4 h-4 text-gray-500" />
-                            )}
-                            <span className="truncate max-w-[150px]">{attachment.name}</span>
-                            <Download className="w-4 h-4 text-gray-400" />
-                          </a>
-                        ))}
+                      <div className="mt-3 space-y-2">
+                        {/* Image previews */}
+                        {announcement.attachments.filter(a => a.type.startsWith('image/')).length > 0 && (
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {announcement.attachments.filter(a => a.type.startsWith('image/')).map((attachment, index) => (
+                              <a
+                                key={`img-${index}`}
+                                href={attachment.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 rounded-xl overflow-hidden border border-gray-200 hover:border-primary-400 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <img src={attachment.url} alt={attachment.name} className="h-32 w-auto max-w-[200px] object-cover" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        {/* Non-image files */}
+                        {announcement.attachments.filter(a => !a.type.startsWith('image/')).length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {announcement.attachments.filter(a => !a.type.startsWith('image/')).map((attachment, index) => (
+                              <a
+                                key={`file-${index}`}
+                                href={attachment.url}
+                                download={attachment.name}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-2 bg-white/80 hover:bg-white rounded-lg text-sm text-gray-700 transition-colors border border-gray-200"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {attachment.type.includes('pdf') ? (
+                                  <FileText className="w-4 h-4 text-red-500" />
+                                ) : (
+                                  <File className="w-4 h-4 text-gray-500" />
+                                )}
+                                <span className="truncate max-w-[150px]">{attachment.name}</span>
+                                <Download className="w-4 h-4 text-gray-400" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 

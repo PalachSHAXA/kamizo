@@ -36,7 +36,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
   // Tenant/commercial_owner don't participate in meetings
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
-  const isExecutor = user?.role === 'executor';
+  const isExecutor = user?.role === 'executor' || user?.role === 'security';
 
   // Get upcoming meetings
   const upcomingMeetings = useMemo(() => {
@@ -131,11 +131,11 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   return (
     <>
       <header className="mobile-header">
-        <button onClick={onMenuClick} className="p-2 hover:bg-white/30 rounded-lg relative">
-          <Menu className="w-6 h-6" />
+        <button onClick={onMenuClick} className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation">
+          <Menu className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
           {/* Badge on menu button for pending tasks */}
           {totalMenuBadge > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-white text-[10px] flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-[9px] font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
               {totalMenuBadge > 9 ? '9+' : totalMenuBadge}
             </span>
           )}
@@ -148,11 +148,11 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
         <button
           onClick={() => setShowNotifications(!showNotifications)}
-          className="p-2 hover:bg-white/30 rounded-lg relative"
+          className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation"
         >
-          <Bell className="w-6 h-6" />
+          <Bell className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
           {totalNotificationsBadge > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-[9px] font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
               {totalNotificationsBadge > 9 ? '9+' : totalNotificationsBadge}
             </span>
           )}
@@ -168,7 +168,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
             onClick={() => setShowNotifications(false)}
           />
           <div
-            className="fixed left-2 right-2 bottom-16 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            className="fixed left-3 right-3 bottom-16 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             style={{ zIndex: 10001, maxHeight: '70vh' }}
           >
             <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
@@ -176,7 +176,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
               {unreadCount > 0 && (
                 <button
                   onClick={() => user && markAllNotificationsAsRead(user.id)}
-                  className="text-xs text-blue-600"
+                  className="text-xs text-blue-600 min-h-[44px] flex items-center touch-manipulation"
                 >
                   Прочитать все
                 </button>
@@ -316,7 +316,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
             <div className="p-2 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => setShowNotifications(false)}
-                className="w-full text-center text-sm text-gray-600 py-1"
+                className="w-full text-center text-sm text-gray-600 min-h-[44px] flex items-center justify-center touch-manipulation"
               >
                 Закрыть
               </button>

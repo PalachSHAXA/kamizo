@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Star, Users, Check, X, ThumbsUp, Send, MessageCircle, User, Briefcase, ChevronRight } from 'lucide-react';
+import { Star, Users, Check, X, ThumbsUp, Send, MessageCircle, User, Briefcase, ChevronRight, Building2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { ukRatingsApi } from '../services/api';
 import type { Executor } from '../types';
 import { SPECIALIZATION_LABELS } from '../types';
 
@@ -67,6 +68,49 @@ export function ResidentRateEmployeesPage() {
     comment: ''
   });
   const [ratedExecutorIds, setRatedExecutorIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'employees' | 'uk'>('employees');
+
+  // UK rating state
+  const [ukRatingDone, setUkRatingDone] = useState(false);
+  const [ukRatingLoading, setUkRatingLoading] = useState(true);
+  const [ukOverall, setUkOverall] = useState(0);
+  const [ukCleanliness, setUkCleanliness] = useState(0);
+  const [ukResponsiveness, setUkResponsiveness] = useState(0);
+  const [ukCommunication, setUkCommunication] = useState(0);
+  const [ukComment, setUkComment] = useState('');
+  const [ukSubmitting, setUkSubmitting] = useState(false);
+
+  useEffect(() => {
+    ukRatingsApi.getMyRating().then(res => {
+      if (res.rating) {
+        setUkRatingDone(true);
+        setUkOverall(res.rating.overall);
+        setUkCleanliness(res.rating.cleanliness || 0);
+        setUkResponsiveness(res.rating.responsiveness || 0);
+        setUkCommunication(res.rating.communication || 0);
+        setUkComment(res.rating.comment || '');
+      }
+    }).catch(() => {}).finally(() => setUkRatingLoading(false));
+  }, []);
+
+  const handleUkRatingSubmit = async () => {
+    if (ukOverall === 0) return;
+    setUkSubmitting(true);
+    try {
+      await ukRatingsApi.submitRating({
+        overall: ukOverall,
+        cleanliness: ukCleanliness || undefined,
+        responsiveness: ukResponsiveness || undefined,
+        communication: ukCommunication || undefined,
+        comment: ukComment || undefined,
+      });
+      setUkRatingDone(true);
+    } catch (e) {
+      console.error('Failed to submit UK rating', e);
+    } finally {
+      setUkSubmitting(false);
+    }
+  };
 
   // Fetch executors and requests from API on mount
   useEffect(() => {
@@ -205,20 +249,130 @@ export function ResidentRateEmployeesPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
           <Star className="w-7 h-7 text-primary-500" />
-          {language === 'ru' ? 'Оценить сотрудников' : 'Xodimlarni baholash'}
+          {language === 'ru' ? 'Оценки' : 'Baholar'}
         </h1>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveTab('employees')}
+          className={`px-4 py-2.5 rounded-[12px] text-[13px] font-bold transition-all touch-manipulation ${
+            activeTab === 'employees'
+              ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]'
+              : 'bg-white text-gray-500 shadow-[0_2px_10px_rgba(0,0,0,0.06)]'
+          }`}
+        >
+          <Users className="w-4 h-4 inline mr-1.5" />
+          {language === 'ru' ? 'Сотрудники' : 'Xodimlar'}
+        </button>
+        <button
+          onClick={() => setActiveTab('uk')}
+          className={`px-4 py-2.5 rounded-[12px] text-[13px] font-bold transition-all touch-manipulation ${
+            activeTab === 'uk'
+              ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]'
+              : 'bg-white text-gray-500 shadow-[0_2px_10px_rgba(0,0,0,0.06)]'
+          }`}
+        >
+          <Building2 className="w-4 h-4 inline mr-1.5" />
+          {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'}
+          {!ukRatingDone && !ukRatingLoading && (
+            <span className="ml-1.5 w-2 h-2 rounded-full bg-red-500 inline-block" />
+          )}
+        </button>
+      </div>
+
+      {/* UK Rating Tab */}
+      {activeTab === 'uk' && (
+        <div className="space-y-4">
+          {ukRatingLoading ? (
+            <div className="text-center text-gray-400 py-10">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</div>
+          ) : (
+            <>
+              <div className="bg-white rounded-[18px] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
+                <div className="text-center mb-5">
+                  <div className="w-14 h-14 rounded-[16px] bg-primary-50 flex items-center justify-center mx-auto mb-3">
+                    <Building2 className="w-7 h-7 text-primary-500" />
+                  </div>
+                  <h2 className="text-[18px] font-extrabold text-gray-900">
+                    {language === 'ru' ? 'Оцените управляющую компанию' : 'Boshqaruv kompaniyasini baholang'}
+                  </h2>
+                  <p className="text-[13px] text-gray-500 mt-1">
+                    {ukRatingDone
+                      ? (language === 'ru' ? 'Вы уже оценили в этом месяце. Можете обновить оценку.' : 'Siz bu oyda allaqachon baholadingiz. Bahoni yangilashingiz mumkin.')
+                      : (language === 'ru' ? 'Ваша оценка поможет улучшить качество обслуживания' : 'Bahoyingiz xizmat sifatini yaxshilashga yordam beradi')}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { label: language === 'ru' ? 'Общая оценка' : 'Umumiy baho', value: ukOverall, set: setUkOverall, required: true },
+                    { label: language === 'ru' ? 'Чистота и порядок' : 'Tozalik va tartib', value: ukCleanliness, set: setUkCleanliness },
+                    { label: language === 'ru' ? 'Скорость реагирования' : 'Javob berish tezligi', value: ukResponsiveness, set: setUkResponsiveness },
+                    { label: language === 'ru' ? 'Коммуникация' : 'Muloqot', value: ukCommunication, set: setUkCommunication },
+                  ].map(cat => (
+                    <div key={cat.label} className="flex items-center justify-between gap-4 py-3 border-b border-gray-100 last:border-0">
+                      <span className="text-sm font-medium text-gray-700">
+                        {cat.label} {cat.required && <span className="text-primary-500">*</span>}
+                      </span>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <button
+                            key={star}
+                            onClick={() => cat.set(star)}
+                            className="p-1 touch-manipulation"
+                          >
+                            <Star
+                              className={`w-7 h-7 transition-all ${star <= cat.value ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <textarea
+                    value={ukComment}
+                    onChange={e => setUkComment(e.target.value)}
+                    placeholder={language === 'ru' ? 'Что можно улучшить?' : 'Nimani yaxshilash mumkin?'}
+                    className="w-full bg-gray-50 rounded-[14px] p-3.5 text-[14px] text-gray-900 placeholder:text-gray-400 resize-none border-0 outline-none focus:ring-2 focus:ring-primary-200 transition-all"
+                    rows={3}
+                  />
+
+                  <button
+                    onClick={handleUkRatingSubmit}
+                    disabled={ukOverall === 0 || ukSubmitting}
+                    className={`w-full py-3.5 rounded-[14px] text-[15px] font-bold transition-all touch-manipulation ${
+                      ukOverall > 0 && !ukSubmitting
+                        ? 'bg-primary-500 text-white active:scale-[0.97] shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
+                        : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    {ukSubmitting
+                      ? (language === 'ru' ? 'Отправка...' : 'Yuborilmoqda...')
+                      : ukRatingDone
+                        ? (language === 'ru' ? 'Обновить оценку' : 'Bahoni yangilash')
+                        : (language === 'ru' ? 'Отправить оценку' : 'Bahoni yuborish')}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Employees Tab */}
+      {activeTab === 'employees' && (<>
       {/* Info Card */}
-      <div className="glass-card p-4 bg-blue-50 border-blue-200">
+      <div className="glass-card p-4 bg-primary-50 border-primary-200">
         <div className="flex items-start gap-3">
-          <ThumbsUp className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-blue-700">
+          <ThumbsUp className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-primary-700">
             {language === 'ru'
               ? 'Оцените качество работы сотрудников, которые выполнили ваши заявки. Ваши отзывы помогут улучшить качество обслуживания.'
               : 'Arizalaringizni bajargan xodimlarning ish sifatini baholang. Sizning fikrlaringiz xizmat sifatini yaxshilashga yordam beradi.'}
@@ -227,7 +381,7 @@ export function ResidentRateEmployeesPage() {
       </div>
 
       {/* Main Content - Two columns on desktop */}
-      <div className="grid md:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid md:grid-cols-2 xl:grid-cols-2 gap-4 md:gap-6">
         {/* Left Side - Workers List */}
         <div className="space-y-4">
           {/* Unrated Workers */}
@@ -244,7 +398,7 @@ export function ResidentRateEmployeesPage() {
               {unratedExecutors.map((executor) => (
                 <div
                   key={executor.id}
-                  className="glass-card p-4 cursor-pointer hover:shadow-md transition-all border-2 border-yellow-200 bg-yellow-50"
+                  className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-md transition-all border-2 border-yellow-200 bg-yellow-50"
                   onClick={() => handleOpenRating(executor)}
                 >
                   <div className="flex items-center justify-between gap-4">
@@ -294,7 +448,7 @@ export function ResidentRateEmployeesPage() {
               {ratedExecutors.map((executor) => (
                 <div
                   key={executor.id}
-                  className="glass-card p-4 border border-green-100 bg-green-50/50 cursor-pointer hover:shadow-md transition-all"
+                  className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl border border-green-100 bg-green-50/50 cursor-pointer hover:shadow-md transition-all"
                   onClick={() => handleOpenRating(executor)}
                 >
                   <div className="flex items-center justify-between gap-4">
@@ -346,7 +500,7 @@ export function ResidentRateEmployeesPage() {
         {/* Right Side - Selected Worker Details (Desktop) */}
         <div className="hidden md:block">
           {selectedExecutor ? (
-            <div className="glass-card p-6 sticky top-4">
+            <div className="glass-card p-6 sticky top-0">
               <div className="text-center mb-6">
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center mx-auto mb-3">
                   <User className="w-10 h-10 text-white" />
@@ -410,7 +564,7 @@ export function ResidentRateEmployeesPage() {
               <button
                 onClick={handleSubmitRating}
                 disabled={ratings.quality === 0 || ratings.speed === 0 || ratings.politeness === 0}
-                className="w-full py-4 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-primary-400 to-primary-500 hover:from-primary-500 hover:to-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="w-full py-4 px-4 min-h-[44px] touch-manipulation active:scale-95 rounded-xl font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-primary-400 to-primary-500 hover:from-primary-500 hover:to-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 <Send className="w-5 h-5" />
                 {ratedExecutorIds.includes(selectedExecutor.id)
@@ -420,7 +574,7 @@ export function ResidentRateEmployeesPage() {
               </button>
             </div>
           ) : (
-            <div className="glass-card p-8 text-center sticky top-4">
+            <div className="glass-card p-8 text-center sticky top-0">
               <Users className="w-16 h-16 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">
                 {language === 'ru'
@@ -431,6 +585,8 @@ export function ResidentRateEmployeesPage() {
           )}
         </div>
       </div>
+
+      </>)}
 
       {/* Rating Modal (Mobile) */}
       {showRatingModal && selectedExecutor && (
@@ -517,7 +673,7 @@ export function ResidentRateEmployeesPage() {
               <button
                 onClick={handleSubmitRating}
                 disabled={ratings.quality === 0 || ratings.speed === 0 || ratings.politeness === 0}
-                className="w-full py-4 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-primary-400 to-primary-500 hover:from-primary-500 hover:to-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="w-full py-4 px-4 min-h-[44px] touch-manipulation active:scale-95 rounded-xl font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-primary-400 to-primary-500 hover:from-primary-500 hover:to-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 <Send className="w-5 h-5" />
                 {ratedExecutorIds.includes(selectedExecutor.id)

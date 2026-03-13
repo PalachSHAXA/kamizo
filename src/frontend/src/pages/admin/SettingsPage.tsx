@@ -82,7 +82,6 @@ export function SettingsPage() {
     setIsPushLoading(true);
     setPushTestResult(null);
     try {
-      console.log('[Settings] Enabling push notifications...');
       const subscription = await pushService.subscribe();
       if (subscription) {
         setPushStatus(prev => ({
@@ -108,7 +107,6 @@ export function SettingsPage() {
     setIsPushLoading(true);
     setPushTestResult(null);
     try {
-      console.log('[Settings] Sending test push notification...');
       const response = await apiRequest<{ success: boolean; message?: string }>('/api/push/test', {
         method: 'POST'
       });
@@ -141,8 +139,7 @@ export function SettingsPage() {
 
     // Also check server-side subscription
     try {
-      const serverStatus = await apiRequest<{ subscribed: boolean }>('/api/push/status');
-      console.log('[Settings] Server push status:', serverStatus);
+      await apiRequest<{ subscribed: boolean }>('/api/push/status');
     } catch (e) {
       console.error('[Settings] Failed to get server push status:', e);
     }
@@ -281,7 +278,7 @@ export function SettingsPage() {
       ];
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Back button for super_admin (no sidebar) */}
       {isSuperAdmin && (
         <button
@@ -329,7 +326,7 @@ export function SettingsPage() {
       {/* Profile Settings */}
       {activeTab === 'profile' && (
         <div className="space-y-4 md:space-y-6">
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Мой профиль' : 'Mening profilim'}
@@ -432,7 +429,7 @@ export function SettingsPage() {
           </div>
 
           {/* Language Settings */}
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Globe className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Язык интерфейса' : 'Interfeys tili'}
@@ -464,7 +461,7 @@ export function SettingsPage() {
           </div>
 
           {/* Change Password */}
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish'}</h2>
             <div className="space-y-4 max-w-md">
               <div>
@@ -546,7 +543,7 @@ export function SettingsPage() {
       {/* General Settings */}
       {activeTab === 'general' && isAdmin && (
         <div className="space-y-4 md:space-y-6">
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Building2 className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Информация о компании' : 'Kompaniya haqida'}
@@ -576,7 +573,7 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Settings className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Режим работы' : 'Ish tartibi'}
@@ -694,7 +691,7 @@ export function SettingsPage() {
       {/* Notifications Settings */}
       {activeTab === 'notifications' && (
         <div className="space-y-4 md:space-y-6">
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Bell className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Каналы уведомлений' : 'Bildirishnoma kanallari'}
@@ -749,7 +746,7 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'События для уведомлений' : 'Bildirishnoma hodisalari'}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/30 touch-manipulation">
@@ -815,7 +812,7 @@ export function SettingsPage() {
           </div>
 
           {/* Push Notifications Setup */}
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
                 <Smartphone className="w-5 h-5 text-gray-400" />
@@ -890,7 +887,7 @@ export function SettingsPage() {
                 <button
                   onClick={handleTestPush}
                   disabled={isPushLoading}
-                  className="flex-1 px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
+                  className="flex-1 px-4 py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
                 >
                   {isPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   {language === 'ru' ? 'Отправить тест' : 'Test yuborish'}
@@ -910,8 +907,8 @@ export function SettingsPage() {
             )}
 
             {/* Help Text */}
-            <div className="mt-4 p-3 bg-blue-50 rounded-xl">
-              <div className="text-sm text-blue-800">
+            <div className="mt-4 p-3 bg-primary-50 rounded-xl">
+              <div className="text-sm text-primary-800">
                 <strong>{language === 'ru' ? 'Для iOS:' : 'iOS uchun:'}</strong> {language === 'ru' ? 'Чтобы получать уведомления на iPhone/iPad:' : 'iPhone/iPad\'da bildirishnomalarni olish uchun:'}
                 <ol className="list-decimal ml-4 mt-2 space-y-1 text-xs">
                   <li>{language === 'ru' ? 'Откройте Safari и перейдите на app.kamizo.uz' : 'Safari\'ni oching va app.kamizo.uz\'ga o\'ting'}</li>
@@ -933,12 +930,12 @@ export function SettingsPage() {
       {/* Integrations */}
       {activeTab === 'integrations' && isAdmin && (
         <div className="space-y-4 md:space-y-6">
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Интеграции' : 'Integratsiyalar'}</h2>
             <div className="space-y-3">
               <div className="p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <span className="text-xl">📱</span>
                   </div>
                   <div className="flex-1 min-w-0">
@@ -983,7 +980,7 @@ export function SettingsPage() {
 
               <div className="p-3 md:p-4 bg-white/30 rounded-xl opacity-60">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
                     <span className="text-xl">🤖</span>
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1003,7 +1000,7 @@ export function SettingsPage() {
       {/* Users Management */}
       {activeTab === 'users' && isAdmin && (
         <div className="space-y-4 md:space-y-6">
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Менеджеры системы' : 'Tizim menejerlari'}
@@ -1022,22 +1019,22 @@ export function SettingsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 p-3 md:p-4 bg-white/30 rounded-xl">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-medium text-blue-700 flex-shrink-0">
+                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center font-medium text-primary-700 flex-shrink-0">
                   МИ
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Менеджер' : 'Menejer'}</div>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Менеджер' : 'Menejer'}</span>
+                    <span className="px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Менеджер' : 'Menejer'}</span>
                   </div>
                   <div className="text-xs md:text-sm text-gray-500 truncate">manager@uk.uz</div>
                 </div>
               </div>
             </div>
-            <button className="btn-secondary mt-4 w-full md:w-auto py-2.5 touch-manipulation">{language === 'ru' ? '+ Добавить менеджера' : '+ Menejer qo\'shish'}</button>
+            <button className="btn-secondary mt-4 w-full md:w-auto py-2.5 touch-manipulation opacity-50 cursor-not-allowed" disabled title={language === 'ru' ? 'Скоро' : 'Tez kunda'}>{language === 'ru' ? '+ Добавить менеджера' : '+ Menejer qo\'shish'}</button>
           </div>
 
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Права доступа' : 'Kirish huquqlari'}</h2>
             <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
               <table className="w-full text-xs md:text-sm min-w-[400px]">
@@ -1103,8 +1100,8 @@ export function SettingsPage() {
 
       {/* Reset Requests Confirmation Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-600" />

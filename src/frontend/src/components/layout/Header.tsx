@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
-import { Bell, Clock, Search, Lock, Phone, FileText, Car, ChevronRight, Megaphone, Users } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  Bell, Clock, Search, Lock, Phone, FileText, Car, ChevronRight, Megaphone, Users,
+  Plus, QrCode, MessageSquare, BarChart3, ClipboardList
+} from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { useDataStore } from '../../stores/dataStore';
+import { useDataStore, useRequestStore, useExecutorStore, useNotificationStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { SPECIALIZATION_LABELS, SPECIALIZATION_LABELS_UZ } from '../../types';
 import type { ExecutorSpecialization } from '../../types';
@@ -25,11 +28,11 @@ interface OnboardingTask {
 // source of truth is now the user object from the API.
 
 // Mark action as completed (legacy - kept for backward compatibility during transition)
-export const markOnboardingComplete = (userId: string, action: string): void => {
+export const markOnboardingComplete = (_userId: string, _action: string): void => {
   // This is now handled by the API automatically
   // password_changed_at is set when user changes password
   // contract_signed_at is set when user downloads contract
-  console.log(`[Onboarding] Action ${action} for user ${userId} - now tracked in DB`);
+  // Tracked in DB via API (password_changed_at, contract_signed_at)
 };
 
 const ONBOARDING_TASKS: OnboardingTask[] = [
@@ -69,17 +72,88 @@ const ONBOARDING_TASKS: OnboardingTask[] = [
   },
 ];
 
+// Page title mapping for breadcrumb
+const PAGE_TITLES: Record<string, Record<string, string>> = {
+  ru: {
+    '/': 'Главная',
+    '/requests': 'Заявки',
+    '/residents': 'Жители',
+    '/executors': 'Исполнители',
+    '/buildings': 'Дома',
+    '/announcements': 'Объявления',
+    '/meetings': 'Собрания',
+    '/chat': 'Чат',
+    '/work-orders': 'Наряды',
+    '/schedule': 'Расписание',
+    '/stats': 'Статистика',
+    '/vehicles': 'Транспорт',
+    '/vehicle-search': 'Поиск авто',
+    '/guest-access': 'Гостевой доступ',
+    '/qr-scanner': 'QR Сканер',
+    '/profile': 'Профиль',
+    '/contract': 'Договор',
+    '/contacts': 'Контакты',
+    '/marketplace': 'Маркетплейс',
+    '/marketplace-orders': 'Заказы',
+    '/trainings': 'Обучение',
+    '/colleagues': 'Коллеги',
+    '/rentals': 'Аренда',
+    '/team': 'Команда',
+    '/reports': 'Отчёты',
+    '/settings': 'Настройки',
+    '/monitoring': 'Мониторинг',
+    '/notepad': 'Блокнот',
+    '/rate-employees': 'Оценка сотрудников',
+  },
+  uz: {
+    '/': 'Bosh sahifa',
+    '/requests': 'Arizalar',
+    '/residents': 'Aholilar',
+    '/executors': 'Ijrochilar',
+    '/buildings': 'Binolar',
+    '/announcements': "E'lonlar",
+    '/meetings': "Yig'ilishlar",
+    '/chat': 'Chat',
+    '/work-orders': 'Naryad',
+    '/schedule': 'Jadval',
+    '/stats': 'Statistika',
+    '/vehicles': 'Transport',
+    '/vehicle-search': 'Avto qidirish',
+    '/guest-access': "Mehmon ruxsati",
+    '/qr-scanner': 'QR Skaner',
+    '/profile': 'Profil',
+    '/contract': 'Shartnoma',
+    '/contacts': "Kontaktlar",
+    '/marketplace': 'Marketplace',
+    '/marketplace-orders': 'Buyurtmalar',
+    '/trainings': "O'qitish",
+    '/colleagues': 'Hamkasblar',
+    '/rentals': 'Ijara',
+    '/team': 'Jamoa',
+    '/reports': 'Hisobotlar',
+    '/settings': 'Sozlamalar',
+    '/monitoring': 'Monitoring',
+    '/notepad': 'Bloknot',
+    '/rate-employees': "Xodimlarni baholash",
+  },
+};
+
 export function Header() {
   const { user } = useAuthStore();
   const { notifications, requests, vehicles, getUnreadCount, markNotificationAsRead, markAllNotificationsAsRead, getAnnouncementsForResidents, getAnnouncementsForEmployees } = useDataStore();
   const { meetings } = useMeetingStore();
   const { language } = useLanguageStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const sentRemindersRef = useRef<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Get current page title for breadcrumb
+  const currentPageTitle = PAGE_TITLES[language]?.[location.pathname] || PAGE_TITLES['ru'][location.pathname] || '';
+  const isHomePage = location.pathname === '/';
 
   // Get pending onboarding tasks for residents - tasks stay until completed
   // Check for 'resident' role (case-insensitive) or tenant
@@ -106,7 +180,7 @@ export function Header() {
   // Tenant/commercial_owner don't participate in meetings
   // Advertiser also doesn't participate in resident meetings
   // Super admin doesn't participate in tenant meetings
-  const isExecutor = user?.role === 'executor';
+  const isExecutor = user?.role === 'executor' || user?.role === 'security';
   const showMeetings = !isRentalUser && !isAdvertiserRole && !isSuperAdmin && !isExecutor;
   const nowDate = new Date();
   const weekFromNow = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -136,7 +210,9 @@ export function Header() {
 
     const checkUpcomingRequests = () => {
       const currentUser = useAuthStore.getState().user;
-      const { requests: currentRequests, executors: currentExecutors, addNotification: notify } = useDataStore.getState();
+      const { requests: currentRequests } = useRequestStore.getState();
+      const { executors: currentExecutors } = useExecutorStore.getState();
+      const { addNotification: notify } = useNotificationStore.getState();
 
       if (!currentUser) return;
 
@@ -150,7 +226,7 @@ export function Header() {
         if (!['assigned', 'accepted'].includes(r.status)) return false;
 
         // For executors - their assigned requests
-        if (currentUser.role === 'executor') {
+        if (currentUser.role === 'executor' || currentUser.role === 'security') {
           const executor = currentExecutors.find(e => e.login === currentUser.login);
           return r.executorId === executor?.id;
         }
@@ -161,7 +237,7 @@ export function Header() {
         return false;
       });
 
-      relevantRequests.forEach(request => {
+      relevantRequests.forEach((request: any) => {
         // Parse scheduled time (format: "09:00-12:00" or "14:00")
         const timeStr = request.scheduledTime!;
         const startTime = timeStr.split('-')[0]; // Take start time
@@ -314,7 +390,7 @@ export function Header() {
   const handleClockClick = () => {
     if (user?.role === 'super_admin') {
       navigate('/');
-    } else if (user?.role === 'executor') {
+    } else if (user?.role === 'executor' || user?.role === 'security') {
       navigate('/');
       window.dispatchEvent(new CustomEvent('openSchedule'));
     } else if (user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner') {
@@ -328,23 +404,97 @@ export function Header() {
     }
   };
 
+  // Quick actions based on role
+  const getQuickActions = () => {
+    const role = user?.role;
+    const actions: { icon: typeof Plus; label: string; onClick: () => void; color: string }[] = [];
+
+    if (['admin', 'manager', 'director', 'department_head'].includes(role || '')) {
+      actions.push({
+        icon: ClipboardList,
+        label: language === 'ru' ? 'Заявки' : 'Arizalar',
+        onClick: () => navigate('/requests'),
+        color: 'text-blue-600 bg-blue-50 hover:bg-blue-100',
+      });
+    }
+    if (['admin', 'manager', 'director'].includes(role || '')) {
+      actions.push({
+        icon: BarChart3,
+        label: language === 'ru' ? 'Отчёты' : 'Hisobotlar',
+        onClick: () => navigate('/reports'),
+        color: 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100',
+      });
+    }
+    if (role === 'security') {
+      actions.push({
+        icon: QrCode,
+        label: language === 'ru' ? 'QR Сканер' : 'QR Skaner',
+        onClick: () => navigate('/qr-scanner'),
+        color: 'text-violet-600 bg-violet-50 hover:bg-violet-100',
+      });
+    }
+    if (['admin', 'manager', 'director', 'department_head', 'executor', 'security', 'resident'].includes(role || '')) {
+      actions.push({
+        icon: MessageSquare,
+        label: language === 'ru' ? 'Чат' : 'Chat',
+        onClick: () => navigate('/chat'),
+        color: 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100',
+      });
+    }
+
+    return actions;
+  };
+
+  const quickActions = getQuickActions();
+
   return (
     <header className="h-16 glass-card rounded-none border-x-0 border-t-0 flex items-center justify-between px-6">
       <div className="flex items-center gap-4">
-        {/* Hide search for rental users, super_admin, advertiser, marketplace_manager - they don't manage individual requests */}
+        {/* Breadcrumb - show current page name */}
+        {!isHomePage && currentPageTitle && (
+          <div className="flex items-center gap-1.5 text-sm">
+            <button
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {language === 'ru' ? 'Главная' : 'Bosh sahifa'}
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+            <span className="font-medium text-gray-700">{currentPageTitle}</span>
+          </div>
+        )}
+
+        {/* Quick action buttons - show on home page */}
+        {isHomePage && quickActions.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            {quickActions.map((action) => (
+              <button
+                key={action.label}
+                onClick={action.onClick}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${action.color}`}
+                title={action.label}
+              >
+                <action.icon className="w-3.5 h-3.5" />
+                <span className="hidden lg:inline">{action.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Search - show when on home page or requests-related pages */}
         {!isRentalUser && !isAdvertiserRole && user?.role !== 'super_admin' && user?.role !== 'marketplace_manager' && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Поиск заявок..."
+            placeholder={language === 'ru' ? 'Поиск заявок...' : 'Ariza qidirish...'}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setShowSearchResults(e.target.value.trim().length > 0);
             }}
             onFocus={() => searchQuery.trim() && setShowSearchResults(true)}
-            className="glass-input pl-10 w-64"
+            className="glass-input pl-10 w-full max-w-xs lg:max-w-sm"
           />
           {/* Search Results Dropdown */}
           {showSearchResults && createPortal(
@@ -354,7 +504,7 @@ export function Header() {
                 onClick={() => setShowSearchResults(false)}
               />
               <div
-                className="fixed left-[280px] top-14 w-96 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
+                className="fixed left-4 right-4 sm:left-auto sm:right-auto sm:left-[280px] top-14 sm:w-96 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
                 style={{ zIndex: 10002 }}
               >
                 {searchResults.length === 0 ? (
@@ -410,12 +560,12 @@ export function Header() {
         {/* Current Time Clock - clickable */}
         <button
           onClick={handleClockClick}
-          className="flex items-center gap-2 px-3 py-1.5 bg-white/50 rounded-xl border border-white/30 hover:bg-white/70 transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-3 py-1.5 min-h-[44px] bg-white/50 rounded-xl border border-white/30 hover:bg-white/70 transition-colors cursor-pointer touch-manipulation"
           title="Перейти к расписанию"
         >
           <Clock className="w-4 h-4 text-primary-600" />
           <div className="text-right">
-            <div className="text-sm font-mono font-semibold text-gray-800">{formatCurrentTime()}</div>
+            <div className="text-sm xl:text-base font-mono font-semibold text-gray-800">{formatCurrentTime()}</div>
             <div className="text-xs text-gray-500">{formatCurrentDate()}</div>
           </div>
         </button>
@@ -425,11 +575,11 @@ export function Header() {
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 hover:bg-white/30 rounded-lg relative"
+            className="p-2 min-h-[44px] min-w-[44px] hover:bg-white/30 rounded-lg relative flex items-center justify-center touch-manipulation"
           >
             <Bell className="w-5 h-5 text-gray-600" />
             {totalBadgeCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
+              <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center pointer-events-none">
                 {totalBadgeCount > 9 ? '9+' : totalBadgeCount}
               </span>
             )}
@@ -437,9 +587,9 @@ export function Header() {
         </div>
         )}
 
-        <div className="text-right">
-          <div className="text-sm font-medium">{user?.name}</div>
-          <div className="text-xs text-gray-500">{getRoleLabel()}</div>
+        <div className="text-right max-w-[150px] lg:max-w-[200px]">
+          <div className="text-sm xl:text-base font-medium truncate">{user?.name}</div>
+          <div className="text-xs text-gray-500 truncate">{getRoleLabel()}</div>
         </div>
       </div>
 
@@ -454,7 +604,7 @@ export function Header() {
           />
           {/* Dropdown */}
           <div
-            className="fixed right-6 top-20 w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
+            className="fixed right-4 left-4 sm:left-auto sm:right-6 top-20 sm:w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
             style={{ zIndex: 10001, maxHeight: 'calc(100vh - 100px)' }}
           >
             {/* Header */}
@@ -463,7 +613,7 @@ export function Header() {
               {unreadCount > 0 && (
                 <button
                   onClick={() => user && markAllNotificationsAsRead(user.id)}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-sm text-blue-600 hover:text-blue-800 min-h-[44px] flex items-center touch-manipulation"
                 >
                   Прочитать все
                 </button>
@@ -618,7 +768,7 @@ export function Header() {
               <div className="p-3 border-t border-gray-200 bg-gray-50">
                 <button
                   onClick={() => setShowNotifications(false)}
-                  className="w-full text-center text-sm text-gray-600 hover:text-gray-900"
+                  className="w-full text-center text-sm text-gray-600 hover:text-gray-900 min-h-[44px] flex items-center justify-center touch-manipulation"
                 >
                   Закрыть
                 </button>

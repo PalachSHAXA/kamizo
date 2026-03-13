@@ -15,6 +15,13 @@ interface Branch {
   address?: string;
 }
 
+interface BuildingOption {
+  id: string;
+  name: string;
+  address: string;
+  branch_code?: string;
+}
+
 interface AdCategory {
   id: string;
   name_ru: string;
@@ -39,8 +46,9 @@ interface Ad {
   photos?: string[];
   discount_percent: number;
   badges?: { recommended?: boolean; new?: boolean; hot?: boolean; verified?: boolean };
-  target_type: 'all' | 'branches';
+  target_type: 'all' | 'branches' | 'buildings';
   target_branches?: string[];
+  target_buildings?: string[];
   starts_at: string;
   expires_at: string;
   duration_type: 'week' | 'month' | 'custom';
@@ -113,6 +121,7 @@ export function AdvertiserDashboard() {
   const { language } = useLanguageStore();
   const [categories, setCategories] = useState<AdCategory[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [buildings, setBuildings] = useState<BuildingOption[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [expiringSoon, setExpiringSoon] = useState<any[]>([]);
@@ -141,9 +150,10 @@ export function AdvertiserDashboard() {
     logo_url: '',
     discount_percent: 10,
     duration_type: 'month' as 'week' | '2weeks' | 'month' | '3months' | '6months' | 'year',
-    target_type: 'all' as 'all' | 'branches',
+    target_type: 'all' as 'all' | 'branches' | 'buildings',
     badges: { recommended: false, new: true, hot: false, verified: false },
-    target_branches: [] as string[]
+    target_branches: [] as string[],
+    target_buildings: [] as string[]
   });
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -151,11 +161,12 @@ export function AdvertiserDashboard() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [catRes, dashRes, adsRes, branchRes] = await Promise.all([
+      const [catRes, dashRes, adsRes, branchRes, buildingsRes] = await Promise.all([
         fetch(`${API_BASE}/api/ads/categories`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_BASE}/api/ads/dashboard`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_BASE}/api/ads/my`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE}/api/branches`, { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`${API_BASE}/api/branches`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/buildings`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (catRes.ok) {
@@ -173,12 +184,22 @@ export function AdvertiserDashboard() {
           ...ad,
           badges: ad.badges ? JSON.parse(ad.badges) : {},
           photos: ad.photos ? JSON.parse(ad.photos) : [],
-          target_branches: ad.target_branches ? JSON.parse(ad.target_branches) : []
+          target_branches: ad.target_branches ? JSON.parse(ad.target_branches) : [],
+          target_buildings: ad.target_buildings ? JSON.parse(ad.target_buildings) : []
         })) || []);
       }
       if (branchRes.ok) {
         const data = await branchRes.json();
         setBranches(data.branches || []);
+      }
+      if (buildingsRes.ok) {
+        const data = await buildingsRes.json();
+        setBuildings((data.buildings || []).map((b: any) => ({
+          id: b.id,
+          name: b.name,
+          address: b.address || '',
+          branch_code: b.branch_code
+        })));
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -294,7 +315,8 @@ export function AdvertiserDashboard() {
       duration_type: 'month',
       target_type: 'all',
       badges: { recommended: false, new: true, hot: false, verified: false },
-      target_branches: []
+      target_branches: [],
+      target_buildings: []
     });
   };
 
@@ -323,7 +345,8 @@ export function AdvertiserDashboard() {
         hot: ad.badges?.hot ?? false,
         verified: ad.badges?.verified ?? false
       },
-      target_branches: ad.target_branches || []
+      target_branches: ad.target_branches || [],
+      target_buildings: (ad as any).target_buildings || []
     });
     setShowAdModal(true);
   };
@@ -345,13 +368,13 @@ export function AdvertiserDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -360,7 +383,7 @@ export function AdvertiserDashboard() {
         </div>
         <button
           onClick={() => { resetForm(); setSelectedAd(null); setShowAdModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
         >
           <Plus className="w-5 h-5" />
           {language === 'ru' ? 'Новое объявление' : 'Yangi e\'lon'}
@@ -369,7 +392,7 @@ export function AdvertiserDashboard() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4 xl:gap-5 mb-6">
           <div className="bg-white rounded-xl p-4 shadow-sm border">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -445,7 +468,7 @@ export function AdvertiserDashboard() {
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 font-medium border-b-2 -mb-px transition-colors ${
               activeTab === tab
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -465,14 +488,14 @@ export function AdvertiserDashboard() {
             <p className="text-gray-500">{language === 'ru' ? 'Нет объявлений' : 'E\'lonlar yo\'q'}</p>
             <button
               onClick={() => { resetForm(); setShowAdModal(true); }}
-              className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+              className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
             >
               {language === 'ru' ? 'Создать первое объявление' : 'Birinchi e\'lonni yaratish'}
             </button>
           </div>
         ) : (
           filteredAds.map(ad => (
-            <div key={ad.id} className="w-full flex bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-lg transition-all overflow-hidden">
+            <div key={ad.id} className="w-full flex bg-white rounded-xl border border-gray-100 hover:border-primary-200 hover:shadow-lg transition-all overflow-hidden">
               {/* Image/Logo - left side */}
               <div className="w-32 sm:w-40 h-32 sm:h-36 bg-gray-50 flex-shrink-0 flex items-center justify-center relative p-2">
                 {ad.logo_url ? (
@@ -486,7 +509,7 @@ export function AdvertiserDashboard() {
                 )}
 
                 {/* Status ribbon */}
-                <div className={`absolute top-0 left-0 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-lg ${
+                <div className={`absolute top-0 left-0 text-white text-xs font-bold px-2 py-0.5 rounded-br-lg ${
                   ad.status === 'active' ? 'bg-green-500' :
                   ad.status === 'expired' ? 'bg-red-500' :
                   ad.status === 'draft' ? 'bg-gray-500' :
@@ -499,7 +522,7 @@ export function AdvertiserDashboard() {
 
                 {/* Verified ribbon */}
                 {ad.badges?.verified && (
-                  <div className="absolute top-0 right-0 bg-[#1DA1F2] text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg flex items-center gap-0.5">
+                  <div className="absolute top-0 right-0 bg-[#1DA1F2] text-white text-xs font-bold px-2 py-0.5 rounded-bl-lg flex items-center gap-0.5">
                     <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z"/>
                     </svg>
@@ -508,7 +531,7 @@ export function AdvertiserDashboard() {
 
                 {/* Discount badge */}
                 {ad.discount_percent > 0 && (
-                  <div className="absolute bottom-2 left-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                  <div className="absolute bottom-2 left-2 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded">
                     -{ad.discount_percent}%
                   </div>
                 )}
@@ -527,16 +550,16 @@ export function AdvertiserDashboard() {
                     {/* Badges */}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       {ad.badges?.new && (
-                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-semibold">{language === 'ru' ? 'Новое' : 'Yangi'}</span>
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold">{language === 'ru' ? 'Новое' : 'Yangi'}</span>
                       )}
                       {ad.badges?.hot && (
-                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-semibold">{language === 'ru' ? 'Топ' : 'Top'}</span>
+                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-semibold">{language === 'ru' ? 'Топ' : 'Top'}</span>
                       )}
                       {ad.badges?.recommended && (
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-semibold">{language === 'ru' ? 'Рекомендуем' : 'Tavsiya qilamiz'}</span>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">{language === 'ru' ? 'Рекомендуем' : 'Tavsiya qilamiz'}</span>
                       )}
                       {ad.target_type === 'branches' && ad.target_branches && ad.target_branches.length > 0 && (
-                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-semibold">
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold">
                           {ad.target_branches.join(', ')}
                         </span>
                       )}
@@ -554,7 +577,7 @@ export function AdvertiserDashboard() {
                     </button>
                     <button
                       onClick={() => openEditModal(ad)}
-                      className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+                      className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-primary-600 transition-colors"
                       title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
                     >
                       <Edit className="w-4 h-4" />
@@ -605,8 +628,8 @@ export function AdvertiserDashboard() {
 
       {/* Create/Edit Ad Modal */}
       {showAdModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-lg font-semibold">
                 {selectedAd ? (language === 'ru' ? 'Редактировать объявление' : 'E\'lonni tahrirlash') : (language === 'ru' ? 'Новое объявление' : 'Yangi e\'lon')}
@@ -685,7 +708,7 @@ export function AdvertiserDashboard() {
               {/* Social Networks */}
               <div className="space-y-3">
                 <label className="block text-sm font-medium text-gray-700">{language === 'ru' ? 'Социальные сети' : 'Ijtimoiy tarmoqlar'}</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {/* Telegram */}
                   <div className="relative">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
@@ -698,7 +721,7 @@ export function AdvertiserDashboard() {
                       value={adForm.telegram}
                       onChange={e => setAdForm({ ...adForm, telegram: e.target.value })}
                       placeholder="@username"
-                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                     />
                   </div>
 
@@ -714,7 +737,7 @@ export function AdvertiserDashboard() {
                       value={adForm.instagram}
                       onChange={e => setAdForm({ ...adForm, instagram: e.target.value })}
                       placeholder="@username"
-                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                     />
                   </div>
 
@@ -730,7 +753,7 @@ export function AdvertiserDashboard() {
                       value={adForm.facebook}
                       onChange={e => setAdForm({ ...adForm, facebook: e.target.value })}
                       placeholder="facebook.com/page"
-                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                     />
                   </div>
 
@@ -744,7 +767,7 @@ export function AdvertiserDashboard() {
                       value={adForm.website}
                       onChange={e => setAdForm({ ...adForm, website: e.target.value })}
                       placeholder="https://example.com"
-                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                     />
                   </div>
                 </div>
@@ -846,7 +869,7 @@ export function AdvertiserDashboard() {
               {/* Duration */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Срок размещения' : 'Joylashtirish muddati'}</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 xl:grid-cols-3 gap-2 xl:gap-3">
                   {[
                     { value: 'week', label: language === 'ru' ? '1 неделя' : '1 hafta' },
                     { value: '2weeks', label: language === 'ru' ? '2 недели' : '2 hafta' },
@@ -861,7 +884,7 @@ export function AdvertiserDashboard() {
                       onClick={() => setAdForm({ ...adForm, duration_type: opt.value as any })}
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                         adForm.duration_type === opt.value
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                          ? 'bg-primary-600 text-white shadow-lg shadow-primary-200'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
@@ -886,7 +909,7 @@ export function AdvertiserDashboard() {
                         <div className="text-xs text-gray-500">{language === 'ru' ? 'Показывать как рекомендованное' : 'Tavsiya etilgan sifatida ko\'rsatish'}</div>
                       </div>
                     </div>
-                    <div className={`relative w-12 h-7 rounded-full transition-colors ${adForm.badges.recommended ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <div className={`relative w-12 h-7 rounded-full transition-colors ${adForm.badges.recommended ? 'bg-primary-600' : 'bg-gray-300'}`}>
                       <input
                         type="checkbox"
                         checked={adForm.badges.recommended}
@@ -970,21 +993,34 @@ export function AdvertiserDashboard() {
                 </div>
               </div>
 
-              {/* Target Branches */}
+              {/* Target Audience */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Показывать для филиалов' : 'Filiallar uchun ko\'rsatish'}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Где показывать рекламу' : 'Reklamani qayerda ko\'rsatish'}</label>
                 <div className="space-y-2">
                   <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
                     <input
                       type="radio"
                       name="target_type"
                       checked={adForm.target_type === 'all'}
-                      onChange={() => setAdForm({ ...adForm, target_type: 'all', target_branches: [] })}
-                      className="w-4 h-4 text-blue-600"
+                      onChange={() => setAdForm({ ...adForm, target_type: 'all', target_branches: [], target_buildings: [] })}
+                      className="w-4 h-4 text-primary-600"
                     />
                     <div>
-                      <div className="font-medium text-gray-900">{language === 'ru' ? 'Все филиалы' : 'Barcha filiallar'}</div>
-                      <div className="text-xs text-gray-500">{language === 'ru' ? `Объявление увидят все жители (${branches.length} филиалов)` : `E'lonni barcha aholi ko'radi (${branches.length} filial)`}</div>
+                      <div className="font-medium text-gray-900">{language === 'ru' ? 'Все объекты' : 'Barcha obyektlar'}</div>
+                      <div className="text-xs text-gray-500">{language === 'ru' ? `Рекламу увидят все жители (${buildings.length} объектов, ${branches.length} филиалов)` : `Reklamani barcha aholi ko'radi (${buildings.length} obyekt, ${branches.length} filial)`}</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                    <input
+                      type="radio"
+                      name="target_type"
+                      checked={adForm.target_type === 'buildings'}
+                      onChange={() => setAdForm({ ...adForm, target_type: 'buildings', target_branches: [] })}
+                      className="w-4 h-4 text-primary-600"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">{language === 'ru' ? 'Выбрать объекты (здания)' : 'Obyektlarni tanlash (binolar)'}</div>
+                      <div className="text-xs text-gray-500">{language === 'ru' ? 'Только для определённых зданий' : 'Faqat ma\'lum binolar uchun'}</div>
                     </div>
                   </label>
                   <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
@@ -992,24 +1028,56 @@ export function AdvertiserDashboard() {
                       type="radio"
                       name="target_type"
                       checked={adForm.target_type === 'branches'}
-                      onChange={() => setAdForm({ ...adForm, target_type: 'branches' })}
-                      className="w-4 h-4 text-blue-600"
+                      onChange={() => setAdForm({ ...adForm, target_type: 'branches', target_buildings: [] })}
+                      className="w-4 h-4 text-primary-600"
                     />
                     <div>
-                      <div className="font-medium text-gray-900">{language === 'ru' ? 'Выбрать филиалы' : 'Filiallani tanlash'}</div>
-                      <div className="text-xs text-gray-500">{language === 'ru' ? 'Только для определённых филиалов' : 'Faqat ma\'lum filiallar uchun'}</div>
+                      <div className="font-medium text-gray-900">{language === 'ru' ? 'Выбрать филиалы (УК)' : 'Filiallarni tanlash (BK)'}</div>
+                      <div className="text-xs text-gray-500">{language === 'ru' ? 'Только для определённых управляющих компаний' : 'Faqat ma\'lum boshqaruv kompaniyalari uchun'}</div>
                     </div>
                   </label>
                 </div>
 
+                {adForm.target_type === 'buildings' && (
+                  <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-2">
+                    {buildings.map(building => (
+                      <label
+                        key={building.id}
+                        className={`flex items-center gap-2 p-3 rounded-xl cursor-pointer border-2 transition-all ${
+                          adForm.target_buildings.includes(building.id)
+                            ? 'border-primary-500 bg-primary-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={adForm.target_buildings.includes(building.id)}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setAdForm({ ...adForm, target_buildings: [...adForm.target_buildings, building.id] });
+                            } else {
+                              setAdForm({ ...adForm, target_buildings: adForm.target_buildings.filter(b => b !== building.id) });
+                            }
+                          }}
+                          className="w-4 h-4 text-primary-600 rounded"
+                        />
+                        <div>
+                          <div className="font-medium text-sm text-gray-900">{building.name}</div>
+                          <div className="text-xs text-gray-500">{building.address}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
                 {adForm.target_type === 'branches' && (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="mt-3 grid grid-cols-2 xl:grid-cols-3 gap-2">
                     {branches.map(branch => (
                       <label
                         key={branch.code}
                         className={`flex items-center gap-2 p-3 rounded-xl cursor-pointer border-2 transition-all ${
                           adForm.target_branches.includes(branch.code)
-                            ? 'border-blue-500 bg-blue-50'
+                            ? 'border-primary-500 bg-primary-50'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -1023,7 +1091,7 @@ export function AdvertiserDashboard() {
                               setAdForm({ ...adForm, target_branches: adForm.target_branches.filter(b => b !== branch.code) });
                             }
                           }}
-                          className="w-4 h-4 text-blue-600 rounded"
+                          className="w-4 h-4 text-primary-600 rounded"
                         />
                         <div>
                           <div className="font-medium text-sm text-gray-900">{branch.code}</div>
@@ -1046,7 +1114,7 @@ export function AdvertiserDashboard() {
               <button
                 onClick={selectedAd ? handleUpdateAd : handleCreateAd}
                 disabled={submitting || !adForm.category_id || !adForm.title || !adForm.phone}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                 {selectedAd ? (language === 'ru' ? 'Сохранить' : 'Saqlash') : (language === 'ru' ? 'Создать' : 'Yaratish')}
@@ -1058,8 +1126,8 @@ export function AdvertiserDashboard() {
 
       {/* Coupons Modal */}
       {showCouponsModal && selectedAd && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
               <div>
                 <h2 className="text-lg font-semibold">{language === 'ru' ? 'Купоны' : 'Kuponlar'}: {selectedAd.title}</h2>
@@ -1075,7 +1143,7 @@ export function AdvertiserDashboard() {
             <div className="p-4">
               {loadingCoupons ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
                 </div>
               ) : coupons.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">

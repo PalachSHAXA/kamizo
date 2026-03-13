@@ -140,7 +140,7 @@ export async function generateContractDocx(
 
   // Format area (KVM) - square meters from user's totalArea
   const area = user.totalArea || (user as any).total_area;
-  const kvm = area && area !== 'undefined' ? String(area) : '_____';
+  const kvm = (area != null && area !== '' && area !== 'undefined') ? String(area) : '_____';
 
   // Build full address
   const safeAddress = user.address && user.address !== 'undefined' ? user.address : '';
@@ -270,7 +270,6 @@ export async function generateContractDocx(
     }
 
     renderedZip.file('word/document.xml', content);
-    console.log('Signatures section with QR codes added to document');
   }
 
   // Generate the output blob from the modified ZIP

@@ -53,17 +53,9 @@ export const RequestCard = memo<RequestCardProps>(
     }, [onView, request]);
 
     const formatDate = (dateString: string) => {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 60) return `${diffMins} мин назад`;
-      if (diffHours < 24) return `${diffHours} ч назад`;
-      if (diffDays < 7) return `${diffDays} дн назад`;
-      return date.toLocaleDateString('ru-RU');
+      const d = new Date(dateString.endsWith?.('Z') ? dateString : dateString + 'Z');
+      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+        ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     };
 
     return (

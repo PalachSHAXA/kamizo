@@ -51,41 +51,41 @@ export function ExecutorStatsPage() {
   }, [myRequests, language]);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
-          <BarChart3 className="w-7 h-7 text-blue-500" />
+          <BarChart3 className="w-7 h-7 text-primary-500" />
           {language === 'ru' ? 'Статистика' : 'Statistika'}
         </h1>
       </div>
 
       {/* Top Row - Key Metrics with Progress */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glass-card p-5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-400/20 to-blue-500/20 rounded-full -translate-y-8 translate-x-8" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary-400/20 to-primary-500/20 rounded-full -translate-y-8 translate-x-8" />
           <div className="relative">
-            <div className="flex items-center gap-2 text-blue-600 mb-2">
+            <div className="flex items-center gap-2 text-primary-600 mb-2">
               <FileText className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}</span>
             </div>
-            <div className="text-4xl font-bold">{stats?.totalRequests || 0}</div>
+            <div className="text-3xl sm:text-4xl font-bold">{stats?.totalRequests || 0}</div>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full" style={{ width: '100%' }} />
+                <div className="h-full bg-primary-500 rounded-full" style={{ width: '100%' }} />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="glass-card p-5 relative overflow-hidden">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-400/20 to-green-500/20 rounded-full -translate-y-8 translate-x-8" />
           <div className="relative">
             <div className="flex items-center gap-2 text-green-600 mb-2">
               <CheckCircle className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</span>
             </div>
-            <div className="text-4xl font-bold">{stats?.completedRequests || 0}</div>
+            <div className="text-3xl sm:text-4xl font-bold">{stats?.completedRequests || 0}</div>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
@@ -100,14 +100,14 @@ export function ExecutorStatsPage() {
           </div>
         </div>
 
-        <div className="glass-card p-5 relative overflow-hidden">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary-400/20 to-primary-500/20 rounded-full -translate-y-8 translate-x-8" />
           <div className="relative">
             <div className="flex items-center gap-2 text-amber-600 mb-2">
               <Star className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting'}</span>
             </div>
-            <div className="text-4xl font-bold">{(currentExecutor?.rating || 5.0).toFixed(1)}</div>
+            <div className="text-3xl sm:text-4xl font-bold">{(currentExecutor?.rating || 5.0).toFixed(1)}</div>
             <div className="mt-2 flex items-center gap-1">
               {[1, 2, 3, 4, 5].map(star => (
                 <Star
@@ -119,14 +119,14 @@ export function ExecutorStatsPage() {
           </div>
         </div>
 
-        <div className="glass-card p-5 relative overflow-hidden">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-400/20 to-violet-500/20 rounded-full -translate-y-8 translate-x-8" />
           <div className="relative">
             <div className="flex items-center gap-2 text-purple-600 mb-2">
               <Timer className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Сред. время' : 'O\'rtacha vaqt'}</span>
             </div>
-            <div className="text-4xl font-bold">{currentExecutor?.avgCompletionTime || 0}<span className="text-lg text-gray-400 ml-1">{language === 'ru' ? 'мин' : 'min'}</span></div>
+            <div className="text-3xl sm:text-4xl font-bold">{currentExecutor?.avgCompletionTime || 0}<span className="text-lg text-gray-400 ml-1">{language === 'ru' ? 'мин' : 'min'}</span></div>
             <div className="mt-2 text-xs text-gray-500">
               {language === 'ru' ? 'На выполнение заявки' : 'Arizani bajarish uchun'}
             </div>
@@ -135,16 +135,16 @@ export function ExecutorStatsPage() {
       </div>
 
       {/* Middle Row - Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6">
         {/* Weekly Performance Chart */}
-        <div className="glass-card p-5">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-500" />
+              <BarChart3 className="w-5 h-5 text-primary-500" />
               {language === 'ru' ? 'Активность за неделю' : 'Haftalik faollik'}
             </h3>
             <div className="text-sm text-gray-500">
-              {language === 'ru' ? 'Всего:' : 'Jami:'} <span className="font-semibold text-blue-600">{weeklyStats.reduce((sum, d) => sum + d.completed, 0)}</span>
+              {language === 'ru' ? 'Всего:' : 'Jami:'} <span className="font-semibold text-primary-600">{weeklyStats.reduce((sum, d) => sum + d.completed, 0)}</span>
             </div>
           </div>
           <div className="h-52 flex items-end gap-3">
@@ -162,7 +162,7 @@ export function ExecutorStatsPage() {
                       className={`w-full rounded-t-xl transition-all duration-500 ${
                         isToday
                           ? 'bg-gradient-to-t from-primary-500 to-primary-400'
-                          : 'bg-gradient-to-t from-blue-500 to-blue-400'
+                          : 'bg-gradient-to-t from-primary-500 to-primary-400'
                       }`}
                       style={{ height: `${Math.max(height, 8)}%`, minHeight: '16px' }}
                     />
@@ -178,8 +178,8 @@ export function ExecutorStatsPage() {
         </div>
 
         {/* Performance Progress */}
-        <div className="glass-card p-5">
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
+        <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
+          <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
             <Target className="w-5 h-5 text-green-500" />
             {language === 'ru' ? 'Цели и достижения' : 'Maqsadlar va yutuqlar'}
           </h3>
@@ -188,11 +188,11 @@ export function ExecutorStatsPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-600">{language === 'ru' ? 'Недельная цель' : 'Haftalik maqsad'}</span>
-                <span className="text-sm font-bold text-blue-600">{stats?.thisWeek || 0}/10 {language === 'ru' ? 'заявок' : 'ariza'}</span>
+                <span className="text-sm font-bold text-primary-600">{stats?.thisWeek || 0}/10 {language === 'ru' ? 'заявок' : 'ariza'}</span>
               </div>
               <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-500 relative"
+                  className="h-full bg-gradient-to-r from-primary-500 to-primary-400 rounded-full transition-all duration-500 relative"
                   style={{ width: `${Math.min(((stats?.thisWeek || 0) / 10) * 100, 100)}%` }}
                 >
                   <div className="absolute inset-0 bg-white/20 animate-pulse" />
@@ -233,7 +233,7 @@ export function ExecutorStatsPage() {
               <div className="text-sm font-medium text-gray-600 mb-3">{language === 'ru' ? 'Достижения' : 'Yutuqlar'}</div>
               <div className="flex flex-wrap gap-2">
                 {(currentExecutor?.completedCount || 0) >= 10 && (
-                  <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex items-center gap-1">
+                  <span className="px-3 py-1.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium flex items-center gap-1">
                     <Award className="w-3 h-3" /> 10+ {language === 'ru' ? 'заявок' : 'ariza'}
                   </span>
                 )}
@@ -264,13 +264,13 @@ export function ExecutorStatsPage() {
       </div>
 
       {/* Bottom Row - Recent Ratings */}
-      <div className="glass-card p-5">
-        <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
+      <div className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
+        <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
           <Star className="w-5 h-5 text-yellow-500" />
           {language === 'ru' ? 'Последние отзывы' : 'Oxirgi sharhlar'}
         </h3>
         {completedRequests.filter(r => r.status === 'completed' && r.rating).length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3 sm:gap-4">
             {completedRequests
               .filter(r => r.status === 'completed' && r.rating)
               .slice(0, 6)

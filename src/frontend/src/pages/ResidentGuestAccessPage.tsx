@@ -139,8 +139,7 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
         if ((err as Error).name === 'AbortError') {
           return;
         }
-        console.log('File sharing failed:', err);
-      }
+        }
     }
 
     // Desktop fallback: copy image to clipboard
@@ -156,7 +155,6 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
         ? 'QR-код скопирован в буфер обмена. Вставьте его в чат (Ctrl+V)'
         : 'QR-kod buferga nusxalandi. Chatga qo\'ying (Ctrl+V)');
     } catch (clipErr) {
-      console.log('Clipboard failed, downloading instead');
       // Final fallback: download the image
       handleDownload();
     }
@@ -167,14 +165,14 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
   const statusLabel = GUEST_ACCESS_STATUS_LABELS[code.status];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-bold">
+          <h2 className="text-base sm:text-lg font-bold">
             {language === 'ru' ? 'QR-код пропуска' : 'Ruxsatnoma QR-kodi'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -213,6 +211,12 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
                 <span className="font-medium">{code.visitorName}</span>
               </div>
             )}
+            {code.visitorVehiclePlate && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">{language === 'ru' ? 'Авто гостя' : 'Mehmon avto'}:</span>
+                <span className="font-medium font-mono tracking-wider">{code.visitorVehiclePlate}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-gray-500">{language === 'ru' ? 'Действует до' : 'Gacha amal qiladi'}:</span>
               <span className="font-medium">{new Date(code.validUntil).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}</span>
@@ -235,21 +239,21 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
         <div className="p-4 border-t grid grid-cols-3 gap-2">
           <button
             onClick={handleShare}
-            className="flex flex-col items-center gap-1 p-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
+            className="flex flex-col items-center gap-1 p-3 min-h-[44px] bg-primary-50 hover:bg-primary-100 active:bg-primary-200 rounded-lg sm:rounded-xl transition-colors touch-manipulation"
           >
-            <Share2 className="w-5 h-5 text-blue-600" />
-            <span className="text-xs text-blue-700">{language === 'ru' ? 'Поделиться' : 'Ulashish'}</span>
+            <Share2 className="w-5 h-5 text-primary-600" />
+            <span className="text-xs text-primary-700">{language === 'ru' ? 'Поделиться' : 'Ulashish'}</span>
           </button>
           <button
             onClick={handleDownload}
-            className="flex flex-col items-center gap-1 p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-colors"
+            className="flex flex-col items-center gap-1 p-3 min-h-[44px] bg-green-50 hover:bg-green-100 active:bg-green-200 rounded-lg sm:rounded-xl transition-colors touch-manipulation"
           >
             <Download className="w-5 h-5 text-green-600" />
             <span className="text-xs text-green-700">{language === 'ru' ? 'Сохранить' : 'Saqlash'}</span>
           </button>
           <button
             onClick={handleCopy}
-            className="flex flex-col items-center gap-1 p-3 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors"
+            className="flex flex-col items-center gap-1 p-3 min-h-[44px] bg-purple-50 hover:bg-purple-100 active:bg-purple-200 rounded-lg sm:rounded-xl transition-colors touch-manipulation"
           >
             <Copy className="w-5 h-5 text-purple-600" />
             <span className="text-xs text-purple-700">
@@ -273,6 +277,7 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
   const [accessType, setAccessType] = useState<AccessType | null>(null);
   const [visitorName, setVisitorName] = useState('');
   const [visitorPhone, setVisitorPhone] = useState('');
+  const [hasVehicle, setHasVehicle] = useState(false);
   const [visitorVehiclePlate, setVisitorVehiclePlate] = useState('');
   const [customDate, setCustomDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -352,21 +357,21 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             {step > 1 && (
-              <button onClick={() => setStep(step - 1)} className="p-2 hover:bg-gray-100 rounded-xl">
+              <button onClick={() => setStep(step - 1)} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation">
                 <ArrowLeft className="w-5 h-5" />
               </button>
             )}
-            <h2 className="text-lg font-bold">
+            <h2 className="text-base sm:text-lg font-bold">
               {language === 'ru' ? 'Создать пропуск' : 'Ruxsatnoma yaratish'}
             </h2>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -400,6 +405,9 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
                       key={type}
                       onClick={() => {
                         setVisitorType(type);
+                        // Reset vehicle fields when changing visitor type
+                        setHasVehicle(type === 'taxi');
+                        setVisitorVehiclePlate('');
                         setStep(2);
                       }}
                       className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
@@ -423,13 +431,26 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
 
           {/* Step 2: Access Type */}
           {step === 2 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <h3 className="font-medium text-center">
                 {language === 'ru' ? 'На какой срок?' : 'Qancha muddatga?'}
               </h3>
               <div className="space-y-2">
                 {accessTypes.map((type) => {
                   const label = ACCESS_TYPE_LABELS[type];
+                  // Compute concrete end time for display
+                  const now = new Date();
+                  let endTime = '';
+                  if (type === 'single_use') {
+                    const t = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                    endTime = language === 'ru' ? `до ${t.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : `${t.toLocaleString('uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} gacha`;
+                  } else if (type === 'day') {
+                    const t = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                    endTime = language === 'ru' ? `до ${t.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : `${t.toLocaleString('uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} gacha`;
+                  } else if (type === 'week') {
+                    const t = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                    endTime = language === 'ru' ? `до ${t.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : `${t.toLocaleDateString('uz-UZ', { day: 'numeric', month: 'short' })} gacha`;
+                  }
                   return (
                     <button
                       key={type}
@@ -437,29 +458,29 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
                         setAccessType(type);
                         setStep(3);
                       }}
-                      className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-all text-left ${
+                      className={`w-full px-4 py-3 rounded-xl border-2 flex items-center gap-3 transition-all text-left ${
                         accessType === type
                           ? 'border-primary-500 bg-primary-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
                         accessType === type ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {type === 'single_use' && <span className="text-lg font-bold">1</span>}
-                        {type === 'day' && <Clock className="w-5 h-5" />}
-                        {type === 'week' && <Calendar className="w-5 h-5" />}
-                        {type === 'custom' && <Calendar className="w-5 h-5" />}
+                        {type === 'single_use' && <span className="text-base font-bold">1</span>}
+                        {type === 'day' && <Clock className="w-4 h-4" />}
+                        {type === 'week' && <Calendar className="w-4 h-4" />}
+                        {type === 'custom' && <Calendar className="w-4 h-4" />}
                       </div>
-                      <div className="flex-1">
-                        <div className="font-medium">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">
                           {language === 'ru' ? label.label : label.labelUz}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {language === 'ru' ? label.description : label.descriptionUz}
+                        <div className="text-xs text-gray-500">
+                          {endTime || (language === 'ru' ? label.description : label.descriptionUz)}
                         </div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     </button>
                   );
                 })}
@@ -519,19 +540,52 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
                 </>
               )}
 
-              {visitorType === 'taxi' && (
+              {/* Vehicle: taxi always shows plate, others show toggle */}
+              {visitorType === 'taxi' ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {language === 'ru' ? 'Номер такси' : 'Taksi raqami'}
+                    {language === 'ru' ? 'Гос. номер такси' : 'Taksi davlat raqami'}
                   </label>
                   <input
                     type="text"
                     value={visitorVehiclePlate}
                     onChange={(e) => setVisitorVehiclePlate(e.target.value.toUpperCase())}
                     placeholder="01 A 123 BC"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 font-mono tracking-widest"
                   />
                 </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between p-3 border-2 border-gray-200 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        {language === 'ru' ? 'Приедет на авто?' : 'Avtomobil bilan keladimi?'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setHasVehicle(!hasVehicle); if (hasVehicle) setVisitorVehiclePlate(''); }}
+                      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${hasVehicle ? 'bg-primary-500' : 'bg-gray-300'}`}
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hasVehicle ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                  {hasVehicle && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {language === 'ru' ? 'Гос. номер автомобиля' : 'Davlat raqami'}
+                      </label>
+                      <input
+                        type="text"
+                        value={visitorVehiclePlate}
+                        onChange={(e) => setVisitorVehiclePlate(e.target.value.toUpperCase())}
+                        placeholder="01 A 123 BC"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-0 font-mono tracking-widest"
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               <div>
@@ -556,7 +610,7 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
               <button
                 onClick={handleCreate}
                 disabled={(accessType === 'custom' && !customDate) || isCreating}
-                className="w-full py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-300 text-gray-900 font-bold rounded-xl transition-colors"
+                className="w-full py-4 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-300 text-gray-900 font-bold rounded-lg sm:rounded-xl transition-colors touch-manipulation"
               >
                 {isCreating
                   ? (language === 'ru' ? 'Создание...' : 'Yaratilmoqda...')
@@ -621,11 +675,11 @@ export function ResidentGuestAccessPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">
+          <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-900">
             {language === 'ru' ? 'Гостевой доступ' : 'Mehmon kirishi'}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -636,7 +690,7 @@ export function ResidentGuestAccessPage() {
         </div>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-gray-900 font-medium rounded-xl flex items-center gap-2 transition-colors shadow-sm"
+          className="px-4 py-2.5 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-gray-900 font-medium rounded-lg sm:rounded-xl flex items-center gap-2 transition-colors shadow-sm touch-manipulation"
         >
           <Plus className="w-5 h-5" />
           <span className="hidden sm:inline">{language === 'ru' ? 'Создать' : 'Yaratish'}</span>
@@ -644,8 +698,8 @@ export function ResidentGuestAccessPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="glass-card p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3">
+        <div className="glass-card p-3 sm:p-4">
           <div className="text-2xl font-bold text-green-600">{activeCodes.length}</div>
           <div className="text-sm text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
         </div>
@@ -678,7 +732,7 @@ export function ResidentGuestAccessPage() {
           <button
             key={tab.id}
             onClick={() => setFilter(tab.id)}
-            className={`px-4 py-2 rounded-xl font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium whitespace-nowrap transition-colors touch-manipulation ${
               filter === tab.id
                 ? 'bg-primary-500 text-gray-900'
                 : 'bg-white/50 text-gray-600 hover:bg-white'
@@ -774,6 +828,13 @@ export function ResidentGuestAccessPage() {
                       </div>
                     )}
 
+                    {code.visitorVehiclePlate && (
+                      <div className="text-sm text-gray-600 flex items-center gap-1">
+                        <Car className="w-3.5 h-3.5" />
+                        <span className="font-mono tracking-wider">{code.visitorVehiclePlate}</span>
+                      </div>
+                    )}
+
                     <div className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
                       <Clock className="w-3.5 h-3.5" />
                       {language === 'ru' ? 'до' : 'gacha'} {new Date(code.validUntil).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
@@ -840,8 +901,8 @@ export function ResidentGuestAccessPage() {
 
       {/* Revoke confirmation */}
       {showRevokeConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-6">
             <div className="text-center mb-4">
               <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-8 h-8 text-red-600" />
@@ -858,13 +919,13 @@ export function ResidentGuestAccessPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowRevokeConfirm(null)}
-                className="flex-1 py-3 border-2 border-gray-200 rounded-xl font-medium hover:bg-gray-50"
+                className="flex-1 py-3 min-h-[44px] border-2 border-gray-200 rounded-lg sm:rounded-xl font-medium hover:bg-gray-50 active:bg-gray-100 touch-manipulation"
               >
                 {language === 'ru' ? 'Нет' : 'Yo\'q'}
               </button>
               <button
                 onClick={handleRevoke}
-                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium"
+                className="flex-1 py-3 min-h-[44px] bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-lg sm:rounded-xl font-medium touch-manipulation"
               >
                 {language === 'ru' ? 'Да, отменить' : 'Ha, bekor qilish'}
               </button>

@@ -17,9 +17,9 @@ export function NotepadPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24 md:pb-0">
       <div>
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Заметки' : 'Eslatmalar'}</h1>
+        <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Заметки' : 'Eslatmalar'}</h1>
         <p className="text-gray-500 text-sm mt-1">{language === 'ru' ? 'Ваши личные заметки и напоминания' : 'Shaxsiy eslatmalar va eslatmalaringiz'}</p>
       </div>
       <Notepad userId={user.id} />

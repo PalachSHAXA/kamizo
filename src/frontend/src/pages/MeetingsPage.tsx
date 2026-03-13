@@ -4,13 +4,14 @@ import {
   FileText, Building2, User,
   ThumbsUp, ThumbsDown, Minus, Eye,
   Play, Square, BarChart3, Shield, X, Check, CalendarCheck, Download, Trash2,
-  MessageSquare, Send, Phone
+  MessageSquare, Send, Phone, Paperclip, Loader2
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useCRMStore } from '../stores/crmStore';
 import { generateProtocolDocx } from '../utils/protocolGenerator';
+import { uploadApi } from '../services/api';
 import type {
   Meeting, MeetingStatus, MeetingFormat, AgendaItem, AgendaItemType,
   MeetingOrganizerType, DecisionThreshold
@@ -296,10 +297,10 @@ function MeetingCard({
           </div>
 
           {/* Building & Date */}
-          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-            <span className="flex items-center gap-1">
-              <Building2 className="w-4 h-4" />
-              {meeting.buildingAddress}
+          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2 overflow-hidden">
+            <span className="flex items-center gap-1 truncate min-w-0">
+              <Building2 className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">{meeting.buildingAddress}</span>
             </span>
             {meeting.confirmedDateTime && (
               <span className="flex items-center gap-1">
@@ -310,9 +311,9 @@ function MeetingCard({
           </div>
 
           {/* Organizer */}
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-            <User className="w-4 h-4" />
-            <span>{meeting.organizerName}</span>
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3 min-w-0">
+            <User className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{meeting.organizerName}</span>
             <span className="text-gray-400">
               ({meeting.organizerType === 'resident'
                 ? (language === 'ru' ? 'Житель' : 'Aholi')
@@ -444,7 +445,7 @@ function MeetingCard({
           {meeting.status === 'schedule_poll_open' && (
             <button
               onClick={onConfirmSchedule}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium"
+              className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors text-sm font-medium"
             >
               <CalendarCheck className="w-4 h-4" />
               {language === 'ru' ? 'Подтвердить дату' : 'Sanani tasdiqlash'}
@@ -544,14 +545,20 @@ function CreateMeetingWizard({
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCustomItemForm, setShowCustomItemForm] = useState(false);
-  const [newCustomItem, setNewCustomItem] = useState({ title: '', description: '', threshold: 'simple_majority' as DecisionThreshold });
+  const [newCustomItem, setNewCustomItem] = useState<{
+    title: string;
+    description: string;
+    threshold: DecisionThreshold;
+    attachments: { name: string; url: string; type: string; size: number }[];
+  }>({ title: '', description: '', threshold: 'simple_majority', attachments: [] });
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [formData, setFormData] = useState({
     buildingId: user?.buildingId || (buildings.length > 0 ? buildings[0].id : ''),
     buildingAddress: buildings.length > 0 ? buildings[0].address : '',
     organizerType: 'management' as MeetingOrganizerType,
     format: 'online' as MeetingFormat,
     agendaItems: [] as AgendaItemType[],
-    customItems: [] as { title: string; description: string; threshold: DecisionThreshold }[],
+    customItems: [] as { title: string; description: string; threshold: DecisionThreshold; attachments: { name: string; url: string; type: string; size: number }[] }[],
     location: '',
     description: '', // Описание/обоснование собрания
     meetingTime: '19:00', // Время проведения собрания
@@ -593,6 +600,7 @@ function CreateMeetingWizard({
         description: item.description,
         threshold: item.threshold,
         materials: [],
+        attachments: item.attachments,
       })),
     ];
 
@@ -621,12 +629,12 @@ function CreateMeetingWizard({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold">
+            <h2 className="text-base sm:text-lg md:text-xl font-bold">
               {language === 'ru' ? 'Созвать собрание' : 'Yig\'ilish chaqirish'}
             </h2>
             <p className="text-sm text-gray-500">
@@ -635,7 +643,7 @@ function CreateMeetingWizard({
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
           >
             <X className="w-5 h-5" />
           </button>
@@ -896,6 +904,22 @@ function CreateMeetingWizard({
                                 ? DECISION_THRESHOLD_LABELS[item.threshold].label
                                 : DECISION_THRESHOLD_LABELS[item.threshold].labelUz}
                             </span>
+                            {item.attachments && item.attachments.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {item.attachments.map((att, ai) => (
+                                  <div key={ai} className="flex items-center gap-1">
+                                    {att.type.startsWith('image/') ? (
+                                      <img src={att.url} alt={att.name} className="w-12 h-12 object-cover rounded border border-gray-200" />
+                                    ) : (
+                                      <div className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200 text-xs text-gray-600">
+                                        <FileText className="w-3 h-3" />
+                                        <span className="max-w-[80px] truncate">{att.name}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <button
                             onClick={() => setFormData({
@@ -945,6 +969,99 @@ function CreateMeetingWizard({
                         ))}
                       </select>
                     </div>
+
+                    {/* Attachments */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-2">
+                        {language === 'ru' ? 'Прикреплённые файлы' : 'Ilova qilingan fayllar'}
+                      </label>
+                      {/* Attached file previews */}
+                      {newCustomItem.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {newCustomItem.attachments.map((att, ai) => (
+                            <div key={ai} className="relative group">
+                              {att.type.startsWith('image/') ? (
+                                <div className="relative">
+                                  <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded border border-gray-200" />
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewCustomItem({
+                                      ...newCustomItem,
+                                      attachments: newCustomItem.attachments.filter((_, i) => i !== ai)
+                                    })}
+                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 pl-2 pr-1 py-1 bg-white rounded-lg border border-gray-200 text-xs text-gray-700">
+                                  <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  <span className="max-w-[100px] truncate">{att.name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewCustomItem({
+                                      ...newCustomItem,
+                                      attachments: newCustomItem.attachments.filter((_, i) => i !== ai)
+                                    })}
+                                    className="ml-1 text-red-400 hover:text-red-600 flex-shrink-0"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* File input button */}
+                      <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 bg-white text-sm text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors ${uploadingAttachment ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {uploadingAttachment ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Paperclip className="w-4 h-4" />
+                        )}
+                        {language === 'ru' ? 'Прикрепить файл' : 'Fayl biriktirish'}
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*,.pdf,.doc,.docx,.xlsx"
+                          disabled={uploadingAttachment}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setUploadingAttachment(true);
+                            try {
+                              const uploaded = await uploadApi.uploadFile(file);
+                              setNewCustomItem(prev => ({
+                                ...prev,
+                                attachments: [...prev.attachments, uploaded]
+                              }));
+                            } catch {
+                              // fallback: use base64 data URL
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                const dataUrl = ev.target?.result as string;
+                                setNewCustomItem(prev => ({
+                                  ...prev,
+                                  attachments: [...prev.attachments, {
+                                    name: file.name,
+                                    url: dataUrl,
+                                    type: file.type,
+                                    size: file.size,
+                                  }]
+                                }));
+                              };
+                              reader.readAsDataURL(file);
+                            } finally {
+                              setUploadingAttachment(false);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -954,11 +1071,11 @@ function CreateMeetingWizard({
                               ...formData,
                               customItems: [...formData.customItems, { ...newCustomItem }]
                             });
-                            setNewCustomItem({ title: '', description: '', threshold: 'simple_majority' });
+                            setNewCustomItem({ title: '', description: '', threshold: 'simple_majority', attachments: [] });
                             setShowCustomItemForm(false);
                           }
                         }}
-                        disabled={!newCustomItem.title.trim()}
+                        disabled={!newCustomItem.title.trim() || uploadingAttachment}
                         className="flex-1 py-2 px-4 bg-primary-400 hover:bg-primary-500 text-gray-900 rounded-lg font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
@@ -967,7 +1084,7 @@ function CreateMeetingWizard({
                         type="button"
                         onClick={() => {
                           setShowCustomItemForm(false);
-                          setNewCustomItem({ title: '', description: '', threshold: 'simple_majority' });
+                          setNewCustomItem({ title: '', description: '', threshold: 'simple_majority', attachments: [] });
                         }}
                         className="py-2 px-4 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium text-sm"
                       >
@@ -1238,12 +1355,12 @@ function MeetingDetailsModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold">
+            <h2 className="text-base sm:text-lg md:text-xl font-bold">
               {language === 'ru' ? `Собрание #${meeting.number}` : `Yig'ilish #${meeting.number}`}
             </h2>
             <p className="text-sm text-gray-500">{meeting.buildingAddress}</p>
@@ -1462,6 +1579,31 @@ function MeetingDetailsModal({
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{item.description}</p>
 
+                        {/* Agenda item attachments */}
+                        {(item as any).attachments && (item as any).attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {(item as any).attachments.map((att: { name: string; url: string; type: string; size: number }, ai: number) => (
+                              <div key={ai}>
+                                {att.type.startsWith('image/') ? (
+                                  <a href={att.url} target="_blank" rel="noopener noreferrer">
+                                    <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded border border-gray-200 hover:opacity-80 transition-opacity" />
+                                  </a>
+                                ) : (
+                                  <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 px-2 py-1 bg-white rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
+                                  >
+                                    <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                    <span className="max-w-[120px] truncate">{att.name}</span>
+                                  </a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         {/* Voting results */}
                         {['voting_open', 'voting_closed', 'results_published', 'protocol_generated', 'protocol_approved'].includes(meeting.status) && (
                           <div className="mt-3 pt-3 border-t border-gray-200">
@@ -1521,9 +1663,9 @@ function MeetingDetailsModal({
 
         {/* Send Reconsideration Request Modal */}
         {showSendModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md p-6">
-              <h3 className="text-lg font-bold mb-4">
+          <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6">
+              <h3 className="text-base sm:text-lg font-bold mb-4">
                 {language === 'ru' ? 'Запрос на пересмотр голоса' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}
               </h3>
 

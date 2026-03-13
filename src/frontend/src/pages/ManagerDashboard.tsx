@@ -1,21 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { InstallAppSection } from '../components/InstallAppSection';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, PieChart, Pie, Cell
+  ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from '../components/LazyCharts';
 import {
-  FileText, Clock, TrendingUp, X,
-  Phone, Star, Trash2, Eye, EyeOff, Copy, Check, AlertCircle,
+  FileText, Clock, TrendingUp, TrendingDown, X,
+  Phone, Star, Trash2, Eye, EyeOff, Check, AlertCircle, AlertTriangle,
   Home, UserPlus, MapPin, Calendar, User, ChevronRight,
-  Download, CalendarDays, RefreshCw
+  Download, CalendarDays, RefreshCw, Activity
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { formatAddress } from '../utils/formatAddress';
+import { ukRatingsApi } from '../services/api';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS, RESCHEDULE_REASON_LABELS, RESCHEDULE_STATUS_LABELS } from '../types';
 import type { ExecutorSpecialization, Request, RequestStatus, RequestPriority, Executor, RescheduleRequest } from '../types';
+import { CredentialsModal } from '../components/modals/CredentialsModal';
+import { AssignExecutorModal } from '../components/modals/AssignExecutorModal';
 
 // Format request number - if it's already formatted (e.g., YS-L-1001 or #ABC123), don't add #
 const formatRequestNumber = (num: number | string): string => {
@@ -30,12 +34,13 @@ const formatRequestNumber = (num: number | string): string => {
 
 export function ManagerDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const {
     executors, requests, getStats, getChartData,
     addExecutor, deleteExecutor, updateExecutor, assignRequest, rescheduleRequests
   } = useDataStore();
-  // Data is now fetched automatically by useRealtimeSync hook in Layout
+  // Data is now fetched automatically by useWebSocketSync hook in Layout
 
   const stats = getStats();
   const chartData = getChartData();
@@ -46,13 +51,26 @@ export function ManagerDashboard() {
   const [showAssignModal, setShowAssignModal] = useState<Request | null>(null);
   const [selectedExecutor, setSelectedExecutor] = useState<Executor | null>(null);
   const [selectedReschedule, setSelectedReschedule] = useState<RescheduleRequest | null>(null);
+  const [managerTab, setManagerTab] = useState<'overview' | 'ratings'>('overview');
+  const [ratingSummary, setRatingSummary] = useState<any>(null);
+  const [isLoadingRatings, setIsLoadingRatings] = useState(false);
+
+  useEffect(() => {
+    if (managerTab === 'ratings' && !ratingSummary) {
+      setIsLoadingRatings(true);
+      ukRatingsApi.getSummary(6)
+        .then(data => setRatingSummary(data))
+        .catch(err => console.error('Failed to load ratings:', err))
+        .finally(() => setIsLoadingRatings(false));
+    }
+  }, [managerTab]);
 
   // Get pending reschedule requests (менеджер видит все активные запросы на перенос)
-  const pendingReschedules = rescheduleRequests.filter(r => r.status === 'pending');
-  const recentReschedules = rescheduleRequests
+  const pendingReschedules = useMemo(() => rescheduleRequests.filter(r => r.status === 'pending'), [rescheduleRequests]);
+  const recentReschedules = useMemo(() => rescheduleRequests
     .filter(r => r.status !== 'pending')
     .sort((a, b) => new Date(b.respondedAt || b.createdAt).getTime() - new Date(a.respondedAt || a.createdAt).getTime())
-    .slice(0, 5);
+    .slice(0, 5), [rescheduleRequests]);
 
   // Removed filters - now on separate pages
 
@@ -82,23 +100,54 @@ export function ManagerDashboard() {
   }));
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header */}
+    <div className="space-y-4 md:space-y-6 xl:space-y-8 pb-24 md:pb-0">
+      {/* Header with greeting */}
       <div className="min-w-0">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель менеджера' : 'Menejer paneli'}</h1>
-        <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1 truncate">{language === 'ru' ? 'Управление заявками и исполнителями' : 'Arizalar va ijrochilarni boshqarish'}</p>
+        <p className="text-sm text-gray-400 font-medium">
+          {language === 'ru'
+            ? `${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${user?.name?.split(' ')[0] || ''} 👋`
+            : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'}, ${user?.name?.split(' ')[0] || ''} 👋`}
+        </p>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель управления' : 'Boshqaruv paneli'}</h1>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-gray-200">
+        <button
+          onClick={() => setManagerTab('overview')}
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
+            managerTab === 'overview'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Activity className="w-4 h-4 inline mr-2" />
+          {language === 'ru' ? 'Обзор' : 'Umumiy'}
+        </button>
+        <button
+          onClick={() => setManagerTab('ratings')}
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
+            managerTab === 'ratings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Star className="w-4 h-4 inline mr-2" />
+          {language === 'ru' ? 'Отчёты' : 'Hisobotlar'}
+        </button>
+      </div>
+
+      {managerTab === 'overview' && (<>
       {/* Overview - Stats Cards */}
       <>
           {/* Stats Cards - 2 columns on mobile */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 xl:gap-5">
             <div
-              className="glass-card p-3 md:p-5 cursor-pointer hover:shadow-lg transition-shadow"
+              className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
               onClick={() => navigate('/requests?status=new')}
             >
               <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
                   <FileText className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -109,7 +158,7 @@ export function ManagerDashboard() {
             </div>
 
             <div
-              className="glass-card p-3 md:p-5 cursor-pointer hover:shadow-lg transition-shadow"
+              className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
               onClick={() => navigate('/requests?status=in_progress')}
             >
               <div className="flex items-center gap-2 md:gap-3">
@@ -124,7 +173,7 @@ export function ManagerDashboard() {
             </div>
 
             <div
-              className="glass-card p-3 md:p-5 cursor-pointer hover:shadow-lg transition-shadow"
+              className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
               onClick={() => navigate('/requests?status=pending_approval')}
             >
               <div className="flex items-center gap-2 md:gap-3">
@@ -139,7 +188,7 @@ export function ManagerDashboard() {
             </div>
 
             <div
-              className="glass-card p-3 md:p-5 cursor-pointer hover:shadow-lg transition-shadow"
+              className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
               onClick={() => navigate('/requests?status=completed')}
             >
               <div className="flex items-center gap-2 md:gap-3">
@@ -155,9 +204,9 @@ export function ManagerDashboard() {
           </div>
 
           {/* Charts Row - Stack on mobile */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-            <div className="glass-card p-4 md:p-6">
-              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Заявки за неделю' : 'Haftalik arizalar'}</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold mb-3 md:mb-4">{language === 'ru' ? 'Заявки за неделю' : 'Haftalik arizalar'}</h2>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -178,8 +227,8 @@ export function ManagerDashboard() {
               </ResponsiveContainer>
             </div>
 
-            <div className="glass-card p-4 md:p-6">
-              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'По категориям' : 'Kategoriya bo\'yicha'}</h2>
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold mb-3 md:mb-4">{language === 'ru' ? 'По категориям' : 'Kategoriya bo\'yicha'}</h2>
               {categoryData.length > 0 && categoryData.some(d => d.value > 0) ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -216,7 +265,7 @@ export function ManagerDashboard() {
                   <RefreshCw className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-lg font-bold text-amber-800">{language === 'ru' ? 'Запросы на перенос времени' : 'Vaqtni ko\'chirish so\'rovlari'}</h2>
+                  <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-amber-800">{language === 'ru' ? 'Запросы на перенос времени' : 'Vaqtni ko\'chirish so\'rovlari'}</h2>
                   <p className="text-sm text-amber-600">
                     {pendingReschedules.length} {language === 'ru' ? (pendingReschedules.length === 1 ? 'запрос ожидает' : 'запросов ожидают') : (pendingReschedules.length === 1 ? 'so\'rov kutmoqda' : 'so\'rov kutmoqda')} {language === 'ru' ? 'ответа' : 'javob'}
                   </p>
@@ -237,8 +286,8 @@ export function ManagerDashboard() {
 
           {/* Recent Reschedules History */}
           {recentReschedules.length > 0 && (
-            <div className="glass-card p-4 md:p-6">
-              <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'История переносов' : 'Ko\'chirishlar tarixi'}</h2>
+            <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+              <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold mb-3 md:mb-4">{language === 'ru' ? 'История переносов' : 'Ko\'chirishlar tarixi'}</h2>
               <div className="space-y-2">
                 {recentReschedules.map((reschedule) => (
                   <RescheduleHistoryCard
@@ -251,10 +300,10 @@ export function ManagerDashboard() {
           )}
 
           {/* Recent Requests */}
-          <div className="glass-card p-4 md:p-6">
+          <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
             <div className="flex items-center justify-between mb-3 md:mb-4">
-              <h2 className="text-base md:text-lg font-semibold">{language === 'ru' ? 'Последние заявки' : 'Oxirgi arizalar'}</h2>
-              <a href="/requests" className="text-primary-600 text-sm font-medium hover:underline touch-manipulation">
+              <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold">{language === 'ru' ? 'Последние заявки' : 'Oxirgi arizalar'}</h2>
+              <a href="/requests" className="text-primary-600 text-sm font-medium hover:underline touch-manipulation min-h-[44px] flex items-center active:text-primary-800">
                 {language === 'ru' ? 'Все' : 'Hammasi'} →
               </a>
             </div>
@@ -270,6 +319,191 @@ export function ManagerDashboard() {
             </div>
           </div>
         </>
+      </>)}
+
+      {/* ── RATINGS TAB ── */}
+      {managerTab === 'ratings' && (
+        <div className="space-y-4 sm:space-y-6">
+          <h2 className="text-lg font-semibold">{language === 'ru' ? 'Удовлетворённость жителей' : 'Aholining qoniqishi'}</h2>
+
+          {isLoadingRatings ? (
+            <div className="text-center text-gray-400 py-20">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</div>
+          ) : !ratingSummary?.current ? (
+            <div className="text-center text-gray-400 py-20">{language === 'ru' ? 'Оценок пока нет' : 'Hali baholar yo\'q'}</div>
+          ) : (
+            <>
+              {/* Trend Banner */}
+              {ratingSummary.trend !== 0 && (
+                <div className={`rounded-xl p-4 flex items-center gap-3 ${
+                  ratingSummary.trend > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                }`}>
+                  {ratingSummary.trend > 0 ? (
+                    <TrendingUp className="w-6 h-6 text-green-600 shrink-0" />
+                  ) : (
+                    <TrendingDown className="w-6 h-6 text-red-600 shrink-0" />
+                  )}
+                  <div>
+                    <div className={`text-[15px] font-bold ${ratingSummary.trend > 0 ? 'text-green-800' : 'text-red-800'}`}>
+                      {ratingSummary.trend > 0 ? '+' : ''}{ratingSummary.trend.toFixed(1)}% {ratingSummary.trend > 0 ? (language === 'ru' ? 'лучше чем' : 'yaxshiroq') : (language === 'ru' ? 'хуже чем' : 'yomonroq')} {language === 'ru' ? 'прошлый месяц' : 'o\'tgan oy'}
+                    </div>
+                    <div className={`text-[12px] ${ratingSummary.trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {language === 'ru' ? 'vs прошлый месяц' : 'o\'tgan oyga nisbatan'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { label: language === 'ru' ? 'Общая оценка' : 'Umumiy baho', value: ratingSummary.current.avg_overall },
+                  { label: language === 'ru' ? 'Чистота' : 'Tozalik', value: ratingSummary.current.avg_cleanliness },
+                  { label: language === 'ru' ? 'Реагирование' : 'Javob berish', value: ratingSummary.current.avg_responsiveness },
+                  { label: language === 'ru' ? 'Коммуникация' : 'Muloqot', value: ratingSummary.current.avg_communication },
+                ].map((stat, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                    <div className="text-[12px] text-gray-500 font-medium mb-1">{stat.label}</div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-[28px] font-extrabold text-gray-900">
+                        {stat.value ? Number(stat.value).toFixed(1) : '—'}
+                      </span>
+                      <span className="text-[13px] text-gray-400">/5</span>
+                    </div>
+                    {stat.value && (
+                      <div className="mt-2 flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map(s => (
+                          <Star
+                            key={s}
+                            className={`w-4 h-4 ${s <= Math.round(Number(stat.value)) ? 'text-yellow-400' : 'text-gray-200'}`}
+                            fill={s <= Math.round(Number(stat.value)) ? 'currentColor' : 'none'}
+                            strokeWidth={s <= Math.round(Number(stat.value)) ? 0 : 1.5}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <div className="text-[11px] text-gray-400 mt-1">
+                      {ratingSummary.current.count || 0} {language === 'ru' ? 'голосов' : 'ovozlar'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Monthly Trend Chart */}
+              {ratingSummary.monthly?.length > 1 && (
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <h3 className="text-sm font-semibold mb-3">{language === 'ru' ? 'Динамика по месяцам' : 'Oylik dinamika'}</h3>
+                  <div className="h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={ratingSummary.monthly.map((m: any) => ({
+                        period: m.period,
+                        overall: Number(m.avg_overall || 0).toFixed(1),
+                        count: m.count,
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="period" tick={{ fontSize: 12 }} />
+                        <YAxis domain={[0, 5]} tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="overall" stroke="rgb(var(--brand-rgb))" fill="rgba(var(--brand-rgb), 0.1)" strokeWidth={2} name={language === 'ru' ? 'Общая оценка' : 'Umumiy baho'} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold mb-3">{language === 'ru' ? 'Рекомендации' : 'Tavsiyalar'}</h3>
+                <div className="space-y-2">
+                  {(() => {
+                    const recs: { text: string; priority: 'high' | 'medium' | 'low' }[] = [];
+                    const c = ratingSummary.current;
+                    if (c.avg_responsiveness && Number(c.avg_responsiveness) < 3.5) {
+                      recs.push({
+                        text: language === 'ru'
+                          ? 'Скорость реагирования ниже среднего. Рассмотрите оптимизацию процессов обработки заявок.'
+                          : 'Javob berish tezligi o\'rtachadan past. Arizalarni ko\'rib chiqish jarayonlarini optimallashtiring.',
+                        priority: 'high'
+                      });
+                    }
+                    if (c.avg_cleanliness && Number(c.avg_cleanliness) < 3.5) {
+                      recs.push({
+                        text: language === 'ru'
+                          ? 'Оценка чистоты ниже ожидаемого. Проверьте график уборки и контроль качества.'
+                          : 'Tozalik bahosi kutilganidan past. Tozalash jadvalini va sifat nazoratini tekshiring.',
+                        priority: 'high'
+                      });
+                    }
+                    if (c.avg_communication && Number(c.avg_communication) < 3.5) {
+                      recs.push({
+                        text: language === 'ru'
+                          ? 'Коммуникация требует улучшения. Улучшите информирование жителей о работах и событиях.'
+                          : 'Muloqotni yaxshilash kerak. Aholini ishlar va tadbirlar haqida xabardor qilishni yaxshilang.',
+                        priority: 'medium'
+                      });
+                    }
+                    if (c.avg_overall && Number(c.avg_overall) >= 4.0) {
+                      recs.push({
+                        text: language === 'ru'
+                          ? 'Отличный результат! Общая оценка выше 4.0 — продолжайте в том же духе.'
+                          : 'Ajoyib natija! Umumiy baho 4.0 dan yuqori — shu tarzda davom eting.',
+                        priority: 'low'
+                      });
+                    }
+                    if (recs.length === 0) {
+                      recs.push({
+                        text: language === 'ru'
+                          ? 'Показатели в норме. Продолжайте следить за качеством обслуживания.'
+                          : 'Ko\'rsatkichlar normal. Xizmat sifatini nazorat qilishda davom eting.',
+                        priority: 'low'
+                      });
+                    }
+                    return recs.map((rec, i) => (
+                      <div key={i} className={`flex items-start gap-2.5 p-3 rounded-lg ${
+                        rec.priority === 'high' ? 'bg-red-50' : rec.priority === 'medium' ? 'bg-amber-50' : 'bg-green-50'
+                      }`}>
+                        <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${
+                          rec.priority === 'high' ? 'text-red-500' : rec.priority === 'medium' ? 'text-amber-500' : 'text-green-500'
+                        }`} />
+                        <span className="text-[13px] text-gray-700">{rec.text}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              {/* Recent Comments */}
+              {ratingSummary.recentComments?.length > 0 && (
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <h3 className="text-sm font-semibold mb-3">{language === 'ru' ? 'Последние отзывы' : 'So\'nggi sharhlar'}</h3>
+                  <div className="space-y-3">
+                    {ratingSummary.recentComments.map((comment: any, idx: number) => (
+                      <div key={idx} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map(s => (
+                              <Star
+                                key={s}
+                                className={`w-3 h-3 ${s <= comment.overall ? 'text-yellow-400' : 'text-gray-200'}`}
+                                fill={s <= comment.overall ? 'currentColor' : 'none'}
+                                strokeWidth={s <= comment.overall ? 0 : 1.5}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-[11px] text-gray-400">{comment.created_at?.slice(0, 10)}</span>
+                        </div>
+                        <p className="text-[13px] text-gray-600">{comment.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Install App / Notifications */}
+      <InstallAppSection language={language} roleContext="manager" />
 
       {/* Modals */}
       {showAddExecutorModal && (
@@ -289,25 +523,22 @@ export function ManagerDashboard() {
         />
       )}
 
-      {showCredentials && (
-        <CredentialsModal
-          login={showCredentials.login}
-          password={showCredentials.password}
-          onClose={() => setShowCredentials(null)}
-        />
-      )}
+      <CredentialsModal
+        isOpen={!!showCredentials}
+        credentials={showCredentials || { login: '', password: '' }}
+        onClose={() => setShowCredentials(null)}
+      />
 
-      {showAssignModal && (
-        <AssignExecutorModal
-          request={showAssignModal}
-          executors={executors}
-          onClose={() => setShowAssignModal(null)}
-          onAssign={(executorId) => {
-            assignRequest(showAssignModal.id, executorId);
-            setShowAssignModal(null);
-          }}
-        />
-      )}
+      <AssignExecutorModal
+        isOpen={!!showAssignModal}
+        request={showAssignModal || {} as Request}
+        executors={executors}
+        onClose={() => setShowAssignModal(null)}
+        onAssign={(requestId, executorId) => {
+          assignRequest(requestId, executorId);
+          setShowAssignModal(null);
+        }}
+      />
 
       {selectedExecutor && (
         <ExecutorDetailsModal
@@ -389,7 +620,7 @@ function RequestCard({
         <div className="flex items-center gap-2 md:gap-3 justify-between sm:justify-end">
           <span className="text-xs md:text-sm text-gray-500 truncate">{request.residentName}</span>
           {request.status === 'new' && (
-            <button onClick={onAssign} className="btn-secondary text-xs md:text-sm py-1 px-2 md:px-3 touch-manipulation flex-shrink-0">
+            <button onClick={onAssign} className="btn-secondary text-xs md:text-sm min-h-[44px] py-2 px-3 md:px-4 touch-manipulation active:scale-[0.98] flex-shrink-0">
               {language === 'ru' ? 'Назначить' : 'Tayinlash'}
             </button>
           )}
@@ -413,7 +644,7 @@ function RequestCard({
           {request.category === 'trash' && (
             <div className="flex flex-wrap gap-1.5 mb-2">
               {request.title.includes(': ') && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
                   🗑️ {request.title.split(': ').slice(1).join(': ')}
                 </span>
               )}
@@ -451,14 +682,14 @@ function RequestCard({
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {request.status === 'new' && (
-            <button onClick={onAssign} className="btn-primary flex items-center gap-2 py-2 px-3 md:py-2.5 md:px-4 touch-manipulation text-sm">
+            <button onClick={onAssign} className="btn-primary flex items-center gap-2 min-h-[44px] py-2 px-3 md:py-2.5 md:px-4 touch-manipulation active:scale-[0.98] text-sm">
               <UserPlus className="w-4 h-4" />
               <span className="hidden sm:inline">{language === 'ru' ? 'Назначить' : 'Tayinlash'}</span>
               <span className="sm:hidden">{language === 'ru' ? 'Назн.' : 'Tay.'}</span>
             </button>
           )}
           {request.status === 'assigned' && (
-            <button onClick={onAssign} className="btn-secondary flex items-center gap-2 py-2 px-3 touch-manipulation text-sm">
+            <button onClick={onAssign} className="btn-secondary flex items-center gap-2 min-h-[44px] py-2 px-3 touch-manipulation active:scale-[0.98] text-sm">
               <span className="hidden sm:inline">{language === 'ru' ? 'Переназначить' : 'Qayta tayinlash'}</span>
               <span className="sm:hidden">{language === 'ru' ? 'Перен.' : 'Qayta'}</span>
             </button>
@@ -541,7 +772,7 @@ export function ExecutorCard({
             e.stopPropagation();
             onDelete();
           }}
-          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors touch-manipulation"
+          className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg sm:rounded-xl transition-colors touch-manipulation active:bg-red-100"
           title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
         >
           <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
@@ -581,10 +812,10 @@ export function ResidentsSection() {
 
   return (
     <div className="space-y-3 md:space-y-4">
-      <div className="glass-card p-3 md:p-4">
+      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base md:text-lg font-semibold">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h2>
+            <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h2>
             <p className="text-xs md:text-sm text-gray-500">{residents.length} {language === 'ru' ? 'жителей в системе' : 'tizimda yashovchilar'}</p>
           </div>
         </div>
@@ -601,10 +832,10 @@ export function ResidentsSection() {
           residents.map((resident) => {
             const stats = getResidentStats(resident.id);
             return (
-              <div key={resident.id} className="glass-card p-3 md:p-4">
+              <div key={resident.id} className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3 md:gap-4 min-w-0">
-                    <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-full flex items-center justify-center text-sm md:text-lg font-medium text-blue-700 flex-shrink-0">
+                    <div className="w-10 h-10 md:w-12 md:h-12 bg-primary-100 rounded-full flex items-center justify-center text-sm md:text-lg font-medium text-primary-700 flex-shrink-0">
                       {resident.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                     </div>
                     <div className="min-w-0">
@@ -782,7 +1013,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
       <div className="glass-card p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">{language === 'ru' ? 'Отчёты' : 'Hisobotlar'}</h2>
+            <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold">{language === 'ru' ? 'Отчёты' : 'Hisobotlar'}</h2>
             <p className="text-sm text-gray-500">
               {formatDate(start)} — {formatDate(end)}
             </p>
@@ -798,7 +1029,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
                 <button
                   key={p.id}
                   onClick={() => setPeriod(p.id)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-1.5 min-h-[44px] rounded-lg sm:rounded-xl text-sm font-medium transition-colors touch-manipulation active:scale-[0.98] ${
                     period === p.id ? 'bg-primary-500 text-gray-900' : 'hover:bg-white/30'
                   }`}
                 >
@@ -808,7 +1039,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
             </div>
             <button
               onClick={exportToExcel}
-              className="btn-secondary flex items-center gap-2 py-2 px-3"
+              className="btn-secondary flex items-center gap-2 min-h-[44px] py-2 px-3 touch-manipulation active:scale-[0.98]"
               title={language === 'ru' ? 'Экспорт в Excel' : 'Excelga eksport'}
             >
               <Download className="w-4 h-4" />
@@ -844,7 +1075,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3 xl:gap-4">
         <div className="glass-card p-3 text-center">
           <div className="text-2xl font-bold">{stats.total}</div>
           <div className="text-xs text-gray-500">{language === 'ru' ? 'Всего' : 'Jami'}</div>
@@ -872,10 +1103,10 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
       </div>
 
       {/* Categories and Executors */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 xl:gap-6">
         {/* By Category */}
         <div className="glass-card p-4">
-          <h3 className="text-base font-semibold mb-3">{language === 'ru' ? 'По категориям' : 'Kategoriya bo\'yicha'}</h3>
+          <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3">{language === 'ru' ? 'По категориям' : 'Kategoriya bo\'yicha'}</h3>
           {categoryStats.length === 0 ? (
             <div className="text-center py-6 text-gray-400 text-sm">
               {language === 'ru' ? 'Нет данных за выбранный период' : 'Tanlangan davr uchun ma\'lumot yo\'q'}
@@ -902,7 +1133,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
 
         {/* Executor Performance */}
         <div className="glass-card p-4">
-          <h3 className="text-base font-semibold mb-3">{language === 'ru' ? 'Исполнители' : 'Ijrochilar'}</h3>
+          <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3">{language === 'ru' ? 'Исполнители' : 'Ijrochilar'}</h3>
           {executorStats.length === 0 ? (
             <div className="text-center py-6 text-gray-400 text-sm">
               {language === 'ru' ? 'Нет данных за выбранный период' : 'Tanlangan davr uchun ma\'lumot yo\'q'}
@@ -937,7 +1168,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
 
       {/* Full Executor Table for Desktop */}
       <div className="glass-card p-4 hidden lg:block">
-        <h3 className="text-base font-semibold mb-3">{language === 'ru' ? 'Детальная статистика исполнителей' : 'Ijrochilarning batafsil statistikasi'}</h3>
+        <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3">{language === 'ru' ? 'Детальная статистика исполнителей' : 'Ijrochilarning batafsil statistikasi'}</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -970,105 +1201,6 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Assign Executor Modal
-function AssignExecutorModal({
-  request,
-  executors,
-  onClose,
-  onAssign
-}: {
-  request: Request;
-  executors: any[];
-  onClose: () => void;
-  onAssign: (executorId: string) => void;
-}) {
-  const { language } = useLanguageStore();
-  // Filter executors by specialization
-  const matchingExecutors = executors.filter(e => e.specialization === request.category);
-  const otherExecutors = executors.filter(e => e.specialization !== request.category);
-
-  const ExecutorOption = ({ executor, recommended }: { executor: any; recommended?: boolean }) => (
-    <button
-      onClick={() => onAssign(executor.id)}
-      className={`w-full p-3 md:p-4 rounded-xl text-left transition-colors touch-manipulation ${
-        recommended ? 'bg-green-50 hover:bg-green-100 border-2 border-green-200' : 'bg-white/30 hover:bg-white/50'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          <div className="w-9 h-9 md:w-10 md:h-10 bg-primary-100 rounded-full flex items-center justify-center text-xs md:text-sm font-medium text-primary-700 flex-shrink-0">
-            {executor.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-          </div>
-          <div className="min-w-0">
-            <div className="font-semibold flex items-center gap-1.5 md:gap-2 flex-wrap text-sm md:text-base">
-              <span className="truncate">{executor.name}</span>
-              {recommended && <span className="text-[10px] md:text-xs bg-green-500 text-white px-1.5 md:px-2 py-0.5 rounded-full flex-shrink-0">{language === 'ru' ? 'Рек.' : 'Tav.'}</span>}
-            </div>
-            <div className="text-xs md:text-sm text-gray-500 truncate">
-              {SPECIALIZATION_LABELS[executor.specialization as ExecutorSpecialization]}
-            </div>
-          </div>
-        </div>
-        <div className="text-right text-xs md:text-sm flex-shrink-0">
-          <div className="flex items-center gap-1 text-amber-500">
-            <Star className="w-3 h-3 md:w-4 md:h-4 fill-amber-500" />
-            {executor.rating}
-          </div>
-          <div className="text-gray-500">{executor.activeRequests} {language === 'ru' ? 'акт.' : 'faol'}</div>
-        </div>
-      </div>
-    </button>
-  );
-
-  return (
-    <div className="modal-backdrop">
-      <div className="glass-card p-4 md:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[85vh] overflow-y-auto">
-        <div className="flex items-start justify-between mb-4 md:mb-6 gap-2">
-          <div className="min-w-0">
-            <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}</h2>
-            <p className="text-xs md:text-sm text-gray-500 mt-1 truncate">{language === 'ru' ? 'Заявка' : 'Ariza'} {formatRequestNumber(request.number)}: {request.title}</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg touch-manipulation flex-shrink-0">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="space-y-3 md:space-y-4">
-          {matchingExecutors.length > 0 && (
-            <div>
-              <h3 className="text-xs md:text-sm font-medium text-gray-500 mb-2">
-                {SPECIALIZATION_LABELS[request.category as ExecutorSpecialization]} ({matchingExecutors.length})
-              </h3>
-              <div className="space-y-2">
-                {matchingExecutors.map(executor => (
-                  <ExecutorOption key={executor.id} executor={executor} recommended />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {otherExecutors.length > 0 && (
-            <div>
-              <h3 className="text-xs md:text-sm font-medium text-gray-500 mb-2">{language === 'ru' ? 'Другие специалисты' : 'Boshqa mutaxassislar'}</h3>
-              <div className="space-y-2">
-                {otherExecutors.map(executor => (
-                  <ExecutorOption key={executor.id} executor={executor} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {executors.length === 0 && (
-            <div className="text-center py-6 md:py-8 text-gray-500 text-sm">
-              {language === 'ru' ? 'Нет доступных исполнителей' : 'Mavjud ijrochilar yo\'q'}
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -1122,10 +1254,10 @@ function AddExecutorModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="glass-card p-4 md:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1179,7 +1311,7 @@ function AddExecutorModal({
                 className="glass-input flex-1 text-sm md:text-base"
                 required
               />
-              <button type="button" onClick={generateLogin} className="btn-secondary px-2 md:px-4 text-xs md:text-sm touch-manipulation">
+              <button type="button" onClick={generateLogin} className="btn-secondary px-2 md:px-4 min-h-[44px] text-xs md:text-sm touch-manipulation active:scale-[0.98]">
                 <span className="hidden sm:inline">{language === 'ru' ? 'Сгенерировать' : 'Yaratish'}</span>
                 <span className="sm:hidden">{language === 'ru' ? 'Ген.' : 'Yar.'}</span>
               </button>
@@ -1206,7 +1338,7 @@ function AddExecutorModal({
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <button type="button" onClick={generatePassword} className="btn-secondary px-2 md:px-4 text-xs md:text-sm touch-manipulation">
+              <button type="button" onClick={generatePassword} className="btn-secondary px-2 md:px-4 min-h-[44px] text-xs md:text-sm touch-manipulation active:scale-[0.98]">
                 <span className="hidden sm:inline">{language === 'ru' ? 'Сгенерировать' : 'Yaratish'}</span>
                 <span className="sm:hidden">{language === 'ru' ? 'Ген.' : 'Yar.'}</span>
               </button>
@@ -1221,10 +1353,10 @@ function AddExecutorModal({
           )}
 
           <div className="flex gap-2 md:gap-3 pt-3 md:pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5 text-sm touch-manipulation">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1 min-h-[44px] py-2.5 text-sm touch-manipulation active:scale-[0.98]">
               {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
-            <button type="submit" className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
+            <button type="submit" className="btn-primary flex-1 min-h-[44px] py-2.5 text-sm touch-manipulation active:scale-[0.98]">
               {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
             </button>
           </div>
@@ -1323,10 +1455,10 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-backdrop">
-      <div className="glass-card p-4 md:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1359,9 +1491,9 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
           {/* Location: Branch / Building / Apartment */}
           <div className="border-t pt-3 md:pt-4">
             <label className="block text-xs md:text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Расположение' : 'Joylashuv'}</label>
-            <div className="grid grid-cols-3 gap-2 md:gap-3">
+            <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3 xl:gap-4">
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Филиал' : 'Filial'}</label>
+                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Филиал' : 'Filial'}</label>
                 <select
                   value={branch}
                   onChange={(e) => {
@@ -1376,7 +1508,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дом' : 'Uy'}</label>
+                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дом' : 'Uy'}</label>
                 <input
                   type="text"
                   value={building}
@@ -1390,7 +1522,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Кв.' : 'Kv.'}</label>
+                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Кв.' : 'Kv.'}</label>
                 <input
                   type="text"
                   value={apartment}
@@ -1417,13 +1549,13 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
           <div className="border-t pt-3 md:pt-4">
             <div className="flex items-center justify-between mb-2 md:mb-3">
               <span className="text-xs md:text-sm font-medium text-gray-700">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</span>
-              <button type="button" onClick={generateCredentials} className="btn-secondary text-xs md:text-sm py-1 px-2 md:px-3 touch-manipulation">
+              <button type="button" onClick={generateCredentials} className="btn-secondary text-xs md:text-sm min-h-[44px] py-1 px-2 md:px-3 touch-manipulation active:scale-[0.98]">
                 {language === 'ru' ? 'Сгенерировать' : 'Yaratish'}
               </button>
             </div>
 
             {/* Hint about password format */}
-            <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-600">
+            <div className="mb-2 p-2 bg-primary-50 border border-primary-100 rounded-lg text-xs text-primary-600">
               💡 {language === 'ru' ? 'Пароль будет в формате:' : 'Parol formatda bo\'ladi:'} <span className="font-mono font-bold">{language === 'ru' ? 'ФИЛИАЛ/ДОМ/КВАРТИРА' : 'FILIAL/UY/KVARTIRA'}</span>
               <br />
               {language === 'ru' ? 'Например:' : 'Masalan:'} <span className="font-mono">YS/8A/23</span>
@@ -1431,7 +1563,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
 
             <div className="space-y-2 md:space-y-3">
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
+                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
                 <input
                   type="text"
                   value={login}
@@ -1442,7 +1574,7 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] md:text-xs text-gray-500 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'}</label>
+                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'}</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -1472,72 +1604,14 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
           )}
 
           <div className="flex gap-2 md:gap-3 pt-3 md:pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1 py-2.5 text-sm touch-manipulation">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1 min-h-[44px] py-2.5 text-sm touch-manipulation active:scale-[0.98]">
               {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
-            <button type="submit" className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
+            <button type="submit" className="btn-primary flex-1 min-h-[44px] py-2.5 text-sm touch-manipulation active:scale-[0.98]">
               {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
             </button>
           </div>
         </form>
-      </div>
-    </div>
-  );
-}
-
-// Credentials Modal
-function CredentialsModal({
-  login,
-  password,
-  onClose
-}: {
-  login: string;
-  password: string;
-  onClose: () => void;
-}) {
-  const { language } = useLanguageStore();
-  const [copied, setCopied] = useState(false);
-
-  const copyCredentials = () => {
-    navigator.clipboard.writeText(`${language === 'ru' ? 'Логин' : 'Login'}: ${login}\n${language === 'ru' ? 'Пароль' : 'Parol'}: ${password}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="modal-backdrop">
-      <div className="glass-card p-4 md:p-6 w-full max-w-md mx-3 md:mx-4">
-        <div className="text-center mb-4 md:mb-6">
-          <div className="w-14 h-14 md:w-16 md:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
-            <Check className="w-7 h-7 md:w-8 md:h-8 text-green-600" />
-          </div>
-          <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Исполнитель добавлен!' : 'Ijrochi qo\'shildi!'}</h2>
-          <p className="text-gray-500 mt-1.5 md:mt-2 text-sm md:text-base">{language === 'ru' ? 'Сохраните данные для входа' : 'Kirish ma\'lumotlarini saqlang'}</p>
-        </div>
-
-        <div className="bg-gray-50 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3">
-          <div>
-            <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Логин' : 'Login'}</div>
-            <div className="font-mono text-base md:text-lg font-semibold">{login}</div>
-          </div>
-          <div>
-            <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Пароль' : 'Parol'}</div>
-            <div className="font-mono text-base md:text-lg font-semibold">{password}</div>
-          </div>
-        </div>
-
-        <div className="flex gap-2 md:gap-3 mt-4 md:mt-6">
-          <button
-            onClick={copyCredentials}
-            className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2.5 text-sm touch-manipulation"
-          >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? (language === 'ru' ? 'Скопировано!' : 'Nusxalandi!') : (language === 'ru' ? 'Копировать' : 'Nusxalash')}
-          </button>
-          <button onClick={onClose} className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
-            {language === 'ru' ? 'Готово' : 'Tayyor'}
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -1605,7 +1679,7 @@ function ExecutorDetailsModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="glass-card p-4 md:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[90vh] overflow-y-auto"
+        className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -1624,7 +1698,7 @@ function ExecutorDetailsModal({
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg touch-manipulation flex-shrink-0">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200 flex-shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1648,7 +1722,7 @@ function ExecutorDetailsModal({
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 xl:gap-4 mb-4">
           <div className="glass-card bg-white/30 p-3 text-center rounded-xl">
             <div className="flex items-center justify-center gap-1 text-amber-500 mb-1">
               <Star className="w-4 h-4 fill-amber-400" />
@@ -1661,7 +1735,7 @@ function ExecutorDetailsModal({
             <div className="text-xs text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</div>
           </div>
           <div className="glass-card bg-white/30 p-3 text-center rounded-xl">
-            <div className="text-xl md:text-2xl font-bold text-blue-600">{activeRequests.length}</div>
+            <div className="text-xl md:text-2xl font-bold text-primary-600">{activeRequests.length}</div>
             <div className="text-xs text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
           </div>
           <div className="glass-card bg-white/30 p-3 text-center rounded-xl">
@@ -1747,7 +1821,7 @@ function ExecutorDetailsModal({
             <Trash2 className="w-4 h-4" />
             {language === 'ru' ? 'Удалить' : 'O\'chirish'}
           </button>
-          <button onClick={onClose} className="btn-primary flex-1 py-2.5 text-sm touch-manipulation">
+          <button onClick={onClose} className="btn-primary flex-1 min-h-[44px] py-2.5 text-sm touch-manipulation active:scale-[0.98]">
             {language === 'ru' ? 'Закрыть' : 'Yopish'}
           </button>
         </div>
@@ -1777,13 +1851,13 @@ function RescheduleRequestCard({
   return (
     <button
       onClick={onClick}
-      className="w-full p-3 bg-white/60 rounded-xl text-left hover:bg-white/80 active:bg-white transition-colors"
+      className="w-full p-3 min-h-[44px] bg-white/60 rounded-lg sm:rounded-xl text-left hover:bg-white/80 active:bg-white transition-colors touch-manipulation"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="text-sm font-mono text-gray-500">#{reschedule.requestNumber}</span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+            <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium ${
               reschedule.initiator === 'resident'
                 ? 'bg-blue-100 text-blue-700'
                 : 'bg-purple-100 text-purple-700'
@@ -1848,7 +1922,7 @@ function RescheduleHistoryCard({
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium bg-${statusInfo.color}-100 text-${statusInfo.color}-700`}>
               {statusInfo.label}
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+            <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium ${
               reschedule.initiator === 'resident'
                 ? 'bg-blue-100 text-blue-700'
                 : 'bg-purple-100 text-purple-700'
@@ -1912,13 +1986,13 @@ function RescheduleDetailsModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content p-6 w-full max-w-md mx-4">
+      <div className="modal-content p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-4 rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <RefreshCw className="w-5 h-5 text-amber-600" />
             {language === 'ru' ? 'Запрос на перенос' : 'Ko\'chirish so\'rovi'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -2007,7 +2081,7 @@ function RescheduleDetailsModal({
 
         <button
           onClick={onClose}
-          className="w-full mt-6 py-2.5 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 transition-colors"
+          className="w-full mt-6 min-h-[44px] py-2.5 px-4 rounded-lg sm:rounded-xl font-medium bg-gray-100 hover:bg-gray-200 transition-colors touch-manipulation active:scale-[0.98]"
         >
           {language === 'ru' ? 'Закрыть' : 'Yopish'}
         </button>

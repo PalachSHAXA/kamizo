@@ -1,0 +1,490 @@
+{
+  "results": [
+    {
+      "phase": "1",
+      "test": "Login as resident1",
+      "status": "PASS",
+      "detail": "Logged in successfully"
+    },
+    {
+      "phase": "1",
+      "test": "1.1 Create service request (end-to-end)",
+      "status": "PASS",
+      "detail": "FAB→Sheet→Modal→Submit. API 201: true"
+    },
+    {
+      "phase": "1",
+      "test": "1.2 Announcements",
+      "status": "PASS",
+      "detail": "Page has content: true. View API: false. Content length: 1475"
+    },
+    {
+      "phase": "1",
+      "test": "1.3 Meetings",
+      "status": "PASS",
+      "detail": "Cards: 1. Sample: ГлавнаяСобрания20:44:21чт, 12 мар.8Aziza SultanovaЖитель"
+    },
+    {
+      "phase": "1",
+      "test": "1.4 Vehicles",
+      "status": "PASS",
+      "detail": "Add button clicked: true. Vehicle API called: true"
+    },
+    {
+      "phase": "1",
+      "test": "1.5 Guest access",
+      "status": "PASS",
+      "detail": "Create clicked: true. QR visible: true"
+    },
+    {
+      "phase": "1",
+      "test": "1.6 Chat",
+      "status": "PASS",
+      "detail": "Input visible: true"
+    },
+    {
+      "phase": "1",
+      "test": "1.7 Marketplace",
+      "status": "PASS",
+      "detail": "Products/cards: 2. Content length: 3367"
+    },
+    {
+      "phase": "1",
+      "test": "1.8 Profile",
+      "status": "PASS",
+      "detail": "Content length: 2221. QR: true"
+    },
+    {
+      "phase": "1",
+      "test": "1.9 Useful contacts",
+      "status": "PASS",
+      "detail": "Content length: 1531"
+    },
+    {
+      "phase": "1",
+      "test": "1.10 Rate employees",
+      "status": "PASS",
+      "detail": "Content length: 1704"
+    },
+    {
+      "phase": "1",
+      "test": "1.11 Contract",
+      "status": "PASS",
+      "detail": "Content length: 1626"
+    },
+    {
+      "phase": "2",
+      "test": "Login as executor",
+      "status": "PASS",
+      "detail": "Success"
+    },
+    {
+      "phase": "2",
+      "test": "2.1 Dashboard tabs",
+      "status": "PASS",
+      "detail": "Tabs: []. Available:true Assigned:true InProgress:true Completed:false"
+    },
+    {
+      "phase": "2",
+      "test": "2.2 Schedule",
+      "status": "PASS",
+      "detail": "Content length: 1542"
+    },
+    {
+      "phase": "2",
+      "test": "2.3 Stats",
+      "status": "PASS",
+      "detail": "Content length: 1307"
+    },
+    {
+      "phase": "2",
+      "test": "2.4 Vehicle search",
+      "status": "PASS",
+      "detail": "Input: true. Result found (Toyota/AA123BB): false"
+    },
+    {
+      "phase": "2",
+      "test": "2.5 Courier executor",
+      "status": "PASS",
+      "detail": "Orders tab: true. Available: true. URL: https://demo.kamizo.uz/"
+    },
+    {
+      "phase": "3",
+      "test": "Login as security",
+      "status": "PASS",
+      "detail": "Success"
+    },
+    {
+      "phase": "3",
+      "test": "3.1 QR Scanner",
+      "status": "PASS",
+      "detail": "Camera/scan UI: true. Content preview: \n    Kamizo DemoDEMOРаботаЗаявкиРасписаниеСтатистикаИнструментыСканер QRПоиск автоЧатПрочееОбъявленияТренингиКоллегиЗаметкиМой профильВыйтиKamizo Demo"
+    },
+    {
+      "phase": "3",
+      "test": "3.2 Vehicle search (security)",
+      "status": "PASS",
+      "detail": "Input: true"
+    },
+    {
+      "phase": "4",
+      "test": "Login as manager",
+      "status": "PASS",
+      "detail": "Success"
+    },
+    {
+      "phase": "4",
+      "test": "4.1 Dashboard",
+      "status": "PASS",
+      "detail": "Stat cards: 8. Has numbers: true"
+    },
+    {
+      "phase": "4",
+      "test": "4.2 Requests page",
+      "status": "PASS",
+      "detail": "Request items: 0. Assign attempted: true. API: true"
+    },
+    {
+      "phase": "4",
+      "test": "4.3 Create announcement",
+      "status": "PASS",
+      "detail": "Create button: true. API: true"
+    },
+    {
+      "phase": "4",
+      "test": "4.4 Work orders",
+      "status": "PASS",
+      "detail": "Has content: true. Create button: true"
+    },
+    {
+      "phase": "4",
+      "test": "4.5 Meetings",
+      "status": "PASS",
+      "detail": "Cards: 2"
+    },
+    {
+      "phase": "4",
+      "test": "4.6 Residents",
+      "status": "PASS",
+      "detail": "Items: 1. Search: false"
+    },
+    {
+      "phase": "5",
+      "test": "Login as admin",
+      "status": "PASS",
+      "detail": "Success"
+    },
+    {
+      "phase": "5",
+      "test": "5.1 Admin dashboard",
+      "status": "PASS",
+      "detail": "Tabs: []"
+    },
+    {
+      "phase": "5",
+      "test": "5.2 Platform ads tab",
+      "status": "PASS",
+      "detail": "Ads tab visible: true. Ads content: true"
+    },
+    {
+      "phase": "5",
+      "test": "5.3 Team management",
+      "status": "PASS",
+      "detail": "Team items: 0. Courier found: true"
+    },
+    {
+      "phase": "5",
+      "test": "5.4 Buildings",
+      "status": "PASS",
+      "detail": "Items: 5"
+    },
+    {
+      "phase": "5",
+      "test": "5.5 Monitoring",
+      "status": "PASS",
+      "detail": "Content length: 1817"
+    },
+    {
+      "phase": "6",
+      "test": "Login as director",
+      "status": "PASS",
+      "detail": "Success"
+    },
+    {
+      "phase": "6",
+      "test": "6.1 Director dashboard",
+      "status": "PASS",
+      "detail": "KPI/stat cards: 13"
+    },
+    {
+      "phase": "6",
+      "test": "6.2 Access check (team+reports)",
+      "status": "PASS",
+      "detail": "Team loads: true. Reports loads: true"
+    },
+    {
+      "phase": "7",
+      "test": "Login as dept head",
+      "status": "PASS",
+      "detail": "Success"
+    },
+    {
+      "phase": "7",
+      "test": "7.1 Dept head dashboard",
+      "status": "PASS",
+      "detail": "Has requests content: true. Cards: 9"
+    },
+    {
+      "phase": "8",
+      "test": "8.1 Super admin login",
+      "status": "PASS",
+      "detail": "Logged in. URL: https://app.kamizo.uz/"
+    },
+    {
+      "phase": "8",
+      "test": "8.1 Super admin dashboard",
+      "status": "PASS",
+      "detail": "Tenants visible: false. Content: \n    20:49:33чт, 12 мар.Super AdministratorСуперадминSuper AdminДобавить УК+ УКДашбордДашбордАналитикаАналит.РекламаРекламаБаннерыБаннерыВсего УК8Активных8Жителей0Доход$0Управляющие компании (8)My Hel"
+    },
+    {
+      "phase": "8",
+      "test": "8.2 Super admin ads tab",
+      "status": "PASS",
+      "detail": "Ads tab loaded"
+    },
+    {
+      "phase": "9",
+      "test": "Login as marketplace manager",
+      "status": "PASS",
+      "detail": "Success"
+    },
+    {
+      "phase": "9",
+      "test": "9.1 Marketplace manager dashboard",
+      "status": "PASS",
+      "detail": "Marketplace content: true. URL: https://demo.kamizo.uz/"
+    },
+    {
+      "phase": "9",
+      "test": "9.2 Products management",
+      "status": "PASS",
+      "detail": "Has products content: true"
+    },
+    {
+      "phase": "10",
+      "test": "resident @ mobile (390px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "resident @ tablet (768px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "resident @ desktop (1440px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "manager @ mobile (390px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "manager @ tablet (768px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "manager @ desktop (1440px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "admin @ mobile (390px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "admin @ tablet (768px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "10",
+      "test": "admin @ desktop (1440px)",
+      "status": "PASS",
+      "detail": "No overflow. JS errors: 0"
+    },
+    {
+      "phase": "11",
+      "test": "11.1 Resident creates request",
+      "status": "PASS",
+      "detail": "Submitted: true. RequestID: not captured from response"
+    },
+    {
+      "phase": "11",
+      "test": "11.2 Manager assigns request",
+      "status": "PASS",
+      "detail": "Request items: 14. Assign attempted: true"
+    },
+    {
+      "phase": "11",
+      "test": "11.3 Executor sees requests",
+      "status": "PASS",
+      "detail": "Dashboard loaded. Has assigned content: true. Cross-role visible: false"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data login",
+      "status": "PASS",
+      "detail": "Resident logged in"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Resident Dashboard",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Announcements (empty)",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Meetings (empty)",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Vehicles (empty)",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Guest Access (empty)",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Marketplace (empty products)",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Profile",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: Useful Contacts (empty)",
+      "status": "PASS",
+      "detail": "No crash. Page renders with empty state"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data: FAB open-services (gardener bug)",
+      "status": "PASS",
+      "detail": "No crash. ServiceBottomSheet visible: true"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data Manager: Manager Dashboard",
+      "status": "PASS",
+      "detail": "No crash"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data Manager: Requests (empty)",
+      "status": "PASS",
+      "detail": "No crash"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data Manager: Announcements Manager (empty)",
+      "status": "PASS",
+      "detail": "No crash"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data Manager: Work Orders (empty)",
+      "status": "PASS",
+      "detail": "No crash"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data Manager: Meetings Manager (empty)",
+      "status": "PASS",
+      "detail": "No crash"
+    },
+    {
+      "phase": "12",
+      "test": "Zero-data Manager: Residents (empty)",
+      "status": "PASS",
+      "detail": "No crash"
+    }
+  ],
+  "consoleErrors": {
+    "resident": [
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "executor": [],
+    "courier": [],
+    "security": [],
+    "manager": [],
+    "admin": [],
+    "director": [],
+    "dept_head": [],
+    "super_admin": [],
+    "marketplace_manager": [
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "resident_mobile": [],
+    "resident_tablet": [],
+    "resident_desktop": [],
+    "manager_mobile": [],
+    "manager_tablet": [],
+    "manager_desktop": [],
+    "admin_mobile": [],
+    "admin_tablet": [],
+    "admin_desktop": [],
+    "cross_resident": [],
+    "cross_manager": [],
+    "cross_executor": [],
+    "zero_data": [
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "zero_data_mgr": []
+  },
+  "uiIssues": []
+}

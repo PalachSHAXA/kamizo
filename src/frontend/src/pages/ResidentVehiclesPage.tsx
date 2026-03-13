@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Car, Plus, X, Edit2, Trash2, AlertTriangle, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useDataStore, useVehicleStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
@@ -478,7 +478,7 @@ export function ResidentVehiclesPage() {
 
   // Memoize vehicles to prevent infinite useEffect loop
   // getVehiclesByOwner creates a new array on each call, causing reference changes
-  const vehiclesData = useDataStore(state => state.vehicles);
+  const vehiclesData = useVehicleStore(state => state.vehicles);
   const vehicles = useMemo(() => {
     if (!user) return [];
     return vehiclesData.filter(v => v.ownerId === user.id);
@@ -552,9 +552,7 @@ export function ResidentVehiclesPage() {
       setIsSearching(true);
       try {
         // Use API to search all vehicles in the system
-        console.log('[Vehicle Search] Searching for:', searchPattern);
         const results = await searchVehiclesByPlate(searchPattern);
-        console.log('[Vehicle Search] Results:', results);
         setApiSearchResults(results);
       } catch (err) {
         console.error('[Vehicle Search] Error:', err);
@@ -676,16 +674,16 @@ export function ResidentVehiclesPage() {
   const ownerTypes: VehicleOwnerType[] = ['individual', 'legal_entity'];
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
-          <Car className="w-7 h-7 text-blue-500" />
+        <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold flex items-center gap-3">
+          <Car className="w-7 h-7 text-primary-500" />
           {language === 'ru' ? 'Мои автомобили' : 'Mening avtomobillarim'}
         </h1>
         <button
           onClick={() => handleOpenModal()}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation"
         >
           <Plus className="w-5 h-5" />
           <span className="hidden sm:inline">
@@ -716,7 +714,7 @@ export function ResidentVehiclesPage() {
               <tab.icon className="w-5 h-5 md:w-4 md:h-4" />
               <span className="text-sm md:text-base">{tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-xs text-white font-medium bg-blue-500`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs text-white font-medium bg-primary-500`}>
                   {tab.count}
                 </span>
               )}
@@ -729,10 +727,10 @@ export function ResidentVehiclesPage() {
       {activeTab === 'my_vehicles' && (
         <>
           {/* Info Card */}
-          <div className="glass-card p-4 bg-blue-50 border-blue-200">
+          <div className="glass-card p-4 bg-primary-50 border-primary-200">
             <div className="flex items-start gap-3">
-              <Car className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-700">
+              <Car className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-primary-700">
                 {language === 'ru'
                   ? 'Зарегистрируйте свои автомобили для быстрой идентификации на территории комплекса. Это поможет охране и управляющей компании.'
                   : 'Avtomobillaringizni majmua hududida tez aniqlash uchun ro\'yxatdan o\'tkazing. Bu qo\'riqlash va boshqaruv kompaniyasiga yordam beradi.'}
@@ -766,8 +764,8 @@ export function ResidentVehiclesPage() {
                 <div key={vehicle.id} className="glass-card p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                        <Car className="w-6 h-6 text-blue-500" />
+                      <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center">
+                        <Car className="w-6 h-6 text-primary-500" />
                       </div>
                       <div>
                         <h3 className="font-bold text-lg text-gray-900 tracking-wider">
@@ -781,13 +779,13 @@ export function ResidentVehiclesPage() {
                     <div className="flex gap-1">
                       <button
                         onClick={() => handleOpenModal(vehicle)}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation"
                       >
                         <Edit2 className="w-4 h-4 text-gray-500" />
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(vehicle.id)}
-                        className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors touch-manipulation"
                       >
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </button>
@@ -853,7 +851,7 @@ export function ResidentVehiclesPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <Search className="w-5 h-5 text-blue-500" />
+              <Search className="w-5 h-5 text-primary-500" />
               {language === 'ru' ? 'Поиск автомобиля' : 'Avtomobil qidirish'}
             </h2>
             <span className="text-sm text-gray-500">
@@ -910,8 +908,8 @@ export function ResidentVehiclesPage() {
                     onClick={() => setManuallySelectedResult(vehicle)}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                        <Car className="w-5 h-5 text-blue-500" />
+                      <div className="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
+                        <Car className="w-5 h-5 text-primary-500" />
                       </div>
                       <div>
                         <p className="font-bold text-gray-900 tracking-wider">{formatPlateDisplay(vehicle.plateNumber)}</p>
@@ -946,8 +944,8 @@ export function ResidentVehiclesPage() {
 
               <div className="bg-white rounded-xl p-4 mb-4">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 rounded-xl bg-blue-100 flex items-center justify-center">
-                    <Car className="w-8 h-8 text-blue-500" />
+                  <div className="w-16 h-16 rounded-xl bg-primary-100 flex items-center justify-center">
+                    <Car className="w-8 h-8 text-primary-500" />
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-gray-900 tracking-wider">
@@ -1043,7 +1041,7 @@ export function ResidentVehiclesPage() {
               {user && searchResult.ownerId === user.id && (
                 <button
                   onClick={() => handleOpenModal(searchResult)}
-                  className="w-full py-3 px-4 rounded-xl font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 px-4 rounded-xl font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors flex items-center justify-center gap-2"
                 >
                   <Edit2 className="w-4 h-4" />
                   {language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
@@ -1092,8 +1090,8 @@ export function ResidentVehiclesPage() {
                     onClick={() => handleQuickSearch(vehicle)}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                        <Car className="w-5 h-5 text-blue-500" />
+                      <div className="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
+                        <Car className="w-5 h-5 text-primary-500" />
                       </div>
                       <div>
                         <p className="font-bold text-gray-900 tracking-wider">{formatPlateDisplay(vehicle.plateNumber)}</p>
@@ -1143,7 +1141,7 @@ export function ResidentVehiclesPage() {
 
       {/* Add/Edit Modal - Mobile full-screen, centered on desktop */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 md:flex md:items-center md:justify-center">
+        <div className="fixed inset-0 bg-black/50 z-[200] md:flex md:items-center md:justify-center">
           <div className="h-full md:h-auto w-full md:max-w-2xl md:mx-4 bg-white md:rounded-2xl overflow-hidden md:max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
               <h2 className="text-lg font-bold">
@@ -1365,7 +1363,7 @@ export function ResidentVehiclesPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
               <AlertTriangle className="w-6 h-6 text-red-500" />
@@ -1381,13 +1379,13 @@ export function ResidentVehiclesPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-3 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
               >
                 {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 transition-colors"
+                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 active:bg-red-700 transition-colors touch-manipulation"
               >
                 {language === 'ru' ? 'Удалить' : 'O\'chirish'}
               </button>

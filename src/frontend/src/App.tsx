@@ -7,6 +7,7 @@ import { useTenantStore } from './stores/tenantStore';
 import { Layout } from './components/layout';
 import { LoginPage } from './pages/LoginPage';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
+import { SWUpdateBanner } from './components/SWUpdateBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Handle auto_auth parameter from super admin impersonation
@@ -93,10 +94,11 @@ function App() {
     }
   }, [tenantConfig]);
 
+  const { fetchNotificationsFromAPI } = useDataStore();
+
   // Load data from API when user logs in (super_admin only manages tenants, skip tenant data)
   useEffect(() => {
     if (user && user.role !== 'super_admin') {
-      console.log('User logged in, fetching data from API...');
       fetchBuildings();
 
       // Load executors for staff roles
@@ -111,8 +113,13 @@ function App() {
       if (user.role === 'resident') {
         fetchVehicles();
       }
+
+      // Fetch notifications from API and poll every 30 seconds
+      fetchNotificationsFromAPI();
+      const notifInterval = setInterval(fetchNotificationsFromAPI, 30000);
+      return () => clearInterval(notifInterval);
     }
-  }, [user, fetchBuildings, fetchExecutors, fetchRequests, fetchVehicles]);
+  }, [user, fetchBuildings, fetchExecutors, fetchRequests, fetchVehicles, fetchNotificationsFromAPI]);
 
   return (
     <ErrorBoundary>
@@ -125,6 +132,7 @@ function App() {
         ) : (
           <LoginPage />
         )}
+        <SWUpdateBanner />
       </BrowserRouter>
     </ErrorBoundary>
   );

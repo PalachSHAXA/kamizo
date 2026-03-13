@@ -47,18 +47,21 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 16px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 16px 48px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 16px 48px 0 rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+  }
 }
 
 .glass-input {
   width: 100%;
   padding: 12px 16px;
+  min-height: 44px;
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(8px);
   border: 1.5px solid #e5e7eb;
@@ -81,6 +84,7 @@ body {
 
 .btn-primary {
   padding: 12px 24px;
+  min-height: 44px;
   background: var(--brand);
   color: #1a1a1a;
   font-weight: 600;
@@ -89,11 +93,14 @@ body {
   cursor: pointer;
   box-shadow: 0 4px 20px 0 rgba(var(--brand-rgb), 0.3);
   transition: all 0.3s ease;
+  touch-action: manipulation;
 }
 
-.btn-primary:hover {
-  background: var(--brand-light);
-  transform: scale(1.02);
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: var(--brand-light);
+    transform: scale(1.02);
+  }
 }
 
 .btn-primary:active {
@@ -102,6 +109,7 @@ body {
 
 .btn-secondary {
   padding: 12px 24px;
+  min-height: 44px;
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(8px);
   color: #1a1a1a;
@@ -110,10 +118,13 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.6);
   cursor: pointer;
   transition: all 0.3s ease;
+  touch-action: manipulation;
 }
 
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.6);
+@media (hover: hover) {
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.6);
+  }
 }
 
 .sidebar {
@@ -122,23 +133,32 @@ body {
   top: 0;
   height: 100vh;
   height: 100dvh;
-  width: 256px;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid rgba(255, 255, 255, 0.5);
+  width: 272px;
+  background: linear-gradient(180deg, #faf8f6 0%, #ffffff 40%);
+  border-right: 1px solid #f0f0f0;
   display: flex;
   flex-direction: column;
   z-index: 100;
   transition: transform 0.3s ease;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.03);
+}
+
+.sidebar-safe-top {
+  padding-top: 16px;
 }
 
 /* Mobile sidebar - hidden by default, shown as overlay */
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
-    width: 280px;
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+    width: 300px;
+    border-radius: 0 20px 20px 0;
+    box-shadow: 8px 0 30px rgba(0, 0, 0, 0.15);
+    border-right: none;
+  }
+
+  .sidebar-safe-top {
+    padding-top: calc(env(safe-area-inset-top, 16px) + 12px);
   }
 
   .sidebar.open {
@@ -153,6 +173,8 @@ body {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
   }
 
   .sidebar-overlay.open {
@@ -164,33 +186,58 @@ body {
 .sidebar-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  margin: 4px 8px;
-  border-radius: 12px;
-  color: #6b7280;
+  gap: 14px;
+  padding: 12px 18px;
+  margin: 2px 10px;
+  border-radius: 16px;
+  color: #4b5563;
+  font-size: 15px;
+  font-weight: 500;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  position: relative;
 }
 
-.sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.5);
-  color: #1a1a1a;
+@media (hover: hover) {
+  .sidebar-item:hover {
+    background: #f9fafb;
+    color: #1f2937;
+  }
 }
 
 .sidebar-item.active {
-  background: rgba(var(--brand-rgb), 0.2);
-  color: #1a1a1a;
-  font-weight: 500;
+  background: rgba(var(--brand-rgb), 0.1);
+  color: var(--brand);
+  font-weight: 600;
+  border-left: 3px solid rgb(var(--brand-rgb));
+  padding-left: 15px;
+  margin-left: 10px;
+}
+
+.sidebar-item.active .sidebar-icon {
+  color: var(--brand);
+}
+
+.sidebar-item-resident {
+  padding: 12px 20px;
+  margin: 2px 12px;
+  font-size: 15px;
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 4px 12px;
+  min-height: 24px;
   font-size: 12px;
   font-weight: 500;
   border-radius: 9999px;
+  line-height: 1;
 }
 
 .badge-new { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
@@ -231,6 +278,7 @@ body {
 @media (max-width: 640px) {
   .modal-backdrop {
     padding: 0;
+    padding-top: env(safe-area-inset-top, 0px);
     align-items: flex-end;
   }
 
@@ -282,7 +330,7 @@ body {
 }
 
 /* ============================================
-   MOBILE RESPONSIVE STYLES
+   RESPONSIVE STYLES — ALL BREAKPOINTS
    ============================================ */
 
 /* Main layout - responsive */
@@ -294,18 +342,60 @@ body {
 
 .main-content {
   flex: 1;
-  margin-left: 256px;
+  margin-left: 272px;
   transition: margin-left 0.3s ease;
 }
 
 .main-content-full {
   flex: 1;
   margin-left: 0;
+  transition: margin-left 0.3s ease;
 }
 
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
+  }
+}
+
+/* ============================================
+   LARGE SCREEN IMPROVEMENTS (lg, xl, 2xl)
+   ============================================ */
+
+/* Content container — prevent stretching on ultrawide screens */
+.page-content {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Large desktop: more breathing room */
+@media (min-width: 1280px) {
+  .page-content {
+    padding: 32px 40px;
+  }
+
+  .glass-card {
+    border-radius: 20px;
+  }
+
+  .modal-content {
+    border-radius: 24px;
+  }
+}
+
+/* Ultrawide: even more padding */
+@media (min-width: 1536px) {
+  .page-content {
+    padding: 36px 48px;
+  }
+}
+
+/* Tablet landscape (1024px-1279px) — intermediate sizing */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .page-content {
+    padding: 24px 28px;
   }
 }
 
@@ -320,6 +410,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
     background: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -334,7 +425,7 @@ body {
   }
 }
 
-/* Page content - no extra padding needed since bottom nav is removed */
+/* Page content - bottom padding handled per-page for mobile bottom bar */
 
 /* Mobile cards */
 @media (max-width: 640px) {
@@ -644,6 +735,12 @@ body {
    NATIVE APP FEEL IMPROVEMENTS
    ============================================ */
 
+/* Minimum touch target utility */
+.min-touch {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 /* Prevent text selection for app-like feel on interactive elements */
 .touch-manipulation {
   touch-action: manipulation;
@@ -841,6 +938,30 @@ a.btn-secondary:active,
   animation: fade-in 0.2s ease;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* QR Scanner animations */
+@keyframes qrScan {
+  0% { top: 4px; }
+  50% { top: calc(100% - 6px); }
+  100% { top: 4px; }
+}
+@keyframes successPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-qr-scan {
+  animation: qrScan 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 /* Timer pulse animation */
 @keyframes timer-pulse {
   0%, 100% {
@@ -869,6 +990,31 @@ a.btn-secondary:active,
 
 .status-pulse {
   animation: status-pulse 2s ease-in-out infinite;
+}
+
+/* Pop animation for badges */
+@keyframes pop {
+  0% {
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Slide up animation for bottom sheets */
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Improved select dropdown for mobile */
@@ -907,4 +1053,74 @@ a.btn-secondary:active,
   height: 4px;
   background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1));
   border-radius: 2px;
+}
+
+/* ============================================
+   LARGE SCREEN ENHANCEMENTS
+   ============================================ */
+
+/* Better glass card hover on desktop */
+@media (hover: hover) and (min-width: 1024px) {
+  .glass-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 50px 0 rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Larger modal max-width on wide screens */
+@media (min-width: 1280px) {
+  .modal-content {
+    max-width: 720px;
+  }
+}
+
+/* Stat cards: richer layout on big screens */
+@media (min-width: 1280px) {
+  .stat-card {
+    padding: 20px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 2.25rem;
+  }
+}
+
+/* Charts get taller on large screens */
+@media (min-width: 1280px) {
+  .chart-container {
+    height: 340px !important;
+  }
+}
+
+@media (min-width: 1536px) {
+  .chart-container {
+    height: 400px !important;
+  }
+}
+
+/* Toast position for large screens */
+@media (min-width: 1024px) {
+  .toast {
+    bottom: 40px;
+    font-size: 15px;
+    padding: 14px 28px;
+  }
+}
+
+/* Notifications dropdown: wider on desktop */
+@media (min-width: 1024px) {
+  .notifications-dropdown {
+    width: 420px !important;
+  }
+}
+
+/* Better sidebar on large screens */
+@media (min-width: 1536px) {
+  .sidebar {
+    width: 300px;
+  }
+
+  .main-content {
+    margin-left: 300px;
+  }
 }

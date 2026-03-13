@@ -1,0 +1,49 @@
+{
+  "total": 6,
+  "working": 0,
+  "broken": [
+    {
+      "screen": "Login",
+      "element": "Authentication",
+      "role": "manager",
+      "expected": "Login",
+      "actual": "FAILED"
+    },
+    {
+      "screen": "Login",
+      "element": "Authentication",
+      "role": "resident",
+      "expected": "Login",
+      "actual": "FAILED"
+    },
+    {
+      "screen": "Login",
+      "element": "Authentication",
+      "role": "admin",
+      "expected": "Login",
+      "actual": "FAILED"
+    },
+    {
+      "screen": "Login",
+      "element": "Authentication",
+      "role": "executor",
+      "expected": "Login",
+      "actual": "FAILED"
+    },
+    {
+      "screen": "Login",
+      "element": "Authentication",
+      "role": "security",
+      "expected": "Login",
+      "actual": "FAILED"
+    },
+    {
+      "screen": "Login",
+      "element": "Authentication",
+      "role": "director",
+      "expected": "Login",
+      "actual": "FAILED"
+    }
+  ],
+  "needsReview": []
+}

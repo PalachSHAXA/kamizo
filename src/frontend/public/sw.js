@@ -1,103 +1,152 @@
 // Kamizo PWA Service Worker
-// Version: 1.0.0
+// Version: 2.1.0
 
-const CACHE_NAME = 'kamizo-v1';
-const STATIC_CACHE = 'kamizo-static-v1';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v1';
+const SW_VERSION = '2.1.0';
+const STATIC_CACHE = 'kamizo-static-v3';
+const ASSET_CACHE = 'kamizo-assets-v3';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v3';
+const MAX_DYNAMIC_CACHE_SIZE = 50;
 
-// Static assets to cache on install
+// Static shell to cache on install
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/favicon.ico',
   '/manifest.json',
 ];
 
-// Install event - cache static assets
+// Install event - cache static shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...');
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then((cache) => {
-        console.log('[SW] Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
-      })
+      .then((cache) => cache.addAll(STATIC_ASSETS))
       .then(() => self.skipWaiting())
   );
 });
 
-// Activate event - clean old caches
+// Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
+  const validCaches = [STATIC_CACHE, ASSET_CACHE, DYNAMIC_CACHE];
   event.waitUntil(
     caches.keys()
-      .then((keys) => {
-        return Promise.all(
-          keys
-            .filter((key) => key !== STATIC_CACHE && key !== DYNAMIC_CACHE)
-            .map((key) => {
-              console.log('[SW] Removing old cache:', key);
-              return caches.delete(key);
-            })
-        );
-      })
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => !validCaches.includes(key))
+          .map((key) => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
+      .then(() => {
+        // Notify all clients about the update
+        self.clients.matchAll().then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: 'SW_UPDATED', version: SW_VERSION });
+          });
+        });
+      })
   );
 });
 
-// Fetch event - network first, fallback to cache
+// Trim cache to max size
+async function trimCache(cacheName, maxSize) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxSize) {
+    // Delete oldest entries (FIFO)
+    const toDelete = keys.slice(0, keys.length - maxSize);
+    await Promise.all(toDelete.map((key) => cache.delete(key)));
+  }
+}
+
+// Fetch event - smart caching strategy
 self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
   // Skip non-GET requests
-  if (event.request.method !== 'GET') return;
+  if (request.method !== 'GET') return;
 
-  // Skip API requests (don't cache)
-  if (event.request.url.includes('/api/')) return;
+  const url = new URL(request.url);
 
-  // Skip SSE events
-  if (event.request.url.includes('/events')) return;
+  // Skip API requests, WebSocket, SSE
+  if (url.pathname.startsWith('/api/') || url.pathname.includes('/events') || url.pathname.includes('/ws')) return;
 
+  // Strategy 1: Cache-first for hashed assets (JS, CSS with hash in filename)
+  // These are immutable - once cached, always serve from cache
+  if (url.pathname.startsWith('/assets/') && /\-[a-zA-Z0-9_-]{8,}\.(js|css|woff2?)$/.test(url.pathname)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(ASSET_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Strategy 2: Stale-while-revalidate for images, fonts, icons
+  if (/\.(png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf)$/.test(url.pathname)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const fetchPromise = fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(request, clone);
+              trimCache(DYNAMIC_CACHE, MAX_DYNAMIC_CACHE_SIZE);
+            });
+          }
+          return response;
+        }).catch(() => cached);
+
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Strategy 3: Network-first for HTML (app shell) and everything else
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then((response) => {
-        // Clone and cache successful responses
-        if (response.ok) {
-          const responseClone = response.clone();
-          caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+        if (response.ok && (url.pathname === '/' || url.pathname.endsWith('.html'))) {
+          const clone = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
         }
         return response;
       })
       .catch(() => {
-        // Fallback to cache if network fails
-        return caches.match(event.request);
+        // Offline fallback
+        return caches.match(request).then((cached) => {
+          if (cached) return cached;
+          // For navigation requests, serve the cached index.html (SPA)
+          if (request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
+          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+        });
       })
   );
 });
 
 // Push notification received
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push notification received:', event);
-
   let notificationData = {
     title: 'Kamizo',
     body: 'Новое уведомление',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/icons/favicon-192x192.png',
+    badge: '/icons/favicon-192x192.png',
     tag: 'default',
     requireInteraction: false,
-    data: {
-      url: '/'
-    }
+    data: { url: '/' }
   };
 
   if (event.data) {
     try {
       const data = event.data.json();
-      notificationData = {
-        ...notificationData,
-        ...data
-      };
+      notificationData = { ...notificationData, ...data };
     } catch (e) {
       notificationData.body = event.data.text();
     }
@@ -105,11 +154,11 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: notificationData.body,
-    icon: notificationData.icon || '/favicon.ico',
-    badge: notificationData.badge || '/favicon.ico',
+    icon: notificationData.icon || '/icons/favicon-192x192.png',
+    badge: notificationData.badge || '/icons/favicon-192x192.png',
     tag: notificationData.tag,
     requireInteraction: notificationData.requireInteraction,
-    vibrate: [100, 50, 100, 50, 100], // Vibration pattern
+    vibrate: [100, 50, 100, 50, 100],
     data: notificationData.data,
     actions: notificationData.actions || []
   };
@@ -135,7 +184,6 @@ self.addEventListener('push', (event) => {
     ];
     if (isUrgent) {
       options.requireInteraction = true;
-      // Add stronger vibration for urgent
       options.vibrate = [200, 100, 200, 100, 200];
     }
   } else if (notificationData.type === 'chat_message') {
@@ -157,8 +205,6 @@ self.addEventListener('push', (event) => {
 
 // Notification click handler
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event);
-
   const notification = event.notification;
   const action = event.action;
   const data = notification.data || {};
@@ -167,7 +213,6 @@ self.addEventListener('notificationclick', (event) => {
 
   let urlToOpen = data.url || '/';
 
-  // Handle specific actions
   if (action === 'approve' && data.requestId) {
     urlToOpen = `/?action=approve&requestId=${data.requestId}`;
   } else if (action === 'accept' && data.requestId) {
@@ -176,8 +221,7 @@ self.addEventListener('notificationclick', (event) => {
     urlToOpen = `/?requestId=${data.requestId}`;
   } else if (action === 'view' && data.announcementId) {
     urlToOpen = `/announcements?id=${data.announcementId}`;
-  } else if (action === 'dismiss' && data.announcementId) {
-    // Just close notification, mark as read in background
+  } else if (action === 'dismiss') {
     urlToOpen = null;
   } else if (action === 'reply' && data.channelId) {
     urlToOpen = `/chat?channelId=${data.channelId}`;
@@ -185,12 +229,10 @@ self.addEventListener('notificationclick', (event) => {
     urlToOpen = `/meetings?meetingId=${data.meetingId}&action=vote`;
   }
 
-  // Only navigate if we have a URL to open
   if (urlToOpen) {
     event.waitUntil(
       clients.matchAll({ type: 'window', includeUncontrolled: true })
         .then((windowClients) => {
-          // If app is already open, focus it and navigate
           for (const client of windowClients) {
             if ('focus' in client) {
               client.focus();
@@ -198,7 +240,6 @@ self.addEventListener('notificationclick', (event) => {
               return;
             }
           }
-          // Otherwise open new window
           if (clients.openWindow) {
             return clients.openWindow(urlToOpen);
           }
@@ -207,15 +248,8 @@ self.addEventListener('notificationclick', (event) => {
   }
 });
 
-// Notification close handler
-self.addEventListener('notificationclose', (event) => {
-  console.log('[SW] Notification closed:', event.notification.tag);
-});
-
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
-  console.log('[SW] Background sync:', event.tag);
-
   if (event.tag === 'sync-requests') {
     event.waitUntil(syncPendingRequests());
   } else if (event.tag === 'sync-messages') {
@@ -223,12 +257,10 @@ self.addEventListener('sync', (event) => {
   }
 });
 
-// Sync pending requests when back online
 async function syncPendingRequests() {
   try {
     const db = await openIndexedDB();
     const pendingRequests = await db.getAll('pending_requests');
-
     for (const request of pendingRequests) {
       try {
         await fetch(request.url, {
@@ -238,20 +270,18 @@ async function syncPendingRequests() {
         });
         await db.delete('pending_requests', request.id);
       } catch (e) {
-        console.error('[SW] Failed to sync request:', e);
+        // Will retry on next sync
       }
     }
   } catch (e) {
-    console.error('[SW] Sync failed:', e);
+    // DB not available
   }
 }
 
-// Sync pending chat messages
 async function syncPendingMessages() {
   try {
     const db = await openIndexedDB();
     const pendingMessages = await db.getAll('pending_messages');
-
     for (const message of pendingMessages) {
       try {
         await fetch('/api/chat/channels/' + message.channelId + '/messages', {
@@ -264,19 +294,17 @@ async function syncPendingMessages() {
         });
         await db.delete('pending_messages', message.id);
       } catch (e) {
-        console.error('[SW] Failed to sync message:', e);
+        // Will retry on next sync
       }
     }
   } catch (e) {
-    console.error('[SW] Message sync failed:', e);
+    // DB not available
   }
 }
 
-// IndexedDB helper
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('kamizo-offline', 1);
-
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
@@ -295,7 +323,6 @@ function openIndexedDB() {
         })
       });
     };
-
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains('pending_requests')) {
@@ -308,46 +335,15 @@ function openIndexedDB() {
   });
 }
 
-// Periodic sync for checking updates (if supported)
-self.addEventListener('periodicsync', (event) => {
-  console.log('[SW] Periodic sync:', event.tag);
-
-  if (event.tag === 'check-updates') {
-    event.waitUntil(checkForUpdates());
-  }
-});
-
-async function checkForUpdates() {
-  try {
-    // Notify all clients to check for updates
-    const clients = await self.clients.matchAll();
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'CHECK_UPDATES'
-      });
-    });
-  } catch (e) {
-    console.error('[SW] Check updates failed:', e);
-  }
-}
-
-// Message handler for communication with main app
+// Message handler
 self.addEventListener('message', (event) => {
-  console.log('[SW] Message received:', event.data);
-
   if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-
   if (event.data.type === 'GET_VERSION') {
-    event.ports[0].postMessage({ version: '1.0.0' });
+    event.ports[0].postMessage({ version: SW_VERSION });
   }
-
   if (event.data.type === 'CLEAR_CACHE') {
-    caches.keys().then(keys => {
-      keys.forEach(key => caches.delete(key));
-    });
+    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)));
   }
 });
-
-console.log('[SW] Service Worker loaded');

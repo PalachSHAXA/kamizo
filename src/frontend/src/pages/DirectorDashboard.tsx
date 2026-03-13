@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { InstallAppSection } from '../components/InstallAppSection';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -10,14 +11,16 @@ import {
   ShoppingBag, Download, Calendar, Package, DollarSign
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useCRMStore } from '../stores/crmStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { formatAddress } from '../utils/formatAddress';
 import { SPECIALIZATION_LABELS } from '../types';
-import { teamApi, apiRequest } from '../services/api';
-import ExcelJS from 'exceljs';
+import { teamApi, apiRequest, ukRatingsApi } from '../services/api';
+// ExcelJS loaded dynamically in exportMarketplaceReport to reduce initial bundle
+import type { Style } from 'exceljs';
 
 // REQUEST_STATUS_LABELS moved to function component to access language
 
@@ -38,12 +41,12 @@ function DetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-xl"
+        className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-full touch-manipulation active:bg-gray-200">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -123,10 +126,11 @@ interface MarketplaceReport {
   }>;
 }
 
-type TabType = 'overview' | 'marketplace';
+type TabType = 'overview' | 'marketplace' | 'ratings';
 
 export function DirectorDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const { requests, executors, announcements, fetchRequests, fetchExecutors } = useDataStore();
   const { buildings, residents, fetchBuildings } = useCRMStore();
   const { meetings, fetchMeetings } = useMeetingStore();
@@ -155,6 +159,22 @@ export function DirectorDashboard() {
   });
   const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+  // UK Satisfaction ratings state
+  const [ratingSummary, setRatingSummary] = useState<any>(null);
+  const [isLoadingRatings, setIsLoadingRatings] = useState(false);
+
+  const loadRatingSummary = async () => {
+    setIsLoadingRatings(true);
+    try {
+      const data = await ukRatingsApi.getSummary(6);
+      setRatingSummary(data);
+    } catch (err) {
+      console.error('Failed to load ratings summary:', err);
+    } finally {
+      setIsLoadingRatings(false);
+    }
+  };
+
   // Load data on mount
   useEffect(() => {
     fetchRequests();
@@ -168,6 +188,9 @@ export function DirectorDashboard() {
   useEffect(() => {
     if (activeTab === 'marketplace') {
       loadMarketplaceReport();
+    }
+    if (activeTab === 'ratings') {
+      loadRatingSummary();
     }
   }, [activeTab, reportStartDate, reportEndDate]);
 
@@ -369,6 +392,7 @@ export function DirectorDashboard() {
   const exportMarketplaceReport = async () => {
     if (!marketplaceReport) return;
 
+    const ExcelJS = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Kamizo';
     workbook.created = new Date();
@@ -376,7 +400,7 @@ export function DirectorDashboard() {
     const formatCurrency = (value: number) => `${value.toLocaleString('ru-RU')} ${language === 'ru' ? 'сум' : 'so\'m'}`;
 
     // Common styles
-    const headerStyle: Partial<ExcelJS.Style> = {
+    const headerStyle: Partial<Style> = {
       font: { bold: true, size: 11 },
       alignment: { horizontal: 'center', vertical: 'middle' },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } },
@@ -387,7 +411,7 @@ export function DirectorDashboard() {
         right: { style: 'thin' },
       },
     };
-    const cellStyle: Partial<ExcelJS.Style> = {
+    const cellStyle: Partial<Style> = {
       alignment: { horizontal: 'left', vertical: 'middle' },
       border: {
         top: { style: 'thin' },
@@ -396,7 +420,7 @@ export function DirectorDashboard() {
         right: { style: 'thin' },
       },
     };
-    const centerStyle: Partial<ExcelJS.Style> = {
+    const centerStyle: Partial<Style> = {
       alignment: { horizontal: 'center', vertical: 'middle' },
       border: {
         top: { style: 'thin' },
@@ -405,7 +429,7 @@ export function DirectorDashboard() {
         right: { style: 'thin' },
       },
     };
-    const currencyStyle: Partial<ExcelJS.Style> = {
+    const currencyStyle: Partial<Style> = {
       alignment: { horizontal: 'right', vertical: 'middle' },
       border: {
         top: { style: 'thin' },
@@ -723,6 +747,23 @@ export function DirectorDashboard() {
       'director.deliveredCount': { ru: 'Доставок', uz: 'Yetkazishlar' },
       'director.noData': { ru: 'Нет данных', uz: 'Ma\'lumot yo\'q' },
       'director.loading': { ru: 'Загрузка...', uz: 'Yuklanmoqda...' },
+      // Ratings translations
+      'director.ratings': { ru: 'Отчёты', uz: 'Hisobotlar' },
+      'director.ukSatisfaction': { ru: 'Удовлетворённость жителей', uz: 'Aholining qoniqishi' },
+      'director.overallRating': { ru: 'Общая оценка', uz: 'Umumiy baho' },
+      'director.cleanliness': { ru: 'Чистота', uz: 'Tozalik' },
+      'director.responsiveness': { ru: 'Реагирование', uz: 'Javob berish' },
+      'director.communication': { ru: 'Коммуникация', uz: 'Muloqot' },
+      'director.trend': { ru: 'Тренд', uz: 'Trend' },
+      'director.vsLastMonth': { ru: 'vs прошлый месяц', uz: 'o\'tgan oyga nisbatan' },
+      'director.betterThan': { ru: 'лучше чем', uz: 'yaxshiroq' },
+      'director.worseThan': { ru: 'хуже чем', uz: 'yomonroq' },
+      'director.lastMonth': { ru: 'прошлый месяц', uz: 'o\'tgan oy' },
+      'director.monthlyTrend': { ru: 'Динамика по месяцам', uz: 'Oylik dinamika' },
+      'director.recentComments': { ru: 'Последние отзывы', uz: 'So\'nggi sharhlar' },
+      'director.noRatingsYet': { ru: 'Оценок пока нет', uz: 'Hali baholar yo\'q' },
+      'director.totalVotes': { ru: 'голосов', uz: 'ovozlar' },
+      'director.recommendations': { ru: 'Рекомендации', uz: 'Tavsiyalar' },
     };
     return translations[key]?.[language] || key;
   };
@@ -739,17 +780,21 @@ export function DirectorDashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 xl:space-y-8 pb-24 md:pb-0">
+      {/* Header with greeting */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('director.title')}</h1>
-          <p className="text-gray-500">{t('director.subtitle')}</p>
+          <p className="text-sm text-gray-400 font-medium">
+            {language === 'ru'
+              ? `${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${user?.name?.split(' ')[0] || ''} 👋`
+              : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'}, ${user?.name?.split(' ')[0] || ''} 👋`}
+          </p>
+          <h1 className="text-xl md:text-2xl xl:text-3xl font-bold text-gray-900">{t('director.title')}</h1>
         </div>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className="btn-secondary flex items-center gap-2"
+          className="btn-secondary flex items-center gap-2 min-h-[44px] touch-manipulation active:scale-[0.98]"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           {t('director.refresh')}
@@ -760,7 +805,7 @@ export function DirectorDashboard() {
       <div className="flex gap-2 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
             activeTab === 'overview'
               ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -771,7 +816,7 @@ export function DirectorDashboard() {
         </button>
         <button
           onClick={() => setActiveTab('marketplace')}
-          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
             activeTab === 'marketplace'
               ? 'border-primary-500 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -780,20 +825,31 @@ export function DirectorDashboard() {
           <ShoppingBag className="w-4 h-4 inline mr-2" />
           {t('director.marketplace')}
         </button>
+        <button
+          onClick={() => setActiveTab('ratings')}
+          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
+            activeTab === 'ratings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Star className="w-4 h-4 inline mr-2" />
+          {t('director.ratings')}
+        </button>
       </div>
 
       {activeTab === 'overview' && (
         <>
       {/* Main Stats - Clickable Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
         {/* Requests - Clickable */}
         <div
-          className="glass-card p-5 cursor-pointer hover:shadow-lg transition-shadow active:scale-[0.98]"
+          className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
           onClick={() => setActiveModal('requests')}
         >
           <div className="flex items-center justify-between mb-3">
-            <FileText className="w-8 h-8 text-blue-500" />
-            <span className={`text-xs px-2 py-1 rounded-full ${
+            <FileText className="w-8 h-8 text-primary-500" />
+            <span className={`text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full ${
               companyStats.newRequests > 10 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
             }`}>
               {companyStats.newRequests} {t('director.new')}
@@ -810,12 +866,12 @@ export function DirectorDashboard() {
 
         {/* Staff - Clickable */}
         <div
-          className="glass-card p-5 cursor-pointer hover:shadow-lg transition-shadow active:scale-[0.98]"
+          className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
           onClick={() => setActiveModal('staff')}
         >
           <div className="flex items-center justify-between mb-3">
             <Users className="w-8 h-8 text-purple-500" />
-            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
+            <span className="text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-green-100 text-green-700">
               {companyStats.onlineExecutors} {t('director.online')}
             </span>
           </div>
@@ -823,14 +879,14 @@ export function DirectorDashboard() {
           <div className="text-sm text-gray-500">{t('director.staff')}</div>
           <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
             <span className="text-purple-600">{companyStats.totalManagers} {language === 'ru' ? 'мен.' : 'men.'}</span>
-            <span className="text-blue-600">{companyStats.totalDepartmentHeads} {language === 'ru' ? 'гл.' : 'bosh.'}</span>
+            <span className="text-primary-600">{companyStats.totalDepartmentHeads} {language === 'ru' ? 'гл.' : 'bosh.'}</span>
             <span className="text-green-600">{companyStats.totalExecutors} {language === 'ru' ? 'исп.' : 'ijr.'}</span>
           </div>
         </div>
 
         {/* Buildings - Clickable */}
         <div
-          className="glass-card p-5 cursor-pointer hover:shadow-lg transition-shadow active:scale-[0.98]"
+          className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
           onClick={() => setActiveModal('buildings')}
         >
           <div className="flex items-center justify-between mb-3">
@@ -845,7 +901,7 @@ export function DirectorDashboard() {
 
         {/* Meetings & Announcements - Clickable */}
         <div
-          className="glass-card p-5 cursor-pointer hover:shadow-lg transition-shadow active:scale-[0.98]"
+          className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 cursor-pointer hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation rounded-lg sm:rounded-xl"
           onClick={() => setActiveModal('activity')}
         >
           <div className="flex items-center justify-between mb-3">
@@ -865,7 +921,7 @@ export function DirectorDashboard() {
       </div>
 
       {/* Completion Rate Banner */}
-      <div className="glass-card p-5 bg-gradient-to-r from-blue-50 to-purple-50">
+      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 bg-gradient-to-r from-primary-50 to-purple-50 rounded-lg sm:rounded-xl">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm text-gray-600 mb-1">{t('director.completionRate')}</div>
@@ -893,11 +949,11 @@ export function DirectorDashboard() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
         {/* Weekly Trends Chart */}
-        <div className="glass-card p-5">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-500" />
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+          <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary-500" />
             {language === 'ru' ? 'Динамика заявок за неделю' : 'Haftalik arizalar dinamikasi'}
           </h3>
           <ResponsiveContainer width="100%" height={240}>
@@ -938,8 +994,8 @@ export function DirectorDashboard() {
         </div>
 
         {/* Request Status Distribution */}
-        <div className="glass-card p-5">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+          <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
             <FileText className="w-5 h-5 text-purple-500" />
             {language === 'ru' ? 'Статусы заявок' : 'Ariza holatlari'}
           </h3>
@@ -966,10 +1022,10 @@ export function DirectorDashboard() {
       </div>
 
       {/* Second row of charts */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
         {/* Staff Distribution */}
-        <div className="glass-card p-5">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+          <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
             <Users className="w-5 h-5 text-green-500" />
             {language === 'ru' ? 'Состав персонала' : 'Xodimlar tarkibi'}
           </h3>
@@ -995,8 +1051,8 @@ export function DirectorDashboard() {
         </div>
 
         {/* Department Performance */}
-        <div className="glass-card p-5">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+          <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
             <Briefcase className="w-5 h-5 text-orange-500" />
             {language === 'ru' ? 'Эффективность отделов' : 'Bo\'limlar samaradorligi'}
           </h3>
@@ -1025,10 +1081,10 @@ export function DirectorDashboard() {
       </div>
 
       {/* Two Column Layout */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
         {/* Stats by Building */}
-        <div className="glass-card p-5">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+          <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
             <Building2 className="w-5 h-5 text-teal-500" />
             {t('director.byBuilding')}
           </h3>
@@ -1063,8 +1119,8 @@ export function DirectorDashboard() {
         </div>
 
         {/* Stats by Department */}
-        <div className="glass-card p-5">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+        <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+          <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
             <Briefcase className="w-5 h-5 text-purple-500" />
             {t('director.byDepartment')}
           </h3>
@@ -1102,12 +1158,12 @@ export function DirectorDashboard() {
       </div>
 
       {/* Top Performers */}
-      <div className="glass-card p-5">
-        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+        <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
           <Star className="w-5 h-5 text-yellow-500" />
           {t('director.topPerformers')}
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
           {topExecutors.map((executor, index) => (
             <div key={executor.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
@@ -1133,7 +1189,7 @@ export function DirectorDashboard() {
       {/* Alerts */}
       {companyStats.pendingApproval > 0 && (
         <div
-          className="glass-card p-4 border-2 border-primary-400 bg-primary-50 cursor-pointer hover:bg-primary-100 transition-colors"
+          className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 border-2 border-primary-400 bg-primary-50 cursor-pointer hover:bg-primary-100 transition-colors touch-manipulation active:scale-[0.98] rounded-lg sm:rounded-xl"
           onClick={() => navigate('/requests')}
         >
           <div className="flex items-center gap-3">
@@ -1147,6 +1203,9 @@ export function DirectorDashboard() {
           </div>
         </div>
       )}
+
+      {/* Install App / Notifications */}
+      <InstallAppSection language={language} roleContext="director" />
 
       {/* Requests Modal */}
       <DetailModal
@@ -1169,7 +1228,7 @@ export function DirectorDashboard() {
                     {new Date(req.createdAt).toLocaleDateString()}
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(req.status)}`}>
+                <span className={`text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full ${getStatusColor(req.status)}`}>
                   {REQUEST_STATUS_LABELS[req.status]}
                 </span>
               </div>
@@ -1183,7 +1242,7 @@ export function DirectorDashboard() {
           ))}
           <button
             onClick={() => { setActiveModal(null); navigate('/requests'); }}
-            className="w-full py-2 text-center text-blue-600 font-medium hover:bg-blue-50 rounded-xl"
+            className="w-full min-h-[44px] py-2 text-center text-primary-600 font-medium hover:bg-primary-50 rounded-lg sm:rounded-xl touch-manipulation active:bg-primary-100"
           >
             {t('director.viewAll')} →
           </button>
@@ -1226,14 +1285,14 @@ export function DirectorDashboard() {
           {/* Department Heads */}
           {teamData && teamData.departmentHeads.length > 0 && (
             <div>
-              <h4 className="font-medium text-sm text-blue-700 mb-2 flex items-center gap-2">
+              <h4 className="font-medium text-sm text-primary-700 mb-2 flex items-center gap-2">
                 <UserCheck className="w-4 h-4" />
                 {language === 'ru' ? 'Главы отделов' : 'Bo\'lim boshliklari'} ({teamData.departmentHeads.length})
               </h4>
               <div className="space-y-2">
                 {teamData.departmentHeads.map(member => (
-                  <div key={member.id} className="p-3 bg-blue-50 rounded-xl flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold bg-blue-500">
+                  <div key={member.id} className="p-3 bg-primary-50 rounded-xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold bg-primary-500">
                       {member.name.charAt(0)}
                     </div>
                     <div className="flex-1">
@@ -1242,7 +1301,7 @@ export function DirectorDashboard() {
                         {SPECIALIZATION_LABELS[member.specialization as keyof typeof SPECIALIZATION_LABELS] || member.specialization || ''}
                       </div>
                     </div>
-                    <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                    <div className="text-xs text-primary-600 bg-primary-100 px-2 py-1 rounded">
                       {language === 'ru' ? 'Глава' : 'Boshlik'}
                     </div>
                   </div>
@@ -1290,7 +1349,7 @@ export function DirectorDashboard() {
 
           <button
             onClick={() => { setActiveModal(null); navigate('/team'); }}
-            className="w-full py-2 text-center text-blue-600 font-medium hover:bg-blue-50 rounded-xl"
+            className="w-full min-h-[44px] py-2 text-center text-primary-600 font-medium hover:bg-primary-50 rounded-lg sm:rounded-xl touch-manipulation active:bg-primary-100"
           >
             {t('director.viewAll')} →
           </button>
@@ -1325,7 +1384,7 @@ export function DirectorDashboard() {
           ))}
           <button
             onClick={() => { setActiveModal(null); navigate('/buildings'); }}
-            className="w-full py-2 text-center text-blue-600 font-medium hover:bg-blue-50 rounded-xl"
+            className="w-full min-h-[44px] py-2 text-center text-primary-600 font-medium hover:bg-primary-50 rounded-lg sm:rounded-xl touch-manipulation active:bg-primary-100"
           >
             {t('director.viewAll')} →
           </button>
@@ -1367,7 +1426,7 @@ export function DirectorDashboard() {
             </div>
             <button
               onClick={() => { setActiveModal(null); navigate('/meetings'); }}
-              className="w-full py-2 text-center text-blue-600 font-medium hover:bg-blue-50 rounded-xl mt-2"
+              className="w-full min-h-[44px] py-2 text-center text-primary-600 font-medium hover:bg-primary-50 rounded-lg sm:rounded-xl mt-2 touch-manipulation active:bg-primary-100"
             >
               {t('director.viewAll')} →
             </button>
@@ -1403,7 +1462,7 @@ export function DirectorDashboard() {
             </div>
             <button
               onClick={() => { setActiveModal(null); navigate('/announcements'); }}
-              className="w-full py-2 text-center text-blue-600 font-medium hover:bg-blue-50 rounded-xl mt-2"
+              className="w-full min-h-[44px] py-2 text-center text-primary-600 font-medium hover:bg-primary-50 rounded-lg sm:rounded-xl mt-2 touch-manipulation active:bg-primary-100"
             >
               {t('director.viewAll')} →
             </button>
@@ -1415,9 +1474,9 @@ export function DirectorDashboard() {
 
       {/* Marketplace Tab */}
       {activeTab === 'marketplace' && (
-        <div className="space-y-6">
+        <div className="space-y-6 xl:space-y-8">
           {/* Period selector and download button */}
-          <div className="glass-card p-4">
+          <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-wrap">
                 <Calendar className="w-5 h-5 text-gray-500" />
@@ -1426,20 +1485,20 @@ export function DirectorDashboard() {
                   type="date"
                   value={reportStartDate}
                   onChange={(e) => setReportStartDate(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg sm:rounded-xl text-sm touch-manipulation"
                 />
                 <span className="text-gray-400">—</span>
                 <input
                   type="date"
                   value={reportEndDate}
                   onChange={(e) => setReportEndDate(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg sm:rounded-xl text-sm touch-manipulation"
                 />
               </div>
               <button
                 onClick={exportMarketplaceReport}
                 disabled={!marketplaceReport || isLoadingReport}
-                className="btn-primary flex items-center gap-2"
+                className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation active:scale-[0.98]"
               >
                 <Download className="w-4 h-4" />
                 {t('director.download')}
@@ -1455,10 +1514,10 @@ export function DirectorDashboard() {
           ) : marketplaceReport ? (
             <>
               {/* Overall Stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="glass-card p-5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <div className="flex items-center gap-3 mb-2">
-                    <ShoppingBag className="w-8 h-8 text-blue-500" />
+                    <ShoppingBag className="w-8 h-8 text-primary-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.total_orders}</div>
                   <div className="text-sm text-gray-500">{t('director.totalOrders')}</div>
@@ -1469,7 +1528,7 @@ export function DirectorDashboard() {
                   </div>
                 </div>
 
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <DollarSign className="w-8 h-8 text-green-500" />
                   </div>
@@ -1480,7 +1539,7 @@ export function DirectorDashboard() {
                   </div>
                 </div>
 
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <Star className="w-8 h-8 text-yellow-500" />
                   </div>
@@ -1491,7 +1550,7 @@ export function DirectorDashboard() {
                   </div>
                 </div>
 
-                <div className="glass-card p-5">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <Package className="w-8 h-8 text-purple-500" />
                   </div>
@@ -1506,9 +1565,9 @@ export function DirectorDashboard() {
               </div>
 
               {/* Sales Chart */}
-              <div className="glass-card p-5">
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
+              <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary-500" />
                   {t('director.salesChart')}
                 </h3>
                 <ResponsiveContainer width="100%" height={280}>
@@ -1555,10 +1614,10 @@ export function DirectorDashboard() {
               </div>
 
               {/* Two column layout */}
-              <div className="grid lg:grid-cols-2 gap-6">
+              <div className="grid lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
                 {/* Top Products */}
-                <div className="glass-card p-5">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                  <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                     <Package className="w-5 h-5 text-purple-500" />
                     {t('director.topProducts')}
                   </h3>
@@ -1596,8 +1655,8 @@ export function DirectorDashboard() {
                 </div>
 
                 {/* Categories */}
-                <div className="glass-card p-5">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                  <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-orange-500" />
                     {t('director.byCategory')}
                   </h3>
@@ -1626,17 +1685,17 @@ export function DirectorDashboard() {
               </div>
 
               {/* Bottom section */}
-              <div className="grid lg:grid-cols-2 gap-6">
+              <div className="grid lg:grid-cols-2 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
                 {/* Top Customers */}
-                <div className="glass-card p-5">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-500" />
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                  <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary-500" />
                     {t('director.topCustomers')}
                   </h3>
                   <div className="space-y-3 max-h-80 overflow-y-auto">
                     {marketplaceReport.top_customers.map((customer, idx) => (
                       <div key={customer.user_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">
+                        <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-600">
                           {idx + 1}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1656,8 +1715,8 @@ export function DirectorDashboard() {
                 </div>
 
                 {/* Couriers */}
-                <div className="glass-card p-5">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                  <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-green-500" />
                     {t('director.couriers')}
                   </h3>
@@ -1687,8 +1746,8 @@ export function DirectorDashboard() {
               </div>
 
               {/* Orders by Status pie chart */}
-              <div className="glass-card p-5">
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+              <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
+                <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-purple-500" />
                   {language === 'ru' ? 'Заказы по статусам' : 'Buyurtmalar holati'}
                 </h3>
@@ -1743,6 +1802,189 @@ export function DirectorDashboard() {
             </>
           ) : (
             <div className="text-center text-gray-400 py-20">{t('director.noData')}</div>
+          )}
+        </div>
+      )}
+
+      {/* ── RATINGS TAB ── */}
+      {activeTab === 'ratings' && (
+        <div className="space-y-4 sm:space-y-6">
+          <h2 className="text-lg font-semibold">{t('director.ukSatisfaction')}</h2>
+
+          {isLoadingRatings ? (
+            <div className="text-center text-gray-400 py-20">{t('director.loading')}</div>
+          ) : !ratingSummary?.current ? (
+            <div className="text-center text-gray-400 py-20">{t('director.noRatingsYet')}</div>
+          ) : (
+            <>
+              {/* Trend Banner */}
+              {ratingSummary.trend !== 0 && (
+                <div className={`rounded-xl p-4 flex items-center gap-3 ${
+                  ratingSummary.trend > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                }`}>
+                  {ratingSummary.trend > 0 ? (
+                    <TrendingUp className="w-6 h-6 text-green-600 shrink-0" />
+                  ) : (
+                    <TrendingDown className="w-6 h-6 text-red-600 shrink-0" />
+                  )}
+                  <div>
+                    <div className={`text-[15px] font-bold ${ratingSummary.trend > 0 ? 'text-green-800' : 'text-red-800'}`}>
+                      {ratingSummary.trend > 0 ? '+' : ''}{ratingSummary.trend.toFixed(1)}% {ratingSummary.trend > 0 ? t('director.betterThan') : t('director.worseThan')} {t('director.lastMonth')}
+                    </div>
+                    <div className={`text-[12px] ${ratingSummary.trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {t('director.vsLastMonth')}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Overall Stats Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { label: t('director.overallRating'), value: ratingSummary.current.avg_overall, color: 'primary' },
+                  { label: t('director.cleanliness'), value: ratingSummary.current.avg_cleanliness, color: 'green' },
+                  { label: t('director.responsiveness'), value: ratingSummary.current.avg_responsiveness, color: 'amber' },
+                  { label: t('director.communication'), value: ratingSummary.current.avg_communication, color: 'blue' },
+                ].map((stat, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                    <div className="text-[12px] text-gray-500 font-medium mb-1">{stat.label}</div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-[28px] font-extrabold text-gray-900">
+                        {stat.value ? Number(stat.value).toFixed(1) : '—'}
+                      </span>
+                      <span className="text-[13px] text-gray-400">/5</span>
+                    </div>
+                    {stat.value && (
+                      <div className="mt-2 flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map(s => (
+                          <Star
+                            key={s}
+                            className={`w-4 h-4 ${s <= Math.round(Number(stat.value)) ? 'text-yellow-400' : 'text-gray-200'}`}
+                            fill={s <= Math.round(Number(stat.value)) ? 'currentColor' : 'none'}
+                            strokeWidth={s <= Math.round(Number(stat.value)) ? 0 : 1.5}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <div className="text-[11px] text-gray-400 mt-1">
+                      {ratingSummary.current.count || 0} {t('director.totalVotes')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Monthly Trend Chart */}
+              {ratingSummary.monthly?.length > 1 && (
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <h3 className="text-sm font-semibold mb-3">{t('director.monthlyTrend')}</h3>
+                  <div className="h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={ratingSummary.monthly.map((m: any) => ({
+                        period: m.period,
+                        overall: Number(m.avg_overall || 0).toFixed(1),
+                        count: m.count,
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="period" tick={{ fontSize: 12 }} />
+                        <YAxis domain={[0, 5]} tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="overall" stroke="rgb(var(--brand-rgb))" fill="rgba(var(--brand-rgb), 0.1)" strokeWidth={2} name={t('director.overallRating')} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {ratingSummary.current && (
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <h3 className="text-sm font-semibold mb-3">{t('director.recommendations')}</h3>
+                  <div className="space-y-2">
+                    {(() => {
+                      const recs: { text: string; priority: 'high' | 'medium' | 'low' }[] = [];
+                      const c = ratingSummary.current;
+                      if (c.avg_responsiveness && Number(c.avg_responsiveness) < 3.5) {
+                        recs.push({
+                          text: language === 'ru'
+                            ? 'Скорость реагирования ниже среднего. Рассмотрите оптимизацию процессов обработки заявок.'
+                            : 'Javob berish tezligi o\'rtachadan past. Arizalarni ko\'rib chiqish jarayonlarini optimallashtiring.',
+                          priority: 'high'
+                        });
+                      }
+                      if (c.avg_cleanliness && Number(c.avg_cleanliness) < 3.5) {
+                        recs.push({
+                          text: language === 'ru'
+                            ? 'Оценка чистоты ниже ожидаемого. Проверьте график уборки и контроль качества.'
+                            : 'Tozalik bahosi kutilganidan past. Tozalash jadvalini va sifat nazoratini tekshiring.',
+                          priority: 'high'
+                        });
+                      }
+                      if (c.avg_communication && Number(c.avg_communication) < 3.5) {
+                        recs.push({
+                          text: language === 'ru'
+                            ? 'Коммуникация требует улучшения. Улучшите информирование жителей о работах и событиях.'
+                            : 'Muloqotni yaxshilash kerak. Aholini ishlar va tadbirlar haqida xabardor qilishni yaxshilang.',
+                          priority: 'medium'
+                        });
+                      }
+                      if (c.avg_overall && Number(c.avg_overall) >= 4.0) {
+                        recs.push({
+                          text: language === 'ru'
+                            ? 'Отличный результат! Общая оценка выше 4.0 — продолжайте в том же духе.'
+                            : 'Ajoyib natija! Umumiy baho 4.0 dan yuqori — shu tarzda davom eting.',
+                          priority: 'low'
+                        });
+                      }
+                      if (recs.length === 0) {
+                        recs.push({
+                          text: language === 'ru'
+                            ? 'Показатели в норме. Продолжайте следить за качеством обслуживания.'
+                            : 'Ko\'rsatkichlar normal. Xizmat sifatini nazorat qilishda davom eting.',
+                          priority: 'low'
+                        });
+                      }
+                      return recs.map((rec, i) => (
+                        <div key={i} className={`flex items-start gap-2.5 p-3 rounded-lg ${
+                          rec.priority === 'high' ? 'bg-red-50' : rec.priority === 'medium' ? 'bg-amber-50' : 'bg-green-50'
+                        }`}>
+                          <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${
+                            rec.priority === 'high' ? 'text-red-500' : rec.priority === 'medium' ? 'text-amber-500' : 'text-green-500'
+                          }`} />
+                          <span className="text-[13px] text-gray-700">{rec.text}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Comments */}
+              {ratingSummary.recentComments?.length > 0 && (
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <h3 className="text-sm font-semibold mb-3">{t('director.recentComments')}</h3>
+                  <div className="space-y-3">
+                    {ratingSummary.recentComments.map((comment: any, idx: number) => (
+                      <div key={idx} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map(s => (
+                              <Star
+                                key={s}
+                                className={`w-3 h-3 ${s <= comment.overall ? 'text-yellow-400' : 'text-gray-200'}`}
+                                fill={s <= comment.overall ? 'currentColor' : 'none'}
+                                strokeWidth={s <= comment.overall ? 0 : 1.5}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-[11px] text-gray-400">{comment.created_at?.slice(0, 10)}</span>
+                        </div>
+                        <p className="text-[13px] text-gray-600">{comment.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

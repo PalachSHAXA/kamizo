@@ -1,37 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, AlertCircle, X, FileText, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, X, FileText, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { AppLogo } from '../components/common/AppLogo';
 
-// Demo accounts for all roles
-const DEMO_ACCOUNTS = [
-  { login: 'director', password: 'kamizo', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-rose-600' },
-  { login: 'manager', password: 'kamizo', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-blue-500' },
-  { login: 'department_head', password: 'kamizo', role: 'department_head', labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Crown, color: 'bg-indigo-500' },
-  { login: 'resident', password: 'kamizo', role: 'resident', labelRu: 'Житель', labelUz: 'Aholi', icon: Users, color: 'bg-green-500' },
-  { login: 'executor', password: 'kamizo', role: 'executor', labelRu: 'Исполнитель', labelUz: 'Ijrochi', icon: Wrench, color: 'bg-amber-500' },
-  { login: 'dostavka', password: 'kamizo', role: 'executor', labelRu: 'Курьер', labelUz: 'Kuryer', icon: Truck, color: 'bg-orange-500' },
-  { login: 'security', password: 'kamizo', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-slate-500' },
+// Demo account definitions (without passwords — passwords filled at click time)
+type DemoAccount = { login: string; role: string; labelRu: string; labelUz: string; icon: any; color: string };
+
+const DEMO_ACCOUNTS: DemoAccount[] = [
+  { login: 'director', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-rose-600' },
+  { login: 'manager', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-blue-500' },
+  { login: 'department_head', role: 'department_head', labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Crown, color: 'bg-indigo-500' },
+  { login: 'resident', role: 'resident', labelRu: 'Житель', labelUz: 'Aholi', icon: Users, color: 'bg-green-500' },
+  { login: 'executor', role: 'executor', labelRu: 'Исполнитель', labelUz: 'Ijrochi', icon: Wrench, color: 'bg-amber-500' },
+  { login: 'dostavka', role: 'executor', labelRu: 'Курьер', labelUz: 'Kuryer', icon: Truck, color: 'bg-orange-500' },
+  { login: 'security', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-slate-500' },
 ];
 
 // Kamizo Demo tenant accounts (shown on kamizo-demo subdomain)
-const KAMIZO_DEMO_ACCOUNTS = [
-  { login: 'demo-director', password: 'kamizo', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-orange-600' },
-  { login: 'demo-manager', password: 'kamizo', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-orange-500' },
-  { login: 'demo-resident1', password: 'kamizo', role: 'resident', labelRu: 'Житель 1', labelUz: 'Aholi 1', icon: Users, color: 'bg-amber-500' },
-  { login: 'demo-resident2', password: 'kamizo', role: 'resident', labelRu: 'Житель 2', labelUz: 'Aholi 2', icon: Users, color: 'bg-amber-400' },
-  { login: 'demo-executor', password: 'kamizo', role: 'executor', labelRu: 'Сантехник', labelUz: 'Santexnik', icon: Wrench, color: 'bg-orange-400' },
-  { login: 'demo-electrician', password: 'kamizo', role: 'executor', labelRu: 'Электрик', labelUz: 'Elektrik', icon: Wrench, color: 'bg-yellow-500' },
-  { login: 'demo-security', password: 'kamizo', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-orange-700' },
-  { login: 'demo-dispatcher', password: 'kamizo', role: 'dispatcher', labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Crown, color: 'bg-amber-600' },
+const KAMIZO_DEMO_ACCOUNTS: DemoAccount[] = [
+  { login: 'demo-director', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-orange-600' },
+  { login: 'demo-manager', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-orange-500' },
+  { login: 'demo-admin', role: 'admin', labelRu: 'Администратор', labelUz: 'Administrator', icon: Crown, color: 'bg-orange-800' },
+  { login: 'demo-dept-head', role: 'department_head', labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Building2, color: 'bg-orange-700' },
+  { login: 'demo-dispatcher', role: 'dispatcher', labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Crown, color: 'bg-amber-600' },
+  { login: 'demo-shop', role: 'marketplace_manager', labelRu: 'Менеджер магазина', labelUz: 'Do\'kon menejeri', icon: Store, color: 'bg-amber-700' },
+  { login: 'demo-resident1', role: 'resident', labelRu: 'Житель (Азиза)', labelUz: 'Aholi (Aziza)', icon: Users, color: 'bg-amber-500' },
+  { login: 'demo-resident2', role: 'resident', labelRu: 'Житель (Фарход)', labelUz: 'Aholi (Farhod)', icon: Users, color: 'bg-amber-400' },
+  { login: 'demo-resident3', role: 'resident', labelRu: 'Житель (Малика)', labelUz: 'Aholi (Malika)', icon: Users, color: 'bg-yellow-500' },
+  { login: 'demo-executor', role: 'executor', labelRu: 'Сантехник', labelUz: 'Santexnik', icon: Wrench, color: 'bg-orange-400' },
+  { login: 'demo-electrician', role: 'executor', labelRu: 'Электрик', labelUz: 'Elektrik', icon: Wrench, color: 'bg-yellow-600' },
+  { login: 'demo-security', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-orange-700' },
+  { login: 'demo-tenant', role: 'tenant', labelRu: 'Арендатор', labelUz: 'Ijarachi', icon: Home, color: 'bg-yellow-700' },
 ];
-
-// Hidden accounts (not shown in demo buttons, but can login manually)
-// admin: login='admin', password='kamizo'
-// dispatcher: login='dispatcher', password='kamizo'
-// advertiser: login='advertiser', password='kamizo'
 
 // Convert hex color to rgba string
 const hexToRgba = (hex: string, alpha: number) => {
@@ -125,107 +127,102 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Language Switcher */}
-      <div className="absolute top-4 right-4 z-20">
-        <div className="flex items-center gap-1 bg-white/80 backdrop-blur-sm rounded-xl p-1 shadow-sm">
-          {languages.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => setLanguage(lang.code)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors touch-manipulation ${
-                language === lang.code
-                  ? (tenant ? 'text-white' : 'bg-orange-400 text-gray-900')
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-              style={language === lang.code && tenant ? { backgroundColor: brandColor } : undefined}
-            >
-              <span>{lang.flag}</span>
-              <span>{lang.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
+    <div className="min-h-screen min-h-dvh flex items-center justify-center px-4 py-8 sm:p-4 relative overflow-hidden bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50">
       {/* Decorative elements */}
       <div
-        className={`absolute top-20 left-20 w-72 h-72 rounded-full blur-3xl ${!tenant ? 'bg-primary-300/30' : ''}`}
-        style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.3) } : undefined}
+        className={`absolute top-20 left-20 w-72 h-72 rounded-full blur-3xl ${!tenant ? 'bg-primary-200/20' : ''}`}
+        style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.15) } : undefined}
       />
       <div
-        className={`absolute bottom-20 right-20 w-96 h-96 rounded-full blur-3xl ${!tenant ? 'bg-primary-200/40' : ''}`}
-        style={tenant ? { backgroundColor: hexToRgba(brandColor2 || brandColor, 0.35) } : undefined}
-      />
-      <div
-        className={`absolute top-1/2 left-1/3 w-64 h-64 rounded-full blur-3xl ${!tenant ? 'bg-orange-200/30' : ''}`}
-        style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.25) } : undefined}
+        className={`absolute bottom-20 right-20 w-96 h-96 rounded-full blur-3xl ${!tenant ? 'bg-primary-100/30' : ''}`}
+        style={tenant ? { backgroundColor: hexToRgba(brandColor2 || brandColor, 0.2) } : undefined}
       />
 
-      <div className="glass-card p-6 md:p-8 w-full max-w-md relative z-10">
-        {/* Logo */}
-        <div className="text-center mb-6 md:mb-8">
-          {tenant ? (
-            <div className="flex items-center justify-center gap-3">
-              {/* Tenant Logo + Name */}
-              {tenant.logo ? (
-                <img src={tenant.logo} alt={tenant.name} className="w-20 h-20 flex-shrink-0 rounded-2xl object-cover shadow-sm" />
-              ) : (
-                <div
-                  className="w-20 h-20 flex-shrink-0 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-sm"
-                  style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
-                >
-                  {tenant.name[0]}
+      <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 p-6 sm:p-8 md:p-10 w-full max-w-[400px] relative z-10">
+        {/* Logo + Language switcher row */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2.5">
+            {tenant ? (
+              <>
+                {tenant.logo ? (
+                  <img src={tenant.logo} alt={tenant.name} className="w-10 h-10 flex-shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <div
+                    className="w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center text-white font-bold text-base"
+                    style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
+                  >
+                    {tenant.name[0]}
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-[15px] font-bold leading-tight" style={{ color: '#1a1a1a' }}>{tenant.name}</h2>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mt-0.5" style={{ color: tenant.color }}>{tenant.is_demo ? 'DEMO' : (tenant.slug?.toUpperCase() || '')}</p>
                 </div>
-              )}
-              <div className="text-left">
-                <h2 className="text-lg font-bold text-gray-900 leading-tight">{tenant.name}</h2>
-                <p className="text-xs font-medium" style={{ color: brandColor }}>{language === 'ru' ? 'УК' : 'BK'}</p>
-              </div>
+              </>
+            ) : (
+              <>
+                <AppLogo size="md" forceDefault />
+                <div>
+                  <h1 className="text-[15px] font-bold text-gray-900 leading-tight">Kamizo</h1>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary-500 mt-0.5">CRM</p>
+                </div>
+              </>
+            )}
+          </div>
 
-              {/* × separator */}
-              <span className="text-gray-300 text-xl mx-1">×</span>
+          {/* Language switcher */}
+          <div className="flex items-center rounded-full p-0.5 bg-gray-50">
+            {languages.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => setLanguage(lang.code)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-sm font-semibold transition-all touch-manipulation ${
+                  language === lang.code
+                    ? 'text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+                style={language === lang.code ? { backgroundColor: tenant ? brandColor : '#f97316' } : undefined}
+              >
+                <span className="text-[12px]">{lang.flag}</span>
+                <span className="text-[12px]">{lang.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
-              {/* Kamizo Logo */}
-              <AppLogo size="xl-login" forceDefault />
-              <div className="text-left">
-                <h2 className="text-lg font-bold text-gray-900 leading-tight">kamizo</h2>
-                <p className="text-xs text-gray-400 font-medium">CRM</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-5">
-              <AppLogo size="xl" forceDefault />
-              <div className="text-left">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">kamizo</h1>
-                <p className="text-gray-500 text-sm md:text-base">{language === 'ru' ? 'Управление жильём' : 'Uy-joy boshqaruvi'}</p>
-              </div>
-            </div>
-          )}
+        {/* Welcome text */}
+        <div className="mb-5">
+          <h2 className="text-[22px] font-extrabold text-gray-900 leading-tight">
+            {language === 'ru' ? 'Добро пожаловать' : 'Xush kelibsiz'}
+          </h2>
+          <p className="text-gray-400 text-[13px] mt-1">
+            {language === 'ru' ? 'Войдите в свой аккаунт' : 'Hisobingizga kiring'}
+          </p>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5 md:mb-2">{t('auth.login')}</label>
+            <label className="block text-[10px] font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.login')}</label>
             <input
               type="text"
               value={loginValue}
               onChange={(e) => setLoginValue(e.target.value)}
               placeholder={language === 'ru' ? 'Введите логин' : 'Login kiriting'}
-              className="glass-input text-base"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5 md:mb-2">{t('auth.password')}</label>
+            <label className="block text-[10px] font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.password')}</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={language === 'ru' ? 'Введите пароль' : 'Parol kiriting'}
-                className="glass-input pr-12 text-base"
+                className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
                 required
               />
               <button
@@ -235,111 +232,117 @@ export function LoginPage() {
                   e.stopPropagation();
                   setShowPassword(!showPassword);
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-800 touch-manipulation p-2 z-10"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-800 touch-manipulation p-1.5 z-10"
                 aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
               </button>
             </div>
           </div>
 
           {displayError && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+            <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[13px]">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {displayError}
             </div>
           )}
 
-          {/* User Agreement Checkbox - Touch-friendly 44px target */}
-          <div className="flex items-start gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                if (!agreedToTerms) {
-                  setShowOfferModal(true);
-                } else {
-                  setAgreedToTerms(false);
-                }
-              }}
-              className={`flex-shrink-0 w-11 h-11 md:w-6 md:h-6 rounded-lg md:rounded border-2 flex items-center justify-center transition-colors touch-manipulation active:scale-95 ${
+          {/* User Agreement Checkbox */}
+          <div
+            className="flex items-start gap-2.5 pt-1 cursor-pointer"
+            onClick={() => {
+              if (!agreedToTerms) {
+                setShowOfferModal(true);
+              } else {
+                setAgreedToTerms(false);
+              }
+            }}
+          >
+            <div
+              className={`flex-shrink-0 rounded border-[1.5px] flex items-center justify-center transition-all ${
                 agreedToTerms
-                  ? (tenant ? '' : 'bg-orange-400 border-orange-400')
-                  : (tenant ? 'bg-white/50' : 'border-gray-300 hover:border-orange-400 bg-white/50')
+                  ? (tenant ? 'border-transparent' : 'bg-primary-500 border-primary-500')
+                  : 'border-gray-300 bg-white'
               }`}
-              style={agreedToTerms && tenant ? { backgroundColor: brandColor, borderColor: brandColor } : (!agreedToTerms && tenant ? { borderColor: '#d1d5db' } : undefined)}
+              style={{
+                width: 18,
+                height: 18,
+                minWidth: 18,
+                minHeight: 18,
+                maxWidth: 18,
+                maxHeight: 18,
+                marginTop: 2,
+                ...(agreedToTerms && tenant ? { backgroundColor: brandColor, borderColor: brandColor } : {}),
+              }}
             >
-              {agreedToTerms && <Check className="w-5 h-5 md:w-4 md:h-4 text-gray-800" />}
-            </button>
-            <div className="text-sm text-gray-600">
-              {language === 'ru' ? (
-                <>
-                  Я согласен с условиями{' '}
-                  <button
-                    type="button"
-                    onClick={() => setShowOfferModal(true)}
-                    className={`${tenant ? '' : 'text-orange-600 hover:text-orange-700'} underline font-medium touch-manipulation`}
-                    style={tenant ? { color: brandColor } : undefined}
-                  >
-                    публичной оферты
-                  </button>
-                </>
-              ) : (
-                <>
-                  Men{' '}
-                  <button
-                    type="button"
-                    onClick={() => setShowOfferModal(true)}
-                    className={`${tenant ? '' : 'text-orange-600 hover:text-orange-700'} underline font-medium touch-manipulation`}
-                    style={tenant ? { color: brandColor } : undefined}
-                  >
-                    ommaviy oferta
-                  </button>
-                  {' '}shartlariga roziman
-                </>
-              )}
+              {agreedToTerms && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
             </div>
+            <span className="text-[12px] text-gray-500 leading-relaxed">
+              {language === 'ru' ? 'Я согласен с условиями' : 'Men'}{' '}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowOfferModal(true); }}
+                className="underline font-medium touch-manipulation"
+                style={{ color: tenant ? brandColor : 'var(--color-primary-600)' }}
+              >
+                {language === 'ru' ? 'публичной оферты' : 'ommaviy oferta'}
+              </button>
+              {language === 'uz' ? ' shartlariga roziman' : ''}
+            </span>
           </div>
 
           <button
             type="submit"
             disabled={authLoading || !agreedToTerms}
-            className={`${tenant ? 'text-white font-semibold rounded-xl' : 'btn-primary'} w-full text-center disabled:opacity-50 py-3 text-base touch-manipulation`}
-            style={tenant ? { background: `linear-gradient(135deg, ${brandColor}, ${brandColor2 || brandColor})` } : undefined}
+            className={`w-full text-center py-3.5 min-h-[48px] text-[15px] font-semibold rounded-xl transition-all active:scale-[0.98] touch-manipulation ${
+              !agreedToTerms
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : tenant
+                  ? 'text-white shadow-lg'
+                  : 'bg-primary-500 text-white shadow-lg shadow-primary-200/50 hover:bg-primary-600'
+            }`}
+            style={agreedToTerms && tenant ? { background: `linear-gradient(135deg, ${brandColor}, ${brandColor2 || brandColor})`, boxShadow: `0 8px 24px ${hexToRgba(brandColor, 0.35)}` } : undefined}
           >
-            {authLoading ? (language === 'ru' ? 'Вход...' : 'Kirish...') : t('auth.enter')}
+            {authLoading ? (language === 'ru' ? 'Вход...' : 'Kirish...') : (language === 'ru' ? 'Войти' : 'Kirish')}
           </button>
         </form>
 
-        {/* Demo Accounts Section - main domain or kamizo-demo tenant */}
-        {(!tenant || tenant.slug === 'kamizo-demo') && (
+        {/* Footer text */}
+        <p className="text-center text-[11px] text-gray-300 mt-4">
+          {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'} · Kamizo CRM
+        </p>
+
+        {/* Demo Accounts Section - only on demo tenants (is_demo flag) */}
+        {tenant?.is_demo && (
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center mb-3">
               {language === 'ru' ? 'Демо-входы для тестирования:' : 'Test uchun demo-kirish:'}
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {(tenant?.slug === 'kamizo-demo' ? KAMIZO_DEMO_ACCOUNTS : DEMO_ACCOUNTS).map((account) => {
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2 lg:grid-cols-4 md:gap-3">
+              {(tenant?.is_demo ? KAMIZO_DEMO_ACCOUNTS : DEMO_ACCOUNTS).map((account) => {
                 const Icon = account.icon;
+                const isDemoTenant = tenant?.is_demo;
                 return (
                   <button
                     key={account.login}
                     type="button"
                     onClick={() => {
                       setLoginValue(account.login);
-                      setPassword(account.password);
+                      setPassword('kamizo');
                       if (!agreedToTerms) {
                         setShowOfferModal(true);
                       }
                     }}
-                    className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-left"
-                    style={tenant?.slug === 'kamizo-demo' ? { backgroundColor: hexToRgba(brandColor || '#f97316', 0.08) } : undefined}
+                    className="flex items-center gap-2 px-2.5 py-2 min-h-[40px] sm:min-h-[44px] bg-gray-50 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-left"
+                    style={isDemoTenant ? { backgroundColor: hexToRgba(brandColor || '#f97316', 0.08) } : undefined}
                   >
                     <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${!tenant ? account.color : ''}`}
-                      style={tenant?.slug === 'kamizo-demo' ? { background: `linear-gradient(135deg, ${brandColor || '#f97316'}, ${brandColor2 || brandColor || '#fb923c'})` } : undefined}
+                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${!isDemoTenant ? account.color : ''}`}
+                      style={isDemoTenant ? { background: `linear-gradient(135deg, ${brandColor || '#f97316'}, ${brandColor2 || brandColor || '#fb923c'})` } : undefined}
                     >
-                      <Icon className="w-4 h-4 text-white" />
+                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
-                    <span className="text-xs font-medium text-gray-700 truncate">
+                    <span className="text-[11px] sm:text-xs font-medium text-gray-700 truncate leading-tight">
                       {language === 'ru' ? account.labelRu : account.labelUz}
                     </span>
                   </button>
@@ -352,8 +355,12 @@ export function LoginPage() {
 
       {/* Public Offer Modal */}
       {showOfferModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowOfferModal(false)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Drag handle for mobile */}
+            <div className="sm:hidden flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -532,14 +539,14 @@ export function LoginPage() {
                 <div className="flex gap-2 sm:gap-3">
                   <button
                     onClick={() => setShowOfferModal(false)}
-                    className="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-sm sm:text-base"
+                    className="flex-1 sm:flex-none px-4 py-3 sm:py-2.5 min-h-[44px] text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-sm sm:text-base"
                   >
                     {language === 'ru' ? 'Закрыть' : 'Yopish'}
                   </button>
                   <button
                     onClick={handleAcceptOffer}
                     disabled={!canAcceptOffer}
-                    className={`flex-1 sm:flex-none px-6 py-3 sm:py-2 rounded-xl font-medium transition-colors touch-manipulation text-sm sm:text-base ${
+                    className={`flex-1 sm:flex-none px-6 py-3 sm:py-2.5 min-h-[44px] rounded-xl font-medium transition-colors touch-manipulation text-sm sm:text-base ${
                       canAcceptOffer
                         ? (tenant ? 'text-white' : 'bg-orange-400 hover:bg-orange-500 active:bg-orange-600 text-gray-900')
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'

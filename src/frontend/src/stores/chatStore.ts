@@ -54,50 +54,12 @@ const createDefaultChannels = (): ChatChannel[] => {
   ];
 };
 
-// Demo messages
-const createDemoMessages = (): ChatMessage[] => {
-  const now = new Date();
-
-  return [
-    {
-      id: 'demo-msg-1',
-      channelId: 'uk-general',
-      senderId: 'admin1',
-      senderName: 'Администратор',
-      senderRole: 'admin',
-      content: 'Добро пожаловать в общий чат! Здесь вы можете общаться с соседями и получать важные уведомления от УК.',
-      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
-      readBy: ['admin1'],
-    },
-    {
-      id: 'demo-msg-2',
-      channelId: 'uk-general',
-      senderId: 'resident1',
-      senderName: 'Иванов Иван Иванович',
-      senderRole: 'resident',
-      senderApartment: '42',
-      content: 'Здравствуйте! Подскажите, когда будут проводить уборку в подъезде?',
-      createdAt: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
-      readBy: ['resident1', 'admin1'],
-    },
-    {
-      id: 'demo-msg-3',
-      channelId: 'uk-general',
-      senderId: 'manager1',
-      senderName: 'Менеджер Акаунтов',
-      senderRole: 'manager',
-      content: 'Уборка проводится ежедневно в утренние часы с 8:00 до 10:00. Если есть замечания по качеству, пожалуйста, создайте заявку через приложение.',
-      createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
-      readBy: ['manager1', 'admin1'],
-    },
-  ];
-};
 
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
       channels: createDefaultChannels(),
-      messages: createDemoMessages(),
+      messages: [],
 
       createChannel: (data) => {
         const newChannel: ChatChannel = {
@@ -326,7 +288,7 @@ export const useChatStore = create<ChatState>()(
         return {
           ...currentState,
           channels: [...existingChannels, ...missingDefaults],
-          messages: persisted.messages || createDemoMessages(),
+          messages: persisted.messages || [],
         };
       },
     }

@@ -34,7 +34,7 @@ const mapPartnerFromApi = (p: any): Partner => ({
   bio: p.bio,
   avatarUrl: p.avatar_url,
   isActive: p.is_active === 1 || p.is_active === true,
-  trainingsСonducted: p.trainings_conducted,
+  trainingsConducted: p.trainings_conducted,
   averageRating: p.average_rating,
 });
 
@@ -275,7 +275,7 @@ export const useTrainingStore = create<TrainingState>()(
         set({ isLoadingPartners: true });
         try {
           const response = await trainingPartnersApi.getAll(activeOnly);
-          set({ partners: response.partners.map(mapPartnerFromApi) });
+          set({ partners: (response.partners || []).map(mapPartnerFromApi) });
         } catch (error) {
           console.error('Failed to fetch partners:', error);
         } finally {
@@ -315,7 +315,7 @@ export const useTrainingStore = create<TrainingState>()(
         set({ isLoadingProposals: true });
         try {
           const response = await trainingProposalsApi.getAll(options);
-          set({ proposals: response.proposals.map(mapProposalFromApi) });
+          set({ proposals: (response.proposals || []).map(mapProposalFromApi) });
         } catch (error) {
           console.error('Failed to fetch proposals:', error);
         } finally {
@@ -537,7 +537,7 @@ export const useTrainingStore = create<TrainingState>()(
         set({ isLoadingNotifications: true });
         try {
           const response = await trainingNotificationsApi.getAll(unreadOnly);
-          set({ notifications: response.notifications.map(mapNotificationFromApi) });
+          set({ notifications: (response.notifications || []).map(mapNotificationFromApi) });
         } catch (error) {
           console.error('Failed to fetch notifications:', error);
         } finally {

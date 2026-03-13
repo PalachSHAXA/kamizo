@@ -76,11 +76,12 @@ export function RequestsPage() {
     }
     switch (req.status) {
       case 'new': return <span className="badge badge-new">{language === 'ru' ? 'Новая' : 'Yangi'}</span>;
-      case 'assigned': return <span className="badge bg-indigo-100 text-indigo-700">{language === 'ru' ? 'Назначена' : 'Tayinlandi'}</span>;
+      case 'assigned': return <span className="badge bg-orange-100 text-orange-700">{language === 'ru' ? 'Назначена' : 'Tayinlandi'}</span>;
       case 'accepted': return <span className="badge bg-cyan-100 text-cyan-700">{language === 'ru' ? 'Принята' : 'Qabul qilindi'}</span>;
       case 'in_progress': return <span className="badge badge-progress">{language === 'ru' ? 'В работе' : 'Jarayonda'}</span>;
       case 'pending_approval': return <span className="badge bg-purple-100 text-purple-700">{language === 'ru' ? 'Ожидает подтверждения' : 'Tasdiqlash kutilmoqda'}</span>;
       case 'completed': return <span className="badge badge-done">{language === 'ru' ? 'Выполнена' : 'Bajarildi'}</span>;
+      case 'cancelled': return <span className="badge bg-red-100 text-red-700">{language === 'ru' ? 'Отменена' : 'Bekor qilindi'}</span>;
       default: return <span className="badge">{req.status}</span>;
     }
   };
@@ -107,10 +108,10 @@ export function RequestsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             {isDepartmentHead
               ? (language === 'ru' ? 'Заявки отдела' : 'Bo\'lim arizalari')
               : (language === 'ru' ? 'Заявки' : 'Arizalar')}
@@ -124,7 +125,7 @@ export function RequestsPage() {
         {canCreateRequest && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn-primary flex items-center gap-2"
+            className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation active:scale-95"
           >
             <Plus className="w-5 h-5" />
             <span className="hidden sm:inline">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</span>
@@ -133,7 +134,7 @@ export function RequestsPage() {
       </div>
 
       {/* Filters */}
-      <div className="glass-card p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+      <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -172,14 +173,14 @@ export function RequestsPage() {
       ) : (
       <div className="space-y-3">
         {filteredRequests.map((req) => (
-          <div key={req.id} className="glass-card p-4 sm:p-5">
+          <div key={req.id} className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div className="flex gap-3 sm:gap-4 min-w-0">
                 <div className={`w-3 h-3 mt-1.5 rounded-full flex-shrink-0 ${req.priority === 'urgent' ? 'bg-red-500' : req.priority === 'high' ? 'bg-orange-500' : req.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`}></div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs sm:text-sm text-gray-500 flex-shrink-0">#{req.number}</span>
-                    <h3 className="font-semibold text-base sm:text-lg">{req.title}</h3>
+                    <h3 className="font-semibold text-base sm:text-lg truncate max-w-[250px] sm:max-w-none">{req.title}</h3>
                     {getStatusBadge(req)}
                   </div>
                   <div className="text-sm text-gray-600 mt-1">
@@ -189,7 +190,7 @@ export function RequestsPage() {
                   {req.category === 'trash' && (
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {req.title.includes(': ') && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
                           {TRASH_TYPES.find(t => req.title.endsWith(t.label))?.icon || '🗑️'} {req.title.split(': ').slice(1).join(': ')}
                         </span>
                       )}
@@ -240,7 +241,7 @@ export function RequestsPage() {
                 <div className="flex sm:flex-shrink-0">
                   <button
                     onClick={() => setShowAssignModal(req.id)}
-                    className="btn-primary text-sm py-2 px-4 w-full sm:w-auto"
+                    className="btn-primary text-sm py-2 px-4 min-h-[44px] touch-manipulation active:scale-95 w-full sm:w-auto"
                   >
                     {language === 'ru' ? 'Назначить' : 'Tayinlash'}
                   </button>
@@ -254,9 +255,9 @@ export function RequestsPage() {
 
       {/* Assign Modal */}
       {showAssignModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-bold mb-4">{language === 'ru' ? 'Назначить исполнителя' : 'Ijrochini tayinlash'}</h2>
+        <div className="modal-backdrop items-end sm:items-center">
+          <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 rounded-t-2xl sm:rounded-2xl">
+            <h2 className="text-lg sm:text-xl font-bold mb-4">{language === 'ru' ? 'Назначить исполнителя' : 'Ijrochini tayinlash'}</h2>
             <div className="space-y-3">
               {departmentExecutors.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">{language === 'ru' ? 'Загрузка исполнителей...' : 'Ijrochilar yuklanmoqda...'}</p>
@@ -268,7 +269,7 @@ export function RequestsPage() {
                       assignRequest(showAssignModal, executor.id);
                       setShowAssignModal(null);
                     }}
-                    className="w-full p-4 bg-white/30 hover:bg-white/50 rounded-xl text-left transition-colors"
+                    className="w-full p-4 min-h-[44px] touch-manipulation active:scale-[0.98] bg-white/30 hover:bg-white/50 rounded-lg sm:rounded-xl text-left transition-colors"
                   >
                     <div className="font-medium">{executor.name}</div>
                     <div className="text-sm text-gray-500">
@@ -280,7 +281,7 @@ export function RequestsPage() {
             </div>
             <button
               onClick={() => setShowAssignModal(null)}
-              className="btn-secondary w-full mt-4"
+              className="btn-secondary w-full mt-4 min-h-[44px] touch-manipulation active:scale-95"
             >
               {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>
@@ -584,11 +585,11 @@ function CreateRequestModal({
   const selectedBuildingData = buildings.find(b => b.id === selectedBuilding);
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="modal-backdrop items-end sm:items-center">
+      <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+          <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</h2>
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>

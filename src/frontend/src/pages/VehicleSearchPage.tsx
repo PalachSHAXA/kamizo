@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, AlertTriangle, QrCode } from 'lucide-react';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { apiRequest } from '../services/api';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
 
@@ -357,21 +358,34 @@ function validatePlateNumber(parts: { region: string; letters1: string; digits: 
   return parts.letters1.length === 1 && parts.digits.length === 3 && parts.letters2.length === 2;
 }
 
+// Guest vehicle result shape (from guestAccessCodes with vehicle plate)
+interface GuestVehicleResult {
+  plateNumber: string;
+  residentName: string;
+  residentApartment: string;
+  residentPhone: string;
+  residentAddress: string;
+  visitorType: string;
+  validUntil: string;
+  status: string;
+}
+
 export function VehicleSearchPage() {
-  const { vehicles, addVehicle, updateVehicle, deleteVehicle, fetchVehicles } = useDataStore();
+  const { vehicles, addVehicle, updateVehicle, deleteVehicle, fetchVehicles, guestAccessCodes, fetchGuestCodes } = useDataStore();
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
 
   // Fetch ALL vehicles from D1 database on mount (for staff search page)
   useEffect(() => {
-    // Pass true to get all vehicles (staff endpoint)
     fetchVehicles(true);
+    fetchGuestCodes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [searchPlateParts, setSearchPlateParts] = useState({ region: '', letters1: '', digits: '', letters2: '' });
   const [searchResult, setSearchResult] = useState<Vehicle | null>(null);
   const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
+  const [guestVehicleResults, setGuestVehicleResults] = useState<GuestVehicleResult[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [showAllVehicles, setShowAllVehicles] = useState(false);
 
@@ -434,65 +448,92 @@ export function VehicleSearchPage() {
     }
   }, [selectedOwnerType]);
 
-  // Filter vehicles based on search plate parts
+  // Search vehicles via API based on search plate parts
   useEffect(() => {
     const { region, letters1, digits, letters2 } = searchPlateParts;
     const hasInput = region || letters1 || digits || letters2;
 
     if (!hasInput) {
       setFilteredVehicles([]);
+      setGuestVehicleResults([]);
       setSearchResult(null);
       setHasSearched(false);
       return;
     }
 
-    // Build search pattern - combine all parts that user entered
-    const searchPattern = `${region}${letters1}${digits}${letters2}`.toUpperCase();
+    // Build search query from all parts
+    const searchQuery = `${region}${letters1}${digits}${letters2}`.toUpperCase();
 
-    const filtered = vehicles.filter(v => {
-      const cleanPlate = v.plateNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (searchQuery.length < 1) return;
 
-      // Simple contains check - if the plate contains search pattern
-      if (searchPattern && cleanPlate.includes(searchPattern)) {
-        return true;
+    // Search guest access codes for matching vehicle plates
+    const matchedGuests: GuestVehicleResult[] = (guestAccessCodes || [])
+      .filter(c => c.visitorVehiclePlate && c.visitorVehiclePlate.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(searchQuery))
+      .map(c => ({
+        plateNumber: c.visitorVehiclePlate!,
+        residentName: c.residentName,
+        residentApartment: c.residentApartment,
+        residentPhone: c.residentPhone,
+        residentAddress: c.residentAddress,
+        visitorType: c.visitorType,
+        validUntil: c.validUntil,
+        status: c.status,
+      }));
+    setGuestVehicleResults(matchedGuests);
+
+    // Search via API for accurate results across all vehicles
+    const doSearch = async () => {
+      try {
+        const res = await apiRequest<{ vehicles: any[] }>(`/api/vehicles/search?q=${encodeURIComponent(searchQuery)}`);
+        const mapped: Vehicle[] = (res.vehicles || []).map((v: any) => ({
+          id: v.id,
+          ownerId: v.user_id,
+          ownerName: v.owner_name || '',
+          ownerPhone: v.owner_phone || '',
+          apartment: v.apartment || '',
+          address: v.address || '',
+          plateNumber: v.plate_number,
+          brand: v.brand || '',
+          model: v.model || '',
+          color: v.color || '',
+          year: v.year || undefined,
+          type: (v.vehicle_type || 'car') as Vehicle['type'],
+          ownerType: (v.owner_type || 'individual') as Vehicle['ownerType'],
+          companyName: v.company_name || undefined,
+          parkingSpot: v.parking_spot || undefined,
+          notes: v.notes || undefined,
+          createdAt: v.created_at,
+          updatedAt: v.updated_at || undefined,
+        }));
+
+        setFilteredVehicles(mapped);
+        setHasSearched(true);
+
+        if (mapped.length === 1 && matchedGuests.length === 0) {
+          setSearchResult(mapped[0]);
+        } else {
+          setSearchResult(null);
+        }
+      } catch {
+        // Fallback to local search
+        const filtered = vehicles.filter(v => {
+          const cleanPlate = v.plateNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          return cleanPlate.includes(searchQuery);
+        });
+        setFilteredVehicles(filtered);
+        setHasSearched(true);
+        if (filtered.length === 1 && matchedGuests.length === 0) {
+          setSearchResult(filtered[0]);
+        } else {
+          setSearchResult(null);
+        }
       }
+    };
 
-      // Also check each part individually for more flexible matching
-      let matches = true;
-
-      if (region) {
-        matches = matches && cleanPlate.startsWith(region);
-      }
-
-      if (letters1) {
-        // letters1 should be at position 2 for individual format (01A123EA)
-        const charAtPos2 = cleanPlate.charAt(2);
-        matches = matches && charAtPos2 === letters1;
-      }
-
-      if (digits) {
-        // Check if digits appear in the plate
-        matches = matches && cleanPlate.includes(digits);
-      }
-
-      if (letters2) {
-        // Check if letters2 appears at the end
-        matches = matches && cleanPlate.endsWith(letters2);
-      }
-
-      return matches;
-    });
-
-    setFilteredVehicles(filtered);
-    setHasSearched(true);
-
-    // Auto-select if exactly one match
-    if (filtered.length === 1) {
-      setSearchResult(filtered[0]);
-    } else {
-      setSearchResult(null);
-    }
-  }, [searchPlateParts, vehicles]);
+    // Debounce search
+    const timer = setTimeout(doSearch, 300);
+    return () => clearTimeout(timer);
+  }, [searchPlateParts, vehicles, guestAccessCodes]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -572,11 +613,11 @@ export function VehicleSearchPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl md:text-2xl font-bold flex items-center gap-3">
-          <Search className="w-7 h-7 text-blue-500" />
+        <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold flex items-center gap-3">
+          <Search className="w-7 h-7 text-primary-500" />
           {language === 'ru' ? 'Поиск автомобилей' : 'Avtomobil qidirish'}
         </h1>
         <div className="flex items-center gap-3">
@@ -586,7 +627,7 @@ export function VehicleSearchPage() {
           {isManager && (
             <button
               onClick={() => handleOpenModal()}
-              className="btn-primary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation"
             >
               <Plus className="w-5 h-5" />
               <span className="hidden sm:inline">
@@ -617,6 +658,7 @@ export function VehicleSearchPage() {
               onClick={() => {
                 setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
                 setFilteredVehicles([]);
+                setGuestVehicleResults([]);
                 setSearchResult(null);
                 setHasSearched(false);
               }}
@@ -684,6 +726,51 @@ export function VehicleSearchPage() {
         </div>
       )}
 
+      {/* Guest Vehicle Results */}
+      {hasSearched && guestVehicleResults.length > 0 && (
+        <div className="glass-card p-4 border-2 border-amber-200 bg-amber-50/50">
+          <h3 className="font-medium text-amber-700 mb-3 flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-amber-500" />
+            {language === 'ru' ? 'Гостевые авто (по пропускам)' : 'Mehmon avtolari (ruxsatnomalar bo\'yicha)'}
+            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 text-sm">
+              {guestVehicleResults.length}
+            </span>
+          </h3>
+          <div className="space-y-2">
+            {guestVehicleResults.map((g, i) => (
+              <div key={i} className="flex items-center justify-between p-3 bg-white rounded-xl border border-amber-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <Car className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 tracking-wider">{formatPlateDisplay(g.plateNumber)}</p>
+                    <p className="text-xs text-amber-700 font-medium">
+                      {language === 'ru' ? 'Гость' : 'Mehmon'} • {new Date(g.validUntil) > new Date()
+                        ? (language === 'ru' ? '✓ Активен' : '✓ Faol')
+                        : (language === 'ru' ? '✗ Истёк' : '✗ Tugagan')}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-600">{g.residentName}</p>
+                  {g.residentApartment && (
+                    <p className="text-xs text-gray-400">
+                      {language === 'ru' ? 'Кв.' : 'Kv.'} {g.residentApartment}
+                    </p>
+                  )}
+                  {g.residentPhone && (
+                    <a href={`tel:${g.residentPhone}`} className="text-xs text-primary-600 hover:underline">
+                      {g.residentPhone}
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Search Result */}
       {searchResult && (
         <div className="space-y-4">
@@ -736,8 +823,8 @@ export function VehicleSearchPage() {
                       }`}>
                         {getOwnerTypeIcon(searchResult.ownerType)}
                         {language === 'ru'
-                          ? VEHICLE_OWNER_TYPE_LABELS[searchResult.ownerType].label
-                          : VEHICLE_OWNER_TYPE_LABELS[searchResult.ownerType].labelUz}
+                          ? (VEHICLE_OWNER_TYPE_LABELS[searchResult.ownerType]?.label ?? searchResult.ownerType)
+                          : (VEHICLE_OWNER_TYPE_LABELS[searchResult.ownerType]?.labelUz ?? searchResult.ownerType)}
                       </span>
                     )}
                   </div>
@@ -751,8 +838,8 @@ export function VehicleSearchPage() {
                         <p className="text-xs text-gray-500">{language === 'ru' ? 'Тип транспорта' : 'Transport turi'}</p>
                         <p className="font-medium">
                           {language === 'ru'
-                            ? VEHICLE_TYPE_LABELS[searchResult.type].label
-                            : VEHICLE_TYPE_LABELS[searchResult.type].labelUz}
+                            ? (VEHICLE_TYPE_LABELS[searchResult.type]?.label ?? searchResult.type)
+                            : (VEHICLE_TYPE_LABELS[searchResult.type]?.labelUz ?? searchResult.type)}
                         </p>
                       </div>
                     </div>
@@ -860,7 +947,7 @@ export function VehicleSearchPage() {
       )}
 
       {/* Not Found State */}
-      {hasSearched && filteredVehicles.length === 0 && (searchPlateParts.region || searchPlateParts.digits) && (
+      {hasSearched && filteredVehicles.length === 0 && guestVehicleResults.length === 0 && (searchPlateParts.region || searchPlateParts.digits) && (
         <div className="glass-card p-8 text-center border-2 border-red-200 bg-red-50/50">
           <AlertCircle className="w-12 h-12 mx-auto text-red-400 mb-3" />
           <h3 className="text-lg font-semibold text-red-700 mb-2">
@@ -960,17 +1047,17 @@ export function VehicleSearchPage() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl bg-white rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold">
+              <h2 className="text-base sm:text-lg font-bold">
                 {editingVehicle
                   ? (language === 'ru' ? 'Редактировать авто' : 'Avtoni tahrirlash')
                   : (language === 'ru' ? 'Добавить служебное авто' : 'Xizmat avtosini qo\'shish')}
               </h2>
               <button
                 onClick={() => { setShowModal(false); resetForm(); }}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1141,12 +1228,12 @@ export function VehicleSearchPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-6 max-w-sm w-full">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
               <AlertTriangle className="w-6 h-6 text-red-500" />
             </div>
-            <h3 className="text-lg font-bold text-center mb-2">
+            <h3 className="text-base sm:text-lg font-bold text-center mb-2">
               {language === 'ru' ? 'Удалить автомобиль?' : 'Avtomobilni o\'chirish?'}
             </h3>
             <p className="text-gray-500 text-center text-sm mb-6">
@@ -1155,13 +1242,13 @@ export function VehicleSearchPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-3 px-4 rounded-xl font-medium bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
               >
                 {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
               </button>
               <button
                 onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 transition-colors"
+                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 active:bg-red-700 transition-colors touch-manipulation"
               >
                 {language === 'ru' ? 'Удалить' : 'O\'chirish'}
               </button>

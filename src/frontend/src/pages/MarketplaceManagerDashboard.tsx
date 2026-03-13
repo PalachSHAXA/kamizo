@@ -50,6 +50,42 @@ const CATEGORY_ICONS: Record<string, string> = {
   cat_snacks: '🍿',
 };
 
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  cat_groceries: 'from-amber-400 to-orange-500',
+  cat_beverages: 'from-cyan-400 to-blue-500',
+  cat_household: 'from-violet-400 to-purple-500',
+  cat_personal: 'from-pink-400 to-rose-500',
+};
+
+const PRODUCT_EMOJI: Record<string, string> = {
+  'соль': '🧂', 'сахар': '🍬', 'масло': '🫒', 'рис': '🍚', 'макарон': '🍝',
+  'мука': '🌾', 'чай': '🍵', 'вода': '💧', 'сок': '🍊', 'молоко': '🥛',
+  'шампунь': '🧴', 'гель': '🚿', 'мыло': '🧼', 'зубн': '🪥', 'дезодорант': '✨',
+  'бумаг': '🧻', 'посуд': '🍽️', 'стирал': '👕', 'пол': '🧹', 'стёкол': '🪟',
+  'мусор': '🗑️', 'губк': '🧽', 'перчатк': '🧤', 'смесител': '🚰', 'подводк': '🔧',
+  'выключател': '⚡', 'ламп': '💡',
+};
+
+function getProductEmoji(name: string, categoryId: string): string {
+  const lower = name.toLowerCase();
+  for (const [key, emoji] of Object.entries(PRODUCT_EMOJI)) {
+    if (lower.includes(key)) return emoji;
+  }
+  return CATEGORY_ICONS[categoryId] || '📦';
+}
+
+function ProductCardPlaceholder({ name, categoryId, size = 'sm' }: { name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' }) {
+  const gradient = CATEGORY_GRADIENTS[categoryId] || 'from-gray-400 to-gray-500';
+  const emoji = getProductEmoji(name, categoryId);
+  const emojiSize = { xs: 'text-lg', sm: 'text-xl', md: 'text-2xl' }[size];
+  return (
+    <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden`}>
+      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, white 0%, transparent 50%)' }} />
+      <span className={`${emojiSize} drop-shadow-md relative z-10`}>{emoji}</span>
+    </div>
+  );
+}
+
 export function MarketplaceManagerDashboard() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
@@ -302,7 +338,7 @@ export function MarketplaceManagerDashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-3 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 sm:p-4">
         <div className="bg-white rounded-xl p-3 shadow-sm">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-primary-100 rounded-lg">
@@ -366,7 +402,7 @@ export function MarketplaceManagerDashboard() {
       </div>
 
       {/* Content */}
-      <div className="p-4 pb-20">
+      <div className="p-4 pb-24">
         {/* Products Tab */}
         {activeTab === 'products' && (
           <div>
@@ -386,7 +422,7 @@ export function MarketplaceManagerDashboard() {
                   resetProductForm();
                   setShowProductModal(true);
                 }}
-                className="px-4 py-2.5 bg-primary-600 text-white rounded-xl font-medium flex items-center gap-2"
+                className="px-4 py-2.5 min-h-[44px] touch-manipulation active:scale-95 bg-primary-600 text-white rounded-lg sm:rounded-xl font-medium flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
               </button>
@@ -428,7 +464,7 @@ export function MarketplaceManagerDashboard() {
                       {product.image_url ? (
                         <img src={product.image_url} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-2xl">{CATEGORY_ICONS[product.category_id] || '📦'}</span>
+                        <ProductCardPlaceholder name={language === 'ru' ? product.name_ru : product.name_uz} categoryId={product.category_id} size="sm" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -611,8 +647,8 @@ export function MarketplaceManagerDashboard() {
 
       {/* Product Modal */}
       {showProductModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
                 {editingProduct
@@ -891,8 +927,8 @@ export function MarketplaceManagerDashboard() {
 
       {/* Stock Update Modal */}
       {showStockModal && stockProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="font-bold text-lg">
                 {language === 'ru' ? 'Обновить склад' : 'Omborni yangilash'}

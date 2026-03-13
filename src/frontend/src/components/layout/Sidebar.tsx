@@ -5,7 +5,7 @@ import {
   LogOut, User, Home, Shield, BarChart3,
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
-  X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package
+  X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -14,6 +14,7 @@ import { useMeetingStore } from '../../stores/meetingStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { AppLogo } from '../common/AppLogo';
 import { chatApi } from '../../services/api';
+import { FeatureLockedModal } from '../FeatureLockedModal';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -25,10 +26,51 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuthStore();
   const { t, language } = useLanguageStore();
-  const { requests, announcements, executors, getAnnouncementsForEmployees } = useDataStore();
+  const { requests, announcements, executors, getAnnouncementsForEmployees, getAnnouncementsForResidents } = useDataStore();
   const { meetings } = useMeetingStore();
   const { hasFeature, config } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';
+  const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
+
+  // Swipe to close sidebar
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchCurrentX, setTouchCurrentX] = useState<number | null>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+    setTouchCurrentX(e.touches[0].clientX);
+    setIsSwiping(false);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchStartX === null) return;
+    const currentX = e.touches[0].clientX;
+    const diff = touchStartX - currentX;
+    // Only track left swipes (closing)
+    if (diff > 10) {
+      setIsSwiping(true);
+      setTouchCurrentX(currentX);
+    }
+  }, [touchStartX]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (touchStartX !== null && touchCurrentX !== null && isSwiping) {
+      const swipeDistance = touchStartX - touchCurrentX;
+      // Close if swiped more than 80px to the left
+      if (swipeDistance > 80) {
+        onClose();
+      }
+    }
+    setTouchStartX(null);
+    setTouchCurrentX(null);
+    setIsSwiping(false);
+  }, [touchStartX, touchCurrentX, isSwiping, onClose]);
+
+  // Calculate swipe offset for visual feedback
+  const swipeOffset = isSwiping && touchStartX !== null && touchCurrentX !== null
+    ? Math.max(0, touchStartX - touchCurrentX)
+    : 0;
 
   // Chat unread count state
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
@@ -37,7 +79,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const fetchChatUnreadCount = useCallback(async () => {
     if (!user) return;
     // Only fetch for users who have chat access
-    if (!['admin', 'manager', 'resident'].includes(user.role)) return;
+    if (!['admin', 'manager', 'director', 'department_head', 'executor', 'security', 'resident'].includes(user.role)) return;
 
     try {
       const response = await chatApi.getUnreadCount();
@@ -47,10 +89,10 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
   }, [user]);
 
-  // Initial fetch and polling every 10 seconds
+  // Initial fetch and polling every 30 seconds (WebSocket handles real-time)
   useEffect(() => {
     fetchChatUnreadCount();
-    const interval = setInterval(fetchChatUnreadCount, 10000);
+    const interval = setInterval(fetchChatUnreadCount, 30000);
     return () => clearInterval(interval);
   }, [fetchChatUnreadCount]);
 
@@ -99,8 +141,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const badges = useMemo(() => {
     if (!user) return {};
 
-    // For executors
-    if (user.role === 'executor') {
+    // For executors and security
+    if (user.role === 'executor' || user.role === 'security') {
       const currentExecutor = executors.find(e => e.login === user.login);
       const mySpecialization = currentExecutor?.specialization || user.specialization;
 
@@ -123,6 +165,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       return {
         '/': availableRequestsCount + assignedRequestsCount,
         '/announcements': unreadAnnouncementsCount,
+        '/chat': chatUnreadCount,
       };
     }
 
@@ -133,9 +176,12 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         r.residentId === user.id && !['completed', 'closed', 'cancelled'].includes(r.status)
       ).length;
 
-      // Count unread announcements
-      const unreadAnnouncementsCount = announcements.filter(a =>
-        a.isActive && !a.viewedBy?.includes(user.id) && (a.type === 'residents' || a.type === 'all')
+      // Count unread announcements using targeting logic
+      const residentAnnouncements = getAnnouncementsForResidents(
+        user.login || '', user.buildingId || '', user.entrance || '', user.floor || '', user.branch || '', user.apartment || ''
+      );
+      const unreadAnnouncementsCount = residentAnnouncements.filter(a =>
+        !a.viewedBy?.includes(user.id)
       ).length;
 
       // Count upcoming meetings
@@ -179,7 +225,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
 
     return {};
-  }, [user, requests, announcements, executors, getAnnouncementsForEmployees, chatUnreadCount, meetings]);
+  }, [user, requests, announcements, executors, getAnnouncementsForEmployees, getAnnouncementsForResidents, chatUnreadCount, meetings]);
 
   // Different nav items based on role and account_type
   const getNavItems = () => {
@@ -198,24 +244,23 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       ];
     }
 
-    if (user?.role === 'executor') {
-      // Security guards get QR scanner
-      // Couriers see "Заказы" instead of "Заявки"
-      const baseItems = [
-        { path: '/', icon: FileText, label: language === 'ru' ? (user?.specialization === 'courier' ? 'Заказы' : 'Заявки') : (user?.specialization === 'courier' ? 'Buyurtmalar' : 'Arizalar') },
-        { path: '/schedule', icon: CalendarDays, label: language === 'ru' ? 'Расписание' : 'Jadval' },
-        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
-      ];
-
-      // Add QR scanner for security guards
-      if (user?.specialization === 'security') {
-        baseItems.push({ path: '/qr-scanner', icon: QrCode, label: language === 'ru' ? 'Сканер QR' : 'QR skaner' });
-      }
-
+    if (user?.role === 'executor' || user?.role === 'security') {
+      const isSecurity = user?.role === 'security' || user?.specialization === 'security';
       return [
-        ...baseItems,
-        { path: '/stats', icon: BarChart3, label: language === 'ru' ? 'Статистика' : 'Statistika' },
-        { path: '/announcements', icon: Megaphone, label: language === 'ru' ? 'Объявления' : 'E\'lonlar' },
+        // Работа
+        { path: '/', icon: FileText, label: language === 'ru' ? (user?.specialization === 'courier' ? 'Заказы' : 'Заявки') : (user?.specialization === 'courier' ? 'Buyurtmalar' : 'Arizalar'), section: language === 'ru' ? 'Работа' : 'Ish' },
+        { path: '/schedule', icon: CalendarDays, label: language === 'ru' ? 'Расписание' : 'Jadval' },
+        { path: '/my-stats', icon: BarChart3, label: language === 'ru' ? 'Статистика' : 'Statistika' },
+        // Инструменты
+        ...(isSecurity ? [
+          { path: '/qr-scanner', icon: QrCode, label: language === 'ru' ? 'Сканер QR' : 'QR skaner', section: language === 'ru' ? 'Инструменты' : 'Asboblar' },
+        ] : [
+          { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish', section: language === 'ru' ? 'Инструменты' : 'Asboblar' },
+        ]),
+        ...(isSecurity ? [{ path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' }] : []),
+        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat' },
+        // Прочее
+        { path: '/announcements', icon: Megaphone, label: language === 'ru' ? 'Объявления' : 'E\'lonlar', section: language === 'ru' ? 'Прочее' : 'Boshqa' },
         { path: '/trainings', icon: GraduationCap, label: language === 'ru' ? 'Тренинги' : 'Treninglar' },
         { path: '/colleagues', icon: Users, label: language === 'ru' ? 'Коллеги' : 'Hamkasblar' },
         { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Заметки' : 'Eslatmalar' },
@@ -223,16 +268,19 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
     if (user?.role === 'resident') {
       return [
-        { path: '/', icon: Home, label: t('nav.services') },
-        { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Магазин' : 'Do\'kon' },
-        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Написать в УК' : 'UK ga yozish' },
-        { path: '/vehicles', icon: Car, label: language === 'ru' ? 'Мои авто' : 'Mening avtomobillarim' },
-        { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевой доступ' : 'Mehmon kirishi' },
+        // 🏠 Дом
+        { path: '/', icon: Home, label: t('nav.services'), section: language === 'ru' ? 'Дом' : 'Uy' },
+        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат с УК' : 'UK bilan chat' },
         { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
-        { path: '/meetings', icon: Vote, label: t('meetings.title') },
-        { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar' },
-        { path: '/rate-employees', icon: Star, label: language === 'ru' ? 'Оценить' : 'Baholash' },
+        { path: '/meetings', icon: Vote, label: language === 'ru' ? 'Собрания' : 'Yig\'ilishlar' },
+        // 🚗 Доступ и имущество
+        { path: '/vehicles', icon: Car, label: language === 'ru' ? 'Мои авто' : 'Mening avtomobillarim', section: language === 'ru' ? 'Доступ и имущество' : 'Kirish va mulk' },
+        { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевой доступ' : 'Mehmon kirishi' },
         { path: '/contract', icon: ScrollText, label: language === 'ru' ? 'Договор' : 'Shartnoma' },
+        // ℹ️ Информация
+        { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar', section: language === 'ru' ? 'Информация' : 'Ma\'lumot' },
+        { path: '/marketplace', icon: Headphones, label: language === 'ru' ? 'Маркет для дома' : 'Uy uchun market' },
+        { path: '/rate-employees', icon: Star, label: language === 'ru' ? 'Оценить УК' : 'UK ni baholash' },
       ];
     }
     if (user?.role === 'tenant' || user?.role === 'commercial_owner') {
@@ -248,82 +296,102 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
     if (user?.role === 'admin') {
       return [
-        { path: '/', icon: Shield, label: t('nav.monitoring') },
+        // Операции
+        { path: '/', icon: Shield, label: t('nav.monitoring'), section: language === 'ru' ? 'Операции' : 'Operatsiyalar' },
         { path: '/requests', icon: FileText, label: t('nav.requests') },
-        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
-        { path: '/team', icon: Users, label: language === 'ru' ? 'Персонал' : 'Xodimlar' },
-        { path: '/residents', icon: Users, label: t('nav.residents') },
-        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
-        { path: '/buildings', icon: Building2, label: t('nav.buildings') },
         { path: '/work-orders', icon: Wrench, label: t('nav.workOrders') },
+        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
+        // Люди
+        { path: '/team', icon: Users, label: language === 'ru' ? 'Персонал' : 'Xodimlar', section: language === 'ru' ? 'Люди' : 'Odamlar' },
+        { path: '/residents', icon: Users, label: t('nav.residents') },
+        // Объекты и доступ
+        { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
+        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
         { path: '/rentals', icon: Key, label: language === 'ru' ? 'Аренда квартир' : 'Kvartira ijarasi' },
+        // Коммуникации
+        { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
         { path: '/meetings', icon: Vote, label: t('meetings.title') },
-        { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
         { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
-        { path: '/reports', icon: BarChart3, label: t('nav.reports') },
+        // Управление
+        { path: '/reports', icon: BarChart3, label: t('nav.reports'), section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
         { path: '/settings', icon: Settings, label: t('nav.settings') },
       ];
     }
     // Director (Управляющий директор) - обзор всей компании
     if (user?.role === 'director') {
       return [
-        { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Обзор компании' : 'Kompaniya sharhi' },
+        // Обзор
+        { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Обзор компании' : 'Kompaniya sharhi', section: language === 'ru' ? 'Обзор' : 'Umumiy' },
+        { path: '/reports', icon: BarChart3, label: t('nav.reports') },
         { path: '/requests', icon: FileText, label: t('nav.requests') },
         { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
-        { path: '/team', icon: Users, label: language === 'ru' ? 'Сотрудники' : 'Xodimlar' },
+        // Люди
+        { path: '/team', icon: Users, label: language === 'ru' ? 'Сотрудники' : 'Xodimlar', section: language === 'ru' ? 'Люди' : 'Odamlar' },
         { path: '/residents', icon: Users, label: t('nav.residents') },
-        { path: '/buildings', icon: Building2, label: t('nav.buildings') },
+        // Объекты
+        { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
         { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
         { path: '/rentals', icon: Key, label: language === 'ru' ? 'Аренда' : 'Ijara' },
+        // Коммуникации
+        { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
         { path: '/meetings', icon: Vote, label: t('meetings.title') },
-        { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
+        // Прочее
         { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Блокнот' : 'Bloknot' },
-        { path: '/reports', icon: BarChart3, label: t('nav.reports') },
         { path: '/settings', icon: Settings, label: t('nav.settings') },
       ];
     }
     // Department Head (Глава отдела) - limited manager view for their department
     if (user?.role === 'department_head') {
       return [
-        { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Мой отдел' : 'Mening bo\'limim' },
+        // Отдел
+        { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Мой отдел' : 'Mening bo\'limim', section: language === 'ru' ? 'Отдел' : 'Bo\'lim' },
         { path: '/requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar' },
         { path: '/executors', icon: Wrench, label: language === 'ru' ? 'Сотрудники' : 'Xodimlar' },
-        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
+        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat' },
+        // Прочее
+        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish', section: language === 'ru' ? 'Прочее' : 'Boshqa' },
         { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
         { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
         { path: '/colleagues', icon: Users, label: language === 'ru' ? 'Коллеги' : 'Hamkasblar' },
         { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Блокнот' : 'Bloknot' },
+        { path: '/settings', icon: Settings, label: t('nav.settings') },
       ];
     }
-    // Manager - оптимизированное меню
+    // Manager - оптимизированное меню с секциями
     return [
-      { path: '/', icon: LayoutDashboard, label: t('nav.dashboard') },
+      // Операции
+      { path: '/', icon: LayoutDashboard, label: t('nav.dashboard'), section: language === 'ru' ? 'Операции' : 'Operatsiyalar' },
       { path: '/requests', icon: FileText, label: t('nav.requests') },
-      { path: '/marketplace-orders', icon: ShoppingBag, label: language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari' },
-      { path: '/marketplace-products', icon: Package, label: language === 'ru' ? 'Товары и склад' : 'Mahsulotlar va ombor' },
+      { path: '/work-orders', icon: Wrench, label: t('nav.workOrders') },
       { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
-      { path: '/executors', icon: Wrench, label: t('nav.executors') },
+      // Люди
+      { path: '/executors', icon: Wrench, label: t('nav.executors'), section: language === 'ru' ? 'Люди' : 'Odamlar' },
       { path: '/residents', icon: Users, label: t('nav.residents') },
+      { path: '/colleagues', icon: Users, label: language === 'ru' ? 'Мои коллеги' : 'Hamkasblar' },
+      // Объекты и доступ
+      { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
       { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
       { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
       { path: '/rentals', icon: Key, label: t('nav.rentals') },
-      { path: '/buildings', icon: Building2, label: t('nav.buildings') },
-      { path: '/work-orders', icon: Wrench, label: t('nav.workOrders') },
+      // Коммуникации
+      { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
       { path: '/meetings', icon: Vote, label: t('meetings.title') },
-      { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
       { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
-      { path: '/colleagues', icon: Users, label: language === 'ru' ? 'Мои коллеги' : 'Hamkasblar' },
+      // Маркетплейс
+      { path: '/marketplace-orders', icon: ShoppingBag, label: language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari', section: language === 'ru' ? 'Маркетплейс' : 'Marketplace' },
+      { path: '/marketplace-products', icon: Package, label: language === 'ru' ? 'Товары и склад' : 'Mahsulotlar va ombor' },
+      // Управление
+      { path: '/reports', icon: BarChart3, label: t('nav.reports'), section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
       { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Заметки' : 'Eslatmalar' },
-      { path: '/reports', icon: BarChart3, label: t('nav.reports') },
       { path: '/settings', icon: Settings, label: t('nav.settings') },
     ];
   };
 
   // Feature to menu path mapping
   const featurePathMap: Record<string, string[]> = {
-    'requests': ['/', '/requests', '/executors', '/work-orders', '/schedule', '/stats'],
+    'requests': ['/', '/requests', '/executors', '/work-orders', '/schedule', '/my-stats'],
     'meetings': ['/meetings'],
     'qr': ['/qr-scanner', '/guest-access'],
     'chat': ['/chat'],
@@ -332,37 +400,60 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     'trainings': ['/trainings'],
     'rentals': ['/rentals'],
     'colleagues': ['/colleagues'],
+    'vehicles': ['/vehicles', '/vehicle-search'],
+    'useful-contacts': ['/useful-contacts'],
+    'notepad': ['/notepad'],
   };
 
-  // Filter menu items based on tenant features
-  const filterByFeatures = (items: Array<{ path: string; icon: any; label: string }>): Array<{ path: string; icon: any; label: string }> => {
+  // Always-allowed paths that are never locked
+  const alwaysAllowed = [
+    '/', '/settings', '/profile', '/buildings', '/residents',
+    '/contract', '/rate-employees', '/team', '/reports'
+  ];
+
+  // Check if a path is locked (feature disabled for tenant)
+  const isPathLocked = (path: string): boolean => {
+    // No tenant or super_admin -> nothing is locked
+    if (!config?.tenant || user?.role === 'super_admin') return false;
+    if (alwaysAllowed.includes(path)) return false;
+
+    for (const [feature, paths] of Object.entries(featurePathMap)) {
+      if (paths.includes(path)) {
+        return !hasFeature(feature);
+      }
+    }
+    return false;
+  };
+
+  // Get friendly name for a locked feature
+  const getFeatureName = (path: string): string => {
+    const nameMap: Record<string, Record<string, string>> = {
+      '/marketplace': { ru: 'Маркет для дома', uz: 'Uy uchun market' },
+      '/chat': { ru: 'Чат', uz: 'Chat' },
+      '/meetings': { ru: 'Собрания', uz: 'Yig\'ilishlar' },
+      '/announcements': { ru: 'Объявления', uz: 'E\'lonlar' },
+      '/trainings': { ru: 'Обучение', uz: 'O\'qitish' },
+      '/colleagues': { ru: 'Коллеги', uz: 'Hamkasblar' },
+      '/rentals': { ru: 'Аренда', uz: 'Ijara' },
+      '/vehicles': { ru: 'Авто', uz: 'Avto' },
+      '/vehicle-search': { ru: 'Поиск авто', uz: 'Avto qidirish' },
+      '/useful-contacts': { ru: 'Полезные контакты', uz: 'Foydali kontaktlar' },
+      '/notepad': { ru: 'Заметки', uz: 'Eslatmalar' },
+      '/qr-scanner': { ru: 'QR сканер', uz: 'QR skaner' },
+      '/guest-access': { ru: 'Гостевые пропуска', uz: 'Mehmon ruxsatnomalari' },
+    };
+    const lang = language === 'ru' ? 'ru' : 'uz';
+    return nameMap[path]?.[lang] || (language === 'ru' ? 'Функция' : 'Funksiya');
+  };
+
+  // Filter: still show all items but mark locked ones
+  const filterByFeatures = (items: Array<{ path: string; icon: any; label: string; section?: string }>): Array<{ path: string; icon: any; label: string; section?: string }> => {
     // If no tenant (main domain) or super_admin, show all items
-    if (!hasFeature || user?.role === 'super_admin') {
+    if (!config?.tenant || user?.role === 'super_admin') {
       return items;
     }
-
-    return items.filter((item: { path: string; icon: any; label: string }) => {
-      // Always allow dashboard, settings, profile pages, buildings, residents, useful contacts, contract, rate employees
-      const alwaysAllowed = [
-        '/', '/settings', '/profile', '/buildings', '/residents',
-        '/useful-contacts', '/contract', '/rate-employees', '/team',
-        '/notepad', '/reports', '/vehicles', '/vehicle-search'
-      ];
-
-      if (alwaysAllowed.includes(item.path)) {
-        return true;
-      }
-
-      // Check if this menu item requires a specific feature
-      for (const [feature, paths] of Object.entries(featurePathMap)) {
-        if (paths.includes(item.path)) {
-          return hasFeature(feature);
-        }
-      }
-
-      // If not mapped to any feature, show it by default
-      return true;
-    });
+    // Don't filter - show all items, locked ones get visual indicator in render
+    return items;
   };
 
   const navItems = filterByFeatures(getNavItems());
@@ -378,88 +469,116 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     <>
       {/* Mobile overlay */}
       <div
-        className={`sidebar-overlay ${isOpen ? 'open' : ''}`}
+        className={`sidebar-overlay touch-manipulation ${isOpen ? 'open' : ''}`}
         onClick={onClose}
       />
 
-      <div className={`sidebar ${isOpen ? 'open' : ''}`}>
-        <div className="p-4 md:p-6">
+      <div
+        className={`sidebar ${isOpen ? 'open' : ''}`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={swipeOffset > 0 ? { transform: `translateX(-${swipeOffset}px)`, transition: 'none' } : undefined}
+      >
+        {/* Compact header - logo + name in one row like Click app */}
+        <div className="px-4 pb-3 sidebar-safe-top">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <AppLogo size="lg" />
-              <div>
-                <div className="font-bold text-gray-900">{tenantName}</div>
-                <div className="text-xs text-gray-500">CRM</div>
+            <div className="flex items-center gap-2.5">
+              <AppLogo size="sm" />
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-gray-900 text-[15px]">{tenantName}</span>
+                {config?.tenant?.slug && (
+                  <span className="text-[9px] font-bold uppercase tracking-wide bg-primary-50 text-primary-500 px-1.5 py-0.5 rounded-md">
+                    {config.tenant.is_demo ? 'DEMO' : config.tenant.slug.toUpperCase()}
+                  </span>
+                )}
               </div>
             </div>
-            {/* Close button for mobile */}
             <button
               onClick={onClose}
-              className="md:hidden p-2 hover:bg-white/30 rounded-lg"
+              className="md:hidden w-9 h-9 flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
             >
-              <CloseIcon className="w-5 h-5" />
+              <CloseIcon className="w-4.5 h-4.5 text-gray-400" />
             </button>
           </div>
         </div>
 
-        <nav className="flex-1 py-4 overflow-y-auto">
-          {navItems.map((item: { path: string; icon: React.ElementType; label: string; separator?: boolean }) => {
+        <div className="h-px bg-gray-100 mx-4 mb-1" />
+
+        <nav className="flex-1 py-1 overflow-y-auto px-1">
+          {navItems.map((item: { path: string; icon: React.ElementType; label: string; section?: string }, index: number) => {
             const badgeCount = badges[item.path as keyof typeof badges] || 0;
-            // Special color for meetings based on voting status
             const isMeetingsTab = item.path === '/meetings';
             const badgeColor = isMeetingsTab && meetingStatus
-              ? (meetingStatus === 'voting' ? 'bg-blue-500' : meetingStatus === 'confirmed' ? 'bg-green-500' : 'bg-red-500')
-              : 'bg-red-500';
+              ? (meetingStatus === 'voting' ? 'bg-blue-500' : meetingStatus === 'confirmed' ? 'bg-green-500' : 'bg-primary-500')
+              : 'bg-primary-500';
             const shouldAnimate = !isMeetingsTab || meetingStatus === 'voting';
+            const isResident = user?.role === 'resident';
+            const isActive = location.pathname === item.path;
+            const locked = isPathLocked(item.path);
 
             return (
               <div key={item.path}>
-                {item.separator && (
-                  <div className="my-3 mx-4 border-t border-white/20" />
+                {item.section && (
+                  <div className={`px-5 pt-5 pb-2 ${index === 0 ? '' : 'mt-1'}`}>
+                    <span className={`text-[11px] font-bold uppercase tracking-[1.2px] ${isResident ? 'text-primary-500' : 'text-gray-400'}`}>
+                      {item.section}
+                    </span>
+                  </div>
                 )}
-                <Link
-                  to={item.path}
-                  onClick={handleNavClick}
-                  className={`sidebar-item ${location.pathname === item.path ? 'active' : ''}`}
-                >
-                  <div className="relative">
-                    <item.icon className="w-5 h-5" />
+                {locked ? (
+                  <button
+                    onClick={() => { setLockedFeatureName(getFeatureName(item.path)); onClose(); }}
+                    className={`sidebar-item min-h-[46px] touch-manipulation w-full opacity-50 ${isResident ? 'sidebar-item-resident' : ''}`}
+                  >
+                    <item.icon className="w-[20px] h-[20px] shrink-0 text-gray-300" />
+                    <span className="flex-1 truncate text-gray-400">{item.label}</span>
+                    <Lock className="w-3.5 h-3.5 text-gray-300 ml-auto shrink-0" />
+                  </button>
+                ) : (
+                  <Link
+                    to={item.path}
+                    onClick={handleNavClick}
+                    className={`sidebar-item min-h-[46px] touch-manipulation ${isActive ? 'active' : ''} ${isResident ? 'sidebar-item-resident' : ''}`}
+                  >
+                    <item.icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <span className="flex-1 truncate">{item.label}</span>
                     {badgeCount > 0 && (
-                      <span className={`absolute -top-2 -right-2 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white ${badgeColor} rounded-full ${shouldAnimate ? 'animate-pulse' : ''}`}>
+                      <span className={`ml-auto w-6 h-6 flex items-center justify-center text-[11px] font-bold text-white ${badgeColor} rounded-full ${shouldAnimate ? 'animate-pulse' : ''}`}>
                         {badgeCount > 99 ? '99+' : badgeCount}
                       </span>
                     )}
-                  </div>
-                  <span className="flex-1">{item.label}</span>
-                  {badgeCount > 0 && (
-                    <span className={`ml-auto px-2 py-0.5 text-xs font-bold text-white ${badgeColor} rounded-full`}>
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </span>
-                  )}
-                </Link>
+                  </Link>
+                )}
               </div>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/20 space-y-1">
-          {/* Profile link for residents and rental users */}
-          {(user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner') && (
+        <div className="mx-5 h-px bg-gray-100" />
+        <div className="p-3 px-1">
+          {user?.role !== 'super_admin' && (
             <Link
               to="/profile"
               onClick={handleNavClick}
-              className={`sidebar-item ${location.pathname === '/profile' ? 'active' : ''}`}
+              className={`sidebar-item min-h-[46px] touch-manipulation ${location.pathname === '/profile' ? 'active' : ''} ${user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner' ? 'sidebar-item-resident' : ''}`}
             >
-              <User className="w-5 h-5" />
+              <User className={`w-[20px] h-[20px] shrink-0 ${location.pathname === '/profile' ? 'text-primary-500' : 'text-gray-400'}`} />
               <span>{language === 'ru' ? 'Мой профиль' : 'Mening profilim'}</span>
             </Link>
           )}
-          <button onClick={onLogout} className="sidebar-item w-full text-red-500 hover:bg-red-50">
-            <LogOut className="w-5 h-5" />
-            <span>{language === 'ru' ? 'Выйти' : 'Chiqish'}</span>
+          <button onClick={onLogout} className="sidebar-item min-h-[46px] touch-manipulation w-full text-primary-500 hover:text-primary-600 hover:bg-primary-50">
+            <LogOut className="w-[20px] h-[20px] shrink-0" />
+            <span className="font-medium">{language === 'ru' ? 'Выйти' : 'Chiqish'}</span>
           </button>
         </div>
       </div>
+
+      <FeatureLockedModal
+        isOpen={!!lockedFeatureName}
+        onClose={() => setLockedFeatureName(null)}
+        featureName={lockedFeatureName || undefined}
+      />
     </>
   );
 }

@@ -353,7 +353,8 @@ interface MeetingState {
       apartmentNumber?: string;
       ownershipShare?: number;
     },
-    comment?: string // Комментарий/обоснование к голосу
+    comment?: string, // Комментарий/обоснование к голосу
+    counterProposal?: string // Альтернативное предложение при голосе "против"
   ) => Promise<VoteRecord>;
 
   getVoteByUser: (meetingId: string, agendaItemId: string, voterId: string) => VoteRecord | undefined;
@@ -859,7 +860,7 @@ export const useMeetingStore = create<MeetingState>()(
 
       // ========== Agenda Voting ==========
 
-      voteOnAgendaItem: async (meetingId, agendaItemId, voterId, voterName, choice, verificationData, comment) => {
+      voteOnAgendaItem: async (meetingId, agendaItemId, voterId, voterName, choice, verificationData, comment, counterProposal) => {
         try {
           // Validate choice - API only accepts 'for', 'against', 'abstain'
           if (choice === 'not_voted') {
@@ -881,6 +882,7 @@ export const useMeetingStore = create<MeetingState>()(
             apartmentNumber: verificationData.apartmentNumber,
             ownershipShare: verificationData.ownershipShare,
             comment, // Комментарий к голосу
+            counter_proposal: counterProposal,
           });
 
           if (!response.success) {

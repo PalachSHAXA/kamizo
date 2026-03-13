@@ -77,7 +77,7 @@ export function ManagerGuestAccessPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">
@@ -91,8 +91,8 @@ export function ManagerGuestAccessPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="glass-card p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-green-600" />
@@ -103,7 +103,7 @@ export function ManagerGuestAccessPage() {
             </div>
           </div>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
               <QrCode className="w-5 h-5 text-blue-600" />
@@ -114,7 +114,7 @@ export function ManagerGuestAccessPage() {
             </div>
           </div>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
               <Calendar className="w-5 h-5 text-purple-600" />
@@ -125,7 +125,7 @@ export function ManagerGuestAccessPage() {
             </div>
           </div>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
               <History className="w-5 h-5 text-gray-600" />
@@ -139,7 +139,7 @@ export function ManagerGuestAccessPage() {
       </div>
 
       {/* By visitor type */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {(['courier', 'guest', 'taxi', 'other'] as VisitorType[]).map((type) => {
           const label = VISITOR_TYPE_LABELS[type];
           const count = stats.byVisitorType[type];
@@ -147,7 +147,7 @@ export function ManagerGuestAccessPage() {
             <button
               key={type}
               onClick={() => setTypeFilter(typeFilter === type ? 'all' : type)}
-              className={`glass-card p-3 text-center transition-all ${
+              className={`glass-card p-3 text-center transition-all min-h-[44px] touch-manipulation active:scale-95 rounded-lg sm:rounded-xl ${
                 typeFilter === type ? 'ring-2 ring-primary-500' : ''
               }`}
             >
@@ -175,7 +175,7 @@ export function ManagerGuestAccessPage() {
         </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`px-4 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors ${
+          className={`px-4 py-3 min-h-[44px] touch-manipulation active:scale-95 rounded-lg sm:rounded-xl font-medium flex items-center gap-2 transition-colors ${
             showFilters || statusFilter !== 'all' || typeFilter !== 'all'
               ? 'bg-primary-500 text-gray-900'
               : 'bg-white/50 text-gray-600 hover:bg-white'
@@ -330,11 +330,17 @@ export function ManagerGuestAccessPage() {
                         {code.residentAddress}, {language === 'ru' ? 'кв.' : 'xona'} {code.residentApartment}
                       </div>
 
-                      <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                      <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 flex-wrap">
                         <span className="flex items-center gap-1">
                           <span className="text-base">{visitorLabel.icon}</span>
                           {code.visitorName || (language === 'ru' ? visitorLabel.label : visitorLabel.labelUz)}
                         </span>
+                        {code.visitorVehiclePlate && (
+                          <span className="flex items-center gap-1 font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                            <Car className="w-3 h-3" />
+                            {code.visitorVehiclePlate}
+                          </span>
+                        )}
                         <span className="flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5" />
                           {new Date(code.validUntil).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
@@ -436,8 +442,8 @@ export function ManagerGuestAccessPage() {
 
       {/* Detail modal */}
       {selectedCode && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold">
                 {language === 'ru' ? 'Детали пропуска' : 'Ruxsatnoma tafsilotlari'}
@@ -596,8 +602,8 @@ export function ManagerGuestAccessPage() {
 
       {/* Revoke modal */}
       {showRevokeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6">
             <div className="text-center mb-4">
               <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-8 h-8 text-red-600" />

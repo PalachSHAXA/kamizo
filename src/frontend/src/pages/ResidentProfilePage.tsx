@@ -3,13 +3,14 @@ import {
   Key, MapPin, Home, Phone, Save, Eye, EyeOff, Edit3,
   AlertCircle, Shield, Loader2, X, FileText, CheckCircle,
   Building2, Ruler, QrCode, Globe,
-  Download, User as UserIcon, Sparkles
+  Download, User as UserIcon, Sparkles, ChevronRight
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { generateQRCode } from '../components/LazyQRCode';
 import { generateContractDocx } from '../utils/contractGenerator';
 import { ContractPreview } from '../components/ContractPreview';
+import { InstallAppSection } from '../components/InstallAppSection';
 
 export function ResidentProfilePage() {
   const { user, changePassword, updateProfile, markContractSigned } = useAuthStore();
@@ -137,6 +138,7 @@ export function ResidentProfilePage() {
     languageTitle: language === 'ru' ? 'Язык интерфейса' : 'Interfeys tili',
     languageRu: 'Русский',
     languageUz: 'O\'zbekcha',
+    changePassword: language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish',
   }), [language]);
 
   const formatDate = (dateStr?: string) => {
@@ -211,7 +213,6 @@ export function ResidentProfilePage() {
         setConfirmPassword('');
         setSuccessMessage(t.passwordChanged);
         setTimeout(() => setSuccessMessage(''), 3000);
-        // Password change is now tracked in DB (passwordChangedAt) via authStore.changePassword
       } else {
         setPasswordError(t.wrongPassword);
       }
@@ -245,452 +246,485 @@ export function ResidentProfilePage() {
     }
   };
 
+  const roleLabel = user.role === 'tenant' ? t.tenant : user.role === 'commercial_owner' ? t.commercialOwner : t.resident;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-24 md:pb-6">
-      {/* Header Card */}
-      <div className="glass-card p-4 md:p-6 bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200">
-        <h1 className="text-lg font-bold text-gray-900 leading-tight">{user.name}</h1>
-        <div className="flex flex-wrap items-center gap-2 mt-2">
-          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-            {user.role === 'tenant' ? t.tenant : user.role === 'commercial_owner' ? t.commercialOwner : t.resident}
-          </span>
-          {!isRentalUser && user.contractSignedAt && (
-            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              {t.active}
-            </span>
-          )}
+    <div className="max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 -mx-4 -mt-4 md:mx-auto md:mt-0">
+      {/* User Card */}
+      <div className="relative overflow-hidden bg-white">
+        <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at top right, rgb(var(--brand-rgb)), transparent 70%)' }} />
+        <div className="relative px-5 pb-5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
+          <div className="flex items-center gap-4">
+            <div
+              className="w-[60px] h-[60px] rounded-[20px] flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.75))' }}
+            >
+              <UserIcon className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{user.name}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 bg-primary-50 text-primary-600 rounded-full text-[11px] font-semibold">
+                  {roleLabel}
+                </span>
+                {!isRentalUser && user.contractSignedAt && (
+                  <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-[11px] font-semibold flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    {t.active}
+                  </span>
+                )}
+              </div>
+              {user.address && (
+                <div className="flex items-center gap-1 mt-1.5">
+                  <MapPin className="w-3 h-3 text-gray-400" />
+                  <span className="text-[12px] text-gray-500 truncate">{user.address}{user.apartment ? `, ${t.apartment.toLowerCase()} ${user.apartment}` : ''}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <p className="text-gray-500 mt-2 text-xs">{t.personalData}</p>
       </div>
 
       {/* Success Message */}
       {successMessage && (
-        <div className="p-3 bg-green-50 text-green-700 rounded-xl flex items-center gap-2 animate-fade-in">
+        <div className="mx-4 mt-3 p-3 bg-green-50 text-green-700 rounded-[14px] flex items-center gap-2 animate-fade-in">
           <CheckCircle className="w-5 h-5" />
           {successMessage}
         </div>
       )}
 
-      {/* Personal Info Section */}
-      <div className="glass-card p-4 md:p-6">
-        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
-          <UserIcon className="w-5 h-5 text-primary-500" />
-          {t.personalInfo}
-        </h2>
-
-        <div className="space-y-4">
-          {/* Login (Л/С) */}
-          <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Key className="w-5 h-5 text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs text-gray-500 font-medium">{t.personalAccount}</div>
-              <div className="font-mono font-bold text-gray-900">{user.login}</div>
-            </div>
-            <div className="px-2 py-1 bg-gray-200 rounded text-xs text-gray-500 flex-shrink-0">
-              {t.cannotChange}
-            </div>
+      <div className="px-4 mt-4 space-y-4">
+        {/* Personal Info Section */}
+        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
+          <div className="px-4 pt-4 pb-2">
+            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+              <UserIcon className="w-4 h-4 text-primary-500" />
+              {t.personalInfo}
+            </h2>
           </div>
 
-          {/* Address */}
-          {user.address && (
-            <div className="flex items-start gap-4 p-3 bg-gray-50 rounded-xl">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                <MapPin className="w-5 h-5 text-green-600" />
+          <div className="divide-y divide-gray-50">
+            {/* Login (Л/С) */}
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-9 h-9 bg-primary-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                <Key className="w-4 h-4 text-primary-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-500 font-medium">{t.address}</div>
-                <div className="font-medium text-gray-900 break-words leading-snug">{user.address}</div>
+                <div className="text-[11px] text-gray-400 font-medium">{t.personalAccount}</div>
+                <div className="font-mono font-bold text-[14px] text-gray-900">{user.login}</div>
               </div>
+              <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{t.cannotChange}</span>
             </div>
-          )}
 
-          {/* Apartment and Area - Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {user.apartment && (
-              <div className="p-3 bg-purple-50 rounded-xl text-center">
-                <Home className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-                <div className="text-xs text-gray-500">{t.apartment}</div>
-                <div className="font-bold text-gray-900">{user.apartment}</div>
+            {/* Address */}
+            {user.address && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-9 h-9 bg-green-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-gray-400 font-medium">{t.address}</div>
+                  <div className="font-medium text-[14px] text-gray-900 break-words leading-snug">{user.address}</div>
+                </div>
               </div>
             )}
-            {user.totalArea && (
-              <div className="p-3 bg-cyan-50 rounded-xl text-center">
-                <Ruler className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
-                <div className="text-xs text-gray-500">{t.area}</div>
-                <div className="font-bold text-gray-900">{user.totalArea} м²</div>
+
+            {/* Apartment & Area row */}
+            {(user.apartment || user.totalArea) && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex gap-4 flex-1">
+                  {user.apartment && (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 bg-purple-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                        <Home className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-gray-400 font-medium">{t.apartment}</div>
+                        <div className="font-bold text-[14px] text-gray-900">{user.apartment}</div>
+                      </div>
+                    </div>
+                  )}
+                  {user.totalArea && (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 bg-cyan-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                        <Ruler className="w-4 h-4 text-cyan-600" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-gray-400 font-medium">{t.area}</div>
+                        <div className="font-bold text-[14px] text-gray-900">{user.totalArea} m²</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Branch */}
+            {user.branch && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-9 h-9 bg-amber-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-gray-400 font-medium">{t.branch}</div>
+                  <div className="font-bold text-[14px] text-gray-900">{user.branch}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Phone - Editable */}
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-9 h-9 bg-primary-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                <Phone className="w-4 h-4 text-primary-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] text-gray-400 font-medium">{t.phone}</div>
+                {!editingPhone ? (
+                  <div className="font-medium text-[14px] text-gray-900">
+                    {user.phone || t.notSpecified}
+                  </div>
+                ) : (
+                  <input
+                    type="tel"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="+998 90 123 45 67"
+                    className="w-full py-1 text-[14px] font-medium text-gray-900 border-b-2 border-primary-400 outline-none bg-transparent"
+                    maxLength={13}
+                    autoFocus
+                  />
+                )}
+              </div>
+              {!editingPhone ? (
+                <button
+                  onClick={() => {
+                    setNewPhone(user.phone || '');
+                    setEditingPhone(true);
+                  }}
+                  className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center active:bg-gray-100 rounded-[10px] transition-colors touch-manipulation"
+                >
+                  <Edit3 className="w-4 h-4 text-gray-400" />
+                </button>
+              ) : (
+                <div className="flex gap-1">
+                  <button
+                    onClick={handleSavePhone}
+                    disabled={phoneLoading}
+                    className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center active:bg-green-50 rounded-[10px] transition-colors disabled:opacity-50 touch-manipulation"
+                  >
+                    {phoneLoading ? (
+                      <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 text-green-600" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setEditingPhone(false)}
+                    disabled={phoneLoading}
+                    className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center active:bg-gray-100 rounded-[10px] transition-colors disabled:opacity-50 touch-manipulation"
+                  >
+                    <X className="w-4 h-4 text-gray-400" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Language Switcher Section */}
+        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
+          <div className="px-4 pt-4 pb-3">
+            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-primary-500" />
+              {t.languageTitle}
+            </h2>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setLanguage('ru')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-[12px] font-medium transition-all touch-manipulation ${
+                  language === 'ru'
+                    ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
+                    : 'bg-gray-50 text-gray-600 active:bg-gray-100'
+                }`}
+              >
+                <span className="text-[16px]">🇷🇺</span>
+                <span className="text-[14px] font-semibold">{t.languageRu}</span>
+              </button>
+              <button
+                onClick={() => setLanguage('uz')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-[12px] font-medium transition-all touch-manipulation ${
+                  language === 'uz'
+                    ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
+                    : 'bg-gray-50 text-gray-600 active:bg-gray-100'
+                }`}
+              >
+                <span className="text-[16px]">🇺🇿</span>
+                <span className="text-[14px] font-semibold">{t.languageUz}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Contract Section - only for residents, not rental users */}
+        {!isRentalUser && (
+          <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
+            <div className="px-4 pt-4 pb-2">
+              <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-yellow-500" />
+                {t.contractInfo}
+              </h2>
+            </div>
+
+            <div className="px-4 pb-4">
+              <div className="space-y-3">
+                {/* Contract Number & Status */}
+                <div className="flex gap-3">
+                  <div className="flex-1 p-3 bg-yellow-50 rounded-[12px]">
+                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractNumber}</div>
+                    <div className="font-mono font-bold text-[13px] text-gray-900">
+                      {user.contractNumber || `ДОГ-${new Date().getFullYear()}-${user.login}`}
+                    </div>
+                  </div>
+                  <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
+                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractStatus}</div>
+                    <div className="flex items-center gap-1.5">
+                      {user.contractSignedAt ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                          <span className="font-semibold text-[13px] text-green-700">{t.active}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                          <span className="font-semibold text-[13px] text-yellow-700">{t.pending}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contract Type & Dates */}
+                <div className="flex gap-3">
+                  <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
+                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractType}</div>
+                    <div className="font-medium text-[13px] text-gray-900">{getContractTypeLabel(user.contractType)}</div>
+                  </div>
+                  <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
+                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractEnd}</div>
+                    <div className="font-medium text-[13px] text-gray-900 flex items-center gap-1">
+                      {user.contractEndDate ? formatDate(user.contractEndDate) : (
+                        <>
+                          <Sparkles className="w-3 h-3 text-green-500" />
+                          {t.indefinite}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* QR Code */}
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-[14px] border border-dashed border-gray-200">
+                  {qrCodeUrl ? (
+                    <img src={qrCodeUrl} alt="QR Code" className="w-20 h-20 rounded-[8px]" />
+                  ) : (
+                    <div className="w-20 h-20 bg-gray-100 rounded-[8px] animate-pulse" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-gray-900 flex items-center gap-1.5">
+                      <QrCode className="w-3.5 h-3.5 text-gray-500" />
+                      {t.yourQrCode}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">{t.qrHint}</p>
+                    <div className="mt-1.5">
+                      <span className="text-[10px] text-gray-400">ID:</span>
+                      <span className="font-mono text-[10px] font-bold text-gray-500 ml-1 select-all">{user.id}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contract Actions */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={() => setShowContract(!showContract)}
+                    className="flex items-center justify-center gap-2 px-3 py-3 min-h-[44px] bg-gray-50 active:bg-gray-100 rounded-[12px] text-[13px] font-semibold text-gray-600 transition-colors touch-manipulation"
+                  >
+                    {showContract ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showContract ? t.hideContract : t.viewContract}
+                  </button>
+                  <button
+                    onClick={handleDownloadContract}
+                    disabled={isDownloading || !qrCodeUrl}
+                    className="flex items-center justify-center gap-2 px-3 py-3 min-h-[44px] bg-primary-500 active:bg-primary-600 disabled:bg-gray-200 rounded-[12px] text-[13px] font-semibold text-white disabled:text-gray-400 transition-colors touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)]"
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    {isDownloading ? t.downloading : t.downloadContract}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Contract Preview - Full Document */}
+            {showContract && (
+              <div className="px-4 pb-4">
+                <ContractPreview user={user} qrCodeUrl={qrCodeUrl} language={language} />
               </div>
             )}
           </div>
+        )}
 
-          {/* Branch (only show if not redundant with address) */}
-          {user.branch && (
-            <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
-              <Building2 className="w-5 h-5 text-amber-600" />
-              <div>
-                <div className="text-xs text-gray-500">{t.branch}</div>
-                <div className="font-bold text-gray-900">{user.branch}</div>
-              </div>
-            </div>
-          )}
+        {/* Security Section */}
+        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
+          <div className="px-4 pt-4 pb-2">
+            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-red-500" />
+              {t.security}
+            </h2>
+          </div>
 
-          {/* Phone - Editable */}
-          <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
-            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Phone className="w-5 h-5 text-primary-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs text-gray-500 font-medium">{t.phone}</div>
-              {!editingPhone ? (
-                <div className="font-medium text-gray-900">
-                  {user.phone || t.notSpecified}
-                </div>
-              ) : (
-                <input
-                  type="tel"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="+998 90 123 45 67"
-                  className="input-field py-1.5 text-sm"
-                  maxLength={13}
-                  autoFocus
-                />
-              )}
-            </div>
-            {!editingPhone ? (
+          <div className="px-4 pb-4">
+            {!editingPassword ? (
               <button
-                onClick={() => {
-                  setNewPhone(user.phone || '');
-                  setEditingPhone(true);
-                }}
-                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                onClick={() => setEditingPassword(true)}
+                className="w-full flex items-center gap-3 p-3 bg-gray-50 rounded-[12px] active:bg-gray-100 transition-colors touch-manipulation"
               >
-                <Edit3 className="w-5 h-5 text-gray-500" />
+                <div className="w-9 h-9 bg-red-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
+                  <Key className="w-4 h-4 text-red-500" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-[14px] font-semibold text-gray-900">{t.changePassword}</div>
+                  <div className="text-[11px] text-gray-400">••••••••</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300" />
               </button>
             ) : (
-              <div className="flex gap-1">
-                <button
-                  onClick={handleSavePhone}
-                  disabled={phoneLoading}
-                  className="p-2 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {phoneLoading ? (
-                    <Loader2 className="w-5 h-5 text-green-600 animate-spin" />
-                  ) : (
-                    <Save className="w-5 h-5 text-green-600" />
-                  )}
-                </button>
-                <button
-                  onClick={() => setEditingPhone(false)}
-                  disabled={phoneLoading}
-                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Language Switcher Section */}
-      <div className="glass-card p-4 md:p-6">
-        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
-          <Globe className="w-5 h-5 text-blue-500" />
-          {t.languageTitle}
-        </h2>
-
-        <div className="flex gap-3">
-          <button
-            onClick={() => setLanguage('ru')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
-              language === 'ru'
-                ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <span className="text-lg">🇷🇺</span>
-            {t.languageRu}
-          </button>
-          <button
-            onClick={() => setLanguage('uz')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
-              language === 'uz'
-                ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <span className="text-lg">🇺🇿</span>
-            {t.languageUz}
-          </button>
-        </div>
-      </div>
-
-      {/* Contract Section - only for residents, not rental users */}
-      {!isRentalUser && (
-        <div className="glass-card p-4 md:p-6">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
-            <FileText className="w-5 h-5 text-yellow-500" />
-            {t.contractInfo}
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* Contract Details */}
-            <div className="space-y-3">
-              {/* Contract Number */}
-              <div className="p-3 bg-yellow-50 rounded-xl">
-                <div className="text-xs text-gray-500 mb-1">{t.contractNumber}</div>
-                <div className="font-mono font-bold text-gray-900">
-                  {user.contractNumber || `ДОГ-${new Date().getFullYear()}-${user.login}`}
-                </div>
-              </div>
-
-              {/* Contract Type */}
-              <div className="p-3 bg-gray-50 rounded-xl">
-                <div className="text-xs text-gray-500 mb-1">{t.contractType}</div>
-                <div className="font-medium text-gray-900">
-                  {getContractTypeLabel(user.contractType)}
-                </div>
-              </div>
-
-              {/* Status */}
-              <div className="p-3 bg-gray-50 rounded-xl">
-                <div className="text-xs text-gray-500 mb-1">{t.contractStatus}</div>
-                <div className="flex items-center gap-2">
-                  {user.contractSignedAt ? (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="font-medium text-green-700">{t.active}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                      <span className="font-medium text-yellow-700">{t.pending}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  <div className="text-xs text-gray-500 mb-1">{t.contractStart}</div>
-                  <div className="font-medium text-gray-900 text-sm">
-                    {formatDate(user.contractStartDate || user.contractSignedAt || user.createdAt)}
+              <div className="space-y-3">
+                {/* Current Password */}
+                <div>
+                  <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
+                    {t.currentPassword}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-gray-50 rounded-[12px] text-[14px] outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white border border-transparent focus:border-primary-300"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 touch-manipulation"
+                    >
+                      {showCurrentPassword ? (
+                        <EyeOff className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
                   </div>
                 </div>
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  <div className="text-xs text-gray-500 mb-1">{t.contractEnd}</div>
-                  <div className="font-medium text-gray-900 text-sm flex items-center gap-1">
-                    {user.contractEndDate ? formatDate(user.contractEndDate) : (
-                      <>
-                        <Sparkles className="w-3 h-3 text-green-500" />
-                        {t.indefinite}
-                      </>
-                    )}
+
+                {/* New Password */}
+                <div>
+                  <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
+                    {t.newPassword}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-gray-50 rounded-[12px] text-[14px] outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white border border-transparent focus:border-primary-300"
+                      placeholder={t.minChars}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 touch-manipulation"
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* QR Code & Signature ID */}
-            <div className="flex flex-col items-center justify-center p-4 bg-white border-2 border-dashed border-gray-200 rounded-xl">
-              <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
-                <QrCode className="w-3 h-3" />
-                {t.yourQrCode}
-              </div>
-              {qrCodeUrl ? (
-                <img src={qrCodeUrl} alt="QR Code" className="w-32 h-32" />
-              ) : (
-                <div className="w-32 h-32 bg-gray-100 rounded animate-pulse" />
-              )}
-              <p className="text-xs text-gray-400 mt-2 text-center max-w-[180px]">
-                {t.qrHint}
-              </p>
-              {/* Signature ID */}
-              <div className="mt-3 pt-3 border-t border-gray-200 w-full text-center">
-                <div className="text-xs text-gray-500">{language === 'ru' ? 'ID подписи' : 'Imzo ID'}</div>
-                <div className="font-mono text-sm font-bold text-gray-700 select-all">{user.id}</div>
-              </div>
-            </div>
-          </div>
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
+                    {t.confirmPassword}
+                  </label>
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-gray-50 rounded-[12px] text-[14px] outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white border border-transparent focus:border-primary-300"
+                    placeholder={t.repeatPassword}
+                  />
+                </div>
 
-          {/* Contract Actions */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <button
-              onClick={() => setShowContract(!showContract)}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-colors"
-            >
-              {showContract ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {showContract ? t.hideContract : t.viewContract}
-            </button>
-            <button
-              onClick={handleDownloadContract}
-              disabled={isDownloading || !qrCodeUrl}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-primary-400 hover:bg-primary-500 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium text-gray-900 transition-colors"
-            >
-              {isDownloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {isDownloading ? t.downloading : t.downloadContract}
-            </button>
-          </div>
-
-          {/* Contract Preview - Full Document */}
-          {showContract && (
-            <div className="mt-4">
-              <ContractPreview user={user} qrCodeUrl={qrCodeUrl} language={language} />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Security Section */}
-      <div className="glass-card p-4 md:p-6">
-        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
-          <Shield className="w-5 h-5 text-red-500" />
-          {t.security}
-        </h2>
-
-        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
-          <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Key className="w-5 h-5 text-red-600" />
-          </div>
-          <div className="flex-1">
-            <div className="text-xs text-gray-500 font-medium">{t.password}</div>
-            <div className="font-medium text-gray-900">••••••••</div>
-          </div>
-          {!editingPassword && (
-            <button
-              onClick={() => setEditingPassword(true)}
-              className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              <Edit3 className="w-5 h-5 text-gray-500" />
-            </button>
-          )}
-        </div>
-
-        {editingPassword && (
-          <div className="space-y-3 mt-4 pt-4 border-t">
-            {/* Current Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t.currentPassword}
-              </label>
-              <div className="relative">
-                <input
-                  type={showCurrentPassword ? 'text' : 'password'}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="input-field pr-10"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
-                >
-                  {showCurrentPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* New Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t.newPassword}
-              </label>
-              <div className="relative">
-                <input
-                  type={showNewPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="input-field pr-10"
-                  placeholder={t.minChars}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
-                >
-                  {showNewPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t.confirmPassword}
-              </label>
-              <input
-                type={showNewPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="input-field"
-                placeholder={t.repeatPassword}
-              />
-            </div>
-
-            {/* Error Message */}
-            {passwordError && (
-              <div className="p-2 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
-                {passwordError}
-              </div>
-            )}
-
-            {/* Buttons */}
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => {
-                  setEditingPassword(false);
-                  setCurrentPassword('');
-                  setNewPassword('');
-                  setConfirmPassword('');
-                  setPasswordError('');
-                }}
-                disabled={passwordLoading}
-                className="btn-secondary flex-1"
-              >
-                {t.cancel}
-              </button>
-              <button
-                onClick={handleSavePassword}
-                disabled={passwordLoading}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
-              >
-                {passwordLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
+                {/* Error Message */}
+                {passwordError && (
+                  <div className="p-2.5 bg-red-50 text-red-600 text-[13px] rounded-[10px] flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {passwordError}
+                  </div>
                 )}
-                {t.save}
-              </button>
-            </div>
+
+                {/* Buttons */}
+                <div className="flex gap-2.5 pt-1">
+                  <button
+                    onClick={() => {
+                      setEditingPassword(false);
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      setPasswordError('');
+                    }}
+                    disabled={passwordLoading}
+                    className="flex-1 py-3 min-h-[44px] bg-gray-50 active:bg-gray-100 rounded-[12px] text-[14px] font-semibold text-gray-600 transition-colors touch-manipulation"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    onClick={handleSavePassword}
+                    disabled={passwordLoading}
+                    className="flex-1 py-3 min-h-[44px] bg-primary-500 active:bg-primary-600 rounded-[12px] text-[14px] font-semibold text-white flex items-center justify-center gap-2 transition-colors touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)]"
+                  >
+                    {passwordLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    {t.save}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Install App Section */}
+        <InstallAppSection language={language} />
+
+        {/* Info Note - only for residents */}
+        {!isRentalUser && (
+          <div className="p-4 bg-primary-50 rounded-[14px] text-[13px] text-primary-700">
+            <p className="font-semibold mb-1">{t.loginInfoTitle}</p>
+            <p className="text-primary-600">{t.loginInfo}</p>
           </div>
         )}
       </div>
-
-      {/* Info Note - only for residents */}
-      {!isRentalUser && (
-        <div className="p-4 bg-blue-50 rounded-xl text-sm text-blue-700">
-          <p className="font-medium mb-1">{t.loginInfoTitle}</p>
-          <p>{t.loginInfo}</p>
-        </div>
-      )}
     </div>
   );
 }
+

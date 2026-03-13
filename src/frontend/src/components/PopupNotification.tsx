@@ -105,7 +105,7 @@ export function PopupNotification({
         {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute top-3 right-3 p-2 rounded-full hover:bg-black/10 transition-colors"
+          className="absolute top-3 right-3 p-2.5 rounded-full hover:bg-black/10 active:bg-black/20 transition-colors touch-manipulation"
         >
           <X className="w-5 h-5 text-gray-500" />
         </button>
@@ -132,14 +132,14 @@ export function PopupNotification({
           {onAction && actionLabel && (
             <button
               onClick={handleAction}
-              className={`w-full py-3 px-4 rounded-xl font-semibold transition-colors ${getActionBtnColor()}`}
+              className={`w-full py-3 px-4 min-h-[44px] rounded-xl font-semibold transition-colors touch-manipulation ${getActionBtnColor()}`}
             >
               {actionLabel}
             </button>
           )}
           <button
             onClick={handleClose}
-            className="w-full py-3 px-4 rounded-xl font-medium text-gray-600 hover:bg-black/5 transition-colors"
+            className="w-full py-3 px-4 min-h-[44px] rounded-xl font-medium text-gray-600 hover:bg-black/5 active:bg-black/10 transition-colors touch-manipulation"
           >
             Закрыть
           </button>

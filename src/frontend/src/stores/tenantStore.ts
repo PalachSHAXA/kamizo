@@ -10,6 +10,7 @@ export interface TenantConfig {
     color_secondary: string;
     plan: string;
     logo: string | null;
+    is_demo: boolean;
   } | null;
   features: string[];
 }

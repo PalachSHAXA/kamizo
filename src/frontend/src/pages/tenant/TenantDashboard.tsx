@@ -4,6 +4,9 @@ import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 
+// USD to UZS fallback rate — update this constant or move to tenant config when dynamic rates are needed
+const USD_TO_UZS_RATE = 12500;
+
 export function TenantDashboard() {
   const { user } = useAuthStore();
   const { rentalApartments, rentalRecords, fetchMyRentals } = useDataStore();
@@ -55,7 +58,7 @@ export function TenantDashboard() {
   const totalEarnings = myApartments.reduce((sum, apt) => {
     const aptRecords = getApartmentRecords(apt.id);
     return sum + aptRecords.reduce((s, r) =>
-      s + (r.currency === 'UZS' ? r.amount : r.amount * 12500), 0);
+      s + (r.currency === 'UZS' ? r.amount : r.amount * USD_TO_UZS_RATE), 0);
   }, 0);
 
 
@@ -181,13 +184,13 @@ export function TenantDashboard() {
     }
 
     return (
-      <div className="glass-card p-4">
+      <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
         <div className="flex items-center justify-between mb-4">
-          <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+          <button onClick={prevMonth} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg sm:rounded-xl transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h3 className="font-semibold capitalize text-lg">{monthName}</h3>
-          <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+          <button onClick={nextMonth} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg sm:rounded-xl transition-colors">
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
@@ -284,7 +287,7 @@ export function TenantDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
@@ -303,8 +306,8 @@ export function TenantDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="glass-card p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary-100 rounded-xl">
               <Home className="w-5 h-5 text-primary-600" />
@@ -315,7 +318,7 @@ export function TenantDashboard() {
             </div>
           </div>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-xl">
               <Users className="w-5 h-5 text-green-600" />
@@ -326,7 +329,7 @@ export function TenantDashboard() {
             </div>
           </div>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 rounded-xl">
               <TrendingUp className="w-5 h-5 text-purple-600" />
@@ -337,7 +340,7 @@ export function TenantDashboard() {
             </div>
           </div>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-100 rounded-xl">
               <DollarSign className="w-5 h-5 text-amber-600" />
@@ -351,14 +354,14 @@ export function TenantDashboard() {
       </div>
 
       {/* Main Content - Two columns on desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Calendar - Takes 2 columns */}
         <div className="lg:col-span-2">
           {renderCalendar()}
 
           {/* Selected Date Details */}
           {selectedDate && (
-            <div className="mt-4 glass-card p-4">
+            <div className="mt-4 glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
               <h4 className="font-semibold mb-3 flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
                 {selectedDate.toLocaleDateString('ru-RU', {
@@ -422,7 +425,7 @@ export function TenantDashboard() {
         {/* Right sidebar */}
         <div className="space-y-4">
           {/* Current Guests */}
-          <div className="glass-card p-4">
+          <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Users className="w-4 h-4 text-green-600" />
               {language === 'ru' ? 'Текущие гости' : 'Hozirgi mehmonlar'}
@@ -460,7 +463,7 @@ export function TenantDashboard() {
           </div>
 
           {/* Upcoming Check-ins */}
-          <div className="glass-card p-4">
+          <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-600" />
               {language === 'ru' ? 'Ближайшие заезды' : 'Yaqin kiruvchilar'}
@@ -503,7 +506,7 @@ export function TenantDashboard() {
           </div>
 
           {/* Apartments Quick View */}
-          <div className="glass-card p-4">
+          <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Home className="w-4 h-4 text-primary-600" />
               {language === 'ru' ? 'Мои квартиры' : 'Mening kvartiralarim'}

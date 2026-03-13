@@ -6,12 +6,12 @@ import { visualizer } from 'rollup-plugin-visualizer'
 export default defineConfig({
   plugins: [
     react(),
-    visualizer({
+    ...(process.env.NODE_ENV !== 'production' ? [visualizer({
       filename: './dist/stats.html',
       open: false,
       gzipSize: true,
       brotliSize: true,
-    })
+    })] : []),
   ],
   build: {
     // Reduce chunk size warning limit
@@ -22,53 +22,15 @@ export default defineConfig({
         entryFileNames: `assets/[name]-${Date.now()}-[hash].js`,
         chunkFileNames: `assets/[name]-${Date.now()}-[hash].js`,
         assetFileNames: `assets/[name]-${Date.now()}-[hash].[ext]`,
-        // Granular code splitting for optimal caching
+        // Code splitting: only split heavy lazy-loaded libs, let Rollup handle the rest
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // React core + zustand internals - MUST be in same chunk to avoid React duplication
-            if (
-              id.includes('react') ||
-              id.includes('react-dom') ||
-              id.includes('scheduler') ||
-              id.includes('use-sync-external-store')
-            ) {
-              return 'react-vendor';
-            }
-            // Router - essential for navigation
-            if (id.includes('react-router')) {
-              return 'router';
-            }
-            // State management - small, essential
-            if (id.includes('zustand')) {
-              return 'zustand';
-            }
-            // Charts - heavy, lazy loaded
-            if (id.includes('recharts') || id.includes('d3-')) {
-              return 'charts';
-            }
-            // Excel export - rarely used, lazy load
-            if (id.includes('xlsx')) {
-              return 'xlsx';
-            }
-            // QR code generation - keep in vendor for CommonJS compatibility
-            // MUST be checked before jsqr to prevent qrcode ending up in qr-scanner
-            if (id.includes('qrcode') || id.includes('dijkstra') || id.includes('pngjs') || id.includes('encode-utf8')) {
-              return 'vendor';
-            }
-            // QR code scanning (jsqr) - separate chunk, dynamically imported
-            if (id.includes('jsqr')) {
-              return 'qr-scanner';
-            }
-            // Icons - medium size
-            if (id.includes('lucide-react')) {
-              return 'icons';
-            }
-            // Date utilities
-            if (id.includes('date-fns')) {
-              return 'date-utils';
-            }
-            // Everything else
-            return 'vendor';
+            // Heavy libs that are dynamically imported — isolate into own chunks
+            if (id.includes('exceljs')) return 'exceljs';
+            if (id.includes('xlsx')) return 'xlsx';
+            if (id.includes('recharts') || id.includes('d3-') || id.includes('react-redux')) return 'charts';
+            if (id.includes('docxtemplater') || id.includes('pizzip') || id.includes('/docx/')) return 'docx-gen';
+            if (id.includes('jsqr')) return 'qr-scanner';
           }
         },
       },

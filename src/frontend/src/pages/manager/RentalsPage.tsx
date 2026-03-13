@@ -343,7 +343,7 @@ export function RentalsPage() {
           <p className="text-gray-500">{language === 'ru' ? 'Добавьте первую квартиру для управления арендой' : 'Ijarani boshqarish uchun birinchi xonadonni qo\'shing'}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {rentalApartments.map((apartment) => {
             const records = getApartmentRecords(apartment.id);
             const activeRecord = records.find(r => new Date(r.checkOutDate) >= new Date());
@@ -351,7 +351,7 @@ export function RentalsPage() {
             return (
               <div
                 key={apartment.id}
-                className="glass-card p-5 cursor-pointer hover:shadow-lg transition-shadow"
+                className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => setSelectedApartment(apartment.id)}
               >
                 <div className="flex items-start justify-between mb-3">
@@ -403,8 +403,8 @@ export function RentalsPage() {
 
       {/* Apartment Details Modal */}
       {selectedApartment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedApartment(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setSelectedApartment(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {(() => {
               const apartment = rentalApartments.find(a => a.id === selectedApartment);
               const records = getApartmentRecords(selectedApartment);
@@ -508,8 +508,8 @@ export function RentalsPage() {
 
       {/* Add Apartment Modal */}
       {showAddApartmentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-6">{language === 'ru' ? 'Добавить квартиру' : 'Xonadon qo\'shish'}</h2>
             <div className="space-y-4">
               {/* Apartment Name */}
@@ -703,8 +703,8 @@ export function RentalsPage() {
 
       {/* Add Record Modal */}
       {showAddRecordModal && selectedApartment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-6">{language === 'ru' ? 'Добавить запись' : 'Yozuv qo\'shish'}</h2>
             <div className="space-y-4">
               <div>
@@ -771,9 +771,9 @@ export function RentalsPage() {
                 </div>
               </div>
               {newRecord.currency === 'USD' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2">
-                  <DollarSign className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-blue-800">
+                <div className="bg-primary-50 border border-primary-200 rounded-xl p-3 flex items-start gap-2">
+                  <DollarSign className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-primary-800">
                     {rateLoading ? (
                       <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> {language === 'ru' ? 'Загрузка курса ЦБ...' : 'MB kursi yuklanmoqda...'}</span>
                     ) : exchangeRate ? (
@@ -784,7 +784,7 @@ export function RentalsPage() {
                             ${newRecord.amount} = {Math.round(parseFloat(newRecord.amount) * exchangeRate).toLocaleString('ru-RU')} {language === 'ru' ? 'сум' : 'so\'m'}
                           </div>
                         )}
-                        <div className="text-xs text-blue-600 mt-1">{language === 'ru' ? 'Сумма будет автоматически конвертирована в сумы' : 'Summa avtomatik ravishda so\'mga konvertatsiya qilinadi'}</div>
+                        <div className="text-xs text-primary-600 mt-1">{language === 'ru' ? 'Сумма будет автоматически конвертирована в сумы' : 'Summa avtomatik ravishda so\'mga konvertatsiya qilinadi'}</div>
                       </>
                     ) : (
                       <span className="text-amber-700">{language === 'ru' ? 'Не удалось загрузить курс. Запись будет сохранена в USD.' : 'Kursni yuklab bo\'lmadi. Yozuv USD da saqlanadi.'}</span>
@@ -816,8 +816,8 @@ export function RentalsPage() {
 
       {/* Credentials Modal */}
       {showCredentials && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
@@ -842,8 +842,8 @@ export function RentalsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmApartment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-red-600" />
             </div>

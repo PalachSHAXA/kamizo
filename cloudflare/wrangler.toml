@@ -15,6 +15,8 @@ run_worker_first = true
 [vars]
 ENVIRONMENT = "production"
 ENCRYPTION_KEY = "K4m1z0-S3cur3-Encrypt10n-2026!"
+BASE_DOMAIN = "kamizo.uz"
+VAPID_EMAIL = "admin@kamizo.uz"
 
 [[d1_databases]]
 binding = "DB"
@@ -29,7 +31,6 @@ id = "89850617af24420da6d3e91051c1d2d2"
 [[durable_objects.bindings]]
 name = "CONNECTION_MANAGER"
 class_name = "ConnectionManager"
-script_name = "uk-crm"
 
 [[migrations]]
 tag = "v1"

@@ -1,8 +1,16 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
-  MessageCircle, Send, ArrowLeft, Users, Building2,
-  HeadphonesIcon, Search, Check, CheckCheck,
-  User, Crown, Shield, Wrench, Loader2, AlertCircle
+  Send, ArrowLeft, Building2, Home,
+  Search, Check, CheckCheck,
+  Loader2, AlertCircle,
+  MessageCircle,
+  ChevronDown,
+  MoreVertical,
+  ChevronUp,
+  X,
+  MapPin,
+  Smile,
+  Paperclip
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -10,7 +18,7 @@ import { chatApi } from '../services/api';
 import { subscribeToChatMessages } from '../hooks/useWebSocketSync';
 import { CHAT_CHANNEL_LABELS, type ChatChannelType, type UserRole } from '../types';
 
-// Types for API responses
+// ─── Types ───────────────────────────────────────────────────────────────
 interface ChatChannel {
   id: string;
   type: ChatChannelType;
@@ -24,7 +32,6 @@ interface ChatChannel {
   last_sender_id?: string;
   unread_count?: number;
   created_at: string;
-  // Resident info for private_support channels
   resident_apartment?: string;
   resident_building_name?: string;
   resident_branch_name?: string;
@@ -41,103 +48,147 @@ interface ChatMessage {
   read_by?: string[];
 }
 
-// Role badge component
+// ─── Role Badge ──────────────────────────────────────────────────────────
+const ROLE_CONFIG: Record<string, { label: string; labelUz: string; emoji: string; bg: string; text: string }> = {
+  super_admin: { label: 'Супер Админ', labelUz: 'Super Admin', emoji: '🛡️', bg: 'bg-purple-50', text: 'text-purple-700' },
+  admin: { label: 'Админ', labelUz: 'Admin', emoji: '🛡️', bg: 'bg-orange-50', text: 'text-orange-700' },
+  manager: { label: 'Менеджер', labelUz: 'Menejer', emoji: '👑', bg: 'bg-purple-50', text: 'text-purple-700' },
+  executor: { label: 'Исполнитель', labelUz: 'Ijrochi', emoji: '🔧', bg: 'bg-amber-50', text: 'text-amber-700' },
+  resident: { label: 'Житель', labelUz: 'Turar joy egasi', emoji: '👤', bg: 'bg-blue-50', text: 'text-blue-700' },
+  tenant: { label: 'Арендатор', labelUz: 'Ijarachi', emoji: '👤', bg: 'bg-green-50', text: 'text-green-700' },
+  commercial_owner: { label: 'Коммерция', labelUz: 'Tijorat', emoji: '🏢', bg: 'bg-yellow-50', text: 'text-yellow-700' },
+  department_head: { label: 'Глава отдела', labelUz: "Bo'lim boshlig'i", emoji: '👑', bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  director: { label: 'Директор', labelUz: 'Direktor', emoji: '👑', bg: 'bg-rose-50', text: 'text-rose-700' },
+  advertiser: { label: 'Рекламодатель', labelUz: 'Reklamaberuvchi', emoji: '📢', bg: 'bg-pink-50', text: 'text-pink-700' },
+  dispatcher: { label: 'Диспетчер', labelUz: 'Dispetcher', emoji: '📞', bg: 'bg-cyan-50', text: 'text-cyan-700' },
+  security: { label: 'Охранник', labelUz: "Qo'riqchi", emoji: '🛡️', bg: 'bg-slate-50', text: 'text-slate-700' },
+  marketplace_manager: { label: 'Менеджер магазина', labelUz: "Do'kon menejeri", emoji: '🛒', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+};
+
 function RoleBadge({ role, language }: { role: UserRole; language: string }) {
-  const roleConfig: Record<UserRole, { label: string; labelUz: string; color: string; icon: React.ReactNode }> = {
-    super_admin: {
-      label: 'Супер Админ',
-      labelUz: 'Super Admin',
-      color: 'bg-purple-100 text-purple-700',
-      icon: <Shield className="w-3 h-3" />
-    },
-    admin: {
-      label: 'Админ',
-      labelUz: 'Admin',
-      color: 'bg-red-100 text-red-700',
-      icon: <Shield className="w-3 h-3" />
-    },
-    manager: {
-      label: 'Менеджер',
-      labelUz: 'Menejer',
-      color: 'bg-purple-100 text-purple-700',
-      icon: <Crown className="w-3 h-3" />
-    },
-    executor: {
-      label: 'Исполнитель',
-      labelUz: 'Ijrochi',
-      color: 'bg-orange-100 text-orange-700',
-      icon: <Wrench className="w-3 h-3" />
-    },
-    resident: {
-      label: 'Житель',
-      labelUz: 'Turar joy egasi',
-      color: 'bg-blue-100 text-blue-700',
-      icon: <User className="w-3 h-3" />
-    },
-    tenant: {
-      label: 'Арендатор',
-      labelUz: 'Ijarachi',
-      color: 'bg-green-100 text-green-700',
-      icon: <User className="w-3 h-3" />
-    },
-    commercial_owner: {
-      label: 'Коммерция',
-      labelUz: 'Tijorat',
-      color: 'bg-yellow-100 text-yellow-700',
-      icon: <Building2 className="w-3 h-3" />
-    },
-    department_head: {
-      label: 'Глава отдела',
-      labelUz: 'Bo\'lim boshlig\'i',
-      color: 'bg-indigo-100 text-indigo-700',
-      icon: <Crown className="w-3 h-3" />
-    },
-    director: {
-      label: 'Директор',
-      labelUz: 'Direktor',
-      color: 'bg-rose-100 text-rose-700',
-      icon: <Crown className="w-3 h-3" />
-    },
-    advertiser: {
-      label: 'Рекламодатель',
-      labelUz: 'Reklamaberuvchi',
-      color: 'bg-pink-100 text-pink-700',
-      icon: <User className="w-3 h-3" />
-    },
-    dispatcher: {
-      label: 'Диспетчер',
-      labelUz: 'Dispetcher',
-      color: 'bg-cyan-100 text-cyan-700',
-      icon: <User className="w-3 h-3" />
-    },
-    security: {
-      label: 'Охранник',
-      labelUz: 'Qo\'riqchi',
-      color: 'bg-slate-100 text-slate-700',
-      icon: <Shield className="w-3 h-3" />
-    },
-    marketplace_manager: {
-      label: 'Менеджер магазина',
-      labelUz: 'Do\'kon menejeri',
-      color: 'bg-emerald-100 text-emerald-700',
-      icon: <User className="w-3 h-3" />
-    }
-  };
-
-  const config = roleConfig[role] || roleConfig.resident;
-
+  const config = ROLE_CONFIG[role] || ROLE_CONFIG.resident;
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${config.color}`}>
-      {config.icon}
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[10px] font-semibold ${config.bg} ${config.text}`}>
+      <span>{config.emoji}</span>
       {language === 'ru' ? config.label : config.labelUz}
     </span>
   );
 }
 
-// Tab type for channel list filtering
-type ChannelTab = 'all' | 'unread' | string; // string for branch names
+// ─── Helpers ─────────────────────────────────────────────────────────────
+function getInitials(name: string): string {
+  if (!name || /^\d/.test(name)) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name[0].toUpperCase();
+}
 
-// Channel list for admin/manager - shows private support chats from residents
+function getAvatarColor(name: string): string {
+  const colors = [
+    'from-orange-400 to-orange-500',
+    'from-blue-400 to-blue-500',
+    'from-emerald-400 to-emerald-500',
+    'from-purple-400 to-purple-500',
+    'from-pink-400 to-pink-500',
+    'from-cyan-400 to-cyan-500',
+    'from-amber-400 to-amber-500',
+    'from-indigo-400 to-indigo-500',
+    'from-rose-400 to-rose-500',
+    'from-teal-400 to-teal-500',
+  ];
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function formatTime(dateStr: string, lang: string): string {
+  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return d.toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diffDays === 1) return lang === 'ru' ? 'Вчера' : 'Kecha';
+  if (diffDays < 7) {
+    return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'short' });
+  }
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
+}
+
+function formatMessageTime(dateStr: string, lang: string): string {
+  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+  return d.toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDateSeparator(dateStr: string, lang: string): string {
+  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return lang === 'ru' ? 'Сегодня' : 'Bugun';
+  if (diffDays === 1) return lang === 'ru' ? 'Вчера' : 'Kecha';
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/** Check if a last_message value is a real message text (not a number or empty) */
+function getLastMessagePreview(channel: ChatChannel, lang: string): string {
+  // Only show last_message if there's actually a last_message_at timestamp
+  // This prevents showing stale data or numbers like "0" from message_count
+  if (channel.last_message_at && channel.last_message && typeof channel.last_message === 'string' && channel.last_message.trim().length > 0) {
+    return channel.last_message;
+  }
+  return lang === 'ru' ? 'Нет сообщений' : 'Xabar yo\'q';
+}
+
+// ─── Filter Tabs ─────────────────────────────────────────────────────────
+type FilterTab = 'all' | 'unread';
+
+// ─── Branch tab colors (cycled) ───────────────────────────────────────────
+const BRANCH_COLORS = [
+  { active: 'bg-blue-500 text-white', inactive: 'bg-blue-50 text-blue-700 border border-blue-200', dot: 'bg-blue-500' },
+  { active: 'bg-purple-500 text-white', inactive: 'bg-purple-50 text-purple-700 border border-purple-200', dot: 'bg-purple-500' },
+  { active: 'bg-teal-500 text-white', inactive: 'bg-teal-50 text-teal-700 border border-teal-200', dot: 'bg-teal-500' },
+  { active: 'bg-rose-500 text-white', inactive: 'bg-rose-50 text-rose-700 border border-rose-200', dot: 'bg-rose-500' },
+  { active: 'bg-amber-500 text-white', inactive: 'bg-amber-50 text-amber-700 border border-amber-200', dot: 'bg-amber-500' },
+  { active: 'bg-indigo-500 text-white', inactive: 'bg-indigo-50 text-indigo-700 border border-indigo-200', dot: 'bg-indigo-500' },
+];
+
+function getBranchColor(index: number) {
+  return BRANCH_COLORS[index % BRANCH_COLORS.length];
+}
+
+// ─── Location Badges ──────────────────────────────────────────────────────
+function LocationBadges({ channel, language, branchIndex }: { channel: ChatChannel; language: string; branchIndex: number }) {
+  const color = getBranchColor(branchIndex);
+  return (
+    <div className="flex items-center gap-1 flex-wrap mt-1">
+      {channel.resident_branch_name && (
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[10px] font-semibold ${color.inactive}`}>
+          <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+          <span className="truncate max-w-[80px]">{channel.resident_branch_name}</span>
+        </span>
+      )}
+      {channel.resident_building_name && (
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Building2 className="w-2.5 h-2.5 flex-shrink-0" />
+          <span className="truncate max-w-[80px]">{channel.resident_building_name}</span>
+        </span>
+      )}
+      {channel.resident_apartment && (
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[10px] font-medium bg-gray-100 text-gray-600">
+          <Home className="w-2.5 h-2.5 flex-shrink-0" />
+          {language === 'ru' ? 'кв.' : 'xon.'} {channel.resident_apartment}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin Channel Sidebar ──────────────────────────────────────────────
 function AdminChannelList({
   channels,
   onSelectChannel,
@@ -151,340 +202,424 @@ function AdminChannelList({
 }) {
   const { language } = useLanguageStore();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<ChannelTab>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const [selectedBranchTab, setSelectedBranchTab] = useState<string | null>(null);
+  const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
 
-  // Filter channels by search query
-  const filteredChannels = channels.filter(ch => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      ch.name?.toLowerCase().includes(query) ||
-      ch.description?.toLowerCase().includes(query) ||
-      ch.last_message?.toLowerCase().includes(query)
-    );
-  });
+  // Only private_support channels
+  const supportChannels = useMemo(() =>
+    channels.filter(ch => ch.type === 'private_support'),
+  [channels]);
 
-  // Separate private support and group channels (from filtered)
-  // Sort by unread count (unread first), then by last_message_at
-  const sortByUnread = (a: ChatChannel, b: ChatChannel) => {
-    // First, sort by unread count (channels with unread messages first)
+  const totalUnread = useMemo(() =>
+    supportChannels.reduce((sum, ch) => sum + (ch.unread_count || 0), 0),
+  [supportChannels]);
+
+  // Unique branch names sorted
+  const branchNames = useMemo(() => [...new Set(
+    supportChannels.map(ch => ch.resident_branch_name).filter((n): n is string => !!n)
+  )].sort(), [supportChannels]);
+
+  // Branch → index map for consistent coloring
+  const branchIndexMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    branchNames.forEach((name, i) => { map[name] = i; });
+    return map;
+  }, [branchNames]);
+
+  // Buildings within selected branch (or all if no branch selected)
+  const buildingNames = useMemo(() => {
+    const source = selectedBranchTab
+      ? supportChannels.filter(ch => ch.resident_branch_name === selectedBranchTab)
+      : supportChannels;
+    return [...new Set(
+      source.map(ch => ch.resident_building_name).filter((n): n is string => !!n)
+    )].sort();
+  }, [supportChannels, selectedBranchTab]);
+
+  // Reset building filter when branch changes
+  const handleBranchChange = (branch: string | null) => {
+    setSelectedBranchTab(branch);
+    setSelectedBuilding(null);
+  };
+
+  const sortChannels = (a: ChatChannel, b: ChatChannel) => {
     const aUnread = a.unread_count || 0;
     const bUnread = b.unread_count || 0;
     if (bUnread !== aUnread) return bUnread - aUnread;
-    // Then by last message time
     const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
     const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
     return bTime - aTime;
   };
 
-  const privateSupportChannels = filteredChannels
-    .filter(ch => ch.type === 'private_support')
-    .sort(sortByUnread);
-  const groupChannels = filteredChannels
-    .filter(ch => ch.type === 'uk_general' || ch.type === 'building_general')
-    .sort(sortByUnread);
-
-  // Calculate total unread
-  const totalUnread = channels.reduce((sum, ch) => sum + (ch.unread_count || 0), 0);
-
-  // Get channels with unread messages
-  const unreadChannels = privateSupportChannels.filter(ch => ch.unread_count && ch.unread_count > 0);
-
-  // Get unique branch names from channels
-  const branchNames = [...new Set(
-    privateSupportChannels
-      .map(ch => ch.resident_branch_name)
-      .filter((name): name is string => !!name)
-  )].sort();
-
-  // Filter channels based on active tab
-  const getDisplayedPrivateSupportChannels = () => {
-    if (activeTab === 'all') return privateSupportChannels;
-    if (activeTab === 'unread') return unreadChannels;
-    // Filter by branch name
-    return privateSupportChannels.filter(ch => ch.resident_branch_name === activeTab);
-  };
-
-  const displayedPrivateSupportChannels = getDisplayedPrivateSupportChannels();
-
-  const getChannelIcon = (type: ChatChannelType) => {
-    switch (type) {
-      case 'uk_general': return <Building2 className="w-5 h-5" />;
-      case 'building_general': return <Users className="w-5 h-5" />;
-      case 'private_support': return <User className="w-5 h-5" />;
-      default: return <MessageCircle className="w-5 h-5" />;
+  const filteredChannels = useMemo(() => supportChannels.filter(ch => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        ch.name?.toLowerCase().includes(q) ||
+        ch.description?.toLowerCase().includes(q) ||
+        ch.last_message?.toLowerCase().includes(q) ||
+        ch.resident_apartment?.toLowerCase().includes(q) ||
+        ch.resident_building_name?.toLowerCase().includes(q) ||
+        ch.resident_branch_name?.toLowerCase().includes(q);
+      if (!matchesSearch) return false;
     }
-  };
+    if (activeFilter === 'unread' && (!ch.unread_count || ch.unread_count === 0)) return false;
+    if (selectedBranchTab && ch.resident_branch_name !== selectedBranchTab) return false;
+    if (selectedBuilding && ch.resident_building_name !== selectedBuilding) return false;
+    return true;
+  }).sort(sortChannels), [supportChannels, searchQuery, activeFilter, selectedBranchTab, selectedBuilding]);
+
+  const unreadCount = useMemo(() =>
+    supportChannels.filter(ch => ch.unread_count && ch.unread_count > 0).length,
+  [supportChannels]);
+
+  // Counts per branch
+  const branchUnread = useMemo(() => {
+    const map: Record<string, number> = {};
+    supportChannels.forEach(ch => {
+      if (ch.resident_branch_name) {
+        map[ch.resident_branch_name] = (map[ch.resident_branch_name] || 0) + (ch.unread_count || 0);
+      }
+    });
+    return map;
+  }, [supportChannels]);
+
+  const branchCount = useMemo(() => {
+    const map: Record<string, number> = {};
+    supportChannels.forEach(ch => {
+      if (ch.resident_branch_name) {
+        map[ch.resident_branch_name] = (map[ch.resident_branch_name] || 0) + 1;
+      }
+    });
+    return map;
+  }, [supportChannels]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div className="p-4 border-b bg-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold">
-              {language === 'ru' ? 'Сообщения' : 'Xabarlar'}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {language === 'ru' ? 'Чаты с жителями и группы' : 'Aholi bilan chatlar va guruhlar'}
-            </p>
-          </div>
+      <div className="px-4 pt-4 pb-2">
+        <div className="flex items-center justify-between mb-0.5">
+          <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Onest', sans-serif" }}>
+            {language === 'ru' ? 'Сообщения' : 'Xabarlar'}
+          </h2>
           {totalUnread > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-600 rounded-full">
-              <span className="text-sm font-medium">{totalUnread}</span>
-              <span className="text-xs">{language === 'ru' ? 'новых' : 'yangi'}</span>
-            </div>
+            <span className="px-2 py-0.5 bg-orange-500 text-white text-xs font-bold rounded-full">
+              {totalUnread > 99 ? '99+' : totalUnread} {language === 'ru' ? 'новых' : 'yangi'}
+            </span>
           )}
         </div>
-      </div>
+        <p className="text-[11px] text-gray-400 mb-3">
+          {language === 'ru' ? 'Обращения жителей' : 'Aholi murojatlari'}
+        </p>
 
-      {/* Quick filter tabs - scrollable resident tabs */}
-      <div className="p-2 border-b bg-gray-50 flex gap-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-            activeTab === 'all'
-              ? 'bg-primary-500 text-gray-900'
-              : 'bg-white text-gray-600 hover:bg-gray-100 border'
-          }`}
-        >
-          {language === 'ru' ? 'Все' : 'Hammasi'} ({privateSupportChannels.length})
-        </button>
-        {unreadChannels.length > 0 && (
+        {/* Read/Unread filter */}
+        <div className="flex gap-2 mb-3">
           <button
-            onClick={() => setActiveTab('unread')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 flex-shrink-0 ${
-              activeTab === 'unread'
-                ? 'bg-red-500 text-white'
-                : 'bg-white text-red-600 hover:bg-red-50 border border-red-200'
+            onClick={() => setActiveFilter('all')}
+            className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${
+              activeFilter === 'all'
+                ? 'bg-orange-500 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-500 hover:text-gray-700'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-current" />
-            {language === 'ru' ? 'Новые' : 'Yangi'} ({unreadChannels.length})
+            {language === 'ru' ? 'Все' : 'Hammasi'} ({supportChannels.length})
           </button>
-        )}
-        {/* Show branch tabs as scrollable chips */}
-        {branchNames.map(branchName => {
-          const branchChannels = privateSupportChannels.filter(ch => ch.resident_branch_name === branchName);
-          const branchUnread = branchChannels.reduce((sum, ch) => sum + (ch.unread_count || 0), 0);
-
-          return (
+          {unreadCount > 0 && (
             <button
-              key={branchName}
-              onClick={() => setActiveTab(branchName)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 flex-shrink-0 ${
-                activeTab === branchName
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 border'
+              onClick={() => setActiveFilter('unread')}
+              className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeFilter === 'unread'
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-200'
               }`}
             >
-              <Building2 className="w-3 h-3" />
-              {branchName} ({branchChannels.length})
-              {branchUnread > 0 && (
-                <span className={`min-w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                  activeTab === branchName ? 'bg-white text-blue-500' : 'bg-red-500 text-white'
-                }`}>
-                  {branchUnread}
-                </span>
-              )}
+              <span className={`w-2 h-2 rounded-full ${activeFilter === 'unread' ? 'bg-white' : 'bg-red-500'}`} />
+              {language === 'ru' ? 'Новые' : 'Yangi'} ({unreadCount})
             </button>
-          );
-        })}
-      </div>
+          )}
+        </div>
 
-      {/* Search */}
-      <div className="p-3 border-b">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        {/* Search */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={language === 'ru' ? 'Поиск по имени или сообщению...' : 'Ism yoki xabar bo\'yicha qidirish...'}
-            className="w-full pl-9 pr-4 py-2 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder={language === 'ru' ? 'Имя, объект, квартира...' : 'Ism, obyekt, xona...'}
+            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-[12px] text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
           />
         </div>
       </div>
 
+      {/* Branch tabs (only if multiple branches) */}
+      {branchNames.length > 1 && (
+        <div className="px-4 pb-2">
+          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+            <MapPin className="w-2.5 h-2.5" />
+            {language === 'ru' ? 'Филиал' : 'Filial'}
+          </p>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+            {/* All branches tab */}
+            <button
+              onClick={() => handleBranchChange(null)}
+              className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-[11px] font-semibold transition-all ${
+                !selectedBranchTab
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              {language === 'ru' ? 'Все' : 'Barchasi'}
+              <span className={`text-[10px] font-bold ${!selectedBranchTab ? 'text-white/80' : 'text-gray-400'}`}>
+                {supportChannels.length}
+              </span>
+            </button>
+            {branchNames.map((branch) => {
+              const color = getBranchColor(branchIndexMap[branch] ?? 0);
+              const isActive = selectedBranchTab === branch;
+              const bUnread = branchUnread[branch] || 0;
+              return (
+                <button
+                  key={branch}
+                  onClick={() => handleBranchChange(branch)}
+                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-[11px] font-semibold transition-all ${
+                    isActive ? color.active + ' shadow-sm' : color.inactive + ' hover:opacity-80'
+                  }`}
+                >
+                  <span className="truncate max-w-[90px]">{branch}</span>
+                  <span className={`text-[10px] font-bold ${isActive ? 'text-white/80' : ''}`}>
+                    {branchCount[branch] || 0}
+                  </span>
+                  {bUnread > 0 && (
+                    <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${isActive ? 'bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
+                      {bUnread > 9 ? '9+' : bUnread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Building filter (if branch selected and has multiple buildings) */}
+      {selectedBranchTab && buildingNames.length > 1 && (
+        <div className="px-4 pb-2">
+          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+            <Building2 className="w-2.5 h-2.5" />
+            {language === 'ru' ? 'Объект' : 'Obyekt'}
+          </p>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+            <button
+              onClick={() => setSelectedBuilding(null)}
+              className={`flex-shrink-0 px-2.5 py-1 rounded-[8px] text-[11px] font-medium transition-all ${
+                !selectedBuilding
+                  ? 'bg-emerald-500 text-white shadow-sm'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+              }`}
+            >
+              {language === 'ru' ? 'Все' : 'Barchasi'}
+            </button>
+            {buildingNames.map((building) => (
+              <button
+                key={building}
+                onClick={() => setSelectedBuilding(building === selectedBuilding ? null : building)}
+                className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-[8px] text-[11px] font-medium transition-all ${
+                  selectedBuilding === building
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                <Building2 className="w-2.5 h-2.5 flex-shrink-0" />
+                <span className="truncate max-w-[80px]">{building}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Section label */}
+      <div className="px-4 py-1.5 border-t bg-gray-50/60">
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+          {filteredChannels.length} {language === 'ru' ? 'диалогов' : 'dialog'}
+        </span>
+      </div>
+
       {/* Channel list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
+          </div>
+        ) : filteredChannels.length === 0 ? (
+          <div className="px-5 py-12 text-center">
+            <div className="w-14 h-14 mx-auto mb-3 bg-gray-100 rounded-[18px] flex items-center justify-center">
+              <MessageCircle className="w-7 h-7 text-gray-300" />
+            </div>
+            <p className="text-sm text-gray-400">
+              {activeFilter === 'unread'
+                ? (language === 'ru' ? 'Нет новых сообщений' : 'Yangi xabarlar yo\'q')
+                : (language === 'ru' ? 'Нет обращений' : 'Murojatlar yo\'q')
+              }
+            </p>
           </div>
         ) : (
-          <>
-            {/* Private support chats section */}
-            {displayedPrivateSupportChannels.length > 0 && (
-              <div>
-                <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {language === 'ru' ? 'Обращения жителей' : 'Aholi murojatları'} ({displayedPrivateSupportChannels.length})
-                </div>
-                <div className="divide-y">
-                  {displayedPrivateSupportChannels.map((channel) => {
-                    const isSelected = selectedChannelId === channel.id;
+          filteredChannels.map((channel) => {
+            const isSelected = selectedChannelId === channel.id;
+            const hasUnread = Number(channel.unread_count) > 0;
+            const preview = getLastMessagePreview(channel, language);
+            const hasMessages = !!channel.last_message_at;
+            const branchIdx = channel.resident_branch_name ? (branchIndexMap[channel.resident_branch_name] ?? 0) : 0;
 
-                    return (
-                      <button
-                        key={channel.id}
-                        onClick={() => onSelectChannel(channel.id)}
-                        className={`w-full p-4 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors ${
-                          isSelected ? 'bg-primary-50' : ''
-                        } ${channel.unread_count && channel.unread_count > 0 ? 'bg-blue-50/50' : ''}`}
-                      >
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-medium text-lg">
-                            {/* Show first letter of name, fallback to 'U' for User if name is missing or starts with a number */}
-                            {channel.name && !/^\d/.test(channel.name) ? channel.name.charAt(0).toUpperCase() : 'U'}
-                          </div>
-                          {channel.unread_count && channel.unread_count > 0 && (
-                            <div className="absolute -top-1 -right-1 min-w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-                              <span className="text-xs text-white font-medium px-1">
-                                {channel.unread_count > 99 ? '99+' : channel.unread_count}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className={`truncate ${channel.unread_count && channel.unread_count > 0 ? 'font-semibold' : 'font-medium'}`}>
-                              {channel.name}
-                            </span>
-                            {channel.last_message_at && (
-                              <span className={`text-xs flex-shrink-0 ml-2 ${channel.unread_count && channel.unread_count > 0 ? 'text-blue-500 font-medium' : 'text-gray-400'}`}>
-                                {new Date(channel.last_message_at).toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            )}
-                          </div>
-                          {/* Show branch, building and apartment info */}
-                          {(channel.resident_building_name || channel.resident_apartment || channel.resident_branch_name) && (
-                            <div className="text-xs text-gray-400 truncate">
-                              {channel.resident_branch_name && (
-                                <span>{channel.resident_branch_name} • </span>
-                              )}
-                              {channel.resident_building_name && <span>{channel.resident_building_name}</span>}
-                              {channel.resident_building_name && channel.resident_apartment && <span> • </span>}
-                              {channel.resident_apartment && <span>{language === 'ru' ? 'кв.' : 'xon.'} {channel.resident_apartment}</span>}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm truncate ${channel.unread_count && channel.unread_count > 0 ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
-                              {channel.last_message || ''}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+            return (
+              <button
+                key={channel.id}
+                onClick={() => onSelectChannel(channel.id)}
+                className={`w-full px-4 py-3 flex items-start gap-3 text-left transition-all ${
+                  isSelected
+                    ? 'bg-orange-50 border-r-2 border-orange-500'
+                    : hasUnread
+                      ? 'bg-orange-50/40 hover:bg-orange-50/60'
+                      : 'hover:bg-gray-50'
+                }`}
+              >
+                {/* Avatar */}
+                <div className="relative flex-shrink-0 mt-0.5">
+                  <div className={`w-10 h-10 rounded-[13px] bg-gradient-to-br ${getAvatarColor(channel.name)} flex items-center justify-center text-white font-semibold text-sm shadow-sm`}>
+                    {getInitials(channel.name)}
+                  </div>
+                  {hasUnread && (
+                    <div className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] bg-orange-500 rounded-full flex items-center justify-center shadow-sm">
+                      <span className="text-[9px] text-white font-bold px-1">
+                        {channel.unread_count! > 99 ? '99+' : channel.unread_count}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
 
-            {activeTab === 'all' && displayedPrivateSupportChannels.length === 0 && privateSupportChannels.length === 0 && (
-              <div className="p-8 text-center text-gray-500">
-                <User className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                <p>{language === 'ru' ? 'Нет обращений от жителей' : 'Aholidan murojaatlar yo\'q'}</p>
-              </div>
-            )}
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-sm truncate ${hasUnread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
+                      {channel.name}
+                    </span>
+                    {channel.last_message_at && (
+                      <span className={`text-[11px] flex-shrink-0 ${hasUnread ? 'text-orange-500 font-semibold' : 'text-gray-400'}`}>
+                        {formatTime(channel.last_message_at, language)}
+                      </span>
+                    )}
+                  </div>
 
-            {/* Group channels section - only show in "all" tab */}
-            {activeTab === 'all' && (
-              <div>
-                <div className="px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {language === 'ru' ? 'Групповые чаты' : 'Guruh chatlari'}
+                  {/* Colored location badges */}
+                  {(channel.resident_branch_name || channel.resident_building_name || channel.resident_apartment) && (
+                    <LocationBadges channel={channel} language={language} branchIndex={branchIdx} />
+                  )}
+
+                  {/* Last message preview */}
+                  {hasMessages && (
+                    <p className={`text-xs truncate mt-1 ${hasUnread ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
+                      {preview}
+                    </p>
+                  )}
                 </div>
-                <div className="divide-y">
-                  {groupChannels.map((channel) => {
-                    const labels = CHAT_CHANNEL_LABELS[channel.type];
-                    const isSelected = selectedChannelId === channel.id;
-
-                    return (
-                      <button
-                        key={channel.id}
-                        onClick={() => onSelectChannel(channel.id)}
-                        className={`w-full p-4 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors ${
-                          isSelected ? 'bg-primary-50' : ''
-                        }`}
-                      >
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                          channel.type === 'uk_general' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'
-                        }`}>
-                          {getChannelIcon(channel.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium truncate">
-                              {language === 'ru' ? labels.label : labels.labelUz}
-                            </span>
-                            {channel.last_message_at && (
-                              <span className="text-xs text-gray-400">
-                                {new Date(channel.last_message_at).toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            )}
-                          </div>
-                          {channel.message_count && channel.message_count > 0 ? (
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                              <Users className="w-3.5 h-3.5" />
-                              <span>{channel.message_count} {language === 'ru' ? 'сообщений' : 'xabar'}</span>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-gray-400">
-                              {language === 'ru' ? 'Нет сообщений' : 'Xabar yo\'q'}
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </>
+              </button>
+            );
+          })
         )}
       </div>
     </div>
   );
 }
 
-// Chat view component - shared for all users
+// ─── Quick Reply Buttons (Admin only) ────────────────────────────────────
+function QuickReplies({ onSelect, language }: { onSelect: (text: string) => void; language: string }) {
+  const replies = language === 'ru'
+    ? [
+        'Ваша заявка принята ✅',
+        'Мастер уже выехал 🚗',
+        'Проблема решена! 🎉',
+        'Уточните, пожалуйста 🤔',
+        'Спасибо за обращение!',
+      ]
+    : [
+        "Arizangiz qabul qilindi ✅",
+        "Usta yo'lga chiqdi 🚗",
+        "Muammo hal qilindi! 🎉",
+        "Iltimos, aniqlang 🤔",
+        "Murojaat uchun rahmat!",
+      ];
+
+  return (
+    <div className="px-4 py-2.5 border-b bg-orange-50/50 flex gap-2 overflow-x-auto scrollbar-none">
+      {replies.map((reply, i) => (
+        <button
+          key={i}
+          onClick={() => onSelect(reply)}
+          className="flex-shrink-0 px-3.5 py-2 bg-white border border-orange-200 rounded-[12px] text-xs font-medium text-orange-700 hover:bg-orange-50 hover:border-orange-300 transition-all active:scale-95 shadow-sm"
+        >
+          {reply}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Chat View ───────────────────────────────────────────────────────────
 function ChatView({
   channelId,
   channel,
   onBack,
-  hideBackOnDesktop = false
+  hideBackOnDesktop = false,
+  onMarkRead,
 }: {
   channelId: string;
   channel?: ChatChannel;
   onBack: () => void;
   hideBackOnDesktop?: boolean;
+  onMarkRead?: () => void;
 }) {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
-
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<number[]>([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Info panel state
+  const [showInfo, setShowInfo] = useState(false);
+
+  const QUICK_EMOJIS = ['😊','😂','❤️','👍','👎','🙏','😍','😭','🎉','🔥','✅','⚠️','😮','🤔','💪','👋','🏠','🔧','📋','📞'];
+
+  const insertEmoji = (emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+    setShowEmojiPicker(false);
+  };
+
+  const isStaff = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'super_admin' || user?.role === 'director' || user?.role === 'department_head';
+  const isResident = user?.role === 'resident';
+  const isPrivateSupport = channel?.type === 'private_support';
 
   // Fetch messages
   const fetchMessages = useCallback(async () => {
-    // Skip if channelId is not valid
     if (!channelId || channelId === 'undefined') {
-      console.warn('Invalid channelId, skipping message fetch');
       setIsLoading(false);
       return;
     }
     try {
       const response = await chatApi.getMessages(channelId);
-      const messageList = response.messages || [];
-      setMessages(messageList);
+      setMessages(response.messages || []);
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     } finally {
@@ -492,31 +627,23 @@ function ChatView({
     }
   }, [channelId]);
 
-  // Mark channel as read when opening
   const markAsRead = useCallback(async () => {
     if (!channelId || channelId === 'undefined') return;
     try {
       await chatApi.markRead(channelId);
+      onMarkRead?.();
     } catch (error) {
       console.error('Failed to mark as read:', error);
     }
-  }, [channelId]);
+  }, [channelId, onMarkRead]);
 
-  // Initial fetch and WebSocket subscription (no polling!)
   useEffect(() => {
     setIsLoading(true);
     fetchMessages();
-
-    // Mark channel as read when opening
     markAsRead();
 
-    // Subscribe to WebSocket chat messages instead of polling
-    const unsubscribe = subscribeToChatMessages((message) => {
-      // Only process messages for this channel
+    const unsubscribe = subscribeToChatMessages((message: any) => {
       if (message.channel_id === channelId) {
-        console.log('[Chat] WebSocket message for this channel:', message);
-
-        // Handle read receipts
         if (message.type === 'read') {
           setMessages(prev => prev.map(m =>
             m.id === message.message_id
@@ -525,25 +652,19 @@ function ChatView({
           ));
           return;
         }
-
-        // Add new message if not already present
         setMessages(prev => {
           const exists = prev.some(m => m.id === message.id);
           if (exists) return prev;
           return [...prev, message];
         });
-
-        // Auto-mark new messages as read since user is viewing
         markAsRead();
       }
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return () => { unsubscribe(); };
   }, [fetchMessages, channelId, markAsRead]);
 
-  // Scroll to bottom on new messages - with slight delay to ensure DOM update
+  // Scroll to bottom
   useEffect(() => {
     const timer = setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -551,16 +672,49 @@ function ChatView({
     return () => clearTimeout(timer);
   }, [messages.length]);
 
+  // Search logic
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    const indices = messages
+      .map((m, i) => m.content.toLowerCase().includes(q) ? i : -1)
+      .filter(i => i !== -1);
+    setSearchResults(indices);
+    setCurrentSearchIndex(0);
+  }, [searchQuery, messages]);
+
+  // Scroll to current search match
+  useEffect(() => {
+    if (searchResults.length > 0) {
+      const msgIndex = searchResults[currentSearchIndex];
+      const el = document.getElementById(`msg-${msgIndex}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentSearchIndex, searchResults]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (showSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    } else {
+      setSearchQuery('');
+      setSearchResults([]);
+    }
+  }, [showSearch]);
+
   const handleSend = async () => {
     if (!newMessage.trim() || !user || isSending) return;
-
     const messageToSend = newMessage.trim();
-    setNewMessage(''); // Clear immediately for better UX
+    setNewMessage('');
     setIsSending(true);
 
     try {
       const response = await chatApi.sendMessage(channelId, messageToSend);
-      // Add sent message to local state immediately (optimistic update)
       if (response.message) {
         setMessages(prev => {
           const exists = prev.some(m => m.id === response.message.id);
@@ -570,23 +724,16 @@ function ChatView({
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Restore message on error
       setNewMessage(messageToSend);
-      alert(language === 'ru' ? 'Не удалось отправить сообщение' : 'Xabar yuborib bo\'lmadi');
     } finally {
       setIsSending(false);
     }
   };
 
-  // Get channel title based on type
-  const getChannelTitle = () => {
-    if (channel?.type === 'private_support') {
-      // For residents - show "Chat with administration"
-      if (user?.role === 'resident') {
-        return language === 'ru' ? 'Чат с администрацией' : 'Administratsiya bilan chat';
-      }
-      // For admin/manager - show resident name
-      return channel.name || (language === 'ru' ? 'Чат' : 'Chat');
+  const getTitle = () => {
+    if (isPrivateSupport) {
+      if (isResident) return language === 'ru' ? 'Чат с УК' : 'UK bilan chat';
+      return channel?.name || (language === 'ru' ? 'Чат' : 'Chat');
     }
     if (channel) {
       const labels = CHAT_CHANNEL_LABELS[channel.type];
@@ -595,106 +742,225 @@ function ChatView({
     return language === 'ru' ? 'Чат' : 'Chat';
   };
 
-  const getChannelSubtitle = () => {
-    if (channel?.type === 'private_support') {
-      if (user?.role === 'resident') {
-        return language === 'ru' ? 'Личный чат' : 'Shaxsiy chat';
-      }
-      return channel.description || '';
+  const getSubtitle = () => {
+    if (isPrivateSupport && !isResident) {
+      const parts: string[] = [];
+      if (channel?.resident_branch_name) parts.push(channel.resident_branch_name);
+      if (channel?.resident_building_name) parts.push(channel.resident_building_name);
+      if (channel?.resident_apartment) parts.push(`${language === 'ru' ? 'кв.' : 'xon.'} ${channel.resident_apartment}`);
+      return parts.join(' · ') || '';
+    }
+    if (isPrivateSupport && isResident) {
+      return language === 'ru' ? 'Администрация онлайн' : 'Administratsiya onlayn';
     }
     return `${messages.length} ${language === 'ru' ? 'сообщений' : 'xabar'}`;
   };
 
-  const isResidentView = user?.role === 'resident' && channel?.type === 'private_support';
+  const getDateKey = (dateStr: string) => {
+    const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
-      {/* Header - compact for residents */}
-      <div className={`bg-white border-b flex items-center gap-3 ${isResidentView ? 'p-3' : 'p-4'}`}>
-        {!hideBackOnDesktop && (
+    <div className="h-full flex flex-col bg-[#f8f7f4]">
+      {/* ── Header ── */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="flex items-center gap-3 px-4 py-3" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)` }}>
           <button
             onClick={onBack}
-            className="p-2 hover:bg-gray-100 rounded-xl md:hidden"
+            className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${hideBackOnDesktop ? 'md:hidden' : ''}`}
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
-        )}
-        <div className={`rounded-full flex items-center justify-center ${
-          isResidentView ? 'w-8 h-8' : 'w-10 h-10'
-        } ${
-          channel?.type === 'private_support' ? 'bg-blue-100 text-blue-600' :
-          channel?.type === 'uk_general' ? 'bg-purple-100 text-purple-600' :
-          channel?.type === 'building_general' ? 'bg-green-100 text-green-600' :
-          channel?.type === 'entrance' ? 'bg-amber-100 text-amber-600' :
-          'bg-gray-100 text-gray-600'
-        }`}>
-          {channel?.type === 'private_support' ? (
-            user?.role === 'resident' ? <HeadphonesIcon className={isResidentView ? 'w-4 h-4' : 'w-5 h-5'} /> : <User className="w-5 h-5" />
-          ) : (
-            <MessageCircle className="w-5 h-5" />
-          )}
-        </div>
-        <div className="flex-1">
-          <h3 className={`font-medium ${isResidentView ? 'text-sm' : ''}`}>{getChannelTitle()}</h3>
-          {!isResidentView && <p className="text-xs text-gray-500">{getChannelSubtitle()}</p>}
+
+          <div className={`w-10 h-10 rounded-[13px] flex items-center justify-center flex-shrink-0 ${
+            isPrivateSupport
+              ? `bg-gradient-to-br ${getAvatarColor(channel?.name || '')} text-white font-semibold text-sm`
+              : channel?.type === 'uk_general' ? 'bg-purple-100 text-lg' : 'bg-emerald-100 text-lg'
+          }`}>
+            {isPrivateSupport
+              ? getInitials(isResident ? (language === 'ru' ? 'Администрация' : 'Administratsiya') : (channel?.name || ''))
+              : (channel?.type === 'uk_general' ? '🏢' : '🏠')
+            }
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-gray-900 truncate">{getTitle()}</h3>
+            <p className="text-[11px] text-gray-500 truncate">{getSubtitle()}</p>
+          </div>
+
+          <button
+            onClick={() => { setShowSearch(s => !s); setShowInfo(false); }}
+            className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${showSearch ? 'bg-gray-100' : ''}`}
+          >
+            <Search className="w-5 h-5 text-gray-600" />
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => { setShowInfo(s => !s); setShowSearch(false); }}
+              className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${showInfo ? 'bg-gray-100' : ''}`}
+            >
+              <MoreVertical className="w-5 h-5 text-gray-600" />
+            </button>
+            {showInfo && (
+              <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-[14px] shadow-lg border border-gray-100 z-50 p-4">
+                <div className="space-y-2.5">
+                  <div>
+                    <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Название' : 'Nomi'}</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{getTitle()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Тип' : 'Turi'}</p>
+                    <p className="text-sm text-gray-700 mt-0.5">{channel?.type ? (CHAT_CHANNEL_LABELS[channel.type] ? (language === 'ru' ? CHAT_CHANNEL_LABELS[channel.type].label : CHAT_CHANNEL_LABELS[channel.type].labelUz) : channel.type) : '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Сообщений' : 'Xabarlar'}</p>
+                    <p className="text-sm text-gray-700 mt-0.5">{messages.length}</p>
+                  </div>
+                  {getSubtitle() && (
+                    <div>
+                      <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Детали' : 'Tafsilotlar'}</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{getSubtitle()}</p>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowInfo(false)}
+                  className="mt-3 w-full py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-[10px] transition-colors"
+                >
+                  {language === 'ru' ? 'Закрыть' : 'Yopish'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      {/* ── Search Bar ── */}
+      {showSearch && (
+        <div className="bg-white border-b px-4 py-2 flex items-center gap-2">
+          <div className="flex-1 relative flex items-center">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={language === 'ru' ? 'Поиск по сообщениям...' : 'Xabarlardan qidirish...'}
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-[10px] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+            />
+          </div>
+          {searchQuery.trim() && (
+            <span className="text-xs text-gray-500 whitespace-nowrap min-w-[50px] text-center">
+              {searchResults.length > 0
+                ? `${currentSearchIndex + 1} ${language === 'ru' ? 'из' : '/'} ${searchResults.length}`
+                : `0 ${language === 'ru' ? 'из' : '/'} 0`
+              }
+            </span>
+          )}
+          <button
+            onClick={() => {
+              if (searchResults.length > 0) {
+                setCurrentSearchIndex(i => i > 0 ? i - 1 : searchResults.length - 1);
+              }
+            }}
+            disabled={searchResults.length === 0}
+            className="p-1.5 min-h-[32px] min-w-[32px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[8px] transition-colors touch-manipulation disabled:opacity-30"
+          >
+            <ChevronUp className="w-4 h-4 text-gray-600" />
+          </button>
+          <button
+            onClick={() => {
+              if (searchResults.length > 0) {
+                setCurrentSearchIndex(i => i < searchResults.length - 1 ? i + 1 : 0);
+              }
+            }}
+            disabled={searchResults.length === 0}
+            className="p-1.5 min-h-[32px] min-w-[32px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[8px] transition-colors touch-manipulation disabled:opacity-30"
+          >
+            <ChevronDown className="w-4 h-4 text-gray-600" />
+          </button>
+          <button
+            onClick={() => setShowSearch(false)}
+            className="p-1.5 min-h-[32px] min-w-[32px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[8px] transition-colors touch-manipulation"
+          >
+            <X className="w-4 h-4 text-gray-600" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Quick replies (staff in private support) ── */}
+      {isStaff && isPrivateSupport && (
+        <QuickReplies
+          onSelect={(text) => setNewMessage(text)}
+          language={language}
+        />
+      )}
+
+      {/* ── Messages ── */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3">
         {isLoading ? (
           <div className="h-full flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center">
-            <HeadphonesIcon className="w-10 h-10 text-gray-300 mb-3" />
-            <p className="text-gray-400 text-sm">
-              {language === 'ru' ? 'Напишите ваш вопрос' : 'Savolingizni yozing'}
+          <div className="h-full flex flex-col items-center justify-center">
+            <div className="w-16 h-16 bg-orange-50 rounded-[20px] flex items-center justify-center mb-4">
+              <MessageCircle className="w-8 h-8 text-orange-300" />
+            </div>
+            <p className="text-gray-400 text-sm font-medium">
+              {language === 'ru' ? 'Начните диалог' : 'Suhbatni boshlang'}
+            </p>
+            <p className="text-gray-300 text-xs mt-1">
+              {language === 'ru' ? 'Напишите первое сообщение' : 'Birinchi xabar yozing'}
             </p>
           </div>
         ) : (
-          <>
+          <div className="space-y-1">
             {messages.map((message, index) => {
               const isOwn = message.sender_id === user?.id;
-              const showAvatar = index === 0 ||
-                messages[index - 1].sender_id !== message.sender_id;
-              const showName = !isOwn && showAvatar;
+              const prevMsg = index > 0 ? messages[index - 1] : null;
+              const showSender = !isOwn && (!prevMsg || prevMsg.sender_id !== message.sender_id);
+              const showDateSeparator = !prevMsg || getDateKey(prevMsg.created_at) !== getDateKey(message.created_at);
+
+              const isSearchMatch = searchResults.includes(index);
+              const isCurrentMatch = searchResults[currentSearchIndex] === index;
 
               return (
-                <div
-                  key={message.id}
-                  className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[80%] ${isOwn ? 'order-1' : ''}`}>
-                    {showName && (
-                      <div className="flex items-center gap-2 mb-1 px-2">
-                        <span className="text-sm font-medium text-gray-700">
-                          {message.sender_name}
-                        </span>
-                        <RoleBadge role={message.sender_role} language={language} />
-                      </div>
-                    )}
-                    <div className={`px-4 py-2 rounded-2xl ${
-                      isOwn
-                        ? 'bg-primary-500 text-gray-900 rounded-br-md'
-                        : 'bg-white text-gray-900 rounded-bl-md shadow-sm'
-                    }`}>
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                      <div className={`flex items-center justify-end gap-1 mt-1 ${
-                        isOwn ? 'text-gray-700' : 'text-gray-400'
+                <div key={message.id} id={`msg-${index}`}>
+                  {showDateSeparator && (
+                    <div className="flex items-center justify-center py-3">
+                      <span className="px-3 py-1 bg-white/80 backdrop-blur-sm rounded-[10px] text-[11px] text-gray-400 font-medium shadow-sm">
+                        {formatDateSeparator(message.created_at, language)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${showSender ? 'mt-3' : 'mt-0.5'}`}>
+                    <div className={`max-w-[75%] ${isCurrentMatch ? 'ring-2 ring-orange-400 rounded-[20px]' : isSearchMatch ? 'ring-1 ring-orange-200 rounded-[20px]' : ''}`}>
+                      {showSender && (
+                        <div className="flex items-center gap-2 mb-1 px-1">
+                          <span className="text-xs font-semibold text-gray-700">{message.sender_name}</span>
+                          <RoleBadge role={message.sender_role} language={language} />
+                        </div>
+                      )}
+
+                      <div className={`px-3.5 py-2.5 ${
+                        isOwn
+                          ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-[18px] rounded-br-[6px] shadow-sm shadow-orange-200'
+                          : 'bg-white text-gray-900 rounded-[18px] rounded-bl-[6px] shadow-sm'
                       }`}>
-                        <span className="text-[10px]">
-                          {new Date(message.created_at).toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                        {isOwn && (
-                          message.read_by && message.read_by.length > 1
-                            ? <CheckCheck className="w-3 h-3" />
-                            : <Check className="w-3 h-3" />
-                        )}
+                        <p className="text-[14px] whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                        <div className={`flex items-center justify-end gap-1 mt-1 ${
+                          isOwn ? 'text-white/60' : 'text-gray-400'
+                        }`}>
+                          <span className="text-[10px]">{formatMessageTime(message.created_at, language)}</span>
+                          {isOwn && (
+                            message.read_by && message.read_by.length > 1
+                              ? <CheckCheck className="w-3 h-3" />
+                              : <Check className="w-3 h-3" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -702,40 +968,80 @@ function ChatView({
               );
             })}
             <div ref={messagesEndRef} />
-          </>
+          </div>
         )}
       </div>
 
-      {/* Input */}
-      <div className={`bg-white border-t ${isResidentView ? 'p-3' : 'p-4'}`}>
-        <div className="flex items-center gap-2">
+      {/* ── Input ── */}
+      <div className="bg-white border-t" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {/* Emoji picker */}
+        {showEmojiPicker && (
+          <div className="px-3 pt-2 pb-1">
+            <div className="flex flex-wrap gap-1 p-2 bg-gray-50 rounded-xl border border-gray-200">
+              {QUICK_EMOJIS.map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={() => insertEmoji(emoji)}
+                  className="w-9 h-9 flex items-center justify-center text-xl hover:bg-gray-200 rounded-lg transition-colors active:scale-95"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="flex items-end gap-2 px-3 py-3">
+          <button
+            onClick={() => setShowEmojiPicker(p => !p)}
+            className={`p-2 rounded-[12px] transition-colors flex-shrink-0 touch-manipulation ${showEmojiPicker ? 'bg-orange-100 text-orange-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+          >
+            <Smile className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2 rounded-[12px] text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0 touch-manipulation"
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
           <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf,.doc,.docx"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setNewMessage(prev => prev + (prev ? ' ' : '') + `[${file.name}]`);
               }
+              e.target.value = '';
             }}
-            placeholder={language === 'ru' ? 'Написать...' : 'Yozing...'}
-            className={`flex-1 bg-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-              isResidentView ? 'px-3 py-2.5 text-sm' : 'px-4 py-3'
-            }`}
-            disabled={isSending}
           />
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={language === 'ru' ? 'Написать сообщение...' : 'Xabar yozing...'}
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-[14px] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+              disabled={isSending}
+            />
+          </div>
+
           <button
             onClick={handleSend}
             disabled={!newMessage.trim() || isSending}
-            className={`bg-primary-500 hover:bg-primary-600 disabled:bg-gray-300 rounded-xl transition-colors ${
-              isResidentView ? 'p-2.5' : 'p-3'
-            }`}
+            className="p-2.5 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-300 disabled:to-gray-300 text-white rounded-[14px] transition-all touch-manipulation flex-shrink-0 shadow-sm shadow-orange-200 disabled:shadow-none active:scale-95"
           >
             {isSending ? (
-              <Loader2 className={`text-gray-900 animate-spin ${isResidentView ? 'w-4 h-4' : 'w-5 h-5'}`} />
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <Send className={`text-gray-900 ${isResidentView ? 'w-4 h-4' : 'w-5 h-5'}`} />
+              <Send className="w-5 h-5" />
             )}
           </button>
         </div>
@@ -744,12 +1050,11 @@ function ChatView({
   );
 }
 
-// Sound notification hook
+// ─── Sound notification ──────────────────────────────────────────────────
 function useNotificationSound() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Create audio element for notification sound
     audioRef.current = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU' + btoa(String.fromCharCode.apply(null, Array(1000).fill(128).map((_, i) => Math.sin(i * 0.1) * 50 + 128))));
     audioRef.current.volume = 0.3;
   }, []);
@@ -764,12 +1069,13 @@ function useNotificationSound() {
   return playSound;
 }
 
-// Main Chat Page
+// ─── Main Chat Page ──────────────────────────────────────────────────────
 export function ChatPage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const selectedChannelIdRef = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [residentChannel, setResidentChannel] = useState<ChatChannel | null>(null);
@@ -778,7 +1084,6 @@ export function ChatPage() {
 
   const isResident = user?.role === 'resident';
 
-  // Fetch channels with polling
   const fetchChannels = useCallback(async () => {
     try {
       setError(null);
@@ -792,17 +1097,23 @@ export function ChatPage() {
       } else {
         const response = await chatApi.getChannels();
         const newChannels = response.channels || [];
-
-        // Calculate total unread
-        const totalUnread = newChannels.reduce((sum: number, ch: ChatChannel) => sum + (ch.unread_count || 0), 0);
-
-        // Play sound if new messages arrived
-        if (totalUnread > prevUnreadRef.current && prevUnreadRef.current > 0) {
-          playSound();
-        }
-        prevUnreadRef.current = totalUnread;
-
-        setChannels(newChannels);
+        // Preserve unread_count: 0 for the currently open channel (user is reading it)
+        setChannels(prev => {
+          const merged = newChannels.map((ch: ChatChannel) => {
+            const existing = prev.find(e => e.id === ch.id);
+            // If user has this channel open (unread was cleared locally), keep it at 0
+            if (existing && existing.unread_count === 0 && (ch.unread_count || 0) > 0 && selectedChannelIdRef.current === ch.id) {
+              return { ...ch, unread_count: 0 };
+            }
+            return ch;
+          });
+          const totalUnread = merged.reduce((sum: number, ch: ChatChannel) => sum + (ch.unread_count || 0), 0);
+          if (totalUnread > prevUnreadRef.current && prevUnreadRef.current > 0) {
+            playSound();
+          }
+          prevUnreadRef.current = totalUnread;
+          return merged;
+        });
       }
     } catch (err) {
       console.error('Failed to fetch channels:', err);
@@ -810,30 +1121,41 @@ export function ChatPage() {
     }
   }, [isResident, playSound, language]);
 
-  // Initial fetch
   useEffect(() => {
     setIsLoading(true);
     fetchChannels().finally(() => setIsLoading(false));
   }, [fetchChannels]);
 
-  // Poll for channel updates every 5 seconds
   useEffect(() => {
     if (isResident) return;
-
-    const interval = setInterval(fetchChannels, 5000);
+    const interval = setInterval(fetchChannels, 15000);
     return () => clearInterval(interval);
   }, [fetchChannels, isResident]);
 
-  // Find selected channel
   const selectedChannel = channels.find(ch => ch.id === selectedChannelId);
 
-  // If resident and has channel, show compact chat card
+  const handleSelectChannel = useCallback((id: string) => {
+    setSelectedChannelId(id);
+    selectedChannelIdRef.current = id;
+  }, []);
+
+  const handleMarkRead = useCallback(() => {
+    if (!selectedChannelId) return;
+    setChannels(prev => prev.map(ch =>
+      ch.id === selectedChannelId ? { ...ch, unread_count: 0 } : ch
+    ));
+  }, [selectedChannelId]);
+
+  // ── Resident View ──
   if (isResident) {
     if (isLoading) {
       return (
-        <div className="max-w-lg mx-auto">
-          <div className="bg-white rounded-2xl shadow-sm border overflow-hidden h-[70vh] md:h-[65vh] flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
+          <div className="bg-[#f8f7f4] md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100vh-210px)] md:h-[calc(100vh-180px)] flex items-center justify-center">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-orange-400 mx-auto mb-3" />
+              <p className="text-sm text-gray-400">{language === 'ru' ? 'Загрузка чата...' : 'Chat yuklanmoqda...'}</p>
+            </div>
           </div>
         </div>
       );
@@ -841,8 +1163,8 @@ export function ChatPage() {
 
     if (residentChannel) {
       return (
-        <div className="max-w-lg mx-auto">
-          <div className="bg-white rounded-2xl shadow-sm border overflow-hidden h-[70vh] md:h-[65vh] flex flex-col">
+        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
+          <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100vh-210px)] md:h-[calc(100vh-180px)] flex flex-col">
             <ChatView
               channelId={residentChannel.id}
               channel={residentChannel}
@@ -855,17 +1177,19 @@ export function ChatPage() {
     }
 
     return (
-      <div className="max-w-lg mx-auto">
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden h-[70vh] md:h-[65vh] flex flex-col items-center justify-center gap-4 p-6">
-          <AlertCircle className="w-12 h-12 text-red-400" />
-          <p className="text-gray-500 text-center">{error || (language === 'ru' ? 'Ошибка загрузки чата' : 'Chat yuklanmadi')}</p>
+      <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
+        <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100vh-210px)] md:h-[calc(100vh-180px)] flex flex-col items-center justify-center gap-4 p-6">
+          <div className="w-16 h-16 bg-red-50 rounded-[20px] flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-red-400" />
+          </div>
+          <p className="text-gray-500 text-center text-sm">{error || (language === 'ru' ? 'Ошибка загрузки чата' : 'Chat yuklanmadi')}</p>
           <button
             onClick={() => {
               setIsLoading(true);
               setError(null);
               fetchChannels().finally(() => setIsLoading(false));
             }}
-            className="px-4 py-2 bg-primary-500 text-gray-900 rounded-xl hover:bg-primary-600 transition-colors"
+            className="px-5 py-2.5 bg-gradient-to-br from-orange-500 to-orange-600 text-white text-sm font-medium rounded-[14px] hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm"
           >
             {language === 'ru' ? 'Повторить' : 'Qayta urinish'}
           </button>
@@ -874,40 +1198,42 @@ export function ChatPage() {
     );
   }
 
-  // For admin/manager - show channel list with chat view
+  // ── Admin/Manager View ──
   return (
-    <div className="h-[calc(100vh-180px)] md:h-[calc(100vh-140px)] bg-white rounded-2xl shadow-sm border overflow-hidden">
+    <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 h-[calc(100vh-210px)] md:h-[calc(100vh-140px)] bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden">
       <div className="h-full flex">
-        {/* Channel list - always visible on desktop, hidden when chat selected on mobile */}
         <div className={`${
-          selectedChannelId ? 'hidden md:block' : 'block'
-        } w-full md:w-80 lg:w-96 border-r bg-white/80 backdrop-blur-sm`}>
+          selectedChannelId ? 'hidden md:flex md:flex-col' : 'flex flex-col'
+        } w-full md:w-[340px] lg:w-[380px] border-r`}>
           <AdminChannelList
             channels={channels}
-            onSelectChannel={setSelectedChannelId}
+            onSelectChannel={handleSelectChannel}
             selectedChannelId={selectedChannelId}
             isLoading={isLoading}
           />
         </div>
 
-        {/* Chat view - shown when channel selected */}
         <div className={`${
-          selectedChannelId ? 'block' : 'hidden md:flex'
-        } flex-1 bg-gray-50/50`}>
+          selectedChannelId ? 'flex flex-col' : 'hidden md:flex md:flex-col'
+        } flex-1`}>
           {selectedChannelId ? (
             <ChatView
               channelId={selectedChannelId}
               channel={selectedChannel}
-              onBack={() => setSelectedChannelId(null)}
+              onBack={() => { setSelectedChannelId(null); selectedChannelIdRef.current = null; }}
+              onMarkRead={handleMarkRead}
             />
           ) : (
-            <div className="h-full flex items-center justify-center">
+            <div className="h-full flex items-center justify-center bg-[#f8f7f4]">
               <div className="text-center">
-                <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                  <MessageCircle className="w-10 h-10 text-gray-400" />
+                <div className="w-20 h-20 mx-auto mb-4 bg-orange-50 rounded-[24px] flex items-center justify-center">
+                  <MessageCircle className="w-10 h-10 text-orange-300" />
                 </div>
-                <p className="text-gray-500">
-                  {language === 'ru' ? 'Выберите чат для просмотра' : 'Ko\'rish uchun chatni tanlang'}
+                <p className="text-gray-500 font-medium">
+                  {language === 'ru' ? 'Выберите чат' : 'Chatni tanlang'}
+                </p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {language === 'ru' ? 'Выберите диалог из списка слева' : 'Chap tarafdagi ro\'yxatdan dialog tanlang'}
                 </p>
               </div>
             </div>

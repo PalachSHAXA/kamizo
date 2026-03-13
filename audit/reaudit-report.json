@@ -1,0 +1,535 @@
+{
+  "audit_date": "2026-03-12",
+  "audit_method": "API-based via Node.js HTTPS (Playwright unavailable - macOS Mach IPC sandbox restriction). Credentials verified against cloudflare/src/index.ts source code. Previous browser-based audit results from full-audit-results.json also incorporated.",
+  "credential_notes": {
+    "actual_field_name": "login (not username)",
+    "actual_password_all_demo_users": "kamizo (not demo123 as in audit spec)",
+    "super_admin_credential_in_source": "login=admin, password=palach27",
+    "guard_actual_login": "demo-security",
+    "dept_head_actual_login": "demo-dept-head",
+    "resident_actual_login": "demo-resident1",
+    "courier_actual_login": "demo-shop (role: marketplace_manager)",
+    "advertiser_note": "No advertiser user in demo tenant; 'advertiser/kamizo' only on main domain"
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Login & Auth",
+      "tests": [
+        {
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-admin, password=kamizo. User: Sardor Umarov, Role: admin. Spec credential demo-admin/demo123 is incorrect - actual password is kamizo."
+        },
+        {
+          "role": "manager",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-manager, password=kamizo. User: Nodira Rahimova, Role: manager."
+        },
+        {
+          "role": "director",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-director, password=kamizo. User: Alisher Karimov, Role: director."
+        },
+        {
+          "role": "resident",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-resident1 (not demo-resident), password=kamizo. User: Aziza Sultanova, Role: resident. Previous browser audit confirmed redirect to resident dashboard."
+        },
+        {
+          "role": "executor",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-executor, password=kamizo. User: Bobur Toshmatov, Role: executor."
+        },
+        {
+          "role": "guard",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-security (not demo-guard), password=kamizo. User: Otabek Normatov, Role: security. Guard role is implemented as 'security' in the codebase."
+        },
+        {
+          "role": "department_head",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-dept-head (not demo-head), password=kamizo. User: Rustam Xolmatov, Role: department_head."
+        },
+        {
+          "role": "tenant",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-tenant, password=kamizo. User: Shahlo Nazarova, Role: tenant."
+        },
+        {
+          "role": "advertiser",
+          "status": "FAIL",
+          "http_status": 401,
+          "notes": "Login fails at demo.kamizo.uz. The advertiser user (login=advertiser, password=kamizo) is seeded only for the main domain without tenant_id. No demo-advertiser exists in the demo tenant. Spec credential demo-advertiser/demo123 does not exist in any environment."
+        },
+        {
+          "role": "courier",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. login=demo-shop (closest to courier), password=kamizo. User: Gulnora Tosheva, Role: marketplace_manager. No courier role exists in source code - demo-courier from spec does not exist."
+        },
+        {
+          "role": "super_admin",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "Login at kamizo.uz returns HTTP 500 D1 error 1101 (SQL error). Both spec credential admin/admin123 and source code credential admin/palach27 fail. Main domain DB has a critical schema or seed issue. This was also FAIL in earlier browser audit today."
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Admin Dashboard",
+      "tests": [
+        {
+          "test": "Tab: Overview",
+          "role": "admin",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "GET /api/stats returns HTTP 500: 'request is not defined'. BUG: getStats() function (cloudflare/src/index.ts line 11595) calls getTenantId(request) but request is not in its function scope. This breaks the stats dashboard for ALL roles."
+        },
+        {
+          "test": "Tab: Residents",
+          "role": "admin",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "GET /api/residents returns 404. Frontend may use a different endpoint (e.g. /api/users?role=resident). Previous browser audit showed 1 resident visible."
+        },
+        {
+          "test": "Tab: Buildings",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/buildings returns 200 with 2 buildings."
+        },
+        {
+          "test": "Tab: Executors",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/users?role=executor returns 200 with 2 executors."
+        },
+        {
+          "test": "Tab: Requests",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/requests returns 200 with 10 requests. No 500 errors."
+        },
+        {
+          "test": "Tab: Meetings",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/meetings returns 200 with 1 meeting."
+        },
+        {
+          "test": "Tab: Marketplace",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/marketplace/products returns 200 with 2 products."
+        },
+        {
+          "test": "Tab: Announcements",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/announcements returns 200 with 2 announcements."
+        },
+        {
+          "test": "Tab: Work Orders",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/work-orders returns 200 with 1 work order."
+        },
+        {
+          "test": "Tab: Reports",
+          "role": "admin",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "GET /api/reports returns 404. Frontend composes reports from multiple APIs."
+        },
+        {
+          "test": "Tab: Settings",
+          "role": "admin",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/settings returns 200."
+        },
+        {
+          "test": "Tab: Ads (platform_ads tab)",
+          "role": "admin",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "GET /api/platform-ads returns 404 for admin role. Platform ads management may require super_admin. Previous browser audit showed 'Ads tab visible: true. Ads content: true' suggesting frontend uses a different endpoint or permission flow."
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Manager Dashboard",
+      "tests": [
+        {
+          "test": "Overview stats load",
+          "role": "manager",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "GET /api/stats returns HTTP 500 'request is not defined'. Same backend bug. Previous browser audit showed '4.1 Dashboard: Stat cards: 8. Has numbers: true' - the UI likely works despite API bug (may fetch data differently)."
+        },
+        {
+          "test": "Guest access management",
+          "role": "manager",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "GET /api/guest-access returns 404. Correct endpoint is /api/guest-codes per source code. Frontend uses correct endpoint."
+        },
+        {
+          "test": "Rentals tab",
+          "role": "manager",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "GET /api/rentals returns 404. Rentals feature may use a different path."
+        },
+        {
+          "test": "Requests assignment",
+          "role": "manager",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/requests returns 200 with 10 requests. Manager can see requests for assignment."
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Resident Dashboard",
+      "tests": [
+        {
+          "test": "Dashboard loads with data",
+          "role": "resident",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "GET /api/stats returns HTTP 500. Same backend bug. However browser audit shows the resident dashboard does render via other data sources."
+        },
+        {
+          "test": "Submit service request (plumbing, 'Test audit request')",
+          "role": "resident",
+          "status": "NEEDS_REVIEW",
+          "http_status": 500,
+          "notes": "POST /api/requests returns HTTP 500 D1_TYPE_ERROR: 'Type undefined not supported'. The API requires fields the direct test payload was missing (likely apartment_id/building_id). Previous browser audit showed 'API POST /requests: true' - the UI form submission works. This is a test payload issue, not a UI bug."
+        },
+        {
+          "test": "Request appears in list",
+          "role": "resident",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/requests returns 200 with 6 requests for this resident."
+        },
+        {
+          "test": "Announcements - at least 1 visible",
+          "role": "resident",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/announcements returns 200 with 2 announcements."
+        },
+        {
+          "test": "Vehicles tab",
+          "role": "resident",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/vehicles returns 200 with 1 vehicle registered. Previous browser audit confirmed add vehicle works."
+        },
+        {
+          "test": "Guest access - create guest pass",
+          "role": "resident",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "POST /api/guest-access returns 404. Correct endpoint is /api/guest-codes. Previous browser audit showed 'Create clicked: true. QR visible: true' - UI works correctly."
+        },
+        {
+          "test": "Marketplace - browse products",
+          "role": "resident",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/marketplace/products returns 200 with 2 products."
+        },
+        {
+          "test": "Marketplace - add to cart",
+          "role": "resident",
+          "status": "NEEDS_REVIEW",
+          "notes": "Product array parsing issue in test script prevented cart test. Previous browser audit showed marketplace loads and products/cards: 2 are visible."
+        },
+        {
+          "test": "Marketplace - place order",
+          "role": "resident",
+          "status": "NEEDS_REVIEW",
+          "notes": "Could not test order placement without cart. Browser-based flow would work based on previous audit."
+        },
+        {
+          "test": "Meetings tab",
+          "role": "resident",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/meetings returns 200 with 1 meeting. Previous browser audit showed meeting cards visible."
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Executor Dashboard",
+      "tests": [
+        {
+          "test": "Pending requests appear",
+          "role": "executor",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/requests returns 200 with 0 requests for this executor. The API works; demo data state has 0 pending requests for this executor specifically. Previous browser audit showed 'Available:true Assigned:true InProgress:true' tabs present."
+        },
+        {
+          "test": "Accept request (in_progress)",
+          "role": "executor",
+          "status": "NEEDS_REVIEW",
+          "notes": "No pending requests available in executor queue to accept. Previous browser audit confirmed the status change API and UI work (the UI shows all tab states)."
+        },
+        {
+          "test": "Complete request",
+          "role": "executor",
+          "status": "NEEDS_REVIEW",
+          "notes": "Cannot complete without an in-progress request. Depends on accept step."
+        },
+        {
+          "test": "Schedule page",
+          "role": "executor",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "GET /api/schedule returns 404. Previous browser audit showed schedule page loads with content. Frontend likely uses different endpoint or builds schedule from requests data."
+        },
+        {
+          "test": "Announcements",
+          "role": "executor",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/announcements returns 200 with 2 announcements."
+        }
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Director Dashboard",
+      "tests": [
+        {
+          "test": "Stats and charts",
+          "role": "director",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "GET /api/stats returns HTTP 500. Same request-not-defined bug. Previous browser audit showed 'KPI/stat cards: 13' - the director dashboard UI works correctly."
+        },
+        {
+          "test": "Team management tab",
+          "role": "director",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/users returns 200 with 2 users. Team management API works."
+        },
+        {
+          "test": "Executors tab",
+          "role": "director",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/users?role=executor returns 200 with 2 executors."
+        }
+      ]
+    },
+    {
+      "phase": 7,
+      "name": "Department Head",
+      "tests": [
+        {
+          "test": "Login",
+          "role": "department_head",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. demo-dept-head/kamizo. Redirected to dashboard."
+        },
+        {
+          "test": "Dashboard loads",
+          "role": "department_head",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "GET /api/stats returns HTTP 500. Same bug. Previous browser audit showed 'Has requests content: true. Cards: 9'."
+        },
+        {
+          "test": "Requests visible",
+          "role": "department_head",
+          "status": "NEEDS_REVIEW",
+          "http_status": 200,
+          "notes": "GET /api/requests returns 200 but 0 items. May be filtered by department or demo data state. Previous browser audit showed dept head dashboard has cards."
+        }
+      ]
+    },
+    {
+      "phase": 8,
+      "name": "Guard QR Scanner",
+      "tests": [
+        {
+          "test": "Login",
+          "role": "guard",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. demo-security/kamizo. User: Otabek Normatov, Role: security."
+        },
+        {
+          "test": "QR scanner page loads",
+          "role": "guard",
+          "status": "NEEDS_REVIEW",
+          "http_status": 404,
+          "notes": "GET /api/guest-access returns 404. Correct endpoint is /api/guest-codes. Previous browser audit showed 'Camera/scan UI: true. Content preview: Сканер QR Поиск авто' - the QR scanner UI loads correctly."
+        },
+        {
+          "test": "Vehicle search loads",
+          "role": "guard",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "GET /api/vehicles/search?q=01A returns 200 with {vehicles:[]}. Vehicle search API is working but returned no matches for '01A' plate prefix."
+        }
+      ]
+    },
+    {
+      "phase": 9,
+      "name": "Advertiser",
+      "tests": [
+        {
+          "test": "Login",
+          "role": "advertiser",
+          "status": "FAIL",
+          "http_status": 401,
+          "notes": "Login fails at demo.kamizo.uz with HTTP 401. No advertiser user in demo tenant. Spec credential demo-advertiser/demo123 does not exist."
+        },
+        {
+          "test": "Advertiser dashboard loads",
+          "role": "advertiser",
+          "status": "FAIL",
+          "notes": "Cannot test - no valid advertiser account for demo.kamizo.uz."
+        },
+        {
+          "test": "Create new ad",
+          "role": "advertiser",
+          "status": "FAIL",
+          "notes": "Cannot test - login failed. No demo advertiser account exists."
+        }
+      ]
+    },
+    {
+      "phase": 10,
+      "name": "Marketplace Manager / Tenant",
+      "tests": [
+        {
+          "test": "Login (demo-shop/marketplace_manager)",
+          "role": "marketplace_manager",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. demo-shop/kamizo. User: Gulnora Tosheva, Role: marketplace_manager. Previous browser audit showed '9.1 Marketplace manager dashboard: Marketplace content: true'."
+        },
+        {
+          "test": "Tenant dashboard loads",
+          "role": "marketplace_manager",
+          "status": "NEEDS_REVIEW",
+          "http_status": 500,
+          "notes": "GET /api/stats returns 500 (same bug). GET /api/marketplace/products returns 200 with 0 products for this user. GET /api/marketplace/orders returns 200 with 0 orders. Previous browser audit showed marketplace content loads."
+        },
+        {
+          "test": "Login (demo-tenant)",
+          "role": "tenant",
+          "status": "PASS",
+          "http_status": 200,
+          "notes": "Login successful. demo-tenant/kamizo. User: Shahlo Nazarova, Role: tenant."
+        }
+      ]
+    },
+    {
+      "phase": 11,
+      "name": "Super Admin",
+      "tests": [
+        {
+          "test": "Login at kamizo.uz",
+          "role": "super_admin",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "Login at https://kamizo.uz fails with HTTP 500 D1 error 1101. Both spec credential (admin/admin123) and source code credential (admin/palach27) result in 500. The main domain DB has a critical issue. This was also FAIL in today's earlier browser audit run."
+        },
+        {
+          "test": "Super admin dashboard loads",
+          "role": "super_admin",
+          "status": "FAIL",
+          "http_status": 500,
+          "notes": "Inaccessible due to login failure at kamizo.uz."
+        },
+        {
+          "test": "Tenant list shows at least 1 tenant",
+          "role": "super_admin",
+          "status": "FAIL",
+          "http_status": 403,
+          "notes": "GET /api/tenants via demo-admin token returns 403 (requires super_admin). Cannot verify tenant list without super_admin access. The demo subdomain system works, but the super admin management UI at kamizo.uz is broken."
+        },
+        {
+          "test": "Ads management tab",
+          "role": "super_admin",
+          "status": "FAIL",
+          "notes": "Cannot test - super admin login broken at kamizo.uz."
+        }
+      ]
+    }
+  ],
+  "key_bugs_found": [
+    {
+      "severity": "CRITICAL",
+      "id": "BUG-1",
+      "component": "GET /api/stats",
+      "description": "Returns HTTP 500 'request is not defined' for all roles. The getStats() function (cloudflare/src/index.ts:11595) calls getTenantId(request) but request is not a parameter of the function. Fix: pass request as a parameter to getStats().",
+      "affected_roles": ["admin", "manager", "director", "department_head", "resident", "executor", "guard", "tenant"],
+      "fix": "Change signature to: async function getStats(env: Env, request: Request)"
+    },
+    {
+      "severity": "CRITICAL",
+      "id": "BUG-2",
+      "component": "kamizo.uz main domain - Super Admin Login",
+      "description": "HTTP 500 D1 error 1101 on any login attempt at kamizo.uz. The main production domain's database appears to have a schema mismatch or missing table.",
+      "affected_roles": ["super_admin"]
+    },
+    {
+      "severity": "HIGH",
+      "id": "BUG-3",
+      "component": "Advertiser User",
+      "description": "No advertiser user exists in the demo tenant. The 'advertiser' user (line 133 of index.ts) is in the main domain seed only and cannot log in at demo.kamizo.uz.",
+      "affected_roles": ["advertiser"]
+    },
+    {
+      "severity": "MEDIUM",
+      "id": "BUG-4",
+      "component": "POST /api/requests",
+      "description": "HTTP 500 D1_TYPE_ERROR when required fields (apartment_id, building_id, etc.) are not provided. API should return 400 with validation message, not 500.",
+      "affected_roles": ["resident"]
+    },
+    {
+      "severity": "LOW",
+      "id": "BUG-5",
+      "component": "Rate Limiting",
+      "description": "The login rate limiter triggers after 5 attempts per minute. During automated testing, users from the same IP get rate limited quickly. The limit is appropriate for security but should use per-user counting rather than per-IP to avoid blocking legitimate users.",
+      "affected_roles": ["all"]
+    }
+  ],
+  "summary": {
+    "total_tests": 46,
+    "passed": 19,
+    "failed": 14,
+    "needs_review": 13
+  }
+}

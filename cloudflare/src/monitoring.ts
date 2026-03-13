@@ -318,7 +318,7 @@ export async function healthCheck(env: any): Promise<HealthCheck> {
 
   if (!checks.database) {
     status = 'down';
-  } else if (!checks.cache || !checks.websocket) {
+  } else if (!checks.websocket) {
     status = 'degraded';
   } else if (stats.errorRate > 5 || stats.avgResponseTime > 500) {
     status = 'degraded';

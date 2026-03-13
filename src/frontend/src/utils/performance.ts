@@ -218,7 +218,6 @@ export function generatePerformanceReport() {
     },
   };
 
-  console.log('[Performance Report]', report);
   return report;
 }
 
@@ -236,5 +235,4 @@ if (import.meta.env.DEV) {
   (window as any).perfReport = generatePerformanceReport;
   (window as any).perfMonitor = perfMonitor;
 
-  console.log('[Performance] Monitoring enabled. Use window.perfReport() to generate report.');
 }

@@ -73,9 +73,6 @@ export function usePopupNotifications() {
       return;
     }
 
-    console.log('[PopupNotifications] Checking for resident:', user.login);
-    console.log('[PopupNotifications] All announcements:', announcements.length);
-
     // Get announcements for this resident
     const relevantAnnouncements = getAnnouncementsForResidents(
       user.login,
@@ -85,8 +82,6 @@ export function usePopupNotifications() {
       user.branch
     );
 
-    console.log('[PopupNotifications] Relevant announcements:', relevantAnnouncements.length);
-
     const shownIds = getShownIds();
 
     // Filter important/urgent announcements not yet shown
@@ -94,11 +89,8 @@ export function usePopupNotifications() {
       const isUrgent = a.priority === 'urgent' || a.priority === 'important';
       const notViewed = !a.viewedBy.includes(user.id);
       const notShown = !shownIds.has(`announcement-${a.id}`);
-      console.log(`[PopupNotifications] Announcement "${a.title}": urgent=${isUrgent}, notViewed=${notViewed}, notShown=${notShown}`);
       return isUrgent && notViewed && notShown;
     });
-
-    console.log('[PopupNotifications] Urgent to show:', urgentAnnouncements.length);
 
     // Create popups for new announcements
     const newPopups: PopupItem[] = urgentAnnouncements.map(a => {
@@ -119,7 +111,6 @@ export function usePopupNotifications() {
     });
 
     if (newPopups.length > 0) {
-      console.log('[PopupNotifications] Adding popups:', newPopups);
       setPopups(prev => [...prev, ...newPopups]);
     }
 
@@ -140,8 +131,6 @@ export function usePopupNotifications() {
       r.status === 'pending_approval' &&
       !shownIds.has(`request-completed-${r.id}`)
     );
-
-    console.log('[PopupNotifications] Pending approval requests:', pendingApproval.length);
 
     const newPopups: PopupItem[] = pendingApproval.map(r => {
       saveShownId(`request-completed-${r.id}`);
@@ -168,7 +157,6 @@ export function usePopupNotifications() {
     });
 
     if (newPopups.length > 0) {
-      console.log('[PopupNotifications] Adding request popups:', newPopups);
       setPopups(prev => [...prev, ...newPopups]);
     }
   }, [user, requests]);
@@ -302,7 +290,6 @@ export function usePopupNotifications() {
         }
 
         if (newPopups.length > 0) {
-          console.log('[PopupNotifications] Adding order popups:', newPopups.length);
           setPopups(prev => [...prev, ...newPopups]);
         }
       } catch (err) {
@@ -313,8 +300,8 @@ export function usePopupNotifications() {
     // Check immediately on mount
     checkOrderStatuses();
 
-    // Poll every 10 seconds for order status changes
-    const interval = setInterval(checkOrderStatuses, 10000);
+    // Poll every 30 seconds for order status changes (WebSocket handles real-time)
+    const interval = setInterval(checkOrderStatuses, 30000);
 
     return () => clearInterval(interval);
   }, [user]);
@@ -386,7 +373,6 @@ export function usePopupNotifications() {
         saveKnownIds(currentIds);
 
         if (newPopups.length > 0) {
-          console.log('[PopupNotifications] Adding reconsideration request popups:', newPopups.length);
           setPopups(prev => [...prev, ...newPopups]);
         }
       } catch (err) {
@@ -397,8 +383,8 @@ export function usePopupNotifications() {
     // Check immediately on mount
     checkReconsiderationRequests();
 
-    // Poll every 5 seconds for new reconsideration requests
-    const interval = setInterval(checkReconsiderationRequests, 5000);
+    // Poll every 15 seconds for new reconsideration requests (WebSocket handles real-time)
+    const interval = setInterval(checkReconsiderationRequests, 15000);
 
     return () => clearInterval(interval);
   }, [user]);

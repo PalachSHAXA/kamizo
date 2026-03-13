@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Wrench, Search, Plus, X, Calendar, Clock,
   AlertTriangle, CheckCircle, User, Building2,
-  FileText, Play, Pause, Check
+  FileText, Play, Pause, Check, Loader2
 } from 'lucide-react';
 import { useCRMStore } from '../stores/crmStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { workOrdersApi } from '../services/api';
 
 type WorkOrderStatus = 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 type WorkOrderPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -46,97 +47,41 @@ interface WorkOrder {
   updatedAt: string;
 }
 
-// Mock data for work orders
-const mockWorkOrders: WorkOrder[] = [
-  {
-    id: 'wo-1',
-    number: 'НР-2024-001',
-    title: 'Плановая проверка лифтового оборудования',
-    description: 'Ежемесячная проверка и обслуживание лифтов в доме',
-    type: 'planned',
-    priority: 'medium',
-    status: 'scheduled',
-    buildingId: 'building-1',
-    assignedTo: 'executor-1',
-    scheduledDate: '2024-12-25',
-    scheduledTime: '09:00',
-    estimatedDuration: 180,
-    checklist: [
-      { item: 'Проверка тросов', completed: false },
-      { item: 'Проверка дверей', completed: false },
-      { item: 'Проверка кнопок', completed: false },
-      { item: 'Смазка механизмов', completed: false },
-    ],
-    createdAt: '2024-12-20T10:00:00Z',
-    updatedAt: '2024-12-20T10:00:00Z',
-  },
-  {
-    id: 'wo-2',
-    number: 'НР-2024-002',
-    title: 'Замена счетчика холодной воды',
-    description: 'Плановая замена ИПУ по истечении срока поверки',
-    type: 'planned',
-    priority: 'low',
-    status: 'pending',
-    buildingId: 'building-1',
-    apartmentId: 'apt-1',
-    assignedTo: 'executor-2',
-    scheduledDate: '2024-12-26',
-    estimatedDuration: 60,
-    materials: [
-      { name: 'Счетчик ИПУ', quantity: 1, unit: 'шт' },
-      { name: 'Прокладка', quantity: 2, unit: 'шт' },
-    ],
-    createdAt: '2024-12-20T11:00:00Z',
-    updatedAt: '2024-12-20T11:00:00Z',
-  },
-  {
-    id: 'wo-3',
-    number: 'АВ-2024-003',
-    title: 'Устранение течи в подвале',
-    description: 'Аварийный вызов - течь в подвальном помещении',
-    type: 'emergency',
-    priority: 'urgent',
-    status: 'in_progress',
-    buildingId: 'building-2',
-    assignedTo: 'executor-1',
-    startedAt: '2024-12-21T08:30:00Z',
-    estimatedDuration: 120,
-    createdAt: '2024-12-21T08:00:00Z',
-    updatedAt: '2024-12-21T08:30:00Z',
-  },
-  {
-    id: 'wo-4',
-    number: 'СЕЗ-2024-004',
-    title: 'Подготовка отопительной системы к зиме',
-    description: 'Сезонные работы по подготовке системы отопления',
-    type: 'seasonal',
-    priority: 'high',
-    status: 'completed',
-    buildingId: 'building-1',
-    assignedTeam: ['executor-1', 'executor-2'],
-    scheduledDate: '2024-10-15',
-    startedAt: '2024-10-15T09:00:00Z',
-    completedAt: '2024-10-15T17:00:00Z',
-    estimatedDuration: 480,
-    actualDuration: 450,
-    checklist: [
-      { item: 'Проверка котла', completed: true },
-      { item: 'Промывка системы', completed: true },
-      { item: 'Опрессовка', completed: true },
-      { item: 'Запуск отопления', completed: true },
-    ],
-    createdAt: '2024-10-10T10:00:00Z',
-    updatedAt: '2024-10-15T17:00:00Z',
-  },
-];
+// Map API snake_case fields to camelCase interface
+function mapWorkOrder(raw: any): WorkOrder {
+  return {
+    id: raw.id,
+    number: raw.number,
+    title: raw.title,
+    description: raw.description || '',
+    type: raw.type,
+    priority: raw.priority,
+    status: raw.status,
+    buildingId: raw.building_id || raw.buildingId || '',
+    apartmentId: raw.apartment_id || raw.apartmentId,
+    assignedTo: raw.assigned_to || raw.assignedTo,
+    scheduledDate: raw.scheduled_date || raw.scheduledDate,
+    scheduledTime: raw.scheduled_time || raw.scheduledTime,
+    startedAt: raw.started_at || raw.startedAt,
+    completedAt: raw.completed_at || raw.completedAt,
+    estimatedDuration: raw.estimated_duration ?? raw.estimatedDuration ?? 60,
+    actualDuration: raw.actual_duration ?? raw.actualDuration,
+    materials: typeof raw.materials === 'string' ? JSON.parse(raw.materials || '[]') : (raw.materials || []),
+    checklist: typeof raw.checklist === 'string' ? JSON.parse(raw.checklist || '[]') : (raw.checklist || []),
+    notes: raw.notes,
+    requestId: raw.request_id || raw.requestId,
+    createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
+    updatedAt: raw.updated_at || raw.updatedAt || new Date().toISOString(),
+  };
+}
 
 export function WorkOrdersPage() {
   const { language } = useLanguageStore();
   const { buildings } = useCRMStore();
   const { executors } = useDataStore();
 
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(mockWorkOrders);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
@@ -144,6 +89,28 @@ export function WorkOrdersPage() {
   const [filterBuilding, setFilterBuilding] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Fetch work orders from API
+  const fetchWorkOrders = useCallback(async () => {
+    try {
+      const filters: Record<string, string> = {};
+      if (filterStatus !== 'all') filters.status = filterStatus;
+      if (filterType !== 'all') filters.type = filterType;
+      if (filterPriority !== 'all') filters.priority = filterPriority;
+      if (filterBuilding !== 'all') filters.buildingId = filterBuilding;
+      const response = await workOrdersApi.getAll(Object.keys(filters).length > 0 ? filters : undefined);
+      const orders = ((response as any).workOrders || (response as any).work_orders || []).map(mapWorkOrder);
+      setWorkOrders(orders);
+    } catch (error) {
+      console.error('Failed to fetch work orders:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filterStatus, filterType, filterPriority, filterBuilding]);
+
+  useEffect(() => {
+    fetchWorkOrders();
+  }, [fetchWorkOrders]);
 
   // Filter work orders
   const filteredOrders = workOrders.filter(order => {
@@ -220,7 +187,8 @@ export function WorkOrdersPage() {
     return language === 'ru' ? `${mins}м` : `${mins}d`;
   };
 
-  const updateOrderStatus = (orderId: string, newStatus: WorkOrderStatus) => {
+  const updateOrderStatus = async (orderId: string, newStatus: WorkOrderStatus) => {
+    // Optimistic update
     setWorkOrders(prev => prev.map(order => {
       if (order.id === orderId) {
         const updates: Partial<WorkOrder> = { status: newStatus, updatedAt: new Date().toISOString() };
@@ -237,19 +205,25 @@ export function WorkOrdersPage() {
       }
       return order;
     }));
+    try {
+      await workOrdersApi.updateStatus(orderId, newStatus);
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      fetchWorkOrders(); // Revert on error
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Наряды на работы' : 'Ish buyurtmalari'}</h1>
+          <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Наряды на работы' : 'Ish buyurtmalari'}</h1>
           <p className="text-gray-500 mt-1">{language === 'ru' ? 'Управление плановыми и аварийными работами' : 'Rejalashtirilgan va favqulodda ishlarni boshqarish'}</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation"
         >
           <Plus className="w-4 h-4" />
           {language === 'ru' ? 'Создать наряд' : 'Buyurtma yaratish'}
@@ -257,8 +231,8 @@ export function WorkOrdersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="glass-card p-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div className="glass-card p-3 sm:p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
               <FileText className="w-5 h-5 text-blue-600" />
@@ -320,8 +294,8 @@ export function WorkOrdersPage() {
       </div>
 
       {/* Filters */}
-      <div className="glass-card p-4">
-        <div className="flex flex-wrap gap-4">
+      <div className="glass-card p-3 sm:p-4">
+        <div className="flex flex-wrap gap-3 sm:gap-4">
           <div className="flex-1 min-w-[200px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -330,7 +304,7 @@ export function WorkOrdersPage() {
                 placeholder={language === 'ru' ? 'Поиск по номеру или названию...' : 'Raqam yoki nomi bo\'yicha qidirish...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 min-h-[44px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>
@@ -338,7 +312,7 @@ export function WorkOrdersPage() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 min-h-[44px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">{language === 'ru' ? 'Все статусы' : 'Barcha statuslar'}</option>
             <option value="pending">{language === 'ru' ? 'Ожидает' : 'Kutilmoqda'}</option>
@@ -351,7 +325,7 @@ export function WorkOrdersPage() {
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 min-h-[44px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">{language === 'ru' ? 'Все типы' : 'Barcha turlar'}</option>
             <option value="planned">{language === 'ru' ? 'Плановый' : 'Rejalashtirilgan'}</option>
@@ -363,7 +337,7 @@ export function WorkOrdersPage() {
           <select
             value={filterPriority}
             onChange={(e) => setFilterPriority(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 min-h-[44px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">{language === 'ru' ? 'Все приоритеты' : 'Barcha ustuvorliklar'}</option>
             <option value="low">{language === 'ru' ? 'Низкий' : 'Past'}</option>
@@ -375,7 +349,7 @@ export function WorkOrdersPage() {
           <select
             value={filterBuilding}
             onChange={(e) => setFilterBuilding(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 min-h-[44px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">{language === 'ru' ? 'Все дома' : 'Barcha binolar'}</option>
             {buildings.map(b => (
@@ -394,7 +368,7 @@ export function WorkOrdersPage() {
           return (
             <div
               key={order.id}
-              className="glass-card p-4 hover:shadow-md transition-shadow cursor-pointer"
+              className="glass-card p-3 sm:p-4 md:p-5 hover:shadow-md transition-shadow cursor-pointer touch-manipulation"
               onClick={() => setSelectedOrder(order)}
             >
               <div className="flex items-start justify-between">
@@ -454,7 +428,7 @@ export function WorkOrdersPage() {
                   {order.status === 'pending' && (
                     <button
                       onClick={() => updateOrderStatus(order.id, 'scheduled')}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-primary-600 hover:bg-primary-50 active:bg-primary-100 rounded-lg transition-colors touch-manipulation"
                       title={language === 'ru' ? 'Запланировать' : 'Rejalashtirish'}
                     >
                       <Calendar className="w-5 h-5" />
@@ -463,7 +437,7 @@ export function WorkOrdersPage() {
                   {order.status === 'scheduled' && (
                     <button
                       onClick={() => updateOrderStatus(order.id, 'in_progress')}
-                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-green-600 hover:bg-green-50 active:bg-green-100 rounded-lg transition-colors touch-manipulation"
                       title={language === 'ru' ? 'Начать выполнение' : 'Bajarishni boshlash'}
                     >
                       <Play className="w-5 h-5" />
@@ -473,14 +447,14 @@ export function WorkOrdersPage() {
                     <>
                       <button
                         onClick={() => updateOrderStatus(order.id, 'scheduled')}
-                        className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-yellow-600 hover:bg-yellow-50 active:bg-yellow-100 rounded-lg transition-colors touch-manipulation"
                         title={language === 'ru' ? 'Приостановить' : 'To\'xtatib turish'}
                       >
                         <Pause className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => updateOrderStatus(order.id, 'completed')}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-green-600 hover:bg-green-50 active:bg-green-100 rounded-lg transition-colors touch-manipulation"
                         title={language === 'ru' ? 'Завершить' : 'Yakunlash'}
                       >
                         <Check className="w-5 h-5" />
@@ -493,7 +467,14 @@ export function WorkOrdersPage() {
           );
         })}
 
-        {filteredOrders.length === 0 && (
+        {isLoading && (
+          <div className="glass-card p-12 text-center">
+            <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-400 animate-spin" />
+            <p className="text-gray-500">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</p>
+          </div>
+        )}
+
+        {!isLoading && filteredOrders.length === 0 && (
           <div className="glass-card p-12 text-center">
             <Wrench className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p className="text-gray-500">{language === 'ru' ? 'Наряды не найдены' : 'Buyurtmalar topilmadi'}</p>
@@ -517,17 +498,25 @@ export function WorkOrdersPage() {
       {showAddModal && (
         <WorkOrderFormModal
           onClose={() => setShowAddModal(false)}
-          onSave={(order) => {
-            const newOrder: WorkOrder = {
-              ...order,
-              id: `wo-${Date.now()}`,
-              number: `НР-2024-${String(workOrders.length + 1).padStart(3, '0')}`,
-              status: 'pending',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
-            setWorkOrders([...workOrders, newOrder]);
-            setShowAddModal(false);
+          onSave={async (order) => {
+            try {
+              await workOrdersApi.create({
+                title: order.title,
+                description: order.description,
+                type: order.type,
+                priority: order.priority,
+                building_id: order.buildingId,
+                apartment_id: order.apartmentId || undefined,
+                assigned_to: order.assignedTo || undefined,
+                scheduled_date: order.scheduledDate || undefined,
+                scheduled_time: order.scheduledTime || undefined,
+                estimated_duration: order.estimatedDuration,
+              });
+              setShowAddModal(false);
+              fetchWorkOrders();
+            } catch (error) {
+              console.error('Failed to create work order:', error);
+            }
           }}
         />
       )}
@@ -587,9 +576,9 @@ function WorkOrderDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6 border-b border-gray-100">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -598,9 +587,9 @@ function WorkOrderDetailModal({
                   {getStatusLabel(order.status)}
                 </span>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">{order.title}</h2>
+              <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">{order.title}</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation">
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
@@ -794,12 +783,12 @@ function WorkOrderFormModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6 border-b border-gray-100">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">{language === 'ru' ? 'Новый наряд' : 'Yangi buyurtma'}</h2>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">{language === 'ru' ? 'Новый наряд' : 'Yangi buyurtma'}</h2>
+            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation">
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
@@ -813,7 +802,7 @@ function WorkOrderFormModal({
               required
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={language === 'ru' ? 'Краткое описание работы' : 'Ishning qisqacha tavsifi'}
             />
           </div>
@@ -824,7 +813,7 @@ function WorkOrderFormModal({
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder={language === 'ru' ? 'Подробное описание работ' : 'Ishlarning batafsil tavsifi'}
             />
           </div>
@@ -835,7 +824,7 @@ function WorkOrderFormModal({
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value as WorkOrderType })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="planned">{language === 'ru' ? 'Плановый' : 'Rejalashtirilgan'}</option>
                 <option value="preventive">{language === 'ru' ? 'Профилактика' : 'Profilaktika'}</option>
@@ -849,7 +838,7 @@ function WorkOrderFormModal({
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value as WorkOrderPriority })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="low">{language === 'ru' ? 'Низкий' : 'Past'}</option>
                 <option value="medium">{language === 'ru' ? 'Средний' : 'O\'rta'}</option>
@@ -866,7 +855,7 @@ function WorkOrderFormModal({
                 required
                 value={formData.buildingId}
                 onChange={(e) => setFormData({ ...formData, buildingId: e.target.value, apartmentId: '' })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">{language === 'ru' ? 'Выберите дом' : 'Binoni tanlang'}</option>
                 {buildings.map(b => (
@@ -880,7 +869,7 @@ function WorkOrderFormModal({
               <select
                 value={formData.apartmentId}
                 onChange={(e) => setFormData({ ...formData, apartmentId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={!formData.buildingId}
               >
                 <option value="">{language === 'ru' ? 'Общедомовые работы' : 'Umumuy ishlar'}</option>
@@ -896,7 +885,7 @@ function WorkOrderFormModal({
             <select
               value={formData.assignedTo}
               onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">{language === 'ru' ? 'Не назначен' : 'Tayinlanmagan'}</option>
               {executors.map(e => (
@@ -912,7 +901,7 @@ function WorkOrderFormModal({
                 type="date"
                 value={formData.scheduledDate}
                 onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
@@ -922,7 +911,7 @@ function WorkOrderFormModal({
                 type="time"
                 value={formData.scheduledTime}
                 onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
@@ -934,7 +923,7 @@ function WorkOrderFormModal({
                 step="15"
                 value={formData.estimatedDuration}
                 onChange={(e) => setFormData({ ...formData, estimatedDuration: parseInt(e.target.value) || 60 })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>

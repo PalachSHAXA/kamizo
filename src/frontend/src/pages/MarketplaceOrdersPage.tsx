@@ -163,7 +163,7 @@ export function MarketplaceOrdersPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-3 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 sm:p-4">
         <div
           className="bg-white rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => setStatusFilter('new')}
@@ -256,7 +256,7 @@ export function MarketplaceOrdersPage() {
       </div>
 
       {/* Orders List */}
-      <div className="px-4 pb-20 space-y-3">
+      <div className="px-4 pb-24 space-y-3">
         {filteredOrders.map(order => {
           const statusInfo = ORDER_STATUS_LABELS[order.status];
 
@@ -338,8 +338,8 @@ export function MarketplaceOrdersPage() {
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center md:p-4">
-          <div className="bg-white w-full md:max-w-lg md:rounded-2xl rounded-t-3xl max-h-[90vh] md:max-h-[85vh] overflow-y-auto md:self-center self-end">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
                 {language === 'ru' ? 'Заказ' : 'Buyurtma'} #{selectedOrder.order_number}
@@ -526,8 +526,8 @@ export function MarketplaceOrdersPage() {
 
       {/* Assign Executor Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
                 {language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}
