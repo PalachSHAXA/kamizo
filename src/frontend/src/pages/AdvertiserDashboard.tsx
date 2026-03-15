@@ -393,7 +393,7 @@ export function AdvertiserDashboard() {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4 xl:gap-5 mb-6">
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                 <CheckCircle className="w-5 h-5 text-green-600" />
@@ -405,7 +405,7 @@ export function AdvertiserDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                 <Eye className="w-5 h-5 text-blue-600" />
@@ -417,7 +417,7 @@ export function AdvertiserDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                 <Ticket className="w-5 h-5 text-purple-600" />
@@ -429,7 +429,7 @@ export function AdvertiserDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-4 shadow-sm border">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-primary-600" />
@@ -483,7 +483,7 @@ export function AdvertiserDashboard() {
       {/* Ads List - OLX style */}
       <div className="space-y-2">
         {filteredAds.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border">
+          <div className="text-center py-12 bg-white/90 backdrop-blur-sm rounded-2xl border border-white/60 shadow-lg">
             <LayoutDashboard className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">{language === 'ru' ? 'Нет объявлений' : 'E\'lonlar yo\'q'}</p>
             <button
@@ -495,7 +495,7 @@ export function AdvertiserDashboard() {
           </div>
         ) : (
           filteredAds.map(ad => (
-            <div key={ad.id} className="w-full flex bg-white rounded-xl border border-gray-100 hover:border-primary-200 hover:shadow-lg transition-all overflow-hidden">
+            <div key={ad.id} className="w-full flex bg-white/90 backdrop-blur-sm rounded-2xl border border-white/60 hover:border-primary-200 hover:shadow-lg transition-all overflow-hidden shadow-lg">
               {/* Image/Logo - left side */}
               <div className="w-32 sm:w-40 h-32 sm:h-36 bg-gray-50 flex-shrink-0 flex items-center justify-center relative p-2">
                 {ad.logo_url ? (
@@ -642,7 +642,7 @@ export function AdvertiserDashboard() {
             <div className="p-4 space-y-4">
               {/* Category */}
               <div>
-                <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Категория' : 'Kategoriya'} *</label>
+                <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Категория' : 'Kategoriya'}<span className="text-red-500 ml-1">*</span></label>
                 <select
                   value={adForm.category_id}
                   onChange={e => setAdForm({ ...adForm, category_id: e.target.value })}
@@ -657,7 +657,7 @@ export function AdvertiserDashboard() {
 
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Название' : 'Nomi'} *</label>
+                <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Название' : 'Nomi'}<span className="text-red-500 ml-1">*</span></label>
                 <input
                   type="text"
                   value={adForm.title}
@@ -682,7 +682,7 @@ export function AdvertiserDashboard() {
               {/* Phone */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'} *</label>
+                  <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}<span className="text-red-500 ml-1">*</span></label>
                   <input
                     type="tel"
                     value={adForm.phone}

@@ -448,7 +448,7 @@ export function Header() {
   const quickActions = getQuickActions();
 
   return (
-    <header className="h-16 glass-card rounded-none border-x-0 border-t-0 flex items-center justify-between px-6">
+    <header className="h-16 glass-card rounded-none border-x-0 border-t-0 flex items-center justify-between px-6" role="banner">
       <div className="flex items-center gap-4">
         {/* Breadcrumb - show current page name */}
         {!isHomePage && currentPageTitle && (
@@ -473,6 +473,7 @@ export function Header() {
                 onClick={action.onClick}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${action.color}`}
                 title={action.label}
+                aria-label={action.label}
               >
                 <action.icon className="w-3.5 h-3.5" />
                 <span className="hidden lg:inline">{action.label}</span>
@@ -495,6 +496,7 @@ export function Header() {
             }}
             onFocus={() => searchQuery.trim() && setShowSearchResults(true)}
             className="glass-input pl-10 w-full max-w-xs lg:max-w-sm"
+            aria-label={language === 'ru' ? 'Поиск заявок' : 'Arizalarni qidirish'}
           />
           {/* Search Results Dropdown */}
           {showSearchResults && createPortal(
@@ -562,6 +564,7 @@ export function Header() {
           onClick={handleClockClick}
           className="flex items-center gap-2 px-3 py-1.5 min-h-[44px] bg-white/50 rounded-xl border border-white/30 hover:bg-white/70 transition-colors cursor-pointer touch-manipulation"
           title="Перейти к расписанию"
+          aria-label={language === 'ru' ? 'Текущее время, перейти к расписанию' : 'Hozirgi vaqt, jadvalgaga o\'tish'}
         >
           <Clock className="w-4 h-4 text-primary-600" />
           <div className="text-right">
@@ -576,6 +579,8 @@ export function Header() {
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="p-2 min-h-[44px] min-w-[44px] hover:bg-white/30 rounded-lg relative flex items-center justify-center touch-manipulation"
+            aria-label={language === 'ru' ? `Уведомления, ${totalBadgeCount} новых` : `Bildirishnomalar, ${totalBadgeCount} yangi`}
+            aria-pressed={showNotifications}
           >
             <Bell className="w-5 h-5 text-gray-600" />
             {totalBadgeCount > 0 && (
@@ -606,6 +611,8 @@ export function Header() {
           <div
             className="fixed right-4 left-4 sm:left-auto sm:right-6 top-20 sm:w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
             style={{ zIndex: 10001, maxHeight: 'calc(100vh - 100px)' }}
+            role="region"
+            aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >
             {/* Header */}
             <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">

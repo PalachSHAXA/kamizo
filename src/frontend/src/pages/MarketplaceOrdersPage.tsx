@@ -134,7 +134,7 @@ export function MarketplaceOrdersPage() {
   });
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('ru-RU').format(price) + ' сум';
+    return new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'uz-UZ').format(price) + (language === 'ru' ? ' сум' : ' so\'m');
   };
 
   // Count orders by status
@@ -165,7 +165,7 @@ export function MarketplaceOrdersPage() {
       {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 sm:p-4">
         <div
-          className="bg-white rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all"
           onClick={() => setStatusFilter('new')}
         >
           <div className="flex items-center gap-2">
@@ -179,7 +179,7 @@ export function MarketplaceOrdersPage() {
           </div>
         </div>
         <div
-          className="bg-white rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all"
           onClick={() => setStatusFilter('confirmed')}
         >
           <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export function MarketplaceOrdersPage() {
           </div>
         </div>
         <div
-          className="bg-white rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all"
           onClick={() => setStatusFilter('delivering')}
         >
           <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ export function MarketplaceOrdersPage() {
           const statusInfo = ORDER_STATUS_LABELS[order.status];
 
           return (
-            <div key={order.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div key={order.id} className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/60 overflow-hidden">
               <div
                 className="p-4 cursor-pointer"
                 onClick={() => setSelectedOrder(order)}
@@ -295,7 +295,7 @@ export function MarketplaceOrdersPage() {
 
                 <div className="flex items-center justify-between mt-3 pt-3 border-t">
                   <span className="text-sm text-gray-500">
-                    {new Date(order.created_at).toLocaleString('ru-RU', {
+                    {new Date(order.created_at).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
                       day: 'numeric',
                       month: 'short',
                       hour: '2-digit',

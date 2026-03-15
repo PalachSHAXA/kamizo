@@ -7,6 +7,7 @@ import { useMeetingStore } from '../../stores/meetingStore';
 import { AppLogo } from '../common/AppLogo';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useNavigate } from 'react-router-dom';
+import { useLanguageStore } from '../../stores/languageStore';
 
 interface MobileHeaderProps {
   onMenuClick: () => void;
@@ -16,6 +17,7 @@ interface MobileHeaderProps {
 export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const { language } = useLanguageStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const { notifications, markNotificationAsRead, markAllNotificationsAsRead, getAnnouncementsForResidents, getAnnouncementsForEmployees, vehicles } = useDataStore();
   const { meetings } = useMeetingStore();
@@ -130,8 +132,8 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
   return (
     <>
-      <header className="mobile-header">
-        <button onClick={onMenuClick} className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation">
+      <header className="mobile-header" role="banner">
+        <button onClick={onMenuClick} className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation" aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'} aria-expanded={false}>
           <Menu className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
           {/* Badge on menu button for pending tasks */}
           {totalMenuBadge > 0 && (
@@ -149,6 +151,8 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
         <button
           onClick={() => setShowNotifications(!showNotifications)}
           className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation"
+          aria-label={language === 'ru' ? `Уведомления, ${totalNotificationsBadge} новых` : `Bildirishnomalar, ${totalNotificationsBadge} yangi`}
+          aria-pressed={showNotifications}
         >
           <Bell className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
           {totalNotificationsBadge > 0 && (
@@ -170,6 +174,8 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
           <div
             className="fixed left-3 right-3 bottom-16 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             style={{ zIndex: 10001, maxHeight: '70vh' }}
+            role="region"
+            aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >
             <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
               <h3 className="font-semibold text-sm">Уведомления</h3>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import {
   Plus, FileText, Clock, CheckCircle, Star, X, Check,
   User, Calendar, History, ChevronRight, MapPin, Ban, RefreshCw, Send,
@@ -26,7 +27,7 @@ export function ResidentDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const { requests, addRequest, approveRequest, rejectRequest, cancelRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, getActiveRescheduleForRequest, fetchRequests, fetchPendingReschedules } = useDataStore();
+  const { requests, addRequest, approveRequest, rejectRequest, cancelRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, getActiveRescheduleForRequest, fetchRequests, fetchPendingReschedules, isLoadingRequests } = useDataStore();
 
   // Fetch requests and reschedules from D1 database on mount
   useEffect(() => {
@@ -638,8 +639,13 @@ export function ResidentDashboard() {
             ))}
           </div>
 
+          {/* Loading State */}
+          {isLoadingRequests && (
+            <LoadingSpinner text={language === 'ru' ? 'Загрузка заявок...' : 'Arizalar yuklanmoqda...'} />
+          )}
+
           {/* Active requests */}
-          {requestsSubTab === 'active' && (
+          {!isLoadingRequests && requestsSubTab === 'active' && (
             <div className="space-y-3">
               {activeRequests.length === 0 ? (
                 <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
@@ -671,7 +677,7 @@ export function ResidentDashboard() {
           )}
 
           {/* Pending approval */}
-          {requestsSubTab === 'pending_tab' && (
+          {!isLoadingRequests && requestsSubTab === 'pending_tab' && (
             <div className="space-y-3">
               {pendingApproval.length === 0 ? (
                 <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
@@ -693,7 +699,7 @@ export function ResidentDashboard() {
           )}
 
           {/* History */}
-          {requestsSubTab === 'history_tab' && (
+          {!isLoadingRequests && requestsSubTab === 'history_tab' && (
             <div className="space-y-3">
               {historyRequests.length === 0 ? (
                 <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">

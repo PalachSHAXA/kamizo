@@ -6,6 +6,7 @@ import { Building2, Users, DollarSign, Plus, Edit2, Trash2, CheckCircle, XCircle
 import { useAuthStore } from '../../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/api';
+import { useLanguageStore } from '../../stores/languageStore';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -188,21 +189,21 @@ const INITIAL_FORM_DATA: TenantFormData = {
 };
 
 const AVAILABLE_FEATURES = [
-  { value: 'requests', label: 'Заявки' },
-  { value: 'rentals', label: 'Аренда' },
-  { value: 'qr', label: 'QR / Гостевые пропуска' },
-  { value: 'marketplace', label: 'Маркетплейс' },
-  { value: 'meetings', label: 'Собрания' },
-  { value: 'chat', label: 'Чат' },
-  { value: 'announcements', label: 'Объявления' },
-  { value: 'trainings', label: 'Обучение' },
-  { value: 'colleagues', label: 'Коллеги' },
-  { value: 'vehicles', label: 'Авто / Поиск авто' },
-  { value: 'useful-contacts', label: 'Полезные контакты' },
-  { value: 'notepad', label: 'Заметки' },
-  { value: 'communal', label: 'Ком. услуги' },
-  { value: 'advertiser', label: 'Менеджер рекламы' },
-  { value: 'reports', label: 'Отчёты' },
+  { value: 'requests', labelRu: 'Заявки', labelUz: 'Arizalar' },
+  { value: 'rentals', labelRu: 'Аренда', labelUz: 'Ijaralar' },
+  { value: 'qr', labelRu: 'QR / Гостевые пропуска', labelUz: 'QR / Mehmon oʻtkazmalari' },
+  { value: 'marketplace', labelRu: 'Маркетплейс', labelUz: 'Bozor' },
+  { value: 'meetings', labelRu: 'Собрания', labelUz: 'Yigʻinlar' },
+  { value: 'chat', labelRu: 'Чат', labelUz: 'Chat' },
+  { value: 'announcements', labelRu: 'Объявления', labelUz: 'Eʼlonotlar' },
+  { value: 'trainings', labelRu: 'Обучение', labelUz: 'Taʼlim' },
+  { value: 'colleagues', labelRu: 'Коллеги', labelUz: 'Hamkorlar' },
+  { value: 'vehicles', labelRu: 'Авто / Поиск авто', labelUz: 'Avtomobil / Qidiruv' },
+  { value: 'useful-contacts', labelRu: 'Полезные контакты', labelUz: 'Foydali kontaktlar' },
+  { value: 'notepad', labelRu: 'Заметки', labelUz: 'Yozuvlar' },
+  { value: 'communal', labelRu: 'Ком. услуги', labelUz: 'Jamoaviy xizmatlar' },
+  { value: 'advertiser', labelRu: 'Менеджер рекламы', labelUz: 'Reklama menejeri' },
+  { value: 'reports', labelRu: 'Отчёты', labelUz: 'Hisobot' },
 ];
 
 const PLAN_COLORS: Record<string, string> = {
@@ -225,7 +226,7 @@ const PLAN_LABELS: Record<string, string> = {
 
 const FEATURE_COLORS = ['#f97316', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
-const FEATURE_LABELS: Record<string, string> = {
+const FEATURE_LABELS_RU: Record<string, string> = {
   requests: 'Заявки',
   rentals: 'Аренда',
   qr: 'QR Коды',
@@ -239,8 +240,28 @@ const FEATURE_LABELS: Record<string, string> = {
   advertiser: 'Менеджер рекламы',
 };
 
+const FEATURE_LABELS_UZ: Record<string, string> = {
+  requests: 'Arizalar',
+  rentals: 'Ijaralar',
+  qr: 'QR Kodlar',
+  marketplace: 'Bozor',
+  meetings: 'Yigʻinlar',
+  chat: 'Chat',
+  announcements: 'Eʼlonotlar',
+  notepad: 'Yozuvlar',
+  reports: 'Hisobot',
+  votes: 'Ovozlar',
+  advertiser: 'Reklama menejeri',
+};
+
+function getFeatureLabel(feature: string, language: string): string {
+  const labels = language === 'ru' ? FEATURE_LABELS_RU : FEATURE_LABELS_UZ;
+  return labels[feature] || feature;
+}
+
 export function SuperAdminDashboard() {
   const { logout } = useAuthStore();
+  const { language } = useLanguageStore();
   const navigate = useNavigate();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1113,17 +1134,17 @@ export function SuperAdminDashboard() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div><span className="text-gray-500">Slug:</span> <span className="font-medium">{selectedTenant.slug}</span></div>
                       <div><span className="text-gray-500">URL:</span> <a href={selectedTenant.url} target="_blank" className="text-orange-600 hover:underline">{selectedTenant.url}</a></div>
-                      <div><span className="text-gray-500">Тариф:</span> <span className="font-medium">{PLAN_LABELS[selectedTenant.plan]}</span></div>
-                      <div><span className="text-gray-500">Email:</span> <span className="font-medium">{selectedTenant.admin_email || '—'}</span></div>
-                      <div><span className="text-gray-500">Телефон:</span> <span className="font-medium">{selectedTenant.admin_phone || '—'}</span></div>
-                      <div><span className="text-gray-500">Создан:</span> <span className="font-medium">{new Date(selectedTenant.created_at).toLocaleDateString('ru-RU')}</span></div>
+                      <div><span className="text-gray-500">{language === 'ru' ? 'Тариф:' : 'Tarif:'}</span> <span className="font-medium">{PLAN_LABELS[selectedTenant.plan]}</span></div>
+                      <div><span className="text-gray-500">{language === 'ru' ? 'Email:' : 'Email:'}</span> <span className="font-medium">{selectedTenant.admin_email || '—'}</span></div>
+                      <div><span className="text-gray-500">{language === 'ru' ? 'Телефон:' : 'Telefon:'}</span> <span className="font-medium">{selectedTenant.admin_phone || '—'}</span></div>
+                      <div><span className="text-gray-500">{language === 'ru' ? 'Создан:' : 'Yaratilgan:'}</span> <span className="font-medium">{new Date(selectedTenant.created_at).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}</span></div>
                     </div>
                     <div>
-                      <span className="text-gray-500 text-sm">Функции:</span>
+                      <span className="text-gray-500 text-sm">{language === 'ru' ? 'Функции:' : 'Imkoniyatlar:'}</span>
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {(selectedTenant.features ? JSON.parse(selectedTenant.features) : []).map((f: string) => (
                           <span key={f} className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full text-xs font-medium">
-                            {FEATURE_LABELS[f] || f}
+                            {getFeatureLabel(f, language)}
                           </span>
                         ))}
                       </div>
@@ -1581,7 +1602,7 @@ export function SuperAdminDashboard() {
                       <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
                           <Pie
-                            data={analytics.featureUsage.map(f => ({ ...f, label: FEATURE_LABELS[f.feature] || f.feature }))}
+                            data={analytics.featureUsage.map(f => ({ ...f, label: getFeatureLabel(f.feature, language) }))}
                             cx="50%" cy="50%"
                             outerRadius={80}
                             innerRadius={40}
@@ -1603,7 +1624,7 @@ export function SuperAdminDashboard() {
                         .map((item, index) => (
                           <div key={item.feature} className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: FEATURE_COLORS[index % FEATURE_COLORS.length] }} />
-                            <span className="text-sm text-gray-600">{FEATURE_LABELS[item.feature] || item.feature}</span>
+                            <span className="text-sm text-gray-600">{getFeatureLabel(item.feature, language)}</span>
                             <span className="text-sm font-bold ml-1">{item.count}</span>
                           </div>
                         ))}
@@ -2642,7 +2663,7 @@ export function SuperAdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Тариф</label>
+                  <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Тариф' : 'Tarif'}</label>
                   <select
                     value={formData.plan}
                     onChange={(e) => {
@@ -2660,7 +2681,7 @@ export function SuperAdminDashboard() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Email администратора</label>
+                  <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Email администратора' : 'Adminstrator emali'}</label>
                   <input
                     type="email"
                     value={formData.admin_email}
@@ -2670,7 +2691,7 @@ export function SuperAdminDashboard() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Телефон администратора</label>
+                  <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Телефон администратора' : 'Administrator telefoni'}</label>
                   <input
                     type="tel"
                     value={formData.admin_phone}
@@ -2724,7 +2745,7 @@ export function SuperAdminDashboard() {
               )}
 
               <div>
-                <label className="block text-sm font-medium mb-2">Доступные функции</label>
+                <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'Доступные функции' : 'Mavjud imkoniyatlar'}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {AVAILABLE_FEATURES.map((feature) => (
                     <label key={feature.value} className="flex items-center gap-2 cursor-pointer">
@@ -2734,7 +2755,7 @@ export function SuperAdminDashboard() {
                         onChange={() => handleFeatureToggle(feature.value)}
                         className="rounded"
                       />
-                      <span className="text-sm">{feature.label}</span>
+                      <span className="text-sm">{language === 'ru' ? feature.labelRu : feature.labelUz}</span>
                     </label>
                   ))}
                 </div>

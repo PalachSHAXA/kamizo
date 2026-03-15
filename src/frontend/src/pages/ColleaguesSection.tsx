@@ -104,26 +104,27 @@ const generateBadges = (rating: number, completedCount: number): string[] => {
   return badges.slice(0, 2); // Максимум 2 бейджа
 };
 
-const criteriaLabels = {
-  professionalKnowledge: 'Профессиональные знания',
-  legislationKnowledge: 'Знание законодательства',
-  analyticalSkills: 'Аналитические способности',
-  qualityOfWork: 'Качество работы',
-  execution: 'Исполнительность',
-  reliability: 'Надёжность',
-  teamwork: 'Командность',
-  communication: 'Коммуникация',
-  initiative: 'Инициативность',
-  humanity: 'Человечность',
-};
-
-const thankReasons = [
-  'Помог с задачей',
-  'Поддержал в сложный момент',
-  'Научил чему-то новому',
-  'Выручил в дедлайн',
-  'Просто спасибо',
-];
+const getLabels = (language: 'ru' | 'uz') => ({
+  criteriaLabels: {
+    professionalKnowledge: language === 'ru' ? 'Профессиональные знания' : 'Kasbiy bilimlar',
+    legislationKnowledge: language === 'ru' ? 'Знание законодательства' : 'Qonunchilik bilimi',
+    analyticalSkills: language === 'ru' ? 'Аналитические способности' : 'Tahlil qobiliyati',
+    qualityOfWork: language === 'ru' ? 'Качество работы' : 'Ish sifati',
+    execution: language === 'ru' ? 'Исполнительность' : 'Ijro etish',
+    reliability: language === 'ru' ? 'Надёжность' : 'Ishonchlilik',
+    teamwork: language === 'ru' ? 'Командность' : 'Jamoaviy ishlash',
+    communication: language === 'ru' ? 'Коммуникация' : 'Muloqat',
+    initiative: language === 'ru' ? 'Инициативность' : 'Tashabbusi',
+    humanity: language === 'ru' ? 'Человечность' : 'Insoniylik',
+  },
+  thankReasons: [
+    language === 'ru' ? 'Помог с задачей' : 'Vazifada yordam berdi',
+    language === 'ru' ? 'Поддержал в сложный момент' : 'Qiyin vaqtda qo\'llab-quvvatladi',
+    language === 'ru' ? 'Научил чему-то новому' : 'Yangi narsalar o\'rgatdi',
+    language === 'ru' ? 'Выручил в дедлайн' : 'Muddatda yordam berdi',
+    language === 'ru' ? 'Просто спасибо' : 'Shunchaki raxmat',
+  ],
+});
 
 // Компонент звёзд
 function StarRating({ rating, maxStars = 5, size = 'md', onChange }: {
@@ -155,6 +156,8 @@ function RatingModal({ employee, onClose, onSubmit }: {
   onClose: () => void;
   onSubmit: (ratings: Rating['ratings']) => void;
 }) {
+  const { language } = useLanguageStore();
+  const labels = getLabels(language);
   const [ratings, setRatings] = useState<Rating['ratings']>({
     professionalKnowledge: 0,
     legislationKnowledge: 0,
@@ -172,7 +175,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
   const handleSubmit = () => {
     const allRated = Object.values(ratings).every(r => r > 0);
     if (!allRated) {
-      alert('Пожалуйста, оцените все критерии');
+      alert(language === 'ru' ? 'Пожалуйста, оцените все критерии' : 'Iltimos, barcha mezonlarni baholang');
       return;
     }
     onSubmit(ratings);
@@ -183,7 +186,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center z-10">
-          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">Оценить: {employee.name}</h2>
+          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">{language === 'ru' ? 'Оценить' : 'Baholash'}: {employee.name}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation">
             <X className="w-6 h-6" />
           </button>
@@ -191,11 +194,11 @@ function RatingModal({ employee, onClose, onSubmit }: {
 
         <div className="px-6 py-4">
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">Ваша оценка абсолютно анонимна</p>
+            <p className="text-sm text-yellow-800">{language === 'ru' ? 'Ваша оценка абсолютно анонимна' : 'Sizning bahongiz mutlaqo anonimdir'}</p>
           </div>
 
           <div className="space-y-4">
-            {Object.entries(criteriaLabels).map(([key, label]) => (
+            {Object.entries(labels.criteriaLabels).map(([key, label]) => (
               <div key={key} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <span className="text-sm font-medium">{label}</span>
                 <StarRating
@@ -207,13 +210,13 @@ function RatingModal({ employee, onClose, onSubmit }: {
           </div>
 
           <div className="mt-6">
-            <label className="block text-sm font-medium mb-2">Комментарий (необязательно)</label>
+            <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}</label>
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
               rows={4}
-              placeholder="Поделитесь своими мыслями..."
+              placeholder={language === 'ru' ? 'Поделитесь своими мыслями...' : 'O\'z fikringizni baham ko\'ring...'}
             />
           </div>
 
@@ -221,7 +224,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
             onClick={handleSubmit}
             className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
           >
-            Отправить оценку
+            {language === 'ru' ? 'Отправить оценку' : 'Baholashni yuborish'}
           </button>
         </div>
       </div>
@@ -235,7 +238,9 @@ function ThankModal({ employee, onClose, onSubmit }: {
   onClose: () => void;
   onSubmit: (reason: string, isAnonymous: boolean) => void;
 }) {
-  const [reason, setReason] = useState(thankReasons[0]);
+  const { language } = useLanguageStore();
+  const labels = getLabels(language);
+  const [reason, setReason] = useState(labels.thankReasons[0]);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   const handleSubmit = () => {
@@ -247,20 +252,20 @@ function ThankModal({ employee, onClose, onSubmit }: {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center">
-          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">Поблагодарить: {employee.name}</h2>
+          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">{language === 'ru' ? 'Поблагодарить' : 'Raxmat aytish'}: {employee.name}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         <div className="px-6 py-4">
-          <label className="block text-sm font-medium mb-2">За что спасибо?</label>
+          <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'За что спасибо?' : 'Nima uchun raxmat?'}</label>
           <select
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"
           >
-            {thankReasons.map((r) => (
+            {labels.thankReasons.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
@@ -272,14 +277,14 @@ function ThankModal({ employee, onClose, onSubmit }: {
               onChange={(e) => setIsAnonymous(e.target.checked)}
               className="w-4 h-4"
             />
-            <span className="text-sm">Отправить анонимно</span>
+            <span className="text-sm">{language === 'ru' ? 'Отправить анонимно' : 'Anonimly yuborish'}</span>
           </label>
 
           <button
             onClick={handleSubmit}
             className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
           >
-            Отправить спасибо
+            {language === 'ru' ? 'Отправить спасибо' : 'Raxamatni yuborish'}
           </button>
         </div>
       </div>
@@ -293,6 +298,7 @@ function EmployeeProfile({ employee, onBack, thanks }: {
   onBack: () => void;
   thanks: Thank[];
 }) {
+  const { language } = useLanguageStore();
   const avgRating = (Object.values(employee.ratings).reduce((a, b) => a + b, 0) / 10).toFixed(1);
   const employeeThanks = thanks.filter(t => t.toId === employee.id);
 
@@ -348,9 +354,9 @@ function EmployeeProfile({ employee, onBack, thanks }: {
       </div>
 
       <div className="glass-card p-4 sm:p-6">
-        <h2 className="text-lg font-bold mb-4">Оценки по критериям</h2>
+        <h2 className="text-lg font-bold mb-4">{language === 'ru' ? 'Оценки по критериям' : 'Mezonlar bo\'yicha baholar'}</h2>
         <div className="space-y-3">
-          {Object.entries(criteriaLabels).map(([key, label]) => (
+          {Object.entries(getLabels(language).criteriaLabels).map(([key, label]) => (
             <div key={key} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
               <span className="text-sm truncate">{label}</span>
               <div className="flex items-center gap-2 flex-shrink-0">

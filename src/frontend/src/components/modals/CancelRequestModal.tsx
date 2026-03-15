@@ -50,7 +50,7 @@ export function CancelRequestModal({ isOpen, onClose, request, onCancel }: Cance
             <Ban className="w-5 h-5" />
             {language === 'ru' ? 'Отменить заявку' : 'Arizani bekor qilish'}
           </h2>
-          <button onClick={handleClose} className="p-2 hover:bg-white/30 active:bg-white/50 rounded-lg touch-manipulation">
+          <button onClick={handleClose} className="p-2 hover:bg-white/30 active:bg-white/50 rounded-lg touch-manipulation" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -89,6 +89,7 @@ export function CancelRequestModal({ isOpen, onClose, request, onCancel }: Cance
               onChange={(e) => setReason(e.target.value)}
               className="input-field min-h-[80px]"
               placeholder={language === 'ru' ? 'Или укажите свою причину...' : 'Yoki o\'z sababingizni yozing...'}
+              aria-label={language === 'ru' ? 'Причина отмены' : 'Bekor qilish sababi'}
             />
           </div>
 

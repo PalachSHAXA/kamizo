@@ -28,6 +28,7 @@ import { getCached, setCache, invalidateCache } from './middleware/cache-local';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
 import { json, error, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from './utils/helpers';
 import { encryptPassword, decryptPassword, hashPassword, verifyPassword } from './utils/crypto';
+import { registerAllRoutes } from './routes';
 
 
 // Helper: Fetch meeting with agenda items and schedule options
@@ -2204,6 +2205,21 @@ route('POST', '/api/guest-codes/:id/use', async (request, env, params) => {
   const tenantId = getTenantId(request);
   const code = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!code) return error('Not found', 404);
+
+  // Check if code has already reached max uses
+  if (code.max_uses && (code.current_uses || 0) >= code.max_uses) {
+    return error('Пропуск уже использован максимальное количество раз', 400);
+  }
+
+  // Check if code has expired
+  if (code.valid_until && new Date(code.valid_until) < new Date()) {
+    return error('Срок действия пропуска истёк', 400);
+  }
+
+  // Check if code is revoked
+  if (code.status === 'revoked' || code.status === 'used' || code.status === 'expired') {
+    return error('Пропуск недействителен', 400);
+  }
 
   const newUses = (code.current_uses || 0) + 1;
   const newStatus = newUses >= code.max_uses ? 'used' : 'active';
@@ -6611,6 +6627,17 @@ route('POST', '/api/meters/:meterId/readings', async (request, env, params) => {
 
   const previousValue = meter.current_value || 0;
   const newValue = body.value;
+
+  // Validate reading value
+  if (newValue === undefined || newValue === null || isNaN(Number(newValue))) {
+    return error('Укажите корректное показание счётчика', 400);
+  }
+
+  // Prevent negative consumption (new reading must be >= previous)
+  if (Number(newValue) < Number(previousValue)) {
+    return error(`Показание (${newValue}) не может быть меньше предыдущего (${previousValue}). Если счётчик был заменён, обратитесь к администратору.`, 400);
+  }
+
   const consumption = newValue - previousValue;
   const readingDate = body.reading_date || body.readingDate || new Date().toISOString().split('T')[0];
 
@@ -10813,13 +10840,21 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
 
   const body = await request.json() as any;
 
-  // Check if meeting is open for voting
+  // Check if meeting is open for voting AND deadline not passed
   const meeting = await env.DB.prepare(
-    `SELECT status, require_otp, building_id, allow_revote FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    `SELECT status, require_otp, building_id, allow_revote, voting_deadline FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!meeting || meeting.status !== 'voting_open') {
     return error('Voting is not open', 400);
+  }
+
+  // Enforce voting deadline - block votes after deadline even if status is still voting_open
+  if (meeting.voting_deadline) {
+    const deadline = new Date(meeting.voting_deadline);
+    if (new Date() > deadline) {
+      return error('Срок голосования истёк. Голосование закрыто.', 400);
+    }
   }
 
   // Check if user is eligible to vote (must be resident of this building)
@@ -16678,9 +16713,18 @@ async function runMigrations(env: Env) {
 
 // ==================== MAIN HANDLER ====================
 
+// Register extracted route modules on startup
+let routesRegistered = false;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
+    // Register routes only once (on first request)
+    if (!routesRegistered) {
+      registerAllRoutes(env);
+      routesRegistered = true;
+    }
+
     // Run DB migrations (only once per worker instance)
     try {
       await runMigrations(env);

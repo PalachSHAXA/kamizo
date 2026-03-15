@@ -94,18 +94,21 @@ export function PopupNotification({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="presentation" aria-hidden="false">
       <div
         className={`
           relative w-full max-w-sm rounded-2xl border-2 shadow-2xl p-6
           ${getBgColor()}
           ${isClosing ? 'animate-out zoom-out-95 fade-out duration-300' : 'animate-in zoom-in-95 fade-in duration-300'}
         `}
+        role="alert"
+        aria-live="polite"
       >
         {/* Close button */}
         <button
           onClick={handleClose}
           className="absolute top-3 right-3 p-2.5 rounded-full hover:bg-black/10 active:bg-black/20 transition-colors touch-manipulation"
+          aria-label="Закрыть уведомление"
         >
           <X className="w-5 h-5 text-gray-500" />
         </button>

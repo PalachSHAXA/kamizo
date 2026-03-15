@@ -210,6 +210,8 @@ export function BottomBar() {
       ref={barRef}
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      role="navigation"
+      aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
     >
       {/* Frosted glass background */}
       <div className="absolute inset-0 bg-white/80 backdrop-blur-2xl border-t border-gray-200/30" />
@@ -230,6 +232,7 @@ export function BottomBar() {
                   onClick={() => handleTap(tab)}
                   className="touch-manipulation"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
+                  aria-label={tab.id === 'qr' ? (language === 'ru' ? 'QR сканер' : 'QR skaner') : (language === 'ru' ? 'Новая заявка' : 'Yangi ariza')}
                 >
                   <div
                     className={`w-[54px] h-[54px] rounded-full flex items-center justify-center shadow-[0_4px_24px_rgba(var(--brand-rgb),0.45)] transition-all duration-200 border-[3px] border-white ${
@@ -252,6 +255,8 @@ export function BottomBar() {
               onClick={() => handleTap(tab)}
               className={`relative flex-1 flex flex-col items-center gap-[2px] touch-manipulation py-1 overflow-hidden ${locked ? 'opacity-40' : ''}`}
               style={{ WebkitTapHighlightColor: 'transparent' }}
+              aria-current={isActive(tab) ? 'page' : undefined}
+              aria-label={tab.label}
             >
               {/* Active pill background */}
               <div

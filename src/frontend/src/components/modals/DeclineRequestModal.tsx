@@ -69,7 +69,7 @@ export function DeclineRequestModal({ isOpen, onClose, request, onDecline }: Dec
               ? (language === 'ru' ? 'Освободить заявку' : 'Arizani bo\'shatish')
               : (language === 'ru' ? 'Отказаться от заявки' : 'Arizadan voz kechish')}
           </h2>
-          <button onClick={handleClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation">
+          <button onClick={handleClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -108,6 +108,7 @@ export function DeclineRequestModal({ isOpen, onClose, request, onDecline }: Dec
               onChange={(e) => setReason(e.target.value)}
               className="input-field min-h-[80px]"
               placeholder={language === 'ru' ? 'Или укажите свою причину...' : 'Yoki o\'z sababingizni ko\'rsating...'}
+              aria-label={language === 'ru' ? 'Причина отказа' : 'Rad etish sababi'}
             />
           </div>
 

@@ -788,7 +788,7 @@ export function AdminDashboard() {
 
           {isLoadingReport ? (
             <div className="flex items-center justify-center py-20">
-              <RefreshCw className="w-8 h-8 animate-spin text-primary-500" />
+              <RefreshCw className="w-6 h-6 animate-spin text-primary-500" />
               <span className="ml-3 text-gray-600">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</span>
             </div>
           ) : marketplaceReport ? (
@@ -797,7 +797,7 @@ export function AdminDashboard() {
               <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
                 <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
-                    <ShoppingBag className="w-8 h-8 text-primary-500" />
+                    <ShoppingBag className="w-6 h-6 text-primary-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.total_orders}</div>
                   <div className="text-sm text-gray-500">{language === 'ru' ? 'Всего заказов' : 'Jami buyurtmalar'}</div>
@@ -810,7 +810,7 @@ export function AdminDashboard() {
 
                 <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
-                    <DollarSign className="w-8 h-8 text-green-500" />
+                    <DollarSign className="w-6 h-6 text-green-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.total_revenue.toLocaleString()}</div>
                   <div className="text-sm text-gray-500">{language === 'ru' ? 'Выручка (сум)' : 'Tushum (so\'m)'}</div>
@@ -821,7 +821,7 @@ export function AdminDashboard() {
 
                 <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
-                    <Star className="w-8 h-8 text-yellow-500" />
+                    <Star className="w-6 h-6 text-yellow-500" />
                   </div>
                   <div className="text-2xl font-bold">{marketplaceReport.overall.avg_rating.toFixed(1)}</div>
                   <div className="text-sm text-gray-500">{language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting'}</div>
@@ -832,7 +832,7 @@ export function AdminDashboard() {
 
                 <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 rounded-lg sm:rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
-                    <Package className="w-8 h-8 text-purple-500" />
+                    <Package className="w-6 h-6 text-purple-500" />
                   </div>
                   <div className="text-2xl font-bold">
                     {marketplaceReport.top_products.reduce((sum, p) => sum + p.total_sold, 0)}
@@ -1107,12 +1107,12 @@ export function AdminDashboard() {
 
           {isLoadingPlatformAds ? (
             <div className="flex items-center justify-center py-20">
-              <RefreshCw className="w-8 h-8 animate-spin text-primary-500" />
+              <RefreshCw className="w-6 h-6 animate-spin text-primary-500" />
             </div>
           ) : platformAds.length === 0 ? (
             <div className="glass-card p-16 text-center">
               <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
-                <Megaphone className="w-8 h-8 text-gray-300" />
+                <Megaphone className="w-6 h-6 text-gray-300" />
               </div>
               <p className="text-gray-400 font-medium">
                 {language === 'ru' ? 'Нет рекламы от платформы' : 'Platforma reklamalari yo\'q'}

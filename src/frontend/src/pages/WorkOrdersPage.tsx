@@ -175,7 +175,7 @@ export function WorkOrdersPage() {
 
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('ru-RU');
+    return new Date(dateStr).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ');
   };
 
   const formatDuration = (minutes: number) => {

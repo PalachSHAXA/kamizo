@@ -2,17 +2,15 @@
 // Each module calls route() from the router to register its handlers
 // This barrel file ensures all routes are loaded when the worker starts
 //
-// NOTE: Route modules are not yet extracted from index.ts.
-// This file documents the planned route module structure for when
-// the backend is migrated to datacenter (Express/Hono/Fastify).
+// EXTRACTED ROUTE MODULES (Proof of Concept):
+// ✅ auth.ts       (login, register, register-bulk, password management)
+// ✅ vehicles.ts   (vehicle CRUD, search)
+// ✅ chat.ts       (channels, messages, read receipts)
+// ✅ guest-access.ts (guest code CRUD, validation, QR scanning)
 //
-// Planned modules:
-// - auth.ts       (login, register, register-bulk)
-// - users.ts      (user CRUD, password management)
-// - vehicles.ts   (vehicle CRUD, search)
+// PLANNED MODULES (still in index.ts):
+// - users.ts      (user CRUD, profile routes)
 // - rentals.ts    (apartments, records, exchange rate)
-// - guestCodes.ts (guest code CRUD, validation, QR scanning)
-// - chat.ts       (channels, messages, read receipts)
 // - announcements.ts (announcement CRUD, views)
 // - team.ts       (team management, password resets)
 // - executors.ts  (executor CRUD, status, stats)
@@ -29,4 +27,17 @@
 // - tenants.ts    (tenant CRUD, super-admin analytics)
 // - upload.ts     (file upload)
 
-export {};
+import type { Env } from '../types';
+import { registerAuthRoutes } from './auth';
+import { registerVehicleRoutes } from './vehicles';
+import { registerChatRoutes } from './chat';
+import { registerGuestAccessRoutes } from './guest-access';
+
+export function registerAllRoutes(env: Env) {
+  registerAuthRoutes(env);
+  registerVehicleRoutes(env);
+  registerChatRoutes(env);
+  registerGuestAccessRoutes(env);
+
+  // Additional route modules will be registered here as they are extracted
+}

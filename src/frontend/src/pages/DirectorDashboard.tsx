@@ -1846,7 +1846,7 @@ export function DirectorDashboard() {
                   { label: t('director.responsiveness'), value: ratingSummary.current.avg_responsiveness, color: 'amber' },
                   { label: t('director.communication'), value: ratingSummary.current.avg_communication, color: 'blue' },
                 ].map((stat, idx) => (
-                  <div key={idx} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <div key={idx} className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
                     <div className="text-[12px] text-gray-500 font-medium mb-1">{stat.label}</div>
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-[28px] font-extrabold text-gray-900">
@@ -1875,7 +1875,7 @@ export function DirectorDashboard() {
 
               {/* Monthly Trend Chart */}
               {ratingSummary.monthly?.length > 1 && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
                   <h3 className="text-sm font-semibold mb-3">{t('director.monthlyTrend')}</h3>
                   <div className="h-[220px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -1897,7 +1897,7 @@ export function DirectorDashboard() {
 
               {/* Recommendations */}
               {ratingSummary.current && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
                   <h3 className="text-sm font-semibold mb-3">{t('director.recommendations')}</h3>
                   <div className="space-y-2">
                     {(() => {
@@ -1960,7 +1960,7 @@ export function DirectorDashboard() {
 
               {/* Recent Comments */}
               {ratingSummary.recentComments?.length > 0 && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
                   <h3 className="text-sm font-semibold mb-3">{t('director.recentComments')}</h3>
                   <div className="space-y-3">
                     {ratingSummary.recentComments.map((comment: any, idx: number) => (

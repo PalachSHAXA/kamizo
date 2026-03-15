@@ -10,6 +10,7 @@ import { MobileHeader } from './MobileHeader';
 import { PopupManager } from '../PopupNotification';
 import { PerformanceMonitor } from '../PerformanceMonitor';
 import { BottomBar } from '../BottomBar';
+import { ProtectedRoute } from './ProtectedRoute';
 import { Loader2, ArrowLeft, ShieldAlert } from 'lucide-react';
 
 // Page loading fallback
@@ -264,19 +265,59 @@ export function Layout() {
               {['admin', 'manager', 'director', 'department_head'].includes(user?.role || '') && (
                 <Route path="/residents" element={<ResidentsPage />} />
               )}
-              <Route path="/executors" element={<ExecutorsPage />} />
-              <Route path="/rentals" element={<RentalsPage />} />
-              <Route path="/buildings" element={<BuildingsPage />} />
-              <Route path="/work-orders" element={<WorkOrdersPage />} />
+              <Route path="/executors" element={
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'department_head']}>
+                  <ExecutorsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/rentals" element={
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']}>
+                  <RentalsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/buildings" element={
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'department_head']}>
+                  <BuildingsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/work-orders" element={
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'department_head', 'executor']}>
+                  <WorkOrdersPage />
+                </ProtectedRoute>
+              } />
               <Route path="/meetings" element={getMeetingsPage()} />
               <Route path="/announcements" element={getAnnouncementsPage()} />
-              <Route path="/schedule" element={<ExecutorSchedulePage />} />
-              <Route path="/my-stats" element={<ExecutorStatsPage />} />
-              <Route path="/rate-employees" element={<ResidentRateEmployeesPage />} />
-              <Route path="/vehicles" element={<ResidentVehiclesPage />} />
-              <Route path="/vehicle-search" element={<VehicleSearchPage />} />
+              <Route path="/schedule" element={
+                <ProtectedRoute allowedRoles={['executor']}>
+                  <ExecutorSchedulePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/my-stats" element={
+                <ProtectedRoute allowedRoles={['executor']}>
+                  <ExecutorStatsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/rate-employees" element={
+                <ProtectedRoute allowedRoles={['resident']}>
+                  <ResidentRateEmployeesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/vehicles" element={
+                <ProtectedRoute allowedRoles={['resident']}>
+                  <ResidentVehiclesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/vehicle-search" element={
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'security']}>
+                  <VehicleSearchPage />
+                </ProtectedRoute>
+              } />
               <Route path="/guest-access" element={getGuestAccessPage()} />
-              <Route path="/qr-scanner" element={<GuardQRScannerPage />} />
+              <Route path="/qr-scanner" element={
+                <ProtectedRoute allowedRoles={['security']}>
+                  <GuardQRScannerPage />
+                </ProtectedRoute>
+              } />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/profile" element={
                 ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
@@ -290,10 +331,26 @@ export function Layout() {
               <Route path="/colleagues" element={<ColleaguesSection />} />
               <Route path="/notepad" element={<NotepadPage />} />
               <Route path="/trainings" element={<TrainingsPage />} />
-              <Route path="/team" element={<TeamPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/monitoring" element={<MonitoringPage />} />
+              <Route path="/team" element={
+                <ProtectedRoute allowedRoles={['admin', 'director']}>
+                  <TeamPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/reports" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
+                  <ReportsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
+                  <SettingsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/monitoring" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <MonitoringPage />
+                </ProtectedRoute>
+              } />
               <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/marketplace-orders" element={<MarketplaceOrdersPage />} />
               <Route path="/marketplace-products" element={<MarketplaceManagerDashboard />} />
