@@ -12,6 +12,7 @@ import {
   Smile,
   Paperclip
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { chatApi } from '../services/api';
@@ -1071,6 +1072,7 @@ function useNotificationSound() {
 
 // ─── Main Chat Page ──────────────────────────────────────────────────────
 export function ChatPage() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const [channels, setChannels] = useState<ChatChannel[]>([]);
@@ -1168,7 +1170,7 @@ export function ChatPage() {
             <ChatView
               channelId={residentChannel.id}
               channel={residentChannel}
-              onBack={() => window.history.back()}
+              onBack={() => navigate('/')}
               hideBackOnDesktop
             />
           </div>

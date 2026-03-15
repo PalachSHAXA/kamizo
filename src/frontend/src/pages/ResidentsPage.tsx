@@ -10,6 +10,7 @@ import { useAuthStore } from '../stores/authStore';
 import { authApi, usersApi, apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
 import type { BuildingFull } from '../types';
+import { useBackGuard } from '../hooks/useBackGuard';
 
 // Branch type (from API)
 interface Branch {
@@ -63,11 +64,13 @@ interface ExcelRow {
   fullName: string;
   address: string;
   totalArea?: number; // Площадь квартиры в кв.м
+  entrance?: string;  // Подъезд — из колонки Excel или извлечённый из адреса
+  floor?: string;     // Этаж — из колонки Excel
 }
 
 export function ResidentsPage() {
   const { buildings, fetchBuildings } = useCRMStore();
-  const { addMockUser, additionalUsers, removeUser, updateUserPassword, getUserPassword } = useAuthStore();
+  const { addMockUser, additionalUsers, removeUser, updateUserPassword, getUserPassword, user: currentUser } = useAuthStore();
   const { language } = useLanguageStore();
 
   // Navigation state
@@ -96,6 +99,10 @@ export function ResidentsPage() {
   const [editingPassword, setEditingPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [nameToast, setNameToast] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{login: string; name: string} | null>(null);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -206,6 +213,9 @@ export function ResidentsPage() {
     }
     setSearchQuery('');
   };
+
+  // Intercept browser/hardware back so it follows the logical hierarchy
+  useBackGuard(viewLevel !== 'branches', handleBack);
 
   // Extract building number from address (supports formats like 93, 93A, 93/2, 93-2, 93/2A)
   const extractBuildingFromAddress = (address: string): string => {
@@ -357,18 +367,35 @@ export function ResidentsPage() {
     const aptNum = parseInt(apartment);
     if (isNaN(aptNum) || aptNum <= 0) return { entrance: '', floor: '' };
 
+    // Use actual entrance ranges defined by manager if available
+    if (entrances.length > 0) {
+      const sortedEntrances = [...entrances].sort((a, b) => a.number - b.number);
+      for (const ent of sortedEntrances) {
+        const from = ent.apartments_from ?? 1;
+        const to = ent.apartments_to ?? Infinity;
+        if (aptNum >= from && aptNum <= to) {
+          // Compute floor within this entrance
+          const floorsFrom = ent.floors_from ?? 1;
+          const floorsTo = ent.floors_to ?? 9;
+          const totalApts = to - from + 1;
+          const totalFloors = floorsTo - floorsFrom + 1;
+          const aptsPerFloor = Math.ceil(totalApts / totalFloors);
+          const posInEntrance = aptNum - from;
+          const floorIndex = Math.floor(posInEntrance / aptsPerFloor);
+          const floor = floorsFrom + floorIndex;
+          return { entrance: String(ent.number), floor: String(floor) };
+        }
+      }
+    }
+
+    // Fallback heuristic (when no entrances configured)
     const apartmentsPerFloor = 4;
     const floorsPerEntrance = 9;
     const apartmentsPerEntrance = apartmentsPerFloor * floorsPerEntrance;
-
     const entrance = Math.ceil(aptNum / apartmentsPerEntrance);
-    const positionInEntrance = ((aptNum - 1) % apartmentsPerEntrance);
+    const positionInEntrance = (aptNum - 1) % apartmentsPerEntrance;
     const floor = Math.floor(positionInEntrance / apartmentsPerFloor) + 1;
-
-    return {
-      entrance: String(entrance),
-      floor: String(floor),
-    };
+    return { entrance: String(entrance), floor: String(floor) };
   };
 
   // Check if non-residential
@@ -413,6 +440,13 @@ export function ResidentsPage() {
     }
   }, [language]);
 
+  // Extract entrance number from address string
+  // Handles: "подъезд 2", "под. 2", "пд. 2", "п/д 2", "kirish 2", "k/ch 2"
+  const extractEntranceFromAddress = (address: string): string => {
+    const m = address.match(/(?:подъезд|под\.?|пд\.?|п\/д|kirish|k\/ch)\s*(\d+)/i);
+    return m ? m[1] : '';
+  };
+
   // Parse Excel data
   const parseExcelData = (data: string[][]): ExcelRow[] => {
     if (data.length < 1) return [];
@@ -422,6 +456,8 @@ export function ResidentsPage() {
     let nameCol = -1;
     let addressCol = -1;
     let areaCol = -1;
+    let entranceCol = -1;
+    let floorCol = -1;
 
     const findColumnInRow = (row: string[], names: string[]): number => {
       if (!row) return -1;
@@ -436,10 +472,12 @@ export function ResidentsPage() {
       const row = data[i];
       if (!row) continue;
 
-      const acc = findColumnInRow(row, ['л/с', 'лицевой', 'л.с', 'лс']);
-      const name = findColumnInRow(row, ['фио', 'абонент']);
-      const addr = findColumnInRow(row, ['адрес']);
-      const area = findColumnInRow(row, ['площадь', 'кв.м', 'кв м', 's кв', 'sкв', 'общая площадь']);
+      const acc = findColumnInRow(row, ['л/с', 'лицевой', 'л.с', 'лс', 'hisob raqami', 'hisob', 'sh/h', 'sh h', 'шахсий']);
+      const name = findColumnInRow(row, ['фио', 'абонент', 'f.i.sh', 'fish', 'f.i.o', 'fio', 'abonent', 'ism']);
+      const addr = findColumnInRow(row, ['адрес', 'manzil', 'манзил']);
+      const area = findColumnInRow(row, ['площадь', 'кв.м', 'кв м', 's кв', 'sкв', 'общая площадь', 'maydon', 'майдон', 'kv.m', 'kv m', 'm²', 'm2']);
+      const entr = findColumnInRow(row, ['подъезд', 'под.', 'пд.', 'п/д', 'kirish', 'entrance', 'podyezd']);
+      const fl   = findColumnInRow(row, ['этаж', 'этажность', 'etaj', 'qavat', 'floor']);
 
       const foundCount = [acc, name, addr].filter(x => x >= 0).length;
       if (foundCount >= 2) {
@@ -448,6 +486,8 @@ export function ResidentsPage() {
         nameCol = name;
         addressCol = addr;
         areaCol = area;
+        entranceCol = entr;
+        floorCol = fl;
         break;
       }
     }
@@ -478,29 +518,46 @@ export function ResidentsPage() {
         let parsed = parseFloat(areaStr);
 
         if (!isNaN(parsed) && parsed > 0) {
-          // If no decimal point in original and value > 1000, it's likely scaled by 100
-          // Normal apartment areas are 20-300 m², so 2000+ is suspicious
           const hasDecimal = String(rawValue).includes('.') || String(rawValue).includes(',');
           if (!hasDecimal && parsed > 1000) {
-            // Divide by 100 to get real area (e.g., 9839 -> 98.39)
             parsed = parsed / 100;
           }
-          // Additional sanity check: if still > 500, might be scaled by 10
           if (parsed > 500 && !hasDecimal) {
             parsed = parsed / 10;
           }
-          totalArea = Math.round(parsed * 100) / 100; // Round to 2 decimals
+          totalArea = Math.round(parsed * 100) / 100;
         }
       }
 
       if (!fullName) continue;
-      if (fullName.toLowerCase().includes('фио') || fullName.toLowerCase().includes('абонент')) continue;
+      const nameLower = fullName.toLowerCase();
+      if (nameLower.includes('фио') || nameLower.includes('абонент') || nameLower.includes('f.i.sh') || nameLower.includes('f.i.o') || nameLower.includes('abonent') || nameLower.includes('fish')) continue;
+
+      // Extract entrance: explicit column → address field → leave empty (will calc from apt later)
+      let entrance: string | undefined;
+      if (entranceCol >= 0 && row[entranceCol]) {
+        const eStr = String(row[entranceCol]).trim().replace(/[^\d]/g, '');
+        if (eStr) entrance = eStr;
+      }
+      if (!entrance && address) {
+        const fromAddr = extractEntranceFromAddress(address);
+        if (fromAddr) entrance = fromAddr;
+      }
+
+      // Extract floor from explicit column if present
+      let floor: string | undefined;
+      if (floorCol >= 0 && row[floorCol]) {
+        const fStr = String(row[floorCol]).trim().replace(/[^\d]/g, '');
+        if (fStr) floor = fStr;
+      }
 
       rows.push({
         personalAccount,
         fullName,
         address: address || selectedBuilding?.address || '',
         totalArea,
+        entrance,
+        floor,
       });
     }
 
@@ -527,9 +584,17 @@ export function ResidentsPage() {
       if (additionalUsers[login]) return;
 
       const apartment = extractApartmentFromAddress(row.address);
-      const { entrance: calcEntrance, floor } = calculateEntranceAndFloor(apartment);
-      // Selected entrance takes priority over calculated entrance
-      const entrance = selectedEntrance ? String(selectedEntrance.number) : calcEntrance;
+      const { entrance: calcEntrance, floor: calcFloor } = calculateEntranceAndFloor(apartment);
+
+      // Entrance priority for BULK import:
+      //   1. Explicit column in Excel file (row.entrance)
+      //   2. Entrance extracted from address field (already in row.entrance via parseExcelData)
+      //   3. Calculated from apartment number using building layout heuristic
+      // NOTE: selectedEntrance is intentionally NOT used here — it reflects the current
+      // UI navigation state and must not override individual apartment assignments.
+      const entrance = row.entrance || calcEntrance;
+      const floor    = row.floor    || calcFloor;
+
       const buildingId = selectedBuilding?.id || '';
       const residentAddress = row.address || selectedBuilding?.address || '';
       const password = generatePassword(selectedBuilding, apartment, residentAddress);
@@ -559,6 +624,17 @@ export function ResidentsPage() {
       return;
     }
 
+    // Build entrance distribution summary (for success message)
+    const byEntrance: Record<string, number> = {};
+    usersToCreate.forEach(u => {
+      const key = u.entrance ? (language === 'ru' ? `пд.${u.entrance}` : `kir.${u.entrance}`) : (language === 'ru' ? 'без подъезда' : 'kirish yo\'q');
+      byEntrance[key] = (byEntrance[key] || 0) + 1;
+    });
+    const distributionStr = Object.entries(byEntrance)
+      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+
     setIsCreating(true);
     setProgressMessage(language === 'ru' ? `Создание ${usersToCreate.length} аккаунтов...` : `${usersToCreate.length} ta akkaunt yaratilmoqda...`);
 
@@ -575,14 +651,14 @@ export function ResidentsPage() {
       setUploadedData([]);
       setShowUploadModal(false);
       setProgressMessage(language === 'ru'
-        ? `Готово! Создано: ${createdCount}, Обновлено: ${updatedCount}`
-        : `Tayyor! Yaratildi: ${createdCount}, Yangilandi: ${updatedCount}`);
+        ? `Готово! Создано: ${createdCount}, Обновлено: ${updatedCount}. Распределение: ${distributionStr}`
+        : `Tayyor! Yaratildi: ${createdCount}, Yangilandi: ${updatedCount}. Taqsimot: ${distributionStr}`);
 
       if (selectedBuilding) {
         await fetchResidents(selectedBuilding.id);
       }
 
-      setTimeout(() => setProgressMessage(''), 3000);
+      setTimeout(() => setProgressMessage(''), 6000);
     } catch (error: any) {
       setUploadError(error.message || (language === 'ru' ? 'Ошибка при массовой регистрации' : 'Ommaviy ro\'yxatdan o\'tishda xatolik'));
       setProgressMessage('');
@@ -1454,28 +1530,58 @@ export function ResidentsPage() {
                     </button>
                   </div>
 
+                  {/* Entrance distribution preview */}
+                  {(() => {
+                    const dist: Record<string, number> = {};
+                    uploadedData.forEach(row => {
+                      const apt = extractApartmentFromAddress(row.address);
+                      const { entrance: calcE } = calculateEntranceAndFloor(apt);
+                      const ent = row.entrance || calcE || (language === 'ru' ? 'без подъезда' : 'kirish yo\'q');
+                      dist[ent] = (dist[ent] || 0) + 1;
+                    });
+                    const entries = Object.entries(dist).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+                    if (entries.length <= 1) return null;
+                    return (
+                      <div className="mb-3 p-3 bg-blue-50 rounded-xl text-sm">
+                        <span className="font-semibold text-blue-700">{language === 'ru' ? 'Распределение по подъездам:' : 'Kirish bo\'yicha taqsimot:'} </span>
+                        {entries.map(([k, v]) => (
+                          <span key={k} className="inline-block mr-2 text-blue-600">
+                            {language === 'ru' ? `пд.${k}` : `kir.${k}`}: <strong>{v}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                   <div className="max-h-64 overflow-y-auto border rounded-xl">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr className="border-b">
                           <th className="text-left p-3">{language === 'ru' ? 'Л/С' : 'Sh/H'}</th>
                           <th className="text-left p-3">{language === 'ru' ? 'ФИО абонента' : 'Abonent F.I.O.'}</th>
-                          <th className="text-left p-3">{language === 'ru' ? 'Адрес' : 'Manzil'}</th>
-                          <th className="text-left p-3">{language === 'ru' ? 'Площадь, м²' : 'Maydon, m²'}</th>
+                          <th className="text-left p-3">{language === 'ru' ? 'Кв.' : 'Xon.'}</th>
+                          <th className="text-left p-3">{language === 'ru' ? 'Пд.' : 'Kir.'}</th>
+                          <th className="text-left p-3">{language === 'ru' ? 'м²' : 'm²'}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {uploadedData.slice(0, 20).map((row, idx) => (
-                          <tr key={idx} className="border-b last:border-b-0">
-                            <td className="p-3">{row.personalAccount}</td>
-                            <td className="p-3">{row.fullName}</td>
-                            <td className="p-3">{row.address}</td>
-                            <td className="p-3">{row.totalArea ? `${row.totalArea} ${language === 'ru' ? 'м²' : 'm²'}` : '\u2014'}</td>
-                          </tr>
-                        ))}
+                        {uploadedData.slice(0, 20).map((row, idx) => {
+                          const apt = extractApartmentFromAddress(row.address);
+                          const { entrance: calcE } = calculateEntranceAndFloor(apt);
+                          const ent = row.entrance || calcE || '—';
+                          return (
+                            <tr key={idx} className="border-b last:border-b-0">
+                              <td className="p-3 text-xs text-gray-500">{row.personalAccount}</td>
+                              <td className="p-3">{row.fullName}</td>
+                              <td className="p-3 font-mono">{apt || '—'}</td>
+                              <td className="p-3 font-semibold text-blue-600">{ent}</td>
+                              <td className="p-3">{row.totalArea ? row.totalArea : '—'}</td>
+                            </tr>
+                          );
+                        })}
                         {uploadedData.length > 20 && (
                           <tr>
-                            <td colSpan={4} className="p-3 text-center text-gray-500">
+                            <td colSpan={5} className="p-3 text-center text-gray-500">
                               {language === 'ru' ? `и еще ${uploadedData.length - 20} записей...` : `va yana ${uploadedData.length - 20} ta yozuv...`}
                             </td>
                           </tr>
@@ -1635,6 +1741,8 @@ export function ResidentsPage() {
                   setShowResidentCard(null);
                   setEditingPassword(false);
                   setNewPassword('');
+                  setEditingName(false);
+                  setEditNameValue('');
                 }}
                 className="p-2 hover:bg-white/30 rounded-lg"
               >
@@ -1642,13 +1750,84 @@ export function ResidentsPage() {
               </button>
             </div>
 
+            {/* Toast */}
+            {nameToast && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2 text-green-700 text-sm">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                {nameToast}
+              </div>
+            )}
+
             <div className="text-center mb-6">
               <div className="w-20 h-20 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
                 <span className="text-2xl font-bold text-white">
                   {showResidentCard.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </span>
               </div>
-              <h3 className="text-xl font-bold text-gray-900">{showResidentCard.name}</h3>
+              {!editingName ? (
+                <div className="flex items-center justify-center gap-2">
+                  <h3 className="text-xl font-bold text-gray-900">{showResidentCard.name}</h3>
+                  {['admin', 'director', 'manager', 'super_admin'].includes(currentUser?.role ?? '') && (
+                    <button
+                      onClick={() => {
+                        setEditNameValue(showResidentCard.name);
+                        setEditingName(true);
+                      }}
+                      className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                      title={language === 'ru' ? 'Редактировать ФИО' : 'FISh ni tahrirlash'}
+                    >
+                      <Edit3 className="w-4 h-4 text-gray-400" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <input
+                    type="text"
+                    value={editNameValue}
+                    onChange={(e) => setEditNameValue(e.target.value)}
+                    className="input-field text-center text-base font-semibold w-full max-w-xs"
+                    placeholder={language === 'ru' ? 'Фамилия Имя Отчество' : 'Familiya Ism Otasining ismi'}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        const trimmed = editNameValue.trim();
+                        if (!trimmed || !showResidentCard.id) return;
+                        setSavingName(true);
+                        try {
+                          await usersApi.adminChangeName(showResidentCard.id, trimmed);
+                          // Update resident card
+                          setShowResidentCard(prev => prev ? { ...prev, name: trimmed } : prev);
+                          // Update residents list
+                          setApiResidents(prev => prev.map(r => r.id === showResidentCard.id ? { ...r, name: trimmed } : r));
+                          setEditingName(false);
+                          setEditNameValue('');
+                          const msg = language === 'ru' ? 'Данные жителя успешно обновлены' : 'Yashovchi ma\'lumotlari muvaffaqiyatli yangilandi';
+                          setNameToast(msg);
+                          setTimeout(() => setNameToast(''), 3000);
+                        } catch (err: any) {
+                          alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + err.message);
+                        } finally {
+                          setSavingName(false);
+                        }
+                      }}
+                      disabled={!editNameValue.trim() || savingName}
+                      className="btn-primary text-sm py-1.5 px-4 disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {savingName ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                      {language === 'ru' ? 'Сохранить' : 'Saqlash'}
+                    </button>
+                    <button
+                      onClick={() => { setEditingName(false); setEditNameValue(''); }}
+                      className="btn-secondary text-sm py-1.5 px-4"
+                    >
+                      {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 mb-6">

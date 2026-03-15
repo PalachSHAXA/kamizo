@@ -13,14 +13,16 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useAuthStore } from '../stores/authStore';
 import { apiRequest } from '../services/api';
 import type { BuildingFull } from '../types';
+import { useBackGuard } from '../hooks/useBackGuard';
 
-// Branch type
+// Branch type (represents a residential complex — ЖК)
 interface Branch {
   id: string;
   code: string;
   name: string;
   address?: string;
   phone?: string;
+  district?: string;
   buildings_count: number;
   residents_count: number;
 }
@@ -55,7 +57,7 @@ interface Apartment {
   resident_count?: number;
 }
 
-type ViewLevel = 'branches' | 'buildings' | 'entrances';
+type ViewLevel = 'districts' | 'branches' | 'buildings' | 'entrances';
 
 // Color helpers
 const STATUS_CONFIG = {
@@ -148,9 +150,16 @@ export function BuildingsPage() {
   const canManageImportExport = user && ['admin', 'director', 'manager'].includes(user.role);
 
   // Navigation
-  const [viewLevel, setViewLevel] = useState<ViewLevel>('branches');
+  const [viewLevel, setViewLevel] = useState<ViewLevel>('districts');
+  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingFull | null>(null);
+
+  // District modal
+  const [showAddDistrictModal, setShowAddDistrictModal] = useState(false);
+  const [deleteDistrictConfirm, setDeleteDistrictConfirm] = useState<string | null>(null);
+  const [isDeletingDistrict, setIsDeletingDistrict] = useState(false);
+  const [cascadeConfirmChecked, setCascadeConfirmChecked] = useState(false);
 
   // Data
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -162,6 +171,8 @@ export function BuildingsPage() {
   const [showAddBranchModal, setShowAddBranchModal] = useState(false);
   const [showAddBuildingModal, setShowAddBuildingModal] = useState(false);
   const [showAddEntranceModal, setShowAddEntranceModal] = useState(false);
+  const [editingEntrance, setEditingEntrance] = useState<Entrance | null>(null);
+  const [entranceEditToast, setEntranceEditToast] = useState('');
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [editingBuilding, setEditingBuilding] = useState<BuildingFull | null>(null);
 
@@ -198,6 +209,7 @@ export function BuildingsPage() {
   // Load branches on mount
   useEffect(() => { fetchBranches(); }, []);
 
+
   useEffect(() => {
     if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
   }, [selectedBranch]);
@@ -230,7 +242,7 @@ export function BuildingsPage() {
   const fetchEntrancesForBuilding = async (buildingId: string) => {
     setIsLoadingEntrances(true);
     try {
-      const response = await apiRequest<{ entrances: Entrance[] }>(`/api/buildings/${buildingId}/entrances`);
+      const response = await apiRequest<{ entrances: Entrance[] }>(`/api/buildings/${buildingId}/entrances`, { cache: 'no-store' });
       setEntrances(response.entrances || []);
     } catch (error) {
       console.error('Failed to fetch entrances:', error);
@@ -243,7 +255,7 @@ export function BuildingsPage() {
   const fetchApartmentsForBuilding = async (buildingId: string) => {
     setIsLoadingApartments(true);
     try {
-      const response = await apiRequest<{ apartments: Apartment[] }>(`/api/buildings/${buildingId}/apartments?limit=2000`);
+      const response = await apiRequest<{ apartments: Apartment[] }>(`/api/buildings/${buildingId}/apartments?limit=2000`, { cache: 'no-store' });
       setApartments(response.apartments || []);
     } catch (error) {
       console.error('Failed to fetch apartments:', error);
@@ -331,6 +343,26 @@ export function BuildingsPage() {
     setSearchQuery('');
   };
 
+  const handleDistrictClick = (district: string) => {
+    setSelectedDistrict(district);
+    setViewLevel('branches');
+    setSearchQuery('');
+  };
+
+  const handleDeleteDistrict = async (districtName: string) => {
+    setIsDeletingDistrict(true);
+    try {
+      await apiRequest(`/api/districts/cascade?name=${encodeURIComponent(districtName)}`, { method: 'DELETE', cache: 'no-store' });
+      setDeleteDistrictConfirm(null);
+      setCascadeConfirmChecked(false);
+      await fetchBranches();
+    } catch (err: any) {
+      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (err.message || 'Error'));
+    } finally {
+      setIsDeletingDistrict(false);
+    }
+  };
+
   const handleBack = () => {
     closeSidePanel();
     if (viewLevel === 'entrances') {
@@ -339,9 +371,17 @@ export function BuildingsPage() {
     } else if (viewLevel === 'buildings') {
       setSelectedBranch(null);
       setViewLevel('branches');
+    } else if (viewLevel === 'branches') {
+      setSelectedBranch(null);
+      setSelectedDistrict(null);
+      setViewLevel('districts');
     }
     setSearchQuery('');
   };
+
+  // Intercept browser/hardware back so it follows the logical hierarchy
+  // instead of jumping to the previously visited URL
+  useBackGuard(viewLevel !== 'districts', handleBack);
 
   const closeSidePanel = () => {
     setPanelOpen(false);
@@ -350,10 +390,10 @@ export function BuildingsPage() {
     setIsAddingApartment(false);
   };
 
-  // CRUD: branches
-  const handleAddBranch = async (data: { code: string; name: string; address?: string; phone?: string }) => {
+  // CRUD: branches (ЖК)
+  const handleAddBranch = async (data: { code: string; name: string; address?: string; phone?: string; district?: string }) => {
     try {
-      await apiRequest('/api/branches', { method: 'POST', body: JSON.stringify(data) });
+      await apiRequest('/api/branches', { method: 'POST', body: JSON.stringify({ ...data, district: data.district || selectedDistrict || undefined }) });
       fetchBranches();
       setShowAddBranchModal(false);
     } catch (error: any) {
@@ -371,8 +411,18 @@ export function BuildingsPage() {
     }
   };
 
+  const handleChangeCode = async (id: string, newCode: string) => {
+    try {
+      await apiRequest(`/api/branches/${id}/change-code`, { method: 'POST', body: JSON.stringify({ new_code: newCode }) });
+      fetchBranches();
+    } catch (error: any) {
+      alert(error.message || 'Error');
+      throw error; // propagate so modal knows it failed
+    }
+  };
+
   const handleDeleteBranch = async (id: string) => {
-    if (!confirm(t('Удалить этот филиал?', "Bu filialni o'chirasizmi?"))) return;
+    if (!confirm(t('Удалить этот ЖК?', "Bu TJMni o'chirasizmi?"))) return;
     try {
       await apiRequest(`/api/branches/${id}`, { method: 'DELETE' });
       fetchBranches();
@@ -391,7 +441,7 @@ export function BuildingsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `filial-${branch.code}-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `zhk-${branch.code}-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
@@ -467,6 +517,32 @@ export function BuildingsPage() {
       setShowAddEntranceModal(false);
     } catch (error: any) {
       alert(error.message || 'Error');
+    }
+  };
+
+  // CRUD: update entrance params
+  const handleSaveEntrance = async (id: string, data: { floors_from: number; floors_to: number; apartments_from: number; apartments_to: number }) => {
+    try {
+      const result = await apiRequest<{ entrance: Entrance }>(`/api/entrances/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+        cache: 'no-store',
+      });
+      // Optimistic update: apply new values immediately without waiting for refetch
+      if (result.entrance) {
+        setEntrances(prev => prev.map(e => e.id === id ? { ...e, ...result.entrance } : e));
+      }
+      setEditingEntrance(null);
+      // Background refetch to sync apartments_count and any other derived fields
+      if (selectedBuilding) {
+        fetchEntrancesForBuilding(selectedBuilding.id);
+        fetchApartmentsForBuilding(selectedBuilding.id);
+      }
+      const msg = language === 'ru' ? 'Данные подъезда успешно обновлены' : 'Podyezd ma\'lumotlari muvaffaqiyatli yangilandi';
+      setEntranceEditToast(msg);
+      setTimeout(() => setEntranceEditToast(''), 3000);
+    } catch (err: any) {
+      alert((language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlash xatoligi: ') + (err.message || 'Error'));
     }
   };
 
@@ -568,9 +644,16 @@ export function BuildingsPage() {
   const searchedBuildings = filteredBuildings.filter(b =>
     !searchQuery || b.name.toLowerCase().includes(searchQuery.toLowerCase()) || b.address.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const searchedBranches = branches.filter(b =>
+  // Branches filtered by selected district
+  const districtBranches = selectedDistrict
+    ? branches.filter(b => (b.district || '') === selectedDistrict)
+    : branches;
+  const searchedBranches = districtBranches.filter(b =>
     !searchQuery || b.name.toLowerCase().includes(searchQuery.toLowerCase()) || b.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  // Unique districts derived from branches
+  const allDistricts = [...new Set(branches.map(b => b.district || '').filter(Boolean))].sort();
+  const noBranchDistrict = branches.some(b => !b.district);
 
   // Building colors (deterministic from name)
   const getBuildingColor = (name: string) => {
@@ -581,7 +664,7 @@ export function BuildingsPage() {
   };
 
   // Loading
-  if ((isLoadingBranches && branches.length === 0) || (isLoadingBuildings && buildings.length === 0 && viewLevel === 'buildings')) {
+  if ((isLoadingBranches && branches.length === 0 && viewLevel === 'districts') || (isLoadingBuildings && buildings.length === 0 && viewLevel === 'buildings')) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
@@ -626,7 +709,7 @@ export function BuildingsPage() {
     <div className="flex flex-col h-full -m-3 sm:-m-4 md:-m-6 pb-24 md:pb-0" style={{ fontFamily: "'Onest', sans-serif" }}>
       {/* TOPBAR */}
       <div className="h-[52px] bg-white border-b border-gray-200 flex items-center px-5 gap-3 flex-shrink-0">
-        {viewLevel !== 'branches' && (
+        {viewLevel !== 'districts' && (
           <button
             onClick={handleBack}
             className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-500 transition-all"
@@ -638,11 +721,22 @@ export function BuildingsPage() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-[13px] text-gray-400">
           <button
-            onClick={() => { setViewLevel('branches'); setSelectedBranch(null); setSelectedBuilding(null); closeSidePanel(); }}
-            className={`hover:text-orange-500 transition-colors ${viewLevel === 'branches' ? 'text-gray-900 font-bold' : ''}`}
+            onClick={() => { setViewLevel('districts'); setSelectedDistrict(null); setSelectedBranch(null); setSelectedBuilding(null); closeSidePanel(); }}
+            className={`hover:text-orange-500 transition-colors ${viewLevel === 'districts' ? 'text-gray-900 font-bold' : ''}`}
           >
-            {t('Филиалы', 'Filiallar')}
+            {t('Районы', 'Tumanlar')}
           </button>
+          {selectedDistrict && (
+            <>
+              <ChevronRight className="w-3 h-3 text-gray-300" />
+              <button
+                onClick={() => { setViewLevel('branches'); setSelectedBranch(null); setSelectedBuilding(null); closeSidePanel(); }}
+                className={`hover:text-orange-500 transition-colors ${viewLevel === 'branches' ? 'text-gray-900 font-bold' : ''}`}
+              >
+                {selectedDistrict}
+              </button>
+            </>
+          )}
           {selectedBranch && (
             <>
               <ChevronRight className="w-3 h-3 text-gray-300" />
@@ -666,7 +760,7 @@ export function BuildingsPage() {
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={() => {
-              if (viewLevel === 'branches') fetchBranches();
+              if (viewLevel === 'districts' || viewLevel === 'branches') fetchBranches();
               else if (viewLevel === 'buildings' && selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
               else if (viewLevel === 'entrances' && selectedBuilding) { fetchEntrancesForBuilding(selectedBuilding.id); fetchApartmentsForBuilding(selectedBuilding.id); }
             }}
@@ -696,7 +790,7 @@ export function BuildingsPage() {
             </button>
           )}
 
-          {canManageImportExport && (viewLevel === 'branches' || viewLevel === 'buildings') && (
+          {canManageImportExport && (viewLevel === 'districts' || viewLevel === 'branches' || viewLevel === 'buildings') && (
             <>
               {viewLevel === 'buildings' && selectedBranch && (
                 <button
@@ -722,15 +816,17 @@ export function BuildingsPage() {
 
           <button
             onClick={() => {
-              if (viewLevel === 'branches') setShowAddBranchModal(true);
+              if (viewLevel === 'districts') setShowAddDistrictModal(true);
+              else if (viewLevel === 'branches') setShowAddBranchModal(true);
               else if (viewLevel === 'buildings') setShowAddBuildingModal(true);
               else if (viewLevel === 'entrances') setShowAddEntranceModal(true);
             }}
             className="px-3.5 py-1.5 rounded-lg bg-orange-500 text-white text-[13px] font-bold flex items-center gap-1.5 hover:bg-orange-600 transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
-            {viewLevel === 'branches' && t('Филиал', 'Filial')}
-            {viewLevel === 'buildings' && t('Добавить ЖК', "TJM qo'shish")}
+            {viewLevel === 'districts' && t('Район', 'Tuman')}
+            {viewLevel === 'branches' && t('ЖК', 'TJM')}
+            {viewLevel === 'buildings' && t('Здание', 'Bino')}
             {viewLevel === 'entrances' && t('Подъезд', 'Podyezd')}
           </button>
         </div>
@@ -755,57 +851,122 @@ export function BuildingsPage() {
       {/* LAYOUT */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* FILIAL SCREEN */}
+        {/* DISTRICTS SCREEN */}
+        {viewLevel === 'districts' && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 p-10 overflow-y-auto">
+            {branches.length > 0 ? (
+              <>
+                <div className="text-center">
+                  <h1 className="text-[28px] font-black tracking-tight">{t('Выберите район', 'Tumanni tanlang')}</h1>
+                  <p className="text-[14px] text-gray-400 mt-2">{t('Нажмите на район чтобы перейти к ЖК', "TJMlarga o'tish uchun tumanni bosing")}</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-[1100px] w-full">
+                  {allDistricts.map(district => {
+                    const dBranches = branches.filter(b => b.district === district);
+                    const totalBuildings = dBranches.reduce((s, b) => s + (b.buildings_count || 0), 0);
+                    const totalResidents = dBranches.reduce((s, b) => s + (b.residents_count || 0), 0);
+                    return (
+                      <div key={district}
+                        className="bg-white rounded-2xl border-2 border-gray-200 cursor-pointer transition-all hover:border-orange-400 hover:-translate-y-1 hover:shadow-lg overflow-hidden relative group/district"
+                        onClick={() => handleDistrictClick(district)}>
+                        <div className="h-20 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #1A4F4F 0%, #1A6B3A 100%)' }}>
+                          <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center gap-[2px] px-6">
+                            {[4,7,5,9,6,8,3,7,5,10,4,6,8,5,7].map((h, i) => (
+                              <div key={i} className="rounded-t-[2px]" style={{ width: 12, height: h * 3, background: 'rgba(255,255,255,.12)' }} />
+                            ))}
+                          </div>
+                          <div className="absolute top-3 left-4 flex items-center gap-1.5">
+                            <MapPin className="w-4 h-4 text-white/80" />
+                            <span className="text-white font-extrabold text-[15px] tracking-tight">{district}</span>
+                          </div>
+                          {user && ['admin', 'director', 'manager', 'super_admin'].includes(user.role) && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setDeleteDistrictConfirm(district); }}
+                              className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-black/20 hover:bg-red-500/80 flex items-center justify-center opacity-0 group-hover/district:opacity-100 transition-all"
+                              title={language === 'ru' ? 'Удалить район' : 'Tumanni o\'chirish'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-white" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="p-4 flex flex-wrap gap-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><Home className="w-4 h-4 text-blue-600" /></div>
+                            <div><div className="text-[18px] font-extrabold text-blue-600 leading-tight">{dBranches.length}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('ЖК', 'TJM')}</div></div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><Building2 className="w-4 h-4 text-green-600" /></div>
+                            <div><div className="text-[18px] font-extrabold text-green-600 leading-tight">{totalBuildings}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Зданий', 'Binolar')}</div></div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><Users className="w-4 h-4 text-orange-500" /></div>
+                            <div><div className="text-[18px] font-extrabold text-orange-500 leading-tight">{totalResidents}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Жителей', 'Yashovchilar')}</div></div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {noBranchDistrict && (
+                    <div onClick={() => handleDistrictClick('')}
+                      className="bg-white rounded-2xl border-2 border-dashed border-gray-200 cursor-pointer transition-all hover:border-orange-300 hover:-translate-y-1 hover:shadow-lg">
+                      <div className="p-5 text-center">
+                        <p className="text-[14px] font-semibold text-gray-400">{t('Без района', 'Tumansiz ЖК')}</p>
+                        <p className="text-[12px] text-gray-300 mt-1">{branches.filter(b => !b.district).length} {t('ЖК', 'TJM')}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-center">
+                <MapPin className="w-14 h-14 mx-auto mb-4 text-gray-200" />
+                <h2 className="text-[20px] font-bold text-gray-700 mb-2">{t('Нет районов', "Tumanlar yo'q")}</h2>
+                <p className="text-gray-400 mb-6">{t('Добавьте первый район чтобы начать работу', "Boshlash uchun birinchi tumanni qo'shing")}</p>
+                <button onClick={() => setShowAddDistrictModal(true)}
+                  className="px-6 py-3 rounded-xl bg-orange-500 text-white font-bold flex items-center gap-2 mx-auto hover:bg-orange-600 transition-all">
+                  <Plus className="w-4 h-4" />
+                  {t('Добавить район', "Tuman qo'shish")}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ЖК SCREEN */}
         {viewLevel === 'branches' && (
           <div className="flex-1 flex flex-col items-center justify-center gap-6 p-10 overflow-y-auto">
             {searchedBranches.length > 0 ? (
               <>
                 <div className="text-center">
-                  <h1 className="text-[28px] font-black tracking-tight">{t('Выберите филиал', 'Filialni tanlang')}</h1>
-                  <p className="text-[14px] text-gray-400 mt-2">{t('Нажмите на филиал чтобы перейти к домам', "Uylarga o'tish uchun filialni bosing")}</p>
+                  <h1 className="text-[28px] font-black tracking-tight">
+                    {selectedDistrict ? selectedDistrict : t('Жилые комплексы', 'Turar-joy majmualari')}
+                  </h1>
+                  <p className="text-[14px] text-gray-400 mt-2">{t('Нажмите на ЖК чтобы перейти к зданиям', "Binolarga o'tish uchun TJMni bosing")}</p>
                 </div>
-
-                {/* Search */}
                 <div className="w-full max-w-[700px]">
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl">
                     <Search className="w-4 h-4 text-gray-300" />
-                    <input
-                      type="text"
-                      placeholder={t('Поиск по филиалам...', "Filiallar bo'yicha qidirish...")}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="flex-1 bg-transparent outline-none text-[13px]"
-                    />
+                    <input type="text" placeholder={t('Поиск по ЖК...', "TJM bo'yicha qidirish...")}
+                      value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                      className="flex-1 bg-transparent outline-none text-[13px]" />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-[1100px] w-full">
                   {searchedBranches.map(branch => (
-                    <div
-                      key={branch.id}
-                      onClick={() => handleBranchClick(branch)}
-                      className="bg-white rounded-2xl border-2 border-gray-200 cursor-pointer transition-all hover:border-orange-400 hover:-translate-y-1 hover:shadow-lg group overflow-hidden"
-                    >
-                      {/* Branch header with gradient */}
+                    <div key={branch.id} onClick={() => handleBranchClick(branch)}
+                      className="bg-white rounded-2xl border-2 border-gray-200 cursor-pointer transition-all hover:border-orange-400 hover:-translate-y-1 hover:shadow-lg group overflow-hidden">
                       <div className="h-28 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #1A2A6C 0%, #2D4A8C 50%, #3D5A9C 100%)' }}>
-                        {/* Mini cityscape silhouette */}
                         <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center gap-[2px] px-6">
                           {[5,8,6,10,7,9,4,8,6,11,5,7,9,6,8,5,10,7].map((h, i) => (
                             <div key={i} className="rounded-t-[2px]" style={{ width: 12, height: h * 3.5, background: 'rgba(255,255,255,.1)' }} />
                           ))}
                         </div>
-                        {/* Edit buttons overlay */}
                         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                           {canManageImportExport && (
-                            <button
-                              onClick={(e) => handleExportBranch(branch, e)}
-                              disabled={exportingBranchId === branch.id}
-                              title={t('Экспортировать филиал', 'Filialni eksport qilish')}
-                              className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur hover:bg-green-500/60 disabled:opacity-50"
-                            >
-                              {exportingBranchId === branch.id
-                                ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                                : <Download className="w-4 h-4 text-white" />}
+                            <button onClick={(e) => handleExportBranch(branch, e)} disabled={exportingBranchId === branch.id}
+                              title={t('Экспортировать ЖК', 'TJMni eksport qilish')}
+                              className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur hover:bg-green-500/60 disabled:opacity-50">
+                              {exportingBranchId === branch.id ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Download className="w-4 h-4 text-white" />}
                             </button>
                           )}
                           <button onClick={() => setEditingBranch(branch)} className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur hover:bg-white/40">
@@ -816,33 +977,22 @@ export function BuildingsPage() {
                           </button>
                         </div>
                       </div>
-
                       <div className="p-5">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <MapPin className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                        <div className="flex items-center gap-2 mb-1">
+                          <Home className="w-4 h-4 text-orange-400 flex-shrink-0" />
                           <div className="text-[17px] font-extrabold truncate">{branch.name}</div>
                         </div>
                         <div className="text-[13px] text-gray-400 mb-4 ml-[24px]">
-                          {branch.address || t('Ташкент', 'Toshkent')}
+                          {branch.address || (branch.district || t('Ташкент', 'Toshkent'))}
                         </div>
                         <div className="flex flex-wrap gap-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-                              <Building2 className="w-4.5 h-4.5 text-green-600" />
-                            </div>
-                            <div>
-                              <div className="text-[20px] font-extrabold text-green-600 leading-tight">{branch.buildings_count}</div>
-                              <div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Домов', 'Uylar')}</div>
-                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center"><Building2 className="w-4 h-4 text-green-600" /></div>
+                            <div><div className="text-[20px] font-extrabold text-green-600 leading-tight">{branch.buildings_count}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Зданий', 'Binolar')}</div></div>
                           </div>
                           <div className="flex items-center gap-2.5">
-                            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
-                              <Users className="w-4.5 h-4.5 text-orange-500" />
-                            </div>
-                            <div>
-                              <div className="text-[20px] font-extrabold text-orange-500 leading-tight">{branch.residents_count}</div>
-                              <div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Жителей', 'Yashovchilar')}</div>
-                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center"><Users className="w-4 h-4 text-orange-500" /></div>
+                            <div><div className="text-[20px] font-extrabold text-orange-500 leading-tight">{branch.residents_count}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Жителей', 'Yashovchilar')}</div></div>
                           </div>
                         </div>
                       </div>
@@ -852,8 +1002,18 @@ export function BuildingsPage() {
               </>
             ) : (
               <div className="text-center">
-                <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                <p className="text-gray-400">{t('Филиалы не найдены', 'Filiallar topilmadi')}</p>
+                <Home className="w-14 h-14 mx-auto mb-4 text-gray-200" />
+                <h2 className="text-[20px] font-bold text-gray-700 mb-2">{t('Нет жилых комплексов', "Turar-joy majmualari yo'q")}</h2>
+                <p className="text-gray-400 mb-6">
+                  {selectedDistrict
+                    ? t(`В районе "${selectedDistrict}" нет ЖК`, `"${selectedDistrict}" tumanida TJM yo'q`)
+                    : t('Добавьте первый ЖК', "Birinchi TJMni qo'shing")}
+                </p>
+                <button onClick={() => setShowAddBranchModal(true)}
+                  className="px-6 py-3 rounded-xl bg-orange-500 text-white font-bold flex items-center gap-2 mx-auto hover:bg-orange-600 transition-all">
+                  <Plus className="w-4 h-4" />
+                  {t('Добавить ЖК', "TJM qo'shish")}
+                </button>
               </div>
             )}
           </div>
@@ -971,7 +1131,26 @@ export function BuildingsPage() {
                 <p className="text-gray-400 text-sm mt-1">{t('Сначала добавьте подъезды', "Avval podyezdlarni qo'shing")}</p>
               </div>
             ) : apartments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                {/* Entrance chips — clickable for management roles */}
+                {user && ['admin', 'director', 'manager', 'super_admin'].includes(user.role) && (
+                  <div className="mb-6">
+                    <p className="text-xs text-gray-400 mb-3">{t('Нажмите на подъезд для редактирования параметров', 'Parametrlarni tahrirlash uchun podyezdni bosing')}</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {entrances.map(ent => (
+                        <button
+                          key={ent.id}
+                          onClick={() => setEditingEntrance(ent)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-b from-gray-600 to-gray-800 text-white shadow-md hover:from-orange-500 hover:to-orange-700 transition-all"
+                        >
+                          <DoorOpen className="w-4 h-4 opacity-80" />
+                          <span className="text-[13px] font-bold">{t('Подъезд', 'Podyezd')} {ent.number}</span>
+                          <span className="text-[11px] opacity-60 ml-1">{ent.apartments_from}–{ent.apartments_to}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <Home className="w-12 h-12 text-gray-200 mb-3" />
                 <p className="text-gray-600 font-bold">{t('Квартиры не добавлены', "Xonadonlar qo'shilmagan")}</p>
                 <p className="text-gray-400 text-sm mt-1 mb-4">{t('Сгенерируйте квартиры из подъездов', 'Podyezdlardan xonadonlarni yarating')}</p>
@@ -998,7 +1177,11 @@ export function BuildingsPage() {
                       <div key={ent.id} className="flex flex-col items-center">
                         {/* Entrance info */}
                         <div className="flex items-center gap-2 mb-2">
-                          <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-b from-gray-600 to-gray-800 text-white shadow-md">
+                          <div
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-b from-gray-600 to-gray-800 text-white shadow-md ${user && ['admin', 'director', 'manager', 'super_admin'].includes(user.role) ? 'cursor-pointer hover:from-orange-500 hover:to-orange-700 transition-all' : ''}`}
+                            onClick={() => { if (user && ['admin', 'director', 'manager', 'super_admin'].includes(user.role)) setEditingEntrance(ent); }}
+                            title={user && ['admin', 'director', 'manager', 'super_admin'].includes(user.role) ? (language === 'ru' ? 'Редактировать параметры подъезда' : 'Podyezd parametrlarini tahrirlash') : undefined}
+                          >
                             <DoorOpen className="w-4 h-4 opacity-80" />
                             <span className="text-[13px] font-bold">{t('Подъезд', 'Podyezd')} {ent.number}</span>
                           </div>
@@ -1296,11 +1479,80 @@ export function BuildingsPage() {
       </div>
 
       {/* MODALS */}
+      {showAddDistrictModal && (
+        <DistrictModal
+          onClose={() => setShowAddDistrictModal(false)}
+          onSave={(districtName) => {
+            setShowAddDistrictModal(false);
+            setSelectedDistrict(districtName);
+            setViewLevel('branches');
+          }}
+          language={language}
+        />
+      )}
+
+      {/* Delete district confirm */}
+      {deleteDistrictConfirm && (() => {
+        const dBranches = branches.filter(b => b.district === deleteDistrictConfirm);
+        const totalBuildings = dBranches.reduce((s, b) => s + (b.buildings_count || 0), 0);
+        const totalResidents = dBranches.reduce((s, b) => s + (b.residents_count || 0), 0);
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full mx-auto mb-4 bg-red-100">
+                <AlertCircle className="w-7 h-7 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-center mb-2">
+                {language === 'ru' ? `Удалить район «${deleteDistrictConfirm}»?` : `«${deleteDistrictConfirm}» tumani o'chirilsinmi?`}
+              </h3>
+              <div className="space-y-2 mb-4">
+                <p className="text-sm text-center text-red-700 bg-red-50 rounded-xl p-3">
+                  {language === 'ru'
+                    ? `Будут безвозвратно удалены: ${dBranches.length} ЖК, ${totalBuildings} зд., ${totalResidents} жит. и все связанные данные.`
+                    : `Butunlay o'chiriladi: ${dBranches.length} TJM, ${totalBuildings} bino, ${totalResidents} yashovchi va barcha bog'liq ma'lumotlar.`
+                  }
+                </p>
+              </div>
+              <label className="flex items-start gap-3 mb-5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={cascadeConfirmChecked}
+                  onChange={e => setCascadeConfirmChecked(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-red-500 shrink-0"
+                />
+                <span className="text-sm text-gray-700">
+                  {language === 'ru'
+                    ? 'Я понимаю, что все данные будут удалены без возможности восстановления'
+                    : 'Barcha ma\'lumotlar tiklab bo\'lmas tarzda o\'chirilishini tushunaman'}
+                </span>
+              </label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setDeleteDistrictConfirm(null); setCascadeConfirmChecked(false); }}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 font-bold text-sm"
+                >
+                  {language === 'ru' ? 'Отмена' : 'Bekor'}
+                </button>
+                <button
+                  onClick={() => handleDeleteDistrict(deleteDistrictConfirm)}
+                  disabled={isDeletingDistrict || !cascadeConfirmChecked}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeletingDistrict && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {language === 'ru' ? 'Удалить всё' : 'Hammasini o\'chirish'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showAddBranchModal && (
-        <BranchModal branch={null} onClose={() => setShowAddBranchModal(false)} onSave={handleAddBranch} language={language} />
+        <BranchModal branch={null} onClose={() => setShowAddBranchModal(false)} onSave={handleAddBranch} language={language} defaultDistrict={selectedDistrict || ''} />
       )}
       {editingBranch && (
-        <BranchModal branch={editingBranch} onClose={() => setEditingBranch(null)} onSave={(data) => handleUpdateBranch(editingBranch.id, data)} language={language} />
+        <BranchModal branch={editingBranch} onClose={() => setEditingBranch(null)} onSave={(data) => handleUpdateBranch(editingBranch.id, data)} language={language}
+          canEditCode={!!(user && ['admin', 'director', 'super_admin'].includes(user.role))}
+          onChangeCode={(newCode) => handleChangeCode(editingBranch.id, newCode)} />
       )}
       {showAddBuildingModal && (
         <BuildingModal building={null} onClose={() => setShowAddBuildingModal(false)} onSave={handleAddBuilding} language={language} />
@@ -1311,6 +1563,23 @@ export function BuildingsPage() {
       {showAddEntranceModal && (
         <EntranceModal onClose={() => setShowAddEntranceModal(false)} onSave={handleAddEntrance} existingEntrances={entrances} language={language} />
       )}
+      {editingEntrance && (
+        <EntranceEditModal
+          entrance={editingEntrance}
+          existingApartmentCount={apartments.filter(a => a.entrance_id === editingEntrance.id).length}
+          onClose={() => setEditingEntrance(null)}
+          onSave={(data) => handleSaveEntrance(editingEntrance.id, data)}
+          language={language}
+        />
+      )}
+
+      {/* Entrance edit toast */}
+      {entranceEditToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl">
+          <CheckCircle className="w-4 h-4 flex-shrink-0" />
+          {entranceEditToast}
+        </div>
+      )}
 
       {/* Import Modal */}
       {showImportModal && (
@@ -1318,7 +1587,7 @@ export function BuildingsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-[18px] font-extrabold">{t('Импорт филиала', 'Filialni import qilish')}</h3>
+                <h3 className="text-[18px] font-extrabold">{t('Импорт ЖК', 'TJMni import qilish')}</h3>
                 <p className="text-[13px] text-gray-400 mt-0.5">{t('Загрузите .json файл экспорта', 'Eksport .json faylini yuklang')}</p>
               </div>
               <button onClick={() => setShowImportModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100">
@@ -1409,31 +1678,125 @@ export function BuildingsPage() {
 
 // ── MODALS ──
 
-function BranchModal({ branch, onClose, onSave, language }: {
-  branch: Branch | null; onClose: () => void;
-  onSave: (data: { code: string; name: string; address?: string; phone?: string }) => void;
+function DistrictModal({ onClose, onSave, language }: {
+  onClose: () => void;
+  onSave: (districtName: string) => void;
   language: string;
 }) {
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
-  const [form, setForm] = useState({ code: branch?.code || '', name: branch?.name || '', address: branch?.address || '', phone: branch?.phone || '' });
+  const [name, setName] = useState('');
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-lg font-bold">{t('Новый район', 'Yangi tuman')}</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={e => { e.preventDefault(); if (name.trim()) onSave(name.trim()); }} className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название района', 'Tuman nomi')} *</label>
+            <input
+              value={name} onChange={e => setName(e.target.value)} autoFocus
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"
+              placeholder={t('Юнусабадский район', 'Yunusobod tumani')} />
+          </div>
+          <p className="text-[12px] text-gray-400">{t('После создания района вы сможете добавить ЖК в него.', "Tuman yaratilgandan so'ng unga TJM qo'sha olasiz.")}</p>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 font-bold text-sm">{t('Отмена', 'Bekor')}</button>
+            <button type="submit" className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm hover:bg-orange-600">{t('Продолжить', 'Davom etish')}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function BranchModal({ branch, onClose, onSave, language, defaultDistrict, canEditCode, onChangeCode }: {
+  branch: Branch | null; onClose: () => void;
+  onSave: (data: { code: string; name: string; address?: string; phone?: string; district?: string }) => void;
+  language: string; defaultDistrict?: string;
+  canEditCode?: boolean; onChangeCode?: (newCode: string) => Promise<void>;
+}) {
+  const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
+  const [form, setForm] = useState({
+    code: branch?.code || '', name: branch?.name || '',
+    address: branch?.address || '', phone: branch?.phone || '',
+    district: branch?.district || defaultDistrict || '',
+  });
+  const [codeEditing, setCodeEditing] = useState(false);
+  const [newCode, setNewCode] = useState(branch?.code || '');
+  const [codeLoading, setCodeLoading] = useState(false);
+
+  const handleCodeChange = async () => {
+    const trimmed = newCode.trim().toUpperCase();
+    if (!trimmed || trimmed === branch?.code) { setCodeEditing(false); return; }
+    const confirmed = confirm(
+      language === 'ru'
+        ? `Изменение кода ЖК с "${branch?.code}" на "${trimmed}" обновит все связанные здания. Продолжить?`
+        : `"${branch?.code}" dan "${trimmed}" ga TJM kodini o'zgartirish barcha binolarga ta'sir qiladi. Davom etasizmi?`
+    );
+    if (!confirmed) return;
+    setCodeLoading(true);
+    try {
+      await onChangeCode!(trimmed);
+      setForm(f => ({ ...f, code: trimmed }));
+      setCodeEditing(false);
+    } catch {
+      // error already shown by parent
+    } finally {
+      setCodeLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
-          <h2 className="text-lg font-bold">{branch ? t('Редактировать филиал', 'Filialni tahrirlash') : t('Новый филиал', 'Yangi filial')}</h2>
+          <h2 className="text-lg font-bold">{branch ? t('Редактировать ЖК', 'TJMni tahrirlash') : t('Новый ЖК', 'Yangi TJM')}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); if (form.code && form.name) onSave(form); }} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Код филиала', 'Filial kodi')} *</label>
-            <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-mono font-bold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" placeholder="YS, CH..." maxLength={5} disabled={!!branch} />
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Район', 'Tuman')}</label>
+            <input value={form.district} onChange={e => setForm({ ...form, district: e.target.value })}
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"
+              placeholder={t('Юнусабадский, Мирзо-Улугбекский...', 'Yunusobod, Mirzo-Ulugbek...')} />
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название', 'Nomi')} *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Код ЖК', 'TJM kodi')} *</label>
+            {branch && canEditCode ? (
+              codeEditing ? (
+                <div className="flex gap-2">
+                  <input value={newCode} onChange={e => setNewCode(e.target.value.toUpperCase())}
+                    className="flex-1 px-3.5 py-2.5 border border-orange-400 rounded-xl text-sm font-mono font-bold bg-white outline-none"
+                    placeholder={form.code} maxLength={20} autoFocus />
+                  <button type="button" onClick={handleCodeChange} disabled={codeLoading}
+                    className="px-3 py-2 bg-orange-500 text-white text-xs font-bold rounded-xl disabled:opacity-50">
+                    {codeLoading ? '...' : t('ОК', 'OK')}
+                  </button>
+                  <button type="button" onClick={() => { setCodeEditing(false); setNewCode(form.code); }}
+                    className="px-3 py-2 border border-gray-200 text-xs font-bold rounded-xl">✕</button>
+                </div>
+              ) : (
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-mono font-bold bg-gray-50 text-gray-700">{form.code}</div>
+                  <button type="button" onClick={() => { setCodeEditing(true); setNewCode(form.code); }}
+                    className="px-3 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:border-orange-400 text-gray-600">
+                    {t('Изменить', "O'zgartirish")}
+                  </button>
+                </div>
+              )
+            ) : (
+              <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-mono font-bold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"
+                placeholder="YS, CH..." maxLength={20} disabled={!!branch} />
+            )}
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название ЖК', 'TJM nomi')} *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" placeholder={t('Юнусабад', 'Yunusobod')} />
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"
+              placeholder={t('ЖК "Ориент", ЖК "Юнусабад"...', 'TJM "Orient", TJM "Yunusobod"...')} />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Адрес', 'Manzil')}</label>
@@ -1597,6 +1960,98 @@ function EntranceModal({ onClose, onSave, existingEntrances, language }: {
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 font-bold text-sm">{t('Отмена', 'Bekor')}</button>
             <button type="submit" className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm hover:bg-orange-600">{t('Создать', 'Yaratish')}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EntranceEditModal({ entrance, existingApartmentCount, onClose, onSave, language }: {
+  entrance: Entrance;
+  existingApartmentCount: number;
+  onClose: () => void;
+  onSave: (data: { floors_from: number; floors_to: number; apartments_from: number; apartments_to: number }) => void;
+  language: string;
+}) {
+  const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
+  const [form, setForm] = useState({
+    floors_from: entrance.floors_from ?? 1,
+    floors_to: entrance.floors_to ?? 9,
+    apartments_from: entrance.apartments_from ?? 1,
+    apartments_to: entrance.apartments_to ?? 36,
+  });
+  const [saving, setSaving] = useState(false);
+
+  const newAptCount = form.apartments_to - form.apartments_from + 1;
+  const tooFew = newAptCount < existingApartmentCount;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <div>
+            <h2 className="text-lg font-bold">{t('Подъезд', 'Podyezd')} {entrance.number}</h2>
+            <p className="text-[12px] text-gray-400 mt-0.5">{t('Редактирование параметров', 'Parametrlarni tahrirlash')}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
+        </div>
+
+        <form onSubmit={async e => {
+          e.preventDefault();
+          if (tooFew) return;
+          setSaving(true);
+          try { await onSave(form); } finally { setSaving(false); }
+        }} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Этаж с', 'Qavatdan')}</label>
+              <input type="number" value={form.floors_from} onChange={e => setForm({ ...form, floors_from: parseInt(e.target.value) || 1 })}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Этаж по', 'Qavatgacha')}</label>
+              <input type="number" value={form.floors_to} onChange={e => setForm({ ...form, floors_to: parseInt(e.target.value) || 1 })}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Квартира с', 'Xonadondan')}</label>
+              <input type="number" value={form.apartments_from} onChange={e => setForm({ ...form, apartments_from: parseInt(e.target.value) || 1 })}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Квартира по', 'Xonadongacha')}</label>
+              <input type="number" value={form.apartments_to} onChange={e => setForm({ ...form, apartments_to: parseInt(e.target.value) || 1 })}
+                className={`w-full px-3.5 py-2.5 border rounded-xl text-sm bg-gray-50 focus:bg-white outline-none ${tooFew ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-orange-400'}`} min="1" />
+            </div>
+          </div>
+
+          {existingApartmentCount > 0 && (
+            <div className={`flex items-start gap-2 p-3 rounded-xl text-sm ${tooFew ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                {tooFew
+                  ? t(
+                      `Количество квартир не может быть меньше уже существующих записей (${existingApartmentCount} кв.)`,
+                      `Xonadonlar soni mavjud yozuvlardan kam bo'lishi mumkin emas (${existingApartmentCount} xn.)`
+                    )
+                  : t(
+                      `В подъезде уже создано ${existingApartmentCount} кв. Существующие квартиры и жители не будут удалены.`,
+                      `Podyezdda allaqachon ${existingApartmentCount} xn. yaratilgan. Mavjud xonadonlar va yashovchilar o'chirilmaydi.`
+                    )
+                }
+              </span>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 font-bold text-sm">{t('Отмена', 'Bekor')}</button>
+            <button type="submit" disabled={tooFew || saving} className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2">
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {t('Сохранить', 'Saqlash')}
+            </button>
           </div>
         </form>
       </div>

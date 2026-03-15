@@ -863,25 +863,50 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
         }
 
         if (aptId) {
-          // Create personal_account if login (Л/С) is provided and looks like a real account number
+          // Create or ensure personal_account exists for this resident
+          // Use login as account number if numeric, otherwise generate a unique number
           const loginTrimmed = u.login?.trim();
-          if (loginTrimmed && /^\d+$/.test(loginTrimmed)) {
-            const existingAccount = await env.DB.prepare(
-              `SELECT id FROM personal_accounts WHERE account_number = ? ${bulkTenantId ? 'AND tenant_id = ?' : ''}`
-            ).bind(loginTrimmed, ...(bulkTenantId ? [bulkTenantId] : [])).first();
+          const accountNum = (loginTrimmed && /^\d+$/.test(loginTrimmed))
+            ? loginTrimmed
+            : null; // will be auto-generated below
 
-            if (!existingAccount) {
+          // Check for existing account linked to this apartment
+          const existingAccount = await env.DB.prepare(
+            `SELECT id FROM personal_accounts WHERE apartment_id = ? ${bulkTenantId ? 'AND tenant_id = ?' : ''}`
+          ).bind(aptId, ...(bulkTenantId ? [bulkTenantId] : [])).first() as any;
+
+          if (!existingAccount) {
+            // Also check by account number if we have one
+            let existingByNumber = null;
+            if (accountNum) {
+              existingByNumber = await env.DB.prepare(
+                `SELECT id FROM personal_accounts WHERE number = ? ${bulkTenantId ? 'AND tenant_id = ?' : ''}`
+              ).bind(accountNum, ...(bulkTenantId ? [bulkTenantId] : [])).first();
+            }
+
+            if (!existingByNumber) {
               const paId = generateId();
+              const finalAccountNum = accountNum || `PA-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
               await env.DB.prepare(`
-                INSERT INTO personal_accounts (id, account_number, apartment_id, building_id, tenant_id)
-                VALUES (?, ?, ?, ?, ?)
-              `).bind(paId, loginTrimmed, aptId, u.building_id, bulkTenantId || null).run();
+                INSERT INTO personal_accounts (id, number, apartment_id, building_id, owner_name, apartment_number, total_area, tenant_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                paId, finalAccountNum, aptId, u.building_id,
+                u.name || null, String(u.apartment), u.total_area || null,
+                bulkTenantId || null
+              ).run();
 
               // Link personal_account to apartment
               await env.DB.prepare(
                 'UPDATE apartments SET personal_account_id = ? WHERE id = ?'
               ).bind(paId, aptId).run();
             }
+          } else {
+            // Update owner_name and apartment_number on existing account
+            await env.DB.prepare(
+              `UPDATE personal_accounts SET owner_name = ?, apartment_number = ?, total_area = COALESCE(NULLIF(total_area, 0), ?)
+               WHERE id = ?`
+            ).bind(u.name || null, String(u.apartment), u.total_area || null, existingAccount.id).run();
           }
         }
       } catch (linkErr) {
@@ -1018,6 +1043,30 @@ route('POST', '/api/users/:id/password', async (request, env, params) => {
   await env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = datetime("now") WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
 
   return json({ success: true });
+});
+
+// Users: Admin change name (ФИО)
+route('PATCH', '/api/users/:id/name', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!isManagement(authUser)) {
+    return error('Manager access required', 403);
+  }
+
+  const { name } = await request.json() as any;
+  if (!name || !name.trim()) {
+    return error('Name is required', 400);
+  }
+
+  const tenantId = getTenantId(request);
+  const result = await env.DB.prepare(
+    `UPDATE users SET name = ?, updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(name.trim(), params.id, ...(tenantId ? [tenantId] : [])).run();
+
+  if (!result.meta.changes) {
+    return error('User not found', 404);
+  }
+
+  return json({ success: true, name: name.trim() });
 });
 
 // Users: List all users (admin/manager only)
@@ -3992,7 +4041,7 @@ route('POST', '/api/branches', async (request, env) => {
   }
 
   const body = await request.json() as any;
-  const { code, name, address, phone } = body;
+  const { code, name, address, phone, district } = body;
 
   if (!code || !name) {
     return error('Code and name are required', 400);
@@ -4013,9 +4062,9 @@ route('POST', '/api/branches', async (request, env) => {
   const id = generateId();
   // MULTI-TENANCY: Add tenant_id on creation
   await env.DB.prepare(`
-    INSERT INTO branches (id, code, name, address, phone, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(id, code.toUpperCase(), name, address || null, phone || null, getTenantId(request)).run();
+    INSERT INTO branches (id, code, name, address, phone, district, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, code.toUpperCase(), name, address || null, phone || null, district || null, getTenantId(request)).run();
 
   const branch = await env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(id).first();
   return json({ branch }, 201);
@@ -4044,6 +4093,10 @@ route('PATCH', '/api/branches/:id', async (request, env, params) => {
     updates.push('phone = ?');
     values.push(body.phone);
   }
+  if (body.district !== undefined) {
+    updates.push('district = ?');
+    values.push(body.district || null);
+  }
   if (body.is_active !== undefined) {
     updates.push('is_active = ?');
     values.push(body.is_active ? 1 : 0);
@@ -4066,10 +4119,133 @@ route('PATCH', '/api/branches/:id', async (request, env, params) => {
   return json({ branch });
 });
 
+// Districts: Cascade Delete (delete entire hierarchy: branches → buildings → apartments → residents)
+route('DELETE', '/api/districts/cascade', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!isManagement(authUser)) return error('Manager access required', 403);
+
+  const url = new URL(request.url);
+  const name = url.searchParams.get('name');
+  if (!name) return error('District name is required', 400);
+
+  const tenantId = getTenantId(request);
+  const tq = tenantId ? ' AND tenant_id = ?' : '';
+  const tb = (col: string) => tenantId ? ` AND ${col} = ?` : '';
+
+  // Step 1: Get branch IDs in this district
+  const branchRows = await env.DB.prepare(
+    `SELECT id FROM branches WHERE district = ?${tq}`
+  ).bind(name, ...(tenantId ? [tenantId] : [])).all();
+  const branchIds = (branchRows.results as any[]).map(r => r.id as string);
+
+  if (branchIds.length === 0) {
+    return json({ success: true, deleted: { branches: 0, buildings: 0, residents: 0 } });
+  }
+
+  const branchPlaceholders = branchIds.map(() => '?').join(',');
+
+  // Step 2: Get building IDs in those branches
+  const buildingRows = await env.DB.prepare(
+    `SELECT id FROM buildings WHERE branch_id IN (${branchPlaceholders})${tb('tenant_id')}`
+  ).bind(...branchIds, ...(tenantId ? [tenantId] : [])).all();
+  const buildingIds = (buildingRows.results as any[]).map(r => r.id as string);
+
+  const buildingPlaceholders = buildingIds.length > 0 ? buildingIds.map(() => '?').join(',') : null;
+
+  // Step 3: Execute cascade deletion atomically
+  const statements: any[] = [];
+
+  if (buildingIds.length > 0) {
+    // Delete residents (users with role='resident') in those buildings
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM users WHERE role = 'resident' AND building_id IN (${buildingPlaceholders!})${tb('tenant_id')}`
+      ).bind(...buildingIds, ...(tenantId ? [tenantId] : []))
+    );
+    // Clean up chat_channels referencing those buildings
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM chat_channels WHERE building_id IN (${buildingPlaceholders!})${tb('tenant_id')}`
+      ).bind(...buildingIds, ...(tenantId ? [tenantId] : []))
+    );
+    // Clean up executor_zones referencing those buildings
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM executor_zones WHERE building_id IN (${buildingPlaceholders!})${tb('tenant_id')}`
+      ).bind(...buildingIds, ...(tenantId ? [tenantId] : []))
+    );
+    // NULL out announcements targeting those buildings
+    statements.push(
+      env.DB.prepare(
+        `UPDATE announcements SET target_building_id = NULL WHERE target_building_id IN (${buildingPlaceholders!})${tb('tenant_id')}`
+      ).bind(...buildingIds, ...(tenantId ? [tenantId] : []))
+    );
+    // Delete buildings (cascades: apartments, entrances, meetings, meters, personal_accounts, building_documents)
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM buildings WHERE id IN (${buildingPlaceholders!})${tb('tenant_id')}`
+      ).bind(...buildingIds, ...(tenantId ? [tenantId] : []))
+    );
+  }
+
+  // Delete branches
+  statements.push(
+    env.DB.prepare(
+      `DELETE FROM branches WHERE district = ?${tq}`
+    ).bind(name, ...(tenantId ? [tenantId] : []))
+  );
+
+  await env.DB.batch(statements);
+
+  return json({
+    success: true,
+    deleted: {
+      branches: branchIds.length,
+      buildings: buildingIds.length,
+    },
+  });
+});
+
+// Districts: Delete (unlink all branches from a district)
+route('DELETE', '/api/districts', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!isManagement(user)) {
+    return error('Manager access required', 403);
+  }
+
+  const url = new URL(request.url);
+  const name = url.searchParams.get('name');
+  if (!name) return error('District name is required', 400);
+
+  const tenantId = getTenantId(request);
+
+  // Check if any branches in this district have buildings or residents
+  const blockers = await env.DB.prepare(
+    `SELECT COUNT(*) as count FROM branches
+     WHERE district = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+     AND (buildings_count > 0 OR residents_count > 0)`
+  ).bind(name, ...(tenantId ? [tenantId] : [])).first() as any;
+
+  if (blockers?.count > 0) {
+    return error(
+      `Невозможно удалить: в районе есть здания или жители. Сначала удалите или перенесите все жилые комплексы.`,
+      409
+    );
+  }
+
+  // Safe to unlink — set district = NULL for all branches in this district
+  await env.DB.prepare(
+    `UPDATE branches SET district = NULL, updated_at = datetime('now')
+     WHERE district = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(name, ...(tenantId ? [tenantId] : [])).run();
+
+  return json({ success: true });
+});
+
 // Branches: Delete
 route('DELETE', '/api/branches/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || !['admin', 'director'].includes(user.role)) {
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
     return error('Admin access required', 403);
   }
 
@@ -4087,6 +4263,62 @@ route('DELETE', '/api/branches/:id', async (request, env, params) => {
 
   await env.DB.prepare(`DELETE FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   return json({ success: true });
+});
+
+// Branch: Change code with cascade update to all buildings
+route('POST', '/api/branches/:id/change-code', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user || !['admin', 'director', 'super_admin'].includes(user.role)) {
+    return error('Admin access required', 403);
+  }
+
+  const tenantId = getTenantId(request);
+  const body = await request.json() as any;
+  const newCode = (body.new_code || '').trim().toUpperCase();
+
+  if (!newCode || newCode.length < 1 || newCode.length > 20) {
+    return error('Invalid code', 400);
+  }
+  if (!/^[A-Z0-9_-]+$/.test(newCode)) {
+    return error('Code must contain only Latin letters, digits, - or _', 400);
+  }
+
+  // Get current branch
+  const branch = await env.DB.prepare(
+    `SELECT * FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!branch) return error('Branch not found', 404);
+
+  const oldCode = branch.code;
+  if (oldCode === newCode) return json({ branch, changed: false });
+
+  // Uniqueness check within tenant
+  const existing = await env.DB.prepare(
+    `SELECT id FROM branches WHERE code = ? AND id != ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(newCode, params.id, ...(tenantId ? [tenantId] : [])).first();
+  if (existing) return error(`Код "${newCode}" уже используется другим ЖК`, 409);
+
+  // Atomic batch: update branches.code and all buildings.branch_code
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE branches SET code = ?, updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(newCode, params.id, ...(tenantId ? [tenantId] : [])),
+    env.DB.prepare(
+      `UPDATE buildings SET branch_code = ? WHERE branch_code = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(newCode, oldCode, ...(tenantId ? [tenantId] : [])),
+  ]);
+
+  // Insert audit log entry
+  await env.DB.prepare(
+    `INSERT INTO branch_code_audit (id, branch_id, old_code, new_code, changed_by, changed_by_name, tenant_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+  ).bind(generateId(), params.id, oldCode, newCode, user.id, user.name || user.email, tenantId || null).run().catch(() => {});
+
+  const updated = await env.DB.prepare(
+    `SELECT * FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+
+  return json({ branch: updated, changed: true, old_code: oldCode, new_code: newCode });
 });
 
 // Branch Export — full snapshot (branch + buildings + entrances + apartments + residents + staff)
@@ -4341,13 +4573,15 @@ route('POST', '/api/branches/import', async (request, env) => {
     const chunk = toInsert.slice(i, i + CHUNK);
     const stmts = chunk.map((res: any) => {
       const isStaff = ['admin','director','manager','department_head','dispatcher','executor','security'].includes(res.role);
+      const resolvedBuildingId = (!isStaff && res.building) ? (buildingNameToId.get(res.building) || null) : null;
       return env.DB.prepare(
-        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,password_plain,role,apartment,building,branch,entrance,floor,specialization,tenant_id,is_active)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`
+        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,password_plain,role,apartment,building,building_id,branch,entrance,floor,specialization,tenant_id,is_active)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`
       ).bind(
         generateId(), res.login, res.name||res.login, res.phone||null,
         res.password_hash||'', res.password_plain||null,
         res.role, isStaff ? null : (res.apartment||null), isStaff ? null : (res.building||null),
+        resolvedBuildingId,
         branchCode, res.entrance||null, res.floor||null, res.specialization||null, tenantId||null
       );
     });
@@ -4361,13 +4595,75 @@ route('POST', '/api/branches/import', async (request, env) => {
     const chunk = toUpdate.slice(i, i + CHUNK);
     const stmts = chunk.map((res: any) => {
       const isStaff = ['admin','director','manager','department_head','dispatcher','executor','security'].includes(res.role);
+      const resolvedBuildingId = (!isStaff && res.building) ? (buildingNameToId.get(res.building) || null) : null;
       return isStaff
         ? env.DB.prepare(`UPDATE users SET name=?,phone=?,role=?,specialization=? WHERE id=?`)
             .bind(res.name||res.login, res.phone||null, res.role, res.specialization||null, res.id)
-        : env.DB.prepare(`UPDATE users SET name=?,phone=?,apartment=?,building=?,branch=? WHERE id=?`)
-            .bind(res.name||res.login, res.phone||null, res.apartment||null, res.building||null, branchCode, res.id);
+        : env.DB.prepare(`UPDATE users SET name=?,phone=?,apartment=?,building=?,building_id=COALESCE(?,building_id),branch=? WHERE id=?`)
+            .bind(res.name||res.login, res.phone||null, res.apartment||null, res.building||null, resolvedBuildingId, branchCode, res.id);
     });
     await env.DB.batch(stmts);
+  }
+
+  // Fix building_id for any users who have building name but no building_id
+  // (covers previously imported residents and any edge cases)
+  if (tenantId) {
+    await env.DB.prepare(`
+      UPDATE users
+      SET building_id = (
+        SELECT b.id FROM buildings b
+        WHERE b.name = users.building
+          AND b.branch_code = users.branch
+          AND b.tenant_id = ?
+        LIMIT 1
+      )
+      WHERE building_id IS NULL
+        AND building IS NOT NULL
+        AND branch = ?
+        AND tenant_id = ?
+    `).bind(tenantId, branchCode, tenantId).run();
+  } else {
+    await env.DB.prepare(`
+      UPDATE users
+      SET building_id = (
+        SELECT b.id FROM buildings b
+        WHERE b.name = users.building
+          AND b.branch_code = users.branch
+        LIMIT 1
+      )
+      WHERE building_id IS NULL
+        AND building IS NOT NULL
+        AND branch = ?
+    `).bind(branchCode).run();
+  }
+
+  // Auto-create personal_accounts for residents who have building_id + apartment but no account
+  const { results: residentsNeedingAccounts } = await env.DB.prepare(`
+    SELECT u.id, u.name, u.apartment, u.building_id, u.tenant_id
+    FROM users u
+    LEFT JOIN personal_accounts pa ON pa.building_id = u.building_id
+      AND pa.apartment_number = u.apartment
+      ${tenantId ? 'AND pa.tenant_id = ?' : ''}
+    WHERE u.role = 'resident'
+      AND u.building_id IS NOT NULL
+      AND u.apartment IS NOT NULL
+      AND pa.id IS NULL
+      AND u.branch = ?
+      ${tenantId ? 'AND u.tenant_id = ?' : ''}
+  `).bind(...(tenantId ? [tenantId] : []), branchCode, ...(tenantId ? [tenantId] : [])).all() as any;
+
+  if (residentsNeedingAccounts && residentsNeedingAccounts.length > 0) {
+    const paStmts = (residentsNeedingAccounts as any[]).map((u: any) => {
+      const paId = generateId();
+      const accountNum = `PA-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      return env.DB.prepare(
+        `INSERT OR IGNORE INTO personal_accounts (id, number, building_id, apartment_number, owner_name, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(paId, accountNum, u.building_id, String(u.apartment), u.name || null, u.tenant_id || null);
+    });
+    for (let i = 0; i < paStmts.length; i += CHUNK) {
+      await env.DB.batch(paStmts.slice(i, i + CHUNK));
+    }
   }
 
   invalidateCache('buildings:');
@@ -4790,9 +5086,51 @@ route('PATCH', '/api/entrances/:id', async (request, env, params) => {
   values.push(params.id);
   const tenantIdUpd = getTenantId(request);
 
-  await env.DB.prepare(`UPDATE entrances SET ${updates.join(', ')} WHERE id = ? ${tenantIdUpd ? 'AND tenant_id = ?' : ''}`).bind(...values, ...(tenantIdUpd ? [tenantIdUpd] : [])).run();
+  const updateResult = await env.DB.prepare(`UPDATE entrances SET ${updates.join(', ')} WHERE id = ? ${tenantIdUpd ? 'AND tenant_id = ?' : ''}`).bind(...values, ...(tenantIdUpd ? [tenantIdUpd] : [])).run();
 
-  const updated = await env.DB.prepare('SELECT * FROM entrances WHERE id = ?').bind(params.id).first();
+  if (!updateResult.meta?.changes) {
+    return error('Подъезд не найден или нет доступа', 404);
+  }
+
+  const updated = await env.DB.prepare('SELECT * FROM entrances WHERE id = ?').bind(params.id).first() as any;
+
+  // If apartments_from/to or floors changed, auto-generate new apartments (INSERT OR IGNORE keeps existing ones intact)
+  const rangeChanged = body.apartments_from !== undefined || body.apartments_to !== undefined ||
+    body.apartmentsFrom !== undefined || body.apartmentsTo !== undefined ||
+    body.floors_from !== undefined || body.floors_to !== undefined ||
+    body.floorsFrom !== undefined || body.floorsTo !== undefined;
+
+  if (rangeChanged && updated && updated.building_id) {
+    const floorsFrom = updated.floors_from || 1;
+    const floorsTo = updated.floors_to || 9;
+    const aptsFrom = updated.apartments_from || 1;
+    const aptsTo = updated.apartments_to || 36;
+    const totalApts = aptsTo - aptsFrom + 1;
+    const totalFloors = floorsTo - floorsFrom + 1;
+    const aptsPerFloor = Math.ceil(totalApts / totalFloors);
+    const aptData: Array<{ number: string; floor: number }> = [];
+    let aptNum = aptsFrom;
+    for (let floor = floorsFrom; floor <= floorsTo && aptNum <= aptsTo; floor++) {
+      for (let i = 0; i < aptsPerFloor && aptNum <= aptsTo; i++) {
+        aptData.push({ number: String(aptNum), floor });
+        aptNum++;
+      }
+    }
+
+    if (aptData.length > 0) {
+      for (let i = 0; i < aptData.length; i += 50) {
+        const batch = aptData.slice(i, i + 50);
+        const stmts = batch.map((apt) =>
+          env.DB.prepare(
+            `INSERT OR IGNORE INTO apartments (id, building_id, entrance_id, number, floor, status, tenant_id)
+             VALUES (?, ?, ?, ?, ?, 'occupied', ?)`
+          ).bind(generateId(), updated.building_id, params.id, apt.number, apt.floor, tenantIdUpd)
+        );
+        await env.DB.batch(stmts);
+      }
+    }
+  }
+
   return json({ entrance: updated });
 });
 
@@ -5695,6 +6033,120 @@ route('GET', '/api/accounts/debtors', async (request, env) => {
 
   const { results } = await env.DB.prepare(query).bind(...bindings).all();
   return json({ debtors: results });
+});
+
+// ==================== REPORTS: DEBTS ====================
+
+route('GET', '/api/reports/debts', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!isManagement(authUser)) return error('Manager access required', 403);
+
+  const tenantId = getTenantId(request);
+  const url = new URL(request.url);
+  const buildingId = url.searchParams.get('building_id');
+  const district = url.searchParams.get('district');
+  const search = url.searchParams.get('search')?.trim().toLowerCase();
+  const debtorsOnly = url.searchParams.get('debtors_only') === 'true';
+  const sortBy = url.searchParams.get('sort_by') || 'debt';
+  const sortDir = url.searchParams.get('sort_dir') === 'asc' ? 'ASC' : 'DESC';
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '1000'), 2000);
+  const offset = parseInt(url.searchParams.get('offset') || '0');
+
+  // Resident-centric query: ALL residents appear even without personal_accounts
+  const conditions: string[] = [
+    "u.role = 'resident'",
+    "u.building_id IS NOT NULL",
+    "u.apartment IS NOT NULL",
+  ];
+  const bindings: any[] = [];
+
+  if (tenantId) {
+    conditions.push('u.tenant_id = ?');
+    bindings.push(tenantId);
+  }
+  if (buildingId) {
+    conditions.push('u.building_id = ?');
+    bindings.push(buildingId);
+  }
+  if (district) {
+    conditions.push('br.district = ?');
+    bindings.push(district);
+  }
+  if (debtorsOnly) {
+    conditions.push('COALESCE(pa.current_debt, 0) > 0');
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+  const orderMap: Record<string, string> = {
+    debt: `COALESCE(pa.current_debt, 0) ${sortDir}`,
+    name: `u.name ${sortDir}`,
+    apartment: `u.apartment ${sortDir}`,
+  };
+  const orderBy = orderMap[sortBy] || orderMap['debt'];
+
+  // LEFT JOIN personal_accounts on apartment match: try apartment_id first, then building+apt_number
+  const paJoinTenant = tenantId ? 'AND pa.tenant_id = ?' : '';
+  const query = `
+    SELECT
+      u.id AS resident_id,
+      u.name AS resident_name,
+      u.phone AS resident_phone,
+      u.apartment AS apartment_number,
+      u.entrance,
+      u.floor,
+      u.building_id,
+      b.name AS building_name,
+      b.address AS building_address,
+      b.collection_rate AS tariff,
+      br.id AS branch_id,
+      br.name AS branch_name,
+      br.district,
+      pa.id AS account_id,
+      pa.number AS account_number,
+      COALESCE(pa.balance, 0) AS balance,
+      COALESCE(pa.current_debt, 0) AS current_debt,
+      pa.last_payment_date,
+      pa.last_payment_amount,
+      COALESCE(pa.status, 'active') AS account_status
+    FROM users u
+    JOIN buildings b ON u.building_id = b.id
+    LEFT JOIN branches br ON b.branch_id = br.id
+    LEFT JOIN personal_accounts pa ON pa.building_id = u.building_id
+      AND pa.apartment_number = u.apartment
+      ${paJoinTenant}
+    ${whereClause}
+    ORDER BY ${orderBy}
+    LIMIT ? OFFSET ?
+  `;
+
+  // Bindings: pa tenant (if applicable) → WHERE bindings → LIMIT OFFSET
+  const finalBindings: any[] = [];
+  if (tenantId) finalBindings.push(tenantId); // for LEFT JOIN pa.tenant_id
+  finalBindings.push(...bindings);             // WHERE conditions
+  finalBindings.push(limit, offset);
+
+  const { results } = await env.DB.prepare(query).bind(...finalBindings).all();
+
+  // Client-side search (Cyrillic-safe)
+  let filtered = results as any[];
+  if (search) {
+    filtered = filtered.filter(r =>
+      (r.resident_name || '').toLowerCase().includes(search) ||
+      (r.apartment_number || '').toLowerCase().includes(search) ||
+      (r.account_number || '').toLowerCase().includes(search)
+    );
+  }
+
+  const totalDebt = filtered.reduce((s: number, r: any) => s + (r.current_debt || 0), 0);
+  const totalBalance = filtered.reduce((s: number, r: any) => s + (r.balance || 0), 0);
+  const debtorCount = filtered.filter((r: any) => (r.current_debt || 0) > 0).length;
+
+  return json({
+    records: filtered,
+    total: filtered.length,
+    summary: { totalDebt, totalBalance, debtorCount },
+  });
 });
 
 // ==================== CRM RESIDENTS ROUTES ====================
@@ -15696,17 +16148,17 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
   const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(tenantId).first() as any;
   if (!tenant) return error('Tenant not found', 404);
 
-  // Find admin user for this tenant (prefer admin, fallback to director)
+  // Find the primary admin user for this tenant (role = 'admin' only — never fallback to director)
   const adminUser = await env.DB.prepare(
     `SELECT id, login, name, role, phone, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, account_type, tenant_id
-     FROM users WHERE tenant_id = ? AND role IN ('admin', 'director') AND is_active = 1
-     ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'director' THEN 2 ELSE 3 END
+     FROM users WHERE tenant_id = ? AND role = 'admin' AND is_active = 1
+     ORDER BY created_at ASC
      LIMIT 1`
   ).bind(tenantId).first() as any;
 
-  if (!adminUser) return error('No admin user found for this tenant', 404);
+  if (!adminUser) return error('В выбранной компании не создан пользователь с ролью администратора', 404);
 
-  return json({ user: adminUser, token: adminUser.id, tenantUrl: tenant.url });
+  return json({ user: adminUser, token: adminUser.id, tenantUrl: tenant.url, tenantName: tenant.name });
 });
 
 // GET /api/super-admin/users - list all users across all tenants with credentials (super_admin only)

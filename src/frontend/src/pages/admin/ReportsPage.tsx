@@ -1,14 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   FileText, CheckCircle, Star, Clock, PieChart, BarChart3,
   TrendingUp, TrendingDown, Download, Building2, Home, Users, Zap, AlertCircle,
-  Percent, Timer, Award
+  Percent, Timer, Award, CreditCard, Search, Filter, ChevronUp, ChevronDown, Loader2
 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { useCRMStore } from '../../stores/crmStore';
 import { useAuthStore } from '../../stores/authStore';
 import { SPECIALIZATION_LABELS } from '../../types';
 import { useLanguageStore } from '../../stores/languageStore';
+import { apiRequest } from '../../services/api/client';
 
 export function ReportsPage() {
   const { requests, executors } = useDataStore();
@@ -17,7 +18,112 @@ export function ReportsPage() {
   const { language } = useLanguageStore();
   const [period, setPeriod] = useState('week');
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
-  const [reportType, setReportType] = useState<'general' | 'branch'>('general');
+  const [reportType, setReportType] = useState<'general' | 'branch' | 'debts'>('general');
+
+  // Debts tab state
+  const [debtRecords, setDebtRecords] = useState<any[]>([]);
+  const [debtSummary, setDebtSummary] = useState<{ totalDebt: number; totalBalance: number; debtorCount: number } | null>(null);
+  const [debtLoading, setDebtLoading] = useState(false);
+  const [debtSearch, setDebtSearch] = useState('');
+  const [debtFilterBuilding, setDebtFilterBuilding] = useState('');
+  const [debtFilterDistrict, setDebtFilterDistrict] = useState('');
+  const [debtorsOnly, setDebtorsOnly] = useState(false);
+  const [debtSortBy, setDebtSortBy] = useState<'debt' | 'name' | 'apartment'>('debt');
+  const [debtSortDir, setDebtSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // Fetch debt data from API
+  const fetchDebts = useCallback(async () => {
+    setDebtLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (debtFilterBuilding) params.set('building_id', debtFilterBuilding);
+      if (debtFilterDistrict) params.set('district', debtFilterDistrict);
+      if (debtorsOnly) params.set('debtors_only', 'true');
+      params.set('sort_by', debtSortBy);
+      params.set('sort_dir', debtSortDir);
+      params.set('limit', '1000');
+      const data = await apiRequest<{ records: any[]; summary: any }>(`/api/reports/debts?${params}`);
+      setDebtRecords(data.records || []);
+      setDebtSummary(data.summary || null);
+    } catch {
+      setDebtRecords([]);
+    } finally {
+      setDebtLoading(false);
+    }
+  }, [debtFilterBuilding, debtFilterDistrict, debtorsOnly, debtSortBy, debtSortDir]);
+
+  useEffect(() => {
+    if (reportType === 'debts') fetchDebts();
+  }, [reportType, fetchDebts]);
+
+  // Client-side search filter on debt records
+  const filteredDebtRecords = useMemo(() => {
+    if (!debtSearch.trim()) return debtRecords;
+    const q = debtSearch.trim().toLowerCase();
+    return debtRecords.filter(r =>
+      (r.resident_name || '').toLowerCase().includes(q) ||
+      (r.apartment_number || '').toLowerCase().includes(q) ||
+      (r.account_number || '').toLowerCase().includes(q)
+    );
+  }, [debtRecords, debtSearch]);
+
+  // Get unique districts/buildings from loaded debt records for filter dropdowns
+  const debtDistricts = useMemo(() => [...new Set(debtRecords.map(r => r.district).filter(Boolean))].sort(), [debtRecords]);
+  const debtBuildings = useMemo(() => {
+    const seen = new Map<string, string>();
+    debtRecords.forEach(r => { if (r.building_id && r.building_name) seen.set(r.building_id, r.building_name); });
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [debtRecords]);
+
+  const handleDebtSort = (col: 'debt' | 'name' | 'apartment') => {
+    if (debtSortBy === col) setDebtSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setDebtSortBy(col); setDebtSortDir('desc'); }
+  };
+
+  const formatSum = (n: number) => n.toLocaleString('ru-RU') + ' сум';
+
+  const handleExportDebtCSV = () => {
+    const headers = [
+      language === 'ru' ? 'Ф.И.О.' : 'F.I.O.',
+      language === 'ru' ? 'Район' : 'Tuman',
+      language === 'ru' ? 'ЖК' : 'TJM',
+      language === 'ru' ? 'Здание' : 'Bino',
+      language === 'ru' ? 'Подъезд' : 'Podyezd',
+      language === 'ru' ? 'Квартира' : 'Xonadon',
+      language === 'ru' ? 'Лицевой счёт' : 'Shaxsiy hisob',
+      language === 'ru' ? 'Тариф' : 'Tarif',
+      language === 'ru' ? 'Долг' : 'Qarz',
+      language === 'ru' ? 'Посл. оплата' : 'Oxirgi to\'lov',
+      language === 'ru' ? 'Статус' : 'Holat',
+    ];
+    const statusLabel = (s: string) => {
+      if (s === 'debt_collection') return language === 'ru' ? 'Взыскание' : 'Undiruv';
+      if (s === 'suspended') return language === 'ru' ? 'Приостановлен' : 'To\'xtatilgan';
+      if (s === 'closed') return language === 'ru' ? 'Закрыт' : 'Yopilgan';
+      return language === 'ru' ? 'Активен' : 'Faol';
+    };
+    const rows = filteredDebtRecords.map(r => [
+      r.resident_name || '-',
+      r.district || '-',
+      r.branch_name || '-',
+      r.building_name || '-',
+      r.entrance || '-',
+      r.apartment_number || '-',
+      r.account_number || '-',
+      r.tariff || 0,
+      r.current_debt || 0,
+      r.last_payment_date ? new Date(r.last_payment_date).toLocaleDateString('ru-RU') : '-',
+      statusLabel(r.account_status || 'active'),
+    ]);
+    const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `долги_${new Date().toLocaleDateString('ru-RU')}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   // Filter requests by period
   const getFilteredRequests = () => {
@@ -336,7 +442,7 @@ export function ReportsPage() {
       </div>
 
       {/* Report Type Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => setReportType('general')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -356,6 +462,17 @@ export function ReportsPage() {
           }`}
         >
           {language === 'ru' ? 'По объектам' : 'Obyektlar bo\'yicha'}
+        </button>
+        <button
+          onClick={() => setReportType('debts')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+            reportType === 'debts'
+              ? 'bg-red-500 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          {language === 'ru' ? 'Задолженность' : 'Qarzdorlik'}
         </button>
       </div>
 
@@ -1005,6 +1122,185 @@ export function ReportsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ===== DEBTS TAB ===== */}
+      {reportType === 'debts' && (
+        <div className="space-y-5">
+          {/* Summary cards */}
+          {debtSummary && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="glass-card p-4 rounded-xl flex items-center gap-4">
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <CreditCard className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-red-600">{formatSum(debtSummary.totalDebt)}</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Общий долг' : 'Umumiy qarz'}</div>
+                </div>
+              </div>
+              <div className="glass-card p-4 rounded-xl flex items-center gap-4">
+                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Users className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-amber-600">{debtSummary.debtorCount}</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Должников' : 'Qarzdorlar'}</div>
+                </div>
+              </div>
+              <div className="glass-card p-4 rounded-xl flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-blue-600">{filteredDebtRecords.length}</div>
+                  <div className="text-sm text-gray-500">{language === 'ru' ? 'Лицевых счетов' : 'Shaxsiy hisoblar'}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filters + search + export */}
+          <div className="glass-card p-4 rounded-xl space-y-3">
+            <div className="flex flex-wrap gap-3 items-center">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={debtSearch}
+                  onChange={e => setDebtSearch(e.target.value)}
+                  placeholder={language === 'ru' ? 'ФИО, квартира, счёт...' : 'FIO, xonadon, hisob...'}
+                  className="glass-input pl-9 w-full"
+                />
+              </div>
+              {/* District filter */}
+              <select
+                value={debtFilterDistrict}
+                onChange={e => setDebtFilterDistrict(e.target.value)}
+                className="glass-input min-w-[140px]"
+              >
+                <option value="">{language === 'ru' ? 'Все районы' : 'Barcha tumanlar'}</option>
+                {debtDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              {/* Building filter */}
+              <select
+                value={debtFilterBuilding}
+                onChange={e => setDebtFilterBuilding(e.target.value)}
+                className="glass-input min-w-[140px]"
+              >
+                <option value="">{language === 'ru' ? 'Все здания' : 'Barcha binolar'}</option>
+                {debtBuildings.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+              {/* Debtors only toggle */}
+              <label className="flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={debtorsOnly}
+                  onChange={e => setDebtorsOnly(e.target.checked)}
+                  className="w-4 h-4 accent-red-500"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  {language === 'ru' ? 'Только должники' : 'Faqat qarzdorlar'}
+                </span>
+              </label>
+              {/* Export */}
+              <button onClick={handleExportDebtCSV} className="btn-secondary flex items-center gap-2 flex-shrink-0 ml-auto">
+                <Download className="w-4 h-4" />
+                {language === 'ru' ? 'Скачать CSV' : 'CSV yuklab olish'}
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="glass-card rounded-xl overflow-hidden">
+            {debtLoading ? (
+              <div className="flex items-center justify-center py-16 gap-3 text-gray-500">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span>{language === 'ru' ? 'Загрузка данных...' : 'Ma\'lumotlar yuklanmoqda...'}</span>
+              </div>
+            ) : filteredDebtRecords.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <CreditCard className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="font-medium">{language === 'ru' ? 'Данные не найдены' : 'Ma\'lumot topilmadi'}</p>
+                <p className="text-sm mt-1">{language === 'ru' ? 'Попробуйте изменить фильтры' : 'Filtrlarni o\'zgartirib ko\'ring'}</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" style={{ minWidth: '900px' }}>
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr className="text-left text-xs text-gray-500 uppercase tracking-wide">
+                      <th className="px-4 py-3 font-medium">
+                        <button onClick={() => handleDebtSort('name')} className="flex items-center gap-1 hover:text-gray-700">
+                          {language === 'ru' ? 'Ф.И.О.' : 'F.I.O.'}
+                          {debtSortBy === 'name' && (debtSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Район / ЖК' : 'Tuman / TJM'}</th>
+                      <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Здание' : 'Bino'}</th>
+                      <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Пд.' : 'Pod.'}</th>
+                      <th className="px-4 py-3 font-medium">
+                        <button onClick={() => handleDebtSort('apartment')} className="flex items-center gap-1 hover:text-gray-700">
+                          {language === 'ru' ? 'Кв.' : 'Xon.'}
+                          {debtSortBy === 'apartment' && (debtSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Лиц. счёт' : 'Hisob №'}</th>
+                      <th className="px-4 py-3 font-medium text-right">{language === 'ru' ? 'Тариф' : 'Tarif'}</th>
+                      <th className="px-4 py-3 font-medium text-right">
+                        <button onClick={() => handleDebtSort('debt')} className="flex items-center gap-1 hover:text-gray-700 ml-auto">
+                          {language === 'ru' ? 'Долг' : 'Qarz'}
+                          {debtSortBy === 'debt' && (debtSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 font-medium text-center">{language === 'ru' ? 'Статус' : 'Holat'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredDebtRecords.map((r, i) => {
+                      const hasDebt = (r.current_debt || 0) > 0;
+                      const isOverdue = r.account_status === 'debt_collection';
+                      return (
+                        <tr key={r.id || i} className="hover:bg-gray-50/60 transition-colors">
+                          <td className="px-4 py-3 font-medium text-gray-900">{r.resident_name || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500">
+                            <div className="text-xs text-gray-400">{r.district || '—'}</div>
+                            <div className="font-medium text-gray-700">{r.branch_name || '—'}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">{r.building_name || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 text-center">{r.entrance || '—'}</td>
+                          <td className="px-4 py-3 text-gray-700 text-center font-medium">{r.apartment_number || '—'}</td>
+                          <td className="px-4 py-3 text-gray-400 font-mono text-xs">{r.account_number || '—'}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">{(r.tariff || 0).toLocaleString('ru-RU')}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={`font-bold ${hasDebt ? 'text-red-600' : 'text-green-600'}`}>
+                              {(r.current_debt || 0).toLocaleString('ru-RU')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {isOverdue ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 whitespace-nowrap">
+                                {language === 'ru' ? 'Взыскание' : 'Undiruv'}
+                              </span>
+                            ) : hasDebt ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 whitespace-nowrap">
+                                {language === 'ru' ? 'Есть долг' : 'Qarz bor'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">
+                                {language === 'ru' ? 'Нет долга' : 'Qarz yo\'q'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

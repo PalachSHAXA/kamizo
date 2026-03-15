@@ -36,6 +36,13 @@ export const usersApi = {
     });
   },
 
+  adminChangeName: async (userId: string, name: string) => {
+    return apiRequest<{ success: boolean; name: string }>(`/api/users/${userId}/name`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    });
+  },
+
   getAll: async (filters?: { role?: string; building_id?: string; limit?: number }) => {
     const params = new URLSearchParams();
     if (filters?.role) params.append('role', filters.role);

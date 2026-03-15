@@ -874,7 +874,7 @@ export function SuperAdminDashboard() {
             <button
               onClick={async () => {
                 try {
-                  const resp = await apiRequest<{ user: any; token: string; tenantUrl: string }>(
+                  const resp = await apiRequest<{ user: any; token: string; tenantUrl: string; tenantName: string }>(
                     `/api/super-admin/impersonate/${selectedTenant.id}`,
                     { method: 'POST' }
                   );
@@ -889,11 +889,14 @@ export function SuperAdminDashboard() {
                   };
                   const authData = btoa(encodeURIComponent(JSON.stringify({
                     state: { user: transformedUser, token: resp.token },
-                    version: 3
+                    version: 3,
+                    is_impersonated: true,
+                    super_admin_url: window.location.href,
+                    tenant_name: resp.tenantName || selectedTenant.name,
                   })));
                   window.open(`${selectedTenant.url}?auto_auth=${encodeURIComponent(authData)}`, '_blank');
                 } catch (e: any) {
-                  alert('Не удалось войти: ' + (e.message || 'Ошибка'));
+                  alert(e.message || 'Не удалось войти в админку УК');
                 }
               }}
               className="px-2 sm:px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm"

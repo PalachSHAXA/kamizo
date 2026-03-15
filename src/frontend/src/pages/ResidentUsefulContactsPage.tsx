@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
+import { useBackGuard } from '../hooks/useBackGuard';
 
 interface AdCategory {
   id: string;
@@ -100,6 +101,9 @@ export default function ResidentUsefulContactsPage() {
   const [loadingCoupon, setLoadingCoupon] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [banners, setBanners] = useState<any[]>([]);
+
+  // Intercept browser/hardware back when a detail view is open
+  useBackGuard(!!selectedAd, () => { setSelectedAd(null); setUserCoupon(null); });
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
 

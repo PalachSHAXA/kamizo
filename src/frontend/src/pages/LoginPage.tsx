@@ -318,7 +318,7 @@ export function LoginPage() {
             <p className="text-xs text-gray-500 text-center mb-3">
               {language === 'ru' ? 'Демо-входы для тестирования:' : 'Test uchun demo-kirish:'}
             </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2 lg:grid-cols-4 md:gap-3">
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-2">
               {(tenant?.is_demo ? KAMIZO_DEMO_ACCOUNTS : DEMO_ACCOUNTS).map((account) => {
                 const Icon = account.icon;
                 const isDemoTenant = tenant?.is_demo;

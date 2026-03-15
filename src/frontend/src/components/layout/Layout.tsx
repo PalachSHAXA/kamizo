@@ -10,7 +10,7 @@ import { MobileHeader } from './MobileHeader';
 import { PopupManager } from '../PopupNotification';
 import { PerformanceMonitor } from '../PerformanceMonitor';
 import { BottomBar } from '../BottomBar';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft, ShieldAlert } from 'lucide-react';
 
 // Page loading fallback
 const PageLoader = () => (
@@ -70,6 +70,24 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { getUnreadCount, fetchAnnouncements } = useDataStore();
   const unreadCount = user ? getUnreadCount(user.id) : 0;
+
+  // Impersonation banner — shown when super admin entered via "Войти в админку УК"
+  const [impersonation, setImpersonation] = useState<{ origin_url: string; tenant_name: string } | null>(() => {
+    try {
+      const stored = localStorage.getItem('kamizo_impersonation');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+
+  const handleExitImpersonation = () => {
+    localStorage.removeItem('kamizo_impersonation');
+    setImpersonation(null);
+    if (impersonation?.origin_url) {
+      window.location.href = impersonation.origin_url;
+    } else {
+      window.close();
+    }
+  };
 
   // Hook for popup notifications (urgent announcements, completed requests)
   const { popups, dismissPopup } = usePopupNotifications();
@@ -194,6 +212,25 @@ export function Layout() {
 
   return (
     <div className="min-h-screen min-h-dvh">
+      {/* Impersonation banner — shown when super admin entered tenant via "Войти в админку УК" */}
+      {impersonation && (
+        <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2 min-w-0">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+            <span className="text-[13px] font-semibold truncate">
+              Режим super admin — компания «{impersonation.tenant_name}»
+            </span>
+          </div>
+          <button
+            onClick={handleExitImpersonation}
+            className="flex items-center gap-1.5 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-[12px] font-bold flex-shrink-0 transition-colors active:scale-95"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Вернуться в супер-админку
+          </button>
+        </div>
+      )}
+
       {!isSuperAdmin && (
         <Sidebar
           onLogout={logout}
@@ -210,7 +247,7 @@ export function Layout() {
         />
       )}
 
-      <div className={isSuperAdmin ? "main-content-full" : "main-content"}>
+      <div className={isSuperAdmin ? "main-content-full" : "main-content"} style={impersonation ? { paddingTop: '42px' } : undefined}>
         {/* Desktop Header */}
         <div className="hide-mobile">
           <Header />

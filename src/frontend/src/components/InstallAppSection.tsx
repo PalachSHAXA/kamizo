@@ -105,6 +105,8 @@ export function InstallAppSection({ language, roleContext }: { language: string;
     notifNote: 'Сначала установите приложение',
   };
 
+  if (isInstalled) return null;
+
   return (
     <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
       <div className="px-4 pt-4 pb-2">
@@ -115,19 +117,7 @@ export function InstallAppSection({ language, roleContext }: { language: string;
       </div>
 
       <div className="px-4 pb-4">
-        {/* Already installed */}
-        {isInstalled ? (
-          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-[12px]">
-            <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold text-green-700">{t.installed}</p>
-              <p className="text-[12px] text-green-600 mt-0.5">{t.installedDesc}</p>
-            </div>
-          </div>
-        ) : (
-          <>
+        <>
             {/* iOS / Android tab switcher */}
             <div className="flex gap-1 p-1 bg-gray-100 rounded-[10px] mb-3">
               <button
@@ -190,8 +180,7 @@ export function InstallAppSection({ language, roleContext }: { language: string;
                 </p>
               </div>
             </div>
-          </>
-        )}
+        </>
 
         {/* Notification status & toggle */}
         <div className="mt-3 pt-3 border-t border-gray-100">

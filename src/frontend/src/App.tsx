@@ -23,6 +23,15 @@ import { ErrorBoundary } from './components/ErrorBoundary';
         localStorage.setItem('uk-auth-storage', JSON.stringify(decoded));
         // Set auth_token for API requests
         localStorage.setItem('auth_token', decoded.state.token);
+        // Store impersonation metadata for the banner
+        if (decoded.is_impersonated) {
+          localStorage.setItem('kamizo_impersonation', JSON.stringify({
+            origin_url: decoded.super_admin_url || '',
+            tenant_name: decoded.tenant_name || '',
+          }));
+        } else {
+          localStorage.removeItem('kamizo_impersonation');
+        }
         // Remove the param from URL and reload cleanly
         params.delete('auto_auth');
         const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');

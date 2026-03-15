@@ -3,7 +3,7 @@ import {
   ArrowLeft, Zap, X, CheckCircle, XCircle, AlertTriangle,
   User, Keyboard, Square, Camera, Phone, MapPin, Car
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -31,6 +31,7 @@ type ScanResult = {
 
 export function GuardQRScannerPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const { validateGuestAccessCode, useGuestAccessCode, guestAccessCodes } = useDataStore();
   const { language } = useLanguageStore();
@@ -196,7 +197,7 @@ export function GuardQRScannerPage() {
       {/* ── Header ── */}
       <div className="relative z-20 bg-white border-b border-gray-100 px-4 flex items-center justify-between" style={{ paddingTop: 'max(env(safe-area-inset-top, 12px), 12px)', paddingBottom: '10px' }}>
         <button
-          onClick={() => { stopCamera(); navigate(-1); }}
+          onClick={() => { stopCamera(); navigate((location.state as any)?.from ?? '/guest-access'); }}
           className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center active:scale-95 transition-transform"
         >
           <ArrowLeft className="w-5 h-5 text-gray-700" />
@@ -334,7 +335,7 @@ export function GuardQRScannerPage() {
             {language === 'ru' ? 'Ввести код' : 'Kod kiriting'}
           </button>
           <button
-            onClick={() => { stopCamera(); navigate(-1); }}
+            onClick={() => { stopCamera(); navigate((location.state as any)?.from ?? '/guest-access'); }}
             className="flex-1 py-3.5 bg-red-50 rounded-2xl flex items-center justify-center gap-2 text-[14px] font-bold text-red-500 active:scale-[0.97] transition-transform border border-red-100"
           >
             <Square className="w-4 h-4" />
