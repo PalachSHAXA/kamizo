@@ -173,7 +173,7 @@ const INITIAL_FORM_DATA: TenantFormData = {
   color: '#F97316',
   color_secondary: '#fb923c',
   plan: 'basic',
-  features: ['requests', 'votes', 'qr'],
+  features: ['requests', 'qr', 'notepad'],
   admin_email: '',
   admin_phone: '',
   logo: '',
@@ -202,12 +202,19 @@ const AVAILABLE_FEATURES = [
   { value: 'notepad', label: 'Заметки' },
   { value: 'communal', label: 'Ком. услуги' },
   { value: 'advertiser', label: 'Менеджер рекламы' },
+  { value: 'reports', label: 'Отчёты' },
 ];
 
 const PLAN_COLORS: Record<string, string> = {
   basic: '#9CA3AF',
   pro: '#3B82F6',
   enterprise: '#8B5CF6',
+};
+
+const PLAN_FEATURES: Record<string, string[]> = {
+  basic: ['requests', 'qr', 'notepad'],
+  pro: ['requests', 'qr', 'marketplace', 'meetings', 'chat', 'announcements', 'vehicles', 'useful-contacts', 'notepad', 'communal', 'reports'],
+  enterprise: ['requests', 'rentals', 'qr', 'marketplace', 'meetings', 'chat', 'announcements', 'trainings', 'colleagues', 'vehicles', 'useful-contacts', 'notepad', 'communal', 'advertiser', 'reports'],
 };
 
 const PLAN_LABELS: Record<string, string> = {
@@ -899,7 +906,7 @@ export function SuperAdminDashboard() {
                   alert(e.message || 'Не удалось войти в админку УК');
                 }
               }}
-              className="px-2 sm:px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm"
+              className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 flex items-center gap-1.5 text-xs sm:text-sm font-medium shadow-sm transition-all"
             >
               <ExternalLink className="w-4 h-4 flex-shrink-0" />
               <span className="hidden sm:inline">Войти в админку УК</span>
@@ -907,9 +914,9 @@ export function SuperAdminDashboard() {
             </button>
             <button
               onClick={() => handleEditTenant(selectedTenant)}
-              className="px-3 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm"
+              className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all"
             >
-              <Edit2 className="w-4 h-4" />
+              <Edit2 className="w-4 h-4 text-gray-500" />
             </button>
           </div>
         </div>
@@ -925,73 +932,42 @@ export function SuperAdminDashboard() {
           </div>
         ) : tenantStats && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 gap-3">
-              <div className="bg-white p-3 rounded-lg shadow-sm border">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-primary-100 rounded-lg"><Users className="w-4 h-4 text-primary-600" /></div>
-                  <div>
-                    <div className="text-lg font-bold">{tenantStats.residents}</div>
-                    <div className="text-xs text-gray-500">Жители</div>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+              {[
+                { icon: Users, value: tenantStats.residents, label: 'Жители', gradient: 'from-blue-500 to-cyan-400' },
+                { icon: ClipboardList, value: tenantStats.requests, label: 'Заявки', gradient: 'from-amber-500 to-orange-400' },
+                { icon: Vote, value: tenantStats.votes, label: 'Голосования', gradient: 'from-purple-500 to-violet-400' },
+                { icon: QrCode, value: tenantStats.qr_codes, label: 'QR-коды', gradient: 'from-emerald-500 to-green-400' },
+                { icon: Building2, value: tenantStats.buildings, label: 'Здания', gradient: 'from-orange-500 to-amber-400' },
+                { icon: UserCog, value: tenantStats.staff, label: 'Персонал', gradient: 'from-rose-500 to-red-400' },
+              ].map((s, i) => {
+                const Icon = s.icon;
+                return (
+                  <div key={i} className="bg-gray-50/80 p-3 rounded-xl border border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${s.gradient} flex items-center justify-center shadow-sm`}>
+                        <Icon className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-base font-bold text-gray-900">{s.value}</div>
+                        <div className="text-[10px] text-gray-400">{s.label}</div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow-sm border">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-amber-100 rounded-lg"><ClipboardList className="w-4 h-4 text-amber-600" /></div>
-                  <div>
-                    <div className="text-lg font-bold">{tenantStats.requests}</div>
-                    <div className="text-xs text-gray-500">Заявки</div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow-sm border">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-purple-100 rounded-lg"><Vote className="w-4 h-4 text-purple-600" /></div>
-                  <div>
-                    <div className="text-lg font-bold">{tenantStats.votes}</div>
-                    <div className="text-xs text-gray-500">Голосования</div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow-sm border">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-green-100 rounded-lg"><QrCode className="w-4 h-4 text-green-600" /></div>
-                  <div>
-                    <div className="text-lg font-bold">{tenantStats.qr_codes}</div>
-                    <div className="text-xs text-gray-500">QR-коды</div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow-sm border">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-orange-100 rounded-lg"><Building2 className="w-4 h-4 text-orange-600" /></div>
-                  <div>
-                    <div className="text-lg font-bold">{tenantStats.buildings}</div>
-                    <div className="text-xs text-gray-500">Здания</div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow-sm border">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-red-100 rounded-lg"><UserCog className="w-4 h-4 text-red-600" /></div>
-                  <div>
-                    <div className="text-lg font-bold">{tenantStats.staff}</div>
-                    <div className="text-xs text-gray-500">Персонал</div>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
 
             {/* Detail Tabs */}
-            <div className="flex gap-1 border-b border-gray-200 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-1 bg-gray-50/80 p-1 rounded-xl overflow-x-auto scrollbar-hide">
               {DETAIL_TABS.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => loadTabData(tab.key)}
-                  className={`px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                  className={`px-3 py-2 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
                     detailTab === tab.key
-                      ? 'border-orange-500 text-orange-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      ? 'bg-white text-orange-600 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
                   }`}
                 >
                   {tab.icon}
@@ -1163,231 +1139,171 @@ export function SuperAdminDashboard() {
   };
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-5">
-      {/* Header with clock, settings, logout */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-        <h1 className="text-xl sm:text-2xl font-bold">Super Admin</h1>
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          {activeTab === 'dashboard' && (
-            <>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50/50 via-white to-amber-50/30">
+      {/* Modern Header */}
+      <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-30">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-sm">
+                <Building2 className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h1 className="text-base sm:text-lg font-bold text-gray-900">Kamizo</h1>
+                <p className="text-[10px] text-gray-400 -mt-0.5 hidden sm:block">Super Admin Panel</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {activeTab === 'dashboard' && (
+                <>
+                  <button
+                    onClick={loadTenants}
+                    className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Обновить"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleCreateTenant}
+                    className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 flex items-center gap-1.5 text-xs sm:text-sm font-medium shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Добавить УК</span>
+                    <span className="sm:hidden">+ УК</span>
+                  </button>
+                </>
+              )}
+              {activeTab === 'analytics' && (
+                <button
+                  onClick={() => { setAnalytics(null); loadAnalytics(); }}
+                  className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 flex items-center gap-1.5 text-xs sm:text-sm font-medium shadow-sm"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Обновить
+                </button>
+              )}
+              {activeTab === 'ads' && (
+                <>
+                  <button
+                    onClick={() => { setAllAds([]); loadAds(); }}
+                    className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Обновить"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setShowAdModal(true)}
+                    className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 flex items-center gap-1.5 text-xs sm:text-sm font-medium shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Добавить рекламу</span>
+                    <span className="sm:hidden">+ Реклама</span>
+                  </button>
+                </>
+              )}
               <button
-                onClick={loadTenants}
-                className="p-2 border rounded-lg hover:bg-gray-50 text-gray-500"
-                title="Обновить"
+                onClick={() => navigate('/settings')}
+                className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Настройки"
               >
-                <RefreshCw className="w-4 h-4" />
+                <Settings className="w-4 h-4" />
               </button>
               <button
-                onClick={handleCreateTenant}
-                className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-1.5 text-xs sm:text-sm"
+                onClick={logout}
+                className="p-2 rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                title="Выйти"
               >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Добавить УК</span>
-                <span className="sm:hidden">+ УК</span>
+                <LogOut className="w-4 h-4" />
               </button>
-            </>
-          )}
-          {activeTab === 'analytics' && (
-            <button
-              onClick={() => { setAnalytics(null); loadAnalytics(); }}
-              className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-1.5 text-xs sm:text-sm"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Обновить
-            </button>
-          )}
-          {activeTab === 'ads' && (
-            <>
+            </div>
+          </div>
+
+          {/* Tabs - integrated into header */}
+          <div className="flex gap-0.5 overflow-x-auto scrollbar-hide -mb-px">
+            {([
+              { key: 'dashboard' as TabType, icon: <LayoutDashboard className="w-4 h-4" />, label: 'Дашборд' },
+              { key: 'analytics' as TabType, icon: <BarChart3 className="w-4 h-4" />, label: 'Аналитика' },
+              { key: 'ads' as TabType, icon: <Megaphone className="w-4 h-4" />, label: 'Реклама' },
+              { key: 'banners' as TabType, icon: <Image className="w-4 h-4" />, label: 'Баннеры' },
+              { key: 'users' as TabType, icon: <UserCog className="w-4 h-4" />, label: 'Пользователи' },
+            ]).map(tab => (
               <button
-                onClick={() => { setAllAds([]); loadAds(); }}
-                className="p-2 border rounded-lg hover:bg-gray-50 text-gray-500"
-                title="Обновить"
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 sm:px-4 py-2.5 font-medium text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                  activeTab === tab.key
+                    ? 'border-orange-500 text-orange-600 bg-orange-50/50'
+                    : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                }`}
               >
-                <RefreshCw className="w-4 h-4" />
+                {tab.icon}
+                {tab.label}
               </button>
-              <button
-                onClick={() => setShowAdModal(true)}
-                className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-1.5 text-xs sm:text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Добавить рекламу</span>
-                <span className="sm:hidden">+ Реклама</span>
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => navigate('/settings')}
-            className="p-2 border rounded-lg hover:bg-gray-50 text-gray-500"
-            title="Настройки"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-          <button
-            onClick={logout}
-            className="p-2 border rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600"
-            title="Выйти"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-5">
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+          <XCircle className="w-4 h-4 flex-shrink-0" />
           {error}
+          <button onClick={() => setError('')} className="ml-auto p-1 hover:bg-red-100 rounded-lg"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-0">
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`px-2.5 sm:px-4 py-2 sm:py-2.5 font-medium text-xs sm:text-sm border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === 'dashboard'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <LayoutDashboard className="w-4 h-4" />
-          <span className="hidden sm:inline">Дашборд</span>
-          <span className="sm:hidden">Дашборд</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-2.5 sm:px-4 py-2 sm:py-2.5 font-medium text-xs sm:text-sm border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === 'analytics'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4" />
-          <span className="hidden sm:inline">Аналитика</span>
-          <span className="sm:hidden">Аналит.</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('ads')}
-          className={`px-2.5 sm:px-4 py-2 sm:py-2.5 font-medium text-xs sm:text-sm border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === 'ads'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Megaphone className="w-4 h-4" />
-          <span className="hidden sm:inline">Реклама</span>
-          <span className="sm:hidden">Реклама</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('banners')}
-          className={`px-2.5 sm:px-4 py-2 sm:py-2.5 font-medium text-xs sm:text-sm border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === 'banners'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Image className="w-4 h-4" />
-          <span className="hidden sm:inline">Баннеры</span>
-          <span className="sm:hidden">Баннеры</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`px-2.5 sm:px-4 py-2 sm:py-2.5 font-medium text-xs sm:text-sm border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === 'users'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <UserCog className="w-4 h-4" />
-          <span className="hidden sm:inline">Пользователи</span>
-          <span className="sm:hidden">Юзеры</span>
-        </button>
-      </div>
 
       {/* ========== TAB: Dashboard ========== */}
       {activeTab === 'dashboard' && (
         <>
-          {/* Stat Cards - clickable */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-            <div
-              onClick={() => setStatFilter(statFilter === 'all' ? 'all' : 'all')}
-              className={`p-3 sm:p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
-                statFilter === 'all' ? 'bg-orange-50 border-orange-300 ring-2 ring-orange-200' : 'bg-white hover:shadow-md'
-              }`}
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-2 sm:p-2.5 bg-orange-100 rounded-lg">
-                  <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+          {/* Stat Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { key: 'all' as const, icon: Building2, label: 'Всего УК', value: totalStats.total, gradient: 'from-orange-500 to-amber-400', bg: 'bg-orange-50', border: 'border-orange-200', ring: 'ring-orange-200' },
+              { key: 'active' as const, icon: CheckCircle, label: 'Активных', value: totalStats.active, gradient: 'from-emerald-500 to-green-400', bg: 'bg-green-50', border: 'border-green-200', ring: 'ring-green-200' },
+              { key: 'users' as const, icon: Users, label: 'Жителей', value: totalStats.users, gradient: 'from-blue-500 to-cyan-400', bg: 'bg-blue-50', border: 'border-blue-200', ring: 'ring-blue-200' },
+              { key: 'revenue' as const, icon: DollarSign, label: 'Доход', value: `$${totalStats.revenue.toLocaleString('en-US')}`, gradient: 'from-purple-500 to-violet-400', bg: 'bg-purple-50', border: 'border-purple-200', ring: 'ring-purple-200' },
+            ].map(card => {
+              const Icon = card.icon;
+              const isActive = statFilter === card.key;
+              return (
+                <div
+                  key={card.key}
+                  onClick={() => setStatFilter(statFilter === card.key ? 'all' : card.key)}
+                  className={`relative overflow-hidden p-4 rounded-2xl cursor-pointer transition-all ${
+                    isActive ? `${card.bg} ${card.border} border-2 ring-2 ${card.ring}` : 'bg-white border border-gray-100 hover:shadow-lg hover:-translate-y-0.5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-sm`}>
+                      <Icon className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] sm:text-xs text-gray-400 font-medium uppercase tracking-wider">{card.label}</div>
+                      <div className="text-xl sm:text-2xl font-bold text-gray-900">{card.value}</div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[10px] sm:text-xs text-gray-500">Всего УК</div>
-                  <div className="text-lg sm:text-2xl font-bold">{totalStats.total}</div>
-                </div>
-              </div>
-            </div>
-            <div
-              onClick={() => setStatFilter(statFilter === 'active' ? 'all' : 'active')}
-              className={`p-3 sm:p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
-                statFilter === 'active' ? 'bg-green-50 border-green-300 ring-2 ring-green-200' : 'bg-white hover:shadow-md'
-              }`}
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-2 sm:p-2.5 bg-green-100 rounded-lg">
-                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
-                </div>
-                <div>
-                  <div className="text-[10px] sm:text-xs text-gray-500">Активных</div>
-                  <div className="text-lg sm:text-2xl font-bold">{totalStats.active}</div>
-                </div>
-              </div>
-            </div>
-            <div
-              onClick={() => setStatFilter(statFilter === 'users' ? 'all' : 'users')}
-              className={`p-3 sm:p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
-                statFilter === 'users' ? 'bg-primary-50 border-primary-300 ring-2 ring-primary-200' : 'bg-white hover:shadow-md'
-              }`}
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-2 sm:p-2.5 bg-primary-100 rounded-lg">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary-600" />
-                </div>
-                <div>
-                  <div className="text-[10px] sm:text-xs text-gray-500">Жителей</div>
-                  <div className="text-lg sm:text-2xl font-bold">{totalStats.users}</div>
-                </div>
-              </div>
-            </div>
-            <div
-              onClick={() => setStatFilter(statFilter === 'revenue' ? 'all' : 'revenue')}
-              className={`p-3 sm:p-5 rounded-xl shadow-sm border cursor-pointer transition-all ${
-                statFilter === 'revenue' ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-200' : 'bg-white hover:shadow-md'
-              }`}
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-2 sm:p-2.5 bg-purple-100 rounded-lg">
-                  <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
-                </div>
-                <div>
-                  <div className="text-[10px] sm:text-xs text-gray-500">Доход</div>
-                  <div className="text-lg sm:text-2xl font-bold">${totalStats.revenue.toLocaleString('en-US')}</div>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           {/* Master-Detail */}
           <div className="flex flex-col md:flex-row gap-4" style={{ minHeight: 'min(500px, calc(100vh - 370px))' }}>
           {/* Left: Tenant List */}
-          <div className="w-full md:w-80 md:flex-shrink-0 bg-white border border-gray-200 rounded-xl p-3 sm:p-4 space-y-3 overflow-y-auto shadow-sm max-h-[40vh] md:max-h-none">
+          <div className="w-full md:w-80 md:flex-shrink-0 bg-white border border-gray-100 rounded-2xl p-3 sm:p-4 space-y-3 overflow-y-auto shadow-sm max-h-[40vh] md:max-h-none">
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
               <input
                 type="text"
                 placeholder="Поиск УК..."
                 value={dashboardSearch}
                 onChange={(e) => setDashboardSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50/80 border border-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300 transition-all"
               />
             </div>
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
               {statFilter === 'active' ? 'Активные' : statFilter === 'users' ? 'По жителям ↓' : statFilter === 'revenue' ? 'По доходу ↓' : 'Управляющие компании'} ({tenants
                 .filter(t => {
                   if (statFilter === 'active' && !t.is_active) return false;
@@ -1409,38 +1325,41 @@ export function SuperAdminDashboard() {
               .map(tenant => (
               <div
                 key={tenant.id}
-                className={`p-3 rounded-xl cursor-pointer transition-all group ${
+                className={`p-3 rounded-2xl cursor-pointer transition-all group ${
                   selectedTenant?.id === tenant.id
-                    ? 'bg-orange-50 border border-orange-300 shadow-sm'
-                    : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50/50 border-2 border-orange-300/60 shadow-sm'
+                    : 'bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm'
                 }`}
                 onClick={() => loadTenantDetails(tenant)}
               >
                 <div className="flex items-center gap-3">
                   {tenant.logo ? (
-                    <img src={tenant.logo} alt={tenant.name} className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                    <img src={tenant.logo} alt={tenant.name} className="w-10 h-10 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
                   ) : (
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0"
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm"
                       style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
                     >
                       {tenant.name[0]}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm text-gray-900 truncate">{tenant.name}</div>
-                    <div className="text-xs text-gray-500 truncate">{tenant.url?.replace('https://', '') || `${tenant.slug}.${BASE_DOMAIN}`}</div>
+                    <div className="font-semibold text-sm text-gray-900 truncate">{tenant.name}</div>
+                    <div className="text-[11px] text-gray-400 truncate">{tenant.url?.replace('https://', '') || `${tenant.slug}.${BASE_DOMAIN}`}</div>
                   </div>
+                  {!tenant.is_active && (
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded-md text-[9px] font-medium flex-shrink-0">OFF</span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between mt-2 pl-[52px]">
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count}</span>
-                    <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count}</span>
-                    <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> {Number(tenant.revenue || 0)}</span>
+                  <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count || 0}</span>
+                    <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count || 0}</span>
+                    <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {(tenant as any).buildings_count || 0}</span>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDeleteTenant(tenant); }}
-                    className="p-1 text-gray-400 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1 text-gray-300 hover:text-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
                     title="Удалить"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1451,7 +1370,7 @@ export function SuperAdminDashboard() {
           </div>
 
             {/* Right: Detail View */}
-            <div className="flex-1 bg-gray-50 rounded-xl border p-4 sm:p-5 overflow-y-auto max-h-[60vh] md:max-h-none">
+            <div className="flex-1 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 overflow-y-auto max-h-[60vh] md:max-h-none shadow-sm">
               {renderTenantDetail()}
             </div>
           </div>
@@ -2726,7 +2645,10 @@ export function SuperAdminDashboard() {
                   <label className="block text-sm font-medium mb-1">Тариф</label>
                   <select
                     value={formData.plan}
-                    onChange={(e) => setFormData({ ...formData, plan: e.target.value as any })}
+                    onChange={(e) => {
+                      const plan = e.target.value as 'basic' | 'pro' | 'enterprise';
+                      setFormData({ ...formData, plan, features: PLAN_FEATURES[plan] || PLAN_FEATURES.basic });
+                    }}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
                     <option value="basic">Basic</option>
@@ -2842,49 +2764,50 @@ export function SuperAdminDashboard() {
       {activeTab === 'users' && (
         <div className="space-y-4">
           {/* Filters */}
-          <div className="flex flex-wrap gap-2">
-            <div className="flex-1 min-w-[200px] relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Поиск по логину, имени, телефону..."
-                value={usersSearch}
-                onChange={(e) => setUsersSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') loadUsers(1, usersSearch, usersRoleFilter, usersTenantFilter); }}
-                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-              />
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              <div className="flex-1 min-w-[200px] relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                <input
+                  type="text"
+                  placeholder="Поиск по логину, имени, телефону..."
+                  value={usersSearch}
+                  onChange={(e) => setUsersSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') loadUsers(1, usersSearch, usersRoleFilter, usersTenantFilter); }}
+                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50/80 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300 transition-all"
+                />
+              </div>
+              <select
+                value={usersRoleFilter}
+                onChange={(e) => { setUsersRoleFilter(e.target.value); loadUsers(1, usersSearch, e.target.value, usersTenantFilter); }}
+                className="px-3 py-2.5 bg-gray-50/80 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300"
+              >
+                <option value="">Все роли</option>
+                {Object.entries(ROLE_LABELS_MAP).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+                <option value="super_admin">Супер админ</option>
+              </select>
+              <select
+                value={usersTenantFilter}
+                onChange={(e) => { setUsersTenantFilter(e.target.value); loadUsers(1, usersSearch, usersRoleFilter, e.target.value); }}
+                className="px-3 py-2.5 bg-gray-50/80 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300"
+              >
+                <option value="">Все компании</option>
+                {tenants.map(t => <option key={t.slug} value={t.slug}>{t.name}</option>)}
+              </select>
+              <button
+                onClick={() => loadUsers(1, usersSearch, usersRoleFilter, usersTenantFilter)}
+                className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-medium hover:from-orange-600 hover:to-amber-600 flex items-center gap-2 shadow-sm"
+              >
+                <Search className="w-4 h-4" />
+                Найти
+              </button>
             </div>
-            <select
-              value={usersRoleFilter}
-              onChange={(e) => { setUsersRoleFilter(e.target.value); loadUsers(1, usersSearch, e.target.value, usersTenantFilter); }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-            >
-              <option value="">Все роли</option>
-              {['super_admin','admin','director','manager','dispatcher','executor','security','department_head','resident','tenant','advertiser','marketplace_manager'].map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-            <select
-              value={usersTenantFilter}
-              onChange={(e) => { setUsersTenantFilter(e.target.value); loadUsers(1, usersSearch, usersRoleFilter, e.target.value); }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-            >
-              <option value="">Все компании</option>
-              {tenants.map(t => <option key={t.slug} value={t.slug}>{t.name}</option>)}
-            </select>
-            <button
-              onClick={() => loadUsers(1, usersSearch, usersRoleFilter, usersTenantFilter)}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Найти
-            </button>
-          </div>
-
-          {/* Count */}
-          <div className="text-sm text-gray-500">
-            Найдено: <span className="font-semibold text-gray-800">{usersTotal}</span> пользователей
-            {' · '}Показано: <span className="font-semibold">{allUsers.length}</span>
+            <div className="text-xs text-gray-400 mt-3">
+              Найдено: <span className="font-semibold text-gray-600">{usersTotal}</span> пользователей
+              {' · '}Показано: <span className="font-semibold text-gray-600">{allUsers.length}</span>
+            </div>
           </div>
 
           {/* Table */}
@@ -2893,10 +2816,10 @@ export function SuperAdminDashboard() {
               <RefreshCw className="w-6 h-6 animate-spin text-orange-400" />
             </div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-gray-50/80 border-b border-gray-100">
                     <tr>
                       <th className="text-left px-4 py-2.5 font-medium text-gray-600 whitespace-nowrap">Компания</th>
                       <th className="text-left px-4 py-2.5 font-medium text-gray-600 whitespace-nowrap">Имя</th>
@@ -2981,6 +2904,7 @@ export function SuperAdminDashboard() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
