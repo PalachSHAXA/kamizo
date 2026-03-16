@@ -56,7 +56,7 @@ export function ExecutorSchedulePage() {
   }, [scheduledRequests]);
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('ru-RU', {
+    return new Date(dateStr).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -149,7 +149,7 @@ export function ExecutorSchedulePage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="font-medium min-w-[140px] text-center">
-                {selectedDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
+                {selectedDate.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long', year: 'numeric' })}
               </span>
               <button
                 onClick={() => {
@@ -271,7 +271,7 @@ export function ExecutorSchedulePage() {
           <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-amber-500" />
             {selectedCalendarDate
-              ? `${language === 'ru' ? 'Заявки на' : 'Arizalar'} ${new Date(selectedCalendarDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
+              ? `${language === 'ru' ? 'Заявки на' : 'Arizalar'} ${new Date(selectedCalendarDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'long' })}`
               : (language === 'ru' ? 'Предстоящие заявки' : 'Kelayotgan arizalar')
             }
             {selectedCalendarDate && (
@@ -386,7 +386,7 @@ export function ExecutorSchedulePage() {
                           </span>
                           {!selectedCalendarDate && (
                             <span className="text-xs text-gray-400">
-                              {scheduleDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                              {scheduleDate.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' })}
                             </span>
                           )}
                         </div>
@@ -469,7 +469,7 @@ export function ExecutorSchedulePage() {
                     {request.scheduledDate && (
                       <span className="flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-lg text-xs font-medium">
                         <CalendarDays className="w-3 h-3" />
-                        {new Date(request.scheduledDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                        {new Date(request.scheduledDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' })}
                         {request.scheduledTime && ` ${request.scheduledTime}`}
                       </span>
                     )}
@@ -513,7 +513,7 @@ export function ExecutorSchedulePage() {
                     {language === 'ru' ? 'Желаемое время выполнения' : 'Kerakli vaqt'}
                   </h3>
                   <div className="flex items-center gap-4 text-primary-700">
-                    <span>{new Date(selectedRequest.scheduledDate).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                    <span>{new Date(selectedRequest.scheduledDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
                     {selectedRequest.scheduledTime && (
                       <span className="flex items-center gap-1">
                         <Clock className="w-4 h-4" />

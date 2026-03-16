@@ -185,6 +185,7 @@ export function Notepad({ userId }: NotepadProps) {
                     onClick={() => setEditingNote(note)}
                     className="p-1.5 hover:bg-white/50 rounded-lg text-gray-500 hover:text-blue-600"
                     title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
+                    aria-label={language === 'ru' ? `Редактировать заметку "${note.title}"` : `"${note.title}" yozuvni tahrirlash`}
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
@@ -192,6 +193,7 @@ export function Notepad({ userId }: NotepadProps) {
                     onClick={() => deleteNote(note.id)}
                     className="p-1.5 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600"
                     title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
+                    aria-label={language === 'ru' ? `Удалить заметку "${note.title}"` : `"${note.title}" yozuvni o'chirish`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -278,6 +280,7 @@ function NoteModal({
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+            aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
@@ -295,6 +298,7 @@ function NoteModal({
               placeholder={language === 'ru' ? 'Название заметки...' : 'Yozuv nomi...'}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-all"
               autoFocus
+              aria-label={language === 'ru' ? 'Заголовок заметки' : 'Yozuv sarlavhasi'}
             />
           </div>
           <div>
@@ -307,6 +311,7 @@ function NoteModal({
               placeholder={language === 'ru' ? 'Ваши заметки, задачи, планы...' : 'Yozuvlaringiz, vazifalaringiz, rejalaringiz...'}
               rows={8}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-all resize-none"
+              aria-label={language === 'ru' ? 'Содержание заметки' : 'Yozuv mazmuni'}
             />
           </div>
         </div>

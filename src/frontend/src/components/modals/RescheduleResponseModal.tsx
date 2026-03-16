@@ -29,7 +29,7 @@ export default function RescheduleResponseModal({
             <RefreshCw className="w-5 h-5" />
             {language === 'ru' ? 'Запрос на перенос' : 'Ko\'chirish so\'rovi'}
           </h2>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -70,6 +70,7 @@ export default function RescheduleResponseModal({
                 onChange={(e) => setRejectNote(e.target.value)}
                 className="input-field min-h-[80px]"
                 placeholder={language === 'ru' ? 'Укажите причину...' : 'Sababni yozing...'}
+                aria-label={language === 'ru' ? 'Причина отказа' : 'Rad etish sababi'}
               />
               <div className="flex gap-3">
                 <button onClick={() => setShowRejectForm(false)} className="btn-secondary flex-1 min-h-[44px] touch-manipulation">

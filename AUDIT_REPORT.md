@@ -1,314 +1,257 @@
-# KAMIZO — Сравнительный аудит «ДО и ПОСЛЕ»
+# Project Audit Report
 
-**Дата:** 16 марта 2026
-**Контекст:** За последние 2 дня проведены масштабные улучшения проекта
-
----
-
-## 1. СВОДНАЯ ТАБЛИЦА
-
-| Метрика | Было (14 марта) | Стало (16 марта) | Δ Изменение |
-|---------|:---:|:---:|:---:|
-| **index.ts (бэкенд)** | ~17 546 строк (701 КБ) | **679 строк** (entry point) | 🟢 **−96%** |
-| **Route-модули** | 1 файл (монолит) | **11 модулей** (16 497 строк) | 🟢 Декомпозиция |
-| **Аутентификация** | Raw user.id fallback | **JWT (HMAC-SHA256)** + fallback | 🟢 Улучшена |
-| **password_plain в БД** | Колонка существовала | **Удалена из schema.sql** | 🟢 Исправлено |
-| **Хеширование паролей** | SHA-256 / AES-GCM | **PBKDF2 (10K итераций)** + legacy-совместимость | 🟢 Улучшено |
-| **CORS** | Не проверено | **Whitelist** (kamizo.uz + localhost) | 🟢 Безопасно |
-| **XSS (dangerouslySetInnerHTML)** | Не проверено | **0 использований** | 🟢 Чисто |
-| **ProtectedRoute** | Не проверено | **Есть** (role-based guard) | 🟢 Работает |
-| **Секреты в wrangler.toml** | Не проверено | **Нет** (JWT_SECRET через `wrangler secret`) | 🟢 Безопасно |
-| **Rate Limiting** | Не проверено | **Есть** (KV-based, graceful fallback) | 🟢 Работает |
-| **Таблиц в schema.sql** | ~63 | **68** | 🟢 +5 таблиц |
-| **Таблиц с tenant_id** | Частично | **68 из 68 (100%)** | 🟢 Полное покрытие |
-| **Таблица payments** | Отсутствовала | **Есть** | 🟢 Добавлена |
-| **meter_readings.consumption** | Не проверено | **Есть** | 🟢 Работает |
-| **Backend TypeScript** | Не проверено | **0 ошибок** (tsc --noEmit) | 🟢 Чисто |
-| **Frontend build** | Не проверено | **Проходит** (9.27s, 5.9 МБ) | 🟢 Работает |
-| **Тесты** | 0 | **0** | 🔴 Без изменений |
-| **Мобильное приложение** | 2 экрана | **2 экрана** | 🟡 Без изменений |
+**Project:** Kamizo (UK-CRM / Property Management Platform)
+**Date:** 2026-03-14
+**Auditor:** Claude (Cowork)
 
 ---
 
-## 2. БЕЗОПАСНОСТЬ — детальный анализ
+## Executive Summary
 
-### 2.1 Аутентификация: 🟢 ЗНАЧИТЕЛЬНО УЛУЧШЕНА
+Kamizo is a multi-tenant property management platform built on React + Vite (frontend) and Cloudflare Workers + D1 SQLite (backend), serving residential communities in Uzbekistan with Russian/Uzbek language support. The codebase totals ~91,456 lines of TypeScript across 191 source files, with a 16,533-line monolithic backend handler and a well-structured frontend of 69,528 lines.
 
-**Было:** Предположительно raw user.id в качестве токена.
+**Overall Health Score: 5.5 / 10**
 
-**Стало:** Полноценная JWT-аутентификация (`cloudflare/src/utils/crypto.ts`):
-- JWT формат: HMAC-SHA256 через Web Crypto API
-- Payload: `{userId, role, tenantId, iat, exp}`
-- Проверка expiry при каждом запросе
-- Backward-compatible fallback для старых сессий (raw user.id как промежуточная мера)
-- Секрет JWT хранится в Cloudflare Secrets, НЕ в коде
+The project demonstrates strong architectural intuition -- clean frontend structure with Zustand stores, facade patterns for backward compatibility, lazy-loaded routes, optimistic updates, and a comprehensive database schema of 60+ tables. The CI/CD pipeline via GitHub Actions is functional, and the Husky pre-commit hooks enforce TypeScript compilation and secrets scanning.
 
-**Middleware (`cloudflare/src/middleware/auth.ts`):**
-- Tenant-aware кеширование пользователя (60 секунд)
-- Автоматическое определение tenant_id из пользователя
-- Feature-gating для ролей (блокировка advertiser без лицензии)
+However, the project suffers from several critical deficiencies that must be resolved before production: (1) **hardcoded encryption key in version control** used for reversible password storage, (2) **zero test files** across the entire codebase creating extreme regression risk, and (3) **weak multi-tenancy enforcement** where tenant isolation is conditional rather than mandatory, allowing potential cross-tenant data leakage.
 
-**⚠️ Оставшийся риск:** Строка 38 в auth.ts — `const userId = payload ? payload.userId : token` — если JWT невалиден, принимается raw token как userId. Это нужно для обратной совместимости, но является вектором атаки. **Рекомендация:** Добавить deadline для удаления fallback (после того как все клиенты перелогинятся).
-
-### 2.2 Пароли: 🟢 ИСПРАВЛЕНО
-
-**Было:** Миграция `019_add_password_plain_for_admin.sql` добавляла колонку `password_plain`.
-
-**Стало:**
-- Колонка `password_plain` **удалена из schema.sql** (подтверждено grep)
-- В коде остался только комментарий: *"password_plain column dropped for security"* (`routes/users.ts:1309`)
-- Хеширование паролей: **PBKDF2 с 10 000 итерациями** (SHA-256, 16-байт salt)
-- Формат хранения: `iterations:saltB64:hashB64`
-- Legacy-совместимость: поддержка старых SHA-256 хешей с автомиграцией
-- AES-GCM шифрование сохранено для отдельных случаев
-
-**⚠️ Рекомендация:** 10 000 итераций PBKDF2 — минимально допустимо для Cloudflare Workers (CPU лимиты). Для standalone сервера повысить до 600 000+.
-
-### 2.3 CORS: 🟢 БЕЗОПАСНО
-
-**`cloudflare/src/middleware/cors.ts`:**
-- Whitelist: `app.kamizo.uz`, `kamizo.uz`, `www.kamizo.uz`, `localhost:5173`, `localhost:3000`
-- Динамические поддомены: `*.kamizo.uz` через regex
-- Не-разрешённые origins → fallback на `https://app.kamizo.uz`
-- **Нет wildcard `*`** в production
-
-### 2.4 XSS: 🟢 ЧИСТО
-
-- `dangerouslySetInnerHTML` — **0 использований** во всём фронтенде (подтверждено grep)
-
-### 2.5 Rate Limiting: 🟢 РАБОТАЕТ
-
-**`cloudflare/src/middleware/rateLimit.ts`:**
-- Хранение в Cloudflare KV (`RATE_LIMITER`)
-- Лимиты: login: 5/мин, register: 60/мин, default: 100/мин
-- **Graceful fallback:** при ошибке KV → `allowed: true` (не блокирует пользователей)
-- Идентификация: user.id (если авторизован) или CF-Connecting-IP
-
-### 2.6 ProtectedRoute: 🟢 РАБОТАЕТ
-
-**`src/frontend/src/components/ProtectedRoute.tsx`:**
-- Проверка наличия token и user
-- Role-based access control через `allowedRoles` prop
-- Redirect на /login при отсутствии авторизации
-- Redirect на / при недостаточных правах
-
-### 2.7 Multi-tenancy: 🟢 ПОЛНАЯ
-
-- **68 из 68 таблиц** имеют `tenant_id` (100% покрытие)
-- Middleware `tenant.ts` устанавливает tenant для каждого запроса
-- Tenant-aware кеширование в auth middleware
-
-### 2.8 Эндпоинты без явной auth-проверки: 🟡 ТРЕБУЕТ ВНИМАНИЯ
-
-Из **332 route-определений**, **57 не имеют `getUser` в первых 10 строках обработчика**. Среди них:
-
-**Допустимо без auth (public API):**
-- `POST /api/auth/login` — вход
-- `GET /api/health` — healthcheck
-- `GET /api/push/vapid-key` — публичный VAPID ключ
-- `GET /api/tenant/config` — конфигурация тенанта
-- `GET /api/categories` — категории заявок
-- `GET /api/ws` — WebSocket (авторизация внутри)
-
-**⚠️ Потенциально опасные (требуют проверки):**
-- `GET /api/buildings/:id` — данные здания без auth
-- `GET /api/owners`, `GET /api/owners/:id` — данные собственников без auth
-- `GET /api/accounts/:id`, `GET /api/accounts/debtors` — финансовые данные без auth
-- `GET /api/apartments/:apartmentId/residents` — данные жителей без auth
-- `GET /api/meters/:meterId/readings` — показания счётчиков без auth
-- `POST /api/meetings/:id/open-voting`, `/close-voting`, `/publish-results` — управление голосованием без auth
-- `GET /api/training/proposals`, `/partners` — данные о тренингах без auth
-- `GET /api/ads/categories` — категории рекламы (приемлемо)
-- `GET /api/marketplace/products` — товары (приемлемо)
-
-**Рекомендация:** Для 20+ из 57 "открытых" эндпоинтов необходимо добавить auth-проверку, особенно для owners, accounts, debtors, residents и meetings-управления.
+**Top 3 Strengths:** Excellent frontend architecture with optimistic updates and error boundaries; comprehensive database schema with 140+ indexes; functional CI/CD with pre-commit hooks.
 
 ---
 
-## 3. АРХИТЕКТУРА — детальный анализ
+## Critical Issues (fix immediately)
 
-### 3.1 Декомпозиция бэкенда: 🟢 ВЫПОЛНЕНА
+1. **Hardcoded encryption key in source control** -- `cloudflare/wrangler.toml` line 17: `ENCRYPTION_KEY = "K4m1z0-S3cur3-Encrypt10n-2026!"` is committed to git. Anyone with repo access can decrypt all stored passwords. Move to Cloudflare Secrets immediately.
 
-**Было:** 1 монолитный файл `index.ts` — 17 546 строк (701 КБ).
+2. **Reversible password storage** -- `cloudflare/schema.sql` line 9: `password_plain TEXT` column stores AES-GCM encrypted (not hashed) passwords. Combined with #1, this exposes every user credential. Remove this column entirely and use password resets instead.
 
-**Стало:** Модульная архитектура из 11 route-файлов:
+3. **SQL injection via LIKE interpolation** -- `cloudflare/src/index.ts` line ~12786: notification tag value is interpolated directly into a LIKE pattern (`%"tag":"${notification.tag}"%`) instead of being parameterized. Use `json_extract(data, '$.tag') = ?` with bound parameters.
 
-| Модуль | Строк | Описание |
-|--------|:---:|---------|
-| `meetings.ts` | 3 142 | Собрания, голосование, протоколы |
-| `buildings.ts` | 2 728 | Здания, квартиры, счётчики, жители |
-| `marketplace.ts` | 2 034 | Маркетплейс, рекламная платформа |
-| `users.ts` | 1 748 | Auth, users, team, executors |
-| `misc.ts` | 1 578 | WebSocket, настройки, мониторинг |
-| `requests.ts` | 1 459 | Заявки, жизненный цикл |
-| `rentals.ts` | 1 118 | Аренда, гостевой доступ |
-| `training.ts` | 966 | Тренинги, голосование, отзывы |
-| `super-admin.ts` | 851 | Super admin панель |
-| `notifications.ts` | 847 | Push-уведомления, подписки |
-| `index.ts` (barrel) | 26 | Регистрация всех модулей |
-| **Итого** | **16 497** | |
+4. **Conditional multi-tenancy filtering** -- Throughout `cloudflare/src/index.ts`: tenant_id filtering uses pattern `if (tenantId) { whereClause += ... }`, making isolation optional. Routes like `DELETE /api/users/:id` (line ~1085) and building cascade deletes (lines ~4666-4684) lack tenant verification entirely.
 
-**Entry point `index.ts`**: 679 строк — только инициализация, middleware-цепочка, миграции и fetch handler.
+5. **WebSocket authentication bypass** -- `cloudflare/src/index.ts` lines 63-102: WebSocket endpoint accepts raw user ID as query parameter token, bypasses `getUser()` middleware, skips tenant validation, and exposes tokens in URL logs.
 
-**Паттерн маршрутизации:** Custom framework-agnostic router (`router.ts`) с функцией `route(method, path, handler)`. Подготовлен к миграции на Express/Hono/Fastify.
+6. **Rate limiter fails open** -- `cloudflare/src/middleware/rateLimit.ts` lines 54-57: on KV error, returns `allowed: true` with 99 remaining. Attackers can exploit KV degradation for brute-force attacks. Must fail closed.
 
-### 3.2 Фронтенд — структура: 🟡 БЕЗ ИЗМЕНЕНИЙ
+7. **Zero test coverage** -- No test files exist anywhere in the project (0 `.test.*` or `.spec.*` files). No jest/vitest configuration. Any refactoring or feature addition carries extreme regression risk.
 
-Гигантские страницы остаются:
-
-| Страница | Размер | ~Строк |
-|----------|:---:|:---:|
-| SuperAdminDashboard.tsx | 151 КБ | ~3 782 |
-| BuildingsPage.tsx | 115 КБ | ~2 881 |
-| ManagerDashboard.tsx | 100 КБ | ~2 491 |
-| ResidentDashboard.tsx | 98 КБ | ~2 442 |
-
-**Рекомендация:** Декомпозиция топ-10 страниц (>60 КБ) на sub-components.
-
-### 3.3 Build: 🟢 ПРОХОДИТ
-
-- Build: **✅ успешен** (9.27s, 2 734 модуля)
-- Размер: 5.9 МБ (115 ассетов)
-- Крупнейшие чанки (требуют оптимизации):
-
-| Чанк | Размер | gzip |
-|------|:---:|:---:|
-| exceljs | 938 КБ | 271 КБ |
-| charts (recharts) | 654 КБ | 189 КБ |
-| xlsx | 428 КБ | 143 КБ |
-| index (React core) | 321 КБ | 90 КБ |
-| docx-gen | 264 КБ | 87 КБ |
-
-**Рекомендация:** exceljs (938 КБ) и xlsx (428 КБ) дублируют функциональность. Оставить один.
+8. **No LICENSE file** -- Repository has no license file, making the code legally ambiguous for contributors and deployment.
 
 ---
 
-## 4. БАЗА ДАННЫХ
+## Warnings (fix soon)
 
-| Метрика | Было | Стало |
-|---------|:---:|:---:|
-| Таблиц всего | ~63 | **68** |
-| Таблиц с tenant_id | Частично | **68/68 (100%)** |
-| password_plain | Существовала | **Удалена** |
-| Таблица payments | Нет | **Есть** |
-| Индексы | Disabled (.disabled) | Включены в schema.sql |
-| Миграций | 39 файлов | 39 файлов (без изменений) |
+1. **Monolithic backend handler** -- `cloudflare/src/index.ts` at 16,533 lines contains all ~200+ routes in a single file. Split into route modules (`routes/auth.ts`, `routes/users.ts`, etc.).
 
-**Новые/обновлённые таблицы:**
-- `payments` — оплаты (apartment_id, amount, payment_type, period)
-- `uk_satisfaction_ratings` — рейтинг УК от жителей (monthly)
-- `ad_tenant_assignments` — привязка рекламы к тенантам
-- `coming_soon_banners` — баннеры скоро будет
+2. **Missing database indexes for common queries** -- No composite indexes on `(tenant_id, role)` for users, `(channel_id, created_at)` for chat_messages, `(user_id, created_at)` for notifications, `(resident_id, status)` for requests.
 
-**Индексы:** 130+ индексов в schema.sql, включая composite indexes для 5000+ пользователей:
-- `idx_requests_status_created`, `idx_requests_building_status`
-- `idx_users_building_role`, `idx_users_role_active`
-- `idx_personal_accounts_debt` (partial index WHERE current_debt > 0)
+3. **Training tables lack tenant_id** -- Tables `training_partners`, `training_proposals`, `training_votes`, `training_registrations`, `training_feedback`, `training_notifications` in schema.sql have no `tenant_id` column, breaking multi-tenancy.
 
----
+4. **N+1 query in push notifications** -- `cloudflare/src/index.ts` lines ~2603-2615 + ~12724: broadcasting to N residents fires N separate `SELECT * FROM push_subscriptions` queries. Batch with `WHERE user_id IN (...)`.
 
-## 5. TypeScript КАЧЕСТВО
+5. **Pagination defaults too permissive** -- `cloudflare/src/utils/helpers.ts` line ~34: default limit 500, max 5000. Cloudflare Workers have CPU time limits. Reduce to default 50, max 500.
 
-| Метрика | Бэкенд | Фронтенд | Итого |
-|---------|:---:|:---:|:---:|
-| **tsc --noEmit** | **0 ошибок** ✅ | N/A (virtiofs deadlock) | — |
-| Использований `any` | 680 | 473 | **1 153** |
-| `as any` кастов | 431 | 83 | **514** |
-| `@ts-ignore` | 0 | 1 | **1** |
-| Всего строк | 19 587 | 70 547 | **90 134** |
-| Файлов типов | types.ts (1.1 КБ) | 21 файл (82 КБ) | — |
+6. **Minimal accessibility** -- Frontend has only ~3 ARIA attributes total. No `aria-label`, `aria-modal`, `role="dialog"`, focus traps, or keyboard navigation. Fails WCAG 2.1 Level AA.
 
-**Оценка:** Backend компилируется чисто. Количество `any` высокое (особенно backend: 680), но для D1 (возвращает `any` из queries) это ожидаемо. Frontend имеет хорошую типизацию в types/ (21 файл).
+7. **430 uses of `any` type** -- Across frontend TypeScript files. While some are acceptable for API response mapping, many should be properly typed.
+
+8. **Inconsistent migration file naming** -- `cloudflare/migrations/` uses mixed formats: `0001_`, `001_`, `003_`, `0008_`, with suffixes like `.applied`, `.disabled`, `.skip`. Standardize naming convention.
+
+9. **No external monitoring/observability** -- `cloudflare/src/monitoring.ts` exists but uses in-memory metrics lost on restart. No Sentry, Datadog, or Cloudflare Analytics integration.
+
+10. **Hardcoded i18n strings** -- Frontend uses inline ternary pattern (`language === 'ru' ? '...' : '...'`) scattered throughout components. Some strings are hardcoded in Russian only (e.g., requestStore.ts line ~179: "Novaya zayavka").
+
+11. **No empty states in list components** -- Frontend lists don't show "no data" messages when results are empty.
+
+12. **CORS includes localhost origins** -- `cloudflare/src/middleware/cors.ts` lines 8-9 include `http://localhost:5173` and `http://localhost:3000` in production config.
+
+13. **Database ID exposed in wrangler.toml** -- `database_id = "e83916ec-941f-420e-86fc-8760dd430aec"` and KV namespace ID committed to source control.
+
+14. **Data residency compliance risk** -- Cloudflare Workers deploy globally (US/EU edge). Uzbekistan data protection law may require local data storage. Evaluate compliance requirements.
 
 ---
 
-## 6. ФУНКЦИОНАЛЬНОСТЬ — статус фич
+## Strengths
 
-| # | Фича | UI | API | Store | Статус |
-|---|------|:--:|:---:|:-----:|:------:|
-| 1 | Авторизация (JWT) | ✅ | ✅ | ✅ | 🟢 |
-| 2 | Заявки | ✅ | ✅ | ✅ | 🟢 |
-| 3 | Здания/квартиры/жители | ✅ | ✅ | ✅ | 🟢 |
-| 4 | Собрания/голосование | ✅ | ✅ | ✅ | 🟢 |
-| 5 | Чат/WebSocket | ✅ | ✅ | ✅ | 🟢 |
-| 6 | Объявления | ✅ | ✅ | ✅ | 🟢 |
-| 7 | Гостевой QR | ✅ | ✅ | ✅ | 🟢 |
-| 8 | Транспорт | ✅ | ✅ | ✅ | 🟢 |
-| 9 | Маркетплейс | ✅ | ✅ | — | 🟢 |
-| 10 | Рекламная платформа | ✅ | ✅ | — | 🟢 |
-| 11 | Наряд-заказы | ✅ | — | — | 🟢 |
-| 12 | Аренда | ✅ | ✅ | ✅ | 🟢 |
-| 13 | Тренинги | ✅ | ✅ | ✅ | 🟢 |
-| 14 | Счётчики/показания | ✅ | ✅ | ✅ | 🟢 |
-| 15 | Платежи | Встроены | ✅ | — | 🟡 |
-| 16 | Push-уведомления | ✅ | ✅ | ✅ | 🟢 |
-| 17 | Рейтинг сотрудников | ✅ | ✅ | ✅ | 🟢 |
-| 18 | i18n (RU/UZ) | ✅ | — | ✅ (46 КБ) | 🟢 |
-| 19 | Мобильное приложение | 2 экрана | ✅ | ✅ | 🔴 |
-| 20 | Тесты | — | — | — | 🔴 |
+1. **Excellent frontend architecture** -- Clean separation into components, pages, stores, services, types, and utils. Facade pattern (crmStore, dataStore) maintains backward compatibility while allowing modular growth. 60+ routes lazy-loaded with React.lazy/Suspense.
+
+2. **Production-grade error handling on frontend** -- ErrorBoundary.tsx (328 lines) includes error logging, count tracking to prevent infinite loops, user-friendly recovery UI, and optional monitoring integration.
+
+3. **Optimistic updates with rollback** -- requestStore and vehicleStore implement optimistic UI updates with automatic rollback on API failure -- a mature pattern for perceived performance.
+
+4. **Comprehensive database schema** -- 60+ tables with 140+ indexes covering buildings, apartments, meters, meetings (with UzR voting law compliance), CRM, chat, marketplace, work orders, and more.
+
+5. **CI/CD pipeline functional** -- GitHub Actions workflow handles frontend build, asset copy, and Cloudflare Workers deploy on push to main. Husky pre-commit runs TypeScript checks and secrets scanning.
+
+6. **API caching layer** -- Frontend implements request deduplication + TTL-based cache (SHORT: 10s, MEDIUM: 60s, LONG: 120s) preventing redundant network calls.
+
+7. **WebSocket real-time sync** -- WebSocket-based sync for chat and notifications with exponential backoff on reconnection, replacing polling for most real-time features.
+
+8. **Zustand store architecture** -- 21 focused stores with proper TypeScript interfaces, selective subscriptions, and clear responsibility boundaries.
+
+9. **Vite build optimization** -- Code splitting isolates heavy libraries (exceljs, recharts, docx, qr-scanner) into separate chunks. Console.log stripped in production. Source maps available for debugging.
+
+10. **Multi-language support** -- Russian and Uzbek with centralized label constants (STATUS_LABELS, SPECIALIZATION_LABELS) for enums.
 
 ---
 
-## 7. ОСТАВШИЕСЯ ПРОБЛЕМЫ
+## Detailed Findings
 
-### 🔴 Критические
+### 1. Code & Architecture
 
-| # | Проблема | Рекомендация | Часы |
-|---|----------|-------------|:---:|
-| 1 | **0 автоматических тестов** | Vitest + тесты auth, requests, meetings | 80 |
-| 2 | **57 эндпоинтов без явной auth-проверки** | Добавить getUser + role check для ~20 опасных | 16 |
-| 3 | **JWT fallback на raw user.id** | Установить deadline и убрать fallback | 4 |
-| 4 | **Нет staging-окружения** | wrangler.staging.toml + отдельная D1 | 16 |
+**Project Structure:**
+The project follows a clean top-level organization: `src/frontend/` (React+Vite), `cloudflare/` (Workers backend), `mobile/` (mobile app), `docs/`, `scripts/`, `load-tests/`, and `audit/`. The frontend internal structure is excellent with dedicated folders for components, pages, stores, services/api, types, and utils.
 
-### 🟡 Серьёзные
+The backend, however, is a single monolithic file (`cloudflare/src/index.ts` at 16,533 lines) containing all route handlers, business logic, and data access. Supporting modules exist (`auth.ts`, `cors.ts`, `rateLimit.ts`, `cache-local.ts`, `helpers.ts`, `ConnectionManager.ts`, `monitoring.ts`) but the core handler needs splitting.
 
-| # | Проблема | Рекомендация | Часы |
-|---|----------|-------------|:---:|
-| 5 | **Мобильное — 2 экрана из 50+** | MVP: заявки, чат, профиль, уведомления | 200 |
-| 6 | **Фронт: 10 страниц >60 КБ** | Декомпозиция в sub-components | 60 |
-| 7 | **Bundle: exceljs + xlsx дублируют** | Убрать один (−1.3 МБ) | 4 |
-| 8 | **1 153 использований `any`** | Постепенная типизация | 40 |
-| 9 | **Хаос в миграциях (дубликаты, .skip, .disabled)** | Консолидация | 16 |
-| 10 | **Нет API-документации** | OpenAPI/Swagger из route definitions | 24 |
+**Tech Stack Assessment:**
+React 18.3 + Vite 7.2.4 + Zustand 5 + Tailwind CSS is a modern, appropriate stack for this SPA. Cloudflare Workers + D1 is a reasonable choice for edge deployment but imposes constraints (SQLite, CPU time limits, no persistent connections). The stack is up to date with no critically outdated dependencies.
+
+**Code Quality:**
+Frontend code quality is high -- zero dead code blocks, zero commented-out code, consistent naming conventions (camelCase variables, PascalCase components). Backend code quality is functional but suffers from the monolith problem. Error handling in the backend uses generic catch blocks without structured logging or request correlation IDs. Frontend ErrorBoundary is production-grade.
+
+**Security Vulnerabilities:**
+See Critical Issues #1-6. Additionally: no Content-Security-Policy headers detected, no CSRF protection mentioned, file upload validation relies on MIME type checking without content inspection (`cloudflare/src/index.ts` upload handler).
+
+**Performance:**
+Frontend: good code splitting, lazy loading, memoization (23 useMemo/useCallback instances, React.memo on key components). Backend: N+1 query patterns in push notifications and user listing (subquery per row for vehicle_count), LIKE-based JSON searching instead of json_extract(), no query timeouts.
+
+**Database Schema:**
+Well-designed with 60+ tables, 140+ indexes, proper foreign keys, and meeting/voting system aligned with Uzbekistan housing law. Issues: missing composite indexes for tenant-scoped queries, inconsistent CASCADE behavior, training tables lacking tenant_id, some UNIQUE constraints missing tenant scope.
+
+**API Design:**
+RESTful conventions followed (~200+ endpoints). No API versioning (`/api/*` without version prefix). Inconsistent error response formats (some return `{error: "..."}`, others `{success: true, ...}`). Rate limiting implemented but fails open. Input validation is minimal -- Zod is a dependency but not used for request validation.
+
+**Environment & Config:**
+Encryption key hardcoded in wrangler.toml (committed). Database and KV IDs exposed. `.env.local` exists in cloudflare/ but .gitignore does cover `.env` patterns. No dev/staging/prod environment separation -- single ENVIRONMENT = "production" in wrangler.toml.
+
+### 2. DevOps & Infrastructure
+
+**CI/CD Pipeline:**
+GitHub Actions workflow (`.github/workflows/deploy.yml`) deploys on push to main: install frontend deps, build, copy to cloudflare/public, deploy via wrangler. No staging environment. No test step (because no tests exist). No security scanning step. No build artifact caching beyond npm cache.
+
+**Deployment:**
+Multiple deployment scripts exist (`deploy.sh`, `quick-deploy.sh`, `quick-deploy.ps1`, `build-and-deploy.ps1`) for manual deployment alongside CI/CD. The scripts are functional but redundant. No Dockerfile or containerization.
+
+**Logging & Monitoring:**
+`monitoring.ts` exists but uses in-memory counters (lost on worker restart). No external monitoring service integration. Console.log/error used for backend logging with no structured format. No request tracing or correlation IDs. No alerting.
+
+**Backup & Disaster Recovery:**
+No documented backup strategy. Cloudflare D1 has automatic backups, but no off-site replication or point-in-time recovery documentation. Database schema exists in `schema.sql` and `schema_no_fk.sql` for recreation. No disaster recovery runbook.
+
+### 3. Testing & Quality
+
+**Test Coverage:**
+Zero test files. No unit tests, integration tests, or end-to-end tests. No test runner configuration (jest, vitest, playwright, cypress). The `load-tests/` directory contains k6 load testing scripts, which is positive but insufficient.
+
+**Linting & Formatting:**
+ESLint configured with modern flat config (`eslint.config.js`) including react-hooks and typescript-eslint plugins. TypeScript strict mode enabled with `noUnusedLocals`, `noUnusedParameters`. No Prettier configuration found. Husky pre-commit hook runs TypeScript check and build.
+
+### 4. Documentation
+
+**README:**
+`README.md` (6,743 bytes) exists with project overview. Quality is unclear without full content review, but its presence is positive.
+
+**Additional Docs:**
+`CLAUDE.md` provides excellent development guidelines (architecture, patterns, rules). `CLOUDFLARE_AUTH_INSTRUCTIONS.md` covers deployment auth. `SYSTEM_AUDIT_2025-12-31.md` and `audit-report.md` show prior audit history. `docs/` directory contains 8 files. No Swagger/OpenAPI specification. No Postman collection.
+
+**Inline Comments:**
+Backend code has minimal inline comments. Frontend has good "why" comments rather than "what" comments. Some outdated comments reference old patterns.
+
+**Missing Documentation:**
+No API documentation (Swagger/OpenAPI). No architecture decision records (ADRs). No onboarding guide for new developers. No database schema diagram. No runbook for incident response.
+
+### 5. Product & UX
+
+**UI Consistency:**
+Tailwind CSS with custom brand color palette ensures visual consistency. Lucide-react icons used consistently. Component reuse appears good with shared UI components.
+
+**Accessibility:**
+Critical gap. Only ~3 ARIA attributes found in the entire frontend codebase. No aria-label, aria-describedby, or role attributes on interactive elements. Modals lack aria-modal, focus traps, and keyboard navigation. Not WCAG 2.1 compliant. For a property management app serving diverse residents, this is a significant concern.
+
+**Responsive Design:**
+Tailwind CSS utility classes suggest responsive design is handled, but no explicit mobile breakpoint strategy was documented. Mobile app exists separately in `mobile/` directory.
+
+**Loading/Error/Empty States:**
+Loading states: Suspense fallbacks for lazy-loaded routes. Error states: production-grade ErrorBoundary. Empty states: missing from list components -- no "no data" messages when query results are empty.
+
+**UX Friction Points from Code:**
+30-second polling for notifications (could fully use WebSocket). Large list views without pagination/virtualization. i18n inline ternaries create inconsistent language mixing if strings are missed. No skeleton loaders for perceived performance.
+
+### 6. Business & Legal
+
+**License:**
+No LICENSE file in repository. This creates legal ambiguity about usage rights, contribution terms, and liability.
+
+**Data Privacy:**
+Application handles personal data (names, phone numbers, apartment details, passwords) for residential communities. No documented GDPR-equivalent compliance for Uzbekistan's "On Personal Data" law (2019). No data deletion/export features visible in code. No audit logging for data access. Password stored in reversible encrypted form (see Critical #2).
+
+**Data Residency:**
+Cloudflare Workers deploy to global edge network. Uzbekistan law may require personal data storage within national borders. This needs legal review.
+
+**Localization:**
+Russian and Uzbek supported via inline ternary pattern. Functional but not scalable. No i18n library (react-i18next). Adding a third language would require touching hundreds of files.
 
 ---
 
-## 8. ИТОГОВАЯ ОЦЕНКА
+## Recommended Action Plan
 
-| Раздел | Было (оценка) | Стало (оценка) | Δ |
-|--------|:---:|:---:|:---:|
-| Безопасность | 4/10 | **7/10** | **+3** |
-| Архитектура бэкенда | 3/10 | **8/10** | **+5** |
-| База данных | 5/10 | **8/10** | **+3** |
-| TypeScript | 5/10 | **7/10** | **+2** |
-| Функциональная полнота | 7/10 | **8/10** | **+1** |
-| Фронтенд архитектура | 4/10 | **4/10** | 0 |
-| Тестирование | 1/10 | **1/10** | 0 |
-| Мобильное | 2/10 | **2/10** | 0 |
-| DevOps | 4/10 | **5/10** | **+1** |
-| Документация | 6/10 | **6/10** | 0 |
+**Phase 1 -- Security (Effort: Medium, Timeline: 1-2 weeks)**
+1. Move ENCRYPTION_KEY to Cloudflare Secrets, remove from wrangler.toml (Low effort)
+2. Remove password_plain column, implement password reset flow (Medium effort)
+3. Fix SQL injection in notification LIKE query (Low effort)
+4. Make tenant_id filtering mandatory on all tenant-scoped routes (Medium effort)
+5. Fix WebSocket auth to use proper token verification (Low effort)
+6. Make rate limiter fail-closed on KV errors (Low effort)
 
-### Общая готовность к production:
+**Phase 2 -- Testing Foundation (Effort: High, Timeline: 2-4 weeks)**
+7. Set up Vitest with React Testing Library (Low effort)
+8. Write unit tests for all Zustand stores (Medium effort)
+9. Write integration tests for critical API endpoints (auth, multi-tenancy) (Medium effort)
+10. Add test step to GitHub Actions CI pipeline (Low effort)
 
-| | Было | Стало |
-|--|:---:|:---:|
-| **Оценка** | **~35-40%** | **~55-60%** |
+**Phase 3 -- Code Quality (Effort: Medium, Timeline: 2-3 weeks)**
+11. Split index.ts into route modules (Medium effort)
+12. Add Zod validation to all API endpoints (Medium effort)
+13. Standardize error response format (Low effort)
+14. Add missing database indexes (Low effort)
+15. Add tenant_id to training tables (Low effort)
+16. Standardize migration file naming (Low effort)
 
-**Основные достижения за 2 дня:**
-1. ✅ Монолитный бэкенд (17K строк) → модульная архитектура (11 модулей)
-2. ✅ password_plain удалена, переход на PBKDF2
-3. ✅ JWT-аутентификация вместо raw tokens
-4. ✅ 100% tenant_id покрытие (68/68 таблиц)
-5. ✅ CORS whitelist, 0 XSS, Rate limiting
-6. ✅ Таблица payments, 130+ индексов
-7. ✅ Backend: 0 TypeScript ошибок, build проходит
+**Phase 4 -- Observability & Reliability (Effort: Medium, Timeline: 2 weeks)**
+17. Integrate external monitoring (Sentry or Cloudflare Analytics) (Medium effort)
+18. Add structured logging with request correlation IDs (Medium effort)
+19. Implement proper API versioning (/api/v1/) (Medium effort)
+20. Reduce pagination defaults to 50/500 (Low effort)
 
-**Для достижения 80%+ (production-ready) необходимо:**
-1. Закрыть 20+ незащищённых эндпоинтов (~16 часов)
-2. Убрать JWT fallback на raw ID (~4 часа)
-3. Добавить минимальные тесты (~80 часов)
-4. Настроить staging (~16 часов)
+**Phase 5 -- Compliance & UX (Effort: High, Timeline: 4-6 weeks)**
+21. Add LICENSE file (Low effort)
+22. Legal review of data residency requirements (High effort)
+23. Implement WCAG 2.1 Level AA accessibility (High effort)
+24. Migrate i18n to react-i18next (Medium effort)
+25. Add empty states to all list components (Low effort)
+26. Generate OpenAPI documentation (Medium effort)
 
 ---
 
-*Отчёт создан 16 марта 2026 на основе полного анализа исходного кода.*
+## Stats
+
+- Total files scanned: 2,623 (source, excluding node_modules)
+- Total project files: 66,086 (including node_modules)
+- Languages detected: TypeScript (191 files), JavaScript, SQL, PowerShell, Shell, CSS, HTML, Markdown, JSON
+- Total TypeScript/TSX lines: 91,456
+- Backend main handler: 16,533 lines (single file)
+- Database schema: 1,632 lines, 60+ tables, 140+ indexes
+- Dependencies (frontend): 16 direct, 17 dev
+- Dependencies (backend): 0 direct, 3 dev (wrangler, workers-types, zod)
+- Known vulnerabilities: Encryption key hardcoded in version control; reversible password storage
+- Test files found: 0
+- TODO/FIXME/HACK count: 20
+- `any` type usage: 430 instances
+- ARIA attributes: ~3
+- API endpoints: ~200+
+- Zustand stores: 21
+- Migration files: ~30 (inconsistent naming)
+- Load test scripts: present (k6)
+- CI/CD: GitHub Actions (1 workflow, no test step)

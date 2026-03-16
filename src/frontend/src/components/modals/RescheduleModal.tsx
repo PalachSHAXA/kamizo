@@ -54,7 +54,7 @@ export default function RescheduleModal({
             <RefreshCw className="w-5 h-5" />
             {language === 'ru' ? 'Перенести заявку' : 'Arizani ko\'chirish'}
           </h2>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -96,6 +96,7 @@ export default function RescheduleModal({
                 onChange={(e) => setReasonText(e.target.value)}
                 className="input-field min-h-[80px]"
                 placeholder={language === 'ru' ? 'Опишите причину...' : 'Sababni yozing...'}
+                aria-label={language === 'ru' ? 'Уточните причину' : 'Sababni aniqlashtiring'}
               />
             </div>
           )}
@@ -111,6 +112,7 @@ export default function RescheduleModal({
                 value={proposedDate}
                 onChange={(e) => setProposedDate(e.target.value)}
                 className="input-field"
+                aria-label={language === 'ru' ? 'Новая дата' : 'Yangi sana'}
               />
             </div>
             <div>
@@ -122,6 +124,7 @@ export default function RescheduleModal({
                 value={proposedTime}
                 onChange={(e) => setProposedTime(e.target.value)}
                 className="input-field"
+                aria-label={language === 'ru' ? 'Время' : 'Vaqt'}
               />
             </div>
           </div>

@@ -39,7 +39,9 @@ export function AnnouncementsPage() {
   const [debtThreshold, setDebtThreshold] = useState<number>(0);
   const [debtData, setDebtData] = useState<Array<{ login: string; name: string; debt: number }>>([]);
   const [debtTemplate, setDebtTemplate] = useState(
-    'Уважаемый {name}, просим оплатить задолженность по квартплате в размере {debt} сум. С уважением, УК.'
+    language === 'ru'
+      ? 'Уважаемый {name}, просим оплатить задолженность по квартплате в размере {debt} сум. С уважением, УК.'
+      : 'Hurmatli {name}, kvartira to\'lovida {debt} sum qazdorlik to\'lashni so\'raymiz. Hurmat bilan, BK.'
   );
   const debtFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,6 +52,15 @@ export function AnnouncementsPage() {
 
   // Real buildings from API
   const [buildings, setBuildings] = useState<any[]>([]);
+
+  // Update debt template when language changes
+  useEffect(() => {
+    setDebtTemplate(
+      language === 'ru'
+        ? 'Уважаемый {name}, просим оплатить задолженность по квартплате в размере {debt} сум. С уважением, УК.'
+        : 'Hurmatli {name}, kvartira to\'lovida {debt} sum qazdorlik to\'lashni so\'raymiz. Hurmat bilan, BK.'
+    );
+  }, [language]);
 
   // Fetch buildings on mount
   useEffect(() => {
@@ -520,9 +531,9 @@ export function AnnouncementsPage() {
       {/* Announcements List */}
       <div className="space-y-4">
         {currentAnnouncements.length === 0 ? (
-          <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] p-10 text-center">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/60 p-10 text-center">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Megaphone className="w-7 h-7 text-gray-300" />
+              <Megaphone className="w-6 h-6 text-gray-300" />
             </div>
             <h3 className="text-[15px] font-semibold text-gray-500">
               {t('announcements.noAnnouncements')}
@@ -1118,7 +1129,7 @@ function AnnouncementCard({
 
   return (
     <>
-      <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] p-5 active:scale-[0.99] transition-all touch-manipulation">
+      <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/60 p-5 active:scale-[0.99] transition-all touch-manipulation">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             {/* Header */}

@@ -224,16 +224,24 @@ export function ReportsPage() {
 
   // Export branch report to CSV
   const handleExportBranchCSV = (branch?: string) => {
-    const periodLabels: Record<string, string> = {
+    const periodLabelsRu: Record<string, string> = {
       day: 'сегодня',
       week: 'неделю',
       month: 'месяц',
       year: 'год'
     };
+    const periodLabelsUz: Record<string, string> = {
+      day: 'bugun',
+      week: 'haftada',
+      month: 'oyda',
+      year: 'yilda'
+    };
 
     const statsToExport = branch ? branchStats.filter(s => s.branch === branch) : branchStats;
 
-    const headers = ['Объект', 'Домов', 'Жителей', 'Заявок', 'Выполнено', 'Ср. оценка', 'Сантехника', 'Электрика', 'Охрана', 'Уборка', 'Лифт', 'Домофон'];
+    const headers = language === 'ru'
+      ? ['Объект', 'Домов', 'Жителей', 'Заявок', 'Выполнено', 'Ср. оценка', 'Сантехника', 'Электрика', 'Охрана', 'Уборка', 'Лифт', 'Домофон']
+      : ['Ob\'ekt', 'Uylar', 'Aholisi', 'Arizalar', 'Bajarildi', 'O\'rtacha reyting', 'Santehnik', 'Elektrikchi', 'Qo\'riqchi', 'Tozalash', 'Lift', 'Domofon'];
     const rows = statsToExport.map(s => [
       s.branch,
       s.buildings,
@@ -255,21 +263,35 @@ export function ReportsPage() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `отчет_объекты_${branch || 'все'}_${periodLabels[period]}_${new Date().toLocaleDateString('ru-RU')}.csv`;
+    const periodLabels = language === 'ru' ? periodLabelsRu : periodLabelsUz;
+    const dateStr = new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ');
+    const filename = language === 'ru'
+      ? `отчет_объекты_${branch || 'все'}_${periodLabels[period]}_${dateStr}.csv`
+      : `hisobot_ob\'ektlar_${branch || 'barchasi'}_${periodLabels[period]}_${dateStr}.csv`;
+    link.download = filename;
     link.click();
     window.URL.revokeObjectURL(url);
   };
 
   // Export to CSV
   const handleExportCSV = () => {
-    const periodLabels: Record<string, string> = {
+    const periodLabelsRu: Record<string, string> = {
       day: 'сегодня',
       week: 'неделю',
       month: 'месяц',
       year: 'год'
     };
+    const periodLabelsUz: Record<string, string> = {
+      day: 'bugun',
+      week: 'haftada',
+      month: 'oyda',
+      year: 'yilda'
+    };
 
-    const headers = ['№', 'Название', 'Категория', 'Статус', 'Приоритет', 'Житель', 'Адрес', 'Исполнитель', 'Создано', 'Оценка'];
+    const headers = language === 'ru'
+      ? ['№', 'Название', 'Категория', 'Статус', 'Приоритет', 'Житель', 'Адрес', 'Исполнитель', 'Создано', 'Оценка']
+      : ['#', 'Nomi', 'Toif', 'Holati', 'Muhimlik', 'Aholisi', 'Manzil', 'Ijrochi', 'Yaratilgan', 'Reyting'];
+
     const rows = filteredRequests.map(r => [
       r.number,
       r.title,
@@ -277,9 +299,9 @@ export function ReportsPage() {
       r.status,
       r.priority,
       r.residentName,
-      `${r.address} кв.${r.apartment}`,
+      `${r.address} ${language === 'ru' ? 'кв.' : 'kv.'}${r.apartment}`,
       r.executorName || '-',
-      new Date(r.createdAt).toLocaleDateString('ru-RU'),
+      new Date(r.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ'),
       r.rating || '-'
     ]);
 
@@ -289,7 +311,12 @@ export function ReportsPage() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `отчет_за_${periodLabels[period]}_${new Date().toLocaleDateString('ru-RU')}.csv`;
+    const periodLabels = language === 'ru' ? periodLabelsRu : periodLabelsUz;
+    const dateStr = new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ');
+    const filename = language === 'ru'
+      ? `отчет_за_${periodLabels[period]}_${dateStr}.csv`
+      : `hisobot_${periodLabels[period]}_${dateStr}.csv`;
+    link.download = filename;
     link.click();
     window.URL.revokeObjectURL(url);
   };

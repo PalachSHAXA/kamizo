@@ -479,6 +479,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={swipeOffset > 0 ? { transform: `translateX(-${swipeOffset}px)`, transition: 'none' } : undefined}
+        role="navigation"
+        aria-label={language === 'ru' ? 'Главное меню' : 'Asosiy menyu'}
       >
         {/* Compact header - logo + name in one row like Click app */}
         <div className="px-4 pb-3 sidebar-safe-top">
@@ -497,6 +499,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             <button
               onClick={onClose}
               className="md:hidden w-9 h-9 flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
+              aria-label={language === 'ru' ? 'Закрыть меню' : 'Menyuni yopish'}
             >
               <CloseIcon className="w-4.5 h-4.5 text-gray-400" />
             </button>
@@ -540,6 +543,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                     to={item.path}
                     onClick={handleNavClick}
                     className={`sidebar-item min-h-[46px] touch-manipulation ${isActive ? 'active' : ''} ${isResident ? 'sidebar-item-resident' : ''}`}
+                    aria-current={isActive ? 'page' : undefined}
                   >
                     <item.icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? 'text-primary-500' : 'text-gray-400'}`} />
                     <span className="flex-1 truncate">{item.label}</span>
@@ -562,12 +566,13 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
               to="/profile"
               onClick={handleNavClick}
               className={`sidebar-item min-h-[46px] touch-manipulation ${location.pathname === '/profile' ? 'active' : ''} ${user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner' ? 'sidebar-item-resident' : ''}`}
+              aria-current={location.pathname === '/profile' ? 'page' : undefined}
             >
               <User className={`w-[20px] h-[20px] shrink-0 ${location.pathname === '/profile' ? 'text-primary-500' : 'text-gray-400'}`} />
               <span>{language === 'ru' ? 'Мой профиль' : 'Mening profilim'}</span>
             </Link>
           )}
-          <button onClick={onLogout} className="sidebar-item min-h-[46px] touch-manipulation w-full text-primary-500 hover:text-primary-600 hover:bg-primary-50">
+          <button onClick={onLogout} className="sidebar-item min-h-[46px] touch-manipulation w-full text-primary-500 hover:text-primary-600 hover:bg-primary-50" aria-label={language === 'ru' ? 'Выйти из аккаунта' : 'Akkauntdan chiqish'}>
             <LogOut className="w-[20px] h-[20px] shrink-0" />
             <span className="font-medium">{language === 'ru' ? 'Выйти' : 'Chiqish'}</span>
           </button>

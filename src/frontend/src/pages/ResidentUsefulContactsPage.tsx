@@ -246,7 +246,7 @@ export default function ResidentUsefulContactsPage() {
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Назад</span>
+              <span className="font-medium">{language === 'ru' ? 'Назад' : 'Orqaga'}</span>
             </button>
             <span className="flex items-center gap-1 text-xs text-gray-400">
               <Eye className="w-4 h-4" /> {selectedAd.views_count}
@@ -356,7 +356,7 @@ export default function ResidentUsefulContactsPage() {
           {/* Description Section - Multi-line */}
           {selectedAd.description && (
             <div className="bg-white mt-2 px-4 py-5">
-              <h2 className="text-lg font-bold text-gray-900 mb-3">Описание</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-3">{language === 'ru' ? 'Описание' : 'Tavsif'}</h2>
               <p className="text-gray-700 whitespace-pre-line leading-relaxed break-words">{selectedAd.description}</p>
             </div>
           )}
@@ -364,13 +364,13 @@ export default function ResidentUsefulContactsPage() {
           {/* Info Cards */}
           {(selectedAd.address || selectedAd.work_hours) && (
             <div className="bg-white mt-2 px-4 py-5">
-              <h2 className="text-lg font-bold text-gray-900 mb-3">Информация</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-3">{language === 'ru' ? 'Информация' : 'Ma\'lumot'}</h2>
               <div className="space-y-3">
                 {selectedAd.address && (
                   <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                     <MapPin className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs text-gray-500 mb-0.5">Адрес</div>
+                      <div className="text-xs text-gray-500 mb-0.5">{language === 'ru' ? 'Адрес' : 'Manzil'}</div>
                       <div className="text-gray-900 break-words">{selectedAd.address}</div>
                     </div>
                   </div>
@@ -379,7 +379,7 @@ export default function ResidentUsefulContactsPage() {
                   <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                     <Clock className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs text-gray-500 mb-0.5">Время работы</div>
+                      <div className="text-xs text-gray-500 mb-0.5">{language === 'ru' ? 'Время работы' : 'Ish vaqti'}</div>
                       <div className="text-gray-900 break-words">{selectedAd.work_hours} {selectedAd.work_days && `• ${selectedAd.work_days}`}</div>
                     </div>
                   </div>
@@ -396,7 +396,7 @@ export default function ResidentUsefulContactsPage() {
                   <div className="flex items-center gap-3">
                     <CheckCircle className="w-10 h-10 text-green-300 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs opacity-80">Ваш промокод</div>
+                      <div className="text-xs opacity-80">{language === 'ru' ? 'Ваш промокод' : 'Sizning promokodingiz'}</div>
                       <div
                         onClick={copyCode}
                         className="bg-white/20 rounded-lg px-3 py-1.5 mt-1 cursor-pointer hover:bg-white/30 transition-colors inline-block"
@@ -404,7 +404,7 @@ export default function ResidentUsefulContactsPage() {
                         <code className="text-lg font-mono font-bold tracking-wider">{userCoupon.code}</code>
                       </div>
                       <div className="text-xs mt-1 opacity-70">
-                        {copiedCode ? '✓ Скопировано!' : 'Нажмите, чтобы скопировать'} • до {new Date(userCoupon.expires_at).toLocaleDateString('ru-RU')}
+                        {copiedCode ? (language === 'ru' ? '✓ Скопировано!' : '✓ Ko\'chirib olindi!') : (language === 'ru' ? 'Нажмите, чтобы скопировать' : 'Nusxalash uchun bosing')} • {language === 'ru' ? 'до' : 'gacha'} {new Date(userCoupon.expires_at).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
                       </div>
                     </div>
                   </div>
@@ -412,15 +412,15 @@ export default function ResidentUsefulContactsPage() {
                   <div className="flex items-center gap-3">
                     <Gift className="w-10 h-10 flex-shrink-0" />
                     <div className="flex-1">
-                      <div className="text-lg font-bold">Скидка {selectedAd.discount_percent}%</div>
-                      <div className="text-xs opacity-80">Эксклюзивно для жителей</div>
+                      <div className="text-lg font-bold">{language === 'ru' ? 'Скидка' : 'Chegirma'} {selectedAd.discount_percent}%</div>
+                      <div className="text-xs opacity-80">{language === 'ru' ? 'Эксклюзивно для жителей' : 'Turar joy egalari uchun eksklyuziv'}</div>
                     </div>
                     <button
                       onClick={getCoupon}
                       disabled={loadingCoupon}
                       className="px-4 py-2 bg-white text-purple-600 rounded-lg font-bold text-sm hover:bg-gray-100 transition-colors disabled:opacity-50 shadow flex-shrink-0"
                     >
-                      {loadingCoupon ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Получить'}
+                      {loadingCoupon ? <Loader2 className="w-5 h-5 animate-spin" /> : (language === 'ru' ? 'Получить' : 'Olish')}
                     </button>
                   </div>
                 )}
@@ -501,7 +501,7 @@ export default function ResidentUsefulContactsPage() {
               { name: language === 'ru' ? 'Полиция' : 'Politsiya', number: '102', icon: Shield, color: 'bg-blue-600' },
               { name: language === 'ru' ? 'Скорая помощь' : 'Tez yordam', number: '103', icon: HeartPulse, color: 'bg-green-600' },
               { name: language === 'ru' ? 'Газовая служба' : 'Gaz xizmati', number: '104', icon: Zap, color: 'bg-yellow-500' },
-              { name: language === 'ru' ? 'МЧС' : 'FVV', number: '1050', icon: Siren, color: 'bg-orange-500' },
+              { name: language === 'ru' ? 'МЧС' : 'Favqulodda vaziyatlar', number: '1050', icon: Siren, color: 'bg-orange-500' },
               { name: language === 'ru' ? 'Электросеть' : 'Elektr tarmog\'i', number: '1055', icon: PlugZap, color: 'bg-indigo-500' },
             ].map(service => (
               <a
