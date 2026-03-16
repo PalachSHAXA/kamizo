@@ -1,0 +1,62 @@
+# ============================================================
+# Kamizo Staging — wrangler.staging.toml
+# ============================================================
+#
+# Перед первым деплоем создайте staging ресурсы:
+#
+#   1. D1 база данных:
+#      wrangler d1 create kamizo-staging-db
+#      → Скопируйте database_id в поле ниже
+#
+#   2. KV namespace:
+#      wrangler kv namespace create RATE_LIMITER
+#      → Скопируйте id в поле ниже
+#
+#   3. Секреты:
+#      wrangler secret put ENCRYPTION_KEY --config wrangler.staging.toml
+#      wrangler secret put JWT_SECRET --config wrangler.staging.toml
+#
+#   4. Применить миграции:
+#      wrangler d1 execute kamizo-staging-db --file=schema.sql --remote
+#
+#   5. Деплой:
+#      wrangler deploy --config wrangler.staging.toml
+# ============================================================
+
+name = "kamizo-staging"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+workers_dev = true
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
+[vars]
+ENVIRONMENT = "staging"
+BASE_DOMAIN = "kamizo-staging.workers.dev"
+VAPID_EMAIL = "admin@kamizo.uz"
+
+# Секреты хранятся в Cloudflare Secrets (не в коде!)
+# Установить:
+#   wrangler secret put ENCRYPTION_KEY --config wrangler.staging.toml
+#   wrangler secret put JWT_SECRET --config wrangler.staging.toml
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kamizo-staging-db"
+database_id = ""  # ← Вставьте ID после: wrangler d1 create kamizo-staging-db
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "RATE_LIMITER"
+id = ""  # ← Вставьте ID после: wrangler kv namespace create RATE_LIMITER
+
+[[durable_objects.bindings]]
+name = "CONNECTION_MANAGER"
+class_name = "ConnectionManager"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ConnectionManager"]

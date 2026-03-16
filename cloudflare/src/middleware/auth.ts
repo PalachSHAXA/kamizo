@@ -6,10 +6,22 @@ import { getCached, setCache } from './cache-local';
 import { getTenantId, setTenantForRequest } from './tenant';
 import { verifyJWT } from '../utils/crypto';
 
+// Per-request user cache to avoid double-lookup when getUser is called
+// multiple times for the same request (e.g., rate limiter + route handler)
+const requestUserCache = new WeakMap<Request, User | null>();
+
 // Auth middleware with caching
 export async function getUser(request: Request, env: Env): Promise<User | null> {
+  // Return cached result if getUser was already called for this request
+  if (requestUserCache.has(request)) {
+    return requestUserCache.get(request)!;
+  }
+
   const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
+  if (!authHeader?.startsWith('Bearer ')) {
+    requestUserCache.set(request, null);
+    return null;
+  }
 
   const token = authHeader.slice(7);
 
@@ -27,15 +39,20 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
         setTenantForRequest(request, { id: '__no_tenant__' });
       }
     }
+    requestUserCache.set(request, cachedUser);
     return cachedUser;
   }
 
   // Verify JWT and extract userId
   const payload = await verifyJWT(token, env.JWT_SECRET);
 
-  // Fallback: accept raw user ID for backward compatibility with existing sessions
-  // Once all clients re-login, this fallback can be removed
-  const userId = payload ? payload.userId : token;
+  // JWT fallback removed 2026-03-16
+  // Previously accepted raw token as userId — now strictly requires valid JWT
+  if (!payload) {
+    requestUserCache.set(request, null);
+    return null;
+  }
+  const userId = payload.userId;
 
   // Query DB by userId
   const result = await env.DB.prepare(
@@ -58,13 +75,16 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
       const tenant = (await env.DB.prepare('SELECT features FROM tenants WHERE id = ?').bind(authTenantId).first()) as any;
       const features: string[] = tenant?.features ? JSON.parse(tenant.features) : [];
       if (!features.includes(user.role)) {
+        requestUserCache.set(request, null);
         return null;
       }
     }
 
     setCache(cacheKey, user, 60000);
+    requestUserCache.set(request, user as User);
     return user as User;
   }
 
+  requestUserCache.set(request, null);
   return null;
 }

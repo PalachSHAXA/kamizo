@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     // visualizer only in analyze mode: ANALYZE=true npm run build
@@ -17,6 +17,14 @@ export default defineConfig({
         )]
       : []),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     // Reduce chunk size warning limit
     chunkSizeWarningLimit: 500,
@@ -69,11 +77,11 @@ export default defineConfig({
       },
     },
   },
-  // Remove console/debugger in production
-  esbuild: {
+  // Remove console/debugger in production only
+  esbuild: mode === 'production' ? {
     drop: ['console', 'debugger'],
-  },
+  } : {},
   resolve: {
     dedupe: ['react', 'react-dom', 'scheduler', 'use-sync-external-store'],
   },
-})
+}))

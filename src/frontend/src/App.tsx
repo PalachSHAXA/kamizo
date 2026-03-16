@@ -10,6 +10,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { SWUpdateBanner } from './components/SWUpdateBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import Toast from './components/Toast';
 
 // Handle auto_auth parameter from super admin impersonation
 // Must run before React mounts to set localStorage before zustand rehydrates
@@ -132,20 +133,23 @@ function App() {
   }, [user, fetchBuildings, fetchExecutors, fetchRequests, fetchVehicles, fetchNotificationsFromAPI]);
 
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
-          <Route path="/*" element={
-            <ProtectedRoute>
-              <Layout />
-              <PushNotificationPrompt />
-            </ProtectedRoute>
-          } />
-        </Routes>
-        <SWUpdateBanner />
-      </BrowserRouter>
-    </ErrorBoundary>
+    <>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+            <Route path="/*" element={
+              <ProtectedRoute>
+                <Layout />
+                <PushNotificationPrompt />
+              </ProtectedRoute>
+            } />
+          </Routes>
+          <SWUpdateBanner />
+        </BrowserRouter>
+      </ErrorBoundary>
+      <Toast />
+    </>
   );
 }
 

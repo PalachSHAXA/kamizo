@@ -5,6 +5,7 @@ import { useNotificationStore } from './notificationStore';
 import { useActivityStore } from './activityStore';
 import { useExecutorStore } from './executorStore';
 import { requestsApi } from '../services/api';
+import { useToastStore } from './toastStore';
 import { pushNotifications } from '../services/pushNotifications';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -138,7 +139,7 @@ export const useRequestStore = create<RequestState>()(
           return { requests: mergedRequests, isLoadingRequests: false };
         });
       } catch (error) {
-        console.error('Failed to fetch requests:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         set({ isLoadingRequests: false });
       }
     },
@@ -237,7 +238,7 @@ export const useRequestStore = create<RequestState>()(
 
         return realRequest;
       } catch (error) {
-        console.error('Failed to create request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         // Rollback on error
         set((state) => ({
           requests: state.requests.filter((r) => r.id !== tempId),
@@ -253,7 +254,7 @@ export const useRequestStore = create<RequestState>()(
       const request = state.requests.find(r => r.id === requestId);
 
       if (!request) {
-        console.error('[assignRequest] Request not found in local state!');
+        useToastStore.getState().addToast('error', 'Заявка не найдена');
         return;
       }
 
@@ -325,7 +326,7 @@ export const useRequestStore = create<RequestState>()(
         // Call API in background
         await requestsApi.assign(requestId, executorId);
       } catch (error) {
-        console.error('Failed to assign request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         // Rollback on error
         set((state) => ({
           requests: state.requests.map((r) =>
@@ -387,7 +388,7 @@ export const useRequestStore = create<RequestState>()(
         // Call API in background
         await requestsApi.accept(requestId);
       } catch (error) {
-        console.error('Failed to accept request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         // Rollback on error
         set((state) => ({
           requests: state.requests.map((r) =>
@@ -409,7 +410,7 @@ export const useRequestStore = create<RequestState>()(
           r => r.executorId === executorId && r.status === 'in_progress' && r.id !== requestId
         );
         if (hasActiveWork) {
-          console.error('Executor already has a task in progress. Complete it first.');
+          useToastStore.getState().addToast('warning', 'У исполнителя уже есть задача в работе');
           return;
         }
       }
@@ -447,7 +448,7 @@ export const useRequestStore = create<RequestState>()(
         // Call API in background
         await requestsApi.start(requestId);
       } catch (error) {
-        console.error('Failed to start work:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         // Rollback on error
         set((state) => ({
           requests: state.requests.map((r) =>
@@ -485,7 +486,7 @@ export const useRequestStore = create<RequestState>()(
           requestId,
         });
       } catch (error) {
-        console.error('Failed to pause work:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -520,7 +521,7 @@ export const useRequestStore = create<RequestState>()(
           requestId,
         });
       } catch (error) {
-        console.error('Failed to resume work:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -594,7 +595,7 @@ export const useRequestStore = create<RequestState>()(
           requestId,
         });
       } catch (error) {
-        console.error('Failed to complete work:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -664,7 +665,7 @@ export const useRequestStore = create<RequestState>()(
           requestId,
         });
       } catch (error) {
-        console.error('Failed to approve request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -706,7 +707,7 @@ export const useRequestStore = create<RequestState>()(
           requestId,
         });
       } catch (error) {
-        console.error('Failed to reject request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -723,12 +724,12 @@ export const useRequestStore = create<RequestState>()(
       const canManagerCancel = request.status !== 'completed';
 
       if (cancelledBy === 'resident' && !canResidentCancel) {
-        console.error('Resident cannot cancel request in this status');
+        useToastStore.getState().addToast('warning', 'Невозможно отменить заявку в этом статусе');
         return;
       }
 
       if ((cancelledBy === 'manager' || cancelledBy === 'admin') && !canManagerCancel) {
-        console.error('Cannot cancel completed request');
+        useToastStore.getState().addToast('warning', 'Нельзя отменить завершённую заявку');
         return;
       }
 
@@ -738,7 +739,7 @@ export const useRequestStore = create<RequestState>()(
       try {
         await requestsApi.cancel(requestId, reason);
       } catch (error) {
-        console.error('Failed to cancel request on server:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         // Continue with local update even if API fails
       }
 
@@ -820,7 +821,7 @@ export const useRequestStore = create<RequestState>()(
 
       // Can decline if assigned, accepted, or in_progress (for illness, etc.)
       if (!['assigned', 'accepted', 'in_progress'].includes(request.status)) {
-        console.error('Cannot decline request in this status');
+        useToastStore.getState().addToast('warning', 'Невозможно отклонить заявку в этом статусе');
         return;
       }
 
@@ -887,7 +888,7 @@ export const useRequestStore = create<RequestState>()(
         // Call API to persist the change
         await requestsApi.decline(requestId, reason);
       } catch (error) {
-        console.error('Failed to decline request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         // Rollback on error
         set((state) => ({
           requests: state.requests.map((r) =>
@@ -1039,7 +1040,7 @@ export const useRequestStore = create<RequestState>()(
 
         set({ rescheduleRequests: mappedReschedules });
       } catch (error) {
-        console.error('Failed to fetch pending reschedules:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -1091,7 +1092,7 @@ export const useRequestStore = create<RequestState>()(
         }
         return null;
       } catch (error) {
-        console.error('Failed to create reschedule request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         return null;
       }
     },
@@ -1139,7 +1140,7 @@ export const useRequestStore = create<RequestState>()(
           }
         }
       } catch (error) {
-        console.error('Failed to respond to reschedule request:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 

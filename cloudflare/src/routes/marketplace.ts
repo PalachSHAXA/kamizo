@@ -26,6 +26,7 @@ function generateCouponCode(): string {
 }
 
 // Get ad categories
+// PUBLIC: no auth required
 route('GET', '/api/ads/categories', async (request, env) => {
   try {
     const { results } = await env.DB.prepare(
@@ -684,6 +685,7 @@ route('GET', '/api/my-coupons', async (request, env) => {
 // ==================== MARKETPLACE API ====================
 
 // Marketplace: Get categories
+// PUBLIC: no auth required
 route('GET', '/api/marketplace/categories', async (request, env) => {
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -695,6 +697,7 @@ route('GET', '/api/marketplace/categories', async (request, env) => {
 });
 
 // Marketplace: Get products (with filtering)
+// PUBLIC: no auth required
 route('GET', '/api/marketplace/products', async (request, env) => {
   const url = new URL(request.url);
   const categoryId = url.searchParams.get('category');
@@ -747,6 +750,7 @@ route('GET', '/api/marketplace/products', async (request, env) => {
 });
 
 // Marketplace: Get single product
+// PUBLIC: no auth required
 route('GET', '/api/marketplace/products/:id', async (request, env, params) => {
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);

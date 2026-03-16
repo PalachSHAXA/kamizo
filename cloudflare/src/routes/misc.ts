@@ -16,6 +16,7 @@ export function registerMiscRoutes() {
 
 // ==================== WEBSOCKET (DURABLE OBJECTS) ====================
 
+// PUBLIC: no auth required
 route('GET', '/api/ws', async (request, env) => {
   const url = new URL(request.url);
   const upgradeHeader = request.headers.get('Upgrade');
@@ -1257,6 +1258,7 @@ async function getStats(env: Env, request: Request) {
   };
 }
 
+// PUBLIC: no auth required
 route('GET', '/api/stats', async (request, env) => {
   return json(await getStats(env, request));
 });
@@ -1291,6 +1293,7 @@ route('GET', '/api/settings', async (request, env) => {
 });
 
 // Get single setting
+// PUBLIC: no auth required
 route('GET', '/api/settings/:key', async (request, env, params) => {
   const setting = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind(params.key).first();
 
@@ -1355,6 +1358,7 @@ route('POST', '/api/settings', async (request, env) => {
 // ==================== MONITORING & HEALTH ENDPOINTS ====================
 
 // Health Check
+// PUBLIC: no auth required
 route('GET', '/api/health', async (request, env) => {
   const health = await healthCheck(env);
   const status = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 503 : 503;
@@ -1363,6 +1367,7 @@ route('GET', '/api/health', async (request, env) => {
 
 
 // Tenant Config (returns current tenant's configuration)
+// PUBLIC: no auth required
 route('GET', '/api/tenant/config', async (request, env) => {
   const tenant = getCurrentTenant();
   if (!tenant) {
@@ -1492,6 +1497,7 @@ route('POST', '/api/admin/requests/reset', async (request, env) => {
 });
 
 // Frontend Error Reporting (Public - errors from React)
+// PUBLIC: no auth required
 route('POST', '/api/admin/monitoring/frontend-error', async (request, env) => {
   try {
     const body = await request.json() as any;

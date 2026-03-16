@@ -227,6 +227,9 @@ route('GET', '/api/meetings', async (request, env) => {
 
 // Meetings: Get by ID with full details
 route('GET', '/api/meetings/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -611,6 +614,9 @@ route('PATCH', '/api/meetings/:id', async (request, env, params) => {
 
 // Meetings: Submit for moderation
 route('POST', '/api/meetings/:id/submit', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
 
   await env.DB.prepare(`
@@ -730,6 +736,9 @@ route('POST', '/api/meetings/:id/reject', async (request, env, params) => {
 
 // Meetings: Open schedule poll
 route('POST', '/api/meetings/:id/open-schedule-poll', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
 
   await env.DB.prepare(`
@@ -747,6 +756,9 @@ route('POST', '/api/meetings/:id/open-schedule-poll', async (request, env, param
 
 // Meetings: Confirm schedule
 route('POST', '/api/meetings/:id/confirm-schedule', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   if (tenantId) {
     const mtg = await env.DB.prepare('SELECT id FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.id, tenantId).first();
@@ -801,6 +813,9 @@ route('POST', '/api/meetings/:id/confirm-schedule', async (request, env, params)
 
 // Meetings: Open voting
 route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
 
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -855,6 +870,9 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
 
 // Meetings: Close voting
 route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
 
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
@@ -961,6 +979,9 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
 
 // Meetings: Publish results
 route('POST', '/api/meetings/:id/publish-results', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
 
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -1340,6 +1361,9 @@ route('POST', '/api/meetings/:id/protocol/counting-commission', async (request, 
 
 // Meetings: Cancel
 route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -1998,6 +2022,9 @@ route('GET', '/api/meetings/:meetingId/reconsideration-requests/stats', async (r
 
 // Real-time voting stats (for polling during active voting)
 route('GET', '/api/meetings/:meetingId/stats', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -2101,6 +2128,7 @@ route('POST', '/api/meetings/otp/request', async (request, env) => {
 });
 
 // OTP: Verify
+// PUBLIC: no auth required
 route('POST', '/api/meetings/otp/verify', async (request, env) => {
   const body = await request.json() as any;
   const otpId = body.otp_id || body.otpId;
@@ -2145,6 +2173,9 @@ route('POST', '/api/meetings/otp/verify', async (request, env) => {
 
 // Building settings: Get
 route('GET', '/api/meetings/building-settings/:buildingId', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const settings = await env.DB.prepare(
     `SELECT * FROM meeting_building_settings WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
@@ -2277,6 +2308,9 @@ route('PATCH', '/api/meetings/building-settings/:buildingId', async (request, en
 
 // Voting units: List by building
 route('GET', '/api/meetings/voting-units', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const buildingId = url.searchParams.get('building_id') || url.searchParams.get('buildingId');
 
@@ -2408,6 +2442,9 @@ route('GET', '/api/meetings/:meetingId/vote-records', async (request, env, param
 
 // Get protocol
 route('GET', '/api/meetings/:meetingId/protocol', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(`SELECT protocol_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -2423,6 +2460,7 @@ route('GET', '/api/meetings/:meetingId/protocol', async (request, env, params) =
 });
 
 // Get protocol as HTML (for PDF generation on client side)
+// PUBLIC: no auth required
 route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, params) => {
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
@@ -2666,6 +2704,7 @@ route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, para
 });
 
 // Get protocol as DOC file (Word document)
+// PUBLIC: no auth required
 route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, params) => {
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
@@ -2968,6 +3007,9 @@ route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, param
 
 // Get protocol data as JSON for frontend DOCX generation
 route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(
     `SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
@@ -3042,6 +3084,9 @@ route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, para
 
 // Get comments for agenda item
 route('GET', '/api/agenda/:agendaItemId/comments', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const { results } = await env.DB.prepare(`
     SELECT * FROM meeting_agenda_comments
     WHERE agenda_item_id = ?

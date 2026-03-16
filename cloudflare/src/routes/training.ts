@@ -13,6 +13,9 @@ export function registerTrainingRoutes() {
 
 // Training Partners: List all
 route('GET', '/api/training/partners', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -33,6 +36,9 @@ route('GET', '/api/training/partners', async (request, env) => {
 
 // Training Partners: Get by ID
 route('GET', '/api/training/partners/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -140,6 +146,9 @@ route('DELETE', '/api/training/partners/:id', async (request, env, params) => {
 
 // Training Proposals: List
 route('GET', '/api/training/proposals', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -196,6 +205,9 @@ route('GET', '/api/training/proposals', async (request, env) => {
 
 // Training Proposals: Get by ID with full details
 route('GET', '/api/training/proposals/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const proposal = await env.DB.prepare(`SELECT * FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -592,6 +604,9 @@ route('DELETE', '/api/training/proposals/:proposalId/votes', async (request, env
 
 // Training Votes: Get for proposal
 route('GET', '/api/training/proposals/:proposalId/votes', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Verify proposal belongs to tenant
   const tenantId = getTenantId(request);
   const proposal = await env.DB.prepare(
@@ -759,6 +774,9 @@ route('POST', '/api/training/proposals/:proposalId/feedback', async (request, en
 
 // Training Feedback: Get for proposal
 route('GET', '/api/training/proposals/:proposalId/feedback', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Verify proposal belongs to tenant
   const tenantId = getTenantId(request);
   const proposal = await env.DB.prepare(
@@ -892,6 +910,9 @@ route('POST', '/api/training/notifications/read-all', async (request, env) => {
 
 // Training Settings: Get all
 route('GET', '/api/training/settings', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const { results } = await env.DB.prepare('SELECT * FROM training_settings').all();
 
   // Convert to object
@@ -929,6 +950,9 @@ route('PATCH', '/api/training/settings', async (request, env) => {
 
 // Training Stats
 route('GET', '/api/training/stats', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 

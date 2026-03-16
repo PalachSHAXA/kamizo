@@ -1439,6 +1439,7 @@ route('DELETE', '/api/work-orders/:id', async (request, env, params) => {
 
 // ==================== CATEGORIES ROUTES ====================
 
+// PUBLIC: no auth required
 route('GET', '/api/categories', async (request, env) => {
   const tenantId = getTenantId(request);
   // Кэшируем категории на 24 часа (статические данные)

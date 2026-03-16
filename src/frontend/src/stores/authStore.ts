@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '../types';
 import { authApi, usersApi } from '../services/api';
+import { useToastStore } from './toastStore';
 
 interface MockUserData {
   password: string;
@@ -66,6 +67,8 @@ export const useAuthStore = create<AuthState>()(
         // API login (all users are in database)
         try {
           const data = await authApi.login(normalizedLogin, normalizedPassword);
+          // Sync token to localStorage immediately so apiRequest can use it
+          localStorage.setItem('auth_token', data.token);
           set({
             user: data.user,
             token: data.token,
@@ -96,7 +99,7 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
           return true;
         } catch (error: unknown) {
-          console.error('Register failed:', error);
+          useToastStore.getState().addToast('error', (error as Error).message || 'Register failed');
           set({ isLoading: false, error: (error as Error).message });
           return false;
         }
@@ -109,7 +112,7 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
           return result;
         } catch (error: unknown) {
-          console.error('Bulk register failed:', error);
+          useToastStore.getState().addToast('error', (error as Error).message || 'Bulk register failed');
           set({ isLoading: false, error: (error as Error).message });
           return { created: [], updated: [] };
         }
@@ -122,7 +125,7 @@ export const useAuthStore = create<AuthState>()(
           set({ user: data.user, isLoading: false });
           return true;
         } catch (error: unknown) {
-          console.error('Update profile failed:', error);
+          useToastStore.getState().addToast('error', (error as Error).message || 'Update profile failed');
           set({ isLoading: false, error: (error as Error).message });
           return false;
         }
@@ -144,7 +147,7 @@ export const useAuthStore = create<AuthState>()(
           }
           return true;
         } catch (error: unknown) {
-          console.error('Change password failed:', error);
+          useToastStore.getState().addToast('error', (error as Error).message || 'Change password failed');
           set({ isLoading: false, error: (error as Error).message });
           return false;
         }
@@ -157,7 +160,7 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
           return true;
         } catch (error: unknown) {
-          console.error('Admin change password failed:', error);
+          useToastStore.getState().addToast('error', (error as Error).message || 'Admin change password failed');
           set({ isLoading: false, error: (error as Error).message });
           return false;
         }
@@ -175,7 +178,7 @@ export const useAuthStore = create<AuthState>()(
           }
           return true;
         } catch (error: unknown) {
-          console.error('Mark contract signed failed:', error);
+          useToastStore.getState().addToast('error', (error as Error).message || 'Mark contract signed failed');
           return false;
         }
       },
@@ -188,7 +191,7 @@ export const useAuthStore = create<AuthState>()(
           const data = await usersApi.getMe();
           set({ user: data.user });
         } catch (error) {
-          console.error('Refresh user failed:', error);
+          useToastStore.getState().addToast('error', (error as Error).message || 'Refresh user failed');
           // If token is invalid, logout
           get().logout();
         }
@@ -211,7 +214,7 @@ export const useAuthStore = create<AuthState>()(
           branch: (user as any).branch,
           building: (user as any).building,
         }).catch((err) => {
-          console.error('API register error:', err);
+          useToastStore.getState().addToast('error', (err as Error).message || 'Ошибка регистрации');
         });
 
         set((state) => ({
@@ -285,7 +288,7 @@ export const useAuthStore = create<AuthState>()(
       // Sync JWT token to localStorage when store is rehydrated (e.g., page refresh)
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.error('Rehydrate error:', error);
+          console.error('Rehydrate error:', error); // keep console.error for critical rehydration debugging
           return;
         }
         if (state?.token) {

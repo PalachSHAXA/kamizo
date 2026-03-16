@@ -220,8 +220,38 @@ npm run web          # Запуск в браузере
 ### Деплой
 
 ```bash
-bash deploy.sh       # Полный деплой (миграции + сборка + deploy)
+bash deploy.sh       # Полный деплой в production (миграции + сборка + deploy)
 ```
+
+### Staging
+
+Staging окружение деплоится автоматически при push в ветку `develop`, или вручную:
+
+```bash
+bash scripts/deploy-staging.sh
+```
+
+**Первоначальная настройка staging:**
+
+```bash
+# 1. Создать D1 базу
+wrangler d1 create kamizo-staging-db
+# → Вставить database_id в cloudflare/wrangler.staging.toml
+
+# 2. Создать KV namespace
+wrangler kv namespace create RATE_LIMITER
+# → Вставить id в cloudflare/wrangler.staging.toml
+
+# 3. Установить секреты
+wrangler secret put ENCRYPTION_KEY --config cloudflare/wrangler.staging.toml
+wrangler secret put JWT_SECRET --config cloudflare/wrangler.staging.toml
+
+# 4. Применить схему БД
+cd cloudflare
+wrangler d1 execute kamizo-staging-db --file=schema.sql --remote
+```
+
+**URL:** `https://kamizo-staging.workers.dev`
 
 ## 📄 Лицензия
 

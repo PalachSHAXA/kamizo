@@ -30,9 +30,11 @@ route('GET', '/api/admin/cache/stats', async (request, env) => {
 
 // Seed initial users (for setup) - Demo accounts for all roles
 route('POST', '/api/seed', async (request, env) => {
-  // Require super_admin authentication
-  const authUser = await getUser(request, env);
-  if (!isSuperAdmin(authUser)) return error('Access denied', 403);
+  // In non-production (local dev / staging), allow without auth for easy seeding
+  if (env.ENVIRONMENT === 'production') {
+    const authUser = await getUser(request, env);
+    if (!isSuperAdmin(authUser)) return error('Access denied', 403);
+  }
 
   const initialUsers = [
     // Demo accounts (password: kamizo) - matching LoginPage demo buttons
@@ -463,6 +465,7 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
 });
 
 // Auth: Login
+// PUBLIC: no auth required
 route('POST', '/api/auth/login', async (request, env) => {
   // Check rate limit (by IP before authentication)
   const identifier = getClientIdentifier(request);

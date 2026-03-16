@@ -17,6 +17,9 @@ export function registerBuildingRoutes() {
 
 // Branches: List all
 route('GET', '/api/branches', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -36,6 +39,9 @@ route('GET', '/api/branches', async (request, env) => {
 
 // Branches: Get single
 route('GET', '/api/branches/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -761,6 +767,9 @@ route('GET', '/api/buildings', async (request, env) => {
 
 // Buildings: Get single with full details
 route('GET', '/api/buildings/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   // Кэшируем данные здания на 5 минут (включает динамические счетчики)
   const data = await cachedQueryWithArgs(
@@ -1008,6 +1017,9 @@ route('DELETE', '/api/buildings/:id', async (request, env, params) => {
 
 // Entrances: List by building
 route('GET', '/api/buildings/:buildingId/entrances', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const { results } = await env.DB.prepare(`
     SELECT e.*,
@@ -1169,6 +1181,9 @@ route('DELETE', '/api/entrances/:id', async (request, env, params) => {
 
 // Building Documents: List
 route('GET', '/api/buildings/:buildingId/documents', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const { results } = await env.DB.prepare(
     `SELECT * FROM building_documents WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''} ORDER BY uploaded_at DESC`
@@ -1224,6 +1239,9 @@ route('DELETE', '/api/building-documents/:id', async (request, env, params) => {
 
 // Apartments: List by building
 route('GET', '/api/buildings/:buildingId/apartments', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const entranceId = url.searchParams.get('entrance_id');
   const status = url.searchParams.get('status');
@@ -1294,6 +1312,9 @@ route('GET', '/api/buildings/:buildingId/apartments', async (request, env, param
 
 // Apartments: Get single with details
 route('GET', '/api/apartments/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
 
   // Try with tenant filter first, fallback to without (user already has access from list)
@@ -1559,6 +1580,9 @@ route('DELETE', '/api/apartments/:id', async (request, env, params) => {
 
 // Owners: List all
 route('GET', '/api/owners', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const type = url.searchParams.get('type');
   const search = url.searchParams.get('search');
@@ -1622,6 +1646,9 @@ route('GET', '/api/owners', async (request, env) => {
 
 // Owners: Get single with apartments
 route('GET', '/api/owners/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const tenantId = getTenantId(request);
   const owner = await env.DB.prepare(`SELECT * FROM owners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   if (!owner) return error('Owner not found', 404);
@@ -1831,6 +1858,9 @@ route('DELETE', '/api/owners/:ownerId/apartments/:apartmentId', async (request, 
 
 // Personal Accounts: List by building
 route('GET', '/api/buildings/:buildingId/accounts', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
   const hasDebt = url.searchParams.get('has_debt');
@@ -1881,6 +1911,9 @@ route('GET', '/api/buildings/:buildingId/accounts', async (request, env, params)
 
 // Personal Accounts: Get single
 route('GET', '/api/accounts/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -2019,6 +2052,9 @@ route('PATCH', '/api/accounts/:id', async (request, env, params) => {
 
 // Personal Accounts: Get debtors
 route('GET', '/api/accounts/debtors', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const minDebt = parseInt(url.searchParams.get('min_debt') || '0');
   const buildingId = url.searchParams.get('building_id');
@@ -2165,6 +2201,9 @@ route('GET', '/api/reports/debts', async (request, env) => {
 
 // CRM Residents: List by apartment
 route('GET', '/api/apartments/:apartmentId/residents', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const isActive = url.searchParams.get('is_active');
 
@@ -2187,6 +2226,9 @@ route('GET', '/api/apartments/:apartmentId/residents', async (request, env, para
 
 // CRM Residents: Get single
 route('GET', '/api/residents/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -2365,6 +2407,9 @@ route('POST', '/api/residents/:id/move-out', async (request, env, params) => {
 
 // Meters: List by apartment
 route('GET', '/api/apartments/:apartmentId/meters', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const type = url.searchParams.get('type');
   const isActive = url.searchParams.get('is_active');
@@ -2392,6 +2437,9 @@ route('GET', '/api/apartments/:apartmentId/meters', async (request, env, params)
 
 // Meters: List common meters by building
 route('GET', '/api/buildings/:buildingId/meters', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const type = url.searchParams.get('type');
   const isCommon = url.searchParams.get('is_common');
@@ -2419,6 +2467,9 @@ route('GET', '/api/buildings/:buildingId/meters', async (request, env, params) =
 
 // Meters: Get single with latest readings
 route('GET', '/api/meters/:id', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -2587,6 +2638,9 @@ route('POST', '/api/meters/:id/decommission', async (request, env, params) => {
 
 // Meter Readings: List by meter
 route('GET', '/api/meters/:meterId/readings', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const offset = parseInt(url.searchParams.get('offset') || '0');
@@ -2715,6 +2769,9 @@ route('POST', '/api/meter-readings/:id/verify', async (request, env, params) => 
 
 // Meter Readings: Get last reading
 route('GET', '/api/meters/:meterId/last-reading', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
   const reading = await env.DB.prepare(`
     SELECT * FROM meter_readings
     WHERE meter_id = ?

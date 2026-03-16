@@ -5,6 +5,7 @@ import type {
   Entrance,
 } from '../types';
 import { buildingsApi, entrancesApi, buildingDocumentsApi } from '../services/api';
+import { useToastStore } from './toastStore';
 
 // Helper to map API response to frontend type
 const mapBuildingFromApi = (b: any): BuildingFull => ({
@@ -127,7 +128,7 @@ export const useBuildingStore = create<BuildingState>()(
         const buildings = (response.buildings || []).map(mapBuildingFromApi);
         set({ buildings, isLoadingBuildings: false });
       } catch (error) {
-        console.error('[fetchBuildings] Failed:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка загрузки зданий');
         set({ isLoadingBuildings: false });
       }
     },
@@ -156,7 +157,7 @@ export const useBuildingStore = create<BuildingState>()(
 
         return { building: { ...building, documents }, entrances, documents };
       } catch (error) {
-        console.error('Failed to fetch building:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         return null;
       }
     },
@@ -171,7 +172,7 @@ export const useBuildingStore = create<BuildingState>()(
         }
         return null;
       } catch (error) {
-        console.error('Failed to create building:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         return null;
       }
     },
@@ -186,7 +187,7 @@ export const useBuildingStore = create<BuildingState>()(
           ),
         }));
       } catch (error) {
-        console.error('Failed to update building:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -198,7 +199,7 @@ export const useBuildingStore = create<BuildingState>()(
           entrances: state.entrances.filter((e) => e.buildingId !== id),
         }));
       } catch (error: any) {
-        console.error('Failed to delete building:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         throw new Error(error.message || 'Ошибка при удалении здания');
       }
     },
@@ -243,7 +244,7 @@ export const useBuildingStore = create<BuildingState>()(
           }));
         }
       } catch (error) {
-        console.error('Failed to add document:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -258,7 +259,7 @@ export const useBuildingStore = create<BuildingState>()(
           ),
         }));
       } catch (error) {
-        console.error('Failed to delete document:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -278,7 +279,7 @@ export const useBuildingStore = create<BuildingState>()(
 
         return entrances;
       } catch (error) {
-        console.error('Failed to fetch entrances:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         set({ isLoadingEntrances: false });
         return [];
       }
@@ -307,7 +308,7 @@ export const useBuildingStore = create<BuildingState>()(
         }
         return null;
       } catch (error) {
-        console.error('Failed to create entrance:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
         return null;
       }
     },
@@ -321,7 +322,7 @@ export const useBuildingStore = create<BuildingState>()(
           ),
         }));
       } catch (error) {
-        console.error('Failed to update entrance:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 
@@ -332,7 +333,7 @@ export const useBuildingStore = create<BuildingState>()(
           entrances: state.entrances.filter((e) => e.id !== id),
         }));
       } catch (error) {
-        console.error('Failed to delete entrance:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
       }
     },
 

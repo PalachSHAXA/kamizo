@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - main
+      - develop
   workflow_dispatch:  # Allows manual triggering from GitHub UI
 
 jobs:
-  deploy:
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    name: Deploy UK-CRM to Cloudflare Workers
+    name: Deploy to Production
 
     steps:
       - name: Checkout code
@@ -44,7 +46,7 @@ jobs:
           cd cloudflare
           npm ci
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy to Cloudflare Workers (Production)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -53,5 +55,55 @@ jobs:
 
       - name: Deployment summary
         run: |
-          echo "✅ Deployment successful!"
+          echo "✅ Production deployment successful!"
           echo "🌐 Live at: https://app.myhelper.uz"
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    name: Deploy to Staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            src/frontend/package-lock.json
+            cloudflare/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd src/frontend
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd src/frontend
+          npm run build
+
+      - name: Copy built files to cloudflare/public
+        run: |
+          rm -rf cloudflare/public
+          cp -r src/frontend/dist cloudflare/public
+
+      - name: Install Cloudflare dependencies
+        run: |
+          cd cloudflare
+          npm ci
+
+      - name: Deploy to Cloudflare Workers (Staging)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: cloudflare
+          command: deploy --config wrangler.staging.toml
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Staging deployment successful!"
+          echo "🌐 Staging at: https://kamizo-staging.workers.dev"
