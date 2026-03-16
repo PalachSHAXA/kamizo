@@ -4,6 +4,7 @@ export interface Env {
   DB: D1Database;
   ENVIRONMENT: string;
   ENCRYPTION_KEY: string;
+  JWT_SECRET: string;
   BASE_DOMAIN: string;
   VAPID_EMAIL: string;
   ASSETS: Fetcher;
@@ -25,6 +26,7 @@ export interface User {
   floor?: string;
   account_type?: string;
   tenant_id?: string;
+  email?: string;
 }
 
 export type Handler = (request: Request, env: Env, params: Record<string, string>) => Promise<Response>;

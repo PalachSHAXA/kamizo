@@ -275,31 +275,24 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'uk-auth-storage',
-      version: 3, // Increment to fix token/user.id mismatch
+      version: 4, // v4: JWT tokens — token is no longer user.id
       partialize: (state) => ({
         user: state.user,
         token: state.token,
         // Do NOT persist additionalUsers - all users should come from API
         // This ensures data is consistent across all browsers/devices
       }),
-      // Sync token to localStorage when store is rehydrated (e.g., page refresh)
+      // Sync JWT token to localStorage when store is rehydrated (e.g., page refresh)
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           console.error('Rehydrate error:', error);
           return;
         }
-        if (state?.user?.id) {
-          // Ensure token always matches user.id
-          const correctToken = state.user.id;
-          if (state.token !== correctToken) {
-            // Use setState to properly trigger re-renders
-            useAuthStore.setState({ token: correctToken });
-          }
-          localStorage.setItem('auth_token', correctToken);
-        } else if (state?.token) {
-          // No user but have token - clear stale state
+        if (state?.token) {
+          localStorage.setItem('auth_token', state.token);
+        } else {
+          // No token - clear stale state
           localStorage.removeItem('auth_token');
-          useAuthStore.setState({ token: null });
         }
       },
     }

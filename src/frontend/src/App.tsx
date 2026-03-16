@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useCRMStore } from './stores/crmStore';
 import { useDataStore } from './stores/dataStore';
 import { useTenantStore } from './stores/tenantStore';
 import { Layout } from './components/layout';
 import { LoginPage } from './pages/LoginPage';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { SWUpdateBanner } from './components/SWUpdateBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -133,14 +134,15 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        {user ? (
-          <>
-            <Layout />
-            <PushNotificationPrompt />
-          </>
-        ) : (
-          <LoginPage />
-        )}
+        <Routes>
+          <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+          <Route path="/*" element={
+            <ProtectedRoute>
+              <Layout />
+              <PushNotificationPrompt />
+            </ProtectedRoute>
+          } />
+        </Routes>
         <SWUpdateBanner />
       </BrowserRouter>
     </ErrorBoundary>

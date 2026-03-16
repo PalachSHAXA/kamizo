@@ -1,5 +1,87 @@
-// Password encryption and hashing utilities
+// Password encryption, hashing, and JWT utilities
 // Framework-agnostic — uses Web Crypto API (works in Workers, Node 20+, Bun, Deno)
+
+// ── JWT (HMAC-SHA256 via Web Crypto API) ─────────────────────────────
+
+export interface JwtPayload {
+  userId: string;
+  role: string;
+  tenantId?: string;
+}
+
+function base64urlEncode(data: Uint8Array | string): string {
+  const str = typeof data === 'string'
+    ? btoa(data)
+    : btoa(String.fromCharCode(...data));
+  return str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlDecode(str: string): Uint8Array {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(padded);
+  return Uint8Array.from(binary, c => c.charCodeAt(0));
+}
+
+async function hmacSign(data: string, secret: string): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
+  return new Uint8Array(sig);
+}
+
+async function hmacVerify(data: string, signature: Uint8Array, secret: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+  );
+  return crypto.subtle.verify('HMAC', key, signature, enc.encode(data));
+}
+
+export async function createJWT(payload: JwtPayload, secret: string, expiresInSec: number): Promise<string> {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const fullPayload = { ...payload, iat: now, exp: now + expiresInSec };
+
+  const headerB64 = base64urlEncode(JSON.stringify(header));
+  const payloadB64 = base64urlEncode(JSON.stringify(fullPayload));
+  const unsigned = `${headerB64}.${payloadB64}`;
+
+  const sig = await hmacSign(unsigned, secret);
+  return `${unsigned}.${base64urlEncode(sig)}`;
+}
+
+export async function verifyJWT(token: string, secret: string): Promise<JwtPayload | null> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const [headerB64, payloadB64, sigB64] = parts;
+    const unsigned = `${headerB64}.${payloadB64}`;
+    const signature = base64urlDecode(sigB64);
+
+    const valid = await hmacVerify(unsigned, signature, secret);
+    if (!valid) return null;
+
+    const payloadJson = new TextDecoder().decode(base64urlDecode(payloadB64));
+    const payload = JSON.parse(payloadJson);
+
+    // Check expiry
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) return null;
+
+    return {
+      userId: payload.userId,
+      role: payload.role,
+      tenantId: payload.tenantId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Password encryption and hashing ──────────────────────────────────
 
 export async function encryptPassword(plainText: string, keyString: string): Promise<string> {
   const enc = new TextEncoder();

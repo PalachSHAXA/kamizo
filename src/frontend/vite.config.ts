@@ -1,27 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    ...(process.env.NODE_ENV !== 'production' ? [visualizer({
-      filename: './dist/stats.html',
-      open: false,
-      gzipSize: true,
-      brotliSize: true,
-    })] : []),
+    // visualizer only in analyze mode: ANALYZE=true npm run build
+    ...(process.env.ANALYZE === 'true'
+      ? [import('rollup-plugin-visualizer').then(m =>
+          m.visualizer({
+            filename: './dist/stats.html',
+            open: false,
+            gzipSize: true,
+            brotliSize: false,
+          }),
+        )]
+      : []),
   ],
   build: {
     // Reduce chunk size warning limit
     chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
-        // Force new hash with timestamp
-        entryFileNames: `assets/[name]-${Date.now()}-[hash].js`,
-        chunkFileNames: `assets/[name]-${Date.now()}-[hash].js`,
-        assetFileNames: `assets/[name]-${Date.now()}-[hash].[ext]`,
+        // Content-hash is sufficient for cache-busting, no need for Date.now()
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         // Code splitting: only split heavy lazy-loaded libs, let Rollup handle the rest
         manualChunks(id) {
           if (id.includes('node_modules')) {
@@ -35,8 +39,8 @@ export default defineConfig({
         },
       },
     },
-    // Enable source maps for debugging (helpful for production issues)
-    sourcemap: true,
+    // Disable source maps to reduce build time and memory usage
+    sourcemap: false,
     // Minify with esbuild for fast compression
     minify: 'esbuild',
     // Target modern browsers
@@ -59,17 +63,15 @@ export default defineConfig({
       'use-sync-external-store/with-selector',
     ],
     esbuildOptions: {
-      // Remove console.log from production builds
-      drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
       // Fix CommonJS modules like qrcode that use module.exports
       define: {
         global: 'globalThis',
       },
     },
   },
-  // Separate esbuild configuration for build
+  // Remove console/debugger in production
   esbuild: {
-    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
+    drop: ['console', 'debugger'],
   },
   resolve: {
     dedupe: ['react', 'react-dom', 'scheduler', 'use-sync-external-store'],

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   FileText, CheckCircle, Star, Clock, PieChart, BarChart3,
   TrendingUp, TrendingDown, Download, Building2, Home, Users, Zap, AlertCircle,
-  Percent, Timer, Award, CreditCard, Search, Filter, ChevronUp, ChevronDown, Loader2
+  Percent, Timer, Award, CreditCard, Search, ChevronUp, ChevronDown, Loader2
 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { useCRMStore } from '../../stores/crmStore';

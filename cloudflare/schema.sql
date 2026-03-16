@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS users (
   login TEXT NOT NULL,
   phone TEXT,
   password_hash TEXT NOT NULL,
-  password_plain TEXT,              -- Plain password for admin convenience (optional)
   name TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('super_admin', 'admin', 'director', 'manager', 'department_head', 'dispatcher', 'executor', 'resident', 'advertiser', 'coupon_checker', 'tenant', 'commercial_owner')),
   specialization TEXT CHECK (specialization IN ('plumber', 'electrician', 'elevator', 'intercom', 'cleaning', 'security', 'carpenter', 'boiler', 'ac', 'gardener', 'other', NULL)),
@@ -35,7 +34,8 @@ CREATE TABLE IF NOT EXISTS users (
   last_login_at TEXT,                  -- Date when user last logged in
 
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Buildings table (extended for CRM)
@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS buildings (
   longitude REAL,
 
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Entrances table (подъезды)
@@ -126,7 +127,8 @@ CREATE TABLE IF NOT EXISTS entrances (
   notes TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(building_id, number)
+  UNIQUE(building_id, number),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Building documents
@@ -140,7 +142,8 @@ CREATE TABLE IF NOT EXISTS building_documents (
   uploaded_at TEXT DEFAULT (datetime('now')),
   uploaded_by TEXT,
   expires_at TEXT,
-  is_active INTEGER DEFAULT 1
+  is_active INTEGER DEFAULT 1,
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Apartments table (extended for CRM)
@@ -181,7 +184,8 @@ CREATE TABLE IF NOT EXISTS apartments (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
 
-  UNIQUE(building_id, number)
+  UNIQUE(building_id, number),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Owners table (property owners)
@@ -233,7 +237,8 @@ CREATE TABLE IF NOT EXISTS owners (
   notes TEXT,
 
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Owner-Apartment relationship (many-to-many)
@@ -245,7 +250,8 @@ CREATE TABLE IF NOT EXISTS owner_apartments (
   start_date TEXT,
   end_date TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (owner_id, apartment_id)
+  PRIMARY KEY (owner_id, apartment_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Personal accounts (лицевые счета)
@@ -283,7 +289,8 @@ CREATE TABLE IF NOT EXISTS personal_accounts (
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'closed', 'debt_collection')),
 
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- CRM Residents table (жители квартир - расширенная версия)
@@ -327,7 +334,8 @@ CREATE TABLE IF NOT EXISTS crm_residents (
   notes TEXT,
 
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meters table (счётчики)
@@ -368,7 +376,8 @@ CREATE TABLE IF NOT EXISTS meters (
 
   notes TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meter readings table (показания счётчиков)
@@ -405,7 +414,8 @@ CREATE TABLE IF NOT EXISTS meter_readings (
   billing_period TEXT,
 
   notes TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- =====================================================
@@ -426,7 +436,8 @@ CREATE TABLE IF NOT EXISTS training_partners (
   trainings_conducted INTEGER DEFAULT 0,
   average_rating REAL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Training proposals (предложения тренингов)
@@ -473,7 +484,8 @@ CREATE TABLE IF NOT EXISTS training_proposals (
   actual_participants_count INTEGER,
 
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Training votes (голоса за предложения)
@@ -485,7 +497,8 @@ CREATE TABLE IF NOT EXISTS training_votes (
   participation_intent TEXT DEFAULT 'definitely' CHECK (participation_intent IN ('definitely', 'maybe', 'support_only')),
   is_anonymous INTEGER DEFAULT 0,
   voted_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(proposal_id, voter_id)
+  UNIQUE(proposal_id, voter_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Training registrations (регистрации на тренинг)
@@ -497,7 +510,8 @@ CREATE TABLE IF NOT EXISTS training_registrations (
   registered_at TEXT DEFAULT (datetime('now')),
   attended INTEGER DEFAULT 0,
   attendance_confirmed_at TEXT,
-  UNIQUE(proposal_id, user_id)
+  UNIQUE(proposal_id, user_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Training feedback (отзывы после тренинга)
@@ -513,7 +527,8 @@ CREATE TABLE IF NOT EXISTS training_feedback (
   usefulness_rating INTEGER CHECK (usefulness_rating >= 1 AND usefulness_rating <= 5),
   comment TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(proposal_id, reviewer_id)
+  UNIQUE(proposal_id, reviewer_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Training notifications (уведомления системы обучения)
@@ -526,7 +541,8 @@ CREATE TABLE IF NOT EXISTS training_notifications (
   title TEXT NOT NULL,
   message TEXT NOT NULL,
   is_read INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Training settings (настройки системы обучения)
@@ -534,7 +550,8 @@ CREATE TABLE IF NOT EXISTS training_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   description TEXT,
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Legacy Residents table (for backward compatibility with existing requests system)
@@ -546,7 +563,8 @@ CREATE TABLE IF NOT EXISTS residents (
   mening_uyim_account TEXT,
   balance INTEGER DEFAULT 0,
   access_info TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Executors table (extends users for executors)
@@ -558,14 +576,16 @@ CREATE TABLE IF NOT EXISTS executors (
   status TEXT DEFAULT 'offline' CHECK (status IN ('available', 'busy', 'offline')),
   rating REAL DEFAULT 5.0,
   completed_count INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Executor zones (many-to-many)
 CREATE TABLE IF NOT EXISTS executor_zones (
   executor_id TEXT NOT NULL REFERENCES executors(id),
   building_id TEXT NOT NULL REFERENCES buildings(id),
-  PRIMARY KEY (executor_id, building_id)
+  PRIMARY KEY (executor_id, building_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Request categories
@@ -575,7 +595,8 @@ CREATE TABLE IF NOT EXISTS categories (
   name_uz TEXT NOT NULL,
   icon TEXT,
   specialization TEXT NOT NULL,
-  is_active INTEGER DEFAULT 1
+  is_active INTEGER DEFAULT 1,
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Requests table (no FK constraints for flexibility with users/residents)
@@ -606,7 +627,8 @@ CREATE TABLE IF NOT EXISTS requests (
   rejection_reason TEXT,
   rejection_count INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Request history/log
@@ -618,7 +640,8 @@ CREATE TABLE IF NOT EXISTS request_history (
   old_status TEXT,
   new_status TEXT,
   comment TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Reschedule requests (запросы на перенос времени)
@@ -641,7 +664,8 @@ CREATE TABLE IF NOT EXISTS reschedule_requests (
   response_note TEXT,
   responded_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  expires_at TEXT NOT NULL
+  expires_at TEXT NOT NULL,
+  tenant_id TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_reschedule_request ON reschedule_requests(request_id);
@@ -658,7 +682,8 @@ CREATE TABLE IF NOT EXISTS rental_apartments (
   owner_type TEXT DEFAULT 'tenant' CHECK (owner_type IN ('tenant', 'commercial_owner')),
   is_active INTEGER DEFAULT 1,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_rental_apartments_owner ON rental_apartments(owner_id);
@@ -676,7 +701,8 @@ CREATE TABLE IF NOT EXISTS rental_records (
   notes TEXT,
   created_by TEXT REFERENCES users(id),
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_rental_records_apartment ON rental_records(apartment_id);
@@ -690,7 +716,8 @@ CREATE TABLE IF NOT EXISTS messages (
   content TEXT NOT NULL,
   attachments TEXT,
   is_read INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Notifications
@@ -702,14 +729,16 @@ CREATE TABLE IF NOT EXISTS notifications (
   body TEXT,
   data TEXT,
   is_read INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Settings
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Vehicles table
@@ -728,7 +757,8 @@ CREATE TABLE IF NOT EXISTS vehicles (
   notes TEXT,
   is_primary INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Guest access codes (extended)
@@ -757,7 +787,8 @@ CREATE TABLE IF NOT EXISTS guest_access_codes (
   revoked_by TEXT,
   revoked_reason TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Guest access usage logs (track each scan)
@@ -771,7 +802,8 @@ CREATE TABLE IF NOT EXISTS guest_access_logs (
   visitor_type TEXT,
   resident_name TEXT,
   resident_apartment TEXT,
-  scanned_at TEXT DEFAULT (datetime('now'))
+  scanned_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Chat channels
@@ -783,7 +815,8 @@ CREATE TABLE IF NOT EXISTS chat_channels (
   building_id TEXT REFERENCES buildings(id),
   resident_id TEXT,  -- user.id for private_support channels (no FK to allow flexibility)
   created_by TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Chat channel participants
@@ -791,7 +824,8 @@ CREATE TABLE IF NOT EXISTS chat_participants (
   channel_id TEXT NOT NULL REFERENCES chat_channels(id),
   user_id TEXT NOT NULL REFERENCES users(id),
   joined_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (channel_id, user_id)
+  PRIMARY KEY (channel_id, user_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Chat messages
@@ -800,7 +834,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   channel_id TEXT NOT NULL REFERENCES chat_channels(id),
   sender_id TEXT NOT NULL REFERENCES users(id),
   content TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Chat message read status
@@ -808,7 +843,8 @@ CREATE TABLE IF NOT EXISTS chat_message_reads (
   message_id TEXT NOT NULL REFERENCES chat_messages(id),
   user_id TEXT NOT NULL REFERENCES users(id),
   read_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (message_id, user_id)
+  PRIMARY KEY (message_id, user_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Chat channel reads (for tracking when user last read a channel)
@@ -816,7 +852,8 @@ CREATE TABLE IF NOT EXISTS chat_channel_reads (
   channel_id TEXT NOT NULL REFERENCES chat_channels(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   last_read_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (channel_id, user_id)
+  PRIMARY KEY (channel_id, user_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Notes (personal notepad for users)
@@ -826,7 +863,8 @@ CREATE TABLE IF NOT EXISTS notes (
   title TEXT NOT NULL,
   content TEXT DEFAULT '',
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
@@ -850,7 +888,8 @@ CREATE TABLE IF NOT EXISTS announcements (
   attachments TEXT, -- JSON array of {name, url, type, size}
   created_by TEXT REFERENCES users(id),
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Announcement views (for tracking who viewed which announcement)
@@ -859,7 +898,8 @@ CREATE TABLE IF NOT EXISTS announcement_views (
   announcement_id TEXT NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   viewed_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(announcement_id, user_id)
+  UNIQUE(announcement_id, user_id),
+  tenant_id TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_announcement_views_announcement ON announcement_views(announcement_id);
 CREATE INDEX IF NOT EXISTS idx_announcement_views_user ON announcement_views(user_id);
@@ -941,7 +981,8 @@ CREATE TABLE IF NOT EXISTS meetings (
   reminders_sent TEXT,
 
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting schedule options (for schedule poll)
@@ -950,7 +991,8 @@ CREATE TABLE IF NOT EXISTS meeting_schedule_options (
   meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   date_time TEXT NOT NULL,
   votes_by_share REAL DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting schedule votes
@@ -962,7 +1004,8 @@ CREATE TABLE IF NOT EXISTS meeting_schedule_votes (
   voter_name TEXT,
   vote_weight REAL DEFAULT 50, -- Вес голоса = площадь квартиры (кв.м), default 50 sq.m
   voted_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(meeting_id, voter_id)
+  UNIQUE(meeting_id, voter_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting agenda items (вопросы повестки дня)
@@ -983,7 +1026,8 @@ CREATE TABLE IF NOT EXISTS meeting_agenda_items (
   votes_abstain_area REAL DEFAULT 0, -- Сумма «ВОЗДЕРЖАЛСЯ» (кв.м)
   is_approved INTEGER,
   decision TEXT CHECK (decision IN ('approved', 'rejected', 'no_quorum')),
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting vote records (юридически значимые голоса)
@@ -1015,7 +1059,8 @@ CREATE TABLE IF NOT EXISTS meeting_vote_records (
   is_revote INTEGER DEFAULT 0,
   previous_vote_id TEXT,
 
-  UNIQUE(meeting_id, agenda_item_id, voter_id)
+  UNIQUE(meeting_id, agenda_item_id, voter_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- OTP records for vote verification
@@ -1032,7 +1077,8 @@ CREATE TABLE IF NOT EXISTS meeting_otp_records (
   is_used INTEGER DEFAULT 0,
   verified_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  expires_at TEXT NOT NULL
+  expires_at TEXT NOT NULL,
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting protocols
@@ -1059,7 +1105,8 @@ CREATE TABLE IF NOT EXISTS meeting_protocols (
   signed_by_group_at TEXT,
   group_signature_hash TEXT,
 
-  generated_at TEXT DEFAULT (datetime('now'))
+  generated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Voting units (квартиры с правом голоса)
@@ -1077,7 +1124,8 @@ CREATE TABLE IF NOT EXISTS meeting_voting_units (
   verified_at TEXT,
   verified_by TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Building meeting settings
@@ -1092,7 +1140,8 @@ CREATE TABLE IF NOT EXISTS meeting_building_settings (
   default_meeting_time TEXT DEFAULT '19:00',
   reminder_hours_before TEXT DEFAULT '[48, 2]', -- JSON array
   notification_channels TEXT DEFAULT '["in_app", "push"]', -- JSON array
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting eligible voters (many-to-many)
@@ -1101,7 +1150,8 @@ CREATE TABLE IF NOT EXISTS meeting_eligible_voters (
   user_id TEXT NOT NULL,
   apartment_id TEXT,
   ownership_share REAL DEFAULT 100,
-  PRIMARY KEY (meeting_id, user_id)
+  PRIMARY KEY (meeting_id, user_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting participated voters (tracking)
@@ -1109,7 +1159,8 @@ CREATE TABLE IF NOT EXISTS meeting_participated_voters (
   meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL,
   first_vote_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (meeting_id, user_id)
+  PRIMARY KEY (meeting_id, user_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Meeting agenda comments (комментарии/доводы к вопросам повестки дня)
@@ -1143,7 +1194,8 @@ CREATE TABLE IF NOT EXISTS employee_ratings (
   speed INTEGER CHECK (speed >= 1 AND speed <= 5),
   politeness INTEGER CHECK (politeness >= 1 AND politeness <= 5),
   comment TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- UK (management company) satisfaction ratings - monthly
@@ -1351,7 +1403,8 @@ CREATE TABLE IF NOT EXISTS ad_categories (
   name_ru TEXT NOT NULL,
   name_uz TEXT NOT NULL,
   icon TEXT NOT NULL,
-  sort_order INTEGER DEFAULT 0
+  sort_order INTEGER DEFAULT 0,
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Advertisements (рекламные объявления)
@@ -1403,7 +1456,8 @@ CREATE TABLE IF NOT EXISTS ads (
   -- Meta
   created_by TEXT NOT NULL REFERENCES users(id),  -- ukreklama user
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Coupons (купоны выданные жителям)
@@ -1427,7 +1481,8 @@ CREATE TABLE IF NOT EXISTS ad_coupons (
 
   -- Activation details (заполняется при активации)
   activation_amount REAL,                      -- Сумма покупки
-  discount_amount REAL                         -- Сумма скидки
+  discount_amount REAL                         -- Сумма скидки,
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Ad views tracking (для статистики)
@@ -1438,7 +1493,8 @@ CREATE TABLE IF NOT EXISTS ad_views (
   viewed_at TEXT DEFAULT (datetime('now')),
 
   -- Unique constraint: один просмотр в день от одного пользователя
-  UNIQUE(ad_id, user_id, date(viewed_at))
+  UNIQUE(ad_id, user_id, date(viewed_at)),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Indexes for ads
@@ -1499,7 +1555,8 @@ CREATE TABLE IF NOT EXISTS marketplace_categories (
   icon TEXT,
   sort_order INTEGER DEFAULT 0,
   is_active INTEGER DEFAULT 1,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Marketplace products
@@ -1519,7 +1576,8 @@ CREATE TABLE IF NOT EXISTS marketplace_products (
   is_featured INTEGER DEFAULT 0,
   orders_count INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Marketplace cart
@@ -1529,7 +1587,8 @@ CREATE TABLE IF NOT EXISTS marketplace_cart (
   product_id TEXT NOT NULL REFERENCES marketplace_products(id) ON DELETE CASCADE,
   quantity INTEGER NOT NULL DEFAULT 1,
   added_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(user_id, product_id)
+  UNIQUE(user_id, product_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Marketplace orders
@@ -1571,7 +1630,8 @@ CREATE TABLE IF NOT EXISTS marketplace_orders (
   rating INTEGER,
   review TEXT,
 
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Marketplace order items
@@ -1583,7 +1643,8 @@ CREATE TABLE IF NOT EXISTS marketplace_order_items (
   product_image TEXT,
   quantity INTEGER NOT NULL,
   unit_price REAL NOT NULL,
-  total_price REAL NOT NULL
+  total_price REAL NOT NULL,
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Marketplace order history
@@ -1593,7 +1654,8 @@ CREATE TABLE IF NOT EXISTS marketplace_order_history (
   status TEXT NOT NULL,
   comment TEXT,
   changed_by TEXT REFERENCES users(id),
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Marketplace favorites
@@ -1602,7 +1664,8 @@ CREATE TABLE IF NOT EXISTS marketplace_favorites (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   product_id TEXT NOT NULL REFERENCES marketplace_products(id) ON DELETE CASCADE,
   created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(user_id, product_id)
+  UNIQUE(user_id, product_id),
+  tenant_id TEXT DEFAULT ''
 );
 
 -- Indexes for marketplace
@@ -1630,3 +1693,37 @@ INSERT OR IGNORE INTO marketplace_categories (id, name_ru, name_uz, icon, sort_o
   ('cat_pets', 'Зоотовары', 'Hayvonlar uchun', '🐾', 10),
   ('cat_frozen', 'Замороженные продукты', 'Muzlatilgan mahsulotlar', '❄️', 11),
   ('cat_snacks', 'Снеки и сладости', 'Gazak va shirinliklar', '🍿', 12);
+
+
+-- Tenant ID indexes for multi-tenancy performance
+CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_buildings_tenant_id ON buildings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_apartments_tenant_id ON apartments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_requests_tenant_id ON requests(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON notifications(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_tenant_id ON meetings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_products_tenant_id ON marketplace_products(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_tenant_id ON marketplace_orders(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_chat_channels_tenant_id ON chat_channels(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_tenant_id ON chat_messages(tenant_id);
+
+-- Payments table (оплаты)
+CREATE TABLE IF NOT EXISTS payments (
+  id TEXT PRIMARY KEY,
+  apartment_id TEXT,
+  resident_id TEXT,
+  amount REAL NOT NULL,
+  payment_type TEXT DEFAULT 'cash',
+  period TEXT,
+  description TEXT,
+  receipt_number TEXT,
+  paid_by TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_apartment ON payments(apartment_id);
+CREATE INDEX IF NOT EXISTS idx_payments_resident ON payments(resident_id);
+CREATE INDEX IF NOT EXISTS idx_payments_tenant_id ON payments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(period);

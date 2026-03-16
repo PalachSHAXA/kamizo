@@ -24,4 +24,4 @@
 // D1: || (string concat)                             → pg: || (same)
 // D1: LIKE                                           → pg: ILIKE (case-insensitive)
 
-export type { D1Database };
+export type D1DatabaseType = D1Database;

@@ -1,10 +1,10 @@
 // Authentication middleware
-// Extracts and validates user from Bearer token
-// For datacenter migration: swap token validation with JWT or session-based auth
+// Validates JWT Bearer tokens and resolves user from DB
 
 import type { Env, User } from '../types';
 import { getCached, setCache } from './cache-local';
 import { getTenantId, setTenantForRequest } from './tenant';
+import { verifyJWT } from '../utils/crypto';
 
 // Auth middleware with caching
 export async function getUser(request: Request, env: Env): Promise<User | null> {
@@ -30,10 +30,17 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
     return cachedUser;
   }
 
-  // Query DB
-  let result = await env.DB.prepare(
+  // Verify JWT and extract userId
+  const payload = await verifyJWT(token, env.JWT_SECRET);
+
+  // Fallback: accept raw user ID for backward compatibility with existing sessions
+  // Once all clients re-login, this fallback can be removed
+  const userId = payload ? payload.userId : token;
+
+  // Query DB by userId
+  const result = await env.DB.prepare(
     `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE id = ? ${authTenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
-  ).bind(...[token, ...(authTenantId ? [authTenantId] : [])]).first();
+  ).bind(...[userId, ...(authTenantId ? [authTenantId] : [])]).first();
 
   if (result) {
     const user = result as any;
