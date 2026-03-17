@@ -1,28 +1,33 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, Calendar, X,
   User, Phone, Check, FileText, Wrench
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore } from '../stores/requestStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { PRIORITY_LABELS, SPECIALIZATION_LABELS, STATUS_LABELS } from '../types';
 import type { Request } from '../types';
 
 export function ExecutorSchedulePage() {
   const { user } = useAuthStore();
-  const { requests, executors } = useDataStore();
+  const { requests, fetchRequests } = useRequestStore();
   const { language } = useLanguageStore();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTab, setActiveTab] = useState<'schedule' | 'all'>('schedule');
 
-  // Find current executor
-  const currentExecutor = executors.find(e => e.login === user?.login);
+  // Refresh requests on mount to guarantee fresh data
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
 
-  // Filter requests for this executor
-  const myRequests = requests.filter(r => r.executorId === currentExecutor?.id);
+  // Filter requests for this executor directly by user id (API already scopes by executor_id)
+  const myRequests = useMemo(
+    () => requests.filter(r => r.executorId === user?.id),
+    [requests, user?.id]
+  );
 
   // Active requests (not completed/cancelled)
   const activeRequests = useMemo(() => {
@@ -31,32 +36,34 @@ export function ExecutorSchedulePage() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [myRequests]);
 
-  // Scheduled requests for agenda view (requests with scheduledDate)
+  // Compute the "task date" for calendar: prefer resident's desired date,
+  // then the date the task was assigned, then the creation date.
+  const getTaskDate = (r: Request): string => {
+    if (r.scheduledDate) return r.scheduledDate;
+    if (r.assignedAt) return r.assignedAt.split('T')[0];
+    return r.createdAt.split('T')[0];
+  };
+
+  // All active requests shown in schedule (not just ones with scheduledDate)
   const scheduledRequests = useMemo(() => {
     return myRequests
-      .filter(r => r.scheduledDate && ['assigned', 'accepted', 'in_progress'].includes(r.status))
-      .sort((a, b) => {
-        const dateA = new Date(a.scheduledDate!).getTime();
-        const dateB = new Date(b.scheduledDate!).getTime();
-        return dateA - dateB;
-      });
+      .filter(r => ['assigned', 'accepted', 'in_progress'].includes(r.status))
+      .sort((a, b) => new Date(getTaskDate(a)).getTime() - new Date(getTaskDate(b)).getTime());
   }, [myRequests]);
 
-  // Group scheduled requests by date for calendar
+  // Group all active requests by their task date for the calendar
   const requestsByDate = useMemo(() => {
     const grouped: Record<string, Request[]> = {};
     scheduledRequests.forEach(req => {
-      if (req.scheduledDate) {
-        const dateKey = req.scheduledDate;
-        if (!grouped[dateKey]) grouped[dateKey] = [];
-        grouped[dateKey].push(req);
-      }
+      const dateKey = getTaskDate(req);
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(req);
     });
     return grouped;
   }, [scheduledRequests]);
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
+    return new Date(dateStr).toLocaleString('ru-RU', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -149,7 +156,7 @@ export function ExecutorSchedulePage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="font-medium min-w-[140px] text-center">
-                {selectedDate.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long', year: 'numeric' })}
+                {selectedDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
               </span>
               <button
                 onClick={() => {
@@ -271,7 +278,7 @@ export function ExecutorSchedulePage() {
           <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-amber-500" />
             {selectedCalendarDate
-              ? `${language === 'ru' ? 'Заявки на' : 'Arizalar'} ${new Date(selectedCalendarDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'long' })}`
+              ? `${language === 'ru' ? 'Заявки на' : 'Arizalar'} ${new Date(selectedCalendarDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
               : (language === 'ru' ? 'Предстоящие заявки' : 'Kelayotgan arizalar')
             }
             {selectedCalendarDate && (
@@ -287,7 +294,7 @@ export function ExecutorSchedulePage() {
           {(() => {
             // Filter requests based on selected date or show all upcoming
             const displayRequests = selectedCalendarDate
-              ? scheduledRequests.filter(r => r.scheduledDate === selectedCalendarDate)
+              ? scheduledRequests.filter(r => getTaskDate(r) === selectedCalendarDate)
               : scheduledRequests;
 
             if (displayRequests.length === 0) {
@@ -296,14 +303,14 @@ export function ExecutorSchedulePage() {
                   <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">
                     {selectedCalendarDate
-                      ? (language === 'ru' ? 'Нет заявок на выбранную дату' : 'Tanlangan sanada arizalar yo\'q')
-                      : (language === 'ru' ? 'Нет запланированных заявок' : 'Rejalashtirilgan arizalar yo\'q')
+                      ? (language === 'ru' ? 'На выбранную дату нет назначенных работ' : 'Tanlangan sanada tayinlangan ishlar yo\'q')
+                      : (language === 'ru' ? 'Нет активных заявок' : 'Faol arizalar yo\'q')
                     }
                   </p>
                   <p className="text-gray-400 text-sm mt-1">
                     {selectedCalendarDate
                       ? (language === 'ru' ? 'Выберите другой день в календаре' : 'Kalendarda boshqa kunni tanlang')
-                      : (language === 'ru' ? 'Заявки с указанной датой появятся здесь' : 'Sanasi ko\'rsatilgan arizalar bu yerda paydo bo\'ladi')
+                      : (language === 'ru' ? 'Назначенные заявки появятся здесь' : 'Tayinlangan arizalar bu yerda paydo bo\'ladi')
                     }
                   </p>
                 </div>
@@ -313,13 +320,12 @@ export function ExecutorSchedulePage() {
             return (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {displayRequests.map((request) => {
-                  const scheduleDate = new Date(request.scheduledDate!);
-                  const isToday = new Date().toISOString().split('T')[0] === request.scheduledDate;
-                  const isTomorrow = (() => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    return tomorrow.toISOString().split('T')[0] === request.scheduledDate;
-                  })();
+                  const taskDate = getTaskDate(request);
+                  const scheduleDate = new Date(taskDate);
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })();
+                  const isToday = todayStr === taskDate;
+                  const isTomorrow = tomorrowStr === taskDate;
 
                   return (
                     <div
@@ -369,10 +375,18 @@ export function ExecutorSchedulePage() {
                                 {request.scheduledTime}
                               </span>
                             )}
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-4 h-4" />
-                              {request.address}, кв. {request.apartment}
-                            </span>
+                            {request.buildingName && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-4 h-4" />
+                                {request.buildingName}, кв. {request.apartment}
+                              </span>
+                            )}
+                            {!request.buildingName && request.address && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-4 h-4" />
+                                {request.address}, кв. {request.apartment}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="text-right flex flex-col gap-2">
@@ -384,9 +398,16 @@ export function ExecutorSchedulePage() {
                           }`}>
                             {PRIORITY_LABELS[request.priority]}
                           </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            request.status === 'assigned' ? 'bg-indigo-100 text-indigo-700' :
+                            request.status === 'accepted' ? 'bg-cyan-100 text-cyan-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {STATUS_LABELS[request.status]}
+                          </span>
                           {!selectedCalendarDate && (
                             <span className="text-xs text-gray-400">
-                              {scheduleDate.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' })}
+                              {scheduleDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                             </span>
                           )}
                         </div>
@@ -464,15 +485,13 @@ export function ExecutorSchedulePage() {
                   <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />
-                      {request.address}, кв. {request.apartment}
+                      {request.buildingName || request.address}, кв. {request.apartment}
                     </span>
-                    {request.scheduledDate && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-lg text-xs font-medium">
-                        <CalendarDays className="w-3 h-3" />
-                        {new Date(request.scheduledDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' })}
-                        {request.scheduledTime && ` ${request.scheduledTime}`}
-                      </span>
-                    )}
+                    <span className="flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-lg text-xs font-medium">
+                      <CalendarDays className="w-3 h-3" />
+                      {new Date(getTaskDate(request)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                      {request.scheduledTime && ` ${request.scheduledTime}`}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 text-sm text-gray-500">
                     <User className="w-3.5 h-3.5" />
@@ -505,27 +524,36 @@ export function ExecutorSchedulePage() {
             </div>
 
             <div className="space-y-4">
-              {/* Scheduled Date/Time */}
-              {selectedRequest.scheduledDate && (
-                <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
-                  <h3 className="font-medium text-primary-800 flex items-center gap-2 mb-2">
-                    <CalendarDays className="w-4 h-4" />
-                    {language === 'ru' ? 'Желаемое время выполнения' : 'Kerakli vaqt'}
-                  </h3>
-                  <div className="flex items-center gap-4 text-primary-700">
-                    <span>{new Date(selectedRequest.scheduledDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-                    {selectedRequest.scheduledTime && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {selectedRequest.scheduledTime}
-                      </span>
-                    )}
-                  </div>
+              {/* Task Date */}
+              <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
+                <h3 className="font-medium text-primary-800 flex items-center gap-2 mb-2">
+                  <CalendarDays className="w-4 h-4" />
+                  {selectedRequest.scheduledDate
+                    ? (language === 'ru' ? 'Желаемая дата выполнения' : 'Kerakli sana')
+                    : (language === 'ru' ? 'Дата назначения' : 'Tayinlangan sana')
+                  }
+                </h3>
+                <div className="flex items-center gap-4 text-primary-700">
+                  <span>{new Date(getTaskDate(selectedRequest)).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                  {selectedRequest.scheduledTime && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {selectedRequest.scheduledTime}
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
 
-              {/* Priority & Category */}
-              <div className="flex items-center gap-3">
+              {/* Status + Priority + Category */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  selectedRequest.status === 'assigned' ? 'bg-indigo-100 text-indigo-700' :
+                  selectedRequest.status === 'accepted' ? 'bg-cyan-100 text-cyan-700' :
+                  selectedRequest.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
+                  {STATUS_LABELS[selectedRequest.status]}
+                </span>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                   selectedRequest.priority === 'urgent' ? 'text-red-600 bg-red-50' :
                   selectedRequest.priority === 'high' ? 'text-orange-600 bg-orange-50' :
@@ -561,7 +589,7 @@ export function ExecutorSchedulePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-gray-400" />
-                    <span>{selectedRequest.address}, кв. {selectedRequest.apartment}</span>
+                    <span>{selectedRequest.buildingName || selectedRequest.address}, кв. {selectedRequest.apartment}</span>
                   </div>
                 </div>
               </div>
