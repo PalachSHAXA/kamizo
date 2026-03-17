@@ -29,7 +29,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd src/frontend
-          npm ci --ignore-platform
+          npm install --no-optional
 
       - name: Build frontend
         run: |
@@ -44,7 +44,7 @@ jobs:
       - name: Install Cloudflare dependencies
         run: |
           cd cloudflare
-          npm ci --ignore-platform
+          npm install --no-optional
 
       - name: Deploy to Cloudflare Workers (Production)
         uses: cloudflare/wrangler-action@v3
@@ -79,7 +79,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd src/frontend
-          npm ci --ignore-platform
+          npm install --no-optional
 
       - name: Build frontend
         run: |
@@ -94,7 +94,7 @@ jobs:
       - name: Install Cloudflare dependencies
         run: |
           cd cloudflare
-          npm ci --ignore-platform
+          npm install --no-optional
 
       - name: Deploy to Cloudflare Workers (Staging)
         uses: cloudflare/wrangler-action@v3
