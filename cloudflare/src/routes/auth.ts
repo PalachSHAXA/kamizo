@@ -4,7 +4,7 @@ import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, setTenantForRequest } from '../middleware/tenant';
 import { json, error, generateId, isManagement } from '../utils/helpers';
-import { encryptPassword, hashPassword, verifyPassword } from '../utils/crypto';
+import { hashPassword, verifyPassword } from '../utils/crypto';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../middleware/cors';
 
@@ -180,14 +180,10 @@ export function registerAuthRoutes(env: Env) {
     const id = generateId();
     const passwordHash = await hashPassword(password);
 
-    // Store encrypted password only for staff roles
-    const staffRoles = ['manager', 'department_head', 'executor', 'security', 'advertiser'];
-    const passwordPlain = staffRoles.includes(role) ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
-
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, login.trim(), passwordHash, passwordPlain, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, tenantId).run();
+      INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, login.trim(), passwordHash, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, tenantId).run();
 
     // Auto-create apartment record if resident has building_id + apartment number
     if (building_id && apartment && (role === 'resident' || role === 'tenant')) {
@@ -257,9 +253,8 @@ export function registerAuthRoutes(env: Env) {
         // Also update password if provided
         if (u.password) {
           const passwordHash = await hashPassword(u.password);
-          const encPwd = await encryptPassword(u.password, env.ENCRYPTION_KEY);
-          await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ?')
-            .bind(passwordHash, encPwd, existing.id).run();
+          await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+            .bind(passwordHash, existing.id).run();
         }
 
         updated.push({ id: existing.id, login: u.login, name: u.name });
@@ -268,13 +263,12 @@ export function registerAuthRoutes(env: Env) {
         const id = generateId();
         const rawPwd = u.password || 'kamizo';
         const passwordHash = await hashPassword(rawPwd);
-        const encPwd = await encryptPassword(rawPwd, env.ENCRYPTION_KEY);
 
         await env.DB.prepare(`
-          INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, total_area, tenant_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, total_area, tenant_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          id, u.login.trim(), passwordHash, encPwd, u.name, 'resident',
+          id, u.login.trim(), passwordHash, u.name, 'resident',
           u.phone || null, u.address || null, u.apartment || null, u.building_id || null, u.entrance || null, u.floor || null, u.total_area || null, getTenantId(request)
         ).run();
 

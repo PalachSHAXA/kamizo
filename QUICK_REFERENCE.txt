@@ -1,0 +1,217 @@
+================================================================================
+KAMIZO ROLE-BASED ROUTING - QUICK REFERENCE
+================================================================================
+
+ROLE HIERARCHY & ACCESS LEVELS:
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PLATFORM LEVEL                                                          │
+│ └── super_admin (tenant management, feature control, analytics)        │
+└─────────────────────────────────────────────────────────────────────────┘
+        │
+        ├── MANAGEMENT TIER
+        │   ├── admin (monitoring, team, reports)
+        │   ├── director (company overview, team performance)
+        │   ├── manager (request/executor management) [DEFAULT FALLBACK]
+        │   └── department_head (department-scoped)
+        │
+        ├── FIELD TIER
+        │   ├── executor (request fulfillment, statistics)
+        │   └── security (QR access control) [REDIRECTS TO /qr-scanner]
+        │
+        ├── RESIDENT TIER
+        │   ├── resident (requests, meetings, vehicles)
+        │   ├── tenant (rental apartments)
+        │   └── commercial_owner (rental spaces)
+        │
+        └── SPECIAL TIER
+            ├── advertiser (ad management, coupons)
+            ├── dispatcher (minimal usage)
+            └── marketplace_manager (marketplace operations)
+
+================================================================================
+DASHBOARD ROUTING (DEFAULT HOME PAGE):
+================================================================================
+
+Role                    → Default Component              File Location
+─────────────────────────────────────────────────────────────────────────────
+super_admin             → SuperAdminDashboard            /pages/admin/SuperAdminDashboard.tsx
+admin                   → AdminDashboard                 /pages/AdminDashboard.tsx
+director                → DirectorDashboard              /pages/DirectorDashboard.tsx
+manager                 → ManagerDashboard               /pages/ManagerDashboard.tsx
+department_head         → DepartmentHeadDashboard        /pages/DepartmentHeadDashboard.tsx
+executor                → ExecutorDashboard              /pages/ExecutorDashboard.tsx
+security                → /qr-scanner (REDIRECT)         (no dashboard)
+resident                → ResidentDashboard              /pages/ResidentDashboard.tsx
+tenant                  → TenantDashboard                /pages/tenant/TenantDashboard.tsx
+commercial_owner        → TenantDashboard                /pages/tenant/TenantDashboard.tsx
+advertiser              → AdvertiserDashboard            /pages/AdvertiserDashboard.tsx
+dispatcher              → ManagerDashboard               (inherits manager logic)
+marketplace_manager     → MarketplaceManagerDashboard    /pages/MarketplaceManagerDashboard.tsx
+
+================================================================================
+SIDEBAR MENU ITEM COUNT:
+================================================================================
+
+super_admin         : 0 items (no sidebar - separate interface)
+admin               : 19 items (9 sections)
+director            : 17 items (8 sections)
+manager             : 18 items (7 sections) [DEFAULT for other roles]
+department_head     : 9 items (3 sections)
+executor/security   : 10 items (4 sections)
+resident            : 11 items (4 sections)
+tenant/commercial   : 1 item (My Apartments)
+advertiser          : 3 items (ads, announcements, settings)
+marketplace_manager : 2 items (store manage, orders)
+
+================================================================================
+PROTECTED ROUTE ACCESS:
+================================================================================
+
+Route               Allowed Roles
+─────────────────────────────────────────────────────────────────────────────
+/requests           admin, manager, director, department_head
+/residents          admin, manager, director, department_head
+/executors          admin, manager, director, department_head
+/rentals            admin, manager, director
+/buildings          admin, manager, director, department_head
+/work-orders        admin, manager, director, department_head, executor
+/schedule           executor only
+/my-stats           executor only
+/rate-employees     resident only
+/vehicles           resident only
+/vehicle-search     admin, manager, director, security
+/qr-scanner         security only
+/chat               admin, manager, director, department_head, executor, security, resident
+/team               admin, director
+/reports            admin, director, manager
+/settings           admin, director, manager
+/monitoring         admin only
+/profile            All roles (dynamic component)
+/contract           resident only
+/useful-contacts    resident only
+/colleagues         All roles
+/notepad            All roles
+/trainings          All roles
+/meetings           All roles (dynamic component)
+/announcements      All roles (dynamic component)
+/guest-access       All roles (dynamic component)
+
+================================================================================
+DYNAMIC ROUTE COMPONENTS (ROLE-BASED):
+================================================================================
+
+/announcements:
+  resident            → ResidentAnnouncementsPage
+  executor/security   → ExecutorAnnouncementsPage
+  advertiser          → ExecutorAnnouncementsPage
+  others              → AnnouncementsPage
+
+/meetings:
+  resident            → ResidentMeetingsPage
+  others              → MeetingsPage
+
+/guest-access:
+  resident            → ResidentGuestAccessPage
+  others              → ManagerGuestAccessPage
+
+/profile:
+  resident/tenant/    → ResidentProfilePage
+  commercial_owner
+  admin/director/     → SettingsPage
+  manager
+  others              → StaffProfilePage
+
+================================================================================
+SIDEBAR BADGES (NOTIFICATION COUNTS):
+================================================================================
+
+Executor/Security:
+  /requests       = New requests (matching specialization) + Assigned requests
+  /announcements  = Unread announcements
+  /chat           = Unread chat messages
+
+Resident:
+  /               = Active requests
+  /announcements  = Unread announcements
+  /meetings       = Upcoming meetings (7-day window)
+  /chat           = Unread chat messages
+
+Manager/Admin/Director:
+  /requests       = New unassigned requests
+  /meetings       = Upcoming meetings (7-day window)
+  /chat           = Unread chat messages
+
+Meeting Badge Colors:
+  🔵 BLUE         = Voting open
+  🟢 GREEN        = Confirmed/completed
+  ⚪ NORMAL/PULSE = Upcoming
+
+================================================================================
+FEATURE LOCKING (PER TENANT):
+================================================================================
+
+Feature           Paths
+─────────────────────────────────────────────────────────────────────────────
+requests          /, /requests, /executors, /work-orders, /schedule, /my-stats
+meetings          /meetings
+qr                /qr-scanner, /guest-access
+chat              /chat
+marketplace       /marketplace, /marketplace-orders, /marketplace-products
+announcements     /announcements
+trainings         /trainings
+rentals           /rentals
+colleagues        /colleagues
+vehicles          /vehicles, /vehicle-search
+useful-contacts   /useful-contacts
+notepad           /notepad
+
+Always Allowed (never locked):
+  /, /settings, /profile, /buildings, /residents, /contract, /rate-employees, /team, /reports
+
+================================================================================
+CHAT ACCESS CONTROL:
+================================================================================
+
+Chat Enabled For: admin, manager, director, department_head, executor, security, resident
+Chat Disabled:   tenant, commercial_owner, advertiser, marketplace_manager, super_admin
+
+================================================================================
+MULTI-TENANT ROUTING:
+================================================================================
+
+Super Admin Impersonation:
+  - Can enter any tenant via /admin_url?auto_auth=...
+  - Amber banner shown at top with tenant name
+  - Exit button returns to super admin dashboard
+  - Impersonation data stored in localStorage['kamizo_impersonation']
+
+Feature Control:
+  - Admin can enable/disable features per tenant
+  - Disabled features shown with 🔒 lock icon in sidebar
+  - Direct URL access to disabled features shows home page
+
+================================================================================
+KEY FILES:
+================================================================================
+
+Core Routing:
+  - App.tsx                         → Auto-auth, role checks, data init
+  - components/layout/Layout.tsx    → Route definitions, dashboard routing
+  - components/ProtectedRoute.tsx   → Role-based access control
+
+Navigation:
+  - components/layout/Sidebar.tsx   → Role-based menu generation, badges, feature locking
+  - components/layout/Header.tsx    → Standard header
+  - components/layout/MobileHeader.tsx
+
+Authentication:
+  - stores/authStore.ts            → Login, logout, role management
+  - services/api/authApi          → API authentication
+
+Features:
+  - stores/tenantStore.ts          → Tenant config, feature flags
+  - components/FeatureLockedModal.tsx → Locked feature UI
+
+================================================================================
+END OF REFERENCE
+================================================================================
