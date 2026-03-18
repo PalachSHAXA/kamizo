@@ -19,6 +19,8 @@ import {
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useAuthStore } from '../../stores/authStore';
+import { financeApi } from '../../services/api/finance';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 
@@ -62,6 +64,12 @@ export default function ChargesPage() {
   const filters = useFinanceStore((s) => s.filters);
   const setFilters = useFinanceStore((s) => s.setFilters);
 
+  const user = useAuthStore((s) => s.user);
+  const isResident = user?.role === 'resident' || user?.role === 'tenant';
+
+  /* building statuses for residents */
+  const [buildingStatuses, setBuildingStatuses] = useState<{ apartment_number: string; status: string }[]>([]);
+
   /* local filter state — committed on Apply */
   const [localBuilding, setLocalBuilding] = useState(filters.buildingId);
   const [localPeriod, setLocalPeriod] = useState(filters.period);
@@ -90,6 +98,17 @@ export default function ChargesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.buildingId, filters.period, filters.status]);
+
+  /* fetch building charge statuses for residents */
+  useEffect(() => {
+    if (isResident && user?.buildingId) {
+      const now = new Date();
+      const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      financeApi.getBuildingChargeStatus(user.buildingId, period)
+        .then((res) => setBuildingStatuses(res.statuses || []))
+        .catch(() => setBuildingStatuses([]));
+    }
+  }, [isResident, user?.buildingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyFilters = useCallback(() => {
     setFilters({ buildingId: localBuilding, period: localPeriod, status: localStatus });
@@ -410,6 +429,33 @@ export default function ChargesPage() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Building status for residents ── */}
+      {isResident && buildingStatuses.length > 0 && (
+        <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            {t('Статусы оплат по дому', 'Uy bo\'yicha to\'lov holatlari')}
+          </h3>
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+            {buildingStatuses.map((s) => (
+              <div key={s.apartment_number} className="flex items-center gap-1.5 text-xs">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  s.status === 'paid' ? 'bg-green-500' :
+                  s.status === 'partial' ? 'bg-yellow-500' :
+                  s.status === 'overdue' ? 'bg-red-500' : 'bg-gray-300'
+                }`} />
+                <span className="text-gray-600">{s.apartment_number}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-4 mt-3 text-[10px] text-gray-400">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />{t('Оплачено', 'To\'langan')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />{t('Частично', 'Qisman')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />{t('Долг', 'Qarz')}</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300" />{t('Ожидает', 'Kutilmoqda')}</span>
+          </div>
         </div>
       )}
 

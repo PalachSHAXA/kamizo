@@ -667,6 +667,32 @@ route('POST', '/api/rentals/records', async (request, env) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(id, apartmentId, guestNames, passportInfo || null, checkInDate, checkOutDate, finalAmount, finalCurrency, finalNotes || null, user.id, getTenantId(request)).run();
 
+  // Auto-create finance_income entry for UK commission (10% of rental payment)
+  if (finalAmount > 0) {
+    try {
+      const tenantIdForIncome = getTenantId(request) || '';
+      const commissionPercent = 10;
+      const commissionAmount = Math.round(finalAmount * commissionPercent / 100);
+      // Find or create rental income category
+      let category = await env.DB.prepare(
+        "SELECT id FROM finance_income_categories WHERE name = 'Аренда квартир (через платформу)' AND (tenant_id = ? OR is_default = 1) LIMIT 1"
+      ).bind(tenantIdForIncome).first<{ id: string }>();
+      if (!category) {
+        const catId = generateId();
+        await env.DB.prepare(
+          "INSERT INTO finance_income_categories (id, name, is_default, is_active, tenant_id) VALUES (?, 'Аренда квартир (через платформу)', 0, 1, ?)"
+        ).bind(catId, tenantIdForIncome).run();
+        category = { id: catId };
+      }
+      const apt = await env.DB.prepare('SELECT number FROM apartments WHERE id = ? LIMIT 1').bind(apartmentId).first<{ number: string }>();
+      const now = new Date();
+      const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      await env.DB.prepare(
+        'INSERT INTO finance_income (id, category_id, amount, period, description, source_type, source_id, created_by, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(generateId(), category.id, commissionAmount, period, `Комиссия с аренды кв. ${apt?.number || apartmentId}`, 'rental', id, user.id, tenantIdForIncome).run();
+    } catch { /* silently skip if finance tables not ready */ }
+  }
+
   return json({
     record: {
       id,

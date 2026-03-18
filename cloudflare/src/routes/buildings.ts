@@ -1483,8 +1483,8 @@ route('POST', '/api/buildings/:buildingId/apartments', async (request, env, para
       total_area, living_area, kitchen_area, balcony_area, rooms,
       has_balcony, has_loggia, ceiling_height, window_view,
       ownership_type, ownership_share, cadastral_number,
-      status, is_commercial, primary_owner_id, personal_account_id, tenant_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      status, is_commercial, property_type, primary_owner_id, personal_account_id, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     params.buildingId,
@@ -1505,6 +1505,7 @@ route('POST', '/api/buildings/:buildingId/apartments', async (request, env, para
     body.cadastral_number || body.cadastralNumber || null,
     body.status || 'occupied',
     body.is_commercial || body.isCommercial ? 1 : 0,
+    body.property_type || (body.is_commercial || body.isCommercial ? 'non_commercial' : 'commercial'),
     body.primary_owner_id || body.primaryOwnerId || null,
     body.personal_account_id || body.personalAccountId || null,
     getTenantId(request)
@@ -1542,6 +1543,7 @@ route('PATCH', '/api/apartments/:id', async (request, env, params) => {
     cadastral_number: 'cadastral_number', cadastralNumber: 'cadastral_number',
     status: 'status',
     is_commercial: 'is_commercial', isCommercial: 'is_commercial',
+    property_type: 'property_type',
     primary_owner_id: 'primary_owner_id', primaryOwnerId: 'primary_owner_id',
     personal_account_id: 'personal_account_id', personalAccountId: 'personal_account_id',
   };

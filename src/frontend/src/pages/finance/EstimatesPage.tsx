@@ -187,9 +187,19 @@ export default function EstimatesPage() {
   const handleActivate = async () => {
     if (!currentEstimate) return;
     setActivating(true);
-    await activateEstimate(currentEstimate.id as string);
-    await fetchEstimate(currentEstimate.id as string);
+    const ok = await activateEstimate(currentEstimate.id as string);
     setActivating(false);
+    if (ok) {
+      await fetchEstimate(currentEstimate.id as string);
+      const msg = language === 'ru'
+        ? 'Смета активирована. Сформировать начисления на все квартиры?'
+        : 'Smeta faollashtirildi. Barcha xonadonlar uchun hisob-kitoblar yaratilsinmi?';
+      if (window.confirm(msg)) {
+        setGenerating(true);
+        await generateCharges(currentEstimate.id as string);
+        setGenerating(false);
+      }
+    }
   };
 
   const handleGenerate = async () => {

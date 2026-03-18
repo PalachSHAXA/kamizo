@@ -222,7 +222,19 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
   if (existing.status !== 'draft') return error('Only draft estimates can be activated', 400);
 
   await env.DB.prepare('UPDATE finance_estimates SET status = \'active\' WHERE id = ?').bind(params.id).run();
-  return json({ success: true });
+
+  // Check if charges already exist for this estimate
+  const chargesCount = await env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM finance_charges WHERE estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ cnt: number }>();
+
+  const cnt = chargesCount?.cnt || 0;
+  return json({
+    success: true,
+    charges_generated: cnt > 0,
+    charges_count: cnt,
+    message: cnt > 0 ? `Начисления уже сформированы (${cnt})` : 'Начисления ещё не сформированы',
+  });
 });
 
 // ── НАЧИСЛЕНИЯ ───────────────────────────────────────────────────
@@ -916,6 +928,44 @@ route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env
     },
     charges_by_month: chargesByMonth,
   });
+});
+
+// ── BUILDING CHARGE STATUS (for residents) ───────────────────────
+
+// 25. GET /api/finance/charges/building-status — apartment payment statuses (no amounts, no names)
+route('GET', '/api/finance/charges/building-status', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const tenantId = getTenantId(request);
+  const url = new URL(request.url);
+  const buildingId = url.searchParams.get('building_id');
+  const period = url.searchParams.get('period');
+
+  if (!buildingId || !period) return error('building_id and period are required');
+
+  // If resident — check that the active estimate allows showing debtor status
+  if (user.role === 'resident' || user.role === 'tenant') {
+    const estimate = await env.DB.prepare(
+      `SELECT show_debtor_status_to_residents FROM finance_estimates WHERE building_id = ? AND period = ? AND status = 'active' ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+    ).bind(buildingId, period, ...(tenantId ? [tenantId] : [])).first<{ show_debtor_status_to_residents: number }>();
+
+    if (!estimate || !estimate.show_debtor_status_to_residents) {
+      return error('Status view not enabled for residents', 403);
+    }
+  }
+
+  const { results } = await env.DB.prepare(
+    `SELECT a.number as apartment_number, c.status
+     FROM finance_charges c
+     JOIN apartments a ON c.apartment_id = a.id
+     WHERE a.building_id = ? AND c.period = ? ${tenantId ? 'AND c.tenant_id = ?' : ''}
+     ORDER BY CAST(a.number AS INTEGER)`
+  ).bind(buildingId, period, ...(tenantId ? [tenantId] : [])).all();
+
+  return json({ statuses: results });
 });
 
 } // end registerFinanceRoutes

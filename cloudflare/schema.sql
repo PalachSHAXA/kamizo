@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS apartments (
   -- Status
   status TEXT DEFAULT 'occupied' CHECK (status IN ('occupied', 'vacant', 'rented', 'renovation', 'commercial')),
   is_commercial INTEGER DEFAULT 0,
+  property_type TEXT DEFAULT 'commercial' CHECK (property_type IN ('commercial','non_commercial')),
 
   -- References
   primary_owner_id TEXT,

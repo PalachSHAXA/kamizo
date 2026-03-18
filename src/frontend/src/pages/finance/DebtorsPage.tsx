@@ -3,6 +3,8 @@ import { AlertTriangle, FileText, Filter, Users, Banknote } from 'lucide-react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useTenantStore } from '../../stores/tenantStore';
+import { generateReconciliationDoc, generatePretensionDoc } from '../../utils/generateFinanceDocs';
 import { EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 
@@ -21,6 +23,8 @@ interface Debtor {
 export default function DebtorsPage() {
   const language = useLanguageStore((s) => s.language);
   const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
+
+  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'УК';
 
   const debtors = useFinanceStore((s) => s.debtors) as Debtor[];
   const debtorsLoading = useFinanceStore((s) => s.debtorsLoading);
@@ -65,28 +69,34 @@ export default function DebtorsPage() {
   const totalDebt = useMemo(() => filtered.reduce((s, d) => s + (d.total_debt || 0), 0), [filtered]);
 
   const handleReconciliation = useCallback(
-    (d: Debtor) => {
+    async (d: Debtor) => {
       const now = new Date();
       const periodTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const monthsBack = d.months_overdue || 1;
       const from = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
       const periodFrom = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}`;
-      generateReconciliation({ apartment_id: d.apartment_id, period_from: periodFrom, period_to: periodTo });
+      const result = await generateReconciliation({ apartment_id: d.apartment_id, period_from: periodFrom, period_to: periodTo });
+      if (result) {
+        generateReconciliationDoc(result as Parameters<typeof generateReconciliationDoc>[0], tenantName);
+      }
     },
-    [generateReconciliation],
+    [generateReconciliation, tenantName],
   );
 
   const handlePretension = useCallback(
-    (d: Debtor) => {
+    async (d: Debtor) => {
       const msg = t(
         `Сформировать претензию для кв. ${d.apartment_number} (${d.owner_name})?`,
         `${d.apartment_number}-xonadon uchun da'vo shakllantirilsinmi (${d.owner_name})?`,
       );
       if (window.confirm(msg)) {
-        generatePretension(d.apartment_id);
+        const result = await generatePretension(d.apartment_id);
+        if (result) {
+          generatePretensionDoc(result as Parameters<typeof generatePretensionDoc>[0], tenantName);
+        }
       }
     },
-    [generatePretension, t],
+    [generatePretension, t, tenantName],
   );
 
   if (debtorsLoading) return <PageSkeleton variant="list" />;

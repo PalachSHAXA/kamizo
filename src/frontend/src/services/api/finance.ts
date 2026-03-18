@@ -127,4 +127,10 @@ export const financeApi = {
       `/api/finance/apartments/${apartmentId}/balance`,
       CACHE_TTL.SHORT
     ),
+
+  // ── Building charge status (for residents) ───
+  getBuildingChargeStatus: (buildingId: string, period: string) =>
+    apiRequest<{ statuses: { apartment_number: string; status: string }[] }>(
+      `/api/finance/charges/building-status?building_id=${buildingId}&period=${period}`
+    ),
 };

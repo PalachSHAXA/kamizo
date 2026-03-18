@@ -21,6 +21,7 @@ import { SERVICE_CATEGORIES, PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../type
 import type { Request, ExecutorSpecialization, RequestPriority, RescheduleRequest } from '../types';
 import { RequestStatusTracker, RequestStatusTrackerCompact } from '../components/RequestStatusTracker';
 import { formatAddress } from '../utils/formatAddress';
+import { generateReconciliationDoc } from '../utils/generateFinanceDocs';
 import RescheduleModal from '../components/modals/RescheduleModal';
 import RescheduleResponseModal from '../components/modals/RescheduleResponseModal';
 import { CancelRequestModal } from '../components/modals/CancelRequestModal';
@@ -536,12 +537,17 @@ export function ResidentDashboard() {
                     {language === 'ru' ? 'Все платежи' : "Barcha to'lovlar"}
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const now = new Date();
                       const periodTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                       const from = new Date(now.getFullYear() - 1, now.getMonth(), 1);
                       const periodFrom = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}`;
-                      if (user?.id) generateReconciliation({ apartment_id: user.id, period_from: periodFrom, period_to: periodTo });
+                      if (user?.id) {
+                        const result = await generateReconciliation({ apartment_id: user.id, period_from: periodFrom, period_to: periodTo });
+                        if (result) {
+                          generateReconciliationDoc(result as Parameters<typeof generateReconciliationDoc>[0], tenantName);
+                        }
+                      }
                     }}
                     className="flex-1 py-2 rounded-xl text-[12px] font-bold text-gray-600 bg-gray-100 active:scale-[0.96] transition-transform"
                   >
