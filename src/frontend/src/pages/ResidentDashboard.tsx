@@ -16,6 +16,7 @@ import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useTenantStore } from '../stores/tenantStore';
+import { useFinanceStore } from '../stores/financeStore';
 import { SERVICE_CATEGORIES, PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../types';
 import type { Request, ExecutorSpecialization, RequestPriority, RescheduleRequest } from '../types';
 import { RequestStatusTracker, RequestStatusTrackerCompact } from '../components/RequestStatusTracker';
@@ -110,6 +111,18 @@ export function ResidentDashboard() {
   const [serviceSearch, setServiceSearch] = useState('');
   const [serviceCatFilter, setServiceCatFilter] = useState<string>('all');
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+
+  const getApartmentBalance = useFinanceStore((s) => s.getApartmentBalance);
+  const generateReconciliation = useFinanceStore((s) => s.generateReconciliation);
+  const [financeBalance, setFinanceBalance] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (user?.id) {
+      getApartmentBalance(user.id).then(res => {
+        if (res) setFinanceBalance(res.balance as Record<string, unknown>);
+      });
+    }
+  }, [user?.id, getApartmentBalance]);
 
   // Sync tab state with URL params
   useEffect(() => {
@@ -488,6 +501,54 @@ export function ResidentDashboard() {
                   )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* ── FINANCE WIDGET ── */}
+          {financeBalance && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.8px]">
+                  {language === 'ru' ? 'Финансы' : 'Moliya'}
+                </span>
+              </div>
+              <div className="bg-white rounded-[18px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${(financeBalance.debt as number) > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                      <Wallet className="w-5 h-5" style={{ color: (financeBalance.debt as number) > 0 ? '#EF4444' : '#22C55E' }} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-400 font-medium">{language === 'ru' ? 'Баланс' : 'Balans'}</p>
+                      <p className={`text-[16px] font-bold ${(financeBalance.debt as number) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {(financeBalance.debt as number) > 0
+                          ? `${((financeBalance.debt as number) || 0).toLocaleString()} ${language === 'ru' ? 'сум долг' : "so'm qarz"}`
+                          : `${((financeBalance.overpaid as number) || 0).toLocaleString()} ${language === 'ru' ? 'сум переплата' : "so'm ortiqcha"}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => navigate('/finance/charges')}
+                    className="flex-1 py-2 rounded-xl text-[12px] font-bold text-primary-600 bg-primary-50 active:scale-[0.96] transition-transform"
+                  >
+                    {language === 'ru' ? 'Все платежи' : "Barcha to'lovlar"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const now = new Date();
+                      const periodTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                      const from = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+                      const periodFrom = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}`;
+                      if (user?.id) generateReconciliation({ apartment_id: user.id, period_from: periodFrom, period_to: periodTo });
+                    }}
+                    className="flex-1 py-2 rounded-xl text-[12px] font-bold text-gray-600 bg-gray-100 active:scale-[0.96] transition-transform"
+                  >
+                    {language === 'ru' ? 'Акт сверки' : 'Solishtirma'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

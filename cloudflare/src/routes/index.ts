@@ -11,6 +11,7 @@ import { registerUserRoutes } from './users';
 import { registerRentalRoutes } from './rentals';
 import { registerNotificationRoutes } from './notifications';
 import { registerMiscRoutes } from './misc';
+import { registerFinanceRoutes } from './finance';
 
 export function registerAllRoutes() {
   registerUserRoutes();
@@ -21,6 +22,7 @@ export function registerAllRoutes() {
   registerMarketplaceRoutes();
   registerTrainingRoutes();
   registerNotificationRoutes();
+  registerFinanceRoutes();
   registerMiscRoutes();
   registerSuperAdminRoutes();
 }

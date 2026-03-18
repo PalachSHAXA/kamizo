@@ -63,6 +63,9 @@ export {
 // Payments
 export { paymentsApi } from './payments';
 
+// Finance module
+export { financeApi } from './finance';
+
 // Settings, Notifications, Tenant
 export { settingsApi, notificationsApi, tenantApi } from './settings';
 export type { AppSettings, Notification } from './settings';

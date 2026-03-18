@@ -65,6 +65,13 @@ const MarketplaceManagerDashboard = lazy(() => import('../../pages/MarketplaceMa
 const MarketplaceOrdersPage = lazy(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
 const SuperAdminDashboard = lazy(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
 const PaymentsPage = lazy(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
+// Finance module pages
+const FinanceEstimatesPage = lazy(() => import('../../pages/finance/EstimatesPage'));
+const FinanceChargesPage = lazy(() => import('../../pages/finance/ChargesPage'));
+const FinanceDebtorsPage = lazy(() => import('../../pages/finance/DebtorsPage'));
+const FinanceIncomePage = lazy(() => import('../../pages/finance/IncomePage'));
+const FinanceMaterialsPage = lazy(() => import('../../pages/finance/MaterialsPage'));
+const FinanceSettingsPage = lazy(() => import('../../pages/finance/SettingsPage'));
 
 export function Layout() {
   const location = useLocation();
@@ -350,6 +357,37 @@ export function Layout() {
               <Route path="/payments" element={
                 <ProtectedRoute allowedRoles={['admin', 'manager', 'director']}>
                   <PaymentsPage />
+                </ProtectedRoute>
+              } />
+              {/* Finance module */}
+              <Route path="/finance/estimates" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
+                  <FinanceEstimatesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/finance/charges" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant']}>
+                  <FinanceChargesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/finance/debtors" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
+                  <FinanceDebtorsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/finance/income" element={
+                <ProtectedRoute allowedRoles={['admin', 'director']}>
+                  <FinanceIncomePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/finance/materials" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'executor', 'plumber', 'electrician']}>
+                  <FinanceMaterialsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/finance/settings" element={
+                <ProtectedRoute allowedRoles={['admin', 'director']}>
+                  <FinanceSettingsPage />
                 </ProtectedRoute>
               } />
               <Route path="/monitoring" element={
