@@ -3,11 +3,13 @@ import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
   CheckCircle, ShoppingBag, Star, ArrowLeft, Truck
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { useTenantStore } from '../stores/tenantStore';
+import { useToastStore } from '../stores/toastStore';
 
 interface MarketplaceCategoryAPI { id: string; name_ru: string; name_uz: string; icon?: string; sort_order: number; is_active: boolean; created_at: string; }
 interface MarketplaceProductAPI { id: string; category_id: string; name_ru: string; name_uz: string; description_ru?: string; description_uz?: string; price: number; old_price?: number; unit: string; stock_quantity: number; image_url?: string; is_active: boolean; is_featured: boolean; created_at: string; }
@@ -128,6 +130,7 @@ function getProductRating(id: string): { rating: number; count: number } {
 export function MarketplacePage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   useTenantStore();
   const navigate = useNavigate();
 
@@ -248,7 +251,7 @@ export function MarketplacePage() {
   };
   const cancelOrder = async (orderId: string) => {
     if (!confirm(language === 'ru' ? 'Отменить заказ?' : 'Bekor qilish?')) return;
-    try { setCancellingOrderId(orderId); await apiRequest(`/api/marketplace/orders/${orderId}/cancel`, { method: 'POST', body: JSON.stringify({ reason: language === 'ru' ? 'Отменено' : 'Bekor qilindi' }) }); const r = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders'); setOrders(r?.orders || []); } catch { alert(language === 'ru' ? 'Ошибка' : 'Xato'); } finally { setCancellingOrderId(null); }
+    try { setCancellingOrderId(orderId); await apiRequest(`/api/marketplace/orders/${orderId}/cancel`, { method: 'POST', body: JSON.stringify({ reason: language === 'ru' ? 'Отменено' : 'Bekor qilindi' }) }); const r = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders'); setOrders(r?.orders || []); } catch { addToast('error', language === 'ru' ? 'Ошибка' : 'Xato'); } finally { setCancellingOrderId(null); }
   };
 
   const filteredProducts = products.filter(p => (!selectedCategory || p.category_id === selectedCategory) && (!searchQuery || (language === 'ru' ? p.name_ru : p.name_uz).toLowerCase().includes(searchQuery.toLowerCase())));
@@ -265,7 +268,7 @@ export function MarketplacePage() {
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
       {orderSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-green-500 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] bg-green-500 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
           <CheckCircle className="w-4 h-4" />{language === 'ru' ? 'Заказ создан!' : 'Buyurtma yaratildi!'}
         </div>
       )}
@@ -493,7 +496,13 @@ export function MarketplacePage() {
               </div>
             </>
           )}
-          {filteredProducts.length === 0 && <div className="text-center py-16"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"><Package className="w-8 h-8 text-gray-300" /></div><p className="text-gray-500 font-medium">{language === 'ru' ? 'Товары не найдены' : 'Topilmadi'}</p></div>}
+          {filteredProducts.length === 0 && (
+            <EmptyState
+              icon={<ShoppingBag className="w-12 h-12" />}
+              title={language === 'ru' ? 'Нет товаров' : 'Mahsulotlar yo\'q'}
+              description={language === 'ru' ? 'Товары не найдены' : 'Topilmadi'}
+            />
+          )}
         </div>
       )}
 
@@ -696,8 +705,9 @@ export function MarketplacePage() {
       )}
 
       {/* PRODUCT DETAIL */}
+      {/* TODO: Refactor to use <Modal> component */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={() => setSelectedProduct(null)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center" onClick={() => setSelectedProduct(null)}>
           <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="relative">
@@ -720,7 +730,7 @@ export function MarketplacePage() {
 
       {/* ORDER MODAL */}
       {showOrderModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowOrderModal(false)}>
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center" onClick={() => setShowOrderModal(false)}>
           <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px]" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-4">
@@ -741,7 +751,7 @@ export function MarketplacePage() {
         const items = selectedOrder.items || [];
         const totalQty = items.reduce((s, i) => s + i.quantity, 0);
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={() => setSelectedOrder(null)}>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center" onClick={() => setSelectedOrder(null)}>
             <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
 
@@ -863,7 +873,7 @@ export function MarketplacePage() {
 
       {/* RATING MODAL */}
       {showDeliveryRatingModal && ratingOrderId && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={() => { setShowDeliveryRatingModal(false); setRatingOrderId(null); }}>
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center" onClick={() => { setShowDeliveryRatingModal(false); setRatingOrderId(null); }}>
           <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px]" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-5">

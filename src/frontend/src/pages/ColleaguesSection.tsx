@@ -3,6 +3,8 @@ import { Star, X, Users, Award, TrendingUp, Heart, MessageCircle, Loader2 } from
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
+import { Modal, EmptyState } from '../components/common';
 import { SPECIALIZATION_LABELS, type ExecutorSpecialization } from '../types';
 
 // Типы данных
@@ -157,6 +159,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
   onSubmit: (ratings: Rating['ratings']) => void;
 }) {
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const labels = getLabels(language);
   const [ratings, setRatings] = useState<Rating['ratings']>({
     professionalKnowledge: 0,
@@ -175,7 +178,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
   const handleSubmit = () => {
     const allRated = Object.values(ratings).every(r => r > 0);
     if (!allRated) {
-      alert(language === 'ru' ? 'Пожалуйста, оцените все критерии' : 'Iltimos, barcha mezonlarni baholang');
+      addToast('warning', language === 'ru' ? 'Пожалуйста, оцените все критерии' : 'Iltimos, barcha mezonlarni baholang');
       return;
     }
     onSubmit(ratings);
@@ -183,52 +186,43 @@ function RatingModal({ employee, onClose, onSubmit }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center z-10">
-          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">{language === 'ru' ? 'Оценить' : 'Baholash'}: {employee.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation">
-            <X className="w-6 h-6" />
-          </button>
+    <Modal isOpen={true} onClose={onClose} title={`${language === 'ru' ? 'Оценить' : 'Baholash'}: ${employee.name}`} size="lg">
+      <div className="max-h-[70vh] overflow-y-auto">
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">{language === 'ru' ? 'Ваша оценка абсолютно анонимна' : 'Sizning bahongiz mutlaqo anonimdir'}</p>
         </div>
 
-        <div className="px-6 py-4">
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">{language === 'ru' ? 'Ваша оценка абсолютно анонимна' : 'Sizning bahongiz mutlaqo anonimdir'}</p>
-          </div>
-
-          <div className="space-y-4">
-            {Object.entries(labels.criteriaLabels).map(([key, label]) => (
-              <div key={key} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                <span className="text-sm font-medium">{label}</span>
-                <StarRating
-                  rating={ratings[key as keyof typeof ratings]}
-                  onChange={(r) => setRatings({ ...ratings, [key]: r })}
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6">
-            <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}</label>
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
-              rows={4}
-              placeholder={language === 'ru' ? 'Поделитесь своими мыслями...' : 'O\'z fikringizni baham ko\'ring...'}
-            />
-          </div>
-
-          <button
-            onClick={handleSubmit}
-            className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
-          >
-            {language === 'ru' ? 'Отправить оценку' : 'Baholashni yuborish'}
-          </button>
+        <div className="space-y-4">
+          {Object.entries(labels.criteriaLabels).map(([key, label]) => (
+            <div key={key} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+              <span className="text-sm font-medium">{label}</span>
+              <StarRating
+                rating={ratings[key as keyof typeof ratings]}
+                onChange={(r) => setRatings({ ...ratings, [key]: r })}
+              />
+            </div>
+          ))}
         </div>
+
+        <div className="mt-6">
+          <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}</label>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+            rows={4}
+            placeholder={language === 'ru' ? 'Поделитесь своими мыслями...' : 'O\'z fikringizni baham ko\'ring...'}
+          />
+        </div>
+
+        <button
+          onClick={handleSubmit}
+          className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
+        >
+          {language === 'ru' ? 'Отправить оценку' : 'Baholashni yuborish'}
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -249,46 +243,35 @@ function ThankModal({ employee, onClose, onSubmit }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center">
-          <h2 className="text-lg sm:text-xl font-bold truncate pr-4">{language === 'ru' ? 'Поблагодарить' : 'Raxmat aytish'}: {employee.name}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+    <Modal isOpen={true} onClose={onClose} title={`${language === 'ru' ? 'Поблагодарить' : 'Raxmat aytish'}: ${employee.name}`} size="sm">
+      <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'За что спасибо?' : 'Nima uchun raxmat?'}</label>
+      <select
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"
+      >
+        {labels.thankReasons.map((r) => (
+          <option key={r} value={r}>{r}</option>
+        ))}
+      </select>
 
-        <div className="px-6 py-4">
-          <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'За что спасибо?' : 'Nima uchun raxmat?'}</label>
-          <select
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"
-          >
-            {labels.thankReasons.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={isAnonymous}
+          onChange={(e) => setIsAnonymous(e.target.checked)}
+          className="w-4 h-4"
+        />
+        <span className="text-sm">{language === 'ru' ? 'Отправить анонимно' : 'Anonimly yuborish'}</span>
+      </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isAnonymous}
-              onChange={(e) => setIsAnonymous(e.target.checked)}
-              className="w-4 h-4"
-            />
-            <span className="text-sm">{language === 'ru' ? 'Отправить анонимно' : 'Anonimly yuborish'}</span>
-          </label>
-
-          <button
-            onClick={handleSubmit}
-            className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
-          >
-            {language === 'ru' ? 'Отправить спасибо' : 'Raxamatni yuborish'}
-          </button>
-        </div>
-      </div>
-    </div>
+      <button
+        onClick={handleSubmit}
+        className="w-full mt-6 bg-primary-500 hover:bg-primary-600 text-white font-medium py-3 rounded-lg transition-colors"
+      >
+        {language === 'ru' ? 'Отправить спасибо' : 'Raxamatni yuborish'}
+      </button>
+    </Modal>
   );
 }
 
@@ -738,15 +721,11 @@ export function ColleaguesSection() {
       </div>
 
       {employees.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">
-            {language === 'ru' ? 'Нет данных о коллегах' : "Hamkasblar haqida ma'lumot yo'q"}
-          </h3>
-          <p className="text-gray-500">
-            {language === 'ru' ? 'Список сотрудников пока пуст' : "Xodimlar ro'yxati hali bo'sh"}
-          </p>
-        </div>
+        <EmptyState
+          icon={<Users className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет данных о коллегах' : "Hamkasblar haqida ma'lumot yo'q"}
+          description={language === 'ru' ? 'Список сотрудников пока пуст' : "Xodimlar ro'yxati hali bo'sh"}
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           <div className="lg:col-span-2 xl:col-span-3 space-y-6">

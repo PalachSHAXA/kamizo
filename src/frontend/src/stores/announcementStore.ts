@@ -51,7 +51,7 @@ export const useAnnouncementStore = create<AnnouncementState>()(
         // Return the created announcement info
         const newAnnouncement: Announcement = {
           ...announcementData,
-          id: (result as any).id || generateId(),
+          id: (result as Record<string, unknown>).id as string || generateId(),
           createdAt: new Date().toISOString(),
           isActive: true,
           viewedBy: [],
@@ -210,7 +210,7 @@ export const useAnnouncementStore = create<AnnouncementState>()(
           } catch { localReadAnnouncements = []; }
         }
 
-        const announcements: Announcement[] = (result.announcements || []).map((a: any) => {
+        const announcements: Announcement[] = (result.announcements || []).map((a: Record<string, unknown>) => {
           // Use API view_count and viewed_by_user if available
           const viewedByUser = a.viewed_by_user === true || a.viewed_by_user === 1;
 

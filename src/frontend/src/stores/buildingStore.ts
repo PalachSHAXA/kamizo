@@ -8,7 +8,7 @@ import { buildingsApi, entrancesApi, buildingDocumentsApi } from '../services/ap
 import { useToastStore } from './toastStore';
 
 // Helper to map API response to frontend type
-const mapBuildingFromApi = (b: any): BuildingFull => ({
+const mapBuildingFromApi = (b: Record<string, unknown>): BuildingFull => ({
   id: b.id,
   name: b.name,
   address: b.address,
@@ -61,7 +61,7 @@ const mapBuildingFromApi = (b: any): BuildingFull => ({
   updatedAt: b.updated_at,
 });
 
-const mapEntranceFromApi = (e: any): Entrance => ({
+const mapEntranceFromApi = (e: Record<string, unknown>): Entrance => ({
   id: e.id,
   buildingId: e.building_id,
   number: e.number,
@@ -164,7 +164,7 @@ export const useBuildingStore = create<BuildingState>()(
 
     addBuilding: async (buildingData) => {
       try {
-        const response = await buildingsApi.create(buildingData as any);
+        const response = await buildingsApi.create(buildingData as Record<string, unknown>); // TODO: type this properly
         if (response.building) {
           const newBuilding = mapBuildingFromApi(response.building);
           set((state) => ({ buildings: [...state.buildings, newBuilding] }));
@@ -179,7 +179,7 @@ export const useBuildingStore = create<BuildingState>()(
 
     updateBuilding: async (id, data) => {
       try {
-        await buildingsApi.update(id, data as any);
+        await buildingsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
         // Optimistic update
         set((state) => ({
           buildings: state.buildings.map((b) =>
@@ -198,9 +198,9 @@ export const useBuildingStore = create<BuildingState>()(
           buildings: state.buildings.filter((b) => b.id !== id),
           entrances: state.entrances.filter((e) => e.buildingId !== id),
         }));
-      } catch (error: any) {
-        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
-        throw new Error(error.message || 'Ошибка при удалении здания');
+      } catch (err: unknown) {
+        useToastStore.getState().addToast('error', (err as Error).message || 'Ошибка');
+        throw new Error((err as Error).message || 'Ошибка при удалении здания');
       }
     },
 

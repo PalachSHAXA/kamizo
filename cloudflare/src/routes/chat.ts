@@ -2,8 +2,9 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId, isManagement } from '../utils/helpers';
+import { createRequestLogger } from '../utils/logger';
 
 // Helper function for sending push notifications
 async function sendPushNotification(env: Env, userId: string, options: any) {
@@ -18,6 +19,8 @@ export function registerChatRoutes(env: Env) {
   route('GET', '/api/chat/channels', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('chat', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
 
@@ -95,6 +98,8 @@ export function registerChatRoutes(env: Env) {
   route('POST', '/api/chat/channels/support', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('chat', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     // Only residents can create support channels
     if (user.role !== 'resident') {
@@ -125,6 +130,8 @@ export function registerChatRoutes(env: Env) {
   route('GET', '/api/chat/channels/:id/messages', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('chat', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const channelId = params.id;
     const url = new URL(request.url);
@@ -197,6 +204,8 @@ export function registerChatRoutes(env: Env) {
   route('POST', '/api/chat/channels/:id/messages', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('chat', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const { content } = await request.json() as { content: string };
     if (!content) return error('Content required');
@@ -212,7 +221,8 @@ export function registerChatRoutes(env: Env) {
         VALUES (?, ?, ?, ?, ?)
       `).bind(id, channelId, user.id, content, getTenantId(request)).run();
     } catch (e: any) {
-      console.error('Failed to insert chat message:', e);
+      const log = createRequestLogger(request);
+      log.error('Failed to insert chat message', e);
       return error(`Failed to send message: ${e.message || 'Database error'}`, 500);
     }
 
@@ -306,7 +316,7 @@ export function registerChatRoutes(env: Env) {
         });
       }
     } catch (e) {
-      console.error('Failed to send chat WebSocket notification:', e);
+      createRequestLogger(request).error('Failed to send chat WebSocket notification', e);
     }
 
     return json({ message }, 201);
@@ -316,6 +326,8 @@ export function registerChatRoutes(env: Env) {
   route('POST', '/api/chat/channels', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('chat', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const body = await request.json() as any;
     const { type, name, description, building_id } = body;
@@ -338,6 +350,8 @@ export function registerChatRoutes(env: Env) {
   route('POST', '/api/chat/channels/:id/read', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('chat', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const channelId = params.id;
     const tenantId = getTenantId(request);
@@ -392,7 +406,7 @@ export function registerChatRoutes(env: Env) {
         })
       });
     } catch (e) {
-      console.error('Failed to send read receipt:', e);
+      createRequestLogger(request).error('Failed to send read receipt', e);
     }
 
     return json({ success: true });
@@ -402,6 +416,8 @@ export function registerChatRoutes(env: Env) {
   route('GET', '/api/chat/unread-count', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('chat', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     let count = 0;

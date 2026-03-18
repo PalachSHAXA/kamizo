@@ -5,11 +5,13 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { invalidateCache } from '../middleware/cache-local';
 import { cachedQuery, cachedQueryWithArgs, invalidateOnChange, CacheTTL, CachePrefix } from '../cache';
 import { json, error, generateId, isManagement, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { isExecutorRole } from '../index';
+import { validateBody } from '../validation/validate';
+import { createBuildingSchema } from '../validation/schemas';
 
 export function registerBuildingRoutes() {
 
@@ -822,7 +824,8 @@ route('POST', '/api/buildings', async (request, env) => {
     return error('Manager access required', 403);
   }
 
-  const body = await request.json() as any;
+  const { data: body, errors: validationErrors } = await validateBody(request, createBuildingSchema);
+  if (validationErrors) return error(validationErrors, 400);
   const id = generateId();
 
   await env.DB.prepare(`
@@ -2088,6 +2091,8 @@ route('GET', '/api/accounts/debtors', async (request, env) => {
 route('GET', '/api/reports/debts', async (request, env) => {
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) return error('Manager access required', 403);
+  const fc = await requireFeature('reports', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
   const url = new URL(request.url);
@@ -2407,6 +2412,9 @@ route('POST', '/api/residents/:id/move-out', async (request, env, params) => {
 
 // Meters: List by apartment
 route('GET', '/api/apartments/:apartmentId/meters', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2437,6 +2445,9 @@ route('GET', '/api/apartments/:apartmentId/meters', async (request, env, params)
 
 // Meters: List common meters by building
 route('GET', '/api/buildings/:buildingId/meters', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2467,6 +2478,9 @@ route('GET', '/api/buildings/:buildingId/meters', async (request, env, params) =
 
 // Meters: Get single with latest readings
 route('GET', '/api/meters/:id', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2498,6 +2512,9 @@ route('GET', '/api/meters/:id', async (request, env, params) => {
 
 // Meters: Create
 route('POST', '/api/meters', async (request, env) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -2546,6 +2563,9 @@ route('POST', '/api/meters', async (request, env) => {
 
 // Meters: Update
 route('PATCH', '/api/meters/:id', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -2602,6 +2622,9 @@ route('PATCH', '/api/meters/:id', async (request, env, params) => {
 
 // Meters: Delete
 route('DELETE', '/api/meters/:id', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -2615,6 +2638,9 @@ route('DELETE', '/api/meters/:id', async (request, env, params) => {
 
 // Meters: Decommission
 route('POST', '/api/meters/:id/decommission', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -2638,6 +2664,9 @@ route('POST', '/api/meters/:id/decommission', async (request, env, params) => {
 
 // Meter Readings: List by meter
 route('GET', '/api/meters/:meterId/readings', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2663,6 +2692,9 @@ route('GET', '/api/meters/:meterId/readings', async (request, env, params) => {
 
 // Meter Readings: Submit reading (resident or inspector)
 route('POST', '/api/meters/:meterId/readings', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2732,6 +2764,9 @@ route('POST', '/api/meters/:meterId/readings', async (request, env, params) => {
 
 // Meter Readings: Approve/Reject
 route('POST', '/api/meter-readings/:id/verify', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -2769,6 +2804,9 @@ route('POST', '/api/meter-readings/:id/verify', async (request, env, params) => 
 
 // Meter Readings: Get last reading
 route('GET', '/api/meters/:meterId/last-reading', async (request, env, params) => {
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 

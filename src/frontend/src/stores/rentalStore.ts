@@ -61,7 +61,7 @@ export const useRentalStore = create<RentalState>()(
           ownerLogin: apartmentData.ownerLogin,
           ownerPassword: apartmentData.password,
           ownerType: apartmentData.ownerType || 'tenant',
-          existingUserId: (apartmentData as any).existingUserId,
+          existingUserId: (apartmentData as Record<string, unknown>).existingUserId as string | undefined,
         });
 
         if (response.apartment) {
@@ -69,9 +69,9 @@ export const useRentalStore = create<RentalState>()(
           return response.apartment;
         }
         return null;
-      } catch (error: any) {
-        console.error('Failed to create rental apartment:', error);
-        throw error; // Re-throw to allow UI to show the error
+      } catch (err: unknown) {
+        console.error('Failed to create rental apartment:', err);
+        throw err; // Re-throw to allow UI to show the error
       }
     },
 

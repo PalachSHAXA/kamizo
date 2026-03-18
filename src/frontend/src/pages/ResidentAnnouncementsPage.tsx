@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Megaphone, AlertTriangle, AlertCircle, Info, ChevronRight, Check, Download, FileText, File } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -124,14 +125,13 @@ export function ResidentAnnouncementsPage() {
 
       {/* Announcements List */}
       {filteredAnnouncements.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <Megaphone className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">
-            {filter === 'unread'
-              ? (language === 'ru' ? 'Нет новых объявлений' : 'Yangi e\'lonlar yo\'q')
-              : (language === 'ru' ? 'Объявлений пока нет' : 'E\'lonlar yo\'q')}
-          </p>
-        </div>
+        <EmptyState
+          icon={<Megaphone className="w-12 h-12" />}
+          title={filter === 'unread'
+            ? (language === 'ru' ? 'Нет новых объявлений' : 'Yangi e\'lonlar yo\'q')
+            : (language === 'ru' ? 'Объявлений пока нет' : 'E\'lonlar yo\'q')}
+          description={language === 'ru' ? 'Новые объявления появятся здесь' : 'Yangi e\'lonlar bu yerda paydo bo\'ladi'}
+        />
       ) : (
         <div className="space-y-3">
           {filteredAnnouncements.map((announcement) => {

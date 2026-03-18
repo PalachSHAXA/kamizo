@@ -9,6 +9,7 @@ import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { guestCodesApi, apiRequest } from '../services/api';
 import { type GuestAccessCode } from '../types';
+import { Modal } from '../components/common';
 
 interface ScanLog {
   id: string;
@@ -345,17 +346,12 @@ export function GuardQRScannerPage() {
       </div>
 
       {/* ── Manual Input Modal ── */}
-      {showManualInput && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110]" onClick={() => setShowManualInput(false)}>
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-[17px] font-extrabold text-gray-900">
-                {language === 'ru' ? 'Ввод кода пропуска' : 'Ruxsatnoma kodini kiriting'}
-              </h3>
-              <button onClick={() => setShowManualInput(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
+      <Modal
+        isOpen={showManualInput}
+        onClose={() => setShowManualInput(false)}
+        title={language === 'ru' ? 'Ввод кода пропуска' : 'Ruxsatnoma kodini kiriting'}
+        size="md"
+      >
             <input
               type="text"
               value={manualCode}
@@ -372,9 +368,7 @@ export function GuardQRScannerPage() {
             >
               {language === 'ru' ? 'Проверить' : 'Tekshirish'}
             </button>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ── Scan Result Overlay ── */}
       {scanResult && (

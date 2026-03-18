@@ -83,7 +83,7 @@ export const useRequestStore = create<RequestState>()(
         const response = await requestsApi.getAll(status, category);
         // Map API response to Request type
         const requests = response.requests || [];
-        const mappedRequests: Request[] = requests.map((r: any) => ({
+        const mappedRequests: Request[] = requests.map((r: Record<string, unknown>) => ({
           id: r.id,
           // Use prefixed request_number first, then number, then generate from id
           number: r.request_number || r.number || `#${r.id?.substring(0, 6).toUpperCase() || '000000'}`,
@@ -1015,7 +1015,7 @@ export const useRequestStore = create<RequestState>()(
         const reschedules = response.reschedules || [];
 
         // Map API response to RescheduleRequest type
-        const mappedReschedules: RescheduleRequest[] = reschedules.map((r: any) => ({
+        const mappedReschedules: RescheduleRequest[] = reschedules.map((r: Record<string, unknown>) => ({
           id: r.id,
           requestId: r.request_id,
           requestNumber: r.request_number || r.request_title || `#${r.request_id?.substring(0, 6)}`,

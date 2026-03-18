@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock } from 'lucide-react';
+import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock, ClipboardList } from 'lucide-react';
+import { EmptyState } from '../../components/common';
+import { PageSkeleton } from '../../components/PageSkeleton';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -161,15 +163,14 @@ export function RequestsPage() {
       </div>
 
       {/* Requests List */}
-      {isLoadingRequests ? (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-          <span className="ml-3 text-gray-600">{language === 'ru' ? 'Загрузка заявок...' : 'Arizalar yuklanmoqda...'}</span>
-        </div>
+      {isLoadingRequests && requests.length === 0 ? (
+        <PageSkeleton variant="list" />
       ) : filteredRequests.length === 0 ? (
-        <div className="glass-card p-8 text-center text-gray-500">
-          {language === 'ru' ? 'Заявки не найдены' : 'Arizalar topilmadi'}
-        </div>
+        <EmptyState
+          icon={<ClipboardList className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет заявок' : 'Arizalar yo\'q'}
+          description={language === 'ru' ? 'Заявки не найдены' : 'Arizalar topilmadi'}
+        />
       ) : (
       <div className="space-y-3">
         {filteredRequests.map((req) => (

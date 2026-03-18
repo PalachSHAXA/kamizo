@@ -4,7 +4,7 @@ import type {
 } from '../types';
 import { personalAccountsApi } from '../services/api';
 
-const mapAccountFromApi = (a: any): PersonalAccount => ({
+const mapAccountFromApi = (a: Record<string, unknown>): PersonalAccount => ({
   id: a.id,
   number: a.number,
   apartmentId: a.apartment_id,
@@ -113,7 +113,7 @@ export const useAccountStore = create<AccountState>()(
 
     updatePersonalAccount: async (id, data) => {
       try {
-        await personalAccountsApi.update(id, data as any);
+        await personalAccountsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
         set((state) => ({
           personalAccounts: state.personalAccounts.map((a) =>
             a.id === id ? { ...a, ...data, updatedAt: new Date().toISOString() } : a

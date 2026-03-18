@@ -1,3 +1,4 @@
+// TODO: Split into components (2062 lines)
 import { useState, useEffect, useRef } from 'react';
 import {
   Building2, Plus, Search,
@@ -8,12 +9,15 @@ import {
   Layers, LayoutGrid, Hash,
   Download, Upload, CheckCircle, AlertCircle
 } from 'lucide-react';
+import { EmptyState, Modal } from '../components/common';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { useCRMStore } from '../stores/crmStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useAuthStore } from '../stores/authStore';
 import { apiRequest } from '../services/api';
 import type { BuildingFull } from '../types';
 import { useBackGuard } from '../hooks/useBackGuard';
+import { useToastStore } from '../stores/toastStore';
 
 // Branch type (represents a residential complex — ЖК)
 interface Branch {
@@ -147,6 +151,7 @@ export function BuildingsPage() {
   const { language } = useLanguageStore();
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
   const { user } = useAuthStore();
+  const addToast = useToastStore(s => s.addToast);
   const canManageImportExport = user && ['admin', 'director', 'manager'].includes(user.role);
 
   // Navigation
@@ -324,7 +329,7 @@ export function BuildingsPage() {
       });
       await fetchApartmentsForBuilding(selectedBuilding.id);
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     } finally {
       setIsGenerating(false);
     }
@@ -357,7 +362,7 @@ export function BuildingsPage() {
       setCascadeConfirmChecked(false);
       await fetchBranches();
     } catch (err: any) {
-      alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (err.message || 'Error'));
+      addToast('error', (language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (err.message || 'Error'));
     } finally {
       setIsDeletingDistrict(false);
     }
@@ -397,7 +402,7 @@ export function BuildingsPage() {
       fetchBranches();
       setShowAddBranchModal(false);
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     }
   };
 
@@ -407,7 +412,7 @@ export function BuildingsPage() {
       fetchBranches();
       setEditingBranch(null);
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     }
   };
 
@@ -416,7 +421,7 @@ export function BuildingsPage() {
       await apiRequest(`/api/branches/${id}/change-code`, { method: 'POST', body: JSON.stringify({ new_code: newCode }) });
       fetchBranches();
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
       throw error; // propagate so modal knows it failed
     }
   };
@@ -427,7 +432,7 @@ export function BuildingsPage() {
       await apiRequest(`/api/branches/${id}`, { method: 'DELETE' });
       fetchBranches();
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     }
   };
 
@@ -445,7 +450,7 @@ export function BuildingsPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert(err.message || t('Ошибка экспорта', 'Eksport xatosi'));
+      addToast('error', err.message || t('Ошибка экспорта', 'Eksport xatosi'));
     } finally {
       setExportingBranchId(null);
     }
@@ -502,7 +507,7 @@ export function BuildingsPage() {
       if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
       fetchBranches();
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     }
   };
 
@@ -516,7 +521,7 @@ export function BuildingsPage() {
       fetchEntrancesForBuilding(selectedBuilding.id);
       setShowAddEntranceModal(false);
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     }
   };
 
@@ -542,7 +547,7 @@ export function BuildingsPage() {
       setEntranceEditToast(msg);
       setTimeout(() => setEntranceEditToast(''), 3000);
     } catch (err: any) {
-      alert((language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlash xatoligi: ') + (err.message || 'Error'));
+      addToast('error', (language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlash xatoligi: ') + (err.message || 'Error'));
     }
   };
 
@@ -619,7 +624,7 @@ export function BuildingsPage() {
         setIsEditingApartment(false);
       }
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     } finally {
       setIsSavingApartment(false);
     }
@@ -633,7 +638,7 @@ export function BuildingsPage() {
       setApartments(prev => prev.filter(a => a.id !== selectedApartment.id));
       closeSidePanel();
     } catch (error: any) {
-      alert(error.message || 'Error');
+      addToast('error', error.message || 'Error');
     }
   };
 
@@ -665,11 +670,7 @@ export function BuildingsPage() {
 
   // Loading
   if ((isLoadingBranches && branches.length === 0 && viewLevel === 'districts') || (isLoadingBuildings && buildings.length === 0 && viewLevel === 'buildings')) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-      </div>
-    );
+    return <PageSkeleton variant="list" />;
   }
 
   // Apartment grid data
@@ -969,10 +970,10 @@ export function BuildingsPage() {
                               {exportingBranchId === branch.id ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Download className="w-4 h-4 text-white" />}
                             </button>
                           )}
-                          <button onClick={() => setEditingBranch(branch)} className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur hover:bg-white/40">
+                          <button onClick={() => setEditingBranch(branch)} className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur hover:bg-white/40" aria-label="Редактировать">
                             <Edit className="w-4 h-4 text-white" />
                           </button>
-                          <button onClick={() => handleDeleteBranch(branch.id)} className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur hover:bg-red-400/60">
+                          <button onClick={() => handleDeleteBranch(branch.id)} className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur hover:bg-red-400/60" aria-label="Удалить">
                             <Trash2 className="w-4 h-4 text-white" />
                           </button>
                         </div>
@@ -1069,10 +1070,10 @@ export function BuildingsPage() {
                           </div>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => setEditingBuilding(building)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100">
+                          <button onClick={() => setEditingBuilding(building)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label="Редактировать">
                             <Edit className="w-4 h-4 text-gray-400" />
                           </button>
-                          <button onClick={() => handleDeleteBuilding(building.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50">
+                          <button onClick={() => handleDeleteBuilding(building.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50" aria-label="Удалить">
                             <Trash2 className="w-4 h-4 text-red-400" />
                           </button>
                         </div>
@@ -1106,11 +1107,12 @@ export function BuildingsPage() {
               })}
 
               {searchedBuildings.length === 0 && (
-                <div className="col-span-full text-center py-12">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                    <Building2 className="w-8 h-8 text-gray-300" />
-                  </div>
-                  <p className="text-gray-400 font-medium">{t('Дома не найдены', 'Uylar topilmadi')}</p>
+                <div className="col-span-full">
+                  <EmptyState
+                    icon={<Building2 className="w-12 h-12" />}
+                    title={language === 'ru' ? 'Нет зданий' : 'Binolar yo\'q'}
+                    description={language === 'ru' ? 'Дома не найдены' : 'Uylar topilmadi'}
+                  />
                 </div>
               )}
             </div>
@@ -1497,14 +1499,15 @@ export function BuildingsPage() {
         const totalBuildings = dBranches.reduce((s, b) => s + (b.buildings_count || 0), 0);
         const totalResidents = dBranches.reduce((s, b) => s + (b.residents_count || 0), 0);
         return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+          <Modal
+            isOpen={!!deleteDistrictConfirm}
+            onClose={() => { setDeleteDistrictConfirm(null); setCascadeConfirmChecked(false); }}
+            title={language === 'ru' ? `Удалить район «${deleteDistrictConfirm}»?` : `«${deleteDistrictConfirm}» tumani o'chirilsinmi?`}
+            size="sm"
+          >
               <div className="flex items-center justify-center w-14 h-14 rounded-full mx-auto mb-4 bg-red-100">
                 <AlertCircle className="w-7 h-7 text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-center mb-2">
-                {language === 'ru' ? `Удалить район «${deleteDistrictConfirm}»?` : `«${deleteDistrictConfirm}» tumani o'chirilsinmi?`}
-              </h3>
               <div className="space-y-2 mb-4">
                 <p className="text-sm text-center text-red-700 bg-red-50 rounded-xl p-3">
                   {language === 'ru'
@@ -1542,8 +1545,7 @@ export function BuildingsPage() {
                   {language === 'ru' ? 'Удалить всё' : 'Hammasini o\'chirish'}
                 </button>
               </div>
-            </div>
-          </div>
+          </Modal>
         );
       })()}
       {showAddBranchModal && (
@@ -1575,13 +1577,14 @@ export function BuildingsPage() {
 
       {/* Entrance edit toast */}
       {entranceEditToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
           {entranceEditToast}
         </div>
       )}
 
       {/* Import Modal */}
+      {/* TODO: migrate to <Modal> component */}
       {showImportModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/60">
@@ -1590,7 +1593,7 @@ export function BuildingsPage() {
                 <h3 className="text-[18px] font-extrabold">{t('Импорт ЖК', 'TJMni import qilish')}</h3>
                 <p className="text-[13px] text-gray-400 mt-0.5">{t('Загрузите .json файл экспорта', 'Eksport .json faylini yuklang')}</p>
               </div>
-              <button onClick={() => setShowImportModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100">
+              <button onClick={() => setShowImportModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label="Закрыть">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1685,12 +1688,13 @@ function DistrictModal({ onClose, onSave, language }: {
 }) {
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
   const [name, setName] = useState('');
+  // TODO: migrate to <Modal> component
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{t('Новый район', 'Yangi tuman')}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); if (name.trim()) onSave(name.trim()); }} className="space-y-4">
           <div>
@@ -1749,11 +1753,11 @@ function BranchModal({ branch, onClose, onSave, language, defaultDistrict, canEd
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{branch ? t('Редактировать ЖК', 'TJMni tahrirlash') : t('Новый ЖК', 'Yangi TJM')}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); if (form.code && form.name) onSave(form); }} className="space-y-4">
           <div>
@@ -1831,11 +1835,11 @@ function BuildingModal({ building, onClose, onSave, language }: {
   });
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{building ? t('Редактировать ЖК', 'TJMni tahrirlash') : t('Новый ЖК / Дом', "Yangi TJM / Uy")}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); if (form.name && form.address) onSave(form); }} className="space-y-4">
           <div>
@@ -1921,11 +1925,11 @@ function EntranceModal({ onClose, onSave, existingEntrances, language }: {
   const [form, setForm] = useState({ number: nextNum, floors_from: 1, floors_to: 9, apartments_from: 1, apartments_to: 36 });
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{t('Новый подъезд', 'Yangi podyezd')}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); onSave(form); }} className="space-y-4">
           <div>
@@ -1987,14 +1991,14 @@ function EntranceEditModal({ entrance, existingApartmentCount, onClose, onSave, 
   const tooFew = newAptCount < existingApartmentCount;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <div>
             <h2 className="text-lg font-bold">{t('Подъезд', 'Podyezd')} {entrance.number}</h2>
             <p className="text-[12px] text-gray-400 mt-0.5">{t('Редактирование параметров', 'Parametrlarni tahrirlash')}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
 
         <form onSubmit={async e => {

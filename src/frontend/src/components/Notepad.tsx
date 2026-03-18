@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { StickyNote, Plus, Save, Trash2, X, Edit3, RefreshCw, Loader2 } from 'lucide-react';
 import { apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
+import { EmptyState } from './common';
 
 interface Note {
   id: string;
@@ -217,22 +218,15 @@ export function Notepad({ userId }: NotepadProps) {
 
       {/* Empty State */}
       {!loading && notes.length === 0 && (
-        <div className="glass-card p-8 text-center">
-          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <StickyNote className="w-8 h-8 text-amber-500" />
-          </div>
-          <h4 className="font-semibold text-gray-900 mb-1">{language === 'ru' ? 'Нет заметок' : 'Yozuvlar yo\'q'}</h4>
-          <p className="text-gray-500 text-sm mb-4">
-            {language === 'ru' ? 'Создавайте заметки для планирования задач и важных записей' : 'Vazifalarni rejalashtirish va muhim yozuvlar uchun yozuvlar yarating'}
-          </p>
-          <button
-            onClick={() => setShowNoteEditor(true)}
-            className="btn-primary inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            {language === 'ru' ? 'Создать первую заметку' : 'Birinchi yozuvni yaratish'}
-          </button>
-        </div>
+        <EmptyState
+          icon={<StickyNote className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет заметок' : 'Yozuvlar yo\'q'}
+          description={language === 'ru' ? 'Создавайте заметки для планирования задач и важных записей' : 'Vazifalarni rejalashtirish va muhim yozuvlar uchun yozuvlar yarating'}
+          action={{
+            label: language === 'ru' ? 'Создать первую заметку' : 'Birinchi yozuvni yaratish',
+            onClick: () => setShowNoteEditor(true),
+          }}
+        />
       )}
 
       {/* Add/Edit Note Modal */}

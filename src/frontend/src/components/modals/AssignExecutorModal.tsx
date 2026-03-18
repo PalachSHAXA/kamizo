@@ -71,7 +71,7 @@ export function AssignExecutorModal({ isOpen, onClose, request, executors, onAss
             <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}</h2>
             <p className="text-xs md:text-sm text-gray-500 mt-1 truncate">{language === 'ru' ? 'Заявка' : 'Ariza'} {formatRequestNumber(request.number)}: {request.title}</p>
           </div>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200 flex-shrink-0">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200 flex-shrink-0" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>

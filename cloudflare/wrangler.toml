@@ -21,6 +21,7 @@ VAPID_EMAIL = "admin@kamizo.uz"
 # Установить:
 #   wrangler secret put ENCRYPTION_KEY
 #   wrangler secret put JWT_SECRET
+#   wrangler secret put SENTRY_DSN
 
 [[d1_databases]]
 binding = "DB"

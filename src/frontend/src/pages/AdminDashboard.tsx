@@ -15,6 +15,7 @@ import { useDataStore } from '../stores/dataStore';
 import { SPECIALIZATION_LABELS } from '../types';
 import { apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 // ExcelJS loaded dynamically in exportMarketplaceReport to reduce initial bundle
 import type { Style } from 'exceljs';
 
@@ -73,6 +74,7 @@ export function AdminDashboard() {
   const { user } = useAuthStore();
   const { requests, executors, getStats } = useDataStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
 
   const stats = getStats();
 
@@ -133,7 +135,7 @@ export function AdminDashboard() {
       });
       setPlatformAds(prev => prev.map(a => a.id === adId ? { ...a, tenant_enabled: currentEnabled === 0 ? 1 : 0 } : a));
     } catch (err: any) {
-      alert(err.message || 'Ошибка');
+      addToast('error', err.message || 'Ошибка');
     } finally {
       setTogglingAdId(null);
     }

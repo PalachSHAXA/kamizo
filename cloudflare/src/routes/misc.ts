@@ -5,18 +5,20 @@
 import type { Env, User } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId, getCurrentTenant } from '../middleware/tenant';
+import { verifyJWT } from '../utils/crypto';
+import { getTenantId, getTenantForRequest, requireFeature } from '../middleware/tenant';
 import { invalidateCache } from '../middleware/cache-local';
 import { invalidateOnChange, getCacheStats } from '../cache';
 import { metricsAggregator, healthCheck, AlertManager, logAnalyticsEvent } from '../monitoring';
 import { json, error, generateId, isManagement, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { sendPushNotification, isExecutorRole, isSuperAdmin } from '../index';
+import { createRequestLogger } from '../utils/logger';
 
 export function registerMiscRoutes() {
 
 // ==================== WEBSOCKET (DURABLE OBJECTS) ====================
 
-// PUBLIC: no auth required
+// WebSocket endpoint — JWT auth via query parameter
 route('GET', '/api/ws', async (request, env) => {
   const url = new URL(request.url);
   const upgradeHeader = request.headers.get('Upgrade');
@@ -25,34 +27,50 @@ route('GET', '/api/ws', async (request, env) => {
     return error('Expected WebSocket upgrade', 400);
   }
 
-  // Authenticate user
-  const tokenFromQuery = url.searchParams.get('token');
-  let user: User | null = null;
-
-  if (tokenFromQuery) {
-    const result = await env.DB.prepare(
-      'SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at FROM users WHERE id = ?'
-    ).bind(tokenFromQuery).first();
-    user = result as User | null;
-  } else {
-    user = await getUser(request, env);
-  }
-
-  if (!user) {
+  // Authenticate via JWT token in query parameter
+  const token = url.searchParams.get('token');
+  if (!token) {
     return error('Unauthorized', 401);
   }
+
+  const payload = await verifyJWT(token, env.JWT_SECRET);
+  if (!payload) {
+    return error('Invalid or expired token', 401);
+  }
+
+  // Resolve user from DB using verified JWT userId
+  const tenantFilter = payload.tenantId
+    ? 'AND tenant_id = ?'
+    : "AND (tenant_id IS NULL OR tenant_id = '')";
+  const binds = payload.tenantId
+    ? [payload.userId, payload.tenantId]
+    : [payload.userId];
+
+  const result = await env.DB.prepare(
+    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area FROM users WHERE id = ? ${tenantFilter}`
+  ).bind(...binds).first();
+
+  if (!result) {
+    return error('Unauthorized', 401);
+  }
+  const user = result as unknown as User;
 
   // Single global DO shard — all connections in one instance for reliable broadcasts
   const id = env.CONNECTION_MANAGER.idFromName('global');
   const stub = env.CONNECTION_MANAGER.get(id);
 
-  // Forward request to Durable Object with user info
+  // Forward request to Durable Object with user info (clean URL — no token in logs)
   const doUrl = new URL(request.url);
+  doUrl.searchParams.delete('token');
   doUrl.searchParams.set('userId', user.id);
   doUrl.searchParams.set('userName', user.name);
   doUrl.searchParams.set('role', user.role);
   if (user.building_id) {
     doUrl.searchParams.set('buildingId', user.building_id);
+  }
+  // Pass tenantId to ConnectionManager for tenant-isolated broadcasts
+  if (payload.tenantId) {
+    doUrl.searchParams.set('tenantId', payload.tenantId);
   }
 
   return stub.fetch(doUrl.toString(), request);
@@ -145,6 +163,9 @@ route('GET', '/api/chat/channels', async (request, env) => {
 
 // Notes: Get all notes for current user
 route('GET', '/api/notes', async (request, env) => {
+  const fc = await requireFeature('notepad', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
@@ -161,6 +182,9 @@ route('GET', '/api/notes', async (request, env) => {
 
 // Notes: Create a new note
 route('POST', '/api/notes', async (request, env) => {
+  const fc = await requireFeature('notepad', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -191,6 +215,9 @@ route('POST', '/api/notes', async (request, env) => {
 
 // Notes: Update a note
 route('PUT', '/api/notes/:id', async (request, env, params) => {
+  const fc = await requireFeature('notepad', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
@@ -232,6 +259,9 @@ route('PUT', '/api/notes/:id', async (request, env, params) => {
 
 // Notes: Delete a note
 route('DELETE', '/api/notes/:id', async (request, env, params) => {
+  const fc = await requireFeature('notepad', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
@@ -387,7 +417,7 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
       VALUES (?, ?, ?, ?, ?)
     `).bind(id, channelId, user.id, content, getTenantId(request)).run();
   } catch (e: any) {
-    console.error('Failed to insert chat message:', e);
+    createRequestLogger(request).error('Failed to insert chat message', e);
     return error(`Failed to send message: ${e.message || 'Database error'}`, 500);
   }
 
@@ -492,7 +522,7 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
       });
     }
   } catch (e) {
-    console.error('Failed to send chat WebSocket notification:', e);
+    createRequestLogger(request).error('Failed to send chat WebSocket notification', e);
   }
 
   return json({ message }, 201);
@@ -586,7 +616,7 @@ route('POST', '/api/chat/channels/:id/read', async (request, env, params) => {
       })
     });
   } catch (e) {
-    console.error('Failed to send read receipt:', e);
+    createRequestLogger(request).error('Failed to send read receipt', e);
   }
 
   return json({ success: true });
@@ -634,6 +664,9 @@ route('GET', '/api/chat/unread-count', async (request, env) => {
 
 // Announcements: List
 route('GET', '/api/announcements', async (request, env) => {
+  const fc = await requireFeature('announcements', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -763,7 +796,7 @@ route('GET', '/api/announcements', async (request, env) => {
             .replace(/\{debt\}/g, (userData.debt || 0).toLocaleString('ru-RU'));
         }
       } catch (e) {
-        console.error('Error parsing personalized_data:', e);
+        createRequestLogger(request).error('Error parsing personalized_data', e);
       }
     }
 
@@ -782,10 +815,15 @@ route('GET', '/api/announcements', async (request, env) => {
 
 // Announcements: Create
 route('POST', '/api/announcements', async (request, env) => {
+  const fc = await requireFeature('announcements', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
   }
+
+  const log = createRequestLogger(request);
 
   const body = await request.json() as any;
   const id = generateId();
@@ -879,11 +917,11 @@ route('POST', '/api/announcements', async (request, env) => {
         },
         requireInteraction: isUrgent,
         skipInApp: true // In-app notifications created below with proper tenant_id
-      }).catch(err => console.error(`[Push] Failed for user ${targetUser.id}:`, err))
+      }).catch(err => createRequestLogger(request).error('Push failed for user', err, { userId: targetUser.id }))
     ));
   }
 
-  console.log(`[Announcement] Created announcement ${id}, sent push to ${targetUsers.length} users`);
+  log.info('Announcement created', { announcementId: id, notifiedUsers: targetUsers.length });
 
   // Create in-app notifications for target users
   const notificationId = generateId();
@@ -904,7 +942,7 @@ route('POST', '/api/announcements', async (request, env) => {
         getTenantId(request)
       ).run();
     } catch (err) {
-      console.error(`[Notification] Failed to create for user ${targetUser.id}:`, err);
+      createRequestLogger(request).error('Failed to create notification for user', err, { userId: targetUser.id });
     }
   }
 
@@ -918,7 +956,7 @@ route('POST', '/api/announcements', async (request, env) => {
       body: JSON.stringify({ prefix: 'announcements:' })
     });
   } catch (err) {
-    console.error('[WebSocket] Failed to broadcast announcement update:', err);
+    createRequestLogger(request).error('Failed to broadcast announcement update', err);
   }
 
   return json({ id }, 201);
@@ -926,6 +964,9 @@ route('POST', '/api/announcements', async (request, env) => {
 
 // Announcements: Update
 route('PUT', '/api/announcements/:id', async (request, env, params) => {
+  const fc = await requireFeature('announcements', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -973,6 +1014,9 @@ route('PUT', '/api/announcements/:id', async (request, env, params) => {
 
 // Announcements: Delete
 route('DELETE', '/api/announcements/:id', async (request, env, params) => {
+  const fc = await requireFeature('announcements', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -986,6 +1030,9 @@ route('DELETE', '/api/announcements/:id', async (request, env, params) => {
 
 // Announcements: Mark as viewed
 route('POST', '/api/announcements/:id/view', async (request, env, params) => {
+  const fc = await requireFeature('announcements', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1009,6 +1056,9 @@ route('POST', '/api/announcements/:id/view', async (request, env, params) => {
 
 // Announcements: Get view count and viewers list with statistics
 route('GET', '/api/announcements/:id/views', async (request, env, params) => {
+  const fc = await requireFeature('announcements', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1369,13 +1419,13 @@ route('GET', '/api/health', async (request, env) => {
 // Tenant Config (returns current tenant's configuration)
 // PUBLIC: no auth required
 route('GET', '/api/tenant/config', async (request, env) => {
-  const tenant = getCurrentTenant();
+  const tenant = getTenantForRequest(request);
   if (!tenant) {
     return json({ tenant: null, features: [] });
   }
 
   try {
-    const features = JSON.parse(tenant.features || '[]');
+    const features = JSON.parse((tenant.features as string) || '[]');
     return json({
       tenant: {
         id: tenant.id,
@@ -1391,8 +1441,8 @@ route('GET', '/api/tenant/config', async (request, env) => {
       },
       features
     });
-  } catch (error) {
-    console.error('Error parsing tenant features:', error);
+  } catch (err) {
+    createRequestLogger(request).error('Error parsing tenant features', err);
     return json({ tenant: null, features: [] });
   }
 });
@@ -1491,7 +1541,7 @@ route('POST', '/api/admin/requests/reset', async (request, env) => {
 
     return json({ message: 'All requests have been deleted successfully' });
   } catch (err: any) {
-    console.error('Error resetting requests:', err);
+    createRequestLogger(request).error('Error resetting requests', err);
     return error('Failed to reset requests: ' + err.message, 500);
   }
 });
@@ -1503,12 +1553,12 @@ route('POST', '/api/admin/monitoring/frontend-error', async (request, env) => {
     const body = await request.json() as any;
 
     // Log frontend error
-    console.error('🔴 Frontend Error:', {
+    const log = createRequestLogger(request);
+    log.error('Frontend error reported', null, {
       timestamp: body.timestamp,
-      error: body.error?.message,
-      url: body.url,
+      errorMessage: body.error?.message,
+      errorUrl: body.url,
       userId: body.userId,
-      userAgent: body.userAgent,
     });
 
     // Store in metrics aggregator
@@ -1534,7 +1584,7 @@ route('POST', '/api/admin/monitoring/frontend-error', async (request, env) => {
 
     return json({ message: 'Error logged successfully' });
   } catch (err) {
-    console.error('Failed to log frontend error:', err);
+    createRequestLogger(request).error('Failed to log frontend error', err);
     return error('Failed to log error', 500);
   }
 });

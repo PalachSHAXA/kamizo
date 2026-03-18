@@ -1,19 +1,35 @@
 // CORS middleware
 // For datacenter migration: replace with cors npm package or framework middleware
 
-const ALLOWED_ORIGINS = [
+const PRODUCTION_ORIGINS = [
   'https://app.kamizo.uz',
   'https://kamizo.uz',
   'https://www.kamizo.uz',
+];
+
+const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
 ];
+
+// Default to production-only origins (secure by default).
+// initCors() adds DEV_ORIGINS when environment !== 'production'.
+let allowedOrigins = [...PRODUCTION_ORIGINS];
+
+// Call once at startup to configure CORS based on environment
+export function initCors(environment: string): void {
+  if (environment === 'production') {
+    allowedOrigins = [...PRODUCTION_ORIGINS];
+  } else {
+    allowedOrigins = [...PRODUCTION_ORIGINS, ...DEV_ORIGINS];
+  }
+}
 
 let currentCorsOrigin = 'https://app.kamizo.uz';
 
 export function setCorsOrigin(request: Request): void {
   const origin = request.headers.get('Origin') || '';
-  if (ALLOWED_ORIGINS.includes(origin)) {
+  if (allowedOrigins.includes(origin)) {
     currentCorsOrigin = origin;
   } else if (/^https:\/\/[a-z0-9-]+\.kamizo\.uz$/.test(origin)) {
     currentCorsOrigin = origin;

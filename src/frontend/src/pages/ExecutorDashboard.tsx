@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 import { executorsApi, apiRequest } from '../services/api';
 import { formatAddress } from '../utils/formatAddress';
 import { SPECIALIZATION_LABELS, STATUS_LABELS } from '../types';
@@ -66,6 +67,7 @@ export function ExecutorDashboard() {
   const { user } = useAuthStore();
   const { requests, executors, acceptRequest, startWork, pauseWork, resumeWork, completeWork, assignRequest, declineRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, fetchRequests, fetchPendingReschedules } = useDataStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   // For couriers, default tab is 'marketplace', for others - 'available'
   const [activeTab, setActiveTab] = useState<'available' | 'assigned' | 'in_progress' | 'completed' | 'marketplace' | 'delivered'>('available');
 
@@ -138,7 +140,7 @@ export function ExecutorDashboard() {
       await Promise.all([fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders()]);
     } catch (error: any) {
       console.error('Failed to take order:', error);
-      alert(language === 'ru' ? (error?.message || 'Ошибка при взятии заказа') : 'Buyurtmani olishda xatolik');
+      addToast('error', language === 'ru' ? (error?.message || 'Ошибка при взятии заказа') : 'Buyurtmani olishda xatolik');
       // Refresh to get current state
       fetchAvailableMarketplaceOrders();
     }
@@ -168,7 +170,7 @@ export function ExecutorDashboard() {
       // Refresh orders to get current state
       await Promise.all([fetchMarketplaceOrders(), fetchDeliveredMarketplaceOrders()]);
       const errorMsg = error?.message || (language === 'ru' ? 'Ошибка при обновлении статуса' : 'Status yangilashda xatolik');
-      alert(errorMsg);
+      addToast('error', errorMsg);
     }
   };
 
@@ -387,7 +389,7 @@ export function ExecutorDashboard() {
   const handleStartWork = (requestId: string) => {
     // Check if there's already work in progress
     if (inProgressRequests.length > 0) {
-      alert(language === 'ru' ? 'Сначала завершите текущую работу' : 'Avval joriy ishni yakunlang');
+      addToast('warning', language === 'ru' ? 'Сначала завершите текущую работу' : 'Avval joriy ishni yakunlang');
       return;
     }
     startWork(requestId);
@@ -1289,6 +1291,7 @@ function RequestDetailsModal({
 
   const priority = getPriorityLabel(request.priority);
 
+  // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop">
       <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl">
@@ -1297,7 +1300,7 @@ function RequestDetailsModal({
             <div className="text-sm text-gray-500">{language === 'ru' ? 'Заявка' : 'Ariza'} #{request.number}</div>
             <h2 className="text-xl font-bold">{request.title}</h2>
           </div>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1937,6 +1940,7 @@ function MarketplaceOrderDetailsModal({
   const nextStatusInfo = getNextStatusLabel();
   const NextIcon = nextStatusInfo?.icon || Package;
 
+  // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop">
       <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl">
@@ -1951,7 +1955,7 @@ function MarketplaceOrderDetailsModal({
               </span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -84,8 +84,10 @@ export async function verifyJWT(token: string, secret: string): Promise<JwtPaylo
 // ── Password encryption and hashing ──────────────────────────────────
 
 export async function encryptPassword(plainText: string, keyString: string): Promise<string> {
+  if (!keyString) throw new Error('ENCRYPTION_KEY is required — set it in .dev.vars or wrangler secrets');
   const enc = new TextEncoder();
-  const keyData = enc.encode((keyString || 'default-key-change-me').padEnd(32, '0').slice(0, 32));
+  if (new TextEncoder().encode(keyString).length < 32) throw new Error('ENCRYPTION_KEY must be at least 32 bytes');
+  const keyData = enc.encode(keyString.slice(0, 32));
   const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['encrypt']);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plainText));
@@ -102,7 +104,9 @@ export async function decryptPassword(stored: string | null, keyString: string):
     const ivB64 = parts[1];
     const encB64 = parts[2];
     const enc = new TextEncoder();
-    const keyData = enc.encode((keyString || 'default-key-change-me').padEnd(32, '0').slice(0, 32));
+    if (!keyString) throw new Error('ENCRYPTION_KEY is required — set it in .dev.vars or wrangler secrets');
+    if (new TextEncoder().encode(keyString).length < 32) throw new Error('ENCRYPTION_KEY must be at least 32 bytes');
+  const keyData = enc.encode(keyString.slice(0, 32));
     const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['decrypt']);
     const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
     const encrypted = Uint8Array.from(atob(encB64), c => c.charCodeAt(0));
@@ -113,9 +117,10 @@ export async function decryptPassword(stored: string | null, keyString: string):
   }
 }
 
-// Workers-safe PBKDF2: 10,000 iterations (stays within CPU time limits).
-// Hash format: "10000:saltB64:hashB64" — iteration count is stored in the hash.
-const PBKDF2_ITERATIONS = 10000;
+// Workers CPU limit: 100k iterations causes timeout on free plan (~50ms CPU).
+// 50,000 iterations ~25ms — safe margin for Workers. Stored in hash for auto-migration.
+// Увеличить до 100,000+ при миграции на VPS/dedicated.
+const PBKDF2_ITERATIONS = 50_000;
 
 export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();

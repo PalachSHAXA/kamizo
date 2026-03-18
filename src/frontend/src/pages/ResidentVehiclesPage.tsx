@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Car, Plus, X, Edit2, Trash2, AlertTriangle, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore, useVehicleStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -127,8 +128,8 @@ function SearchPlateInput({ value, onChange, language, onSearch }: SearchPlateIn
 
             {showRegionDropdown && (
               <>
-                <div className="fixed inset-0 z-[89]" onClick={() => setShowRegionDropdown(false)} />
-                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto min-w-[280px]">
+                <div className="fixed inset-0 z-[50]" onClick={() => setShowRegionDropdown(false)} />
+                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-[50] max-h-72 overflow-y-auto min-w-[280px]">
                   {UZ_REGIONS.map((region) => (
                     <button
                       key={region.code}
@@ -276,8 +277,8 @@ function PlateNumberInput({ ownerType, value, onChange, language }: PlateNumberI
             {/* Region dropdown */}
             {showRegionDropdown && (
               <>
-                <div className="fixed inset-0 z-[100]" onClick={() => setShowRegionDropdown(false)} />
-                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-[101] max-h-72 overflow-y-auto min-w-[280px]">
+                <div className="fixed inset-0 z-[50]" onClick={() => setShowRegionDropdown(false)} />
+                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-[50] max-h-72 overflow-y-auto min-w-[280px]">
                   {UZ_REGIONS.map((region) => (
                     <button
                       key={region.code}
@@ -740,24 +741,17 @@ export function ResidentVehiclesPage() {
 
           {/* Vehicles List */}
           {vehicles.length === 0 ? (
-            <div className="glass-card p-12 text-center">
-              <Car className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-              <h3 className="text-lg font-medium text-gray-600 mb-2">
-                {language === 'ru' ? 'Нет зарегистрированных авто' : 'Ro\'yxatdan o\'tgan avtomobillar yo\'q'}
-              </h3>
-              <p className="text-gray-400 mb-4">
-                {language === 'ru'
-                  ? 'Добавьте свой автомобиль, нажав кнопку выше'
-                  : 'Yuqoridagi tugmani bosib avtomobilingizni qo\'shing'}
-              </p>
-              <button
-                onClick={() => handleOpenModal()}
-                className="btn-primary inline-flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                {language === 'ru' ? 'Добавить первый авто' : 'Birinchi avtoni qo\'shish'}
-              </button>
-            </div>
+            <EmptyState
+              icon={<Car className="w-12 h-12" />}
+              title={language === 'ru' ? 'Нет зарегистрированных авто' : 'Ro\'yxatdan o\'tgan avtomobillar yo\'q'}
+              description={language === 'ru'
+                ? 'Добавьте свой автомобиль, нажав кнопку выше'
+                : 'Yuqoridagi tugmani bosib avtomobilingizni qo\'shing'}
+              action={{
+                label: language === 'ru' ? 'Добавить первый авто' : 'Birinchi avtoni qo\'shish',
+                onClick: () => handleOpenModal(),
+              }}
+            />
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {vehicles.map((vehicle) => (

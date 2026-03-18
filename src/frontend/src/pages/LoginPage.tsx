@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { AppLogo } from '../components/common/AppLogo';
+import { Modal } from '../components/common';
 
 // Demo account definitions (without passwords — passwords filled at click time)
 type DemoAccount = { login: string; role: string; labelRu: string; labelUz: string; icon: any; color: string };
@@ -354,34 +355,12 @@ export function LoginPage() {
       </div>
 
       {/* Public Offer Modal */}
-      {showOfferModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowOfferModal(false)}>
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            {/* Drag handle for mobile */}
-            <div className="sm:hidden flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 bg-gray-300 rounded-full" />
-            </div>
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div
-                  className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${!tenant ? 'bg-orange-100' : ''}`}
-                  style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.15) } : undefined}
-                >
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5" style={tenant ? { color: brandColor } : { color: '#ea580c' }} />
-                </div>
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">
-                  {language === 'ru' ? 'Публичная оферта' : 'Ommaviy oferta'}
-                </h2>
-              </div>
-              <button
-                onClick={() => setShowOfferModal(false)}
-                className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
+      <Modal
+        isOpen={showOfferModal}
+        onClose={() => setShowOfferModal(false)}
+        title={language === 'ru' ? 'Публичная оферта' : 'Ommaviy oferta'}
+        size="2xl"
+      >
             {/* Modal Content - Scrollable */}
             <div
               ref={offerScrollRef}
@@ -558,9 +537,7 @@ export function LoginPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

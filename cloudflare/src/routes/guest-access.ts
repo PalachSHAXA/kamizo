@@ -2,9 +2,10 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId } from '../utils/helpers';
 import { getCurrentCorsOrigin } from '../middleware/cors';
+import { createRequestLogger } from '../utils/logger';
 
 // Helper function for sending push notifications
 async function sendPushNotification(env: Env, userId: string, options: any) {
@@ -19,6 +20,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('GET', '/api/guest-codes', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     const isManagementUser = ['admin', 'director', 'manager', 'security', 'executor', 'department_head'].includes(user.role);
@@ -76,6 +79,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('POST', '/api/guest-codes', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const body = await request.json() as any;
     const id = generateId();
@@ -167,6 +172,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('GET', '/api/guest-codes/scan-history', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     const { results } = await env.DB.prepare(`
@@ -183,6 +190,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('GET', '/api/guest-codes/:id', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     const code = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
@@ -196,6 +205,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('POST', '/api/guest-codes/:id/revoke', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const body = await request.json() as any;
     const tenantId = getTenantId(request);
@@ -243,7 +254,7 @@ export function registerGuestAccessRoutes(env: Env) {
             JSON.stringify({ guestCodeId: params.id, reason: body.reason, url: '/guest-access' })
           ).run();
         } catch (notifError) {
-          console.error('Failed to create in-app notification:', notifError);
+          createRequestLogger(request).error('Failed to create in-app notification', notifError);
         }
 
         // Send push notification
@@ -258,7 +269,7 @@ export function registerGuestAccessRoutes(env: Env) {
             url: '/guest-access'
           },
           requireInteraction: true
-        }).catch(err => console.error('Failed to send push notification:', err));
+        }).catch(err => createRequestLogger(request).error('Failed to send push notification', err));
       }
     } else {
       // Residents can only revoke their own codes
@@ -276,6 +287,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('DELETE', '/api/guest-codes/:id', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     await env.DB.prepare(`DELETE FROM guest_access_codes WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
@@ -286,6 +299,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('POST', '/api/guest-codes/validate', async (request) => {
     const authUser = await getUser(request, env);
     if (!authUser) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const { qr_token } = await request.json() as { qr_token: string };
 
@@ -362,6 +377,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('POST', '/api/guest-codes/:id/use', async (request, _env, params) => {
     const authUser = await getUser(request, env);
     if (!authUser) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     const code = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -398,6 +415,8 @@ export function registerGuestAccessRoutes(env: Env) {
   route('GET', '/api/guest-codes/:id/logs', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('qr', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     const { results } = await env.DB.prepare(`

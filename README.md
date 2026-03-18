@@ -1,270 +1,189 @@
-# 🏢 UK CRM - Система управления жилым комплексом
+# Kamizo - Система управления жилым комплексом
 
-Полнофункциональная система управления для жилых комплексов с веб и мобильными приложениями.
+Полнофункциональная платформа для управляющих компаний: заявки, собрания, голосование, маркетплейс, чат, QR-доступ, аналитика.
 
-## 📦 Состав проекта
-
-```
-UK/
-├── src/
-│   ├── frontend/          # 🌐 Веб-приложение (React + TypeScript)
-│   └── backend/           # ⚙️ API (Cloudflare Workers)
-├── mobile/                # 📱 Мобильное приложение (React Native + Expo)
-├── docs/                  # 📚 Документация
-├── scripts/               # 🔧 Скрипты
-└── deploy.sh             # 🚀 Деплой скрипт
-```
-
-## 🚀 Быстрый старт
-
-### 1️⃣ Веб-приложение
+## Quick Start
 
 ```bash
-# Установка зависимостей
-cd src/frontend
-npm install
+# 1. Клонировать
+git clone <repo-url> && cd kamizo
 
-# Запуск в режиме разработки
-npm run dev
+# 2. Установить зависимости (три папки)
+cd src/frontend && npm install && cd ../..
+cd cloudflare && npm install && cd ..
+cd mobile && npm install && cd ..
 
-# Сборка для production
-npm run build
+# 3. Создать файл секретов для локальной разработки
+cat > cloudflare/.dev.vars <<EOF
+ENCRYPTION_KEY=your-32-char-encryption-key-here
+JWT_SECRET=your-jwt-secret-key-here
+EOF
+
+# 4. Запустить фронтенд (терминал 1)
+cd src/frontend && npm run dev
+# -> http://localhost:5173
+
+# 5. Запустить бэкенд (терминал 2)
+cd cloudflare && npm run dev
+# -> http://localhost:8787
 ```
 
-**Доступ:** http://localhost:5173
+## Project Structure
 
-### 2️⃣ Мобильное приложение
+```
+kamizo/
+├── src/frontend/            # React + Vite + TypeScript (веб-приложение)
+│   ├── src/
+│   │   ├── components/      # UI-компоненты
+│   │   ├── pages/           # Страницы по ролям
+│   │   ├── stores/          # Zustand stores (модульная архитектура)
+│   │   ├── services/api/    # API-клиент (14 модулей)
+│   │   └── types/           # TypeScript типы
+│   └── vitest.config.ts
+├── cloudflare/              # Cloudflare Workers (бэкенд)
+│   ├── src/
+│   │   ├── index.ts         # Главный роутер + fetch handler
+│   │   ├── routes/          # Роуты (users, training, meetings, ...)
+│   │   ├── middleware/       # CORS, auth, rate-limit, features
+│   │   ├── utils/           # helpers, logger, crypto
+│   │   └── __tests__/       # Vitest unit-тесты
+│   ├── migrations/          # SQL-миграции (001..033)
+│   ├── schema.sql           # Полная схема БД
+│   └── wrangler.toml        # Конфиг Cloudflare
+├── mobile/                  # React Native + Expo (мобильное приложение)
+├── docs/                    # Документация, архитектура, интеграции
+├── .github/workflows/       # CI/CD (GitHub Actions)
+└── LICENSE                  # Проприетарная лицензия
+```
+
+## Tech Stack
+
+| Слой | Технологии |
+|------|-----------|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Zustand, React Router |
+| Backend | Cloudflare Workers, D1 (SQLite), KV (rate-limiting) |
+| Mobile | React Native, Expo, TypeScript, Zustand |
+| CI/CD | GitHub Actions, Wrangler |
+| i18n | Русский / O'zbek (inline conditional) |
+
+## Environment Setup
+
+### Локальная разработка
+
+Создайте `cloudflare/.dev.vars` (не коммитится в git):
+
+```
+ENCRYPTION_KEY=<32-символьный ключ шифрования>
+JWT_SECRET=<секретный ключ для JWT-токенов>
+```
+
+### Production secrets (Cloudflare)
 
 ```bash
-# Установка зависимостей
-cd mobile
-npm install
-
-# Запуск на телефоне через Expo Go
-npx expo start
-```
-
-**Установите Expo Go:**
-- iOS: [App Store](https://apps.apple.com/app/expo-go/id982107779)
-- Android: [Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent)
-
-### 3️⃣ Деплой на Cloudflare
-
-```bash
-# Из корневой директории
-bash deploy.sh
-```
-
-## 🌐 Продакшн
-
-**Веб:** https://uk-crm-api.shaxzod.workers.dev
-
-**API:** https://uk-crm-api.shaxzod.workers.dev/api
-
-## ✨ Основные функции
-
-### Веб-приложение
-
-- ✅ Авторизация с ролями (админ, менеджер, исполнитель, житель)
-- ✅ Дашборды для каждой роли
-- ✅ Управление заявками
-- ✅ Управление исполнителями
-- ✅ Управление жителями и домами
-- ✅ Собрания жильцов с голосованием
-- ✅ Объявления
-- ✅ **Мои коллеги** - система взаимной оценки сотрудников
-- ✅ Статистика и отчёты
-- ✅ Мультиязычность (Русский / O'zbek)
-
-### Мобильное приложение
-
-- ✅ Авторизация
-- ✅ **Мои коллеги** - оценка сотрудников
-- ✅ Быстрая благодарность
-- ✅ Адаптивный дизайн
-- ✅ Поддержка iOS и Android
-- ✅ Связь с веб-API
-
-## 👥 Система "Мои коллеги"
-
-### Функционал:
-
-1. **Оценка коллег** (10 критериев, 1-5 звёзд)
-   - Профессиональные знания
-   - Знание законодательства
-   - Аналитические способности
-   - Качество работы
-   - Исполнительность
-   - Надёжность
-   - Командность
-   - Коммуникация
-   - Инициативность
-   - Человечность
-
-2. **Быстрая благодарность**
-   - Помог с задачей
-   - Поддержал в сложный момент
-   - Научил чему-то новому
-   - Выручил в дедлайн
-   - Просто спасибо
-
-3. **Профили сотрудников**
-   - Средние оценки по критериям
-   - Общий рейтинг
-   - Полученные благодарности
-   - Бейджи/достижения
-
-4. **Топ коллег месяца**
-   - Топ-3 сотрудника
-   - Лидеры по категориям
-
-### Доступ:
-
-- **Веб:** Левая панель → "Мои коллеги"
-- **Мобильное:** Вкладка "Коллеги" 👥
-
-## 🎨 Дизайн
-
-- **Основной цвет:** `#F59E0B` (желтый)
-- **Стиль:** Glass-morphism
-- **Адаптивность:** Desktop, Tablet, Mobile
-
-## 🔐 Тестовые данные
-
-```
-Админ:
-Логин: admin
-Пароль: admin123
-
-Менеджер:
-Логин: manager
-Пароль: manager123
-
-Исполнитель:
-Логин: executor1
-Пароль: executor123
-```
-
-## 📱 Структура мобильного приложения
-
-```
-mobile/
-├── src/
-│   ├── api/              # API клиент
-│   ├── components/       # UI компоненты
-│   │   ├── Button.tsx
-│   │   ├── Card.tsx
-│   │   └── Input.tsx
-│   ├── screens/          # Экраны
-│   │   ├── LoginScreen.tsx
-│   │   └── ColleaguesScreen.tsx
-│   ├── navigation/       # Навигация
-│   ├── stores/          # State management (Zustand)
-│   └── types/           # TypeScript типы
-└── App.tsx
-```
-
-## 🛠 Технологии
-
-### Веб
-
-- React 18 + TypeScript
-- Vite
-- Tailwind CSS
-- Zustand (state management)
-- React Router
-
-### Мобильное
-
-- React Native
-- Expo
-- TypeScript
-- React Navigation
-- Zustand
-- Axios
-
-### Бэкенд
-
-- Cloudflare Workers
-- D1 Database (SQLite)
-- Hono (web framework)
-
-## 📚 Документация
-
-- [Веб-приложение](./src/frontend/README.md)
-- [Мобильное приложение](./mobile/README.md)
-- [Руководство по мобильному](./MOBILE_SETUP.md)
-- [API документация](./docs/)
-
-## 🚀 Команды
-
-### Веб-разработка
-
-```bash
-cd src/frontend
-npm run dev          # Запуск в режиме разработки
-npm run build        # Сборка для production
-npm run preview      # Предпросмотр production build
-```
-
-### Мобильная разработка
-
-```bash
-cd mobile
-npx expo start       # Запуск Expo
-npm run ios          # Запуск на iOS (требуется macOS)
-npm run android      # Запуск на Android
-npm run web          # Запуск в браузере
-```
-
-### Деплой
-
-```bash
-bash deploy.sh       # Полный деплой в production (миграции + сборка + deploy)
-```
-
-### Staging
-
-Staging окружение деплоится автоматически при push в ветку `develop`, или вручную:
-
-```bash
-bash scripts/deploy-staging.sh
-```
-
-**Первоначальная настройка staging:**
-
-```bash
-# 1. Создать D1 базу
-wrangler d1 create kamizo-staging-db
-# → Вставить database_id в cloudflare/wrangler.staging.toml
-
-# 2. Создать KV namespace
-wrangler kv namespace create RATE_LIMITER
-# → Вставить id в cloudflare/wrangler.staging.toml
-
-# 3. Установить секреты
-wrangler secret put ENCRYPTION_KEY --config cloudflare/wrangler.staging.toml
-wrangler secret put JWT_SECRET --config cloudflare/wrangler.staging.toml
-
-# 4. Применить схему БД
 cd cloudflare
-wrangler d1 execute kamizo-staging-db --file=schema.sql --remote
+wrangler secret put ENCRYPTION_KEY
+wrangler secret put JWT_SECRET
 ```
 
-**URL:** `https://kamizo-staging.workers.dev`
+## Testing
 
-## 📄 Лицензия
+```bash
+# Frontend тесты (Vitest + jsdom + Testing Library)
+cd src/frontend && npm run test
 
-© 2024 UK CRM. Все права защищены.
+# Backend тесты (Vitest + node)
+cd cloudflare && npm run test
 
-## 🤝 Поддержка
+# TypeScript проверка (frontend)
+cd src/frontend && npx tsc --noEmit
 
-Для вопросов и поддержки обращайтесь к команде разработки.
+# TypeScript проверка (backend)
+cd cloudflare && npx tsc --noEmit
+```
 
----
+## Deployment
 
-**🎉 Проект готов к использованию!**
+### CI/CD (GitHub Actions)
 
-Запустите веб: `cd src/frontend && npm run dev`
+Автоматический деплой настроен в `.github/workflows/deploy.yml`:
 
-Запустите мобильное: `cd mobile && npx expo start`
+| Ветка | Среда | URL |
+|-------|-------|-----|
+| `main` | Production | https://app.myhelper.uz |
+| `develop` | Staging | https://kamizo-staging.workers.dev |
+
+**Pipeline:**
+1. Install frontend deps -> Run frontend tests -> Build frontend
+2. Copy dist -> cloudflare/public
+3. Install backend deps -> Run backend tests
+4. Deploy via Wrangler
+
+Тесты блокируют деплой — если тесты не проходят, деплой не происходит.
+
+### Ручной деплой
+
+```bash
+# Frontend build + deploy
+cd src/frontend && npm run build
+rm -rf ../cloudflare/public && cp -r dist ../cloudflare/public
+cd ../cloudflare && wrangler deploy
+```
+
+## Database Migrations
+
+Миграции хранятся в `cloudflare/migrations/` с нумерацией `001_`, `002_`, ..., `033_`.
+
+```bash
+# Применить миграцию к production
+cd cloudflare
+wrangler d1 execute kamizo-db --remote --file=migrations/033_add_tenant_id_training_indexes.sql
+
+# Применить миграцию локально
+wrangler d1 execute kamizo-db --local --file=migrations/033_add_tenant_id_training_indexes.sql
+
+# Применить полную схему (только для новой БД)
+wrangler d1 execute kamizo-db --remote --file=schema.sql
+```
+
+**Правила миграций:**
+- Всегда используйте `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`
+- Обновляйте `schema.sql` и `schema_no_fk.sql` параллельно
+- Все таблицы должны содержать `tenant_id TEXT` для мультитенантности
+
+## Key Features
+
+- **Заявки** — создание, назначение, отслеживание статуса, оценка исполнителей
+- **Собрания** — повестка дня, голосование по площади (закон РУз), протоколы
+- **Маркетплейс** — каталог товаров для жильцов (ru/uz)
+- **QR-доступ** — гостевые пропуска: разовые, дневные, постоянные
+- **Чат** — каналы по зданиям, прямые сообщения
+- **Объявления** — с приоритетами и таргетингом
+- **Транспорт** — учёт автомобилей жильцов
+- **Обучение** — предложения, голосование, регистрация, обратная связь
+- **Коллеги** — система оценки сотрудников (10 критериев)
+- **Блокнот** — персональные заметки для сотрудников
+- **Мультитенантность** — изоляция данных по `tenant_id`
+- **Rate-limiting** — защита через Cloudflare KV
+- **Structured logging** — JSON-логи с requestId
+
+## Roles
+
+| Роль | Доступ |
+|------|--------|
+| `super_admin` | Полный доступ ко всем тенантам |
+| `admin` | Управление тенантом, пользователями |
+| `director` | Управление зданиями, собраниями |
+| `manager` | Заявки, объявления, чат, маркетплейс |
+| `dispatcher` | Распределение заявок исполнителям |
+| `department_head` | Управление отделом исполнителей |
+| `executor` | Выполнение заявок (plumber/electrician/general) |
+| `security` | Проверка QR-кодов, контроль доступа |
+| `marketplace_manager` | Управление товарами маркетплейса |
+| `resident` | Создание заявок, голосование, чат |
+| `tenant` | Арендатор — ограниченный доступ |
+
+## License
+
+Copyright (c) 2026 Kamizo. All rights reserved. See [LICENSE](./LICENSE).
+
+For licensing inquiries: info@kamizo.uz

@@ -4,11 +4,12 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId, isManagement, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { hashPassword } from '../utils/crypto';
 import { getCurrentCorsOrigin } from '../middleware/cors';
 import { sendPushNotification } from '../index';
+import { createRequestLogger } from '../utils/logger';
 
 export function registerRentalRoutes() {
 
@@ -17,6 +18,9 @@ export function registerRentalRoutes() {
 // Vehicles: List for user (with owner info from users table)
 // Supports both user_id (new) and resident_id (legacy) columns
 route('GET', '/api/vehicles', async (request, env) => {
+  const fc = await requireFeature('vehicles', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -36,6 +40,9 @@ route('GET', '/api/vehicles', async (request, env) => {
 
 // Vehicles: Create (with all fields)
 route('POST', '/api/vehicles', async (request, env) => {
+  const fc = await requireFeature('vehicles', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -72,6 +79,9 @@ route('POST', '/api/vehicles', async (request, env) => {
 
 // Vehicles: Update
 route('PATCH', '/api/vehicles/:id', async (request, env, params) => {
+  const fc = await requireFeature('vehicles', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -124,6 +134,9 @@ route('PATCH', '/api/vehicles/:id', async (request, env, params) => {
 
 // Vehicles: Delete (supports both user_id and resident_id)
 route('DELETE', '/api/vehicles/:id', async (request, env, params) => {
+  const fc = await requireFeature('vehicles', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -136,6 +149,9 @@ route('DELETE', '/api/vehicles/:id', async (request, env, params) => {
 // Vehicles: Get ALL vehicles (for security/managers/admins only)
 // Оптимизировано для 5000+ пользователей с пагинацией
 route('GET', '/api/vehicles/all', async (request, env) => {
+  const fc = await requireFeature('vehicles', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -189,6 +205,9 @@ route('GET', '/api/vehicles/all', async (request, env) => {
 // Vehicles: Search (for security/managers) - also search by plate param
 // Supports both user_id and resident_id columns
 route('GET', '/api/vehicles/search', async (request, env) => {
+  const fc = await requireFeature('vehicles', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -218,6 +237,9 @@ route('GET', '/api/vehicles/search', async (request, env) => {
 
 // My apartments: For tenants/commercial_owners to see their own apartments and records
 route('GET', '/api/rentals/my-apartments', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -295,10 +317,14 @@ route('GET', '/api/rentals/my-apartments', async (request, env) => {
 
 // Rental apartments: List all (for managers/admins)
 route('GET', '/api/rentals/apartments', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) {
-    console.error(`[403] GET /api/rentals/apartments - user role: "${user.role}", id: "${user.id}"`);
+    const log = createRequestLogger(request);
+    log.warn('Access denied', { role: user.role, userId: user.id });
     return error('Access denied', 403);
   }
 
@@ -336,13 +362,16 @@ route('GET', '/api/rentals/apartments', async (request, env) => {
 
 // Rental apartments: Create (creates user + apartment)
 route('POST', '/api/rentals/apartments', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   try {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
     if (!isManagement(user)) return error('Access denied', 403);
 
+    const log = createRequestLogger(request);
     const body = await request.json() as any;
-    console.log('[API] Rental create body received:', JSON.stringify(body));
 
     const { name, address, apartment, ownerName, ownerPhone, ownerLogin, ownerPassword, ownerType = 'tenant', existingUserId } = body;
 
@@ -390,7 +419,7 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
 
       finalOwnerLogin = ownerLogin.trim();
       finalOwnerPassword = ownerPassword;
-      console.log('[API] New rental user created from existing resident:', userId, 'role:', ownerType);
+      log.info('Rental user created from existing resident', { userId, ownerType });
     } else {
       // Create new user
       if (!ownerLogin || !ownerPassword) {
@@ -407,7 +436,7 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
         INSERT INTO users (id, login, password_hash, name, role, phone, tenant_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(userId, ownerLogin.trim(), passwordHash2, ownerName || name, ownerType, ownerPhone || null, getTenantId(request)).run();
-      console.log('[API] New user created for rental:', userId);
+      log.info('New user created for rental', { userId });
     }
 
     // Create rental apartment
@@ -416,7 +445,7 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
       INSERT INTO rental_apartments (id, name, address, apartment, owner_id, owner_type, tenant_id)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(apartmentId, name, address, apartment || null, userId, ownerType, getTenantId(request)).run();
-    console.log('[API] Apartment created:', apartmentId);
+    log.info('Rental apartment created', { apartmentId });
 
     return json({
       apartment: {
@@ -435,9 +464,8 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
       }
     }, 201);
   } catch (err: any) {
-    console.error('[API] Error creating rental apartment:', err);
-    console.error('[API] Error message:', err.message);
-    console.error('[API] Error stack:', err.stack);
+    const log = createRequestLogger(request);
+    log.error('Error creating rental apartment', err);
     // Check for specific errors
     if (err.message?.includes('UNIQUE constraint failed') || err.message?.includes('login')) {
       return error('Login already exists', 400);
@@ -448,6 +476,9 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
 
 // Rental apartments: Update
 route('PATCH', '/api/rentals/apartments/:id', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
@@ -478,6 +509,9 @@ route('PATCH', '/api/rentals/apartments/:id', async (request, env, params) => {
 
 // Rental apartments: Delete (also deletes owner user and records)
 route('DELETE', '/api/rentals/apartments/:id', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
@@ -505,10 +539,14 @@ route('DELETE', '/api/rentals/apartments/:id', async (request, env, params) => {
 
 // Rental records: List all or by apartment
 route('GET', '/api/rentals/records', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) {
-    console.error(`[403] GET /api/rentals/records - user role: "${user.role}", id: "${user.id}"`);
+    const log = createRequestLogger(request);
+    log.warn('Access denied', { role: user.role, userId: user.id });
     return error('Access denied', 403);
   }
 
@@ -558,6 +596,9 @@ route('GET', '/api/rentals/records', async (request, env) => {
 
 // Exchange rate: Get USD rate from CBU
 route('GET', '/api/exchange-rate', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -575,10 +616,14 @@ route('GET', '/api/exchange-rate', async (request, env) => {
 
 // Rental records: Create
 route('POST', '/api/rentals/records', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) {
-    console.error(`[403] POST /api/rentals/records - user role: "${user.role}", id: "${user.id}"`);
+    const log = createRequestLogger(request);
+    log.warn('Access denied', { role: user.role, userId: user.id });
     return error('Access denied', 403);
   }
 
@@ -608,7 +653,8 @@ route('POST', '/api/rentals/records', async (request, env) => {
       finalNotes = finalNotes ? `${finalNotes}\n${conversionNote}` : conversionNote;
     } catch (err) {
       // If CBU fetch fails, store as-is in USD
-      console.error('CBU rate fetch failed:', err);
+      const log = createRequestLogger(request);
+      log.error('CBU rate fetch failed', err);
       finalAmount = amount;
       finalCurrency = 'USD';
     }
@@ -643,6 +689,9 @@ route('POST', '/api/rentals/records', async (request, env) => {
 
 // Rental records: Update
 route('PATCH', '/api/rentals/records/:id', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
@@ -676,6 +725,9 @@ route('PATCH', '/api/rentals/records/:id', async (request, env, params) => {
 
 // Rental records: Delete
 route('DELETE', '/api/rentals/records/:id', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Access denied', 403);
@@ -691,6 +743,9 @@ route('DELETE', '/api/rentals/records/:id', async (request, env, params) => {
 
 // Guest codes: List for user (with auto-expire check)
 route('GET', '/api/guest-codes', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -698,8 +753,6 @@ route('GET', '/api/guest-codes', async (request, env) => {
 
   // Check if user can see all guest codes (management + security roles need full view)
   const isManagementUser = ['admin', 'director', 'manager', 'security', 'executor', 'department_head'].includes(user.role);
-  console.log('[guest-codes] User:', user.id, 'Role:', user.role, 'IsManagement:', isManagementUser);
-
   // Auto-expire old codes
   if (isManagementUser) {
     // Expire all codes for management view
@@ -729,7 +782,6 @@ route('GET', '/api/guest-codes', async (request, env) => {
       LIMIT 200
     `).bind(...(tenantId ? [tenantId, tenantId] : [])).all();
     results = response.results;
-    console.log('[guest-codes] Management query returned', results?.length || 0, 'codes');
   } else {
     // Regular users see only their own codes
     const response = await env.DB.prepare(`
@@ -739,7 +791,6 @@ route('GET', '/api/guest-codes', async (request, env) => {
       LIMIT 100
     `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
     results = response.results;
-    console.log('[guest-codes] User query returned', results?.length || 0, 'codes for user', user.id);
   }
 
   // Return with no-cache headers to ensure fresh data
@@ -758,6 +809,9 @@ route('GET', '/api/guest-codes', async (request, env) => {
 
 // Guest codes: Create (full data)
 route('POST', '/api/guest-codes', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -819,8 +873,6 @@ route('POST', '/api/guest-codes', async (request, env) => {
   const jsonString = JSON.stringify(tokenData);
   const qrToken = 'GAPASS:' + btoa(unescape(encodeURIComponent(jsonString)));
 
-  console.log('[guest-codes] Creating code for user:', user.id, 'with id:', id);
-
   const insertResult = await env.DB.prepare(`
     INSERT INTO guest_access_codes (
       id, user_id, qr_token, visitor_type, visitor_name, visitor_phone, visitor_vehicle_plate,
@@ -845,16 +897,16 @@ route('POST', '/api/guest-codes', async (request, env) => {
     getTenantId(request)
   ).run();
 
-  console.log('[guest-codes] Insert result:', insertResult.success, 'changes:', insertResult.meta?.changes);
-
   const tenantId = getTenantId(request);
   const created = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(id, ...(tenantId ? [tenantId] : [])).first();
-  console.log('[guest-codes] Created code:', created ? 'found' : 'NOT FOUND');
   return json({ code: created }, 201);
 });
 
 // Guest codes: Get recent scan logs (for guard scan history) - MUST be before :id route
 route('GET', '/api/guest-codes/scan-history', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -871,6 +923,9 @@ route('GET', '/api/guest-codes/scan-history', async (request, env) => {
 
 // Guest codes: Get single code
 route('GET', '/api/guest-codes/:id', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -884,39 +939,33 @@ route('GET', '/api/guest-codes/:id', async (request, env, params) => {
 
 // Guest codes: Revoke
 route('POST', '/api/guest-codes/:id/revoke', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  const log = createRequestLogger(request);
   const body = await request.json() as any;
   const tenantId = getTenantId(request);
   const isManagementUser = ['admin', 'director', 'manager'].includes(user.role);
-  console.log('[GuestRevoke] User:', user.id, 'Role:', user.role, 'isManagement:', isManagementUser, 'Code ID:', params.id);
 
   // Get the guest code info before revoking (for notification)
   const guestCode = await env.DB.prepare(
     `SELECT id, user_id, visitor_name, visitor_type FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
-  console.log('[GuestRevoke] Found guest code:', guestCode ? { id: guestCode.id, user_id: guestCode.user_id, visitor_type: guestCode.visitor_type } : null);
 
   // Management users can revoke any code, residents can only revoke their own
   if (isManagementUser) {
-    console.log('[GuestRevoke] Management user revoking code...');
     await env.DB.prepare(`
       UPDATE guest_access_codes
       SET status = 'revoked', revoked_at = datetime('now'), revoked_by = ?, revoked_reason = ?, updated_at = datetime('now')
       WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(user.id, body.reason || null, params.id, ...(tenantId ? [tenantId] : [])).run();
-    console.log('[GuestRevoke] Code revoked successfully');
+    log.info('Guest code revoked', { codeId: params.id });
 
     // Send notifications to the resident (owner of the guest code)
-    console.log('[GuestRevoke] Checking notification conditions:', {
-      hasGuestCode: !!guestCode,
-      hasUserId: !!(guestCode && guestCode.user_id),
-      isDifferentUser: guestCode && guestCode.user_id !== user.id
-    });
-
     if (guestCode && guestCode.user_id && guestCode.user_id !== user.id) {
-      console.log('[GuestRevoke] Creating notification for resident:', guestCode.user_id);
 
       const visitorTypeLabels: Record<string, string> = {
         'guest': 'гостя',
@@ -934,7 +983,6 @@ route('POST', '/api/guest-codes/:id/revoke', async (request, env, params) => {
       // 1. Create in-app notification (always works, shows in bell icon)
       try {
         const notifId = generateId();
-        console.log('[GuestRevoke] Inserting notification with ID:', notifId);
         await env.DB.prepare(`
           INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
           VALUES (?, ?, 'guest_pass_revoked', ?, ?, ?, 0, datetime('now'))
@@ -945,13 +993,11 @@ route('POST', '/api/guest-codes/:id/revoke', async (request, env, params) => {
           notificationBody,
           JSON.stringify({ guestCodeId: params.id, reason: body.reason, url: '/guest-access' })
         ).run();
-        console.log('[GuestRevoke] In-app notification created successfully');
       } catch (notifError) {
-        console.error('[GuestRevoke] Failed to create in-app notification:', notifError);
+        log.error('Failed to create in-app notification', notifError);
       }
 
       // 2. Send push notification (only works if user has push subscription)
-      console.log('[GuestRevoke] Sending push notification...');
       sendPushNotification(env, guestCode.user_id, {
         title: notificationTitle,
         body: notificationBody,
@@ -963,11 +1009,7 @@ route('POST', '/api/guest-codes/:id/revoke', async (request, env, params) => {
           url: '/guest-access'
         },
         requireInteraction: true
-      }).then(() => {
-        console.log('[GuestRevoke] Push notification sent successfully');
-      }).catch(err => console.error('[GuestRevoke] Failed to send push notification:', err));
-    } else {
-      console.log('[GuestRevoke] Skipping notification - conditions not met');
+      }).catch(err => { log.error('Failed to send push notification', err); });
     }
   } else {
     // Residents can only revoke their own codes
@@ -983,6 +1025,9 @@ route('POST', '/api/guest-codes/:id/revoke', async (request, env, params) => {
 
 // Guest codes: Delete
 route('DELETE', '/api/guest-codes/:id', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -993,6 +1038,9 @@ route('DELETE', '/api/guest-codes/:id', async (request, env, params) => {
 
 // Guest codes: Validate and use (for security scanning)
 route('POST', '/api/guest-codes/validate', async (request, env) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -1071,6 +1119,9 @@ route('POST', '/api/guest-codes/validate', async (request, env) => {
 
 // Guest codes: Use (mark as used after allowing entry)
 route('POST', '/api/guest-codes/:id/use', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -1103,6 +1154,9 @@ route('POST', '/api/guest-codes/:id/use', async (request, env, params) => {
 
 // Guest codes: Get usage logs for a code
 route('GET', '/api/guest-codes/:id/logs', async (request, env, params) => {
+  const fc = await requireFeature('rentals', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 

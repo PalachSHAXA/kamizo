@@ -23,7 +23,7 @@ export const useExecutorStore = create<ExecutorState>()(
       set({ isLoadingExecutors: true, executorsError: null });
       try {
         const response = await executorsApi.getAll(showAll);
-        const mappedExecutors: Executor[] = response.executors.map((e: any) => ({
+        const mappedExecutors: Executor[] = response.executors.map((e: Record<string, unknown>) => ({
           id: e.id,
           name: e.name,
           phone: e.phone,
@@ -38,9 +38,9 @@ export const useExecutorStore = create<ExecutorState>()(
           createdAt: e.created_at,
         }));
         set({ executors: mappedExecutors, isLoadingExecutors: false, executorsError: null });
-      } catch (error: any) {
-        console.error('Failed to fetch executors:', error);
-        set({ isLoadingExecutors: false, executorsError: error?.message || 'Failed to load executors' });
+      } catch (err: unknown) {
+        console.error('Failed to fetch executors:', err);
+        set({ isLoadingExecutors: false, executorsError: err instanceof Error ? err.message : 'Failed to load executors' });
       }
     },
 
@@ -81,9 +81,9 @@ export const useExecutorStore = create<ExecutorState>()(
           return newExecutor;
         }
         return null;
-      } catch (error: any) {
-        console.error('Failed to add executor:', error);
-        throw error; // Re-throw so UI can show error message
+      } catch (err: unknown) {
+        console.error('Failed to add executor:', err);
+        throw err; // Re-throw so UI can show error message
       }
     },
 

@@ -4,6 +4,7 @@ import {
   AlertTriangle, CheckCircle, User, Building2,
   FileText, Play, Pause, Check, Loader2
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useCRMStore } from '../stores/crmStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -475,10 +476,11 @@ export function WorkOrdersPage() {
         )}
 
         {!isLoading && filteredOrders.length === 0 && (
-          <div className="glass-card p-12 text-center">
-            <Wrench className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">{language === 'ru' ? 'Наряды не найдены' : 'Buyurtmalar topilmadi'}</p>
-          </div>
+          <EmptyState
+            icon={<Wrench className="w-12 h-12" />}
+            title={language === 'ru' ? 'Наряды не найдены' : 'Buyurtmalar topilmadi'}
+            description={language === 'ru' ? 'Создайте новый рабочий наряд' : 'Yangi ish buyurtmasini yarating'}
+          />
         )}
       </div>
 
@@ -576,7 +578,7 @@ function WorkOrderDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[200]" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
@@ -783,7 +785,7 @@ function WorkOrderFormModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[200]" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">

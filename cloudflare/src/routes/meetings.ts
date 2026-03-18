@@ -4,11 +4,12 @@
 import type { Env, User } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { getCurrentCorsOrigin } from '../middleware/cors';
 import { getCached, setCache, invalidateCache } from '../middleware/cache-local';
 import { json, error, generateId, isManagement } from '../utils/helpers';
 import { sendPushNotification } from '../index';
+import { createRequestLogger } from '../utils/logger';
 
 // Helper: Fetch meeting with agenda items and schedule options
 export async function getMeetingWithDetails(env: Env, meetingId: string, tenantId?: string | null): Promise<any> {
@@ -65,6 +66,9 @@ export function registerMeetingRoutes() {
 
 // Meetings: List (with caching for performance)
 route('GET', '/api/meetings', async (request, env) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const url = new URL(request.url);
   let buildingId = url.searchParams.get('building_id');
   const status = url.searchParams.get('status');
@@ -227,6 +231,9 @@ route('GET', '/api/meetings', async (request, env) => {
 
 // Meetings: Get by ID with full details
 route('GET', '/api/meetings/:id', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -348,10 +355,12 @@ route('GET', '/api/meetings/:id', async (request, env, params) => {
 
 // Meetings: Create
 route('POST', '/api/meetings', async (request, env) => {
-  console.log('[Meeting] POST /api/meetings called');
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const log = createRequestLogger(request);
   try {
     const authUser = await getUser(request, env);
-    console.log('[Meeting] Auth user:', authUser?.id, authUser?.name);
     if (!authUser) {
       return error('Unauthorized', 401);
     }
@@ -360,11 +369,9 @@ route('POST', '/api/meetings', async (request, env) => {
     try {
       body = await request.json();
     } catch (e: any) {
-      console.error('[Meeting] JSON parse error:', e);
+      log.error('JSON parse error', e);
       return error('Invalid JSON body: ' + e.message, 400);
     }
-
-    console.log('[Meeting] Request body keys:', Object.keys(body || {}));
 
     const id = generateId();
 
@@ -373,14 +380,10 @@ route('POST', '/api/meetings', async (request, env) => {
       return error('building_id is required', 400);
     }
 
-    console.log('[Meeting] Building ID:', buildingId);
-
     const tenantId = getTenantId(request);
     const settings = await env.DB.prepare(
       'SELECT * FROM meeting_building_settings WHERE building_id = ?'
     ).bind(buildingId).first() as any;
-
-    console.log('[Meeting] Settings:', JSON.stringify(settings));
 
     const votingUnit = settings?.voting_unit || 'apartment';
     const quorumPercent = settings?.default_quorum_percent || 50;
@@ -450,7 +453,7 @@ route('POST', '/api/meetings', async (request, env) => {
       getTenantId(request)
     ).run();
   } catch (e: any) {
-    console.error('[Meeting] Error inserting meeting:', e);
+    log.error('Error inserting meeting', e);
     return error('Failed to create meeting: ' + e.message, 500);
   }
 
@@ -476,7 +479,7 @@ route('POST', '/api/meetings', async (request, env) => {
       `).bind(optId, id, dateTimeStr, getTenantId(request)).run();
     }
   } catch (e: any) {
-    console.error('[Meeting] Error inserting schedule options:', e);
+    log.error('Error inserting schedule options', e);
     return error('Failed to create schedule options: ' + e.message, 500);
   }
 
@@ -504,7 +507,7 @@ route('POST', '/api/meetings', async (request, env) => {
       ).run();
     }
   } catch (e: any) {
-    console.error('[Meeting] Error inserting agenda items:', e);
+    log.error('Error inserting agenda items', e);
     return error('Failed to create agenda items: ' + e.message, 500);
   }
 
@@ -544,21 +547,24 @@ route('POST', '/api/meetings', async (request, env) => {
         }).catch(() => {});
       }
 
-      console.log(`[Meeting] Created meeting ${id}, sent notifications to ${residents.length} residents`);
+      log.info('Meeting created', { meetingId: id, notifiedResidents: residents.length });
     } catch (e: any) {
-      console.error('[Meeting] Error sending notifications:', e);
+      log.error('Error sending notifications', e);
     }
   }
 
   return json({ meeting: created }, 201);
   } catch (e: any) {
-    console.error('[Meeting] FATAL ERROR creating meeting:', e);
+    log.error('Fatal error creating meeting', e);
     return error('Meeting creation failed: ' + (e.message || String(e)), 500);
   }
 });
 
 // Meetings: Update
 route('PATCH', '/api/meetings/:id', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -614,6 +620,9 @@ route('PATCH', '/api/meetings/:id', async (request, env, params) => {
 
 // Meetings: Submit for moderation
 route('POST', '/api/meetings/:id/submit', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -631,6 +640,9 @@ route('POST', '/api/meetings/:id/submit', async (request, env, params) => {
 
 // Meetings: Approve
 route('POST', '/api/meetings/:id/approve', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -690,6 +702,9 @@ route('POST', '/api/meetings/:id/approve', async (request, env, params) => {
 
 // Meetings: Reject
 route('POST', '/api/meetings/:id/reject', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -736,6 +751,9 @@ route('POST', '/api/meetings/:id/reject', async (request, env, params) => {
 
 // Meetings: Open schedule poll
 route('POST', '/api/meetings/:id/open-schedule-poll', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -756,6 +774,9 @@ route('POST', '/api/meetings/:id/open-schedule-poll', async (request, env, param
 
 // Meetings: Confirm schedule
 route('POST', '/api/meetings/:id/confirm-schedule', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -813,6 +834,9 @@ route('POST', '/api/meetings/:id/confirm-schedule', async (request, env, params)
 
 // Meetings: Open voting
 route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -870,6 +894,9 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
 
 // Meetings: Close voting
 route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -979,6 +1006,9 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
 
 // Meetings: Publish results
 route('POST', '/api/meetings/:id/publish-results', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -1020,6 +1050,10 @@ route('POST', '/api/meetings/:id/publish-results', async (request, env, params) 
 
 // Meetings: Generate protocol
 route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const log = createRequestLogger(request);
   try {
   const authUser = await getUser(request, env);
   if (!authUser) {
@@ -1185,13 +1219,16 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
   const protocol = await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ?').bind(protocolId).first();
   return json({ protocol }, 201);
   } catch (err: any) {
-    console.error('Generate protocol error:', err?.message, err?.stack);
+    log.error('Generate protocol error', err);
     return error(`Protocol generation failed: ${err?.message}`, 500);
   }
 });
 
 // Meetings: Approve protocol
 route('POST', '/api/meetings/:id/approve-protocol', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1233,6 +1270,9 @@ route('POST', '/api/meetings/:id/approve-protocol', async (request, env, params)
 
 // Protocol: Sign as chairman (resident who leads the meeting)
 route('POST', '/api/meetings/:id/protocol/sign-chairman', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1281,6 +1321,9 @@ route('POST', '/api/meetings/:id/protocol/sign-chairman', async (request, env, p
 
 // Protocol: Sign as secretary
 route('POST', '/api/meetings/:id/protocol/sign-secretary', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1329,6 +1372,9 @@ route('POST', '/api/meetings/:id/protocol/sign-secretary', async (request, env, 
 
 // Protocol: Set counting commission members
 route('POST', '/api/meetings/:id/protocol/counting-commission', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
@@ -1361,6 +1407,9 @@ route('POST', '/api/meetings/:id/protocol/counting-commission', async (request, 
 
 // Meetings: Cancel
 route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -1407,6 +1456,10 @@ route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
 
 // Meetings: Delete
 route('DELETE', '/api/meetings/:id', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const log = createRequestLogger(request);
   const authUser = await getUser(request, env);
   if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) {
     return error('Access denied', 403);
@@ -1453,13 +1506,16 @@ route('DELETE', '/api/meetings/:id', async (request, env, params) => {
     invalidateCache('meetings:');
     return json({ success: true });
   } catch (err: any) {
-    console.error('Meeting delete error:', err.message);
+    log.error('Meeting delete error', err);
     return error(`Failed to delete meeting: ${err.message}`, 500);
   }
 });
 
 // Schedule voting
 route('POST', '/api/meetings/:meetingId/schedule-votes', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1512,6 +1568,9 @@ route('POST', '/api/meetings/:meetingId/schedule-votes', async (request, env, pa
 
 // Get schedule vote by user
 route('GET', '/api/meetings/:meetingId/schedule-votes/me', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1526,6 +1585,9 @@ route('GET', '/api/meetings/:meetingId/schedule-votes/me', async (request, env, 
 
 // Agenda voting
 route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1703,6 +1765,9 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
 
 // Get user's votes for meeting
 route('GET', '/api/meetings/:meetingId/votes/me', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1726,6 +1791,9 @@ route('GET', '/api/meetings/:meetingId/votes/me', async (request, env, params) =
 
 // Get "against" votes for an agenda item (for УК to see who voted against)
 route('GET', '/api/meetings/:meetingId/agenda/:agendaItemId/votes/against', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1782,6 +1850,9 @@ route('GET', '/api/meetings/:meetingId/agenda/:agendaItemId/votes/against', asyn
 
 // Send reconsideration request to a resident
 route('POST', '/api/meetings/:meetingId/reconsideration-requests', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1891,6 +1962,9 @@ route('POST', '/api/meetings/:meetingId/reconsideration-requests', async (reques
 
 // Get resident's pending reconsideration requests
 route('GET', '/api/meetings/reconsideration-requests/me', async (request, env) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1920,6 +1994,9 @@ route('GET', '/api/meetings/reconsideration-requests/me', async (request, env) =
 
 // Mark reconsideration request as viewed
 route('POST', '/api/meetings/reconsideration-requests/:requestId/view', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1950,6 +2027,9 @@ route('POST', '/api/meetings/reconsideration-requests/:requestId/view', async (r
 
 // Ignore/dismiss reconsideration request
 route('POST', '/api/meetings/reconsideration-requests/:requestId/ignore', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -1978,6 +2058,9 @@ route('POST', '/api/meetings/reconsideration-requests/:requestId/ignore', async 
 
 // Get reconsideration request statistics for a meeting (for УК)
 route('GET', '/api/meetings/:meetingId/reconsideration-requests/stats', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -2022,6 +2105,9 @@ route('GET', '/api/meetings/:meetingId/reconsideration-requests/stats', async (r
 
 // Real-time voting stats (for polling during active voting)
 route('GET', '/api/meetings/:meetingId/stats', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2094,6 +2180,9 @@ route('GET', '/api/meetings/:meetingId/stats', async (request, env, params) => {
 
 // OTP: Request
 route('POST', '/api/meetings/otp/request', async (request, env) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -2122,7 +2211,6 @@ route('POST', '/api/meetings/otp/request', async (request, env) => {
   ).run();
 
   // In production, send SMS here
-  console.log(`[OTP] Code ${code} sent to ${body.phone || authUser.phone} for user ${authUser.id}`);
 
   return json({ otpId: id, expiresAt: expiresAt.toISOString() });
 });
@@ -2130,6 +2218,9 @@ route('POST', '/api/meetings/otp/request', async (request, env) => {
 // OTP: Verify
 // PUBLIC: no auth required
 route('POST', '/api/meetings/otp/verify', async (request, env) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const body = await request.json() as any;
   const otpId = body.otp_id || body.otpId;
   const code = body.code;
@@ -2173,6 +2264,9 @@ route('POST', '/api/meetings/otp/verify', async (request, env) => {
 
 // Building settings: Get
 route('GET', '/api/meetings/building-settings/:buildingId', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2210,6 +2304,9 @@ route('GET', '/api/meetings/building-settings/:buildingId', async (request, env,
 
 // Building settings: Update
 route('PATCH', '/api/meetings/building-settings/:buildingId', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || authUser.role !== 'admin') {
     return error('Admin access required', 403);
@@ -2308,6 +2405,9 @@ route('PATCH', '/api/meetings/building-settings/:buildingId', async (request, en
 
 // Voting units: List by building
 route('GET', '/api/meetings/voting-units', async (request, env) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2333,6 +2433,9 @@ route('GET', '/api/meetings/voting-units', async (request, env) => {
 
 // Voting units: Create
 route('POST', '/api/meetings/voting-units', async (request, env) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -2366,6 +2469,9 @@ route('POST', '/api/meetings/voting-units', async (request, env) => {
 
 // Voting units: Verify
 route('POST', '/api/meetings/voting-units/:id/verify', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -2384,6 +2490,9 @@ route('POST', '/api/meetings/voting-units/:id/verify', async (request, env, para
 
 // Eligible voters: Set for meeting
 route('POST', '/api/meetings/:meetingId/eligible-voters', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -2421,6 +2530,9 @@ route('POST', '/api/meetings/:meetingId/eligible-voters', async (request, env, p
 
 // Get vote records for meeting (audit)
 route('GET', '/api/meetings/:meetingId/vote-records', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -2442,6 +2554,9 @@ route('GET', '/api/meetings/:meetingId/vote-records', async (request, env, param
 
 // Get protocol
 route('GET', '/api/meetings/:meetingId/protocol', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -2462,6 +2577,9 @@ route('GET', '/api/meetings/:meetingId/protocol', async (request, env, params) =
 // Get protocol as HTML (for PDF generation on client side)
 // PUBLIC: no auth required
 route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -2706,6 +2824,9 @@ route('GET', '/api/meetings/:meetingId/protocol/html', async (request, env, para
 // Get protocol as DOC file (Word document)
 // PUBLIC: no auth required
 route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -3007,6 +3128,9 @@ route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, param
 
 // Get protocol data as JSON for frontend DOCX generation
 route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -3084,6 +3208,9 @@ route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, para
 
 // Get comments for agenda item
 route('GET', '/api/agenda/:agendaItemId/comments', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -3098,6 +3225,9 @@ route('GET', '/api/agenda/:agendaItemId/comments', async (request, env, params) 
 
 // Add comment to agenda item
 route('POST', '/api/agenda/:agendaItemId/comments', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -3144,6 +3274,9 @@ route('POST', '/api/agenda/:agendaItemId/comments', async (request, env, params)
 
 // Delete own comment
 route('DELETE', '/api/comments/:commentId', async (request, env, params) => {
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);

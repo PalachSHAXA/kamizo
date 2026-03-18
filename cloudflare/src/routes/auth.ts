@@ -4,9 +4,10 @@ import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, setTenantForRequest } from '../middleware/tenant';
 import { json, error, generateId, isManagement } from '../utils/helpers';
-import { hashPassword, verifyPassword } from '../utils/crypto';
+import { hashPassword, verifyPassword, createJWT, verifyJWT } from '../utils/crypto';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from '../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../middleware/cors';
+import { createRequestLogger } from '../utils/logger';
 
 // Helper functions
 function isSuperAdmin(user: any): boolean {
@@ -119,7 +120,14 @@ export function registerAuthRoutes(env: Env) {
       'X-RateLimit-Reset': rateLimit.resetAt.toString()
     };
 
-    return new Response(JSON.stringify({ user, token: user.id }), {
+    // Create signed JWT (24h expiry)
+    const jwt = await createJWT(
+      { userId: user.id, role: user.role, tenantId: user.tenant_id || undefined },
+      env.JWT_SECRET,
+      24 * 60 * 60 // 24 hours
+    );
+
+    return new Response(JSON.stringify({ user, token: jwt }), {
       status: 200,
       headers
     });
@@ -214,7 +222,7 @@ export function registerAuthRoutes(env: Env) {
             .bind(id, 'occupied', existingApt.id).run();
         }
       } catch (e) {
-        console.error('Auto-create apartment failed:', e);
+        createRequestLogger(request).error('Auto-create apartment failed', e);
       }
     }
 
@@ -344,7 +352,7 @@ export function registerAuthRoutes(env: Env) {
             }
           }
         } catch (linkErr) {
-          console.error('Failed to link apartment data:', linkErr);
+          createRequestLogger(request).error('Failed to link apartment data', linkErr);
         }
       }
     }
@@ -474,5 +482,38 @@ export function registerAuthRoutes(env: Env) {
     await env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = datetime("now") WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
 
     return json({ success: true });
+  });
+
+  // Auth: Refresh token — exchange a valid (non-expired) JWT for a fresh one
+  route('POST', '/api/auth/refresh', async (request) => {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return error('Authorization required', 401);
+    }
+
+    const token = authHeader.slice(7);
+    const payload = await verifyJWT(token, env.JWT_SECRET);
+    if (!payload) {
+      return error('Invalid or expired token', 401);
+    }
+
+    // Verify user still exists and is active
+    const tenantId = getTenantId(request);
+    const user = await env.DB.prepare(
+      `SELECT id, role, tenant_id FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
+    ).bind(...[payload.userId, ...(tenantId ? [tenantId] : [])]).first() as { id: string; role: string; tenant_id?: string } | null;
+
+    if (!user) {
+      return error('User not found', 401);
+    }
+
+    // Issue fresh JWT (24h)
+    const newToken = await createJWT(
+      { userId: user.id, role: user.role, tenantId: user.tenant_id || undefined },
+      env.JWT_SECRET,
+      24 * 60 * 60
+    );
+
+    return json({ token: newToken });
   });
 }

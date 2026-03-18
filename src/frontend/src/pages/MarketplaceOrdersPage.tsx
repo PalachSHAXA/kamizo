@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ShoppingCart, Search, ChevronRight, X, CheckCircle, Package, Phone, MapPin, UserPlus, User, Star
+  ShoppingCart, Search, ChevronRight, X, CheckCircle, Package, Phone, MapPin, UserPlus, User, Star, ShoppingBag
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useLanguageStore } from '../stores/languageStore';
 import { useDataStore } from '../stores/dataStore';
 import { apiRequest } from '../services/api';
@@ -327,18 +328,17 @@ export function MarketplaceOrdersPage() {
         })}
 
         {filteredOrders.length === 0 && (
-          <div className="text-center py-12">
-            <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">
-              {language === 'ru' ? 'Заказов нет' : 'Buyurtmalar yo\'q'}
-            </p>
-          </div>
+          <EmptyState
+            icon={<ShoppingBag className="w-12 h-12" />}
+            title={language === 'ru' ? 'Заказов нет' : 'Buyurtmalar yo\'q'}
+            description={language === 'ru' ? 'Новые заказы появятся здесь' : 'Yangi buyurtmalar bu yerda paydo bo\'ladi'}
+          />
         )}
       </div>
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
@@ -526,7 +526,7 @@ export function MarketplaceOrdersPage() {
 
       {/* Assign Executor Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">

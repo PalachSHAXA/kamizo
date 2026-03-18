@@ -1,3 +1,4 @@
+// TODO: Split into components (2093 lines)
 import { useState, useEffect, useMemo } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 import { formatAddress } from '../utils/formatAddress';
 import { ukRatingsApi } from '../services/api';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS, RESCHEDULE_REASON_LABELS, RESCHEDULE_STATUS_LABELS } from '../types';
@@ -1252,12 +1254,13 @@ function AddExecutorModal({
     onAdd({ name, phone, login, password, specialization });
   };
 
+  // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop">
       <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}</h2>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1381,6 +1384,7 @@ const BRANCHES = [
 // Add Resident Modal
 function AddResidentModal({ onClose }: { onClose: () => void }) {
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [branch, setBranch] = useState('YS');
@@ -1446,19 +1450,20 @@ function AddResidentModal({ onClose }: { onClose: () => void }) {
       building
     });
 
-    alert(language === 'ru'
-      ? `Житель добавлен!\nЛогин: ${login}\nПароль: ${password}`
-      : `Yashovchi qo'shildi!\nLogin: ${login}\nParol: ${password}`
+    addToast('success', language === 'ru'
+      ? `Житель добавлен! Логин: ${login}, Пароль: ${password}`
+      : `Yashovchi qo'shildi! Login: ${login}, Parol: ${password}`
     );
     onClose();
   };
 
+  // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop">
       <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}</h2>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1676,6 +1681,7 @@ function ExecutorDetailsModal({
     return <span className={`badge ${info.bg} ${info.text} text-xs`}>{info.label}</span>;
   };
 
+  // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
@@ -1698,7 +1704,7 @@ function ExecutorDetailsModal({
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200 flex-shrink-0">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200 flex-shrink-0" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1984,6 +1990,7 @@ function RescheduleDetailsModal({
 
   const statusInfo = RESCHEDULE_STATUS_LABELS[reschedule.status];
 
+  // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop">
       <div className="modal-content p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-4 rounded-t-2xl sm:rounded-2xl">
@@ -1992,7 +1999,7 @@ function RescheduleDetailsModal({
             <RefreshCw className="w-5 h-5 text-amber-600" />
             {language === 'ru' ? 'Запрос на перенос' : 'Ko\'chirish so\'rovi'}
           </h2>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>

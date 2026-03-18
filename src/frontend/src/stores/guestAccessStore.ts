@@ -46,7 +46,7 @@ export const useGuestAccessStore = create<GuestAccessState>()(
       try {
         const response = await guestCodesApi.getAll();
         const codes = response.codes || [];
-        const mappedCodes: GuestAccessCode[] = codes.map((c: any) => ({
+        const mappedCodes: GuestAccessCode[] = codes.map((c: Record<string, unknown>) => ({
           id: c.id,
           residentId: c.user_id,
           residentName: c.resident_name || '',

@@ -36,7 +36,7 @@ interface AuthState {
     phone?: string;
     address?: string;
     apartment?: string;
-  }>) => Promise<{ created: any[]; updated: any[] }>;
+  }>) => Promise<{ created: Record<string, unknown>[]; updated: Record<string, unknown>[] }>;
   updateProfile: (updates: { phone?: string; name?: string }) => Promise<boolean>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   adminChangePassword: (userId: string, newPassword: string) => Promise<boolean>;
@@ -208,11 +208,11 @@ export const useAuthStore = create<AuthState>()(
           phone: user.phone,
           address: user.address,
           apartment: user.apartment,
-          building_id: (user as any).buildingId,
-          entrance: (user as any).entrance,
-          floor: (user as any).floor,
-          branch: (user as any).branch,
-          building: (user as any).building,
+          building_id: (user as Record<string, unknown>).buildingId as string,
+          entrance: (user as Record<string, unknown>).entrance as string,
+          floor: (user as Record<string, unknown>).floor as string,
+          branch: (user as Record<string, unknown>).branch as string,
+          building: (user as Record<string, unknown>).building as string,
         }).catch((err) => {
           useToastStore.getState().addToast('error', (err as Error).message || 'Ошибка регистрации');
         });

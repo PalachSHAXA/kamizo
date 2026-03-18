@@ -252,7 +252,7 @@ body {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 100;
+  z-index: 200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -267,7 +267,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 20px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  z-index: 101;
+  z-index: 201;
   max-height: 90vh;
   max-height: 90dvh;
   overflow-y: auto;

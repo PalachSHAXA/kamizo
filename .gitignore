@@ -3,5 +3,6 @@ node_modules/
 dist/
 .env
 .env.local
+.dev.vars
 .wrangler/
-https://kamizo-demo.kamizo.uz/rentals
+*.timestamp-*

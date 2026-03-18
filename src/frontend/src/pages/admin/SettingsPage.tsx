@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { Modal } from '../../components/common';
 import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
 
@@ -1099,54 +1100,47 @@ export function SettingsPage() {
       )}
 
       {/* Reset Requests Confirmation Modal */}
-      {showResetModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">{language === 'ru' ? 'Подтвердите действие' : 'Amalni tasdiqlang'}</h3>
-                <p className="text-sm text-gray-500">{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni ortga qaytarib bo\'lmaydi'}</p>
-              </div>
-            </div>
-            <p className="text-gray-700 mb-6">
-              {language === 'ru' ? (
-                <>Вы уверены, что хотите удалить <strong>все заявки</strong>? Это также удалит всю историю изменений и сообщения в чатах заявок.</>
-              ) : (
-                <>Ishonchingiz komilmi <strong>barcha arizalarni</strong> o\'chirmoqchimisiz? Bu shuningdek, barcha o\'zgarishlar tarixini va ariza chatlaridagi xabarlarni o\'chiradi.</>
-              )}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowResetModal(false)}
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-                disabled={isResetting}
-              >
-                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
-              </button>
-              <button
-                onClick={handleResetRequests}
-                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                disabled={isResetting}
-              >
-                {isResetting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {language === 'ru' ? 'Удаление...' : 'O\'chirilmoqda...'}
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    {language === 'ru' ? 'Удалить все' : 'Hammasini o\'chirish'}
-                  </>
-                )}
-              </button>
-            </div>
+      <Modal isOpen={showResetModal} onClose={() => setShowResetModal(false)} title={language === 'ru' ? 'Подтвердите действие' : 'Amalni tasdiqlang'} size="sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
           </div>
+          <p className="text-sm text-gray-500">{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni ortga qaytarib bo\'lmaydi'}</p>
         </div>
-      )}
+        <p className="text-gray-700 mb-6">
+          {language === 'ru' ? (
+            <>Вы уверены, что хотите удалить <strong>все заявки</strong>? Это также удалит всю историю изменений и сообщения в чатах заявок.</>
+          ) : (
+            <>Ishonchingiz komilmi <strong>barcha arizalarni</strong> o\'chirmoqchimisiz? Bu shuningdek, barcha o\'zgarishlar tarixini va ariza chatlaridagi xabarlarni o\'chiradi.</>
+          )}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowResetModal(false)}
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
+            disabled={isResetting}
+          >
+            {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+          </button>
+          <button
+            onClick={handleResetRequests}
+            className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+            disabled={isResetting}
+          >
+            {isResetting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {language === 'ru' ? 'Удаление...' : 'O\'chirilmoqda...'}
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4" />
+                {language === 'ru' ? 'Удалить все' : 'Hammasini o\'chirish'}
+              </>
+            )}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

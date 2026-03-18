@@ -7,7 +7,7 @@ import type {
 } from '../types';
 import { apartmentsApi, ownersApi, crmResidentsApi } from '../services/api';
 
-const mapApartmentFromApi = (a: any): Apartment => ({
+const mapApartmentFromApi = (a: Record<string, unknown>): Apartment => ({
   id: a.id,
   buildingId: a.building_id,
   entranceId: a.entrance_id,
@@ -40,7 +40,7 @@ const mapApartmentFromApi = (a: any): Apartment => ({
   updatedAt: a.updated_at,
 });
 
-const mapOwnerFromApi = (o: any): Owner => ({
+const mapOwnerFromApi = (o: Record<string, unknown>): Owner => ({
   id: o.id,
   type: o.type || 'individual',
   lastName: o.last_name,
@@ -84,7 +84,7 @@ const mapOwnerFromApi = (o: any): Owner => ({
   updatedAt: o.updated_at,
 });
 
-const mapAccountFromApi = (a: any): PersonalAccount => ({
+const mapAccountFromApi = (a: Record<string, unknown>): PersonalAccount => ({
   id: a.id,
   number: a.number,
   apartmentId: a.apartment_id,
@@ -93,12 +93,12 @@ const mapAccountFromApi = (a: any): PersonalAccount => ({
   ownerName: a.owner_name,
   apartmentNumber: a.apartment_number,
   address: a.address,
-  totalArea: a.total_area || 0,
-  residentsCount: a.residents_count || 0,
-  registeredCount: a.registered_count || 0,
-  balance: a.balance || 0,
-  currentDebt: a.current_debt || 0,
-  penaltyAmount: a.penalty_amount || 0,
+  totalArea: (a.total_area as number) || 0,
+  residentsCount: (a.residents_count as number) || 0,
+  registeredCount: (a.registered_count as number) || 0,
+  balance: (a.balance as number) || 0,
+  currentDebt: (a.current_debt as number) || 0,
+  penaltyAmount: (a.penalty_amount as number) || 0,
   lastPaymentDate: a.last_payment_date,
   lastPaymentAmount: a.last_payment_amount,
   lastChargeDate: a.last_charge_date,
@@ -110,15 +110,15 @@ const mapAccountFromApi = (a: any): PersonalAccount => ({
   hasDiscount: !!a.has_discount,
   discountPercent: a.discount_percent,
   discountReason: a.discount_reason,
-  status: a.status || 'active',
+  status: (a.status as string) || 'active',
   closedAt: a.closed_at,
   closedReason: a.closed_reason,
   notes: a.notes,
   createdAt: a.created_at,
   updatedAt: a.updated_at,
-});
+} as PersonalAccount);
 
-const mapResidentFromApi = (r: any): Resident => ({
+const mapResidentFromApi = (r: Record<string, unknown>): Resident => ({
   id: r.id,
   apartmentId: r.apartment_id,
   ownerId: r.owner_id,
@@ -276,7 +276,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     updateApartment: async (id, data) => {
       try {
-        await apartmentsApi.update(id, data as any);
+        await apartmentsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
         set((state) => ({
           apartments: state.apartments.map((a) =>
             a.id === id ? { ...a, ...data, updatedAt: new Date().toISOString() } : a
@@ -377,7 +377,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     updateOwner: async (id, data) => {
       try {
-        await ownersApi.update(id, data as any);
+        await ownersApi.update(id, data as Record<string, unknown>); // TODO: type this properly
         set((state) => ({
           owners: state.owners.map((o) =>
             o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o
@@ -523,7 +523,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     updateResident: async (id, data) => {
       try {
-        await crmResidentsApi.update(id, data as any);
+        await crmResidentsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
         set((state) => ({
           residents: state.residents.map((r) =>
             r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r

@@ -4,14 +4,17 @@ import {
   FileText, Building2, User,
   ThumbsUp, ThumbsDown, Minus, Eye,
   Play, Square, BarChart3, Shield, X, Check, CalendarCheck, Download, Trash2,
-  MessageSquare, Send, Phone, Paperclip, Loader2
+  MessageSquare, Send, Phone, Paperclip, Loader2, CalendarDays
 } from 'lucide-react';
+import { EmptyState, Modal } from '../components/common';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useCRMStore } from '../stores/crmStore';
 import { generateProtocolDocx } from '../utils/protocolGenerator';
 import { uploadApi } from '../services/api';
+import { useToastStore } from '../stores/toastStore';
 import type {
   Meeting, MeetingStatus, MeetingFormat, AgendaItem, AgendaItemType,
   MeetingOrganizerType, DecisionThreshold
@@ -21,9 +24,11 @@ import { AGENDA_ITEM_TYPES, MEETING_STATUS_LABELS, DECISION_THRESHOLD_LABELS } f
 export function MeetingsPage() {
   const { user } = useAuthStore();
   const { t, language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const { buildings, fetchBuildings } = useCRMStore();
   const {
     meetings,
+    loading: isLoadingMeetings,
     fetchMeetings,
     createMeeting,
     approveMeeting,
@@ -149,14 +154,14 @@ export function MeetingsPage() {
 
       {/* Meetings List */}
       <div className="space-y-4">
-        {filteredMeetings.length === 0 ? (
-          <div className="glass-card p-12 text-center">
-            <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">
-              {t('meetings.noMeetings')}
-            </h3>
-            <p className="text-gray-400">{t('meetings.createFirst')}</p>
-          </div>
+        {isLoadingMeetings && meetings.length === 0 ? (
+          <PageSkeleton variant="list" />
+        ) : filteredMeetings.length === 0 ? (
+          <EmptyState
+            icon={<CalendarDays className="w-12 h-12" />}
+            title={language === 'ru' ? 'Нет собраний' : 'Yig\'ilishlar yo\'q'}
+            description={language === 'ru' ? 'Создайте первое собрание' : 'Birinchi yig\'ilishni yarating'}
+          />
         ) : (
           filteredMeetings.map((meeting) => (
             <MeetingCard
@@ -629,25 +634,15 @@ function CreateMeetingWizard({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-base sm:text-lg md:text-xl font-bold">
-              {language === 'ru' ? 'Созвать собрание' : 'Yig\'ilish chaqirish'}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {language === 'ru' ? `Шаг ${step} из 3` : `Bosqich ${step} dan 3`}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={language === 'ru' ? 'Созвать собрание' : 'Yig\'ilish chaqirish'}
+      size="2xl"
+    >
+        <p className="text-sm text-gray-500 -mt-2 mb-4">
+          {language === 'ru' ? `Шаг ${step} из 3` : `Bosqich ${step} dan 3`}
+        </p>
 
         {/* Progress */}
         <div className="px-6 py-4 border-b border-gray-100">
@@ -1223,8 +1218,7 @@ function CreateMeetingWizard({
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1310,7 +1304,7 @@ function MeetingDetailsModal({
       setRequestReason('');
       setRequestMessage('');
     } else {
-      alert(result.error || (language === 'ru' ? 'Ошибка при отправке запроса' : 'So\'rovni yuborishda xatolik'));
+      addToast('error', result.error || (language === 'ru' ? 'Ошибка при отправке запроса' : 'So\'rovni yuborishda xatolik'));
     }
     setSendingRequest(null);
   };
@@ -1348,12 +1342,13 @@ function MeetingDetailsModal({
       });
     } catch (error) {
       console.error('Failed to download protocol:', error);
-      alert(language === 'ru' ? 'Ошибка при скачивании протокола' : 'Bayonnomani yuklashda xato');
+      addToast('error', language === 'ru' ? 'Ошибка при скачивании протокола' : 'Bayonnomani yuklashda xato');
     } finally {
       setDownloadingProtocol(false);
     }
   };
 
+  // TODO: migrate to <Modal> component
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1662,8 +1657,9 @@ function MeetingDetailsModal({
         </div>
 
         {/* Send Reconsideration Request Modal */}
+        {/* TODO: migrate to <Modal> component */}
         {showSendModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
             <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6">
               <h3 className="text-base sm:text-lg font-bold mb-4">
                 {language === 'ru' ? 'Запрос на пересмотр голоса' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}

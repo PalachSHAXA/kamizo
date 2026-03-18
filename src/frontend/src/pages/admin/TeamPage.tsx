@@ -5,12 +5,15 @@ import {
   Shield, ChevronDown, ChevronUp, Search, Filter,
   Droplets, Zap, ArrowUpDown, Bell, Brush, ShieldCheck,
   Hammer, Flame, Wind, Trash2, Key, Truck, Leaf,
-  Download, Upload, CheckCircle, AlertCircle
+  Download, Upload, CheckCircle, AlertCircle,
+  UserPlus
 } from 'lucide-react';
+import { EmptyState } from '../../components/common';
 import { teamApi, apiRequest } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useToastStore } from '../../stores/toastStore';
 import { SPECIALIZATION_LABELS } from '../../types';
 import type { ExecutorSpecialization } from '../../types';
 
@@ -104,6 +107,7 @@ export function TeamPage() {
   const { user: currentUser } = useAuthStore();
   const { hasFeature } = useTenantStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const isDirector = currentUser?.role === 'director';
   const [admins, setAdmins] = useState<StaffMember[]>([]);
   const [managers, setManagers] = useState<StaffMember[]>([]);
@@ -190,7 +194,7 @@ export function TeamPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(e.message || 'Ошибка экспорта');
+      addToast('error', e.message || 'Ошибка экспорта');
     } finally {
       setExportLoading(false);
     }
@@ -301,7 +305,7 @@ export function TeamPage() {
       setIsEditing(false);
       setEditForm(prev => ({ ...prev, password: '' })); // Clear password field
     } catch (err: any) {
-      alert((language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlashda xatolik: ') + err.message);
+      addToast('error', (language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlashda xatolik: ') + err.message);
     }
   };
 
@@ -438,7 +442,7 @@ export function TeamPage() {
       // Refresh data
       await fetchTeam();
     } catch (err: any) {
-      alert((language === 'ru' ? 'Ошибка удаления: ' : 'O\'chirishda xatolik: ') + err.message);
+      addToast('error', (language === 'ru' ? 'Ошибка удаления: ' : 'O\'chirishda xatolik: ') + err.message);
     }
   };
 
@@ -452,7 +456,7 @@ export function TeamPage() {
     ];
 
     if (staffWithoutPassword.length === 0) {
-      alert(language === 'ru' ? 'Все сотрудники уже имеют пароли' : 'Barcha xodimlarning parollari mavjud');
+      addToast('info', language === 'ru' ? 'Все сотрудники уже имеют пароли' : 'Barcha xodimlarning parollari mavjud');
       return;
     }
 
@@ -468,17 +472,15 @@ export function TeamPage() {
       const result = await teamApi.resetAllPasswords();
 
       if (result.updated > 0) {
-        // Show list of updated users with their new passwords
-        const message = result.staff.map(s => `${s.name}: ${s.login} / ${s.password}`).join('\n');
-        alert((language === 'ru' ? `Обновлено ${result.updated} сотрудников:\n\n` : `${result.updated} xodim yangilandi:\n\n`) + message);
+        addToast('success', language === 'ru' ? `Обновлено ${result.updated} сотрудников` : `${result.updated} xodim yangilandi`);
       } else {
-        alert(result.message);
+        addToast('info', result.message);
       }
 
       // Refresh data
       await fetchTeam();
     } catch (err: any) {
-      alert((language === 'ru' ? 'Ошибка сброса паролей: ' : 'Parollarni tiklashda xatolik: ') + err.message);
+      addToast('error', (language === 'ru' ? 'Ошибка сброса паролей: ' : 'Parollarni tiklashda xatolik: ') + err.message);
     } finally {
       setLoading(false);
     }
@@ -637,9 +639,11 @@ export function TeamPage() {
       {expandedSections[sectionKey] && (
         <div className="p-2 sm:p-4">
           {members.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {language === 'ru' ? 'Нет сотрудников' : 'Xodimlar yo\'q'}
-            </div>
+            <EmptyState
+              icon={<UserPlus className="w-12 h-12" />}
+              title={language === 'ru' ? 'Нет сотрудников' : 'Xodimlar yo\'q'}
+              description={language === 'ru' ? 'В этой категории пока нет сотрудников' : 'Bu toifada hali xodimlar yo\'q'}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
               {members.map(renderStaffCard)}
@@ -1225,7 +1229,7 @@ export function TeamPage() {
 
       {/* Credentials Modal - shows after creating new user */}
       {showCredentialsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md p-4 sm:p-6 animate-fade-in">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">

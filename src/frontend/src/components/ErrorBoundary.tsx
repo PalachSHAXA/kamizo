@@ -97,6 +97,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   async sendToMonitoring(error: Error, errorInfo: ErrorInfo) {
+    // TODO: Подключить Sentry DSN через VITE_SENTRY_DSN
+    // reportFrontendError(error, { componentStack: errorInfo.componentStack });
     try {
       // Send to backend monitoring endpoint
       await fetch('/api/admin/monitoring/frontend-error', {
@@ -277,6 +279,17 @@ export function ComponentErrorBoundary({
       {children}
     </ErrorBoundary>
   );
+}
+
+/**
+ * Placeholder: send error to Sentry when VITE_SENTRY_DSN is configured.
+ * TODO: Implement via @sentry/browser or fetch-based envelope once DSN is set.
+ */
+export function reportFrontendError(error: Error, context?: Record<string, unknown>): void {
+  const dsn = import.meta.env.VITE_SENTRY_DSN;
+  if (!dsn) return; // Sentry not configured — skip silently
+  // Future: POST envelope to Sentry ingest endpoint
+  console.warn('[Sentry placeholder] Would report:', error.message, context);
 }
 
 /**

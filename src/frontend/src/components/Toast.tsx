@@ -39,7 +39,7 @@ function ToastItem({ id, type, message }: { id: string; type: keyof typeof icons
     >
       <Icon className="w-5 h-5 mt-0.5 shrink-0" />
       <span className="text-sm text-white flex-1">{message}</span>
-      <button onClick={handleClose} className="text-white/50 hover:text-white shrink-0">
+      <button onClick={handleClose} className="text-white/50 hover:text-white shrink-0" aria-label="Закрыть">
         <X className="w-4 h-4" />
       </button>
     </div>

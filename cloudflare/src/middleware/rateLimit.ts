@@ -52,8 +52,9 @@ export async function checkRateLimit(
 
     return { allowed: true, remaining: config.maxRequests - newCount, resetAt: data.resetAt };
   } catch (e) {
-    console.error('Rate limiter KV error:', e);
-    return { allowed: true, remaining: 99, resetAt: Date.now() + 60000 };
+    console.error('Rate limiter KV error:', e instanceof Error ? e.message : e);
+    // Fail-closed: block request when KV is unavailable to prevent abuse
+    return { allowed: false, remaining: 0, resetAt: Date.now() + 60000 };
   }
 }
 

@@ -545,11 +545,12 @@ CREATE TABLE IF NOT EXISTS training_notifications (
 
 -- Training settings (настройки системы обучения)
 CREATE TABLE IF NOT EXISTS training_settings (
-  key TEXT PRIMARY KEY,
+  key TEXT NOT NULL,
   value TEXT NOT NULL,
   description TEXT,
   updated_at TEXT DEFAULT (datetime('now')),
-  tenant_id TEXT DEFAULT ''
+  tenant_id TEXT DEFAULT '',
+  PRIMARY KEY (key, tenant_id)
 );
 
 -- Legacy Residents table (for backward compatibility with existing requests system)
@@ -1237,6 +1238,13 @@ CREATE INDEX IF NOT EXISTS idx_training_feedback_proposal ON training_feedback(p
 CREATE INDEX IF NOT EXISTS idx_training_notifications_recipient ON training_notifications(recipient_id);
 CREATE INDEX IF NOT EXISTS idx_training_notifications_proposal ON training_notifications(proposal_id);
 CREATE INDEX IF NOT EXISTS idx_training_notifications_read ON training_notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_training_partners_tenant ON training_partners(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_proposals_tenant ON training_proposals(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_votes_tenant ON training_votes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_registrations_tenant ON training_registrations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_feedback_tenant ON training_feedback(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_notifications_tenant ON training_notifications(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_training_settings_tenant ON training_settings(tenant_id);
 
 -- Meeting System indexes
 CREATE INDEX IF NOT EXISTS idx_meetings_building ON meetings(building_id);

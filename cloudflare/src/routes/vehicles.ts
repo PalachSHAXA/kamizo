@@ -2,7 +2,7 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 
 // ==================== VEHICLES ROUTES ====================
@@ -12,6 +12,8 @@ export function registerVehicleRoutes(env: Env) {
   route('GET', '/api/vehicles', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('vehicles', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     const { results } = await env.DB.prepare(`
@@ -30,6 +32,8 @@ export function registerVehicleRoutes(env: Env) {
   route('POST', '/api/vehicles', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('vehicles', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const body = await request.json() as any;
     const { plate_number, brand, model, color, year, vehicle_type, owner_type, company_name, parking_spot, notes, is_primary } = body;
@@ -65,6 +69,8 @@ export function registerVehicleRoutes(env: Env) {
   route('PATCH', '/api/vehicles/:id', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('vehicles', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const body = await request.json() as any;
     const updates: string[] = [];
@@ -116,6 +122,8 @@ export function registerVehicleRoutes(env: Env) {
   route('DELETE', '/api/vehicles/:id', async (request, _env, params) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('vehicles', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const tenantId = getTenantId(request);
     await env.DB.prepare(`DELETE FROM vehicles WHERE id = ? AND (user_id = ? OR resident_id = ?) ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, user.id, user.id, ...(tenantId ? [tenantId] : [])).run();
@@ -126,6 +134,8 @@ export function registerVehicleRoutes(env: Env) {
   route('GET', '/api/vehicles/all', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('vehicles', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const allowedRoles = ['admin', 'director', 'manager', 'executor', 'department_head', 'security'];
     if (!allowedRoles.includes(user.role)) {
@@ -175,6 +185,8 @@ export function registerVehicleRoutes(env: Env) {
   route('GET', '/api/vehicles/search', async (request) => {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
+    const fc = await requireFeature('vehicles', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
 
     const url = new URL(request.url);
     const query = url.searchParams.get('q')?.toUpperCase() || url.searchParams.get('plate')?.toUpperCase();

@@ -5,7 +5,7 @@ import {
   LogOut, User, Home, Shield, BarChart3,
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
-  X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock
+  X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock, CreditCard
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -314,7 +314,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/meetings', icon: Vote, label: t('meetings.title') },
         { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
         // Управление
-        { path: '/reports', icon: BarChart3, label: t('nav.reports'), section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
+        { path: '/payments', icon: CreditCard, label: language === 'ru' ? 'Платежи' : 'To\'lovlar', section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
+        { path: '/reports', icon: BarChart3, label: t('nav.reports') },
         { path: '/settings', icon: Settings, label: t('nav.settings') },
       ];
     }
@@ -337,8 +338,10 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         // Коммуникации
         { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
         { path: '/meetings', icon: Vote, label: t('meetings.title') },
+        // Управление
+        { path: '/payments', icon: CreditCard, label: language === 'ru' ? 'Платежи' : 'To\'lovlar', section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
         // Прочее
-        { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Блокнот' : 'Bloknot' },
+        { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Блокнот' : 'Bloknot', section: language === 'ru' ? 'Прочее' : 'Boshqa' },
         { path: '/settings', icon: Settings, label: t('nav.settings') },
       ];
     }
@@ -383,7 +386,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       { path: '/marketplace-orders', icon: ShoppingBag, label: language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari', section: language === 'ru' ? 'Маркетплейс' : 'Marketplace' },
       { path: '/marketplace-products', icon: Package, label: language === 'ru' ? 'Товары и склад' : 'Mahsulotlar va ombor' },
       // Управление
-      { path: '/reports', icon: BarChart3, label: t('nav.reports'), section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
+      { path: '/payments', icon: CreditCard, label: language === 'ru' ? 'Платежи' : 'To\'lovlar', section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
+      { path: '/reports', icon: BarChart3, label: t('nav.reports') },
       { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Заметки' : 'Eslatmalar' },
       { path: '/settings', icon: Settings, label: t('nav.settings') },
     ];
@@ -403,6 +407,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     'vehicles': ['/vehicles', '/vehicle-search'],
     'useful-contacts': ['/useful-contacts'],
     'notepad': ['/notepad'],
+    'communal': ['/payments'],
   };
 
   // Always-allowed paths that are never locked
@@ -441,6 +446,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       '/notepad': { ru: 'Заметки', uz: 'Eslatmalar' },
       '/qr-scanner': { ru: 'QR сканер', uz: 'QR skaner' },
       '/guest-access': { ru: 'Гостевые пропуска', uz: 'Mehmon ruxsatnomalari' },
+      '/payments': { ru: 'Платежи', uz: 'To\'lovlar' },
     };
     const lang = language === 'ru' ? 'ru' : 'uz';
     return nameMap[path]?.[lang] || (language === 'ru' ? 'Функция' : 'Funksiya');

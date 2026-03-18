@@ -4,10 +4,13 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, clearFeatureCache } from '../middleware/tenant';
 import { json, error, generateId, isManagement } from '../utils/helpers';
 import { hashPassword, createJWT } from '../utils/crypto';
 import { isSuperAdmin } from '../index';
+import { createRequestLogger } from '../utils/logger';
+import { validateBody } from '../validation/validate';
+import { createPaymentSchema } from '../validation/schemas';
 
 export function registerSuperAdminRoutes() {
 
@@ -399,6 +402,11 @@ route('PATCH', '/api/tenants/:id', async (request, env, params) => {
     updates.push("updated_at = datetime('now')");
     values.push(params.id);
     await env.DB.prepare(`UPDATE tenants SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+
+    // Invalidate feature cache when plan or features change
+    if (body.features !== undefined || body.plan !== undefined) {
+      clearFeatureCache(params.id);
+    }
   }
 
   const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(params.id).first();
@@ -429,6 +437,7 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
   try {
     const url = new URL(request.url);
     const tab = url.searchParams.get('tab') || 'stats';
+    const log = createRequestLogger(request);
 
     // Safe count query helper - returns 0 if table/column doesn't exist
     const safeCount = async (sql: string, binds: any[]) => {
@@ -436,7 +445,7 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
         const result = await env.DB.prepare(sql).bind(...binds).first();
         return Number((result as any)?.cnt || 0);
       } catch (e) {
-        console.error('safeCount failed:', sql, e);
+        log.error('safeCount failed', e, { sql });
         return 0;
       }
     };
@@ -461,7 +470,7 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
         const result = await env.DB.prepare(sql).bind(...binds).all();
         return result.results || [];
       } catch (e) {
-        console.error('safeQuery failed:', sql, e);
+        log.error('safeQuery failed', e, { sql });
         return [];
       }
     };
@@ -540,7 +549,7 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
 
     return json({ tenant, stats, tabData });
   } catch (err: any) {
-    console.error('Tenant details error:', err?.message || err, err?.stack);
+    createRequestLogger(request).error('Tenant details error', err);
     return error(`Failed to load tenant details: ${err?.message || 'Unknown error'}`, 500);
   }
 });
@@ -758,7 +767,7 @@ route('GET', '/api/super-admin/analytics', async (request, env) => {
       }
     });
   } catch (err: any) {
-    console.error('Super admin analytics error:', err);
+    createRequestLogger(request).error('Super admin analytics error', err);
     return error('Failed to load analytics', 500);
   }
 });
@@ -771,9 +780,8 @@ route('POST', '/api/payments', async (request, env) => {
   if (!isManagement(authUser)) return error('Manager access required', 403);
 
   const tenantId = getTenantId(request);
-  const body = await request.json() as any;
-
-  if (!body.amount) return error('amount is required', 400);
+  const { data: body, errors: validationErrors } = await validateBody(request, createPaymentSchema);
+  if (validationErrors) return error(validationErrors, 400);
 
   const id = generateId();
 

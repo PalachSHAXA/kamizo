@@ -22,6 +22,7 @@ interface WebSocketSession {
   userName: string;
   role: string;
   buildingId?: string;
+  tenantId?: string;
   subscriptions: Set<string>;
   lastPing: number;
 }
@@ -86,6 +87,7 @@ export class ConnectionManager extends DurableObject {
     const userName = url.searchParams.get('userName');
     const role = url.searchParams.get('role');
     const buildingId = url.searchParams.get('buildingId') || undefined;
+    const tenantId = url.searchParams.get('tenantId') || undefined;
 
     if (!userId || !userName || !role) {
       return new Response('Missing authentication parameters', { status: 400 });
@@ -105,6 +107,7 @@ export class ConnectionManager extends DurableObject {
       userName,
       role,
       buildingId,
+      tenantId,
       subscriptions,
       lastPing: Date.now(),
     };
@@ -196,7 +199,11 @@ export class ConnectionManager extends DurableObject {
 
       if (message.type === 'subscribe') {
         const channels = Array.isArray(message.channels) ? message.channels : [message.channels];
-        for (const ch of channels) session.subscriptions.add(ch);
+        for (const ch of channels) {
+          // Only allow subscribing to own user channels (prevent cross-tenant snooping)
+          if (ch.includes(':user:') && !ch.endsWith(`:${session.userId}`)) continue;
+          session.subscriptions.add(ch);
+        }
       }
 
       if (message.type === 'unsubscribe') {
@@ -262,7 +269,7 @@ export class ConnectionManager extends DurableObject {
       this.lastHashes.set('requests', currentHash);
 
       const { results } = await this.env.DB.prepare(`
-        SELECT r.*, u.name as resident_name, u.phone as resident_phone,
+        SELECT r.*, r.tenant_id, u.name as resident_name, u.phone as resident_phone,
                e.name as executor_name, e.phone as executor_phone
         FROM requests r
         LEFT JOIN users u ON r.resident_id = u.id
@@ -271,42 +278,55 @@ export class ConnectionManager extends DurableObject {
         ORDER BY r.updated_at DESC LIMIT 100
       `).all();
 
-      // Single broadcast to management (they see all)
-      this.broadcastUpdate({
-        type: 'request_update',
-        data: { requests: results },
-        channels: ['requests:all'],
-      });
-
-      // Group by user to avoid N+1 broadcasts
-      const byResident = new Map<string, any[]>();
-      const byExecutor = new Map<string, any[]>();
-
+      // Group by tenant for isolated broadcasts
+      const byTenant = new Map<string, any[]>();
       for (const req of results as any[]) {
-        if (req.resident_id) {
-          if (!byResident.has(req.resident_id)) byResident.set(req.resident_id, []);
-          byResident.get(req.resident_id)!.push(req);
-        }
-        if (req.executor_id) {
-          if (!byExecutor.has(req.executor_id)) byExecutor.set(req.executor_id, []);
-          byExecutor.get(req.executor_id)!.push(req);
-        }
+        const tid = (req as any).tenant_id || '';
+        if (!byTenant.has(tid)) byTenant.set(tid, []);
+        byTenant.get(tid)!.push(req);
       }
 
-      for (const [residentId, reqs] of byResident) {
+      for (const [tid, tenantRequests] of byTenant) {
+        // Broadcast to management (they see all within their tenant)
         this.broadcastUpdate({
           type: 'request_update',
-          data: { requests: reqs },
-          channels: [`requests:resident:${residentId}`],
+          data: { requests: tenantRequests },
+          channels: ['requests:all'],
+          tenantId: tid || undefined,
         });
-      }
 
-      for (const [executorId, reqs] of byExecutor) {
-        this.broadcastUpdate({
-          type: 'request_update',
-          data: { requests: reqs },
-          channels: [`requests:executor:${executorId}`],
-        });
+        // Group by user to avoid N+1 broadcasts
+        const byResident = new Map<string, any[]>();
+        const byExecutor = new Map<string, any[]>();
+
+        for (const req of tenantRequests) {
+          if (req.resident_id) {
+            if (!byResident.has(req.resident_id)) byResident.set(req.resident_id, []);
+            byResident.get(req.resident_id)!.push(req);
+          }
+          if (req.executor_id) {
+            if (!byExecutor.has(req.executor_id)) byExecutor.set(req.executor_id, []);
+            byExecutor.get(req.executor_id)!.push(req);
+          }
+        }
+
+        for (const [residentId, reqs] of byResident) {
+          this.broadcastUpdate({
+            type: 'request_update',
+            data: { requests: reqs },
+            channels: [`requests:resident:${residentId}`],
+            tenantId: tid || undefined,
+          });
+        }
+
+        for (const [executorId, reqs] of byExecutor) {
+          this.broadcastUpdate({
+            type: 'request_update',
+            data: { requests: reqs },
+            channels: [`requests:executor:${executorId}`],
+            tenantId: tid || undefined,
+          });
+        }
       }
     } catch (error) {
       console.error('[DO] Error checking requests:', error);
@@ -325,30 +345,42 @@ export class ConnectionManager extends DurableObject {
       this.lastHashes.set('meetings', currentHash);
 
       const { results } = await this.env.DB.prepare(`
-        SELECT * FROM meetings WHERE updated_at > datetime('now', '-24 hours') ORDER BY updated_at DESC LIMIT 50
+        SELECT *, tenant_id FROM meetings WHERE updated_at > datetime('now', '-24 hours') ORDER BY updated_at DESC LIMIT 50
       `).all();
 
-      this.broadcastUpdate({
-        type: 'meeting_update',
-        data: { meetings: results },
-        channels: ['meetings:all'],
-      });
-
-      // Group by building for residents
-      const byBuilding = new Map<string, any[]>();
+      // Group by tenant for isolated broadcasts
+      const byTenant = new Map<string, any[]>();
       for (const m of results as any[]) {
-        if (m.building_id) {
-          if (!byBuilding.has(m.building_id)) byBuilding.set(m.building_id, []);
-          byBuilding.get(m.building_id)!.push(m);
-        }
+        const tid = m.tenant_id || '';
+        if (!byTenant.has(tid)) byTenant.set(tid, []);
+        byTenant.get(tid)!.push(m);
       }
 
-      for (const [buildingId, meetings] of byBuilding) {
+      for (const [tid, tenantMeetings] of byTenant) {
         this.broadcastUpdate({
           type: 'meeting_update',
-          data: { meetings },
-          channels: [`meetings:building:${buildingId}`],
+          data: { meetings: tenantMeetings },
+          channels: ['meetings:all'],
+          tenantId: tid || undefined,
         });
+
+        // Group by building for residents
+        const byBuilding = new Map<string, any[]>();
+        for (const m of tenantMeetings) {
+          if (m.building_id) {
+            if (!byBuilding.has(m.building_id)) byBuilding.set(m.building_id, []);
+            byBuilding.get(m.building_id)!.push(m);
+          }
+        }
+
+        for (const [buildingId, meetings] of byBuilding) {
+          this.broadcastUpdate({
+            type: 'meeting_update',
+            data: { meetings },
+            channels: [`meetings:building:${buildingId}`],
+            tenantId: tid || undefined,
+          });
+        }
       }
     } catch (error) {
       console.error('[DO] Error checking meetings:', error);
@@ -367,29 +399,41 @@ export class ConnectionManager extends DurableObject {
       this.lastHashes.set('announcements', currentHash);
 
       const { results } = await this.env.DB.prepare(`
-        SELECT * FROM announcements WHERE created_at > datetime('now', '-24 hours') ORDER BY created_at DESC LIMIT 50
+        SELECT *, tenant_id FROM announcements WHERE created_at > datetime('now', '-24 hours') ORDER BY created_at DESC LIMIT 50
       `).all();
 
-      this.broadcastUpdate({
-        type: 'announcement_update',
-        data: { announcements: results },
-        channels: ['announcements:all'],
-      });
-
-      const byBuilding = new Map<string, any[]>();
+      // Group by tenant for isolated broadcasts
+      const byTenant = new Map<string, any[]>();
       for (const a of results as any[]) {
-        if (a.target_building_id) {
-          if (!byBuilding.has(a.target_building_id)) byBuilding.set(a.target_building_id, []);
-          byBuilding.get(a.target_building_id)!.push(a);
-        }
+        const tid = a.tenant_id || '';
+        if (!byTenant.has(tid)) byTenant.set(tid, []);
+        byTenant.get(tid)!.push(a);
       }
 
-      for (const [buildingId, announcements] of byBuilding) {
+      for (const [tid, tenantAnnouncements] of byTenant) {
         this.broadcastUpdate({
           type: 'announcement_update',
-          data: { announcements },
-          channels: [`announcements:building:${buildingId}`],
+          data: { announcements: tenantAnnouncements },
+          channels: ['announcements:all'],
+          tenantId: tid || undefined,
         });
+
+        const byBuilding = new Map<string, any[]>();
+        for (const a of tenantAnnouncements) {
+          if (a.target_building_id) {
+            if (!byBuilding.has(a.target_building_id)) byBuilding.set(a.target_building_id, []);
+            byBuilding.get(a.target_building_id)!.push(a);
+          }
+        }
+
+        for (const [buildingId, announcements] of byBuilding) {
+          this.broadcastUpdate({
+            type: 'announcement_update',
+            data: { announcements },
+            channels: [`announcements:building:${buildingId}`],
+            tenantId: tid || undefined,
+          });
+        }
       }
     } catch (error) {
       console.error('[DO] Error checking announcements:', error);
@@ -408,7 +452,7 @@ export class ConnectionManager extends DurableObject {
       this.lastHashes.set('chat', currentHash);
 
       const { results } = await this.env.DB.prepare(`
-        SELECT m.id, m.channel_id, m.sender_id, m.content, m.created_at,
+        SELECT m.id, m.channel_id, m.sender_id, m.content, m.created_at, m.tenant_id,
                u.name as sender_name, u.role as sender_role,
                c.type as channel_type, c.resident_id
         FROM chat_messages m
@@ -437,6 +481,7 @@ export class ConnectionManager extends DurableObject {
             }
           },
           channels,
+          tenantId: (msg as any).tenant_id || undefined,
         });
       }
     } catch (error) {
@@ -461,7 +506,7 @@ export class ConnectionManager extends DurableObject {
       this.lastHashes.set('reschedule', currentHash);
 
       const { results } = await this.env.DB.prepare(`
-        SELECT rr.*, r.title as request_title, r.number as request_number
+        SELECT rr.*, rr.tenant_id, r.title as request_title, r.number as request_number
         FROM reschedule_requests rr
         LEFT JOIN requests r ON rr.request_id = r.id
         WHERE rr.created_at > datetime('now', '-10 seconds')
@@ -470,11 +515,13 @@ export class ConnectionManager extends DurableObject {
       `).all();
 
       for (const reschedule of results as any[]) {
+        const tid = (reschedule as any).tenant_id || undefined;
         if (reschedule.recipient_id) {
           this.broadcastUpdate({
             type: 'reschedule_update',
             data: { reschedule },
             channels: [`reschedule:user:${reschedule.recipient_id}`],
+            tenantId: tid,
           });
         }
         if (reschedule.initiator_id) {
@@ -482,6 +529,7 @@ export class ConnectionManager extends DurableObject {
             type: 'reschedule_update',
             data: { reschedule },
             channels: [`reschedule:user:${reschedule.initiator_id}`],
+            tenantId: tid,
           });
         }
       }
@@ -491,7 +539,8 @@ export class ConnectionManager extends DurableObject {
   }
 
   // Pre-serialize JSON once, then send to all matching sessions
-  private broadcastUpdate(message: UpdateMessage) {
+  // Tenant isolation: only delivers to sessions with the same tenantId
+  private broadcastUpdate(message: UpdateMessage & { tenantId?: string }) {
     const serialized = JSON.stringify({
       type: message.type,
       data: message.data,
@@ -501,6 +550,9 @@ export class ConnectionManager extends DurableObject {
     let sentCount = 0;
 
     for (const session of this.sessions.values()) {
+      // Tenant isolation: skip sessions from other tenants
+      if (message.tenantId && session.tenantId && message.tenantId !== session.tenantId) continue;
+
       const isSubscribed = message.channels.some(ch => session.subscriptions.has(ch));
       if (!isSubscribed) continue;
 

@@ -3,6 +3,7 @@ import { Download, FileText, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { generateQRCode } from './LazyQRCode';
 import { generateContractDocx } from '../utils/contractGenerator';
 import { useAuthStore } from '../stores/authStore';
+import { useToastStore } from '../stores/toastStore';
 import { ContractPreview } from './ContractPreview';
 
 interface ContractQRCodeProps {
@@ -12,6 +13,7 @@ interface ContractQRCodeProps {
 export function ContractQRCode({ language }: ContractQRCodeProps) {
   // Use user from store directly to get updates when contract is signed
   const { user, markContractSigned } = useAuthStore();
+  const addToast = useToastStore(s => s.addToast);
   const [showContract, setShowContract] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
@@ -57,7 +59,7 @@ export function ContractQRCode({ language }: ContractQRCodeProps) {
       }
     } catch (error) {
       console.error('Error generating contract:', error);
-      alert(language === 'ru'
+      addToast('error', language === 'ru'
         ? 'Ошибка при генерации договора'
         : 'Shartnoma yaratishda xatolik');
     } finally {

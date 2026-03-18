@@ -4,7 +4,7 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId, isManagement, isAdminLevel } from '../utils/helpers';
 
 export function registerTrainingRoutes() {
@@ -13,6 +13,9 @@ export function registerTrainingRoutes() {
 
 // Training Partners: List all
 route('GET', '/api/training/partners', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -36,6 +39,9 @@ route('GET', '/api/training/partners', async (request, env) => {
 
 // Training Partners: Get by ID
 route('GET', '/api/training/partners/:id', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -53,6 +59,9 @@ route('GET', '/api/training/partners/:id', async (request, env, params) => {
 
 // Training Partners: Create
 route('POST', '/api/training/partners', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || authUser.role !== 'admin') {
     return error('Admin access required', 403);
@@ -85,6 +94,9 @@ route('POST', '/api/training/partners', async (request, env) => {
 
 // Training Partners: Update
 route('PATCH', '/api/training/partners/:id', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || authUser.role !== 'admin') {
     return error('Admin access required', 403);
@@ -134,6 +146,9 @@ route('PATCH', '/api/training/partners/:id', async (request, env, params) => {
 
 // Training Partners: Delete
 route('DELETE', '/api/training/partners/:id', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || authUser.role !== 'admin') {
     return error('Admin access required', 403);
@@ -146,6 +161,9 @@ route('DELETE', '/api/training/partners/:id', async (request, env, params) => {
 
 // Training Proposals: List
 route('GET', '/api/training/proposals', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -205,6 +223,9 @@ route('GET', '/api/training/proposals', async (request, env) => {
 
 // Training Proposals: Get by ID with full details
 route('GET', '/api/training/proposals/:id', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -239,6 +260,9 @@ route('GET', '/api/training/proposals/:id', async (request, env, params) => {
 
 // Training Proposals: Create
 route('POST', '/api/training/proposals', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -247,15 +271,18 @@ route('POST', '/api/training/proposals', async (request, env) => {
   const body = await request.json() as any;
   const id = generateId();
 
+  // MULTI-TENANCY: Add tenant_id on creation
+  const tenantId = getTenantId(request);
+
   // Get default vote threshold from settings
   const thresholdSetting = await env.DB.prepare(
-    "SELECT value FROM training_settings WHERE key = 'vote_threshold'"
-  ).first() as any;
+    `SELECT value FROM training_settings WHERE key = 'vote_threshold' ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...(tenantId ? [tenantId] : [])).first() as any;
   const voteThreshold = parseInt(thresholdSetting?.value || '5');
 
-  // Get partner name
-  const partner = await env.DB.prepare('SELECT name FROM training_partners WHERE id = ?')
-    .bind(body.partner_id || body.partnerId).first() as any;
+  // Get partner name (verify belongs to tenant)
+  const partner = await env.DB.prepare(`SELECT name FROM training_partners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(body.partner_id || body.partnerId, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!partner) {
     return error('Partner not found', 404);
@@ -281,24 +308,25 @@ route('POST', '/api/training/proposals', async (request, env) => {
     body.format || 'offline',
     JSON.stringify(body.preferred_time_slots || body.preferredTimeSlots || []),
     voteThreshold,
-    getTenantId(request)
+    tenantId || ''
   ).run();
 
   // Create notification for all employees about new proposal
   const notifyAll = await env.DB.prepare(
-    "SELECT value FROM training_settings WHERE key = 'notify_all_on_new_proposal'"
-  ).first() as any;
+    `SELECT value FROM training_settings WHERE key = 'notify_all_on_new_proposal' ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...(tenantId ? [tenantId] : [])).first() as any;
 
   if (notifyAll?.value === 'true') {
     const notifId = generateId();
     await env.DB.prepare(`
       INSERT INTO training_notifications (
-        id, type, proposal_id, recipient_id, recipient_role, title, message
-      ) VALUES (?, 'new_proposal', ?, 'all', 'employee', ?, ?)
+        id, type, proposal_id, recipient_id, recipient_role, title, message, tenant_id
+      ) VALUES (?, 'new_proposal', ?, 'all', 'employee', ?, ?, ?)
     `).bind(
       notifId, id,
       'Новое предложение тренинга',
-      `Предложена тема: "${body.topic}"`
+      `Предложена тема: "${body.topic}"`,
+      tenantId || ''
     ).run();
   }
 
@@ -308,6 +336,9 @@ route('POST', '/api/training/proposals', async (request, env) => {
 
 // Training Proposals: Update
 route('PATCH', '/api/training/proposals/:id', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -370,6 +401,9 @@ route('PATCH', '/api/training/proposals/:id', async (request, env, params) => {
 
 // Training Proposals: Delete
 route('DELETE', '/api/training/proposals/:id', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || authUser.role !== 'admin') {
     return error('Admin access required', 403);
@@ -382,6 +416,9 @@ route('DELETE', '/api/training/proposals/:id', async (request, env, params) => {
 
 // Training Proposals: Schedule
 route('POST', '/api/training/proposals/:id/schedule', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -420,8 +457,8 @@ route('POST', '/api/training/proposals/:id/schedule', async (request, env, param
   ).run();
 
   // Notify all voters about scheduling
-  const proposal = await env.DB.prepare('SELECT topic FROM training_proposals WHERE id = ?')
-    .bind(params.id).first() as any;
+  const proposal = await env.DB.prepare(`SELECT topic FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   const { results: votes } = await env.DB.prepare('SELECT DISTINCT voter_id FROM training_votes WHERE proposal_id = ?')
     .bind(params.id).all();
 
@@ -429,12 +466,13 @@ route('POST', '/api/training/proposals/:id/schedule', async (request, env, param
     const notifId = generateId();
     await env.DB.prepare(`
       INSERT INTO training_notifications (
-        id, type, proposal_id, recipient_id, recipient_role, title, message
-      ) VALUES (?, 'training_scheduled', ?, ?, 'employee', ?, ?)
+        id, type, proposal_id, recipient_id, recipient_role, title, message, tenant_id
+      ) VALUES (?, 'training_scheduled', ?, ?, 'employee', ?, ?, ?)
     `).bind(
       notifId, params.id, (vote as any).voter_id,
       'Тренинг запланирован',
-      `Тренинг "${proposal.topic}" состоится ${body.scheduledDate || body.scheduled_date} в ${body.scheduledTime || body.scheduled_time}`
+      `Тренинг "${proposal.topic}" состоится ${body.scheduledDate || body.scheduled_date} в ${body.scheduledTime || body.scheduled_time}`,
+      tenantId || ''
     ).run();
   }
 
@@ -444,6 +482,9 @@ route('POST', '/api/training/proposals/:id/schedule', async (request, env, param
 
 // Training Proposals: Complete
 route('POST', '/api/training/proposals/:id/complete', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -480,23 +521,26 @@ route('POST', '/api/training/proposals/:id/complete', async (request, env, param
   ).run();
 
   // Update partner's trainings_conducted count
-  const proposal = await env.DB.prepare('SELECT partner_id FROM training_proposals WHERE id = ?')
-    .bind(params.id).first() as any;
+  const proposal = await env.DB.prepare(`SELECT partner_id FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
+    .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (proposal) {
     await env.DB.prepare(`
       UPDATE training_partners
       SET trainings_conducted = trainings_conducted + 1, updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(proposal.partner_id).run();
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(proposal.partner_id, ...(tenantId ? [tenantId] : [])).run();
   }
 
-  const updated = await env.DB.prepare('SELECT * FROM training_proposals WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(`SELECT * FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   return json({ proposal: updated });
 });
 
 // Training Votes: Add vote
 route('POST', '/api/training/proposals/:proposalId/votes', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -528,15 +572,16 @@ route('POST', '/api/training/proposals/:proposalId/votes', async (request, env, 
   const id = generateId();
   await env.DB.prepare(`
     INSERT INTO training_votes (
-      id, proposal_id, voter_id, voter_name, participation_intent, is_anonymous
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      id, proposal_id, voter_id, voter_name, participation_intent, is_anonymous, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     params.proposalId,
     authUser.id,
     authUser.name,
     body.participationIntent || body.participation_intent || 'definitely',
-    body.isAnonymous || body.is_anonymous ? 1 : 0
+    body.isAnonymous || body.is_anonymous ? 1 : 0,
+    tenantId || ''
   ).run();
 
   // Check if threshold reached
@@ -546,31 +591,33 @@ route('POST', '/api/training/proposals/:proposalId/votes', async (request, env, 
   if (proposal && proposal.status === 'voting' && voteCount.count >= proposal.vote_threshold) {
     // Update status to review
     await env.DB.prepare(`
-      UPDATE training_proposals SET status = 'review', updated_at = datetime('now') WHERE id = ?
-    `).bind(params.proposalId).run();
+      UPDATE training_proposals SET status = 'review', updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.proposalId, ...(tenantId ? [tenantId] : [])).run();
 
     // Notify admin
     const notifId1 = generateId();
     await env.DB.prepare(`
       INSERT INTO training_notifications (
-        id, type, proposal_id, recipient_id, recipient_role, title, message
-      ) VALUES (?, 'threshold_reached', ?, 'admin', 'admin', ?, ?)
+        id, type, proposal_id, recipient_id, recipient_role, title, message, tenant_id
+      ) VALUES (?, 'threshold_reached', ?, 'admin', 'admin', ?, ?, ?)
     `).bind(
       notifId1, params.proposalId,
       'Порог голосов достигнут',
-      `Предложение "${proposal.topic}" набрало необходимое количество голосов`
+      `Предложение "${proposal.topic}" набрало необходимое количество голосов`,
+      tenantId || ''
     ).run();
 
     // Notify partner
     const notifId2 = generateId();
     await env.DB.prepare(`
       INSERT INTO training_notifications (
-        id, type, proposal_id, recipient_id, recipient_role, title, message
-      ) VALUES (?, 'threshold_reached', ?, ?, 'partner', ?, ?)
+        id, type, proposal_id, recipient_id, recipient_role, title, message, tenant_id
+      ) VALUES (?, 'threshold_reached', ?, ?, 'partner', ?, ?, ?)
     `).bind(
       notifId2, params.proposalId, proposal.partner_id,
       'Приглашение провести тренинг',
-      `Вас выбрали лектором для тренинга "${proposal.topic}"`
+      `Вас выбрали лектором для тренинга "${proposal.topic}"`,
+      tenantId || ''
     ).run();
   }
 
@@ -580,6 +627,9 @@ route('POST', '/api/training/proposals/:proposalId/votes', async (request, env, 
 
 // Training Votes: Remove vote
 route('DELETE', '/api/training/proposals/:proposalId/votes', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -604,6 +654,9 @@ route('DELETE', '/api/training/proposals/:proposalId/votes', async (request, env
 
 // Training Votes: Get for proposal
 route('GET', '/api/training/proposals/:proposalId/votes', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -626,6 +679,9 @@ route('GET', '/api/training/proposals/:proposalId/votes', async (request, env, p
 
 // Training Registrations: Register
 route('POST', '/api/training/proposals/:proposalId/register', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -652,9 +708,9 @@ route('POST', '/api/training/proposals/:proposalId/register', async (request, en
 
   const id = generateId();
   await env.DB.prepare(`
-    INSERT INTO training_registrations (id, proposal_id, user_id, user_name)
-    VALUES (?, ?, ?, ?)
-  `).bind(id, params.proposalId, authUser.id, authUser.name).run();
+    INSERT INTO training_registrations (id, proposal_id, user_id, user_name, tenant_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(id, params.proposalId, authUser.id, authUser.name, tenantId || '').run();
 
   const created = await env.DB.prepare('SELECT * FROM training_registrations WHERE id = ?').bind(id).first();
   return json({ registration: created }, 201);
@@ -662,6 +718,9 @@ route('POST', '/api/training/proposals/:proposalId/register', async (request, en
 
 // Training Registrations: Unregister
 route('DELETE', '/api/training/proposals/:proposalId/register', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -686,6 +745,9 @@ route('DELETE', '/api/training/proposals/:proposalId/register', async (request, 
 
 // Training Registrations: Confirm attendance
 route('POST', '/api/training/proposals/:proposalId/attendance/:userId', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Admin/Manager access required', 403);
@@ -712,6 +774,9 @@ route('POST', '/api/training/proposals/:proposalId/attendance/:userId', async (r
 
 // Training Feedback: Add
 route('POST', '/api/training/proposals/:proposalId/feedback', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -742,8 +807,8 @@ route('POST', '/api/training/proposals/:proposalId/feedback', async (request, en
   await env.DB.prepare(`
     INSERT INTO training_feedback (
       id, proposal_id, reviewer_id, reviewer_name, is_anonymous,
-      rating, content_rating, presenter_rating, usefulness_rating, comment
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      rating, content_rating, presenter_rating, usefulness_rating, comment, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     params.proposalId,
@@ -754,19 +819,20 @@ route('POST', '/api/training/proposals/:proposalId/feedback', async (request, en
     body.contentRating || body.content_rating || null,
     body.presenterRating || body.presenter_rating || null,
     body.usefulnessRating || body.usefulness_rating || null,
-    body.comment || null
+    body.comment || null,
+    tenantId || ''
   ).run();
 
-  // Update partner's average rating
+  // Update partner's average rating (scoped to tenant)
   const avgRating = await env.DB.prepare(`
     SELECT AVG(rating) as avg FROM training_feedback f
     JOIN training_proposals p ON f.proposal_id = p.id
-    WHERE p.partner_id = ?
-  `).bind(proposal.partner_id).first() as any;
+    WHERE p.partner_id = ? ${tenantId ? 'AND p.tenant_id = ?' : ''}
+  `).bind(proposal.partner_id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   await env.DB.prepare(`
-    UPDATE training_partners SET average_rating = ?, updated_at = datetime('now') WHERE id = ?
-  `).bind(avgRating?.avg || 0, proposal.partner_id).run();
+    UPDATE training_partners SET average_rating = ?, updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+  `).bind(avgRating?.avg || 0, proposal.partner_id, ...(tenantId ? [tenantId] : [])).run();
 
   const created = await env.DB.prepare('SELECT * FROM training_feedback WHERE id = ?').bind(id).first();
   return json({ feedback: created }, 201);
@@ -774,6 +840,9 @@ route('POST', '/api/training/proposals/:proposalId/feedback', async (request, en
 
 // Training Feedback: Get for proposal
 route('GET', '/api/training/proposals/:proposalId/feedback', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -796,6 +865,9 @@ route('GET', '/api/training/proposals/:proposalId/feedback', async (request, env
 
 // Training Notifications: Get for user
 route('GET', '/api/training/notifications', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -835,6 +907,9 @@ route('GET', '/api/training/notifications', async (request, env) => {
 
 // Training Notifications: Mark as read
 route('POST', '/api/training/notifications/:id/read', async (request, env, params) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -862,6 +937,9 @@ route('POST', '/api/training/notifications/:id/read', async (request, env, param
 
 // Training Notifications: Mark all as read
 route('POST', '/api/training/notifications/read-all', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -910,10 +988,16 @@ route('POST', '/api/training/notifications/read-all', async (request, env) => {
 
 // Training Settings: Get all
 route('GET', '/api/training/settings', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
-  const { results } = await env.DB.prepare('SELECT * FROM training_settings').all();
+  const tenantId = getTenantId(request);
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM training_settings ${tenantId ? 'WHERE tenant_id = ?' : ''}`
+  ).bind(...(tenantId ? [tenantId] : [])).all();
 
   // Convert to object
   const settings: Record<string, any> = {};
@@ -931,18 +1015,22 @@ route('GET', '/api/training/settings', async (request, env) => {
 
 // Training Settings: Update
 route('PATCH', '/api/training/settings', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || authUser.role !== 'admin') {
     return error('Admin access required', 403);
   }
 
+  const tenantId = getTenantId(request);
   const body = await request.json() as any;
 
   for (const [key, value] of Object.entries(body)) {
     await env.DB.prepare(`
-      INSERT OR REPLACE INTO training_settings (key, value, updated_at)
-      VALUES (?, ?, datetime('now'))
-    `).bind(key, String(value)).run();
+      INSERT OR REPLACE INTO training_settings (key, value, updated_at, tenant_id)
+      VALUES (?, ?, datetime('now'), ?)
+    `).bind(key, String(value), tenantId || '').run();
   }
 
   return json({ success: true });
@@ -950,6 +1038,9 @@ route('PATCH', '/api/training/settings', async (request, env) => {
 
 // Training Stats
 route('GET', '/api/training/stats', async (request, env) => {
+  const fc = await requireFeature('trainings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 

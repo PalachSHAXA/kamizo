@@ -25,9 +25,9 @@ import {
 
 // ============ Mappers: snake_case (API) <-> camelCase (Frontend) ============
 
-const mapMeetingFromApi = (data: any): Meeting => {
+const mapMeetingFromApi = (data: Record<string, unknown>): Meeting => {
   // Helper to safely parse JSON or return as-is if already parsed
-  const parseJson = (value: any, defaultValue: any = []) => {
+  const parseJson = (value: unknown, defaultValue: unknown = []) => {
     if (value === null || value === undefined) return defaultValue;
     if (typeof value === 'string') {
       try { return JSON.parse(value); } catch { return defaultValue; }
@@ -36,7 +36,7 @@ const mapMeetingFromApi = (data: any): Meeting => {
   };
 
   // Map agenda items from snake_case to camelCase
-  const mapAgendaItem = (item: any) => ({
+  const mapAgendaItem = (item: Record<string, unknown>) => ({
     id: item.id,
     type: item.type,
     title: item.title,
@@ -52,7 +52,7 @@ const mapMeetingFromApi = (data: any): Meeting => {
   });
 
   // Map schedule options from snake_case to camelCase
-  const mapScheduleOption = (opt: any) => ({
+  const mapScheduleOption = (opt: Record<string, unknown>) => ({
     id: opt.id,
     dateTime: opt.date_time || opt.dateTime,
     votesByShare: opt.vote_weight || opt.voteWeight || opt.votes_by_share || opt.votesByShare || 0,
@@ -838,9 +838,9 @@ export const useMeetingStore = create<MeetingState>()(
             await get().fetchMeetings();
           }
           return { success: true };
-        } catch (error: any) {
-          console.error('Failed to vote for schedule:', error);
-          const errorMessage = error?.message || 'Не удалось проголосовать. Проверьте что указана площадь квартиры.';
+        } catch (err: unknown) {
+          console.error('Failed to vote for schedule:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Не удалось проголосовать. Проверьте что указана площадь квартиры.';
           return { success: false, error: errorMessage };
         }
       },
@@ -938,7 +938,7 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingAgendaVotesApi.getMyVotes(meetingId);
           if (response.success && response.data) {
-            const votes = (response.data as any[]).map(mapVoteRecordFromApi);
+            const votes = (response.data as Record<string, unknown>[]).map(mapVoteRecordFromApi);
 
             // Update store with fetched votes (merge with existing, avoiding duplicates)
             set((state) => {
@@ -1047,9 +1047,9 @@ export const useMeetingStore = create<MeetingState>()(
         }
 
         // votesFor/Against/Abstain are now numbers (area in sq.m), not arrays
-        const votesFor = typeof item.votesFor === 'number' ? item.votesFor : (item.votesFor as any)?.length || 0;
-        const votesAgainst = typeof item.votesAgainst === 'number' ? item.votesAgainst : (item.votesAgainst as any)?.length || 0;
-        const votesAbstain = typeof item.votesAbstain === 'number' ? item.votesAbstain : (item.votesAbstain as any)?.length || 0;
+        const votesFor = typeof item.votesFor === 'number' ? item.votesFor : (item.votesFor as unknown as unknown[] | undefined)?.length || 0;
+        const votesAgainst = typeof item.votesAgainst === 'number' ? item.votesAgainst : (item.votesAgainst as unknown as unknown[] | undefined)?.length || 0;
+        const votesAbstain = typeof item.votesAbstain === 'number' ? item.votesAbstain : (item.votesAbstain as unknown as unknown[] | undefined)?.length || 0;
         const totalVotes = votesFor + votesAgainst + votesAbstain;
 
         const percentFor = totalVotes > 0 ? (votesFor / totalVotes) * 100 : 0;
@@ -1293,7 +1293,7 @@ export const useMeetingStore = create<MeetingState>()(
           const response = await meetingReconsiderationApi.getAgainstVotes(meetingId, agendaItemId);
           if (response.success && response.data) {
             // Map from snake_case to camelCase
-            return response.data.map((v: any) => ({
+            return response.data.map((v: Record<string, unknown>) => ({
               voteId: v.vote_id,
               voterId: v.voter_id,
               voterName: v.voter_name,
@@ -1326,9 +1326,9 @@ export const useMeetingStore = create<MeetingState>()(
             return { success: true, requestId: response.data.requestId };
           }
           return { success: false, error: response.error || 'Failed to send request' };
-        } catch (error: any) {
-          console.error('Failed to send reconsideration request:', error);
-          return { success: false, error: error?.message || 'Network error' };
+        } catch (err: unknown) {
+          console.error('Failed to send reconsideration request:', err);
+          return { success: false, error: err instanceof Error ? err.message : 'Network error' };
         }
       },
 
@@ -1337,7 +1337,7 @@ export const useMeetingStore = create<MeetingState>()(
           const response = await meetingReconsiderationApi.getMyRequests();
           if (response.success && response.data) {
             // Map from snake_case to camelCase
-            return response.data.map((r: any) => ({
+            return response.data.map((r: Record<string, unknown>) => ({
               id: r.id,
               meetingId: r.meeting_id,
               agendaItemId: r.agenda_item_id,

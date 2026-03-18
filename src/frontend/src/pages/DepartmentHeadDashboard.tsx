@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
+import { PageSkeleton } from '../components/PageSkeleton';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell
@@ -96,10 +97,7 @@ export function DepartmentHeadDashboard() {
 
       {/* Loading State */}
       {isLoading && (
-        <div className="glass-card p-8 flex flex-col items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500 mb-3" />
-          <p className="text-gray-600">{language === 'ru' ? 'Загрузка данных отдела...' : 'Bo\'lim ma\'lumotlari yuklanmoqda...'}</p>
-        </div>
+        <PageSkeleton variant="dashboard" />
       )}
 
       {/* Content - only show when not loading */}

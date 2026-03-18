@@ -5,7 +5,7 @@ import type {
 } from '../types';
 import { metersApi, meterReadingsApi } from '../services/api';
 
-const mapMeterFromApi = (m: any): Meter => ({
+const mapMeterFromApi = (m: Record<string, unknown>): Meter => ({
   id: m.id,
   apartmentId: m.apartment_id,
   buildingId: m.building_id,
@@ -29,7 +29,7 @@ const mapMeterFromApi = (m: any): Meter => ({
   updatedAt: m.updated_at,
 });
 
-const mapMeterReadingFromApi = (r: any): MeterReading => ({
+const mapMeterReadingFromApi = (r: Record<string, unknown>): MeterReading => ({
   id: r.id,
   meterId: r.meter_id,
   value: r.value,
@@ -158,7 +158,7 @@ export const useMeterStore = create<MeterState>()(
         const response = await metersApi.create({
           apartmentId: meterData.apartmentId,
           buildingId: meterData.buildingId,
-          type: meterData.type as any,
+          type: meterData.type as string, // TODO: type this properly
           isCommon: meterData.isCommon,
           serialNumber: meterData.serialNumber,
           model: meterData.model,
@@ -184,7 +184,7 @@ export const useMeterStore = create<MeterState>()(
 
     updateMeter: async (id, data) => {
       try {
-        await metersApi.update(id, data as any);
+        await metersApi.update(id, data as Record<string, unknown>); // TODO: type this properly
         set((state) => ({
           meters: state.meters.map((m) =>
             m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m

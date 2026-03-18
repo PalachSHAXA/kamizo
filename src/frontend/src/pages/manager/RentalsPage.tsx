@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Key, User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, DollarSign } from 'lucide-react';
+import { Key, User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, DollarSign, Home } from 'lucide-react';
+import { EmptyState } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { branchesApi, buildingsApi, usersApi, apiRequest } from '../../services/api';
+import { useToastStore } from '../../stores/toastStore';
 
 interface Branch {
   code: string;
@@ -30,6 +32,7 @@ export function RentalsPage() {
   const { user } = useAuthStore();
   const { rentalApartments, rentalRecords, addRentalApartment, deleteRentalApartment, addRentalRecord, deleteRentalRecord, fetchRentals } = useDataStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -236,11 +239,11 @@ export function RentalsPage() {
   const handleAddApartment = async () => {
     // Validate required fields - login and password always required
     if (!newApartment.name || !selectedResident) {
-      alert(language === 'ru' ? 'Пожалуйста, заполните все обязательные поля' : 'Iltimos, barcha majburiy maydonlarni to\'ldiring');
+      addToast('warning', language === 'ru' ? 'Пожалуйста, заполните все обязательные поля' : 'Iltimos, barcha majburiy maydonlarni to\'ldiring');
       return;
     }
     if (!newApartment.ownerLogin || !newApartment.password) {
-      alert(language === 'ru' ? 'Логин и пароль обязательны для арендодателя' : 'Login va parol ijarachi uchun majburiy');
+      addToast('warning', language === 'ru' ? 'Логин и пароль обязательны для арендодателя' : 'Login va parol ijarachi uchun majburiy');
       return;
     }
 
@@ -260,11 +263,11 @@ export function RentalsPage() {
         resetCascadingSelection();
         setShowAddApartmentModal(false);
       } else {
-        alert(language === 'ru' ? 'Ошибка создания пользователя. Ответ сервера пустой.' : 'Foydalanuvchi yaratishda xato. Server javobi bo\'sh.');
+        addToast('error', language === 'ru' ? 'Ошибка создания пользователя. Ответ сервера пустой.' : 'Foydalanuvchi yaratishda xato. Server javobi bo\'sh.');
       }
     } catch (error: any) {
       console.error('[RentalsPage] Error creating apartment:', error);
-      alert(language === 'ru'
+      addToast('error', language === 'ru'
         ? `Ошибка создания пользователя: ${error.message || 'Неизвестная ошибка'}`
         : `Foydalanuvchi yaratishda xato: ${error.message || 'Noma\'lum xato'}`);
     }
@@ -273,12 +276,12 @@ export function RentalsPage() {
   const [recordSaving, setRecordSaving] = useState(false);
 
   const handleAddRecord = async () => {
-    if (!selectedApartment) { alert(language === 'ru' ? 'Выберите квартиру' : 'Xonadonni tanlang'); return; }
-    if (!newRecord.guestNames.trim()) { alert(language === 'ru' ? 'Введите имена гостей' : 'Mehmonlar ismlarini kiriting'); return; }
-    if (!newRecord.passportInfo.trim()) { alert(language === 'ru' ? 'Введите паспортные данные' : 'Pasport ma\'lumotlarini kiriting'); return; }
-    if (!newRecord.checkInDate) { alert(language === 'ru' ? 'Выберите дату заезда' : 'Kirish sanasini tanlang'); return; }
-    if (!newRecord.checkOutDate) { alert(language === 'ru' ? 'Выберите дату выезда' : 'Chiqish sanasini tanlang'); return; }
-    if (!newRecord.amount || parseFloat(newRecord.amount) <= 0) { alert(language === 'ru' ? 'Введите сумму' : 'Summani kiriting'); return; }
+    if (!selectedApartment) { addToast('warning', language === 'ru' ? 'Выберите квартиру' : 'Xonadonni tanlang'); return; }
+    if (!newRecord.guestNames.trim()) { addToast('warning', language === 'ru' ? 'Введите имена гостей' : 'Mehmonlar ismlarini kiriting'); return; }
+    if (!newRecord.passportInfo.trim()) { addToast('warning', language === 'ru' ? 'Введите паспортные данные' : 'Pasport ma\'lumotlarini kiriting'); return; }
+    if (!newRecord.checkInDate) { addToast('warning', language === 'ru' ? 'Выберите дату заезда' : 'Kirish sanasini tanlang'); return; }
+    if (!newRecord.checkOutDate) { addToast('warning', language === 'ru' ? 'Выберите дату выезда' : 'Chiqish sanasini tanlang'); return; }
+    if (!newRecord.amount || parseFloat(newRecord.amount) <= 0) { addToast('warning', language === 'ru' ? 'Введите сумму' : 'Summani kiriting'); return; }
 
     setRecordSaving(true);
     try {
@@ -298,7 +301,7 @@ export function RentalsPage() {
         setNewRecord({ guestNames: '', passportInfo: '', checkInDate: '', checkOutDate: '', amount: '', currency: 'UZS', notes: '' });
         setShowAddRecordModal(false);
       } else {
-        alert(language === 'ru' ? 'Ошибка сохранения записи' : 'Yozuvni saqlashda xato');
+        addToast('error', language === 'ru' ? 'Ошибка сохранения записи' : 'Yozuvni saqlashda xato');
       }
     } finally {
       setRecordSaving(false);
@@ -337,11 +340,11 @@ export function RentalsPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</h3>
         </div>
       ) : rentalApartments.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <Key className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">{language === 'ru' ? 'Квартир пока нет' : 'Xonadonlar hali yo\'q'}</h3>
-          <p className="text-gray-500">{language === 'ru' ? 'Добавьте первую квартиру для управления арендой' : 'Ijarani boshqarish uchun birinchi xonadonni qo\'shing'}</p>
-        </div>
+        <EmptyState
+          icon={<Home className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет арендных квартир' : 'Ijara xonadonlari yo\'q'}
+          description={language === 'ru' ? 'Добавьте первую квартиру для управления арендой' : 'Ijarani boshqarish uchun birinchi xonadonni qo\'shing'}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {rentalApartments.map((apartment) => {
@@ -403,7 +406,7 @@ export function RentalsPage() {
 
       {/* Apartment Details Modal */}
       {selectedApartment && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setSelectedApartment(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setSelectedApartment(null)}>
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {(() => {
               const apartment = rentalApartments.find(a => a.id === selectedApartment);
@@ -481,7 +484,7 @@ export function RentalsPage() {
                                 try {
                                   await deleteRentalRecord(record.id);
                                 } catch (error) {
-                                  alert(language === 'ru' ? 'Ошибка удаления записи' : 'Yozuvni o\'chirishda xato');
+                                  addToast('error', language === 'ru' ? 'Ошибка удаления записи' : 'Yozuvni o\'chirishda xato');
                                 }
                               }}
                               className="mt-2 text-xs text-red-500 hover:text-red-700"
@@ -508,7 +511,7 @@ export function RentalsPage() {
 
       {/* Add Apartment Modal */}
       {showAddApartmentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-6">{language === 'ru' ? 'Добавить квартиру' : 'Xonadon qo\'shish'}</h2>
             <div className="space-y-4">
@@ -703,7 +706,7 @@ export function RentalsPage() {
 
       {/* Add Record Modal */}
       {showAddRecordModal && selectedApartment && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-6">{language === 'ru' ? 'Добавить запись' : 'Yozuv qo\'shish'}</h2>
             <div className="space-y-4">
@@ -816,7 +819,7 @@ export function RentalsPage() {
 
       {/* Credentials Modal */}
       {showCredentials && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-600" />
@@ -842,7 +845,7 @@ export function RentalsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmApartment && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-red-600" />

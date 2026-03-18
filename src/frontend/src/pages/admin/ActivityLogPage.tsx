@@ -1,4 +1,5 @@
-import { FileText, User, CheckCircle, Clock, Star, Calendar, Download, List } from 'lucide-react';
+import { FileText, User, CheckCircle, Clock, Star, Calendar, Download, List, Activity } from 'lucide-react';
+import { EmptyState } from '../../components/common';
 import { useDataStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 
@@ -290,11 +291,11 @@ export function ActivityLogPage() {
           ))}
 
           {activityLog.length === 0 && (
-            <div className="text-center py-12">
-              <List className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Нет действий' : 'Harakatlar yo\'q'}</h3>
-              <p className="text-gray-400 mt-1">{language === 'ru' ? 'История действий пуста' : 'Harakatlar tarixi bo\'sh'}</p>
-            </div>
+            <EmptyState
+              icon={<Activity className="w-12 h-12" />}
+              title={language === 'ru' ? 'Нет действий' : 'Harakatlar yo\'q'}
+              description={language === 'ru' ? 'История действий пуста' : 'Harakatlar tarixi bo\'sh'}
+            />
           )}
         </div>
       </div>

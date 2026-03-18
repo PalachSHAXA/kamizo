@@ -3,6 +3,7 @@ import {
   CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, Calendar, X,
   User, Phone, Check, FileText, Wrench
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -292,21 +293,17 @@ export function ExecutorSchedulePage() {
 
             if (displayRequests.length === 0) {
               return (
-                <div className="text-center py-8">
-                  <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">
-                    {selectedCalendarDate
-                      ? (language === 'ru' ? 'Нет заявок на выбранную дату' : 'Tanlangan sanada arizalar yo\'q')
-                      : (language === 'ru' ? 'Нет запланированных заявок' : 'Rejalashtirilgan arizalar yo\'q')
-                    }
-                  </p>
-                  <p className="text-gray-400 text-sm mt-1">
-                    {selectedCalendarDate
-                      ? (language === 'ru' ? 'Выберите другой день в календаре' : 'Kalendarda boshqa kunni tanlang')
-                      : (language === 'ru' ? 'Заявки с указанной датой появятся здесь' : 'Sanasi ko\'rsatilgan arizalar bu yerda paydo bo\'ladi')
-                    }
-                  </p>
-                </div>
+                <EmptyState
+                  icon={<Calendar className="w-12 h-12" />}
+                  title={selectedCalendarDate
+                    ? (language === 'ru' ? 'Нет заявок на выбранную дату' : 'Tanlangan sanada arizalar yo\'q')
+                    : (language === 'ru' ? 'Нет запланированных заявок' : 'Rejalashtirilgan arizalar yo\'q')
+                  }
+                  description={selectedCalendarDate
+                    ? (language === 'ru' ? 'Выберите другой день в календаре' : 'Kalendarda boshqa kunni tanlang')
+                    : (language === 'ru' ? 'Заявки с указанной датой появятся здесь' : 'Sanasi ko\'rsatilgan arizalar bu yerda paydo bo\'ladi')
+                  }
+                />
               );
             }
 
@@ -405,15 +402,11 @@ export function ExecutorSchedulePage() {
       {activeTab === 'all' && (
         <div className="space-y-4">
           {activeRequests.length === 0 ? (
-            <div className="glass-card p-8 text-center">
-              <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">
-                {language === 'ru' ? 'Нет активных заявок' : 'Faol arizalar yo\'q'}
-              </p>
-              <p className="text-gray-400 text-sm mt-1">
-                {language === 'ru' ? 'Ваши назначенные заявки появятся здесь' : 'Sizga tayinlangan arizalar bu yerda paydo bo\'ladi'}
-              </p>
-            </div>
+            <EmptyState
+              icon={<Calendar className="w-12 h-12" />}
+              title={language === 'ru' ? 'Нет активных заявок' : 'Faol arizalar yo\'q'}
+              description={language === 'ru' ? 'Ваши назначенные заявки появятся здесь' : 'Sizga tayinlangan arizalar bu yerda paydo bo\'ladi'}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
               {activeRequests.map((request) => (
@@ -491,6 +484,7 @@ export function ExecutorSchedulePage() {
       )}
 
       {/* Request Details Modal */}
+      {/* TODO: migrate to <Modal> component */}
       {selectedRequest && (
         <div className="modal-backdrop items-end sm:items-center" onClick={() => setSelectedRequest(null)}>
           <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" onClick={e => e.stopPropagation()}>
@@ -499,7 +493,7 @@ export function ExecutorSchedulePage() {
                 <div className="text-sm text-gray-500">{language === 'ru' ? 'Заявка' : 'Ariza'} #{selectedRequest.number}</div>
                 <h2 className="text-xl font-bold">{selectedRequest.title}</h2>
               </div>
-              <button onClick={() => setSelectedRequest(null)} className="p-2 hover:bg-white/30 rounded-lg">
+              <button onClick={() => setSelectedRequest(null)} className="p-2 hover:bg-white/30 rounded-lg" aria-label="Закрыть">
                 <X className="w-5 h-5" />
               </button>
             </div>

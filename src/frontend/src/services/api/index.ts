@@ -60,6 +60,9 @@ export {
   trainingStatsApi,
 } from './training';
 
+// Payments
+export { paymentsApi } from './payments';
+
 // Settings, Notifications, Tenant
 export { settingsApi, notificationsApi, tenantApi } from './settings';
 export type { AppSettings, Notification } from './settings';

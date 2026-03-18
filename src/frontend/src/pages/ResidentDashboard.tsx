@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { PageSkeleton } from '../components/PageSkeleton';
 import {
   Plus, FileText, Clock, CheckCircle, Star, X, Check,
   User, Calendar, History, ChevronRight, MapPin, Ban, RefreshCw, Send,
@@ -640,8 +641,8 @@ export function ResidentDashboard() {
           </div>
 
           {/* Loading State */}
-          {isLoadingRequests && (
-            <LoadingSpinner text={language === 'ru' ? 'Загрузка заявок...' : 'Arizalar yuklanmoqda...'} />
+          {isLoadingRequests && requests.length === 0 && (
+            <PageSkeleton variant="list" />
           )}
 
           {/* Active requests */}
@@ -1146,7 +1147,7 @@ function NewRequestModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 z-[200] flex items-end md:items-center justify-center" onClick={onClose}>
       <div
         className="w-full md:max-w-lg md:mx-4 bg-white rounded-t-[20px] md:rounded-[20px] flex flex-col overflow-hidden max-h-[88vh] md:max-h-[90vh]"
         onClick={e => e.stopPropagation()}
@@ -1436,7 +1437,7 @@ function ApproveModal({
 
   if (showReject) {
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center md:justify-center">
+      <div className="fixed inset-0 bg-black/50 z-[200] flex items-end md:items-center md:justify-center">
         <div className="w-full md:max-w-md md:mx-4 bg-white rounded-t-[20px] md:rounded-[20px] flex flex-col overflow-hidden max-h-[92vh] md:max-h-[90vh]">
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <h2 className="text-[18px] font-bold text-red-600">{language === 'ru' ? 'Отклонить работу' : 'Ishni rad etish'}</h2>
@@ -1484,7 +1485,7 @@ function ApproveModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center md:justify-center">
+    <div className="fixed inset-0 bg-black/50 z-[200] flex items-end md:items-center md:justify-center">
       <div className="w-full md:max-w-md md:mx-4 bg-white rounded-t-[20px] md:rounded-[20px] flex flex-col overflow-hidden max-h-[92vh] md:max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -1812,7 +1813,7 @@ function ServiceBottomSheet({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div className="fixed inset-0 z-[200]">
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/50 animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
 

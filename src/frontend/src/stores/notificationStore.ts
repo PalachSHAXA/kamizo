@@ -22,9 +22,9 @@ export const useNotificationStore = create<NotificationState>()(
 
       fetchNotificationsFromAPI: async () => {
         try {
-          const data = await apiRequest<any>('/api/notifications?limit=50');
+          const data = await apiRequest<Record<string, unknown>>('/api/notifications?limit=50');
           if (data.notifications && Array.isArray(data.notifications)) {
-            const mapped = data.notifications.map((n: any) => ({
+            const mapped = (data.notifications as Record<string, unknown>[]).map((n) => ({
               id: n.id,
               userId: n.user_id,
               type: n.type || 'request_created',
@@ -36,7 +36,7 @@ export const useNotificationStore = create<NotificationState>()(
             }));
             // Replace local notifications with API data (source of truth)
             // Keep any local-only notifications that aren't in the API yet
-            const apiIds = new Set(mapped.map((n: any) => n.id));
+            const apiIds = new Set(mapped.map((n: { id: string }) => n.id));
             const existing = get().notifications;
             const localOnly = existing.filter(n => !apiIds.has(n.id));
             set({ notifications: [...mapped, ...localOnly].slice(0, 200) });

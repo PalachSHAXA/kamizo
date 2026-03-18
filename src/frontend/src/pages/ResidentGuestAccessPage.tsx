@@ -4,10 +4,12 @@ import {
   Share2, Download, Copy, ChevronRight, ArrowLeft, Calendar,
   AlertTriangle, Trash2
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { generateQRCodeCanvas } from '../components/LazyQRCode';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 import {
   VISITOR_TYPE_LABELS, ACCESS_TYPE_LABELS, GUEST_ACCESS_STATUS_LABELS,
   type GuestAccessCode, type VisitorType, type AccessType
@@ -16,6 +18,7 @@ import {
 // QR Code display component
 function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => void }) {
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const { guestAccessCodes } = useDataStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copied, setCopied] = useState(false);
@@ -151,7 +154,7 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
       setTimeout(() => setCopied(false), 2000);
 
       // Show alert that image was copied
-      alert(language === 'ru'
+      addToast('info', language === 'ru'
         ? 'QR-код скопирован в буфер обмена. Вставьте его в чат (Ctrl+V)'
         : 'QR-kod buferga nusxalandi. Chatga qo\'ying (Ctrl+V)');
     } catch (clipErr) {
@@ -165,14 +168,14 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
   const statusLabel = GUEST_ACCESS_STATUS_LABELS[code.status];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-base sm:text-lg font-bold">
             {language === 'ru' ? 'QR-код пропуска' : 'Ruxsatnoma QR-kodi'}
           </h2>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -357,13 +360,13 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             {step > 1 && (
-              <button onClick={() => setStep(step - 1)} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation">
+              <button onClick={() => setStep(step - 1)} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation" aria-label="Назад">
                 <ArrowLeft className="w-5 h-5" />
               </button>
             )}
@@ -371,7 +374,7 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
               {language === 'ru' ? 'Создать пропуск' : 'Ruxsatnoma yaratish'}
             </h2>
           </div>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -754,26 +757,17 @@ export function ResidentGuestAccessPage() {
           </h3>
         </div>
       ) : filteredCodes.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-            <QrCode className="w-8 h-8 text-gray-400" />
-          </div>
-          <h3 className="font-medium text-gray-900 mb-1">
-            {language === 'ru' ? 'Пропусков нет' : 'Ruxsatnomalar yo\'q'}
-          </h3>
-          <p className="text-sm text-gray-500 mb-4">
-            {language === 'ru'
-              ? 'Создайте первый пропуск для гостя или курьера'
-              : 'Mehmon yoki kuryer uchun birinchi ruxsatnomani yarating'}
-          </p>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-gray-900 font-medium rounded-xl inline-flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            {language === 'ru' ? 'Создать пропуск' : 'Ruxsatnoma yaratish'}
-          </button>
-        </div>
+        <EmptyState
+          icon={<QrCode className="w-12 h-12" />}
+          title={language === 'ru' ? 'Пропусков нет' : 'Ruxsatnomalar yo\'q'}
+          description={language === 'ru'
+            ? 'Создайте первый пропуск для гостя или курьера'
+            : 'Mehmon yoki kuryer uchun birinchi ruxsatnomani yarating'}
+          action={{
+            label: language === 'ru' ? 'Создать пропуск' : 'Ruxsatnoma yaratish',
+            onClick: () => setShowCreateForm(true),
+          }}
+        />
       ) : (
         <div className="space-y-3">
           {filteredCodes.map((code) => {
@@ -901,7 +895,7 @@ export function ResidentGuestAccessPage() {
 
       {/* Revoke confirmation */}
       {showRevokeConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-6">
             <div className="text-center mb-4">
               <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">

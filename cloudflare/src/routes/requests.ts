@@ -5,11 +5,13 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { invalidateCache } from '../middleware/cache-local';
 import { cachedQuery, CacheTTL, CachePrefix } from '../cache';
 import { json, error, generateId, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../index';
+import { validateBody } from '../validation/validate';
+import { createRequestSchema } from '../validation/schemas';
 
 export function registerRequestRoutes() {
 
@@ -19,6 +21,8 @@ export function registerRequestRoutes() {
 route('GET', '/api/requests', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
@@ -89,8 +93,11 @@ route('GET', '/api/requests', async (request, env) => {
 route('POST', '/api/requests', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
-  const body = await request.json() as any;
+  const { data: body, errors: validationErrors } = await validateBody<any>(request, createRequestSchema);
+  if (validationErrors) return error(validationErrors, 400);
   const id = generateId();
 
   // Determine the resident ID - managers/admins can create requests on behalf of residents
@@ -212,6 +219,8 @@ route('POST', '/api/requests', async (request, env) => {
 route('PATCH', '/api/requests/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -303,6 +312,8 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
   if (!user || (user.role !== 'admin' && user.role !== 'director' && user.role !== 'manager' && user.role !== 'dispatcher' && !isExecutorRole(user.role) && user.role !== 'department_head')) {
     return error('Not authorized to assign requests', 403);
   }
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -381,6 +392,8 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
   if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can accept requests', 403);
   }
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -426,6 +439,8 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
   if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can decline requests', 403);
   }
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -510,6 +525,8 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
 route('POST', '/api/requests/:id/reschedule', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // Only residents and executors can create reschedule requests
   if (!['resident', 'executor', 'security'].includes(user.role)) {
@@ -607,6 +624,8 @@ route('POST', '/api/requests/:id/reschedule', async (request, env, params) => {
 route('GET', '/api/reschedule-requests', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id via requests table
   const tenantId = getTenantId(request);
@@ -628,6 +647,8 @@ route('GET', '/api/reschedule-requests', async (request, env) => {
 route('GET', '/api/requests/:id/reschedule', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id via requests table
   const tenantId = getTenantId(request);
@@ -646,6 +667,8 @@ route('GET', '/api/requests/:id/reschedule', async (request, env, params) => {
 route('POST', '/api/reschedule-requests/:id/respond', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const body = await request.json() as any;
   const { accepted, response_note } = body;
@@ -766,6 +789,8 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
   if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can start work', 403);
   }
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -830,6 +855,8 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
   if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can complete work', 403);
   }
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -895,6 +922,8 @@ route('POST', '/api/requests/:id/pause', async (request, env, params) => {
   if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can pause work', 403);
   }
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -935,6 +964,8 @@ route('POST', '/api/requests/:id/resume', async (request, env, params) => {
   if (!user || !isExecutorRole(user.role)) {
     return error('Only executors can resume work', 403);
   }
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -971,6 +1002,8 @@ route('POST', '/api/requests/:id/resume', async (request, env, params) => {
 route('POST', '/api/requests/:id/approve', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -1047,6 +1080,8 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
 route('POST', '/api/requests/:id/reject', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -1125,6 +1160,8 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
 route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -1215,6 +1252,8 @@ route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
 route('POST', '/api/requests/:id/rate', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
@@ -1235,6 +1274,8 @@ route('POST', '/api/requests/:id/rate', async (request, env, params) => {
 route('GET', '/api/work-orders', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
@@ -1292,6 +1333,8 @@ route('GET', '/api/work-orders', async (request, env) => {
 route('POST', '/api/work-orders', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const body = await request.json() as any;
   const id = generateId();
@@ -1337,6 +1380,8 @@ route('POST', '/api/work-orders', async (request, env) => {
 route('PATCH', '/api/work-orders/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
   const body = await request.json() as any;
@@ -1384,6 +1429,8 @@ route('PATCH', '/api/work-orders/:id', async (request, env, params) => {
 route('POST', '/api/work-orders/:id/status', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
   const body = await request.json() as any;
@@ -1427,6 +1474,8 @@ route('POST', '/api/work-orders/:id/status', async (request, env, params) => {
 route('DELETE', '/api/work-orders/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('requests', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
 

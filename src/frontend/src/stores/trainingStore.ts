@@ -24,7 +24,7 @@ import {
 
 // ==================== Mappers (snake_case -> camelCase) ====================
 
-const mapPartnerFromApi = (p: any): Partner => ({
+const mapPartnerFromApi = (p: Record<string, unknown>): Partner => ({
   id: p.id,
   name: p.name,
   position: p.position,
@@ -38,7 +38,7 @@ const mapPartnerFromApi = (p: any): Partner => ({
   averageRating: p.average_rating,
 });
 
-const mapVoteFromApi = (v: any): TrainingVote => ({
+const mapVoteFromApi = (v: Record<string, unknown>): TrainingVote => ({
   id: v.id,
   proposalId: v.proposal_id,
   voterId: v.voter_id,
@@ -48,7 +48,7 @@ const mapVoteFromApi = (v: any): TrainingVote => ({
   votedAt: v.voted_at,
 });
 
-const mapFeedbackFromApi = (f: any): TrainingFeedback => ({
+const mapFeedbackFromApi = (f: Record<string, unknown>): TrainingFeedback => ({
   id: f.id,
   proposalId: f.proposal_id,
   reviewerId: f.reviewer_id,
@@ -62,7 +62,7 @@ const mapFeedbackFromApi = (f: any): TrainingFeedback => ({
   createdAt: f.created_at,
 });
 
-const mapProposalFromApi = (p: any): TrainingProposal => ({
+const mapProposalFromApi = (p: Record<string, unknown>): TrainingProposal => ({
   id: p.id,
   topic: p.topic,
   description: p.description,
@@ -87,7 +87,7 @@ const mapProposalFromApi = (p: any): TrainingProposal => ({
   scheduledLink: p.scheduled_link,
   maxParticipants: p.max_participants,
   registeredParticipants: p.registrations
-    ? p.registrations.map((r: any) => r.user_id)
+    ? (p.registrations as Record<string, unknown>[]).map((r) => r.user_id)
     : [],
   feedback: p.feedback ? p.feedback.map(mapFeedbackFromApi) : [],
   completedAt: p.completed_at,
@@ -99,7 +99,7 @@ const mapProposalFromApi = (p: any): TrainingProposal => ({
   registeredCount: p.registered_count,
 });
 
-const mapNotificationFromApi = (n: any): TrainingNotification => ({
+const mapNotificationFromApi = (n: Record<string, unknown>): TrainingNotification => ({
   id: n.id,
   type: n.type,
   proposalId: n.proposal_id,
@@ -111,7 +111,7 @@ const mapNotificationFromApi = (n: any): TrainingNotification => ({
   createdAt: n.created_at,
 });
 
-const mapSettingsFromApi = (s: Record<string, any>): TrainingSettings => ({
+const mapSettingsFromApi = (s: Record<string, unknown>): TrainingSettings => ({
   voteThreshold: s.vote_threshold ?? 5,
   allowAnonymousProposals: s.allow_anonymous_proposals ?? true,
   allowAnonymousVotes: s.allow_anonymous_votes ?? true,
@@ -586,7 +586,7 @@ export const useTrainingStore = create<TrainingState>()(
 
       updateSettings: async (settingsData) => {
         // Convert camelCase to snake_case for API
-        const apiSettings: Record<string, any> = {};
+        const apiSettings: Record<string, unknown> = {};
         if (settingsData.voteThreshold !== undefined) apiSettings.vote_threshold = settingsData.voteThreshold;
         if (settingsData.allowAnonymousProposals !== undefined) apiSettings.allow_anonymous_proposals = settingsData.allowAnonymousProposals;
         if (settingsData.allowAnonymousVotes !== undefined) apiSettings.allow_anonymous_votes = settingsData.allowAnonymousVotes;

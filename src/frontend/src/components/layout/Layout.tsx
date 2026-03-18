@@ -64,6 +64,7 @@ const MarketplacePage = lazy(() => import('../../pages/MarketplacePage').then(m 
 const MarketplaceManagerDashboard = lazy(() => import('../../pages/MarketplaceManagerDashboard').then(m => ({ default: m.MarketplaceManagerDashboard })));
 const MarketplaceOrdersPage = lazy(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
 const SuperAdminDashboard = lazy(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
+const PaymentsPage = lazy(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
 
 export function Layout() {
   const location = useLocation();
@@ -254,7 +255,7 @@ export function Layout() {
           <Header />
         </div>
 
-        <main className="px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content">
+        <main role="main" className="px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content">
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={getDashboard()} />
@@ -344,6 +345,11 @@ export function Layout() {
               <Route path="/settings" element={
                 <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
                   <SettingsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/payments" element={
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']}>
+                  <PaymentsPage />
                 </ProtectedRoute>
               } />
               <Route path="/monitoring" element={

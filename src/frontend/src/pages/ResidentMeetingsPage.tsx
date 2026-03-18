@@ -1,18 +1,21 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  Vote, Calendar, FileText, Users, Building2, CheckCircle, X,
+  Vote, Calendar, CalendarDays, FileText, Users, Building2, CheckCircle, X,
   ThumbsUp, ThumbsDown, Minus, ChevronRight, Loader2, Clock, Trophy, ArrowRight, Key, User,
   MessageSquare, AlertTriangle, RefreshCw
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 import { MEETING_STATUS_LABELS, DECISION_THRESHOLD_LABELS } from '../types';
 import type { Meeting, VoteChoice } from '../types';
 import { QRSignatureModal } from '../components/QRSignatureModal';
 
 export function ResidentMeetingsPage() {
   const { user } = useAuthStore();
+  const addToast = useToastStore(s => s.addToast);
   const {
     meetings,
     fetchMeetings,
@@ -297,17 +300,11 @@ export function ResidentMeetingsPage() {
 
       {/* Meetings List */}
       {activeMeetings.length === 0 ? (
-        <div className="rounded-2xl bg-gray-50 p-10 text-center">
-          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-            <Vote className="w-8 h-8 text-gray-300" />
-          </div>
-          <p className="text-gray-500 font-medium">
-            {language === 'ru' ? 'Нет активных собраний' : 'Faol yig\'ilishlar yo\'q'}
-          </p>
-          <p className="text-gray-400 text-sm mt-1">
-            {language === 'ru' ? 'Здесь будут ваши собрания и голосования' : 'Bu yerda yig\'ilishlar va ovoz berishlar bo\'ladi'}
-          </p>
-        </div>
+        <EmptyState
+          icon={<CalendarDays className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет собраний' : 'Yig\'ilishlar yo\'q'}
+          description={language === 'ru' ? 'Здесь будут ваши собрания и голосования' : 'Bu yerda yig\'ilishlar va ovoz berishlar bo\'ladi'}
+        />
       ) : (
         <div className="space-y-4">
           {activeMeetings.map((meeting) => {
@@ -490,7 +487,7 @@ export function ResidentMeetingsPage() {
 
       {/* Loading Modal when meeting not found yet */}
       {showVotingModal && !selectedMeeting && selectedMeetingId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary-500" />
             <p className="text-gray-600">
@@ -641,7 +638,7 @@ function MeetingVotingModal({
     } catch (error: any) {
       console.error('Failed to submit votes:', error);
       const errorMessage = error?.message || 'Ошибка при голосовании. Проверьте что указана площадь квартиры.';
-      alert(errorMessage);
+      addToast('error', errorMessage);
       setVotesSubmitted(false);
     } finally {
       setIsSubmitting(false);
@@ -664,7 +661,7 @@ function MeetingVotingModal({
       if (result && !result.success) {
         // Show error message if vote failed
         const errorMsg = result.error || 'Ошибка при голосовании. Проверьте что указана площадь квартиры.';
-        alert(errorMsg);
+        addToast('error', errorMsg);
         setSelectedScheduleOption('');
 
         // If meeting not found, close modal and refresh
@@ -687,7 +684,7 @@ function MeetingVotingModal({
     } catch (error: any) {
       console.error('Failed to vote:', error);
       const errorMessage = error?.message || 'Ошибка при голосовании. Проверьте что указана площадь квартиры.';
-      alert(errorMessage);
+      addToast('error', errorMessage);
       setSelectedScheduleOption('');
 
       // If meeting not found, close modal and refresh

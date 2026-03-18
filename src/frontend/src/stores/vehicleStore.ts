@@ -30,7 +30,7 @@ export const useVehicleStore = create<VehicleState>()(
           ? await vehiclesApi.getAll()  // /api/vehicles/all - all vehicles for staff
           : await vehiclesApi.getMyVehicles();  // /api/vehicles - only user's vehicles
         // Map API response to Vehicle type (API now returns all fields from DB + owner info)
-        const mappedVehicles: Vehicle[] = response.vehicles.map((v: any) => ({
+        const mappedVehicles: Vehicle[] = response.vehicles.map((v: Record<string, unknown>) => ({
           id: v.id,
           ownerId: v.user_id,
           ownerName: v.owner_name || '',
@@ -249,7 +249,7 @@ export const useVehicleStore = create<VehicleState>()(
       try {
         const response = await vehiclesApi.search(plateNumber);
         if (response.vehicles && response.vehicles.length > 0) {
-          return response.vehicles.map((v: any) => ({
+          return response.vehicles.map((v: Record<string, unknown>) => ({
             id: v.id,
             ownerId: v.user_id,
             ownerName: v.owner_name || '',

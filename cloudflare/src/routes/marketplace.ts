@@ -4,9 +4,10 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId } from '../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../index';
+import { createRequestLogger } from '../utils/logger';
 
 export function registerMarketplaceRoutes() {
 
@@ -28,6 +29,9 @@ function generateCouponCode(): string {
 // Get ad categories
 // PUBLIC: no auth required
 route('GET', '/api/ads/categories', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   try {
     const { results } = await env.DB.prepare(
       `SELECT c.*,
@@ -36,7 +40,8 @@ route('GET', '/api/ads/categories', async (request, env) => {
     ).all();
     return json({ categories: results });
   } catch (err: any) {
-    console.error('Error fetching categories:', err.message);
+    const log = createRequestLogger(request);
+    log.error('Error fetching categories', err);
     return error(`Database error: ${err.message}`, 500);
   }
 });
@@ -51,6 +56,9 @@ function isAdvertiser(user: any): boolean {
 
 // Get advertiser dashboard stats
 route('GET', '/api/ads/dashboard', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Advertiser access required', 403);
@@ -81,6 +89,9 @@ route('GET', '/api/ads/dashboard', async (request, env) => {
 
 // Get all ads for advertiser
 route('GET', '/api/ads/my', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Advertiser access required', 403);
@@ -110,6 +121,9 @@ route('GET', '/api/ads/my', async (request, env) => {
 
 // Create new ad
 route('POST', '/api/ads', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   try {
     const authUser = await getUser(request, env);
     if (!authUser || !isAdvertiser(authUser)) {
@@ -192,13 +206,17 @@ route('POST', '/api/ads', async (request, env) => {
     const created = await env.DB.prepare('SELECT * FROM ads WHERE id = ?').bind(id).first();
     return json({ ad: created }, 201);
   } catch (err: any) {
-    console.error('Error creating ad:', err.message);
+    const log = createRequestLogger(request);
+    log.error('Error creating ad', err);
     return error(`Failed to create ad: ${err.message}`, 500);
   }
 });
 
 // Update ad
 route('PATCH', '/api/ads/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Advertiser access required', 403);
@@ -256,6 +274,9 @@ route('PATCH', '/api/ads/:id', async (request, env, params) => {
 
 // Delete ad
 route('DELETE', '/api/ads/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Advertiser access required', 403);
@@ -275,6 +296,9 @@ route('DELETE', '/api/ads/:id', async (request, env, params) => {
 
 // Get coupon history for an ad
 route('GET', '/api/ads/:id/coupons', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Advertiser access required', 403);
@@ -305,6 +329,9 @@ route('GET', '/api/ads/:id/coupons', async (request, env, params) => {
 
 // Check coupon (get info without activating)
 route('GET', '/api/coupons/check/:code', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Coupon checker access required', 403);
@@ -363,6 +390,9 @@ route('GET', '/api/coupons/check/:code', async (request, env, params) => {
 
 // Activate coupon
 route('POST', '/api/coupons/activate/:code', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Coupon checker access required', 403);
@@ -424,6 +454,9 @@ route('POST', '/api/coupons/activate/:code', async (request, env, params) => {
 
 // Get activation history for checker
 route('GET', '/api/coupons/history', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !isAdvertiser(authUser)) {
     return error('Coupon checker access required', 403);
@@ -449,6 +482,9 @@ route('GET', '/api/coupons/history', async (request, env) => {
 
 // Get active ads for residents (public viewing)
 route('GET', '/api/ads', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -520,13 +556,17 @@ route('GET', '/api/ads', async (request, env) => {
 
     return json({ ads });
   } catch (err: any) {
-    console.error('Error fetching ads:', err.message, 'Query:', query, 'Params:', params);
+    const log = createRequestLogger(request);
+    log.error('Error fetching ads', err, { query, params });
     return error(`Database error: ${err.message}`, 500);
   }
 });
 
 // GET /api/ads/assigned - admin/manager/director sees platform ads assigned to their tenant
 route('GET', '/api/ads/assigned', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
   if (!['admin', 'manager', 'director'].includes(authUser.role)) return error('Access denied', 403);
@@ -555,6 +595,9 @@ route('GET', '/api/ads/assigned', async (request, env) => {
 
 // Get single ad details
 route('GET', '/api/ads/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -599,6 +642,9 @@ route('GET', '/api/ads/:id', async (request, env, params) => {
 
 // Get coupon for an ad (resident only)
 route('POST', '/api/ads/:id/get-coupon', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
   if (authUser.role !== 'resident') {
@@ -663,6 +709,9 @@ route('POST', '/api/ads/:id/get-coupon', async (request, env, params) => {
 
 // Get user's coupons
 route('GET', '/api/my-coupons', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -687,6 +736,9 @@ route('GET', '/api/my-coupons', async (request, env) => {
 // Marketplace: Get categories
 // PUBLIC: no auth required
 route('GET', '/api/marketplace/categories', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
   const { results } = await env.DB.prepare(`
@@ -699,6 +751,9 @@ route('GET', '/api/marketplace/categories', async (request, env) => {
 // Marketplace: Get products (with filtering)
 // PUBLIC: no auth required
 route('GET', '/api/marketplace/products', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const url = new URL(request.url);
   const categoryId = url.searchParams.get('category');
   const search = url.searchParams.get('search');
@@ -752,6 +807,9 @@ route('GET', '/api/marketplace/products', async (request, env) => {
 // Marketplace: Get single product
 // PUBLIC: no auth required
 route('GET', '/api/marketplace/products/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
@@ -779,6 +837,9 @@ route('GET', '/api/marketplace/products/:id', async (request, env, params) => {
 
 // Marketplace: Cart - Get
 route('GET', '/api/marketplace/cart', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -801,6 +862,9 @@ route('GET', '/api/marketplace/cart', async (request, env) => {
 
 // Marketplace: Cart - Add/Update item
 route('POST', '/api/marketplace/cart', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -846,6 +910,9 @@ route('POST', '/api/marketplace/cart', async (request, env) => {
 
 // Marketplace: Cart - Remove item
 route('DELETE', '/api/marketplace/cart/:productId', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -861,6 +928,9 @@ route('DELETE', '/api/marketplace/cart/:productId', async (request, env, params)
 
 // Marketplace: Cart - Clear
 route('DELETE', '/api/marketplace/cart', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -871,16 +941,20 @@ route('DELETE', '/api/marketplace/cart', async (request, env) => {
 
 // Marketplace: Create order
 route('POST', '/api/marketplace/orders', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+
+  const log = createRequestLogger(request);
 
   try {
     const body = await request.json() as any;
     const { delivery_date, delivery_time_slot, delivery_notes, payment_method } = body;
 
     const tenantIdOrder = getTenantId(request);
-    console.log('[Marketplace Order] Creating order for user:', user.id, user.name);
-    console.log('[Marketplace Order] Request body:', body);
+    log.info('Creating order', { userId: user.id, userName: user.name });
 
     // Get cart items with current stock (tenant-filtered via products)
     const { results: cartItems } = await env.DB.prepare(`
@@ -890,10 +964,10 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
       WHERE c.user_id = ? ${tenantIdOrder ? 'AND p.tenant_id = ?' : ''}
     `).bind(user.id, ...(tenantIdOrder ? [tenantIdOrder] : [])).all() as { results: any[] };
 
-    console.log('[Marketplace Order] Cart items found:', cartItems?.length || 0);
+    log.info('Cart items found', { count: cartItems?.length || 0 });
 
     if (!cartItems || cartItems.length === 0) {
-      console.log('[Marketplace Order] ERROR: Cart is empty');
+      log.warn('Cart is empty');
       return error('Cart is empty', 400);
     }
 
@@ -905,7 +979,7 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
       }
     }
     if (outOfStockItems.length > 0) {
-      console.log('[Marketplace Order] ERROR: Insufficient stock for items:', outOfStockItems);
+      log.warn('Insufficient stock', { outOfStockItems });
       return error(`Недостаточно товара на складе: ${outOfStockItems.join(', ')}`, 400);
     }
 
@@ -987,16 +1061,19 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
       }).catch(() => {});
     }
 
-    console.log('[Marketplace Order] Order created successfully:', orderNumber);
+    log.info('Order created', { orderNumber });
     return json({ order: { id: orderId, order_number: orderNumber, final_amount: finalAmount } }, 201);
   } catch (e: any) {
-    console.error('[Marketplace Order] ERROR:', e.message, e.stack);
+    log.error('[Marketplace Order] ERROR', e);
     return error(e.message || 'Failed to create order', 500);
   }
 });
 
 // Marketplace: Get user orders
 route('GET', '/api/marketplace/orders', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1041,6 +1118,9 @@ route('GET', '/api/marketplace/orders', async (request, env) => {
 
 // Marketplace: Get single order with items
 route('GET', '/api/marketplace/orders/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1071,6 +1151,9 @@ route('GET', '/api/marketplace/orders/:id', async (request, env, params) => {
 
 // Marketplace: Get order items (for manager dashboard)
 route('GET', '/api/marketplace/orders/:id/items', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1099,6 +1182,9 @@ route('GET', '/api/marketplace/orders/:id/items', async (request, env, params) =
 
 // Marketplace: Cancel order (by user)
 route('POST', '/api/marketplace/orders/:id/cancel', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1140,6 +1226,9 @@ route('POST', '/api/marketplace/orders/:id/cancel', async (request, env, params)
 
 // Marketplace: Rate order
 route('POST', '/api/marketplace/orders/:id/rate', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1166,6 +1255,9 @@ route('POST', '/api/marketplace/orders/:id/rate', async (request, env, params) =
 
 // Marketplace: Favorites - Get
 route('GET', '/api/marketplace/favorites', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1184,6 +1276,9 @@ route('GET', '/api/marketplace/favorites', async (request, env) => {
 
 // Marketplace: Favorites - Toggle
 route('POST', '/api/marketplace/favorites/:productId', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -1209,10 +1304,14 @@ route('POST', '/api/marketplace/favorites/:productId', async (request, env, para
 
 // Manager: Get all orders
 route('GET', '/api/marketplace/admin/orders', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   const userRoleNorm = (user?.role || '').trim().toLowerCase();
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(userRoleNorm)) {
-    console.error(`[403] GET /api/marketplace/admin/orders - user role: "${user?.role}", id: "${user?.id}"`);
+    const log = createRequestLogger(request);
+    log.warn('GET /api/marketplace/admin/orders - access denied', { userRole: user?.role, userId: user?.id });
     return error('Access denied', 403);
   }
 
@@ -1268,6 +1367,9 @@ route('GET', '/api/marketplace/admin/orders', async (request, env) => {
 
 // Manager: Update order status or assign executor
 route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1404,6 +1506,9 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
 
 // Executor: Get my marketplace orders
 route('GET', '/api/marketplace/executor/orders', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
@@ -1444,6 +1549,9 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
 
 // Executor (courier): Get delivered marketplace orders
 route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
@@ -1481,6 +1589,9 @@ route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
 
 // Executor (courier): Get available marketplace orders to take
 route('GET', '/api/marketplace/executor/available', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
@@ -1518,6 +1629,9 @@ route('GET', '/api/marketplace/executor/available', async (request, env) => {
 
 // Executor (courier): Take a marketplace order
 route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
@@ -1574,6 +1688,9 @@ route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, 
 
 // Executor: Update order status (accept, prepare, deliver)
 route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !isExecutorRole(user.role)) {
     return error('Access denied', 403);
@@ -1657,6 +1774,9 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
 
 // Manager: Dashboard stats
 route('GET', '/api/marketplace/admin/dashboard', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1692,6 +1812,9 @@ route('GET', '/api/marketplace/admin/dashboard', async (request, env) => {
 
 // Manager: Marketplace Reports (for Director)
 route('GET', '/api/marketplace/admin/reports', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1819,13 +1942,17 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
       executor_stats: executorStats.results || [],
     });
   } catch (err: any) {
-    console.error('Marketplace reports error:', err);
+    const log = createRequestLogger(request);
+    log.error('Marketplace reports error', err);
     return error('Failed to generate report', 500);
   }
 });
 
 // Manager: Products CRUD
 route('GET', '/api/marketplace/admin/products', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1846,6 +1973,9 @@ route('GET', '/api/marketplace/admin/products', async (request, env) => {
 });
 
 route('POST', '/api/marketplace/admin/products', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1877,6 +2007,9 @@ route('POST', '/api/marketplace/admin/products', async (request, env) => {
 });
 
 route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1915,6 +2048,9 @@ route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, param
 });
 
 route('DELETE', '/api/marketplace/admin/products/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1928,6 +2064,9 @@ route('DELETE', '/api/marketplace/admin/products/:id', async (request, env, para
 
 // Upload image for product (base64)
 route('POST', '/api/marketplace/admin/upload-image', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -1981,13 +2120,17 @@ route('POST', '/api/marketplace/admin/upload-image', async (request, env) => {
       return error('Content-Type must be multipart/form-data', 400);
     }
   } catch (err) {
-    console.error('Image upload error:', err);
+    const log = createRequestLogger(request);
+    log.error('Image upload error', err);
     return error('Failed to upload image', 500);
   }
 });
 
 // Manager: Categories CRUD
 route('POST', '/api/marketplace/admin/categories', async (request, env) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);
@@ -2007,6 +2150,9 @@ route('POST', '/api/marketplace/admin/categories', async (request, env) => {
 });
 
 route('PATCH', '/api/marketplace/admin/categories/:id', async (request, env, params) => {
+  const fc = await requireFeature('marketplace', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager', 'marketplace_manager'].includes(user.role)) {
     return error('Access denied', 403);

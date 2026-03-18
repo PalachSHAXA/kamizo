@@ -8,11 +8,13 @@
     "db:migrate": "wrangler d1 migrations apply uk-crm-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply uk-crm-db --remote",
     "db:schema": "wrangler d1 execute uk-crm-db --local --file=schema.sql",
-    "db:schema:prod": "wrangler d1 execute uk-crm-db --remote --file=schema.sql"
+    "db:schema:prod": "wrangler d1 execute uk-crm-db --remote --file=schema.sql",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240117.0",
     "typescript": "^5.9.3",
+    "vitest": "^4.1.0",
     "wrangler": "^4.54.0"
   }
 }

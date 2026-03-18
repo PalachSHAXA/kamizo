@@ -1,13 +1,16 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Megaphone, Users, Briefcase, X, AlertTriangle, AlertCircle, Info, Trash2, Eye, Clock, Building2, Upload, FileSpreadsheet, Target, Filter, Paperclip, File, Image, FileText, Download } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { buildingsApi, uploadApi } from '../services/api';
+import { useToastStore } from '../stores/toastStore';
 import type { Announcement, AnnouncementType, AnnouncementPriority, AnnouncementTargetType, AnnouncementTarget, FileAttachment } from '../types';
 
 export function AnnouncementsPage() {
   const { user } = useAuthStore();
+  const addToast = useToastStore(s => s.addToast);
   const { announcements, addAnnouncement, deleteAnnouncement, updateAnnouncement, fetchAnnouncements } = useDataStore();
   const { t, language } = useLanguageStore();
 
@@ -197,7 +200,7 @@ export function AnnouncementsPage() {
         setCustomLogins(logins);
       } catch (err) {
         console.error('Error parsing Excel file:', err);
-        alert(language === 'ru' ? 'Ошибка чтения файла' : 'Faylni o\'qishda xato');
+        addToast('error', language === 'ru' ? 'Ошибка чтения файла' : 'Faylni o\'qishda xato');
       }
     };
     reader.readAsBinaryString(file);
@@ -260,7 +263,7 @@ export function AnnouncementsPage() {
         setCustomLogins(logins);
       } catch (err) {
         console.error('Error parsing debt Excel file:', err);
-        alert(language === 'ru' ? 'Ошибка чтения файла' : 'Faylni o\'qishda xato');
+        addToast('error', language === 'ru' ? 'Ошибка чтения файла' : 'Faylni o\'qishda xato');
       }
     };
     reader.readAsBinaryString(file);
@@ -331,7 +334,7 @@ export function AnnouncementsPage() {
       setAttachments(prev => [...prev, ...newAttachments]);
     } catch (error) {
       console.error('Failed to upload attachments:', error);
-      alert(language === 'ru' ? 'Ошибка загрузки файла' : 'Fayl yuklashda xato');
+      addToast('error', language === 'ru' ? 'Ошибка загрузки файла' : 'Fayl yuklashda xato');
     } finally {
       setIsUploadingAttachment(false);
       if (attachmentInputRef.current) attachmentInputRef.current.value = '';
@@ -531,15 +534,11 @@ export function AnnouncementsPage() {
       {/* Announcements List */}
       <div className="space-y-4">
         {currentAnnouncements.length === 0 ? (
-          <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/60 p-10 text-center">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Megaphone className="w-6 h-6 text-gray-300" />
-            </div>
-            <h3 className="text-[15px] font-semibold text-gray-500">
-              {t('announcements.noAnnouncements')}
-            </h3>
-            <p className="text-[13px] text-gray-400 mt-1">{t('announcements.addFirst')}</p>
-          </div>
+          <EmptyState
+            icon={<Megaphone className="w-12 h-12" />}
+            title={language === 'ru' ? 'Нет объявлений' : 'E\'lonlar yo\'q'}
+            description={language === 'ru' ? 'Добавьте первое объявление' : 'Birinchi e\'lonni qo\'shing'}
+          />
         ) : (
           currentAnnouncements.map((announcement) => (
             <AnnouncementCard
@@ -563,8 +562,9 @@ export function AnnouncementsPage() {
       </div>
 
       {/* Add Announcement Modal */}
+      {/* TODO: Refactor to use <Modal> component */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-base sm:text-lg md:text-xl font-bold">{t('announcements.add')}</h2>
@@ -975,7 +975,7 @@ export function AnnouncementsPage() {
 
       {/* Edit Announcement Modal */}
       {showEditModal && editingAnnouncement && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-base sm:text-lg md:text-xl font-bold">{language === 'ru' ? 'Редактировать объявление' : 'E\'lonni tahrirlash'}</h2>
@@ -1249,7 +1249,7 @@ function AnnouncementCard({
 
       {/* Viewers Modal with Statistics */}
       {showViewers && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={() => setShowViewers(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setShowViewers(false)}>
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">

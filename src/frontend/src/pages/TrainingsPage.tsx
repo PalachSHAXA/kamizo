@@ -19,6 +19,7 @@ import {
   Settings,
   UserCheck,
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import {
@@ -119,7 +120,7 @@ const CreateProposalModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">
@@ -310,7 +311,7 @@ const VoteModal = ({
   if (!isOpen || !proposal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-md w-full">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">{language === 'ru' ? 'Голосование' : 'Ovoz berish'}</h2>
@@ -467,7 +468,7 @@ const ProposalDetailModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
@@ -856,7 +857,7 @@ const AdminPanel = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
@@ -1365,15 +1366,13 @@ export default function TrainingsPage() {
       {/* Список предложений */}
       <div className="space-y-4">
         {filteredProposals.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
-            <GraduationCap className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500 text-lg">{language === 'ru' ? 'Нет предложений' : 'Takliflar yo\'q'}</p>
-            <p className="text-gray-400 mt-1">
-              {language === 'ru'
-                ? 'Будьте первым, кто предложит тему для тренинга!'
-                : 'Trening mavzusini birinchi bo\'lib taklif qiling!'}
-            </p>
-          </div>
+          <EmptyState
+            icon={<GraduationCap className="w-12 h-12" />}
+            title={language === 'ru' ? 'Нет предложений' : 'Takliflar yo\'q'}
+            description={language === 'ru'
+              ? 'Будьте первым, кто предложит тему для тренинга!'
+              : 'Trening mavzusini birinchi bo\'lib taklif qiling!'}
+          />
         ) : (
           filteredProposals.map((proposal) => {
             const userHasVoted = user ? hasVoted(proposal.id, user.id) : false;

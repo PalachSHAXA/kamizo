@@ -186,11 +186,11 @@ export function TenantDashboard() {
     return (
       <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
         <div className="flex items-center justify-between mb-4">
-          <button onClick={prevMonth} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg sm:rounded-xl transition-colors">
+          <button onClick={prevMonth} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg sm:rounded-xl transition-colors" aria-label="Предыдущий месяц">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h3 className="font-semibold capitalize text-lg">{monthName}</h3>
-          <button onClick={nextMonth} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg sm:rounded-xl transition-colors">
+          <button onClick={nextMonth} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg sm:rounded-xl transition-colors" aria-label="Следующий месяц">
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Megaphone, AlertTriangle, AlertCircle, Info, Clock, Download, FileText, File } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -86,15 +87,11 @@ export function ExecutorAnnouncementsPage() {
 
       {/* Announcements List */}
       {employeeAnnouncements.length === 0 ? (
-        <div className="glass-card p-12 text-center">
-          <Megaphone className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-600 mb-2">
-            {language === 'ru' ? 'Нет объявлений' : 'E\'lonlar yo\'q'}
-          </h3>
-          <p className="text-gray-400">
-            {language === 'ru' ? 'Новые объявления появятся здесь' : 'Yangi e\'lonlar bu yerda paydo bo\'ladi'}
-          </p>
-        </div>
+        <EmptyState
+          icon={<Megaphone className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет объявлений' : 'E\'lonlar yo\'q'}
+          description={language === 'ru' ? 'Новые объявления появятся здесь' : 'Yangi e\'lonlar bu yerda paydo bo\'ladi'}
+        />
       ) : (
         <div className="space-y-4">
           {employeeAnnouncements.map((announcement: Announcement) => {

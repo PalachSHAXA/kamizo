@@ -3,6 +3,7 @@ import {
   QrCode, Search, Filter, X, Clock, CheckCircle, Ban, Package, Users, Car, User,
   AlertTriangle, Calendar, Phone, MapPin, Eye, History, UserPlus, Loader2
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -288,9 +289,11 @@ export function ManagerGuestAccessPage() {
             {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
           </div>
         ) : filteredCodes.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            {language === 'ru' ? 'Пропуска не найдены' : 'Ruxsatnomalar topilmadi'}
-          </div>
+          <EmptyState
+            icon={<QrCode className="w-12 h-12" />}
+            title={language === 'ru' ? 'Пропуска не найдены' : 'Ruxsatnomalar topilmadi'}
+            description={language === 'ru' ? 'Попробуйте изменить параметры поиска' : 'Qidiruv parametrlarini o\'zgartirib ko\'ring'}
+          />
         ) : (
           <div className="divide-y max-h-[600px] overflow-y-auto">
             {filteredCodes.map((code) => {
@@ -442,7 +445,7 @@ export function ManagerGuestAccessPage() {
 
       {/* Detail modal */}
       {selectedCode && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold">
@@ -602,7 +605,7 @@ export function ManagerGuestAccessPage() {
 
       {/* Revoke modal */}
       {showRevokeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6">
             <div className="text-center mb-4">
               <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">

@@ -5,10 +5,12 @@ import {
   AlertCircle, ChevronRight, Home, CheckCircle, Phone, Loader2, RefreshCw,
   GitBranch, ArrowLeft, DoorOpen, LogIn, Car, FileText, Shield
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useCRMStore } from '../stores/crmStore';
 import { useAuthStore } from '../stores/authStore';
 import { authApi, usersApi, apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 import type { BuildingFull } from '../types';
 import { useBackGuard } from '../hooks/useBackGuard';
 
@@ -72,6 +74,7 @@ export function ResidentsPage() {
   const { buildings, fetchBuildings } = useCRMStore();
   const { addMockUser, additionalUsers, removeUser, updateUserPassword, getUserPassword, user: currentUser } = useAuthStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
 
   // Navigation state
   const [viewLevel, setViewLevel] = useState<ViewLevel>('branches');
@@ -750,7 +753,7 @@ export function ResidentsPage() {
       setTimeout(() => setProgressMessage(''), 2000);
     } catch (error: any) {
       console.error('Manual registration error:', error);
-      alert((language === 'ru' ? 'Ошибка создания: ' : 'Yaratishda xatolik: ') + (error.message || (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xatolik')));
+      addToast('error', (language === 'ru' ? 'Ошибка создания: ' : 'Yaratishda xatolik: ') + (error.message || (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xatolik')));
       setProgressMessage('');
     } finally {
       setIsCreating(false);
@@ -777,7 +780,7 @@ export function ResidentsPage() {
       }
     } catch (err) {
       console.error('Failed to delete resident:', err);
-      alert((language === 'ru' ? 'Ошибка при удалении: ' : 'O\'chirishda xatolik: ') + (err as Error).message);
+      addToast('error', (language === 'ru' ? 'Ошибка при удалении: ' : 'O\'chirishda xatolik: ') + (err as Error).message);
       setIsDeleting(false);
       setDeleteConfirm(null);
     }
@@ -873,29 +876,11 @@ export function ResidentsPage() {
           <p className="text-gray-500">{language === 'ru' ? 'Загрузка жителей...' : 'Yashovchilar yuklanmoqda...'}</p>
         </div>
       ) : filteredResidents.length === 0 ? (
-        <div className="glass-card p-8 text-center">
-          <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Жители не найдены' : 'Yashovchilar topilmadi'}</h3>
-          <p className="text-gray-400 mt-1 mb-4">
-            {language === 'ru' ? 'Загрузите Excel файл с данными жителей' : 'Yashovchilar ma\'lumotlari bilan Excel faylni yuklang'}
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={() => selectedBuilding && fetchResidents(selectedBuilding.id)}
-              className="btn-secondary inline-flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              {language === 'ru' ? 'Обновить' : 'Yangilash'}
-            </button>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="btn-primary inline-flex items-center gap-2"
-            >
-              <Upload className="w-4 h-4" />
-              {language === 'ru' ? 'Загрузить Excel' : 'Excel yuklash'}
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon={<Users className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет жильцов' : 'Aholilar yo\'q'}
+          description={language === 'ru' ? 'Загрузите Excel файл с данными жителей' : 'Yashovchilar ma\'lumotlari bilan Excel faylni yuklang'}
+        />
       ) : (
         filteredResidents.map((resident) => {
           const hasContract = !!(resident as any).contract_signed_at;
@@ -1808,7 +1793,7 @@ export function ResidentsPage() {
                           setNameToast(msg);
                           setTimeout(() => setNameToast(''), 3000);
                         } catch (err: any) {
-                          alert((language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + err.message);
+                          addToast('error', (language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + err.message);
                         } finally {
                           setSavingName(false);
                         }
@@ -1921,7 +1906,7 @@ export function ResidentsPage() {
                                 setEditingPassword(false);
                                 setShowPassword(true);
                               } catch (err: any) {
-                                alert((language === 'ru' ? 'Ошибка сохранения пароля: ' : 'Parolni saqlashda xatolik: ') + err.message);
+                                addToast('error', (language === 'ru' ? 'Ошибка сохранения пароля: ' : 'Parolni saqlashda xatolik: ') + err.message);
                               }
                             }
                           }}
@@ -2013,8 +1998,9 @@ export function ResidentsPage() {
       )}
 
       {/* Delete Confirmation Modal */}
+      {/* TODO: Refactor to use <Modal> component */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <AlertCircle className="w-7 h-7 text-red-600" />
@@ -2060,7 +2046,7 @@ export function ResidentsPage() {
 
       {/* Delete All Confirmation Modal */}
       {deleteAllConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
               <Trash2 className="w-7 h-7 text-red-600" />

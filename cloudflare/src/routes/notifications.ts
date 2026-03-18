@@ -4,8 +4,9 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId } from '../middleware/tenant';
+import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId, isManagement } from '../utils/helpers';
+import { createRequestLogger } from '../utils/logger';
 
 // VAPID keys for Web Push
 const VAPID_PUBLIC_KEY = 'BMTJw9s4vAY9Bzb05L8--r0XUDirigcJ0_yTTGuCLZL2uk8693U82ef7LLlWyLf9T-3PucveTAjYS_I36uv7RY4';
@@ -17,6 +18,9 @@ export function registerNotificationRoutes() {
 
 // Get notifications for current user
 route('GET', '/api/notifications', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -47,6 +51,9 @@ route('GET', '/api/notifications', async (request, env) => {
 
 // Get unread count
 route('GET', '/api/notifications/count', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -62,6 +69,9 @@ route('GET', '/api/notifications/count', async (request, env) => {
 
 // Create notification (management only)
 route('POST', '/api/notifications', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) return error('Management access required', 403);
 
@@ -86,6 +96,9 @@ route('POST', '/api/notifications', async (request, env) => {
 
 // Mark notification as read
 route('PATCH', '/api/notifications/:id/read', async (request, env, params) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -99,6 +112,9 @@ route('PATCH', '/api/notifications/:id/read', async (request, env, params) => {
 
 // Mark all notifications as read
 route('POST', '/api/notifications/read-all', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -112,6 +128,9 @@ route('POST', '/api/notifications/read-all', async (request, env) => {
 
 // Delete notification
 route('DELETE', '/api/notifications/:id', async (request, env, params) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -217,7 +236,8 @@ route('POST', '/api/upload', async (request, env) => {
       return error('Unsupported content type. Use multipart/form-data or application/json', 400);
     }
   } catch (e) {
-    console.error('[Upload] Error:', e);
+    const log = createRequestLogger(request);
+    log.error('Upload error', e);
     return error('Failed to process upload', 500);
   }
 });
@@ -226,35 +246,26 @@ route('POST', '/api/upload', async (request, env) => {
 
 // Push: Subscribe
 route('POST', '/api/push/subscribe', async (request, env) => {
-  console.log('[Push] Subscribe request received');
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
   const authUser = await getUser(request, env);
   if (!authUser) {
-    console.log('[Push] Subscribe failed: User not authenticated');
     return error('Unauthorized', 401);
   }
-
-  console.log(`[Push] User ${authUser.id} (${authUser.name}) attempting to subscribe`);
 
   let body: { endpoint: string; keys: { p256dh: string; auth: string } };
   try {
     body = await request.json() as { endpoint: string; keys: { p256dh: string; auth: string } };
   } catch (e) {
-    console.error('[Push] Failed to parse request body:', e);
+    const log = createRequestLogger(request);
+    log.error('Failed to parse request body', e);
     return error('Invalid JSON body', 400);
   }
 
-  console.log('[Push] Subscription data:', {
-    hasEndpoint: !!body.endpoint,
-    endpointStart: body.endpoint?.substring(0, 60),
-    hasP256dh: !!body.keys?.p256dh,
-    hasAuth: !!body.keys?.auth,
-    p256dhLength: body.keys?.p256dh?.length,
-    authLength: body.keys?.auth?.length
-  });
-
   if (!body.endpoint || !body.keys?.p256dh || !body.keys?.auth) {
-    console.log('[Push] Invalid subscription data - missing fields');
+    const log = createRequestLogger(request);
+    log.warn('Invalid subscription data');
     return error('Invalid subscription data', 400);
   }
 
@@ -272,21 +283,22 @@ route('POST', '/api/push/subscribe', async (request, env) => {
         last_used_at = datetime('now')
     `).bind(id, authUser.id, body.endpoint, body.keys.p256dh, body.keys.auth).run();
 
-    console.log(`[Push] SUCCESS! User ${authUser.id} subscribed, endpoint: ${body.endpoint.substring(0, 60)}...`);
-
-    // Verify subscription was saved
-    const saved = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').bind(authUser.id).first();
-    console.log('[Push] Verified saved subscription:', saved ? 'EXISTS' : 'NOT FOUND');
+    const log = createRequestLogger(request);
+    log.info('Push subscription saved', { userId: authUser.id });
 
     return json({ success: true, subscriptionId: id });
   } catch (dbError) {
-    console.error('[Push] Database error saving subscription:', dbError);
+    const log = createRequestLogger(request);
+    log.error('Database error saving subscription', dbError);
     return error('Failed to save subscription', 500);
   }
 });
 
 // Push: Unsubscribe
 route('POST', '/api/push/unsubscribe', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -294,13 +306,17 @@ route('POST', '/api/push/unsubscribe', async (request, env) => {
     'DELETE FROM push_subscriptions WHERE user_id = ?'
   ).bind(authUser.id).run();
 
-  console.log(`[Push] User ${authUser.id} unsubscribed`);
+  const log = createRequestLogger(request);
+  log.info('Push unsubscribed', { userId: authUser.id });
 
   return json({ success: true });
 });
 
 // Push: Get subscription status
 route('GET', '/api/push/status', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -564,27 +580,19 @@ async function sendWebPush(
   auth: string,
   payloadJson: string
 ): Promise<{ success: boolean; status?: number; error?: string }> {
-  console.log(`[Push] Sending to endpoint: ${endpoint.substring(0, 60)}...`);
-  console.log(`[Push] p256dh length: ${p256dh.length}, auth length: ${auth.length}`);
-
   try {
     // Create VAPID authorization
-    console.log('[Push] Creating VAPID auth header...');
     const vapid = await createVapidAuthHeader(
       endpoint,
       `mailto:${env.VAPID_EMAIL || 'admin@kamizo.uz'}`,
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY
     );
-    console.log('[Push] VAPID auth created successfully');
 
     // Encrypt payload
-    console.log('[Push] Encrypting payload...');
     const { body, headers } = await encryptPushPayload(payloadJson, p256dh, auth);
-    console.log(`[Push] Payload encrypted, body size: ${body.length} bytes`);
 
     // Send request
-    console.log('[Push] Sending HTTP request to push service...');
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -594,18 +602,15 @@ async function sendWebPush(
       body
     });
 
-    console.log(`[Push] Response status: ${response.status}`);
-
     if (response.ok || response.status === 201) {
-      console.log(`[Push] SUCCESS! Status: ${response.status}`);
       return { success: true, status: response.status };
     }
 
     const errorText = await response.text();
-    console.error(`[Push] FAILED ${response.status}: ${errorText}`);
+    console.error(JSON.stringify({ level: 'error', message: 'Push delivery failed', status: response.status, error: errorText }));
     return { success: false, status: response.status, error: errorText };
   } catch (err) {
-    console.error('[Push] EXCEPTION:', err);
+    console.error(JSON.stringify({ level: 'error', message: 'Push delivery exception', error: String(err) }));
     return { success: false, error: String(err) };
   }
 }
@@ -632,7 +637,7 @@ export async function sendPushNotification(
   ).bind(userId).all();
 
   if (!results || results.length === 0) {
-    console.log(`[Push] No subscriptions for user ${userId}`);
+    console.log(JSON.stringify({ level: 'info', message: 'No subscriptions for user', userId }));
     return false;
   }
 
@@ -668,18 +673,18 @@ export async function sendPushNotification(
         ).bind(sub.id).run();
 
         successCount++;
-        console.log(`[Push] Successfully sent to user ${userId}`);
+        console.log(JSON.stringify({ level: 'info', message: 'Successfully sent to user', userId }));
       } else {
-        console.error(`[Push] Failed for user ${userId}: ${result.error}`);
+        console.error(JSON.stringify({ level: 'error', message: 'Push failed for user', userId, error: result.error }));
 
         // Remove invalid subscriptions (410 Gone or 404 Not Found)
         if (result.status === 410 || result.status === 404) {
           await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
-          console.log(`[Push] Removed expired subscription for user ${userId}`);
+          console.log(JSON.stringify({ level: 'info', message: 'Removed expired subscription', userId }));
         }
       }
     } catch (err) {
-      console.error(`[Push] Error sending to ${sub.endpoint}:`, err);
+      console.error(JSON.stringify({ level: 'error', message: 'Push send error', error: String(err) }));
     }
   }
 
@@ -689,8 +694,8 @@ export async function sendPushNotification(
     try {
       const existingNotif = notification.tag
         ? await env.DB.prepare(
-            `SELECT id FROM notifications WHERE user_id = ? AND data LIKE ? AND created_at > datetime('now', '-1 minute')`
-          ).bind(userId, `%"tag":"${notification.tag}"%`).first()
+            `SELECT id FROM notifications WHERE user_id = ? AND json_extract(data, '$.tag') = ? AND created_at > datetime('now', '-1 minute')`
+          ).bind(userId, notification.tag).first()
         : null;
 
       if (!existingNotif) {
@@ -708,15 +713,154 @@ export async function sendPushNotification(
         ).run();
       }
     } catch (e) {
-      console.error('[Notification] Failed to store in-app notification:', e);
+      console.error(JSON.stringify({ level: 'error', message: 'Failed to store in-app notification', error: String(e) }));
     }
   }
 
   return successCount > 0;
 }
 
+// Batch push notification: fetch all subscriptions in one query, send in parallel
+async function sendPushNotificationBatch(
+  env: Env,
+  userIds: string[],
+  notification: {
+    title: string;
+    body: string;
+    icon?: string;
+    tag?: string;
+    type?: string;
+    data?: Record<string, any>;
+    requireInteraction?: boolean;
+    skipInApp?: boolean;
+    tenantId?: string | null;
+  }
+): Promise<number> {
+  if (userIds.length === 0) return 0;
+
+  // Batch-fetch all subscriptions for all users in one query
+  const placeholders = userIds.map(() => '?').join(',');
+  const { results: allSubs } = await env.DB.prepare(
+    `SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`
+  ).bind(...userIds).all();
+
+  if (!allSubs || allSubs.length === 0) {
+    console.log(JSON.stringify({ level: 'info', message: 'No subscriptions for users', userCount: userIds.length }));
+    // Still store in-app notifications
+    if (!notification.skipInApp) {
+      const statements = userIds.map(userId => {
+        const notifId = generateId();
+        return env.DB.prepare(`
+          INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+          VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now'), ?)
+        `).bind(
+          notifId, userId, notification.type || 'push', notification.title,
+          notification.body, JSON.stringify({ ...notification.data, tag: notification.tag }),
+          notification.tenantId || null
+        );
+      });
+      for (let i = 0; i < statements.length; i += 100) {
+        await env.DB.batch(statements.slice(i, i + 100));
+      }
+    }
+    return 0;
+  }
+
+  // Group subscriptions by user_id
+  const subsByUser = new Map<string, any[]>();
+  for (const sub of allSubs as any[]) {
+    const arr = subsByUser.get(sub.user_id) || [];
+    arr.push(sub);
+    subsByUser.set(sub.user_id, arr);
+  }
+
+  const payload = JSON.stringify({
+    title: notification.title,
+    body: notification.body,
+    icon: notification.icon || '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: notification.tag || 'kamizo-' + Date.now(),
+    type: notification.type,
+    data: notification.data || {},
+    requireInteraction: notification.requireInteraction ?? true,
+    vibrate: [200, 100, 200]
+  });
+
+  let sentCount = 0;
+  const expiredSubIds: string[] = [];
+  const successSubIds: string[] = [];
+
+  // Send to all subscriptions in parallel (grouped by user)
+  const sendPromises = Array.from(subsByUser.entries()).map(async ([_userId, subs]) => {
+    let userSent = false;
+    for (const sub of subs) {
+      try {
+        const result = await sendWebPush(env, sub.endpoint, sub.p256dh, sub.auth, payload);
+        if (result.success) {
+          successSubIds.push(sub.id);
+          userSent = true;
+        } else if (result.status === 410 || result.status === 404) {
+          expiredSubIds.push(sub.id);
+        }
+      } catch (err) {
+        console.error(JSON.stringify({ level: 'error', message: 'Push batch send error', error: String(err) }));
+      }
+    }
+    if (userSent) sentCount++;
+  });
+
+  await Promise.all(sendPromises);
+
+  // Batch update last_used_at for successful sends
+  if (successSubIds.length > 0) {
+    const updateStmts = successSubIds.map(id =>
+      env.DB.prepare("UPDATE push_subscriptions SET last_used_at = datetime('now') WHERE id = ?").bind(id)
+    );
+    for (let i = 0; i < updateStmts.length; i += 100) {
+      await env.DB.batch(updateStmts.slice(i, i + 100)).catch(() => {});
+    }
+  }
+
+  // Batch delete expired subscriptions
+  if (expiredSubIds.length > 0) {
+    const deleteStmts = expiredSubIds.map(id =>
+      env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(id)
+    );
+    for (let i = 0; i < deleteStmts.length; i += 100) {
+      await env.DB.batch(deleteStmts.slice(i, i + 100)).catch(() => {});
+    }
+    console.log(JSON.stringify({ level: 'info', message: 'Removed expired subscriptions', count: expiredSubIds.length }));
+  }
+
+  // Batch store in-app notifications
+  if (!notification.skipInApp) {
+    const notifStmts = userIds.map(userId => {
+      const notifId = generateId();
+      return env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now'), ?)
+      `).bind(
+        notifId, userId, notification.type || 'push', notification.title,
+        notification.body, JSON.stringify({ ...notification.data, tag: notification.tag }),
+        notification.tenantId || null
+      );
+    });
+    for (let i = 0; i < notifStmts.length; i += 100) {
+      await env.DB.batch(notifStmts.slice(i, i + 100)).catch(e => {
+        console.error(JSON.stringify({ level: 'error', message: 'Failed to store batch in-app notifications', error: String(e) }));
+      });
+    }
+  }
+
+  console.log(JSON.stringify({ level: 'info', message: 'Batch push complete', sentCount, totalUsers: userIds.length }));
+  return sentCount;
+}
+
 // Push: Send test notification (for debugging)
 route('POST', '/api/push/test', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -733,6 +877,9 @@ route('POST', '/api/push/test', async (request, env) => {
 
 // Push: Send notification to specific user (admin only)
 route('POST', '/api/push/send', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) {
     return error('Admin access required', 403);
@@ -763,6 +910,9 @@ route('POST', '/api/push/send', async (request, env) => {
 
 // Push: Broadcast notification to multiple users (admin only)
 route('POST', '/api/push/broadcast', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) {
     return error('Admin access required', 403);
@@ -804,23 +954,23 @@ route('POST', '/api/push/broadcast', async (request, env) => {
     userIds = (results as any[]).map(u => u.id);
   }
 
-  let sentCount = 0;
-  for (const userId of userIds) {
-    const sent = await sendPushNotification(env, userId, {
-      title: body.title,
-      body: body.body,
-      type: body.type || 'broadcast',
-      data: body.data,
-      requireInteraction: true
-    });
-    if (sent) sentCount++;
-  }
+  // Use batch function to avoid N+1 queries
+  const sentCount = await sendPushNotificationBatch(env, userIds, {
+    title: body.title,
+    body: body.body,
+    type: body.type || 'broadcast',
+    data: body.data,
+    requireInteraction: true
+  });
 
   return json({ success: true, sentCount, totalUsers: userIds.length });
 });
 
 // Send notification to multiple users
 route('POST', '/api/notifications/broadcast', async (request, env) => {
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);

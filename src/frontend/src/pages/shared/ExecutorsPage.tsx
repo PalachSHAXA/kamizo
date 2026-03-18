@@ -1,14 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Phone, Star, X, Eye, EyeOff, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw } from 'lucide-react';
+import { Phone, Star, X, Eye, EyeOff, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw, Wrench } from 'lucide-react';
+import { EmptyState } from '../../components/common';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useToastStore } from '../../stores/toastStore';
 import { executorsApi } from '../../services/api';
 import type { Executor, ExecutorSpecialization } from '../../types';
 
 export function ExecutorsPage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const { executors, addExecutor, updateExecutor, deleteExecutor, fetchExecutors, isLoadingExecutors } = useDataStore();
 
   // Check if user is department head - they can only see and manage their department's executors
@@ -168,7 +171,7 @@ export function ExecutorsPage() {
         await deleteExecutor(selectedExecutor.id);
         handleCloseDetails();
       } catch (error: any) {
-        alert(error.message || (language === 'ru' ? 'Ошибка при удалении' : 'O\'chirishda xatolik'));
+        addToast('error', error.message || (language === 'ru' ? 'Ошибка при удалении' : 'O\'chirishda xatolik'));
       } finally {
         setIsDeleting(false);
       }
@@ -263,6 +266,12 @@ export function ExecutorsPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
         </div>
+      ) : filteredExecutors.length === 0 ? (
+        <EmptyState
+          icon={<Wrench className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет исполнителей' : 'Ijrochilar yo\'q'}
+          description={language === 'ru' ? 'Добавьте первого исполнителя' : 'Birinchi ijrochini qo\'shing'}
+        />
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
         {filteredExecutors.map((executor) => (
@@ -663,7 +672,7 @@ export function ExecutorsPage() {
 
       {/* Credentials Modal - shows after creating new executor */}
       {showCredentialsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -6,6 +6,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { ukRatingsApi } from '../services/api';
 import type { Executor } from '../types';
 import { SPECIALIZATION_LABELS } from '../types';
+import { Modal } from '../components/common';
 
 interface Rating {
   quality: number;
@@ -590,26 +591,18 @@ export function ResidentRateEmployeesPage() {
 
       {/* Rating Modal (Mobile) */}
       {showRatingModal && selectedExecutor && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:hidden justify-center">
-          <div className="w-full bg-white rounded-t-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold">
-                {language === 'ru' ? 'Оценить сотрудника' : 'Xodimni baholash'}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowRatingModal(false);
-                  setSelectedExecutor(null);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+        <div className="md:hidden">
+        <Modal
+          isOpen={showRatingModal}
+          onClose={() => {
+            setShowRatingModal(false);
+            setSelectedExecutor(null);
+          }}
+          title={language === 'ru' ? 'Оценить сотрудника' : 'Xodimni baholash'}
+          size="lg"
+        >
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="space-y-4">
               {/* Worker Info */}
               <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-4">
                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center flex-shrink-0">
@@ -682,7 +675,7 @@ export function ResidentRateEmployeesPage() {
                 }
               </button>
             </div>
-          </div>
+        </Modal>
         </div>
       )}
     </div>

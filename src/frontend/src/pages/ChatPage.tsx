@@ -3,7 +3,7 @@ import {
   Send, ArrowLeft, Building2, Home,
   Search, Check, CheckCheck,
   Loader2, AlertCircle,
-  MessageCircle,
+  MessageCircle, MessageSquare,
   ChevronDown,
   MoreVertical,
   ChevronUp,
@@ -12,6 +12,7 @@ import {
   Smile,
   Paperclip
 } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -454,17 +455,14 @@ function AdminChannelList({
             <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
           </div>
         ) : filteredChannels.length === 0 ? (
-          <div className="px-5 py-12 text-center">
-            <div className="w-14 h-14 mx-auto mb-3 bg-gray-100 rounded-[18px] flex items-center justify-center">
-              <MessageCircle className="w-7 h-7 text-gray-300" />
-            </div>
-            <p className="text-sm text-gray-400">
-              {activeFilter === 'unread'
-                ? (language === 'ru' ? 'Нет новых сообщений' : 'Yangi xabarlar yo\'q')
-                : (language === 'ru' ? 'Нет обращений' : 'Murojatlar yo\'q')
-              }
-            </p>
-          </div>
+          <EmptyState
+            icon={<MessageSquare className="w-12 h-12" />}
+            title={language === 'ru' ? 'Нет сообщений' : 'Xabarlar yo\'q'}
+            description={activeFilter === 'unread'
+              ? (language === 'ru' ? 'Нет новых сообщений' : 'Yangi xabarlar yo\'q')
+              : (language === 'ru' ? 'Нет обращений' : 'Murojatlar yo\'q')
+            }
+          />
         ) : (
           filteredChannels.map((channel) => {
             const isSelected = selectedChannelId === channel.id;

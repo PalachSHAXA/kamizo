@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 import { generateQRCode } from '../components/LazyQRCode';
 import { generateContractDocx } from '../utils/contractGenerator';
 import { ContractPreview } from '../components/ContractPreview';
@@ -15,6 +16,7 @@ import { InstallAppSection } from '../components/InstallAppSection';
 export function ResidentProfilePage() {
   const { user, changePassword, updateProfile, markContractSigned } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
 
   // Check if user is a rental user (tenant/commercial_owner) - they have simplified profile
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
@@ -240,7 +242,7 @@ export function ResidentProfilePage() {
       }
     } catch (error) {
       console.error('Error generating contract:', error);
-      alert(language === 'ru' ? 'Ошибка при генерации договора' : 'Shartnoma yaratishda xatolik');
+      addToast('error', language === 'ru' ? 'Ошибка при генерации договора' : 'Shartnoma yaratishda xatolik');
     } finally {
       setIsDownloading(false);
     }

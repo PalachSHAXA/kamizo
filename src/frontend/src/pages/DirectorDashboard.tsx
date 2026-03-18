@@ -16,6 +16,7 @@ import { useDataStore } from '../stores/dataStore';
 import { useCRMStore } from '../stores/crmStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { Modal } from '../components/common';
 import { formatAddress } from '../utils/formatAddress';
 import { SPECIALIZATION_LABELS } from '../types';
 import { teamApi, apiRequest, ukRatingsApi } from '../services/api';
@@ -24,7 +25,7 @@ import type { Style } from 'exceljs';
 
 // REQUEST_STATUS_LABELS moved to function component to access language
 
-// Modal component for details
+// Modal component for details — uses shared <Modal> component
 function DetailModal({
   isOpen,
   onClose,
@@ -36,25 +37,12 @@ function DetailModal({
   title: string;
   children: React.ReactNode;
 }) {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
-      <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-xl"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-full touch-manipulation active:bg-gray-200">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-4 overflow-y-auto max-h-[60vh]">
-          {children}
-        </div>
+    <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
+      <div className="overflow-y-auto max-h-[60vh]">
+        {children}
       </div>
-    </div>
+    </Modal>
   );
 }
 

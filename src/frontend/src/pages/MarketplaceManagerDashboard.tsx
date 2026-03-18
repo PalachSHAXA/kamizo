@@ -6,6 +6,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { apiRequest } from '../services/api';
+import { useToastStore } from '../stores/toastStore';
 
 // Types for API responses (snake_case from backend)
 interface MarketplaceCategoryAPI {
@@ -89,6 +90,7 @@ function ProductCardPlaceholder({ name, categoryId, size = 'sm' }: { name: strin
 export function MarketplaceManagerDashboard() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
 
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'stock'>('products');
   const [products, setProducts] = useState<MarketplaceProductAPI[]>([]);
@@ -131,7 +133,7 @@ export function MarketplaceManagerDashboard() {
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      alert(language === 'ru'
+      addToast('warning', language === 'ru'
         ? 'Неверный формат файла. Разрешены: JPEG, PNG, GIF, WEBP'
         : 'Noto\'g\'ri fayl formati. Ruxsat etilgan: JPEG, PNG, GIF, WEBP');
       return;
@@ -139,7 +141,7 @@ export function MarketplaceManagerDashboard() {
 
     // Max 5MB
     if (file.size > 5 * 1024 * 1024) {
-      alert(language === 'ru'
+      addToast('warning', language === 'ru'
         ? 'Файл слишком большой. Максимум: 5МБ'
         : 'Fayl juda katta. Maksimum: 5MB');
       return;
@@ -167,7 +169,7 @@ export function MarketplaceManagerDashboard() {
       setProductForm({ ...productForm, image_url: result.image_url });
     } catch (error) {
       console.error('Image upload error:', error);
-      alert(language === 'ru'
+      addToast('error', language === 'ru'
         ? 'Ошибка загрузки изображения'
         : 'Rasm yuklashda xato');
     } finally {
@@ -647,7 +649,7 @@ export function MarketplaceManagerDashboard() {
 
       {/* Product Modal */}
       {showProductModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
@@ -927,7 +929,7 @@ export function MarketplaceManagerDashboard() {
 
       {/* Stock Update Modal */}
       {showStockModal && stockProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="font-bold text-lg">

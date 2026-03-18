@@ -21,12 +21,14 @@ import {
 // --- Internal modules (extracted from this file) ---
 import type { Env, User } from './types';
 import { route, matchRoute } from './router';
-import { setCorsOrigin, getCurrentCorsOrigin, corsHeaders } from './middleware/cors';
+import { setCorsOrigin, getCurrentCorsOrigin, corsHeaders, initCors } from './middleware/cors';
 import { getUser } from './middleware/auth';
-import { getTenantId, setTenantForRequest, getTenantSlug, setCurrentTenant, getCurrentTenant } from './middleware/tenant';
+import { getTenantId, setTenantForRequest, getTenantForRequest, getTenantSlug, setCurrentTenant, getCurrentTenant } from './middleware/tenant';
 import { getCached, setCache, invalidateCache } from './middleware/cache-local';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
 import { json, error, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from './utils/helpers';
+import { createRequestLogger } from './utils/logger';
+import { reportError } from './utils/sentry';
 import { encryptPassword, decryptPassword, hashPassword, verifyPassword, createJWT } from './utils/crypto';
 import { registerAllRoutes } from './routes';
 // Re-export sendPushNotification for use by other route modules
@@ -374,6 +376,18 @@ async function runMigrations(env: Env) {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const response = await this._handleRequest(request, env);
+    // Apply security headers to ALL responses
+    const headers = new Headers(response.headers);
+    headers.set('X-Frame-Options', 'DENY');
+    headers.set('X-Content-Type-Options', 'nosniff');
+    headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  },
+
+  async _handleRequest(request: Request, env: Env): Promise<Response> {
     try {
     // Run DB migrations (only once per worker instance)
     try {
@@ -382,6 +396,9 @@ export default {
       console.error('Critical: runMigrations threw unhandled exception:', migrationError);
       // Continue — don't fail requests due to migration issues
     }
+
+    // Configure CORS allowed origins based on environment
+    initCors(env.ENVIRONMENT);
 
     // Set CORS origin for this request
     setCorsOrigin(request);
@@ -398,6 +415,14 @@ export default {
     }
 
     const url = new URL(request.url);
+
+    // Structured logging for API requests
+    const log = createRequestLogger(request);
+    const requestStart = Date.now();
+
+    if (url.pathname.startsWith('/api')) {
+      log.info('request_start');
+    }
 
     // Detect tenant from hostname
     const tenantSlug = getTenantSlug(url.hostname);
@@ -523,6 +548,9 @@ export default {
                 newHeaders.set('X-RateLimit-Limit', (RATE_LIMITS[endpoint] || RATE_LIMITS['default']).maxRequests.toString());
                 newHeaders.set('X-RateLimit-Remaining', rateLimit.remaining.toString());
                 newHeaders.set('X-RateLimit-Reset', rateLimit.resetAt.toString());
+                newHeaders.set('X-Request-Id', log.requestId);
+
+                log.info('request_end', { status: response.status, durationMs: Date.now() - requestStart });
 
                 return new Response(response.body, {
                   status: response.status,
@@ -531,15 +559,33 @@ export default {
                 });
               }
 
-              return await matched.handler(request, env, matched.params);
+              const directResponse = await matched.handler(request, env, matched.params);
+              // Add X-Request-Id to non-rate-limited responses (auth, health)
+              if (directResponse.status !== 101 && !directResponse.headers.get('Upgrade')) {
+                const drHeaders = new Headers(directResponse.headers);
+                drHeaders.set('X-Request-Id', log.requestId);
+                log.info('request_end', { status: directResponse.status, durationMs: Date.now() - requestStart });
+                return new Response(directResponse.body, {
+                  status: directResponse.status,
+                  statusText: directResponse.statusText,
+                  headers: drHeaders,
+                });
+              }
+              return directResponse;
             } catch (err: any) {
-              console.error('API Error:', err);
+              log.error('api_error', err, { durationMs: Date.now() - requestStart });
+              reportError(err instanceof Error ? err : new Error(String(err)), {
+                requestId: log.requestId, method: request.method, path: new URL(request.url).pathname,
+              }, env);
               return error(err.message || 'Internal server error', 500);
             }
           });
         } catch (outerErr: any) {
           // Safety net: if withMonitoring itself crashes, still return a valid CORS response
-          console.error('Critical API Error (outside monitoring):', outerErr);
+          log.error('critical_api_error', outerErr, { durationMs: Date.now() - requestStart });
+          reportError(outerErr instanceof Error ? outerErr : new Error(String(outerErr)), {
+            requestId: log.requestId, method: request.method, path: new URL(request.url).pathname,
+          }, env);
           return new Response(JSON.stringify({ error: outerErr.message || 'Internal server error' }), {
             status: 500,
             headers: {
@@ -547,6 +593,7 @@ export default {
               'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
               'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
               'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+              'X-Request-Id': log.requestId,
             },
           });
         }
@@ -556,7 +603,7 @@ export default {
 
     // For SPA: serve static assets or fallback to index.html
     // BUT first verify tenant exists if this is a tenant subdomain
-    if (tenantSlug && !getCurrentTenant()) {
+    if (tenantSlug && !getTenantForRequest(request)) {
       // This shouldn't happen as we checked above, but double-check for safety
       return new Response(`
         <!DOCTYPE html>
@@ -616,7 +663,7 @@ export default {
       });
     }
 
-    // Helper: add no-cache headers to HTML responses (index.html)
+    // Helper: add no-cache + CSP headers to HTML responses (index.html)
     // This prevents browsers from caching old index.html that references stale JS hashes
     const withNoCacheIfHtml = (response: Response): Response => {
       const contentType = response.headers.get('Content-Type') || '';
@@ -625,6 +672,7 @@ export default {
         newHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         newHeaders.set('Pragma', 'no-cache');
         newHeaders.set('Expires', '0');
+        newHeaders.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://images.unsplash.com; connect-src 'self' wss://*.kamizo.uz; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
         return new Response(response.body, {
           status: response.status,
           statusText: response.statusText,

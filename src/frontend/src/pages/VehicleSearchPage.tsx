@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, AlertTriangle, QrCode } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -123,8 +124,8 @@ function SearchPlateInput({ value, onChange, language, onSearch }: SearchPlateIn
             {/* Region dropdown */}
             {showRegionDropdown && (
               <>
-                <div className="fixed inset-0 z-[9998]" onClick={() => setShowRegionDropdown(false)} />
-                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-[9999] max-h-72 overflow-y-auto min-w-[280px]">
+                <div className="fixed inset-0 z-[50]" onClick={() => setShowRegionDropdown(false)} />
+                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-[50] max-h-72 overflow-y-auto min-w-[280px]">
                   {UZ_REGIONS.map((region) => (
                     <button
                       key={region.code}
@@ -264,8 +265,8 @@ function PlateNumberInput({ value, onChange, language }: PlateNumberInputProps) 
             {/* Region dropdown */}
             {showRegionDropdown && (
               <>
-                <div className="fixed inset-0 z-[9998]" onClick={() => setShowRegionDropdown(false)} />
-                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-[9999] max-h-72 overflow-y-auto min-w-[280px]">
+                <div className="fixed inset-0 z-[50]" onClick={() => setShowRegionDropdown(false)} />
+                <div className="absolute top-full left-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-[50] max-h-72 overflow-y-auto min-w-[280px]">
                   {UZ_REGIONS.map((region) => (
                     <button
                       key={region.code}
@@ -948,17 +949,13 @@ export function VehicleSearchPage() {
 
       {/* Not Found State */}
       {hasSearched && filteredVehicles.length === 0 && guestVehicleResults.length === 0 && (searchPlateParts.region || searchPlateParts.digits) && (
-        <div className="glass-card p-8 text-center border-2 border-red-200 bg-red-50/50">
-          <AlertCircle className="w-12 h-12 mx-auto text-red-400 mb-3" />
-          <h3 className="text-lg font-semibold text-red-700 mb-2">
-            {language === 'ru' ? 'Автомобиль не найден' : 'Avtomobil topilmadi'}
-          </h3>
-          <p className="text-red-600 text-sm">
-            {language === 'ru'
-              ? 'По введённым данным автомобиль не найден в системе'
-              : 'Kiritilgan ma\'lumotlar bo\'yicha avtomobil topilmadi'}
-          </p>
-        </div>
+        <EmptyState
+          icon={<Car className="w-12 h-12" />}
+          title={language === 'ru' ? 'Автомобиль не найден' : 'Avtomobil topilmadi'}
+          description={language === 'ru'
+            ? 'По введённым данным автомобиль не найден в системе'
+            : 'Kiritilgan ma\'lumotlar bo\'yicha avtomobil topilmadi'}
+        />
       )}
 
       {/* All Vehicles Toggle - Only for managers/admins */}
@@ -1023,31 +1020,23 @@ export function VehicleSearchPage() {
 
       {/* Empty State */}
       {vehicles.length === 0 && !hasSearched && (
-        <div className="glass-card p-12 text-center">
-          <Car className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-600 mb-2">
-            {language === 'ru' ? 'Нет зарегистрированных автомобилей' : 'Ro\'yxatga olingan avtomobillar yo\'q'}
-          </h3>
-          <p className="text-gray-400 mb-4">
-            {language === 'ru'
-              ? 'Жители еще не добавили свои автомобили в систему'
-              : 'Aholi hali avtomobillarini tizimga qo\'shmagan'}
-          </p>
-          {isManager && (
-            <button
-              onClick={() => handleOpenModal()}
-              className="btn-primary inline-flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              {language === 'ru' ? 'Добавить служебное авто' : 'Xizmat avtosini qo\'shish'}
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={<Car className="w-12 h-12" />}
+          title={language === 'ru' ? 'Нет зарегистрированных автомобилей' : 'Ro\'yxatga olingan avtomobillar yo\'q'}
+          description={language === 'ru'
+            ? 'Жители еще не добавили свои автомобили в систему'
+            : 'Aholi hali avtomobillarini tizimga qo\'shmagan'}
+          action={isManager ? {
+            label: language === 'ru' ? 'Добавить служебное авто' : 'Xizmat avtosini qo\'shish',
+            onClick: () => handleOpenModal(),
+          } : undefined}
+        />
       )}
 
       {/* Add/Edit Modal */}
+      {/* TODO: migrate to <Modal> component */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
               <h2 className="text-base sm:text-lg font-bold">
@@ -1227,8 +1216,9 @@ export function VehicleSearchPage() {
       )}
 
       {/* Delete Confirmation Modal */}
+      {/* TODO: migrate to <Modal> component */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl p-6 max-w-sm w-full">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
               <AlertTriangle className="w-6 h-6 text-red-500" />

@@ -31,7 +31,7 @@ export function generateId() {
 // Pagination helpers
 export function getPaginationParams(url: URL): PaginationParams {
   const page = parseInt(url.searchParams.get('page') || '1', 10);
-  const limit = Math.min(parseInt(url.searchParams.get('limit') || '500', 10), 5000);
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 500);
   return {
     page: Math.max(1, page),
     limit: Math.max(1, limit)
@@ -40,7 +40,7 @@ export function getPaginationParams(url: URL): PaginationParams {
 
 export function createPaginatedResponse<T>(data: T[], total: number, params: PaginationParams): PaginatedResponse<T> {
   const page = params.page || 1;
-  const limit = params.limit || 500;
+  const limit = params.limit || 50;
   const totalPages = Math.ceil(total / limit);
   return {
     data,

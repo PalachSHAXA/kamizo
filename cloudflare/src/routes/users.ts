@@ -12,6 +12,9 @@ import { getCurrentCorsOrigin } from '../middleware/cors';
 import { json, error, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { hashPassword, verifyPassword, createJWT } from '../utils/crypto';
 import { isExecutorRole, isSuperAdmin } from '../index';
+import { createRequestLogger } from '../utils/logger';
+import { validateBody } from '../validation/validate';
+import { loginSchema } from '../validation/schemas';
 
 export function registerUserRoutes() {
 
@@ -98,21 +101,24 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
     VALUES (?, 'Kamizo Demo', 'kamizo-demo', 'https://kamizo-demo.kamizo.uz', 'https://kamizo-demo.kamizo.uz/admin', '#f97316', '#fb923c', 'enterprise', ?, 'demo@kamizo.uz', '+998901234567')
   `).bind(tenantId, features).run();
 
-  // 2. Create demo users
+  // 2. Create demo users — realistic Tashkent names and phones
   const demoUsers = [
-    { id: generateId(), login: 'demo-director', password: 'kamizo', name: 'Alisher Karimov', role: 'director', phone: '+998901000001' },
-    { id: generateId(), login: 'demo-manager', password: 'kamizo', name: 'Nodira Rahimova', role: 'manager', phone: '+998901000002' },
-    { id: generateId(), login: 'demo-admin', password: 'kamizo', name: 'Sardor Umarov', role: 'admin', phone: '+998901000003' },
-    { id: generateId(), login: 'demo-dispatcher', password: 'kamizo', name: 'Dilnoza Azimova', role: 'dispatcher', phone: '+998901000004' },
-    { id: generateId(), login: 'demo-executor', password: 'kamizo', name: 'Bobur Toshmatov', role: 'executor', phone: '+998901000005', specialization: 'plumber' },
-    { id: generateId(), login: 'demo-electrician', password: 'kamizo', name: 'Jasur Mirzayev', role: 'executor', phone: '+998901000006', specialization: 'electrician' },
-    { id: generateId(), login: 'demo-security', password: 'kamizo', name: 'Otabek Normatov', role: 'security', phone: '+998901000007' },
-    { id: generateId(), login: 'demo-dept-head', password: 'kamizo', name: 'Rustam Xolmatov', role: 'department_head', phone: '+998901000008' },
-    { id: generateId(), login: 'demo-shop', password: 'kamizo', name: 'Gulnora Tosheva', role: 'marketplace_manager', phone: '+998901000009' },
-    { id: generateId(), login: 'demo-resident1', password: 'kamizo', name: 'Aziza Sultanova', role: 'resident', phone: '+998901000010', address: 'ул. Навои, 25', apartment: '12' },
-    { id: generateId(), login: 'demo-resident2', password: 'kamizo', name: 'Farhod Ismoilov', role: 'resident', phone: '+998901000011', address: 'ул. Навои, 25', apartment: '45' },
-    { id: generateId(), login: 'demo-resident3', password: 'kamizo', name: 'Malika Abdullayeva', role: 'resident', phone: '+998901000012', address: 'ул. Амира Темура, 10', apartment: '78' },
-    { id: generateId(), login: 'demo-tenant', password: 'kamizo', name: 'Shahlo Nazarova', role: 'tenant', phone: '+998901000013', address: 'ул. Навои, 25', apartment: '67' },
+    { id: generateId(), login: 'demo-director', password: 'kamizo', name: 'Алишер Каримов', role: 'director', phone: '+998901234501' },
+    { id: generateId(), login: 'demo-manager', password: 'kamizo', name: 'Дилноза Рахимова', role: 'manager', phone: '+998937654302' },
+    { id: generateId(), login: 'demo-admin', password: 'kamizo', name: 'Бахтиёр Усманов', role: 'admin', phone: '+998901112203' },
+    { id: generateId(), login: 'demo-dispatcher', password: 'kamizo', name: 'Мадина Хасанова', role: 'dispatcher', phone: '+998946783304' },
+    { id: generateId(), login: 'demo-executor', password: 'kamizo', name: 'Рустам Ибрагимов', role: 'executor', phone: '+998905556605', specialization: 'plumber' },
+    { id: generateId(), login: 'demo-electrician', password: 'kamizo', name: 'Азиз Мирзаев', role: 'executor', phone: '+998937778806', specialization: 'electrician' },
+    { id: generateId(), login: 'demo-handyman', password: 'kamizo', name: 'Шерзод Турсунов', role: 'executor', phone: '+998901239907', specialization: 'general' },
+    { id: generateId(), login: 'demo-security', password: 'kamizo', name: 'Отабек Норматов', role: 'security', phone: '+998944443308' },
+    { id: generateId(), login: 'demo-dept-head', password: 'kamizo', name: 'Нодира Ташпулатова', role: 'department_head', phone: '+998908887709' },
+    { id: generateId(), login: 'demo-shop', password: 'kamizo', name: 'Гулнора Тошева', role: 'marketplace_manager', phone: '+998936665510' },
+    { id: generateId(), login: 'demo-resident1', password: 'kamizo', name: 'Фарход Исмоилов', role: 'resident', phone: '+998901234511', address: 'ул. Бобура, 24', apartment: '34' },
+    { id: generateId(), login: 'demo-resident2', password: 'kamizo', name: 'Малика Абдуллаева', role: 'resident', phone: '+998937654312', address: 'ул. Бобура, 24', apartment: '87' },
+    { id: generateId(), login: 'demo-resident3', password: 'kamizo', name: 'Зафар Нуриллаев', role: 'resident', phone: '+998945551213', address: 'ул. Мирзо Улугбека, 55', apartment: '23' },
+    { id: generateId(), login: 'demo-resident4', password: 'kamizo', name: 'Шахло Назарова', role: 'resident', phone: '+998901119914', address: 'пр. Амира Темура, 100', apartment: '156' },
+    { id: generateId(), login: 'demo-resident5', password: 'kamizo', name: 'Жамшид Ахмедов', role: 'resident', phone: '+998938882215', address: 'ул. Мирзо Улугбека, 55', apartment: '15' },
+    { id: generateId(), login: 'demo-tenant', password: 'kamizo', name: 'Лазиз Юлдашев', role: 'tenant', phone: '+998906667716', address: 'ул. Бобура, 24', apartment: '112' },
   ];
 
   for (const u of demoUsers) {
@@ -141,50 +147,41 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   const security = findDemoUser('demo-security');
   const demoTenant = findDemoUser('demo-tenant');
 
-  // 3. Create demo buildings (4 total)
+  // 3. Create demo buildings (3 total — realistic Tashkent complexes)
   const building1Id = generateId();
   const building2Id = generateId();
   const building3Id = generateId();
-  const building4Id = generateId();
 
   await env.DB.prepare(`
     INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
-    VALUES (?, 'ЖК Навои Резиденс', 'ул. Навои, 25', 16, 4, 128, 12500.0, 2021, 'monolith', 1, 4, 1, 1, ?, datetime('now'), datetime('now'))
+    VALUES (?, 'ЖК Caravan City', 'ул. Бобура, 24', 12, 4, 96, 9600.0, 2022, 'monolith', 1, 4, 1, 1, ?, datetime('now'), datetime('now'))
   `).bind(building1Id, tenantId).run();
 
   await env.DB.prepare(`
     INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
-    VALUES (?, 'ЖК Темур Плаза', 'ул. Амира Темура, 10', 12, 2, 48, 5200.0, 2019, 'brick', 1, 2, 1, 1, ?, datetime('now'), datetime('now'))
+    VALUES (?, 'ЖК Mirzo Residence', 'ул. Мирзо Улугбека, 55', 9, 3, 54, 5400.0, 2023, 'monolith', 1, 3, 1, 1, ?, datetime('now'), datetime('now'))
   `).bind(building2Id, tenantId).run();
 
   await env.DB.prepare(`
     INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
-    VALUES (?, 'ЖК Мирзо Улугбек', 'ул. Мирзо Улугбека, 42', 9, 3, 72, 6800.0, 2023, 'monolith', 1, 3, 1, 1, ?, datetime('now'), datetime('now'))
+    VALUES (?, 'ЖК Tashkent Plaza', 'пр. Амира Темура, 100', 16, 6, 192, 19200.0, 2024, 'monolith', 1, 6, 1, 1, ?, datetime('now'), datetime('now'))
   `).bind(building3Id, tenantId).run();
-
-  await env.DB.prepare(`
-    INSERT INTO buildings (id, name, address, floors, entrances_count, apartments_count, total_area, year_built, building_type, has_elevator, elevator_count, has_gas, has_hot_water, tenant_id, created_at, updated_at)
-    VALUES (?, 'ЖК Сахил Парк', 'пр. Бунёдкор, 18', 20, 6, 240, 22000.0, 2025, 'monolith', 1, 6, 1, 1, ?, datetime('now'), datetime('now'))
-  `).bind(building4Id, tenantId).run();
 
   // 4. Create demo apartments
   const apartments = [
-    // Building 1 - ЖК Навои Резиденс
-    { id: generateId(), building_id: building1Id, number: '12', floor: 3, total_area: 72.5, rooms: 3, status: 'occupied', primary_owner_id: resident1.id },
-    { id: generateId(), building_id: building1Id, number: '45', floor: 8, total_area: 55.0, rooms: 2, status: 'occupied', primary_owner_id: resident2.id },
-    { id: generateId(), building_id: building1Id, number: '67', floor: 12, total_area: 95.0, rooms: 4, status: 'rented' },
-    // Building 2 - ЖК Темур Плаза
-    { id: generateId(), building_id: building2Id, number: '78', floor: 6, total_area: 48.0, rooms: 2, status: 'occupied', primary_owner_id: resident3.id },
-    { id: generateId(), building_id: building2Id, number: '31', floor: 4, total_area: 62.0, rooms: 3, status: 'vacant' },
-    // Building 3 - ЖК Мирзо Улугбек
-    { id: generateId(), building_id: building3Id, number: '15', floor: 4, total_area: 68.0, rooms: 3, status: 'occupied' },
-    { id: generateId(), building_id: building3Id, number: '28', floor: 7, total_area: 42.0, rooms: 1, status: 'occupied' },
-    { id: generateId(), building_id: building3Id, number: '33', floor: 9, total_area: 85.0, rooms: 4, status: 'vacant' },
-    // Building 4 - ЖК Сахил Парк
-    { id: generateId(), building_id: building4Id, number: '101', floor: 5, total_area: 110.0, rooms: 4, status: 'occupied' },
-    { id: generateId(), building_id: building4Id, number: '156', floor: 12, total_area: 75.0, rooms: 3, status: 'occupied' },
-    { id: generateId(), building_id: building4Id, number: '189', floor: 15, total_area: 58.0, rooms: 2, status: 'rented' },
-    { id: generateId(), building_id: building4Id, number: '220', floor: 18, total_area: 130.0, rooms: 5, status: 'occupied' },
+    // Building 1 - ЖК Caravan City (ул. Бобура, 24)
+    { id: generateId(), building_id: building1Id, number: '34', floor: 5, total_area: 72.5, rooms: 3, status: 'occupied', primary_owner_id: resident1.id },
+    { id: generateId(), building_id: building1Id, number: '87', floor: 10, total_area: 55.0, rooms: 2, status: 'occupied', primary_owner_id: resident2.id },
+    { id: generateId(), building_id: building1Id, number: '112', floor: 12, total_area: 95.0, rooms: 4, status: 'rented' },
+    { id: generateId(), building_id: building1Id, number: '56', floor: 7, total_area: 48.0, rooms: 2, status: 'vacant' },
+    // Building 2 - ЖК Mirzo Residence (ул. Мирзо Улугбека, 55)
+    { id: generateId(), building_id: building2Id, number: '23', floor: 4, total_area: 68.0, rooms: 3, status: 'occupied', primary_owner_id: resident3.id },
+    { id: generateId(), building_id: building2Id, number: '15', floor: 3, total_area: 42.0, rooms: 1, status: 'occupied', primary_owner_id: findDemoUser('demo-resident5').id },
+    { id: generateId(), building_id: building2Id, number: '41', floor: 7, total_area: 85.0, rooms: 4, status: 'vacant' },
+    // Building 3 - ЖК Tashkent Plaza (пр. Амира Темура, 100)
+    { id: generateId(), building_id: building3Id, number: '156', floor: 12, total_area: 75.0, rooms: 3, status: 'occupied', primary_owner_id: findDemoUser('demo-resident4').id },
+    { id: generateId(), building_id: building3Id, number: '89', floor: 6, total_area: 110.0, rooms: 4, status: 'occupied' },
+    { id: generateId(), building_id: building3Id, number: '201', floor: 14, total_area: 58.0, rooms: 2, status: 'rented' },
   ];
 
   for (const apt of apartments) {
@@ -194,11 +191,11 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
     `).bind(apt.id, apt.building_id, apt.number, apt.floor, apt.total_area, apt.rooms, apt.status, apt.primary_owner_id || null, tenantId).run();
   }
 
-  // 5. Create rental apartment (apt 67 for rent)
+  // 5. Create rental apartment (apt 112 for rent in Caravan City)
   const rentalAptId = generateId();
   await env.DB.prepare(`
     INSERT INTO rental_apartments (id, name, address, apartment, owner_id, is_active, tenant_id, created_at, updated_at)
-    VALUES (?, 'Квартира 67, ЖК Навои Резиденс', 'ул. Навои, 25', '67', ?, 1, ?, datetime('now'), datetime('now'))
+    VALUES (?, 'Квартира 112, ЖК Caravan City', 'ул. Бобура, 24', '112', ?, 1, ?, datetime('now'), datetime('now'))
   `).bind(rentalAptId, director.id, tenantId).run();
 
   // 6. Create demo vehicles
@@ -216,8 +213,12 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   }
 
   // 7. Create demo executors in executors table
+  const handyman = findDemoUser('demo-handyman');
+  const dispatcher = findDemoUser('demo-dispatcher');
   const executorRecordId = generateId();
   const electricianRecordId = generateId();
+  const handymanRecordId = generateId();
+
   await env.DB.prepare(`
     INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, created_at)
     VALUES (?, ?, 'plumber', 'available', 4.8, 47, datetime('now'))
@@ -228,17 +229,26 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
     VALUES (?, ?, 'electrician', 'available', 4.9, 35, datetime('now'))
   `).bind(electricianRecordId, electrician.id).run();
 
+  await env.DB.prepare(`
+    INSERT INTO executors (id, user_id, specialization, status, rating, completed_count, created_at)
+    VALUES (?, ?, 'general', 'available', 4.6, 28, datetime('now'))
+  `).bind(handymanRecordId, handyman.id).run();
+
   // 8. Create demo requests (different statuses for full cycle)
   const now = new Date();
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
 
+  const resident4 = findDemoUser('demo-resident4');
+  const resident5 = findDemoUser('demo-resident5');
+
   const requests = [
-    { id: generateId(), number: 1001, request_number: 'KD-1001', resident_id: resident1.id, category_id: 'plumbing', title: 'Течёт кран на кухне', description: 'Кран на кухне постоянно капает, нужно заменить прокладку или весь смеситель', priority: 'medium', status: 'new', created_at: threeHoursAgo },
-    { id: generateId(), number: 1002, request_number: 'KD-1002', resident_id: resident2.id, category_id: 'electrical', title: 'Не работает розетка в прихожей', description: 'Розетка в коридоре перестала работать после скачка напряжения', priority: 'high', status: 'assigned', executor_id: electrician.id, created_at: oneDayAgo },
-    { id: generateId(), number: 1003, request_number: 'KD-1003', resident_id: resident3.id, category_id: 'plumbing', title: 'Засор канализации', description: 'Вода не уходит в ванной комнате, засорилась труба', priority: 'urgent', status: 'in_progress', executor_id: executor.id, created_at: twoDaysAgo, started_at: oneDayAgo },
-    { id: generateId(), number: 1004, request_number: 'KD-1004', resident_id: resident1.id, category_id: 'electrical', title: 'Замена автомата в щитке', description: 'Автоматический выключатель в электрощитке выбивает при включении стиральной машины', priority: 'high', status: 'completed', executor_id: electrician.id, created_at: twoDaysAgo, started_at: twoDaysAgo, completed_at: oneDayAgo, rating: 5, feedback: 'Отлично! Быстро и качественно.' },
+    { id: generateId(), number: 1001, request_number: 'KD-1001', resident_id: resident1.id, category_id: 'plumbing', title: 'Протечка в ванной', description: 'Течёт труба под раковиной в ванной комнате. Вода капает на пол, возможно повреждение стяжки. Нужен срочный ремонт.', priority: 'urgent', status: 'in_progress', executor_id: executor.id, created_at: twoDaysAgo, started_at: oneDayAgo },
+    { id: generateId(), number: 1002, request_number: 'KD-1002', resident_id: resident2.id, category_id: 'elevator', title: 'Не работает лифт', description: 'Лифт в подъезде №2 застревает между 5 и 6 этажами. Кнопки мигают, двери не открываются нормально. Жители 10+ этажей вынуждены ходить пешком.', priority: 'high', status: 'assigned', executor_id: handyman.id, created_at: oneDayAgo },
+    { id: generateId(), number: 1003, request_number: 'KD-1003', resident_id: resident3.id, category_id: 'plumbing', title: 'Замена счётчика воды', description: 'Срок поверки счётчика холодной воды истёк. Необходимо заменить на новый. Квартира 23, ЖК Mirzo Residence.', priority: 'medium', status: 'new', created_at: threeHoursAgo },
+    { id: generateId(), number: 1004, request_number: 'KD-1004', resident_id: resident4.id, category_id: 'noise', title: 'Шум от соседей', description: 'Соседи сверху (кв. 168) регулярно шумят после 23:00 — громкая музыка и топот. Просьба провести беседу или принять меры.', priority: 'medium', status: 'assigned', executor_id: security.id, created_at: oneDayAgo },
+    { id: generateId(), number: 1005, request_number: 'KD-1005', resident_id: resident5.id, category_id: 'maintenance', title: 'Ремонт подъезда', description: 'В подъезде №1 ЖК Mirzo Residence облупилась краска на стенах, не горит свет на 3 этаже, перила расшатаны. Необходим косметический ремонт.', priority: 'low', status: 'completed', executor_id: handyman.id, created_at: twoDaysAgo, started_at: twoDaysAgo, completed_at: oneDayAgo, rating: 5, feedback: 'Отлично! Подъезд выглядит как новый. Спасибо Шерзоду!' },
   ];
 
   for (const r of requests) {
@@ -273,13 +283,13 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   const futureDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] + 'T18:00:00';
   await env.DB.prepare(`
     INSERT INTO meetings (id, number, building_id, building_address, description, organizer_type, organizer_id, organizer_name, format, status, confirmed_date_time, location, voting_unit, quorum_percent, total_area, tenant_id, created_at, updated_at)
-    VALUES (?, 1, ?, 'ул. Навои, 25', 'Годовое общее собрание собственников ЖК Навои Резиденс. Обсуждение бюджета на 2026 год, ремонт подъездов и благоустройство двора.', 'uk', ?, 'Kamizo Demo', 'offline', 'voting_open', ?, 'Актовый зал, 1 этаж', 'apartment', 51, 12500.0, ?, datetime('now'), datetime('now'))
+    VALUES (?, 1, ?, 'ул. Бобура, 24', 'Годовое общее собрание собственников ЖК Caravan City. Обсуждение бюджета на 2026 год, ремонт подъездов и благоустройство двора.', 'uk', ?, 'Kamizo Demo', 'offline', 'voting_open', ?, 'Актовый зал, 1 этаж', 'apartment', 51, 9600.0, ?, datetime('now'), datetime('now'))
   `).bind(meetingId, building1Id, director.id, futureDate, tenantId).run();
 
   // Create agenda items for the meeting
   const agendaItems = [
-    { id: generateId(), title: 'Утверждение бюджета на 2026 год', description: 'Рассмотрение и утверждение сметы расходов на содержание и обслуживание общего имущества на 2026 год', order_num: 1 },
-    { id: generateId(), title: 'Капитальный ремонт подъездов', description: 'Принятие решения о проведении ремонта подъездов 1-4 с заменой дверей, покраской стен и обновлением освещения', order_num: 2 },
+    { id: generateId(), title: 'Утверждение бюджета на 2026 год', description: 'Рассмотрение и утверждение сметы расходов на содержание и обслуживание общего имущества ЖК Caravan City на 2026 год', order_num: 1 },
+    { id: generateId(), title: 'Капитальный ремонт подъездов', description: 'Принятие решения о проведении ремонта подъездов 1-4 ЖК Caravan City с заменой дверей, покраской стен и обновлением освещения', order_num: 2 },
     { id: generateId(), title: 'Благоустройство придомовой территории', description: 'Установка детской площадки, скамеек и озеленение двора', order_num: 3 },
   ];
 
@@ -309,7 +319,7 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   const pastDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] + 'T18:00:00';
   await env.DB.prepare(`
     INSERT INTO meetings (id, number, building_id, building_address, description, organizer_type, organizer_id, organizer_name, format, status, confirmed_date_time, location, voting_unit, quorum_percent, total_area, tenant_id, created_at, updated_at)
-    VALUES (?, 2, ?, 'ул. Амира Темура, 10', 'Внеочередное собрание по вопросу установки шлагбаума на придомовой территории. Результат: решение принято большинством голосов.', 'uk', ?, 'Kamizo Demo', 'offline', 'completed', ?, 'Холл 1 этажа', 'apartment', 51, 5200.0, ?, datetime('now', '-30 days'), datetime('now', '-28 days'))
+    VALUES (?, 2, ?, 'ул. Мирзо Улугбека, 55', 'Внеочередное собрание по вопросу установки шлагбаума на придомовой территории ЖК Mirzo Residence. Результат: решение принято большинством голосов.', 'uk', ?, 'Kamizo Demo', 'offline', 'completed', ?, 'Холл 1 этажа', 'apartment', 51, 5400.0, ?, datetime('now', '-30 days'), datetime('now', '-28 days'))
   `).bind(pastMeetingId, building2Id, director.id, pastDate, tenantId).run();
 
   const pastAgendaItems = [
@@ -401,15 +411,15 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   const generalChannelId = generateId();
   await env.DB.prepare(`
     INSERT INTO chat_channels (id, type, name, description, building_id, created_by, tenant_id, created_at)
-    VALUES (?, 'building', 'ЖК Навои Резиденс — Общий чат', 'Общий чат жителей ЖК Навои Резиденс', ?, ?, ?, datetime('now'))
+    VALUES (?, 'building', 'ЖК Caravan City — Общий чат', 'Общий чат жителей ЖК Caravan City', ?, ?, ?, datetime('now'))
   `).bind(generalChannelId, building1Id, manager.id, tenantId).run();
 
   const chatMessages = [
-    { sender: manager.id, content: 'Добро пожаловать в общий чат ЖК Навои Резиденс! Здесь вы можете задавать вопросы и получать оперативную информацию.', ago: '-2 days' },
+    { sender: manager.id, content: 'Добро пожаловать в общий чат ЖК Caravan City! Здесь вы можете задавать вопросы и получать оперативную информацию.', ago: '-2 days' },
     { sender: resident1.id, content: 'Здравствуйте! Подскажите, когда будет работать детская площадка?', ago: '-1 day' },
-    { sender: manager.id, content: 'Здравствуйте, Азиза! Детская площадка откроется после завершения благоустройства — ориентировочно через 2 недели.', ago: '-1 day' },
+    { sender: manager.id, content: 'Здравствуйте, Фарход! Детская площадка откроется после завершения благоустройства — ориентировочно через 2 недели.', ago: '-1 day' },
     { sender: resident2.id, content: 'А можно установить камеры на парковке? Уже второй раз кто-то царапает машину.', ago: '-12 hours' },
-    { sender: manager.id, content: 'Фарход, вопрос по камерам вынесем на ближайшее собрание. Пока что рекомендуем зафиксировать повреждения и написать заявку.', ago: '-10 hours' },
+    { sender: manager.id, content: 'Малика, вопрос по камерам вынесем на ближайшее собрание. Пока что рекомендуем зафиксировать повреждения и написать заявку.', ago: '-10 hours' },
   ];
 
   for (const msg of chatMessages) {
@@ -450,7 +460,7 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
     tenant_id: tenantId,
     slug: 'kamizo-demo',
     users_created: demoUsers.length,
-    buildings_created: 4,
+    buildings_created: 3,
     apartments_created: apartments.length,
     vehicles_created: vehicles.length,
     requests_created: requests.length,
@@ -487,11 +497,9 @@ route('POST', '/api/auth/login', async (request, env) => {
     });
   }
 
-  const { login, password } = await request.json() as { login: string; password: string };
-
-  if (!login || !password) {
-    return error('Login and password required');
-  }
+  const { data: body, errors: validationErrors } = await validateBody<{ login: string; password: string }>(request, loginSchema);
+  if (validationErrors) return error(validationErrors, 400);
+  const { login, password } = body;
 
   // Fetch user with password hash (filter by tenant if on a subdomain)
   // On main domain: find non-tenant users (super_admin) or kamizo-demo users
@@ -669,7 +677,7 @@ route('POST', '/api/auth/register', async (request, env) => {
           .bind(id, 'occupied', existingApt.id).run();
       }
     } catch (e) {
-      console.error('Auto-create apartment failed:', e);
+      createRequestLogger(request).error('Auto-create apartment failed', e);
     }
   }
 
@@ -828,7 +836,7 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
         }
       } catch (linkErr) {
         // Non-critical - don't fail the whole bulk operation
-        console.error('Failed to link apartment data:', linkErr);
+        createRequestLogger(request).error('Failed to link apartment data', linkErr);
       }
     }
   }
@@ -1479,7 +1487,7 @@ route('GET', '/api/executors', async (request, env) => {
   const allowedRoles = ['admin', 'director', 'manager', 'department_head', 'executor', 'resident', 'marketplace_manager'];
   const userRole = (user.role || '').trim().toLowerCase();
   if (!allowedRoles.includes(userRole)) {
-    console.error(`[403] GET /api/executors - user role: "${user.role}", id: "${user.id}"`);
+    createRequestLogger(request).warn('Access denied to executors list', { role: user.role, userId: user.id });
     return error('Access denied', 403);
   }
 
