@@ -357,28 +357,28 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
 
   // Send push + DB notification to executor - new request assigned
   const assignBodyExec = `Заявка #${updated?.request_number || requestBefore?.request_number}: ${updated?.title || requestBefore?.title}. Адрес: ${updated?.address || 'не указан'}`;
-  await sendPushNotification(env, executorId, {
+  sendPushNotification(env, executorId, {
     title: '📋 Новая заявка назначена',
     body: assignBodyExec,
     type: 'request_assigned',
     tag: `request-assigned-${params.id}`,
     data: { requestId: params.id, url: '/' },
     requireInteraction: true
-  });
+  }).catch(() => {});
   env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_assigned', ?, ?, ?, 0, datetime('now'), ?)`)
     .bind(generateId(), executorId, '📋 Новая заявка назначена', assignBodyExec, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 
   // Send push + DB notification to resident - executor assigned
   if (requestBefore?.resident_id) {
     const assignBodyRes = `На вашу заявку #${updated?.request_number || requestBefore?.request_number} назначен исполнитель: ${executor.name}`;
-    await sendPushNotification(env, requestBefore.resident_id, {
+    sendPushNotification(env, requestBefore.resident_id, {
       title: '👷 Исполнитель назначен',
       body: assignBodyRes,
       type: 'request_status',
       tag: `request-executor-${params.id}`,
       data: { requestId: params.id, url: '/' },
       requireInteraction: false
-    });
+    }).catch(() => {});
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_assigned', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestBefore.resident_id, '👷 Исполнитель назначен', assignBodyRes, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -418,14 +418,14 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
   // Send push + DB notification to resident - executor accepted
   if (requestData.resident_id) {
     const acceptBody = `Исполнитель ${user.name} принял вашу заявку #${requestData.request_number}. Ожидайте начала работ.`;
-    await sendPushNotification(env, requestData.resident_id, {
+    sendPushNotification(env, requestData.resident_id, {
       title: '✅ Заявка принята',
       body: acceptBody,
       type: 'request_status',
       tag: `request-accepted-${params.id}`,
       data: { requestId: params.id, url: '/' },
       requireInteraction: false
-    });
+    }).catch(() => {});
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_accepted', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.resident_id, '✅ Заявка принята', acceptBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -608,7 +608,7 @@ route('POST', '/api/requests/:id/reschedule', async (request, env, params) => {
   `).bind(id).first();
 
   // Send push notification to recipient
-  await sendPushNotification(env, recipientId, {
+  sendPushNotification(env, recipientId, {
     title: '⏰ Запрос на перенос времени',
     body: `${user.name} просит перенести заявку на ${proposed_date} ${proposed_time}`,
     type: 'reschedule_requested',
@@ -815,14 +815,14 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
   // Send push + DB notification to resident - work started
   if (requestData.resident_id) {
     const startBody = `Исполнитель ${user.name} начал работу по заявке #${requestData.request_number}.`;
-    await sendPushNotification(env, requestData.resident_id, {
+    sendPushNotification(env, requestData.resident_id, {
       title: '🔧 Работа началась',
       body: startBody,
       type: 'request_status',
       tag: `request-started-${params.id}`,
       data: { requestId: params.id, url: '/' },
       requireInteraction: false
-    });
+    }).catch(() => {});
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_started', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.resident_id, '🔧 Работа началась', startBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -882,14 +882,14 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
   // Send push notification to resident - work completed, please approve
   if (requestData.resident_id) {
     const completeBody = `Исполнитель ${user.name} завершил работу по заявке #${requestData.request_number}. Пожалуйста, подтвердите выполнение и оцените работу.`;
-    await sendPushNotification(env, requestData.resident_id, {
+    sendPushNotification(env, requestData.resident_id, {
       title: '✅ Работа завершена!',
       body: completeBody,
       type: 'request_completed',
       tag: `request-completed-${params.id}`,
       data: { requestId: params.id, url: '/' },
       requireInteraction: true
-    });
+    }).catch(() => {});
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_completed', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.resident_id, '✅ Работа завершена!', completeBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -1037,14 +1037,14 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
   if (requestData.executor_id) {
     const ratingText = rating ? ` Оценка: ${'⭐'.repeat(rating)}` : '';
     const approveBody = `Житель подтвердил выполнение заявки #${requestData.request_number}.${ratingText}`;
-    await sendPushNotification(env, requestData.executor_id, {
+    sendPushNotification(env, requestData.executor_id, {
       title: '🎉 Работа подтверждена!',
       body: approveBody,
       type: 'request_approved',
       tag: `request-approved-${params.id}`,
       data: { requestId: params.id, rating, url: '/' },
       requireInteraction: false
-    });
+    }).catch(() => {});
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_approved', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.executor_id, '🎉 Работа подтверждена!', approveBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 
@@ -1118,14 +1118,14 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
   // Send push + DB notification to executor - work rejected
   if (requestData.executor_id) {
     const rejectBody = `Житель отклонил работу по заявке #${requestData.request_number}. Причина: ${reason}`;
-    await sendPushNotification(env, requestData.executor_id, {
+    sendPushNotification(env, requestData.executor_id, {
       title: '❌ Работа отклонена',
       body: rejectBody,
       type: 'request_rejected',
       tag: `request-rejected-${params.id}`,
       data: { requestId: params.id, reason, url: '/' },
       requireInteraction: true
-    });
+    }).catch(() => {});
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.executor_id, '❌ Работа отклонена', rejectBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 

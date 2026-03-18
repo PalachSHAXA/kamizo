@@ -9,8 +9,9 @@ import { json, error, generateId, isManagement } from '../utils/helpers';
 import { createRequestLogger } from '../utils/logger';
 
 // VAPID keys for Web Push
+// Public key is safe to embed — it's shared with browsers for subscription
 const VAPID_PUBLIC_KEY = 'BMTJw9s4vAY9Bzb05L8--r0XUDirigcJ0_yTTGuCLZL2uk8693U82ef7LLlWyLf9T-3PucveTAjYS_I36uv7RY4';
-const VAPID_PRIVATE_KEY = 'Iryr3rbGuDTBPiBCH07-NCqEzwufF-EOcBIK--DJ9yk';
+// Private key MUST come from env (wrangler secret put VAPID_PRIVATE_KEY)
 
 export function registerNotificationRoutes() {
 
@@ -586,7 +587,7 @@ async function sendWebPush(
       endpoint,
       `mailto:${env.VAPID_EMAIL || 'admin@kamizo.uz'}`,
       VAPID_PUBLIC_KEY,
-      VAPID_PRIVATE_KEY
+      env.VAPID_PRIVATE_KEY
     );
 
     // Encrypt payload

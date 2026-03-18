@@ -78,6 +78,9 @@ export interface Charge {
   currentReading?: number;
   consumption?: number;
 
+  // Тип помещения
+  property_type?: 'commercial' | 'non_commercial';
+
   // Статус
   status: 'draft' | 'calculated' | 'approved' | 'billed' | 'paid' | 'partially_paid';
 

@@ -768,6 +768,7 @@ export function AdminDashboard() {
                   value={reportStartDate}
                   onChange={(e) => setReportStartDate(e.target.value)}
                   className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg sm:rounded-xl text-sm touch-manipulation"
+                  aria-label={language === 'ru' ? 'Дата начала' : 'Boshlanish sanasi'}
                 />
                 <span className="text-gray-400">—</span>
                 <input
@@ -775,6 +776,7 @@ export function AdminDashboard() {
                   value={reportEndDate}
                   onChange={(e) => setReportEndDate(e.target.value)}
                   className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg sm:rounded-xl text-sm touch-manipulation"
+                  aria-label={language === 'ru' ? 'Дата окончания' : 'Tugash sanasi'}
                 />
               </div>
               <button

@@ -716,6 +716,7 @@ export function TeamPage() {
               onClick={fetchTeam}
               className="btn-secondary p-2"
               title={language === 'ru' ? 'Обновить' : 'Yangilash'}
+              aria-label={language === 'ru' ? 'Обновить' : 'Yangilash'}
             >
               <RefreshCw className="w-5 h-5" />
             </button>
@@ -1029,7 +1030,7 @@ export function TeamPage() {
                   {getStatusBadge(selectedMember.status)}
                 </div>
               </div>
-              <button onClick={handleCloseDetails} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={handleCloseDetails} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Закрыть">
                 <X className="w-5 h-5" />
               </button>
             </div>

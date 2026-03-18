@@ -257,7 +257,7 @@ export function registerChatRoutes(env: Env) {
 
           // Send push notifications
           if (['manager', 'admin', 'department_head'].includes(user.role) && channel.resident_id) {
-            await sendPushNotification(env, channel.resident_id, {
+            sendPushNotification(env, channel.resident_id, {
               title: '💬 Ответ от УК',
               body: content.length > 100 ? content.substring(0, 100) + '...' : content,
               type: 'chat_message',
@@ -271,7 +271,7 @@ export function registerChatRoutes(env: Env) {
             ).all();
 
             for (const mgr of (managers || []) as any[]) {
-              await sendPushNotification(env, mgr.id, {
+              sendPushNotification(env, mgr.id, {
                 title: '💬 Новое сообщение от жителя',
                 body: `${user.name}: ${content.length > 80 ? content.substring(0, 80) + '...' : content}`,
                 type: 'chat_message',

@@ -591,7 +591,7 @@ function WorkOrderDetailModal({
               </div>
               <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">{order.title}</h2>
             </div>
-            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation">
+            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation" aria-label="Закрыть">
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
@@ -790,7 +790,7 @@ function WorkOrderFormModal({
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">{language === 'ru' ? 'Новый наряд' : 'Yangi buyurtma'}</h2>
-            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation">
+            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation" aria-label="Закрыть">
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>

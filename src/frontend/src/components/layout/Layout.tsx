@@ -221,6 +221,10 @@ export function Layout() {
 
   return (
     <div className="min-h-screen min-h-dvh">
+      {/* Skip navigation link for accessibility */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:bg-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:text-indigo-600">
+        Перейти к содержимому
+      </a>
       {/* Impersonation banner — shown when super admin entered tenant via "Войти в админку УК" */}
       {impersonation && (
         <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
@@ -262,7 +266,7 @@ export function Layout() {
           <Header />
         </div>
 
-        <main role="main" className="px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content">
+        <main id="main-content" role="main" className="px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content">
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={getDashboard()} />

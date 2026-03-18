@@ -534,7 +534,7 @@ route('POST', '/api/meetings', async (request, env) => {
           JSON.stringify({ meetingId: id, url: '/meetings' })
         ).run();
 
-        await sendPushNotification(env, resident.id, {
+        sendPushNotification(env, resident.id, {
           title: '📢 Новое собрание объявлено',
           body: `Назначено собрание жильцов дома ${body.building_address || ''}. Примите участие в выборе даты!`,
           type: 'meeting',
@@ -683,7 +683,7 @@ route('POST', '/api/meetings/:id/approve', async (request, env, params) => {
         JSON.stringify({ meetingId: params.id, url: '/meetings' })
       ).run();
 
-      await sendPushNotification(env, resident.id, {
+      sendPushNotification(env, resident.id, {
         title: '📢 Новое собрание объявлено',
         body: `Назначено собрание жильцов дома ${meeting.building_address || ''}. Примите участие в выборе даты!`,
         type: 'meeting',
@@ -693,7 +693,7 @@ route('POST', '/api/meetings/:id/approve', async (request, env, params) => {
           url: '/meetings'
         },
         requireInteraction: true
-      });
+      }).catch(() => {});
     }
   }
 
@@ -875,7 +875,7 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
     ).bind('resident', meeting.building_id, ...(tenantId ? [tenantId] : [])).all();
 
     for (const resident of residents as any[]) {
-      await sendPushNotification(env, resident.id, {
+      sendPushNotification(env, resident.id, {
         title: '🗳️ Голосование открыто!',
         body: `Голосование на собрании жильцов дома ${meeting.building_address || ''} началось. Примите участие!`,
         type: 'meeting',
@@ -885,7 +885,7 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
           url: '/meetings'
         },
         requireInteraction: true
-      });
+      }).catch(() => {});
     }
   }
 

@@ -228,6 +228,7 @@ export function SuperAdminDashboard() {
                     onClick={loadTenants}
                     className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                     title="Обновить"
+                    aria-label="Обновить"
                   >
                     <RefreshCw className="w-4 h-4" />
                   </button>

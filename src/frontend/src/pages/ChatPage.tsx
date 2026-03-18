@@ -351,6 +351,7 @@ function AdminChannelList({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={language === 'ru' ? 'Имя, объект, квартира...' : 'Ism, obyekt, xona...'}
             className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-[12px] text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+            aria-label={language === 'ru' ? 'Поиск контактов' : 'Kontaktlarni qidirish'}
           />
         </div>
       </div>
@@ -768,6 +769,7 @@ function ChatView({
           <button
             onClick={onBack}
             className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${hideBackOnDesktop ? 'md:hidden' : ''}`}
+            aria-label="Назад"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
@@ -847,6 +849,7 @@ function ChatView({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={language === 'ru' ? 'Поиск по сообщениям...' : 'Xabarlardan qidirish...'}
               className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-[10px] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+              aria-label={language === 'ru' ? 'Поиск по сообщениям' : 'Xabarlardan qidirish'}
             />
           </div>
           {searchQuery.trim() && (
@@ -1029,6 +1032,7 @@ function ChatView({
               placeholder={language === 'ru' ? 'Написать сообщение...' : 'Xabar yozing...'}
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-[14px] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
               disabled={isSending}
+              aria-label={language === 'ru' ? 'Написать сообщение' : 'Xabar yozing'}
             />
           </div>
 

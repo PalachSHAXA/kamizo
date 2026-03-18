@@ -3,6 +3,12 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 workers_dev = true
 
+# Secrets (set via: wrangler secret put <NAME>):
+# wrangler secret put JWT_SECRET
+# wrangler secret put ENCRYPTION_KEY
+# wrangler secret put VAPID_PRIVATE_KEY
+# wrangler secret put SENTRY_DSN
+
 # Custom domains must be added via Cloudflare Dashboard:
 # Workers & Pages → kamizo → Settings → Triggers → Custom Domains
 # Add: kamizo.uz and *.kamizo.uz (wildcards only supported via Dashboard)

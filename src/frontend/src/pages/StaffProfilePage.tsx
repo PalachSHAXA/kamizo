@@ -296,7 +296,7 @@ export function StaffProfilePage() {
                   <input type={showCurrentPassword ? 'text' : 'password'} value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     className="w-full py-2.5 px-3 text-[14px] rounded-[10px] border border-gray-200 outline-none focus:border-primary-400 pr-10"
-                    placeholder={t.currentPassword} />
+                    placeholder={t.currentPassword} aria-label={t.currentPassword} />
                   <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -306,7 +306,7 @@ export function StaffProfilePage() {
                   <input type={showNewPassword ? 'text' : 'password'} value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full py-2.5 px-3 text-[14px] rounded-[10px] border border-gray-200 outline-none focus:border-primary-400 pr-10"
-                    placeholder={t.newPassword} />
+                    placeholder={t.newPassword} aria-label={t.newPassword} />
                   <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -315,7 +315,7 @@ export function StaffProfilePage() {
                 <input type="password" value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full py-2.5 px-3 text-[14px] rounded-[10px] border border-gray-200 outline-none focus:border-primary-400"
-                  placeholder={t.confirmPassword} />
+                  placeholder={t.confirmPassword} aria-label={t.confirmPassword} />
 
                 {passwordError && (
                   <div className="p-2.5 bg-red-50 text-red-600 rounded-[10px] text-[13px]">{passwordError}</div>

@@ -746,6 +746,7 @@ function MeetingVotingModal({
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation ml-2"
+            aria-label="Закрыть"
           >
             <X className="w-5 h-5" />
           </button>

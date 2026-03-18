@@ -158,6 +158,7 @@ function SearchPlateInput({ value, onChange, language, onSearch }: SearchPlateIn
               className="w-10 text-4xl font-bold text-center outline-none bg-transparent uppercase"
               placeholder="A"
               maxLength={1}
+              aria-label="Буква номера"
             />
             <input
               ref={digitsRef}
@@ -169,6 +170,7 @@ function SearchPlateInput({ value, onChange, language, onSearch }: SearchPlateIn
               className="w-20 text-4xl font-bold text-center outline-none bg-transparent tracking-wider"
               placeholder="123"
               maxLength={3}
+              aria-label="Цифры номера"
             />
             <input
               ref={letters2Ref}
@@ -179,6 +181,7 @@ function SearchPlateInput({ value, onChange, language, onSearch }: SearchPlateIn
               className="w-20 text-4xl font-bold text-center outline-none bg-transparent uppercase"
               placeholder={isLegalFormat ? 'ABC' : 'BC'}
               maxLength={3}
+              aria-label="Буквы номера"
             />
           </div>
 
@@ -299,6 +302,7 @@ function PlateNumberInput({ value, onChange, language }: PlateNumberInputProps) 
               className="w-24 text-4xl font-bold text-center outline-none bg-transparent tracking-wider"
               placeholder="123"
               maxLength={3}
+              aria-label="Цифры номера"
             />
             <input
               ref={letters2Ref}
@@ -309,6 +313,7 @@ function PlateNumberInput({ value, onChange, language }: PlateNumberInputProps) 
               className="w-24 text-4xl font-bold text-center outline-none bg-transparent uppercase"
               placeholder="EAA"
               maxLength={3}
+              aria-label="Буквы номера"
             />
           </div>
 

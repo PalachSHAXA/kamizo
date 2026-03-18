@@ -7,6 +7,7 @@ export interface Env {
   JWT_SECRET: string;
   BASE_DOMAIN: string;
   VAPID_EMAIL: string;
+  VAPID_PRIVATE_KEY: string;
   SENTRY_DSN?: string;
   ASSETS: Fetcher;
   RATE_LIMITER: KVNamespace;

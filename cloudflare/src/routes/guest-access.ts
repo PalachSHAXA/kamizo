@@ -258,7 +258,7 @@ export function registerGuestAccessRoutes(env: Env) {
         }
 
         // Send push notification
-        await sendPushNotification(env, guestCode.user_id, {
+        sendPushNotification(env, guestCode.user_id, {
           title: notificationTitle,
           body: notificationBody,
           type: 'guest_pass_revoked',
@@ -269,7 +269,7 @@ export function registerGuestAccessRoutes(env: Env) {
             url: '/guest-access'
           },
           requireInteraction: true
-        }).catch(err => createRequestLogger(request).error('Failed to send push notification', err));
+        }).catch(() => {});
       }
     } else {
       // Residents can only revoke their own codes

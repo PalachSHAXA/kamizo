@@ -145,6 +145,7 @@ export function RequestsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="glass-input pl-10"
+            aria-label={language === 'ru' ? 'Поиск заявок' : 'Arizalarni qidirish'}
           />
         </div>
         <select
@@ -590,7 +591,7 @@ function CreateRequestModal({
       <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</h2>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg">
+          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>

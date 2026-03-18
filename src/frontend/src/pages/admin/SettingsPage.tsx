@@ -823,6 +823,7 @@ export function SettingsPage() {
                 onClick={handleRefreshPushStatus}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 title={language === 'ru' ? 'Обновить статус' : 'Statusni yangilash'}
+                aria-label={language === 'ru' ? 'Обновить статус' : 'Statusni yangilash'}
               >
                 <RefreshCw className="w-4 h-4 text-gray-500" />
               </button>
