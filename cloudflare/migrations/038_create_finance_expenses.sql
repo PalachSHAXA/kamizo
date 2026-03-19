@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS finance_expenses (
   tenant_id TEXT NOT NULL DEFAULT '',
   building_id TEXT,
   estimate_id TEXT,
+  estimate_item_id TEXT,
   estimate_item_name TEXT,
   amount REAL NOT NULL,
   expense_date TEXT NOT NULL,

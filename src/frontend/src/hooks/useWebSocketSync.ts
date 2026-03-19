@@ -169,7 +169,7 @@ export function useWebSocketSync() {
         openedAtRef.current = Date.now();
         // Don't reset attempts here — wait until onclose checks stability
         startHeartbeat();
-        console.log('[WS] Connected');
+        // connected
       };
 
       ws.onmessage = async (event) => {
@@ -260,13 +260,13 @@ export function useWebSocketSync() {
         const connectionDuration = Date.now() - openedAtRef.current;
         if (openedAtRef.current > 0 && connectionDuration >= STABLE_CONNECTION_MS) {
           reconnectAttempts.current = 0;
-          console.log(`[WS] Connection was stable (${Math.round(connectionDuration / 1000)}s), resetting attempts`);
+          // Connection was stable, reset attempts
         }
 
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s, ...
           const delay = Math.min(BASE_DELAY * Math.pow(2, reconnectAttempts.current), MAX_DELAY);
-          console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+          // Reconnecting with backoff
 
           clearReconnectTimeout();
           reconnectTimeoutRef.current = setTimeout(() => {

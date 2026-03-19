@@ -1875,6 +1875,7 @@ CREATE INDEX IF NOT EXISTS idx_finance_materials_tenant ON finance_materials(ten
 CREATE INDEX IF NOT EXISTS idx_finance_materials_building ON finance_materials(building_id);
 
 -- Списание материалов
+-- Logical FK: material_id -> finance_materials.id (enforced at application level, SQLite cannot add FK to existing tables)
 CREATE TABLE IF NOT EXISTS finance_material_usage (
   id TEXT PRIMARY KEY,
   material_id TEXT NOT NULL,
@@ -1895,6 +1896,7 @@ CREATE INDEX IF NOT EXISTS idx_finance_material_usage_material ON finance_materi
 CREATE TABLE IF NOT EXISTS finance_claims (
   id TEXT PRIMARY KEY,
   apartment_id TEXT NOT NULL,
+  resident_id TEXT,
   claim_type TEXT DEFAULT 'reconciliation' CHECK (claim_type IN ('reconciliation','pretension')),
   total_debt REAL DEFAULT 0,
   period_from TEXT,
@@ -1958,6 +1960,7 @@ CREATE TABLE IF NOT EXISTS finance_expenses (
   tenant_id TEXT NOT NULL DEFAULT '',
   building_id TEXT,
   estimate_id TEXT,
+  estimate_item_id TEXT,
   estimate_item_name TEXT,
   amount REAL NOT NULL,
   expense_date TEXT NOT NULL,
@@ -1971,3 +1974,4 @@ CREATE TABLE IF NOT EXISTS finance_expenses (
 CREATE INDEX IF NOT EXISTS idx_fe_tenant ON finance_expenses(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_fe_building ON finance_expenses(building_id);
 CREATE INDEX IF NOT EXISTS idx_fe_estimate ON finance_expenses(estimate_id);
+-- Logical FK: estimate_item_id -> finance_estimate_items.id (enforced at application level)

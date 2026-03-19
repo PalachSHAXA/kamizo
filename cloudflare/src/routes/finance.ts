@@ -758,7 +758,7 @@ route('POST', '/api/finance/claims/reconciliation', async (request, env) => {
 
   const tenantId = getTenantId(request);
   const body = await request.json() as Record<string, unknown>;
-  const { apartment_id, period_from, period_to } = body as { apartment_id: string; period_from: string; period_to: string };
+  const { apartment_id, period_from, period_to, resident_id } = body as { apartment_id: string; period_from: string; period_to: string; resident_id?: string };
 
   if (!apartment_id || !period_from || !period_to) return error('apartment_id, period_from, period_to are required');
 
@@ -790,15 +790,18 @@ route('POST', '/api/finance/claims/reconciliation', async (request, env) => {
   const totalCharged = charges.reduce((s, c) => s + ((c as Record<string, unknown>).amount as number || 0), 0);
   const totalPaid = payments.reduce((s, p) => s + ((p as Record<string, unknown>).amount as number || 0), 0);
 
+  // Resolve resident_id: use provided or fall back to primary_owner_id
+  const resolvedResidentId = resident_id || (apartment as any)?.primary_owner_id || null;
+
   // Save claim record
   const claimId = generateId();
   await env.DB.prepare(
-    `INSERT INTO finance_claims (id, apartment_id, claim_type, total_debt, period_from, period_to, generated_by, tenant_id)
-     VALUES (?, ?, 'reconciliation', ?, ?, ?, ?, ?)`
-  ).bind(claimId, apartment_id, totalCharged - totalPaid, period_from, period_to, user.id, tenantId || '').run();
+    `INSERT INTO finance_claims (id, apartment_id, resident_id, claim_type, total_debt, period_from, period_to, generated_by, tenant_id)
+     VALUES (?, ?, ?, 'reconciliation', ?, ?, ?, ?, ?)`
+  ).bind(claimId, apartment_id, resolvedResidentId, totalCharged - totalPaid, period_from, period_to, user.id, tenantId || '').run();
 
   return json({
-    claim: { id: claimId, type: 'reconciliation' },
+    claim: { id: claimId, type: 'reconciliation', resident_id: resolvedResidentId },
     apartment, charges, payments,
     totals: { charged: totalCharged, paid: totalPaid, balance: totalPaid - totalCharged }
   });
@@ -1015,7 +1018,7 @@ route('GET', '/api/finance/expenses', async (request, env) => {
   const buildingId = url.searchParams.get('building_id') || '';
   const period = url.searchParams.get('period') || ''; // YYYY-MM
 
-  let sql = `SELECT e.*, u.name as created_by_name FROM finance_expenses e LEFT JOIN users u ON e.created_by = u.id WHERE 1=1`;
+  let sql = `SELECT e.*, u.name as created_by_name, ei.name as item_name FROM finance_expenses e LEFT JOIN users u ON e.created_by = u.id LEFT JOIN finance_estimate_items ei ON e.estimate_item_id = ei.id WHERE 1=1`;
   const binds: any[] = [];
 
   if (tenantId) { sql += ` AND e.tenant_id = ?`; binds.push(tenantId); }
@@ -1036,16 +1039,23 @@ route('POST', '/api/finance/expenses', async (request, env) => {
   const tenantId = getTenantId(request);
 
   const body = await request.json() as any;
-  const { building_id, estimate_id, estimate_item_name, amount, expense_date, description, document_url, request_id } = body;
+  const { building_id, estimate_id, estimate_item_id, estimate_item_name, amount, expense_date, description, document_url, request_id } = body;
 
   if (!amount || !expense_date) return error('Amount and date required');
+
+  // Resolve item name from ID if provided
+  let resolvedItemName = estimate_item_name || null;
+  if (estimate_item_id && !resolvedItemName) {
+    const item = await env.DB.prepare('SELECT name FROM finance_estimate_items WHERE id = ?').bind(estimate_item_id).first<{ name: string }>();
+    if (item) resolvedItemName = item.name;
+  }
 
   const id = generateId();
   await env.DB.prepare(`
     INSERT INTO finance_expenses (id, tenant_id, building_id, estimate_id, estimate_item_name, amount, expense_date, description, document_url, request_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    id, tenantId || '', building_id || null, estimate_id || null, estimate_item_name || null,
+    id, tenantId || '', building_id || null, estimate_id || null, resolvedItemName,
     amount, expense_date, description || null, document_url || null, request_id || null, user.id
   ).run();
 
