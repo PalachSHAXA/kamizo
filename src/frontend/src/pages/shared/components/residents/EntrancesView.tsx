@@ -61,7 +61,7 @@ export function EntrancesView({
                 onClick={onNavigateToBranches}
                 className="text-gray-500 hover:text-primary-600"
               >
-                {language === 'ru' ? 'Филиалы' : 'Filiallar'}
+                {language === 'ru' ? 'Комплексы' : 'Komplekslar'}
               </button>
               <ChevronRight className="w-4 h-4 text-gray-300" />
               <button

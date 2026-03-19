@@ -94,8 +94,15 @@ export function ResidentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h1>
-          <p className="text-gray-500 mt-1">{language === 'ru' ? 'Управление аккаунтами жителей' : 'Yashovchilar akkauntlarini boshqarish'}</p>
+          <p className="text-gray-500 mt-1">{language === 'ru' ? 'Реестр собственников и жителей' : 'Mulkdorlar va aholi reestri'}</p>
         </div>
+        <button
+          onClick={() => setShowAddManualModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors font-medium text-sm shadow-sm"
+        >
+          <span className="text-lg leading-none">+</span>
+          {language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}
+        </button>
       </div>
 
       {viewLevel === 'branches' && (

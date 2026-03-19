@@ -43,6 +43,33 @@ export const usersApi = {
     });
   },
 
+  // Update resident data with documented reason
+  changeWithReason: async (userId: string, data: {
+    changes: Array<{ field: string; value: string }>;
+    reason: string;
+    document_number?: string;
+    document_date?: string;
+    comment?: string;
+  }) => {
+    return apiRequest<{ success: boolean; user: any }>(`/api/users/${userId}/change-with-reason`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get resident change history
+  getChangeHistory: async (userId: string) => {
+    return apiRequest<{ changes: any[] }>(`/api/users/${userId}/changes`);
+  },
+
+  // Deactivate resident (soft delete)
+  deactivate: async (userId: string, reason: string, comment?: string) => {
+    return apiRequest<{ success: boolean }>(`/api/users/${userId}/deactivate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, comment }),
+    });
+  },
+
   getAll: async (filters?: { role?: string; building_id?: string; limit?: number }) => {
     const params = new URLSearchParams();
     if (filters?.role) params.append('role', filters.role);

@@ -44,7 +44,7 @@ export function BuildingsView({
           <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Дома не найдены' : 'Uylar topilmadi'}</h3>
           <p className="text-gray-400 mt-1">
-            {language === 'ru' ? 'Добавьте дома в этот филиал в разделе "Дома/Объекты"' : 'Bu filialga "Uylar/Obyektlar" bo\'limida uylar qo\'shing'}
+            {language === 'ru' ? 'Добавьте дома в этот комплекс в разделе "Комплексы"' : 'Bu kompleksga "Komplekslar" bo\'limida uylar qo\'shing'}
           </p>
         </div>
       ) : (

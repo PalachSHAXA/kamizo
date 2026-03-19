@@ -25,21 +25,21 @@ export function BranchesView({
       {isLoadingBranches ? (
         <div className="glass-card p-8 text-center">
           <Loader2 className="w-8 h-8 mx-auto mb-3 text-primary-500 animate-spin" />
-          <p className="text-gray-500">{language === 'ru' ? 'Загрузка филиалов...' : 'Filiallar yuklanmoqda...'}</p>
+          <p className="text-gray-500">{language === 'ru' ? 'Загрузка комплексов...' : 'Komplekslar yuklanmoqda...'}</p>
         </div>
       ) : branches.length === 0 ? (
         <div className="text-center">
           <GitBranch className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-          <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Филиалы не найдены' : 'Filiallar topilmadi'}</h3>
+          <h3 className="text-lg font-medium text-gray-600">{language === 'ru' ? 'Комплексы не найдены' : 'Komplekslar topilmadi'}</h3>
           <p className="text-gray-400 mt-1">
-            {language === 'ru' ? 'Добавьте филиалы в разделе "Дома/Объекты"' : '"Uylar/Obyektlar" bo\'limida filiallar qo\'shing'}
+            {language === 'ru' ? 'Добавьте комплексы в разделе "Комплексы"' : '"Komplekslar" bo\'limida komplekslar qo\'shing'}
           </p>
         </div>
       ) : (
         <>
           <div className="text-center">
-            <h1 className="text-[28px] font-black tracking-tight">{language === 'ru' ? 'Выберите филиал' : 'Filialni tanlang'}</h1>
-            <p className="text-[14px] text-gray-400 mt-2">{language === 'ru' ? 'Нажмите на филиал чтобы перейти к жителям' : "Yashovchilarga o'tish uchun filialni bosing"}</p>
+            <h1 className="text-[28px] font-black tracking-tight">{language === 'ru' ? 'Выберите комплекс' : 'Kompleksni tanlang'}</h1>
+            <p className="text-[14px] text-gray-400 mt-2">{language === 'ru' ? 'Нажмите на комплекс чтобы перейти к жителям' : "Yashovchilarga o'tish uchun kompleksni bosing"}</p>
           </div>
 
           {/* Search */}
@@ -48,7 +48,7 @@ export function BranchesView({
               <Search className="w-4 h-4 text-gray-300" />
               <input
                 type="text"
-                placeholder={language === 'ru' ? 'Поиск по филиалам...' : "Filiallar bo'yicha qidirish..."}
+                placeholder={language === 'ru' ? 'Поиск по комплексам...' : "Komplekslar bo'yicha qidirish..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent outline-none text-[13px]"
