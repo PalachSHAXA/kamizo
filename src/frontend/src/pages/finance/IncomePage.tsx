@@ -28,8 +28,8 @@ const SOURCE_LABELS: Record<SourceType, { ru: string; uz: string }> = {
 };
 
 const SOURCE_COLORS: Record<SourceType, string> = {
-  rental: 'bg-blue-100 text-blue-700',
-  parking: 'bg-purple-100 text-purple-700',
+  rental: 'bg-primary-100 text-primary-700',
+  parking: 'bg-primary-100 text-primary-700',
   advertising: 'bg-amber-100 text-amber-700',
   basement: 'bg-emerald-100 text-emerald-700',
   custom: 'bg-gray-100 text-gray-700',
@@ -444,7 +444,7 @@ export default function IncomePage() {
                   <span className="text-sm text-gray-800 font-medium">{cat.name}</span>
                   <div className="flex items-center gap-2">
                     {(cat.is_default === true || cat.is_default === 1) && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-700">
                         {t('По умолчанию', 'Standart')}
                       </span>
                     )}

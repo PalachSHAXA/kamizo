@@ -250,7 +250,7 @@ export default function EstimatesPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors font-medium text-sm shadow-sm"
         >
           <Plus className="w-4 h-4" />
           {t('Создать смету', 'Smeta yaratish')}
@@ -266,7 +266,7 @@ export default function EstimatesPage() {
         <select
           value={filterBuilding}
           onChange={(e) => setFilterBuilding(e.target.value)}
-          className="flex-1 min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          className="flex-1 min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
         >
           <option value="">{t('Все здания', 'Barcha binolar')}</option>
           {buildings.map((b) => (
@@ -278,7 +278,7 @@ export default function EstimatesPage() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="sm:w-48 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          className="sm:w-48 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
         >
           <option value="">{t('Все статусы', 'Barcha statuslar')}</option>
           <option value="draft">{t('Черновик', 'Qoralama')}</option>
@@ -325,7 +325,7 @@ export default function EstimatesPage() {
                   >
                     {statusLabel(status)}
                   </span>
-                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors" />
                 </div>
                 {(est.title as string) && (
                   <h3 className="font-semibold text-gray-900 mb-1 truncate">
@@ -369,7 +369,7 @@ export default function EstimatesPage() {
               <select
                 value={formBuilding}
                 onChange={(e) => setFormBuilding(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               >
                 <option value="">{t('Выберите здание', 'Binoni tanlang')}</option>
                 {buildings.map((b) => (
@@ -387,7 +387,7 @@ export default function EstimatesPage() {
                 type="month"
                 value={formPeriod}
                 onChange={(e) => setFormPeriod(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               />
             </div>
           </div>
@@ -402,7 +402,7 @@ export default function EstimatesPage() {
               value={formTitle}
               onChange={(e) => setFormTitle(e.target.value)}
               placeholder={t('Например: Смета на март 2026', 'Masalan: 2026 mart smetasi')}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
             />
           </div>
 
@@ -419,12 +419,12 @@ export default function EstimatesPage() {
                     value={item.name}
                     onChange={(e) => updateItem(idx, 'name', e.target.value)}
                     placeholder={t('Название', 'Nomi')}
-                    className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   />
                   <select
                     value={item.category}
                     onChange={(e) => updateItem(idx, 'category', e.target.value)}
-                    className="w-36 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="w-36 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   >
                     {CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
@@ -437,7 +437,7 @@ export default function EstimatesPage() {
                     value={item.amount || ''}
                     onChange={(e) => updateItem(idx, 'amount', Number(e.target.value))}
                     placeholder={t('Сумма', 'Summa')}
-                    className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   />
                   <button
                     onClick={() => removeItem(idx)}
@@ -451,7 +451,7 @@ export default function EstimatesPage() {
             </div>
             <button
               onClick={addItem}
-              className="mt-2 inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="mt-2 inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium"
             >
               <Plus className="w-4 h-4" />
               {t('Добавить статью', 'Band qo\'shish')}
@@ -468,7 +468,7 @@ export default function EstimatesPage() {
                 type="number"
                 value={formProfitPct}
                 onChange={(e) => setFormProfitPct(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               />
             </div>
             <div>
@@ -480,7 +480,7 @@ export default function EstimatesPage() {
                 step="0.1"
                 value={formNcCoeff}
                 onChange={(e) => setFormNcCoeff(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               />
             </div>
           </div>
@@ -492,7 +492,7 @@ export default function EstimatesPage() {
                 type="checkbox"
                 checked={formShowProfit}
                 onChange={(e) => setFormShowProfit(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               <span className="text-sm text-gray-700">
                 {t('Показывать прибыль жильцам', 'Foydani aholiga ko\'rsatish')}
@@ -503,7 +503,7 @@ export default function EstimatesPage() {
                 type="checkbox"
                 checked={formShowDebtor}
                 onChange={(e) => setFormShowDebtor(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               <span className="text-sm text-gray-700">
                 {t('Показывать статус должника жильцам', 'Qarzdorlik statusini aholiga ko\'rsatish')}
@@ -522,7 +522,7 @@ export default function EstimatesPage() {
             <button
               onClick={handleCreate}
               disabled={saving || !formBuilding || !formPeriod || formItems.length === 0}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
             >
               {saving ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -566,11 +566,11 @@ export default function EstimatesPage() {
 
             {/* Rates */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <p className="text-xs text-blue-600 font-medium mb-1">
+              <div className="bg-primary-50 rounded-lg p-4">
+                <p className="text-xs text-primary-600 font-medium mb-1">
                   {t('Ставка жилых (за м\u00B2)', 'Turar joy stavkasi (m\u00B2 uchun)')}
                 </p>
-                <p className="text-xl font-bold text-blue-900">
+                <p className="text-xl font-bold text-primary-900">
                   {formatAmount(currentEstimate.commercial_rate_per_sqm)} {t('сум', 'so\'m')}
                 </p>
               </div>
@@ -650,7 +650,7 @@ export default function EstimatesPage() {
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 disabled:opacity-50 transition-colors font-medium text-sm"
                 >
                   {generating ? (
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

@@ -112,7 +112,7 @@ export default function SettingsPage() {
         );
       case 'payments_only':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
             <CreditCard className="w-3 h-3" />
             {t('Только платежи', 'Faqat to\'lovlar')}
           </span>
@@ -158,7 +158,7 @@ export default function SettingsPage() {
         </div>
         <button
           onClick={openModal}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
         >
           <Plus className="w-4 h-4" />
           {t('Дать доступ', 'Ruxsat berish')}
@@ -212,7 +212,7 @@ export default function SettingsPage() {
                   <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">{item.user_name}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
                         {translateRole(item.user_role)}
                       </span>
                     </td>
@@ -250,7 +250,7 @@ export default function SettingsPage() {
               <select
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
               >
                 <option value="">{t('Выберите сотрудника...', 'Xodimni tanlang...')}</option>
                 {users.map((u) => (
@@ -280,8 +280,8 @@ export default function SettingsPage() {
                 {
                   value: 'payments_only' as const,
                   icon: CreditCard,
-                  color: 'text-blue-600',
-                  bg: 'border-blue-200 bg-blue-50/50',
+                  color: 'text-primary-600',
+                  bg: 'border-primary-200 bg-primary-50/50',
                   label: t('Только платежи', 'Faqat to\'lovlar'),
                   desc: t('Просмотр и создание платежей', 'Ko\'rish va to\'lovlar yaratish'),
                 },
@@ -326,7 +326,7 @@ export default function SettingsPage() {
           <button
             onClick={handleGrant}
             disabled={!selectedUserId || submitting}
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2.5 bg-primary-500 text-white rounded-lg text-sm font-medium hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {submitting
               ? t('Сохранение...', 'Saqlanmoqda...')

@@ -139,7 +139,7 @@ export default function MaterialsPage() {
         </h1>
         <button
           onClick={() => setAddOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
         >
           <Plus className="w-4 h-4" />
           {t('Добавить материал', 'Material qo\'shish')}
@@ -156,7 +156,7 @@ export default function MaterialsPage() {
             <select
               value={selectedBuilding}
               onChange={(e) => setSelectedBuilding(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">{t('Все здания', 'Barcha binolar')}</option>
               {buildings.map((b: any) => (
@@ -239,7 +239,7 @@ export default function MaterialsPage() {
               type="text"
               value={addForm.name}
               onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder={t('Введите название', 'Nomini kiriting')}
             />
           </div>
@@ -249,7 +249,7 @@ export default function MaterialsPage() {
               <select
                 value={addForm.unit}
                 onChange={(e) => setAddForm((p) => ({ ...p, unit: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
                 {UNITS.map((u) => (
                   <option key={u} value={u}>{u}</option>
@@ -263,7 +263,7 @@ export default function MaterialsPage() {
                 min="0"
                 value={addForm.quantity}
                 onChange={(e) => setAddForm((p) => ({ ...p, quantity: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -275,7 +275,7 @@ export default function MaterialsPage() {
                 min="0"
                 value={addForm.price_per_unit}
                 onChange={(e) => setAddForm((p) => ({ ...p, price_per_unit: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -285,7 +285,7 @@ export default function MaterialsPage() {
                 min="0"
                 value={addForm.min_quantity}
                 onChange={(e) => setAddForm((p) => ({ ...p, min_quantity: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -294,7 +294,7 @@ export default function MaterialsPage() {
             <select
               value={addForm.building_id}
               onChange={(e) => setAddForm((p) => ({ ...p, building_id: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">{t('Выберите здание', 'Binoni tanlang')}</option>
               {buildings.map((b: any) => (
@@ -305,7 +305,7 @@ export default function MaterialsPage() {
           <button
             onClick={handleAddSubmit}
             disabled={submitting || !addForm.name || !addForm.building_id}
-            className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? t('Сохранение...', 'Saqlanmoqda...') : t('Сохранить', 'Saqlash')}
           </button>
@@ -331,7 +331,7 @@ export default function MaterialsPage() {
                 setWriteOffForm((p) => ({ ...p, quantity: e.target.value }));
                 setWriteOffError('');
               }}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
           <div>
@@ -340,7 +340,7 @@ export default function MaterialsPage() {
               value={writeOffForm.description}
               onChange={(e) => setWriteOffForm((p) => ({ ...p, description: e.target.value }))}
               rows={3}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
               placeholder={t('Причина списания', 'Hisobdan chiqarish sababi')}
             />
           </div>

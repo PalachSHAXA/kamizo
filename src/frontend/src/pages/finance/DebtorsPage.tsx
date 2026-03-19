@@ -123,7 +123,7 @@ export default function DebtorsPage() {
             <select
               value={filterBuilding}
               onChange={(e) => setFilterBuilding(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">{t('Все здания', 'Barcha binolar')}</option>
               {buildings.map((b) => (
@@ -143,7 +143,7 @@ export default function DebtorsPage() {
               value={filterMinDebt}
               onChange={(e) => setFilterMinDebt(e.target.value)}
               placeholder="0"
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
@@ -158,14 +158,14 @@ export default function DebtorsPage() {
               value={filterMinMonths}
               onChange={(e) => setFilterMinMonths(e.target.value)}
               placeholder="0"
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           {/* Apply */}
           <button
             onClick={handleApplyFilters}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
           >
             <Filter className="h-4 w-4" />
             {t('Применить', 'Qo\'llash')}
@@ -262,7 +262,7 @@ export default function DebtorsPage() {
                         <button
                           onClick={() => handleReconciliation(d)}
                           title={t('Акт сверки', 'Solishtirma dalolatnoma')}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 transition-colors"
                         >
                           <FileText className="h-3.5 w-3.5" />
                           <span className="hidden lg:inline">{t('Сверка', 'Solisht.')}</span>

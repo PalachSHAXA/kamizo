@@ -176,7 +176,7 @@ export default function ChargesPage() {
     (tp: unknown) => {
       if (tp === 'commercial')
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-700">
             {t('Коммерч.', 'Tijorat')}
           </span>
         );
@@ -218,8 +218,8 @@ export default function ChargesPage() {
       label: t('Начислено', 'Hisoblangan'),
       value: fmt(summary?.total_charged),
       icon: <DollarSign className="w-5 h-5" />,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
+      color: 'text-primary-600',
+      bg: 'bg-primary-50',
     },
     {
       label: t('Оплачено', 'To\'langan'),
@@ -239,8 +239,8 @@ export default function ChargesPage() {
       label: t('Переплата', 'Ortiqcha to\'lov'),
       value: fmt(summary?.total_overpaid),
       icon: <ArrowUpCircle className="w-5 h-5" />,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: 'text-primary-600',
+      bg: 'bg-primary-50',
     },
   ];
 
@@ -258,7 +258,7 @@ export default function ChargesPage() {
             <select
               value={localBuilding}
               onChange={(e) => setLocalBuilding(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
             >
               <option value="">{t('Все здания', 'Barcha binolar')}</option>
               {buildings.map((b) => (
@@ -279,7 +279,7 @@ export default function ChargesPage() {
               type="month"
               value={localPeriod}
               onChange={(e) => setLocalPeriod(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
             />
           </div>
 
@@ -292,7 +292,7 @@ export default function ChargesPage() {
             <select
               value={localStatus}
               onChange={(e) => setLocalStatus(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
             >
               <option value="">{t('Все', 'Barchasi')}</option>
               <option value="pending">{t('Ожидает', 'Kutilmoqda')}</option>
@@ -305,7 +305,7 @@ export default function ChargesPage() {
           {/* Apply */}
           <button
             onClick={applyFilters}
-            className="h-10 px-5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+            className="h-10 px-5 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors flex items-center gap-2"
           >
             <Filter className="w-4 h-4" />
             {t('Применить', 'Qo\'llash')}
@@ -391,7 +391,7 @@ export default function ChargesPage() {
                     <tr
                       key={ch.id as string}
                       onClick={() => setSelected(ch)}
-                      className="border-b border-gray-50 hover:bg-blue-50/40 cursor-pointer transition-colors"
+                      className="border-b border-gray-50 hover:bg-primary-50/40 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3 font-medium text-gray-800">
                         {ch.apartment_number as string}
@@ -429,7 +429,7 @@ export default function ChargesPage() {
               <button
                 disabled={!(pag?.hasPrev)}
                 onClick={() => goPage(currentPage - 1)}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 {t('Назад', 'Orqaga')}
@@ -440,7 +440,7 @@ export default function ChargesPage() {
               <button
                 disabled={!(pag?.hasNext)}
                 onClick={() => goPage(currentPage + 1)}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {t('Вперёд', 'Oldinga')}
                 <ChevronRight className="w-4 h-4" />
@@ -530,7 +530,7 @@ export default function ChargesPage() {
             {/* payment form */}
             <div className="border-t border-gray-100 pt-4">
               <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-blue-600" />
+                <CreditCard className="w-4 h-4 text-primary-600" />
                 {t('Принять оплату', 'To\'lovni qabul qilish')}
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -543,7 +543,7 @@ export default function ChargesPage() {
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value)}
                     placeholder="0"
-                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
                   />
                 </div>
 
@@ -553,7 +553,7 @@ export default function ChargesPage() {
                   <select
                     value={payType}
                     onChange={(e) => setPayType(e.target.value)}
-                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
                   >
                     <option value="cash">{t('Наличные', 'Naqd')}</option>
                     <option value="card">{t('Карта', 'Karta')}</option>
@@ -570,7 +570,7 @@ export default function ChargesPage() {
                     onChange={(e) => setPayDesc(e.target.value)}
                     rows={2}
                     placeholder={t('Необязательно', 'Ixtiyoriy')}
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
                   />
                 </div>
               </div>
