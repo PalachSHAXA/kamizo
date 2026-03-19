@@ -6,7 +6,7 @@ import {
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
   X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock, CreditCard,
-  Wallet, FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, ShieldCheck
+  Wallet, FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -319,6 +319,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/finance/charges', icon: ClipboardList, label: language === 'ru' ? 'Начисления' : 'Hisob-kitob' },
         { path: '/finance/debtors', icon: AlertTriangle, label: language === 'ru' ? 'Должники' : 'Qarzdorlar' },
         { path: '/finance/income', icon: TrendingUp, label: language === 'ru' ? 'Доходы УК' : 'UK daromadlari' },
+        { path: '/finance/expenses', icon: TrendingDown, label: language === 'ru' ? 'Расходы' : 'Xarajatlar' },
         { path: '/finance/materials', icon: Package, label: language === 'ru' ? 'Материалы' : 'Materiallar' },
         { path: '/finance/settings', icon: ShieldCheck, label: language === 'ru' ? 'Доступ' : 'Kirish' },
         // Управление
@@ -351,6 +352,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/finance/charges', icon: ClipboardList, label: language === 'ru' ? 'Начисления' : 'Hisob-kitob' },
         { path: '/finance/debtors', icon: AlertTriangle, label: language === 'ru' ? 'Должники' : 'Qarzdorlar' },
         { path: '/finance/income', icon: TrendingUp, label: language === 'ru' ? 'Доходы УК' : 'UK daromadlari' },
+        { path: '/finance/expenses', icon: TrendingDown, label: language === 'ru' ? 'Расходы' : 'Xarajatlar' },
         { path: '/finance/materials', icon: Package, label: language === 'ru' ? 'Материалы' : 'Materiallar' },
         { path: '/finance/settings', icon: ShieldCheck, label: language === 'ru' ? 'Доступ' : 'Kirish' },
         // Управление
@@ -404,6 +406,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       { path: '/finance/estimates', icon: FileSpreadsheet, label: language === 'ru' ? 'Смета' : 'Smeta', section: language === 'ru' ? 'Финансы' : 'Moliya' },
       { path: '/finance/charges', icon: ClipboardList, label: language === 'ru' ? 'Начисления' : 'Hisob-kitob' },
       { path: '/finance/debtors', icon: AlertTriangle, label: language === 'ru' ? 'Должники' : 'Qarzdorlar' },
+      { path: '/finance/expenses', icon: TrendingDown, label: language === 'ru' ? 'Расходы' : 'Xarajatlar' },
       { path: '/finance/materials', icon: Package, label: language === 'ru' ? 'Материалы' : 'Materiallar' },
       // Управление
       { path: '/payments', icon: CreditCard, label: language === 'ru' ? 'Платежи' : 'To\'lovlar', section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
@@ -427,7 +430,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     'vehicles': ['/vehicles', '/vehicle-search'],
     'useful-contacts': ['/useful-contacts'],
     'notepad': ['/notepad'],
-    'communal': ['/payments', '/finance/estimates', '/finance/charges', '/finance/debtors', '/finance/income', '/finance/materials', '/finance/settings'],
+    'communal': ['/payments', '/finance/estimates', '/finance/charges', '/finance/debtors', '/finance/income', '/finance/expenses', '/finance/materials', '/finance/settings'],
   };
 
   // Always-allowed paths that are never locked

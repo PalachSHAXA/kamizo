@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Package, Plus, MinusCircle, Filter, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Package, Plus, MinusCircle, Filter, AlertTriangle, X, Paperclip } from 'lucide-react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -7,6 +7,14 @@ import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 
 const UNITS = ['шт', 'м', 'кг', 'л', 'упак'] as const;
+
+interface BatchItem {
+  name: string;
+  unit: string;
+  quantity: number;
+  price_per_unit: number;
+  min_quantity: number;
+}
 
 export default function MaterialsPage() {
   const language = useLanguageStore((s) => s.language);
@@ -29,14 +37,17 @@ export default function MaterialsPage() {
   const [writeOffItem, setWriteOffItem] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Add form state
+  // Batch add state
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
+  const [batchBuildingId, setBatchBuildingId] = useState('');
+  const [batchFile, setBatchFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [addForm, setAddForm] = useState({
     name: '',
     unit: 'шт',
     quantity: '',
     price_per_unit: '',
     min_quantity: '',
-    building_id: '',
   });
 
   // Write-off form state
@@ -64,25 +75,46 @@ export default function MaterialsPage() {
     fetchMaterials(selectedBuilding || undefined);
   }, [selectedBuilding, setFilters, fetchMaterials]);
 
-  const handleAddSubmit = useCallback(async () => {
-    if (!addForm.name || !addForm.unit || !addForm.building_id) return;
+  const handleAddToList = useCallback(() => {
+    if (!addForm.name) return;
+    setBatchItems(prev => [...prev, {
+      name: addForm.name,
+      unit: addForm.unit,
+      quantity: Number(addForm.quantity) || 0,
+      price_per_unit: Number(addForm.price_per_unit) || 0,
+      min_quantity: Number(addForm.min_quantity) || 0,
+    }]);
+    setAddForm({ name: '', unit: 'шт', quantity: '', price_per_unit: '', min_quantity: '' });
+  }, [addForm]);
+
+  const removeBatchItem = useCallback((idx: number) => {
+    setBatchItems(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const handleBatchSubmit = useCallback(async () => {
+    if (!batchBuildingId || batchItems.length === 0) return;
     setSubmitting(true);
     try {
-      await createMaterial({
-        name: addForm.name,
-        unit: addForm.unit,
-        quantity: Number(addForm.quantity) || 0,
-        price_per_unit: Number(addForm.price_per_unit) || 0,
-        min_quantity: Number(addForm.min_quantity) || 0,
-        building_id: addForm.building_id,
-      });
+      for (const item of batchItems) {
+        await createMaterial({
+          name: item.name,
+          unit: item.unit,
+          quantity: item.quantity,
+          price_per_unit: item.price_per_unit,
+          min_quantity: item.min_quantity,
+          building_id: batchBuildingId,
+        });
+      }
       setAddOpen(false);
-      setAddForm({ name: '', unit: 'шт', quantity: '', price_per_unit: '', min_quantity: '', building_id: '' });
+      setBatchItems([]);
+      setBatchBuildingId('');
+      setBatchFile(null);
+      setAddForm({ name: '', unit: 'шт', quantity: '', price_per_unit: '', min_quantity: '' });
       fetchMaterials(selectedBuilding || undefined);
     } finally {
       setSubmitting(false);
     }
-  }, [addForm, createMaterial, fetchMaterials, selectedBuilding]);
+  }, [batchItems, batchBuildingId, createMaterial, fetchMaterials, selectedBuilding]);
 
   const openWriteOff = useCallback((item: any) => {
     setWriteOffItem(item);
@@ -230,85 +262,173 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      {/* Add Material Modal */}
-      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title={t('Добавить материал', 'Material qo\'shish')} size="md">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Название', 'Nomi')}</label>
-            <input
-              type="text"
-              value={addForm.name}
-              onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder={t('Введите название', 'Nomini kiriting')}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+      {/* Add Material Modal — batch mode */}
+      <Modal isOpen={addOpen} onClose={() => { setAddOpen(false); setBatchItems([]); setBatchBuildingId(''); setBatchFile(null); setAddForm({ name: '', unit: 'шт', quantity: '', price_per_unit: '', min_quantity: '' }); }} title={t('Добавить материалы', 'Materiallar qo\'shish')} size="lg">
+        <div className="flex flex-col" style={{ maxHeight: '75vh' }}>
+          {/* TOP — Added items table */}
+          {batchItems.length > 0 && (
+            <div className="border-b border-gray-100 pb-3 mb-3">
+              <p className="text-xs font-medium text-gray-500 mb-2">{t('Добавленные материалы', 'Qo\'shilgan materiallar')} ({batchItems.length})</p>
+              <div className="max-h-[200px] overflow-y-auto border border-gray-100 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="text-xs text-gray-500">
+                      <th className="text-left px-3 py-1.5 font-medium">№</th>
+                      <th className="text-left px-3 py-1.5 font-medium">{t('Название', 'Nomi')}</th>
+                      <th className="text-center px-2 py-1.5 font-medium">{t('Ед.', 'Bir.')}</th>
+                      <th className="text-right px-2 py-1.5 font-medium">{t('Кол-во', 'Miqd.')}</th>
+                      <th className="text-right px-2 py-1.5 font-medium">{t('Цена', 'Narx')}</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batchItems.map((item, idx) => (
+                      <tr key={idx} className="border-t border-gray-50">
+                        <td className="px-3 py-1.5 text-gray-400 text-xs">{idx + 1}</td>
+                        <td className="px-3 py-1.5 text-gray-900">{item.name}</td>
+                        <td className="px-2 py-1.5 text-center text-gray-600">{item.unit}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-900">{item.quantity}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-900">{item.price_per_unit.toLocaleString()}</td>
+                        <td className="px-1 py-1.5">
+                          <button onClick={() => removeBatchItem(idx)} className="p-1 text-gray-400 hover:text-red-500">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* BOTTOM — Form (fixed size) */}
+          <div className="space-y-3">
+            {/* Building — selected once */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Единица', 'Birlik')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Комплекс', 'Kompleks')} *</label>
               <select
-                value={addForm.unit}
-                onChange={(e) => setAddForm((p) => ({ ...p, unit: e.target.value }))}
+                value={batchBuildingId}
+                onChange={(e) => setBatchBuildingId(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                {UNITS.map((u) => (
-                  <option key={u} value={u}>{u}</option>
+                <option value="">{t('Выберите комплекс', 'Kompleksni tanlang')}</option>
+                {buildings.map((b: any) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Количество', 'Miqdor')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Название материала', 'Material nomi')}</label>
               <input
-                type="number"
-                min="0"
-                value={addForm.quantity}
-                onChange={(e) => setAddForm((p) => ({ ...p, quantity: e.target.value }))}
+                type="text"
+                value={addForm.name}
+                onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder={t('Введите название', 'Nomini kiriting')}
               />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Цена за ед.', 'Narxi')}</label>
-              <input
-                type="number"
-                min="0"
-                value={addForm.price_per_unit}
-                onChange={(e) => setAddForm((p) => ({ ...p, price_per_unit: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
+
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('Единица', 'Birlik')}</label>
+                <select
+                  value={addForm.unit}
+                  onChange={(e) => setAddForm((p) => ({ ...p, unit: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  {UNITS.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('Количество', 'Miqdor')}</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={addForm.quantity}
+                  onChange={(e) => setAddForm((p) => ({ ...p, quantity: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('Цена за ед.', 'Narxi')}</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={addForm.price_per_unit}
+                  onChange={(e) => setAddForm((p) => ({ ...p, price_per_unit: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t('Мин. остаток', 'Min. qoldiq')}</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={addForm.min_quantity}
+                  onChange={(e) => setAddForm((p) => ({ ...p, min_quantity: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('Мин. кол-во', 'Min. miqdor')}</label>
-              <input
-                type="number"
-                min="0"
-                value={addForm.min_quantity}
-                onChange={(e) => setAddForm((p) => ({ ...p, min_quantity: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Комплекс', 'Kompleks')}</label>
-            <select
-              value={addForm.building_id}
-              onChange={(e) => setAddForm((p) => ({ ...p, building_id: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+
+            <button
+              onClick={handleAddToList}
+              disabled={!addForm.name}
+              className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              <option value="">{t('Выберите комплекс', 'Kompleksni tanlang')}</option>
-              {buildings.map((b: any) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+              <Plus className="w-4 h-4" />
+              {t('Добавить в список', 'Ro\'yxatga qo\'shish')}
+            </button>
+
+            {/* File attachment */}
+            <div className="border-t border-gray-100 pt-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                className="hidden"
+                onChange={(e) => setBatchFile(e.target.files?.[0] || null)}
+              />
+              {batchFile ? (
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+                  <Paperclip className="w-4 h-4 text-gray-400" />
+                  <span className="flex-1 truncate">{batchFile.name}</span>
+                  <button onClick={() => setBatchFile(null)} className="p-1 text-gray-400 hover:text-red-500">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <Paperclip className="w-4 h-4" />
+                  {t('Прикрепить документ (счёт-фактура / накладная)', 'Hujjat biriktirish (hisob-faktura / nakladnoy)')}
+                </button>
+              )}
+            </div>
+
+            {/* Submit all */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => { setAddOpen(false); setBatchItems([]); setBatchBuildingId(''); setBatchFile(null); }}
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              >
+                {t('Отмена', 'Bekor qilish')}
+              </button>
+              <button
+                onClick={handleBatchSubmit}
+                disabled={submitting || !batchBuildingId || batchItems.length === 0}
+                className="flex-1 px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? t('Сохранение...', 'Saqlanmoqda...') : t(`Сохранить всё (${batchItems.length})`, `Barchasini saqlash (${batchItems.length})`)}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={handleAddSubmit}
-            disabled={submitting || !addForm.name || !addForm.building_id}
-            className="w-full px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? t('Сохранение...', 'Saqlanmoqda...') : t('Сохранить', 'Saqlash')}
-          </button>
         </div>
       </Modal>
 

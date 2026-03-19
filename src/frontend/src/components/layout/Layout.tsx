@@ -72,6 +72,7 @@ const FinanceDebtorsPage = lazy(() => import('../../pages/finance/DebtorsPage'))
 const FinanceIncomePage = lazy(() => import('../../pages/finance/IncomePage'));
 const FinanceMaterialsPage = lazy(() => import('../../pages/finance/MaterialsPage'));
 const FinanceSettingsPage = lazy(() => import('../../pages/finance/SettingsPage'));
+const FinanceExpensesPage = lazy(() => import('../../pages/finance/ExpensesPage'));
 
 export function Layout() {
   const location = useLocation();
@@ -382,6 +383,11 @@ export function Layout() {
               <Route path="/finance/income" element={
                 <ProtectedRoute allowedRoles={['admin', 'director']}>
                   <FinanceIncomePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/finance/expenses" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant']}>
+                  <FinanceExpensesPage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/materials" element={

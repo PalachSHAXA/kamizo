@@ -1003,4 +1003,109 @@ route('GET', '/api/finance/charges/building-status', async (request, env) => {
   return json({ statuses: results });
 });
 
+// ==================== EXPENSES ====================
+
+// GET /api/finance/expenses — list expenses with filters
+route('GET', '/api/finance/expenses', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+
+  const url = new URL(request.url);
+  const buildingId = url.searchParams.get('building_id') || '';
+  const period = url.searchParams.get('period') || ''; // YYYY-MM
+
+  let sql = `SELECT e.*, u.name as created_by_name FROM finance_expenses e LEFT JOIN users u ON e.created_by = u.id WHERE 1=1`;
+  const binds: any[] = [];
+
+  if (tenantId) { sql += ` AND e.tenant_id = ?`; binds.push(tenantId); }
+  if (buildingId) { sql += ` AND e.building_id = ?`; binds.push(buildingId); }
+  if (period) { sql += ` AND e.expense_date LIKE ?`; binds.push(period + '%'); }
+
+  sql += ` ORDER BY e.expense_date DESC, e.created_at DESC LIMIT 500`;
+
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
+  return json({ expenses: results });
+});
+
+// POST /api/finance/expenses — create expense
+route('POST', '/api/finance/expenses', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  if (!isManagement(user)) return error('Forbidden', 403);
+  const tenantId = getTenantId(request);
+
+  const body = await request.json() as any;
+  const { building_id, estimate_id, estimate_item_name, amount, expense_date, description, document_url, request_id } = body;
+
+  if (!amount || !expense_date) return error('Amount and date required');
+
+  const id = generateId();
+  await env.DB.prepare(`
+    INSERT INTO finance_expenses (id, tenant_id, building_id, estimate_id, estimate_item_name, amount, expense_date, description, document_url, request_id, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, tenantId || '', building_id || null, estimate_id || null, estimate_item_name || null,
+    amount, expense_date, description || null, document_url || null, request_id || null, user.id
+  ).run();
+
+  return json({ expense: { id, ...body, created_by: user.id, created_by_name: user.name } }, 201);
+});
+
+// GET /api/finance/expenses/summary — plan vs fact by estimate items
+route('GET', '/api/finance/expenses/summary', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+
+  const url = new URL(request.url);
+  const buildingId = url.searchParams.get('building_id') || '';
+  const period = url.searchParams.get('period') || '';
+
+  // Get active estimate for this building
+  let estimateSql = `SELECT * FROM finance_estimates WHERE status = 'active'`;
+  const estBinds: any[] = [];
+  if (tenantId) { estimateSql += ` AND tenant_id = ?`; estBinds.push(tenantId); }
+  if (buildingId) { estimateSql += ` AND building_id = ?`; estBinds.push(buildingId); }
+  estimateSql += ` ORDER BY created_at DESC LIMIT 1`;
+
+  const estimate = await env.DB.prepare(estimateSql).bind(...estBinds).first<any>();
+
+  // Get plan items
+  let planItems: any[] = [];
+  if (estimate) {
+    const { results: items } = await env.DB.prepare(
+      `SELECT * FROM finance_estimate_items WHERE estimate_id = ? ORDER BY sort_order`
+    ).bind(estimate.id).all();
+    planItems = items || [];
+  }
+
+  // Get actual expenses grouped by item name
+  let factSql = `SELECT estimate_item_name, SUM(amount) as total_spent, COUNT(*) as count FROM finance_expenses WHERE 1=1`;
+  const factBinds: any[] = [];
+  if (tenantId) { factSql += ` AND tenant_id = ?`; factBinds.push(tenantId); }
+  if (buildingId) { factSql += ` AND building_id = ?`; factBinds.push(buildingId); }
+  if (period) { factSql += ` AND expense_date LIKE ?`; factBinds.push(period + '%'); }
+  factSql += ` GROUP BY estimate_item_name`;
+
+  const { results: factRows } = await env.DB.prepare(factSql).bind(...factBinds).all();
+  const factMap: Record<string, number> = {};
+  (factRows || []).forEach((r: any) => { if (r.estimate_item_name) factMap[r.estimate_item_name] = r.total_spent; });
+
+  // Combine plan + fact
+  const summary = planItems.map((item: any) => ({
+    name: item.name,
+    plan_monthly: item.monthly_amount || Math.round(Number(item.amount) / 12),
+    plan_yearly: item.amount,
+    fact: factMap[item.name] || 0,
+    difference: (item.amount || 0) - (factMap[item.name] || 0),
+  }));
+
+  return json({
+    summary,
+    estimate_id: estimate?.id || null,
+    enterprise_profit_percent: estimate?.enterprise_profit_percent || estimate?.uk_profit_percent || 0,
+  });
+});
+
 } // end registerFinanceRoutes
