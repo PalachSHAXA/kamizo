@@ -263,14 +263,19 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
     'SELECT * FROM finance_estimate_items WHERE estimate_id = ? ORDER BY sort_order'
   ).bind(estimate_id).all();
 
-  // Get all apartments for this building
+  // Get all apartments for this building (include is_commercial flag)
   const { results: apartments } = await env.DB.prepare(
-    `SELECT id, number, total_area, property_type FROM apartments WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    `SELECT id, number, total_area, living_area, property_type, is_commercial, status FROM apartments WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(estimate.building_id as string, ...(tenantId ? [tenantId] : [])).all();
 
   const period = estimate.period as string;
-  const commercialRate = estimate.commercial_rate_per_sqm as number;
-  const nonCommercialRate = estimate.non_commercial_rate_per_sqm as number;
+
+  // Rate hierarchy: specific rates from estimate, fallback to per-sqm rates
+  const commercialRate = Number(estimate.commercial_rate) || 0;       // rate for commercial premises per sqm
+  const basementRate = Number(estimate.basement_rate) || 0;           // rate for basement per sqm
+  const parkingRate = Number(estimate.parking_rate) || 0;             // rate per parking space
+  const residentialRate = Number(estimate.commercial_rate_per_sqm) || 0;     // residential rate per sqm
+  const nonResidentialRate = Number(estimate.non_commercial_rate_per_sqm) || 0; // non-residential rate per sqm
 
   // Calculate last day of month for due_date
   const [year, month] = period.split('-').map(Number);
@@ -279,19 +284,47 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
   let generated = 0;
   for (const apt of apartments) {
     const a = apt as Record<string, unknown>;
-    const area = (a.total_area as number) || 0;
+    const area = Number(a.total_area) || 0;
     if (area <= 0) continue;
 
-    const isNonCommercial = a.property_type === 'non_commercial';
-    const rate = isNonCommercial ? nonCommercialRate : commercialRate;
-    const amount = Math.round(area * rate * 100) / 100;
+    // Determine rate based on apartment type
+    let rate: number;
+    let propertyType: string;
 
-    // Build breakdown JSON
+    if (a.is_commercial) {
+      // Commercial premise — uses commercial_rate if set, otherwise non_commercial rate
+      rate = commercialRate > 0 ? commercialRate : nonResidentialRate;
+      propertyType = 'commercial';
+    } else if (a.property_type === 'non_commercial' || a.property_type === 'basement') {
+      rate = basementRate > 0 ? basementRate : nonResidentialRate;
+      propertyType = 'non_commercial';
+    } else {
+      // Regular residential
+      rate = residentialRate;
+      propertyType = 'residential';
+    }
+
+    const baseAmount = Math.round(area * rate * 100) / 100;
+
+    // Build detailed breakdown
     const totalEstimate = estimate.total_amount as number;
-    const breakdown = items.map((item: Record<string, unknown>) => ({
+    const itemBreakdown = items.map((item: Record<string, unknown>) => ({
       name: item.name,
-      share: totalEstimate > 0 ? Math.round((item.amount as number) / totalEstimate * amount * 100) / 100 : 0,
+      share: totalEstimate > 0 ? Math.round((item.amount as number) / totalEstimate * baseAmount * 100) / 100 : 0,
     }));
+    const breakdown = {
+      area_sqm: area,
+      rate_per_sqm: rate,
+      base_amount: baseAmount,
+      property_type: propertyType,
+      items: itemBreakdown,
+    };
+
+    const amount = baseAmount;
+
+    // Map property_type to DB CHECK constraint values:
+    // 'residential' → 'commercial' (existing schema naming), others → 'non_commercial'
+    const dbPropertyType = propertyType === 'non_commercial' ? 'non_commercial' : 'commercial';
 
     // Check if charge already exists for this apartment+period
     const existingCharge = await env.DB.prepare(
@@ -304,7 +337,7 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
     ).bind(
       generateId(), a.id as string, estimate_id, period, amount,
-      JSON.stringify(breakdown), isNonCommercial ? 'non_commercial' : 'commercial',
+      JSON.stringify(breakdown), dbPropertyType,
       area, rate, dueDate, tenantId || ''
     ).run();
     generated++;

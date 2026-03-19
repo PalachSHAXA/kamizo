@@ -19,6 +19,7 @@ import {
   Banknote,
 } from 'lucide-react';
 import { formatAmount } from '../../utils/formatCurrency';
+import { generateEstimateExcel } from '../../utils/generateEstimateExcel';
 
 // ── Default expense articles (real УК template) ──
 const DEFAULT_EXPENSE_ARTICLES: Array<{ name_ru: string; name_uz: string }> = [
@@ -860,6 +861,22 @@ export default function EstimatesPage() {
                   {t('Сформировать начисления', 'Hisob-kitoblarni yaratish')}
                 </button>
               )}
+              <button
+                onClick={() => {
+                  if (currentEstimate) {
+                    generateEstimateExcel(
+                      currentEstimate,
+                      detailItems,
+                      buildings as any[],
+                      language as 'ru' | 'uz'
+                    );
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {t('Скачать Excel', 'Excel yuklash')}
+              </button>
               {currentEstimate.show_profit_to_residents === 1 && (
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                   <Eye className="w-3.5 h-3.5" />
