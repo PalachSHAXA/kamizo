@@ -164,12 +164,12 @@ export function BuildingsPage() {
       )}
 
       {s.showAddBranchModal && (
-        <BranchModal branch={null} onClose={() => s.setShowAddBranchModal(false)} onSave={s.handleAddBranch} language={s.language} defaultDistrict={s.selectedDistrict || ''} />
+        <BranchModal branch={null} onClose={() => s.setShowAddBranchModal(false)} onSave={s.handleAddBranch} language={s.language} defaultDistrict={s.selectedDistrict || ''} districts={s.allDistricts} />
       )}
       {s.editingBranch && (
         <BranchModal branch={s.editingBranch} onClose={() => s.setEditingBranch(null)} onSave={(data) => s.handleUpdateBranch(s.editingBranch!.id, data)} language={s.language}
           canEditCode={!!(s.user && ['admin', 'director', 'super_admin'].includes(s.user.role))}
-          onChangeCode={(newCode) => s.handleChangeCode(s.editingBranch!.id, newCode)} />
+          onChangeCode={(newCode) => s.handleChangeCode(s.editingBranch!.id, newCode)} districts={s.allDistricts} />
       )}
       {s.showAddBuildingModal && (
         <BuildingModal building={null} onClose={() => s.setShowAddBuildingModal(false)} onSave={s.handleAddBuilding} language={s.language} />

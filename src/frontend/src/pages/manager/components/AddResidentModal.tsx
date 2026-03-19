@@ -1,10 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Eye, EyeOff, AlertCircle, MapPin } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
-import { BRANCHES } from './types';
+import { branchesApi, buildingsApi, entrancesApi, apartmentsApi } from '../../../services/api';
 import type { AddResidentModalProps } from './types';
+
+interface BranchItem {
+  id: string;
+  code: string;
+  name: string;
+  district?: string;
+  buildings_count?: number;
+  residents_count?: number;
+}
+
+interface BuildingItem {
+  id: string;
+  name: string;
+  branch_code: string;
+  building_number: string;
+  [key: string]: any;
+}
+
+interface EntranceItem {
+  id: string;
+  building_id: string;
+  number: number;
+  [key: string]: any;
+}
+
+interface ApartmentItem {
+  id: string;
+  number: string;
+  status: string;
+  entrance_id: string;
+  [key: string]: any;
+}
 
 // Add Resident Modal
 export function AddResidentModal({ onClose }: AddResidentModalProps) {
@@ -12,56 +44,159 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
   const addToast = useToastStore(s => s.addToast);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [branch, setBranch] = useState('YS');
-  const [building, setBuilding] = useState('');
-  const [apartment, setApartment] = useState('');
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { addMockUser } = useAuthStore.getState();
 
-  // Auto-generate credentials when building/apartment changes
-  const generateCredentials = () => {
-    if (!building || !apartment) {
-      setError(language === 'ru' ? 'Сначала укажите дом и квартиру' : 'Avval uy va kvartirani ko\'rsating');
+  // Cascading dropdown state
+  const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [selectedBuildingId, setSelectedBuildingId] = useState('');
+  const [selectedEntranceId, setSelectedEntranceId] = useState('');
+  const [selectedApartmentId, setSelectedApartmentId] = useState('');
+
+  // Data arrays
+  const [branches, setBranches] = useState<BranchItem[]>([]);
+  const [buildings, setBuildings] = useState<BuildingItem[]>([]);
+  const [entrances, setEntrances] = useState<EntranceItem[]>([]);
+  const [apartments, setApartments] = useState<ApartmentItem[]>([]);
+
+  // Loading states
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [loadingBuildings, setLoadingBuildings] = useState(false);
+  const [loadingEntrances, setLoadingEntrances] = useState(false);
+  const [loadingApartments, setLoadingApartments] = useState(false);
+
+  // Load branches on mount
+  useEffect(() => {
+    setLoadingBranches(true);
+    branchesApi.getAll()
+      .then(res => setBranches(res.branches || []))
+      .catch(() => setBranches([]))
+      .finally(() => setLoadingBranches(false));
+  }, []);
+
+  // Load buildings when branch changes
+  useEffect(() => {
+    if (!selectedBranchId) {
+      setBuildings([]);
       return;
     }
-    // Login: branch_building_apartment (e.g., YS_8A_23)
-    const generatedLogin = `${branch}_${building}_${apartment}`.toUpperCase();
-    setLogin(generatedLogin);
-    // Password: BRANCH/BUILDING/APT (e.g., YS/8A/23)
-    const generatedPassword = `${branch}/${building}/${apartment}`.toUpperCase();
-    setPassword(generatedPassword);
-    setShowPassword(true);
-  };
+    const branch = branches.find(b => b.id === selectedBranchId);
+    if (!branch) return;
 
-  // Update login/password when branch/building/apartment changes if already generated
-  const updateCredentialsIfNeeded = () => {
-    if (login && password && building && apartment) {
-      const expectedLogin = `${branch}_${building}_${apartment}`.toUpperCase();
-      const expectedPassword = `${branch}/${building}/${apartment}`.toUpperCase();
-      setLogin(expectedLogin);
-      setPassword(expectedPassword);
+    setLoadingBuildings(true);
+    buildingsApi.getAll()
+      .then(res => {
+        const filtered = (res.buildings || []).filter(
+          (b: BuildingItem) => b.branch_code === branch.code
+        );
+        setBuildings(filtered);
+      })
+      .catch(() => setBuildings([]))
+      .finally(() => setLoadingBuildings(false));
+  }, [selectedBranchId, branches]);
+
+  // Load entrances when building changes
+  useEffect(() => {
+    if (!selectedBuildingId) {
+      setEntrances([]);
+      return;
     }
-  };
+    setLoadingEntrances(true);
+    entrancesApi.getByBuilding(selectedBuildingId)
+      .then(res => setEntrances(res.entrances || []))
+      .catch(() => setEntrances([]))
+      .finally(() => setLoadingEntrances(false));
+  }, [selectedBuildingId]);
 
-  // Generate address from branch
-  const getAddress = () => {
-    const branchInfo = BRANCHES.find(b => b.code === branch);
-    return branchInfo ? `${branchInfo.name}, ${language === 'ru' ? 'дом' : 'uy'} ${building}` : `${language === 'ru' ? 'Дом' : 'Uy'} ${building}`;
-  };
+  // Load apartments when entrance changes
+  useEffect(() => {
+    if (!selectedEntranceId || !selectedBuildingId) {
+      setApartments([]);
+      return;
+    }
+    setLoadingApartments(true);
+    apartmentsApi.getByBuilding(selectedBuildingId, { entranceId: selectedEntranceId, limit: 500 })
+      .then(res => setApartments(res.apartments || []))
+      .catch(() => setApartments([]))
+      .finally(() => setLoadingApartments(false));
+  }, [selectedEntranceId, selectedBuildingId]);
+
+  // Auto-generate credentials when all 4 cascading fields are selected
+  useEffect(() => {
+    if (selectedBranchId && selectedBuildingId && selectedEntranceId && selectedApartmentId) {
+      const branch = branches.find(b => b.id === selectedBranchId);
+      const building = buildings.find(b => b.id === selectedBuildingId);
+      const apartment = apartments.find(a => a.id === selectedApartmentId);
+
+      if (branch && building && apartment) {
+        const generatedLogin = `${branch.code}_${building.building_number}_${apartment.number}`.toUpperCase();
+        const generatedPassword = `${branch.code}/${building.building_number}/${apartment.number}`.toUpperCase();
+        setLogin(generatedLogin);
+        setPassword(generatedPassword);
+        setShowPassword(true);
+      }
+    } else {
+      setLogin('');
+      setPassword('');
+    }
+  }, [selectedBranchId, selectedBuildingId, selectedEntranceId, selectedApartmentId, branches, buildings, apartments]);
+
+  // Compose address from selections
+  const getAddress = useCallback(() => {
+    const branch = branches.find(b => b.id === selectedBranchId);
+    const building = buildings.find(b => b.id === selectedBuildingId);
+    if (!branch || !building) return '';
+    return `${branch.name}, ${language === 'ru' ? 'дом' : 'uy'} ${building.building_number}`;
+  }, [selectedBranchId, selectedBuildingId, branches, buildings, language]);
+
+  const handleBranchChange = useCallback((value: string) => {
+    setSelectedBranchId(value);
+    setSelectedBuildingId('');
+    setSelectedEntranceId('');
+    setSelectedApartmentId('');
+    setBuildings([]);
+    setEntrances([]);
+    setApartments([]);
+    setError('');
+  }, []);
+
+  const handleBuildingChange = useCallback((value: string) => {
+    setSelectedBuildingId(value);
+    setSelectedEntranceId('');
+    setSelectedApartmentId('');
+    setEntrances([]);
+    setApartments([]);
+    setError('');
+  }, []);
+
+  const handleEntranceChange = useCallback((value: string) => {
+    setSelectedEntranceId(value);
+    setSelectedApartmentId('');
+    setApartments([]);
+    setError('');
+  }, []);
+
+  const handleApartmentChange = useCallback((value: string) => {
+    setSelectedApartmentId(value);
+    setError('');
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!name || !phone || !building || !apartment || !login || !password) {
+    if (!name || !phone || !selectedBranchId || !selectedBuildingId || !selectedEntranceId || !selectedApartmentId || !login || !password) {
       setError(language === 'ru' ? 'Заполните все обязательные поля' : 'Barcha majburiy maydonlarni to\'ldiring');
       return;
     }
 
     const address = getAddress();
+    const apartment = apartments.find(a => a.id === selectedApartmentId);
+    const branch = branches.find(b => b.id === selectedBranchId);
+    const building = buildings.find(b => b.id === selectedBuildingId);
 
     addMockUser(login, password, {
       id: `resident_${Date.now()}`,
@@ -70,9 +205,9 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
       login,
       role: 'resident',
       address,
-      apartment,
-      branch,
-      building
+      apartment: apartment?.number || '',
+      branch: branch?.code || '',
+      building: building?.building_number || ''
     });
 
     addToast('success', language === 'ru'
@@ -82,7 +217,12 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
     onClose();
   };
 
-  // TODO: migrate to <Modal> component
+  // Derive selected items for display
+  const selectedBranch = branches.find(b => b.id === selectedBranchId);
+  const selectedBuilding = buildings.find(b => b.id === selectedBuildingId);
+  const selectedApartment = apartments.find(a => a.id === selectedApartmentId);
+  const selectedEntrance = entrances.find(e => e.id === selectedEntranceId);
+
   return (
     <div className="modal-backdrop">
       <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
@@ -94,8 +234,106 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
+          {/* Cascading dropdowns */}
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.O.'}</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+              {language === 'ru' ? 'Комплекс *' : 'Kompleks *'}
+            </label>
+            <select
+              value={selectedBranchId}
+              onChange={(e) => handleBranchChange(e.target.value)}
+              className="glass-input text-sm md:text-base"
+              disabled={loadingBranches}
+              required
+            >
+              <option value="">{loadingBranches
+                ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                : (language === 'ru' ? 'Выберите комплекс' : 'Kompleksni tanlang')
+              }</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+              {language === 'ru' ? 'Дом *' : 'Uy *'}
+            </label>
+            <select
+              value={selectedBuildingId}
+              onChange={(e) => handleBuildingChange(e.target.value)}
+              className="glass-input text-sm md:text-base"
+              disabled={!selectedBranchId || loadingBuildings}
+              required
+            >
+              <option value="">{loadingBuildings
+                ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                : (language === 'ru' ? 'Выберите дом' : 'Uyni tanlang')
+              }</option>
+              {buildings.map(b => (
+                <option key={b.id} value={b.id}>{b.name || b.building_number}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+              {language === 'ru' ? 'Подъезд *' : 'Podyezd *'}
+            </label>
+            <select
+              value={selectedEntranceId}
+              onChange={(e) => handleEntranceChange(e.target.value)}
+              className="glass-input text-sm md:text-base"
+              disabled={!selectedBuildingId || loadingEntrances}
+              required
+            >
+              <option value="">{loadingEntrances
+                ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                : (language === 'ru' ? 'Выберите подъезд' : 'Podyezdni tanlang')
+              }</option>
+              {entrances.map(e => (
+                <option key={e.id} value={e.id}>{language === 'ru' ? 'Подъезд' : 'Podyezd'} {e.number}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+              {language === 'ru' ? 'Квартира *' : 'Kvartira *'}
+            </label>
+            <select
+              value={selectedApartmentId}
+              onChange={(e) => handleApartmentChange(e.target.value)}
+              className="glass-input text-sm md:text-base"
+              disabled={!selectedEntranceId || loadingApartments}
+              required
+            >
+              <option value="">{loadingApartments
+                ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                : (language === 'ru' ? 'Выберите квартиру' : 'Kvartirani tanlang')
+              }</option>
+              {apartments.map(a => (
+                <option key={a.id} value={a.id}>
+                  {language === 'ru' ? 'Кв.' : 'Kv.'} {a.number}
+                  {a.status === 'vacant' ? ` (${language === 'ru' ? 'свободна' : 'bo\'sh'})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Address preview */}
+          {selectedBuilding && (
+            <div className="text-xs text-gray-500 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {getAddress()}{selectedApartment ? `, ${language === 'ru' ? 'кв.' : 'kv.'} ${selectedApartment.number}` : ''}
+              {selectedEntrance ? `, ${language === 'ru' ? 'подъезд' : 'podyezd'} ${selectedEntrance.number}` : ''}
+            </div>
+          )}
+
+          {/* Name */}
+          <div>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО *' : 'F.I.O. *'}</label>
             <input
               type="text"
               value={name}
@@ -106,8 +344,9 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
             />
           </div>
 
+          {/* Phone */}
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон *' : 'Telefon *'}</label>
             <input
               type="tel"
               value={phone}
@@ -118,77 +357,19 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
             />
           </div>
 
-          {/* Location: Branch / Building / Apartment */}
-          <div className="border-t pt-3 md:pt-4">
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Расположение' : 'Joylashuv'}</label>
-            <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3 xl:gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Филиал' : 'Filial'}</label>
-                <select
-                  value={branch}
-                  onChange={(e) => {
-                    setBranch(e.target.value);
-                    updateCredentialsIfNeeded();
-                  }}
-                  className="glass-input text-sm md:text-base py-2"
-                >
-                  {BRANCHES.map(b => (
-                    <option key={b.code} value={b.code}>{b.code} - {b.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дом' : 'Uy'}</label>
-                <input
-                  type="text"
-                  value={building}
-                  onChange={(e) => {
-                    setBuilding(e.target.value.toUpperCase());
-                    updateCredentialsIfNeeded();
-                  }}
-                  placeholder="8A"
-                  className="glass-input text-sm md:text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Кв.' : 'Kv.'}</label>
-                <input
-                  type="text"
-                  value={apartment}
-                  onChange={(e) => {
-                    setApartment(e.target.value);
-                    updateCredentialsIfNeeded();
-                  }}
-                  placeholder="23"
-                  className="glass-input text-sm md:text-base"
-                  required
-                />
-              </div>
-            </div>
-            {/* Preview address */}
-            {building && (
-              <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
-                <MapPin className="w-3 h-3" />
-                {getAddress()}, {language === 'ru' ? 'кв.' : 'kv.'} {apartment || '...'}
-              </div>
-            )}
-          </div>
-
           {/* Login credentials */}
           <div className="border-t pt-3 md:pt-4">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <span className="text-xs md:text-sm font-medium text-gray-700">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</span>
-              <button type="button" onClick={generateCredentials} className="btn-secondary text-xs md:text-sm min-h-[44px] py-1 px-2 md:px-3 touch-manipulation active:scale-[0.98]">
-                {language === 'ru' ? 'Сгенерировать' : 'Yaratish'}
-              </button>
-            </div>
+            <span className="block text-xs md:text-sm font-medium text-gray-700 mb-2">
+              {language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}
+            </span>
 
             {/* Hint about password format */}
             <div className="mb-2 p-2 bg-primary-50 border border-primary-100 rounded-lg text-xs text-primary-600">
-              {language === 'ru' ? 'Пароль будет в формате:' : 'Parol formatda bo\'ladi:'} <span className="font-mono font-bold">{language === 'ru' ? 'ФИЛИАЛ/ДОМ/КВАРТИРА' : 'FILIAL/UY/KVARTIRA'}</span>
+              {language === 'ru' ? 'Логин и пароль генерируются автоматически при выборе всех полей.' : 'Login va parol barcha maydonlar tanlanganda avtomatik yaratiladi.'}
               <br />
-              {language === 'ru' ? 'Например:' : 'Masalan:'} <span className="font-mono">YS/8A/23</span>
+              {language === 'ru' ? 'Формат:' : 'Format:'} <span className="font-mono font-bold">{language === 'ru' ? 'КОМПЛЕКС_ДОМ_КВАРТИРА' : 'KOMPLEKS_UY_KVARTIRA'}</span>
+              <br />
+              {language === 'ru' ? 'Например:' : 'Masalan:'} <span className="font-mono">YS_8A_23</span>
             </div>
 
             <div className="space-y-2 md:space-y-3">
