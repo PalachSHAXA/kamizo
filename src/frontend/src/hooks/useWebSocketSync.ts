@@ -41,6 +41,10 @@ function emitRescheduleUpdate(reschedule: any) {
  * - Guard against concurrent connect() calls
  */
 export function useWebSocketSync() {
+  // ВРЕМЕННО ОТКЛЮЧЕНО: WebSocket спамит на production из-за нестабильности DO
+  // Включить когда Durable Objects стабилизируются
+  const WEBSOCKET_ENABLED = false;
+
   const { user, token } = useAuthStore();
   const { fetchRequests, fetchExecutors, fetchAnnouncements, fetchPendingReschedules } = useDataStore();
   const { fetchMeetings } = useMeetingStore();
@@ -305,11 +309,12 @@ export function useWebSocketSync() {
       return;
     }
 
-    // Initial data fetch
+    // Initial data fetch (always, even if WS disabled)
     syncData();
     syncMeetings();
 
-    // Connect via WebSocket
+    // Connect via WebSocket (skip if disabled)
+    if (!WEBSOCKET_ENABLED) return;
     connect();
 
     return () => {
@@ -335,7 +340,7 @@ export function useWebSocketSync() {
         syncMeetings();
 
         // Reconnect WebSocket if disconnected (and haven't given up)
-        if ((!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) && !gaveUpRef.current) {
+        if (WEBSOCKET_ENABLED && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) && !gaveUpRef.current) {
           reconnectAttempts.current = 0;
           connect();
         }

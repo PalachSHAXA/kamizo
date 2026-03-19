@@ -587,11 +587,11 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
         <div className="mx-5 h-px bg-gray-100" />
         <div className="p-3 px-1">
-          {user?.role !== 'super_admin' && (
+          {(user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner') && (
             <Link
               to="/profile"
               onClick={handleNavClick}
-              className={`sidebar-item min-h-[46px] touch-manipulation ${location.pathname === '/profile' ? 'active' : ''} ${user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner' ? 'sidebar-item-resident' : ''}`}
+              className={`sidebar-item min-h-[46px] touch-manipulation sidebar-item-resident ${location.pathname === '/profile' ? 'active' : ''}`}
               aria-current={location.pathname === '/profile' ? 'page' : undefined}
             >
               <User className={`w-[20px] h-[20px] shrink-0 ${location.pathname === '/profile' ? 'text-primary-500' : 'text-gray-400'}`} />

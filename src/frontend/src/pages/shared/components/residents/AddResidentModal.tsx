@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X } from 'lucide-react';
-import { branchesApi, buildingsApi, entrancesApi, apartmentsApi } from '../../../../services/api';
+import { X, Car } from 'lucide-react';
+import { branchesApi, buildingsApi, entrancesApi, apartmentsApi, vehiclesApi } from '../../../../services/api';
 import type { BuildingFull } from './types';
 
 interface ManualForm {
@@ -10,13 +10,19 @@ interface ManualForm {
   personalAccount: string;
 }
 
+interface VehicleForm {
+  plateNumber: string;
+  brandModel: string;
+  color: string;
+}
+
 interface AddResidentModalProps {
   manualForm: ManualForm;
   setManualForm: (form: ManualForm) => void;
   selectedBuilding: BuildingFull | null;
   defaultPassword: string;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: (vehicleData?: VehicleForm) => void;
   language: string;
 }
 
@@ -61,6 +67,9 @@ export function AddResidentModal({
   onSubmit,
   language,
 }: AddResidentModalProps) {
+  // Vehicle form (optional)
+  const [vehicleForm, setVehicleForm] = useState<VehicleForm>({ plateNumber: '', brandModel: '', color: '' });
+
   // Cascading dropdown state
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [selectedBuildingId, setSelectedBuildingId] = useState('');
@@ -339,6 +348,39 @@ export function AddResidentModal({
             />
           </div>
 
+          {/* Vehicle (optional) */}
+          <div className="border-t pt-3 mt-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Car className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-700">
+                {language === 'ru' ? 'Автомобиль (если есть)' : 'Avtomobil (agar bo\'lsa)'}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={vehicleForm.plateNumber}
+                onChange={(e) => setVehicleForm({ ...vehicleForm, plateNumber: e.target.value })}
+                className="input-field"
+                placeholder={language === 'ru' ? 'Госномер: 01 A 123 BC' : 'Davlat raqami: 01 A 123 BC'}
+              />
+              <input
+                type="text"
+                value={vehicleForm.brandModel}
+                onChange={(e) => setVehicleForm({ ...vehicleForm, brandModel: e.target.value })}
+                className="input-field"
+                placeholder={language === 'ru' ? 'Марка/модель: Chevrolet Malibu' : 'Marka/model: Chevrolet Malibu'}
+              />
+              <input
+                type="text"
+                value={vehicleForm.color}
+                onChange={(e) => setVehicleForm({ ...vehicleForm, color: e.target.value })}
+                className="input-field"
+                placeholder={language === 'ru' ? 'Цвет: Белый' : 'Rangi: Oq'}
+              />
+            </div>
+          </div>
+
           {/* Password info */}
           <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-600">
             <strong>{language === 'ru' ? 'Пароль' : 'Parol'}:</strong> {getPasswordDisplay()}
@@ -353,7 +395,7 @@ export function AddResidentModal({
             {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
           </button>
           <button
-            onClick={onSubmit}
+            onClick={() => onSubmit(vehicleForm.plateNumber.trim() ? vehicleForm : undefined)}
             disabled={!manualForm.fullName || !selectedApartmentId}
             className="btn-primary flex-1 disabled:opacity-50"
           >

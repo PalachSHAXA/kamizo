@@ -855,57 +855,61 @@ export function TeamPage() {
             )}
 
             <div className="space-y-3 sm:space-y-4 overflow-y-auto flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Роль' : 'Rol'} *</label>
-                  <select
-                    value={addForm.role}
-                    onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'manager' | 'department_head' | 'executor', managerType: 'manager' })}
-                    className="input-field"
-                  >
-                    <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
-                    <option value="department_head">{language === 'ru' ? 'Глава отдела' : 'Bo\'lim boshlig\'i'}</option>
-                    <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
-                  </select>
-                </div>
-
-                {(addForm.role === 'executor' || addForm.role === 'department_head') ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'} *</label>
-                    <select
-                      value={addForm.specialization}
-                      onChange={(e) => setAddForm({ ...addForm, specialization: e.target.value as ExecutorSpecialization })}
-                      className="input-field"
-                    >
-                      <option value="">{language === 'ru' ? 'Выберите' : 'Tanlang'}</option>
-                      <option value="plumber">{language === 'ru' ? 'Сантехник' : 'Santexnik'}</option>
-                      <option value="electrician">{language === 'ru' ? 'Электрик' : 'Elektrik'}</option>
-                      <option value="elevator">{language === 'ru' ? 'Лифтёр' : 'Liftchi'}</option>
-                      <option value="intercom">{language === 'ru' ? 'Домофон' : 'Domofon'}</option>
-                      <option value="cleaning">{language === 'ru' ? 'Уборщица' : 'Tozalovchi'}</option>
-                      <option value="security">{language === 'ru' ? 'Охранник' : 'Qorovul'}</option>
-                      <option value="trash">{language === 'ru' ? 'Вывоз мусора' : 'Chiqindi tashish'}</option>
-                      <option value="boiler">{language === 'ru' ? 'Котельщик' : 'Qozonxonachi'}</option>
-                      <option value="ac">{language === 'ru' ? 'Кондиционерщик' : 'Konditsionerchi'}</option>
-                      <option value="courier">{language === 'ru' ? 'Курьер' : 'Kuryer'}</option>
-                      <option value="other">{language === 'ru' ? 'Другое' : 'Boshqa'}</option>
-                    </select>
-                  </div>
-                ) : addForm.role === 'manager' && hasFeature('advertiser') ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Тип' : 'Turi'}</label>
-                    <select
-                      value={addForm.managerType}
-                      onChange={(e) => setAddForm({ ...addForm, managerType: e.target.value as 'manager' | 'advertiser' })}
-                      className="input-field"
-                    >
-                      <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
-                      <option value="advertiser">{language === 'ru' ? 'Реклама' : 'Reklama'}</option>
-                    </select>
-                  </div>
-                ) : null}
+              {/* 1. Роль */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Роль' : 'Rol'} *</label>
+                <select
+                  value={addForm.role}
+                  onChange={(e) => setAddForm({ ...addForm, role: e.target.value as 'manager' | 'department_head' | 'executor', managerType: 'manager', specialization: '' as ExecutorSpecialization })}
+                  className="input-field"
+                >
+                  <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
+                  <option value="department_head">{language === 'ru' ? 'Глава отдела' : 'Bo\'lim boshlig\'i'}</option>
+                  <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
+                </select>
               </div>
 
+              {/* 2. Специализация — только для исполнителя */}
+              {addForm.role === 'executor' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'} *</label>
+                  <select
+                    value={addForm.specialization}
+                    onChange={(e) => setAddForm({ ...addForm, specialization: e.target.value as ExecutorSpecialization })}
+                    className="input-field"
+                  >
+                    <option value="">{language === 'ru' ? 'Выберите' : 'Tanlang'}</option>
+                    <option value="plumber">{language === 'ru' ? 'Сантехник' : 'Santexnik'}</option>
+                    <option value="electrician">{language === 'ru' ? 'Электрик' : 'Elektrik'}</option>
+                    <option value="elevator">{language === 'ru' ? 'Лифтёр' : 'Liftchi'}</option>
+                    <option value="intercom">{language === 'ru' ? 'Домофон' : 'Domofon'}</option>
+                    <option value="cleaning">{language === 'ru' ? 'Уборщица' : 'Tozalovchi'}</option>
+                    <option value="security">{language === 'ru' ? 'Охранник' : 'Qorovul'}</option>
+                    <option value="trash">{language === 'ru' ? 'Вывоз мусора' : 'Chiqindi tashish'}</option>
+                    <option value="boiler">{language === 'ru' ? 'Котельщик' : 'Qozonxonachi'}</option>
+                    <option value="ac">{language === 'ru' ? 'Кондиционерщик' : 'Konditsionerchi'}</option>
+                    <option value="courier">{language === 'ru' ? 'Курьер' : 'Kuryer'}</option>
+                    <option value="other">{language === 'ru' ? 'Другое' : 'Boshqa'}</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Тип менеджера (если реклама доступна) */}
+              {addForm.role === 'manager' && hasFeature('advertiser') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Тип' : 'Turi'}</label>
+                  <select
+                    value={addForm.managerType}
+                    onChange={(e) => setAddForm({ ...addForm, managerType: e.target.value as 'manager' | 'advertiser' })}
+                    className="input-field"
+                  >
+                    <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
+                    <option value="advertiser">{language === 'ru' ? 'Реклама' : 'Reklama'}</option>
+                  </select>
+                </div>
+              )}
+
+              {/* 3. ФИО */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.O.'} *</label>
                 <input
@@ -917,10 +921,11 @@ export function TeamPage() {
                     setAddForm({ ...addForm, name, login });
                   }}
                   className="input-field"
-                  placeholder={language === 'ru' ? 'Иванов Иван Иванович' : 'Ismailov Ismoil Ismailovich'}
+                  placeholder={language === 'ru' ? 'Фамилия Имя Отчество' : 'Familiya Ism Sharif'}
                 />
               </div>
 
+              {/* 4. Телефон */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                 <input
@@ -933,49 +938,44 @@ export function TeamPage() {
                 />
               </div>
 
-              <div className="border-t pt-3 mt-3">
-                <div className="text-sm font-medium text-gray-700 mb-3">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
+              {/* 5. Логин */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'} *</label>
+                <input
+                  type="text"
+                  value={addForm.login}
+                  onChange={(e) => setAddForm({ ...addForm, login: e.target.value })}
+                  className="input-field"
+                  placeholder="ivanov.ii"
+                />
+              </div>
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'} *</label>
-                    <input
-                      type="text"
-                      value={addForm.login}
-                      onChange={(e) => setAddForm({ ...addForm, login: e.target.value })}
-                      className="input-field"
-                      placeholder="ivanov.ii"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">{language === 'ru' ? 'Генерируется из ФИО, можно изменить' : 'F.I.O. dan yaratiladi, o\'zgartirish mumkin'}</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'} *</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={addForm.password}
-                        onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                        className="input-field flex-1 min-w-0 font-mono tracking-wide"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setAddForm({ ...addForm, password: generatePassword() })}
-                        className="btn-secondary px-3 flex-shrink-0"
-                        title={language === 'ru' ? 'Сгенерировать пароль' : 'Parol yaratish'}
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(addForm.password, 'addPassword')}
-                        className="btn-secondary px-3 flex-shrink-0"
-                        title={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
-                      >
-                        {copiedField === 'addPassword' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
+              {/* 6. Пароль */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Пароль' : 'Parol'} *</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={addForm.password}
+                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                    className="input-field flex-1 min-w-0 font-mono tracking-wide"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAddForm({ ...addForm, password: generatePassword() })}
+                    className="btn-secondary px-3 flex-shrink-0"
+                    title={language === 'ru' ? 'Сгенерировать пароль' : 'Parol yaratish'}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(addForm.password, 'addPassword')}
+                    className="btn-secondary px-3 flex-shrink-0"
+                    title={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
+                  >
+                    {copiedField === 'addPassword' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
             </div>

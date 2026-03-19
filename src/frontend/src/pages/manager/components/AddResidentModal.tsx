@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Eye, EyeOff, AlertCircle, MapPin } from 'lucide-react';
+import { X, Eye, EyeOff, AlertCircle, MapPin, Car } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
-import { branchesApi, buildingsApi, entrancesApi, apartmentsApi } from '../../../services/api';
+import { branchesApi, buildingsApi, entrancesApi, apartmentsApi, vehiclesApi } from '../../../services/api';
 import type { AddResidentModalProps } from './types';
 
 interface BranchItem {
@@ -49,6 +49,11 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { addMockUser } = useAuthStore.getState();
+
+  // Vehicle form (optional)
+  const [vehiclePlate, setVehiclePlate] = useState('');
+  const [vehicleBrand, setVehicleBrand] = useState('');
+  const [vehicleColor, setVehicleColor] = useState('');
 
   // Cascading dropdown state
   const [selectedBranchId, setSelectedBranchId] = useState('');
@@ -210,6 +215,17 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
       building: building?.building_number || ''
     });
 
+    // Create vehicle if plate number provided
+    if (vehiclePlate.trim()) {
+      const [brand, ...modelParts] = vehicleBrand.trim().split(' ');
+      vehiclesApi.create({
+        plate_number: vehiclePlate.trim(),
+        brand: brand || undefined,
+        model: modelParts.join(' ') || undefined,
+        color: vehicleColor.trim() || undefined,
+      }).catch(() => {}); // Don't block resident creation
+    }
+
     addToast('success', language === 'ru'
       ? `Житель добавлен! Логин: ${login}, Пароль: ${password}`
       : `Yashovchi qo'shildi! Login: ${login}, Parol: ${password}`
@@ -355,6 +371,39 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
               className="glass-input text-sm md:text-base"
               required
             />
+          </div>
+
+          {/* Vehicle (optional) */}
+          <div className="border-t pt-3 md:pt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Car className="w-4 h-4 text-gray-400" />
+              <span className="text-xs md:text-sm font-medium text-gray-700">
+                {language === 'ru' ? 'Автомобиль (если есть)' : 'Avtomobil (agar bo\'lsa)'}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={vehiclePlate}
+                onChange={(e) => setVehiclePlate(e.target.value)}
+                className="glass-input text-sm md:text-base"
+                placeholder={language === 'ru' ? 'Госномер: 01 A 123 BC' : 'Davlat raqami: 01 A 123 BC'}
+              />
+              <input
+                type="text"
+                value={vehicleBrand}
+                onChange={(e) => setVehicleBrand(e.target.value)}
+                className="glass-input text-sm md:text-base"
+                placeholder={language === 'ru' ? 'Марка/модель: Chevrolet Malibu' : 'Marka/model: Chevrolet Malibu'}
+              />
+              <input
+                type="text"
+                value={vehicleColor}
+                onChange={(e) => setVehicleColor(e.target.value)}
+                className="glass-input text-sm md:text-base"
+                placeholder={language === 'ru' ? 'Цвет: Белый' : 'Rangi: Oq'}
+              />
+            </div>
           </div>
 
           {/* Login credentials */}

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useCRMStore } from '../../../../stores/crmStore';
 import { useAuthStore } from '../../../../stores/authStore';
-import { authApi, usersApi, apiRequest } from '../../../../services/api';
+import { authApi, usersApi, vehiclesApi, apiRequest } from '../../../../services/api';
 import { useLanguageStore } from '../../../../stores/languageStore';
 import { useToastStore } from '../../../../stores/toastStore';
 import type { BuildingFull } from '../../../../types';
@@ -556,7 +556,7 @@ export function useResidentsLogic() {
     }
   };
 
-  const handleManualAdd = async () => {
+  const handleManualAdd = async (vehicleData?: { plateNumber: string; brandModel: string; color: string }) => {
     if (!manualForm.fullName) return;
 
     const login = manualForm.personalAccount ? manualForm.personalAccount.trim() : `${Date.now()}`;
@@ -587,6 +587,17 @@ export function useResidentsLogic() {
         apartment, buildingId, entrance, floor,
         branch: selectedBuilding?.branchCode, building: selectedBuilding?.buildingNumber,
       });
+
+      // Create vehicle if provided
+      if (vehicleData?.plateNumber?.trim()) {
+        const [brand, ...modelParts] = (vehicleData.brandModel || '').trim().split(' ');
+        vehiclesApi.create({
+          plate_number: vehicleData.plateNumber.trim(),
+          brand: brand || undefined,
+          model: modelParts.join(' ') || undefined,
+          color: vehicleData.color?.trim() || undefined,
+        }).catch(() => {}); // Don't block resident creation
+      }
 
       setShowResidentCard({
         login, name: manualForm.fullName,
