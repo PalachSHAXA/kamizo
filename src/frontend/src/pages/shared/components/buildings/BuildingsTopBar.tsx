@@ -55,7 +55,7 @@ export function BuildingsTopBar({
 
   return (
     <div className="h-[52px] bg-white border-b border-gray-200 flex items-center px-5 gap-3 flex-shrink-0">
-      {viewLevel !== 'districts' && (
+      {viewLevel !== 'branches' && (
         <button
           onClick={onBack}
           className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-500 transition-all"
@@ -67,22 +67,11 @@ export function BuildingsTopBar({
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-[13px] text-gray-400">
         <button
-          onClick={onBreadcrumbDistricts}
-          className={`hover:text-orange-500 transition-colors ${viewLevel === 'districts' ? 'text-gray-900 font-bold' : ''}`}
+          onClick={onBreadcrumbBranches}
+          className={`hover:text-orange-500 transition-colors ${viewLevel === 'branches' ? 'text-gray-900 font-bold' : ''}`}
         >
-          {t('Районы', 'Tumanlar')}
+          {t('Комплексы', 'Komplekslar')}
         </button>
-        {selectedDistrict && (
-          <>
-            <ChevronRight className="w-3 h-3 text-gray-300" />
-            <button
-              onClick={onBreadcrumbBranches}
-              className={`hover:text-orange-500 transition-colors ${viewLevel === 'branches' ? 'text-gray-900 font-bold' : ''}`}
-            >
-              {selectedDistrict}
-            </button>
-          </>
-        )}
         {selectedBranch && (
           <>
             <ChevronRight className="w-3 h-3 text-gray-300" />
@@ -132,7 +121,7 @@ export function BuildingsTopBar({
           </button>
         )}
 
-        {canManageImportExport && (viewLevel === 'districts' || viewLevel === 'branches' || viewLevel === 'buildings') && (
+        {canManageImportExport && (viewLevel === 'branches' || viewLevel === 'buildings') && (
           <>
             {viewLevel === 'buildings' && selectedBranch && (
               <button
@@ -161,9 +150,8 @@ export function BuildingsTopBar({
           className="px-3.5 py-1.5 rounded-lg bg-orange-500 text-white text-[13px] font-bold flex items-center gap-1.5 hover:bg-orange-600 transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
-          {viewLevel === 'districts' && t('Район', 'Tuman')}
-          {viewLevel === 'branches' && t('ЖК', 'TJM')}
-          {viewLevel === 'buildings' && t('Здание', 'Bino')}
+          {viewLevel === 'branches' && t('Комплекс', 'Kompleks')}
+          {viewLevel === 'buildings' && t('Дом', 'Uy')}
           {viewLevel === 'entrances' && t('Подъезд', 'Podyezd')}
         </button>
       </div>

@@ -8,7 +8,7 @@ import {
   Building2, Users, FileText, TrendingUp, TrendingDown, Minus,
   AlertTriangle, Briefcase, Star, Activity, ArrowRight, RefreshCw,
   X, Clock, MapPin, Megaphone, Vote, Shield, UserCheck, Wrench,
-  ShoppingBag, Download, Calendar, Package, DollarSign
+  ShoppingBag, Download, Calendar, Package, Banknote
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -698,12 +698,12 @@ export function DirectorDashboard() {
       'director.staff': { ru: 'Сотрудники', uz: 'Xodimlar' },
       'director.online': { ru: 'Онлайн', uz: 'Onlayn' },
       'director.avgRating': { ru: 'Средний рейтинг', uz: 'O\'rtacha reyting' },
-      'director.buildings': { ru: 'Здания', uz: 'Binolar' },
+      'director.buildings': { ru: 'Комплексы', uz: 'Komplekslar' },
       'director.residents': { ru: 'Жители', uz: 'Aholisi' },
       'director.meetings': { ru: 'Собрания', uz: 'Yig\'ilishlar' },
       'director.active': { ru: 'Активные', uz: 'Faol' },
       'director.announcements': { ru: 'Объявления', uz: 'E\'lonlar' },
-      'director.byBuilding': { ru: 'По зданиям', uz: 'Binolar bo\'yicha' },
+      'director.byBuilding': { ru: 'По комплексам', uz: 'Komplekslar bo\'yicha' },
       'director.byDepartment': { ru: 'По отделам', uz: 'Bo\'limlar bo\'yicha' },
       'director.topPerformers': { ru: 'Лучшие сотрудники', uz: 'Eng yaxshi xodimlar' },
       'director.completionRate': { ru: 'Выполнение', uz: 'Bajarish' },
@@ -711,7 +711,7 @@ export function DirectorDashboard() {
       'director.viewAll': { ru: 'Смотреть все', uz: 'Hammasini ko\'rish' },
       'director.recentRequests': { ru: 'Последние заявки', uz: 'So\'nggi arizalar' },
       'director.staffList': { ru: 'Список сотрудников', uz: 'Xodimlar ro\'yxati' },
-      'director.buildingsList': { ru: 'Список зданий', uz: 'Binolar ro\'yxati' },
+      'director.buildingsList': { ru: 'Список комплексов', uz: 'Komplekslar ro\'yxati' },
       'director.activityDetails': { ru: 'Активность', uz: 'Faollik' },
       // Marketplace translations
       'director.overview': { ru: 'Обзор', uz: 'Umumiy' },
@@ -1518,10 +1518,10 @@ export function DirectorDashboard() {
 
                 <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
                   <div className="flex items-center gap-3 mb-2">
-                    <DollarSign className="w-8 h-8 text-green-500" />
+                    <Banknote className="w-8 h-8 text-green-500" />
                   </div>
-                  <div className="text-2xl font-bold">{marketplaceReport.overall.total_revenue.toLocaleString()}</div>
-                  <div className="text-sm text-gray-500">{t('director.revenue')} ({language === 'ru' ? 'сум' : 'so\'m'})</div>
+                  <div className="text-2xl font-bold">{marketplaceReport.overall.total_revenue.toLocaleString('ru-RU')} {language === 'ru' ? 'сум' : "so'm"}</div>
+                  <div className="text-sm text-gray-500">{t('director.revenue')}</div>
                   <div className="mt-2 text-xs text-gray-600">
                     {t('director.deliveryFees')}: {marketplaceReport.overall.total_delivery_fees.toLocaleString()} {language === 'ru' ? 'сум' : 'so\'m'}
                   </div>

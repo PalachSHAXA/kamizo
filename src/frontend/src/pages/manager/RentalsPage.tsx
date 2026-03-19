@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Key, User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, DollarSign, Home } from 'lucide-react';
+import { Key, User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, Banknote, Home } from 'lucide-react';
 import { EmptyState } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
@@ -322,7 +322,7 @@ export function RentalsPage() {
     if (currency === 'UZS') {
       return amount.toLocaleString('ru-RU') + (language === 'ru' ? ' сум' : ' so\'m');
     }
-    return '$' + amount.toLocaleString('en-US');
+    return amount.toLocaleString('en-US') + ' USD';
   };
 
   return (
@@ -775,7 +775,7 @@ export function RentalsPage() {
               </div>
               {newRecord.currency === 'USD' && (
                 <div className="bg-primary-50 border border-primary-200 rounded-xl p-3 flex items-start gap-2">
-                  <DollarSign className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" />
+                  <Banknote className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-primary-800">
                     {rateLoading ? (
                       <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> {language === 'ru' ? 'Загрузка курса ЦБ...' : 'MB kursi yuklanmoqda...'}</span>
@@ -784,7 +784,7 @@ export function RentalsPage() {
                         <div>{language === 'ru' ? 'Курс ЦБ:' : 'MB kursi:'} 1 USD = {exchangeRate.toLocaleString('ru-RU')} {language === 'ru' ? 'сум' : 'so\'m'}</div>
                         {newRecord.amount && parseFloat(newRecord.amount) > 0 && (
                           <div className="font-medium mt-1">
-                            ${newRecord.amount} = {Math.round(parseFloat(newRecord.amount) * exchangeRate).toLocaleString('ru-RU')} {language === 'ru' ? 'сум' : 'so\'m'}
+                            {newRecord.amount} USD = {Math.round(parseFloat(newRecord.amount) * exchangeRate).toLocaleString('ru-RU')} {language === 'ru' ? 'сум' : 'so\'m'}
                           </div>
                         )}
                         <div className="text-xs text-primary-600 mt-1">{language === 'ru' ? 'Сумма будет автоматически конвертирована в сумы' : 'Summa avtomatik ravishda so\'mga konvertatsiya qilinadi'}</div>

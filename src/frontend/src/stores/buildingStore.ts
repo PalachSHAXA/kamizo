@@ -128,7 +128,7 @@ export const useBuildingStore = create<BuildingState>()(
         const buildings = (response.buildings || []).map(mapBuildingFromApi);
         set({ buildings, isLoadingBuildings: false });
       } catch (error) {
-        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка загрузки зданий');
+        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка загрузки комплексов');
         set({ isLoadingBuildings: false });
       }
     },
@@ -200,7 +200,7 @@ export const useBuildingStore = create<BuildingState>()(
         }));
       } catch (err: unknown) {
         useToastStore.getState().addToast('error', (err as Error).message || 'Ошибка');
-        throw new Error((err as Error).message || 'Ошибка при удалении здания');
+        throw new Error((err as Error).message || 'Ошибка при удалении комплекса');
       }
     },
 

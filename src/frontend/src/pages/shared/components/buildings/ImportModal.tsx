@@ -30,7 +30,7 @@ export function ImportModal({
       <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/60">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-[18px] font-extrabold">{t('Импорт ЖК', 'TJMni import qilish')}</h3>
+            <h3 className="text-[18px] font-extrabold">{t('Импорт комплекса', 'Kompleksni import qilish')}</h3>
             <p className="text-[13px] text-gray-400 mt-0.5">{t('Загрузите .json файл экспорта', 'Eksport .json faylini yuklang')}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label="Закрыть">

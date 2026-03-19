@@ -23,14 +23,14 @@ export function BuildingModal({ building, onClose, onSave, language }: BuildingM
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
-          <h2 className="text-lg font-bold">{building ? t('Редактировать ЖК', 'TJMni tahrirlash') : t('Новый ЖК / Дом', "Yangi TJM / Uy")}</h2>
+          <h2 className="text-lg font-bold">{building ? t('Редактировать дом', 'Uyni tahrirlash') : t('Новый дом', 'Yangi uy')}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); if (form.name && form.address) onSave(form); }} className="space-y-4">
           <div>
             <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название', 'Nomi')} *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" placeholder={t('ЖК "Название" или Дом 5Б', 'TJM "Nomi" yoki Uy 5B')} />
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" placeholder={t('Дом 5Б, Корпус 2...', 'Uy 5B, Korpus 2...')} />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Адрес', 'Manzil')} *</label>
@@ -67,7 +67,7 @@ export function BuildingModal({ building, onClose, onSave, language }: BuildingM
             </div>
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Тип здания', 'Bino turi')}</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Тип дома', 'Uy turi')}</label>
             <select value={form.buildingType} onChange={e => setForm({ ...form, buildingType: e.target.value as any })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none">
               <option value="panel">{t('Панельный', 'Panelli')}</option>

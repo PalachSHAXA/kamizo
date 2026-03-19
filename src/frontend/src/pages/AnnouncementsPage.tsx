@@ -620,7 +620,7 @@ export function AnnouncementsPage() {
                     {[
                       { type: 'all' as AnnouncementTargetType, label: language === 'ru' ? 'Все' : 'Hammasi', icon: Users },
                       { type: 'branch' as AnnouncementTargetType, label: language === 'ru' ? 'Филиал' : 'Filial', icon: Building2 },
-                      { type: 'building' as AnnouncementTargetType, label: language === 'ru' ? 'ЖК' : 'TJM', icon: Building2 },
+                      { type: 'building' as AnnouncementTargetType, label: language === 'ru' ? 'Комплекс' : 'Kompleks', icon: Building2 },
                       { type: 'custom' as AnnouncementTargetType, label: language === 'ru' ? 'Список' : 'Ro\'yxat', icon: FileSpreadsheet },
                     ].map(({ type, label, icon: Icon }) => (
                       <button
@@ -669,7 +669,7 @@ export function AnnouncementsPage() {
                       onChange={(e) => setSelectedBuilding(e.target.value)}
                       className="glass-input"
                     >
-                      <option value="">{language === 'ru' ? 'Выберите ЖК...' : 'TJM tanlang...'}</option>
+                      <option value="">{language === 'ru' ? 'Выберите комплекс...' : 'Kompleksni tanlang...'}</option>
                       {buildings.map(building => (
                         <option key={building.id} value={building.id}>
                           {building.name} - {building.address}
@@ -1155,7 +1155,7 @@ function AnnouncementCard({
               {announcement.target && announcement.target.type !== 'all' && (
                 <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
                   <Target className="w-3 h-3 inline mr-1" />
-                  {announcement.target.type === 'building' && (language === 'ru' ? 'ЖК' : 'TJM')}
+                  {announcement.target.type === 'building' && (language === 'ru' ? 'Комплекс' : 'Kompleks')}
                   {announcement.target.type === 'entrance' && (language === 'ru' ? 'Подъезд' : 'Kirish')}
                   {announcement.target.type === 'floor' && (language === 'ru' ? 'Этаж' : 'Qavat')}
                   {announcement.target.type === 'custom' && (language === 'ru' ? 'Список' : 'Ro\'yxat')}

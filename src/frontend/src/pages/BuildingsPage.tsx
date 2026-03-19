@@ -23,7 +23,7 @@ export function BuildingsPage() {
   const s = useBuildingsState();
 
   // Loading
-  if ((s.isLoadingBranches && s.branches.length === 0 && s.viewLevel === 'districts') || (s.isLoadingBuildings && s.buildings.length === 0 && s.viewLevel === 'buildings')) {
+  if ((s.isLoadingBranches && s.branches.length === 0 && s.viewLevel === 'branches') || (s.isLoadingBuildings && s.buildings.length === 0 && s.viewLevel === 'buildings')) {
     return <PageSkeleton variant="list" />;
   }
 
@@ -41,11 +41,11 @@ export function BuildingsPage() {
         canManageImportExport={!!s.canManageImportExport}
         language={s.language}
         onBack={s.handleBack}
-        onBreadcrumbDistricts={() => { s.setViewLevel('districts'); s.setSelectedDistrict(null); s.setSelectedBranch(null); s.setSelectedBuilding(null); s.closeSidePanel(); }}
+        onBreadcrumbDistricts={() => { s.setViewLevel('branches'); s.setSelectedBranch(null); s.setSelectedBuilding(null); s.closeSidePanel(); }}
         onBreadcrumbBranches={() => { s.setViewLevel('branches'); s.setSelectedBranch(null); s.setSelectedBuilding(null); s.closeSidePanel(); }}
         onBreadcrumbBuildings={() => { s.setViewLevel('buildings'); s.setSelectedBuilding(null); s.closeSidePanel(); }}
         onRefresh={() => {
-          if (s.viewLevel === 'districts' || s.viewLevel === 'branches') s.fetchBranches();
+          if (s.viewLevel === 'branches') s.fetchBranches();
           else if (s.viewLevel === 'buildings' && s.selectedBranch) s.fetchBuildingsForBranch(s.selectedBranch.id);
           else if (s.viewLevel === 'entrances' && s.selectedBuilding) { s.fetchEntrancesForBuilding(s.selectedBuilding.id); s.fetchApartmentsForBuilding(s.selectedBuilding.id); }
         }}
@@ -54,8 +54,7 @@ export function BuildingsPage() {
         onExportBranch={s.handleExportBranch}
         onOpenImport={() => { s.setImportFile(null); s.setImportResult(null); s.setShowImportModal(true); }}
         onAdd={() => {
-          if (s.viewLevel === 'districts') s.setShowAddDistrictModal(true);
-          else if (s.viewLevel === 'branches') s.setShowAddBranchModal(true);
+          if (s.viewLevel === 'branches') s.setShowAddBranchModal(true);
           else if (s.viewLevel === 'buildings') s.setShowAddBuildingModal(true);
           else if (s.viewLevel === 'entrances') s.setShowAddEntranceModal(true);
         }}
@@ -67,23 +66,11 @@ export function BuildingsPage() {
 
       {/* LAYOUT */}
       <div className="flex flex-1 overflow-hidden">
-        {s.viewLevel === 'districts' && (
-          <DistrictsView
-            branches={s.branches}
-            allDistricts={s.allDistricts}
-            noBranchDistrict={s.noBranchDistrict}
-            language={s.language}
-            user={s.user}
-            onDistrictClick={s.handleDistrictClick}
-            onDeleteDistrictConfirm={s.setDeleteDistrictConfirm}
-            onShowAddDistrictModal={() => s.setShowAddDistrictModal(true)}
-          />
-        )}
-
         {s.viewLevel === 'branches' && (
           <BranchesView
             searchedBranches={s.searchedBranches}
             selectedDistrict={s.selectedDistrict}
+            allDistricts={s.allDistricts}
             searchQuery={s.searchQuery}
             setSearchQuery={s.setSearchQuery}
             language={s.language}
@@ -94,6 +81,7 @@ export function BuildingsPage() {
             onDeleteBranch={s.handleDeleteBranch}
             onExportBranch={s.handleExportBranch}
             onShowAddBranchModal={() => s.setShowAddBranchModal(true)}
+            onDistrictFilter={s.handleDistrictFilter}
           />
         )}
 

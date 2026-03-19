@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Key, Calendar, ChevronLeft, ChevronRight, Users, Home, DollarSign, TrendingUp, Clock, MapPin, Loader2 } from 'lucide-react';
+import { Key, Calendar, ChevronLeft, ChevronRight, Users, Home, Banknote, TrendingUp, Clock, MapPin, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -51,7 +51,7 @@ export function TenantDashboard() {
     if (currency === 'UZS') {
       return amount.toLocaleString('ru-RU') + (language === 'ru' ? ' сум' : ' so\'m');
     }
-    return '$' + amount.toLocaleString('en-US');
+    return amount.toLocaleString('en-US') + ' USD';
   };
 
   // Total earnings in UZS (convert USD to UZS with hardcoded rate)
@@ -343,7 +343,7 @@ export function TenantDashboard() {
         <div className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-100 rounded-xl">
-              <DollarSign className="w-5 h-5 text-amber-600" />
+              <Banknote className="w-5 h-5 text-amber-600" />
             </div>
             <div>
               <div className="text-lg font-bold text-gray-900">{(totalEarnings / 1000000).toFixed(1)}М</div>

@@ -26,7 +26,7 @@ export function DistrictModal({ onClose, onSave, language }: DistrictModalProps)
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"
               placeholder={t('Юнусабадский район', 'Yunusobod tumani')} />
           </div>
-          <p className="text-[12px] text-gray-400">{t('После создания района вы сможете добавить ЖК в него.', "Tuman yaratilgandan so'ng unga TJM qo'sha olasiz.")}</p>
+          <p className="text-[12px] text-gray-400">{t('После создания района вы сможете добавить комплексы в него.', "Tuman yaratilgandan so'ng unga komplekslar qo'sha olasiz.")}</p>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 font-bold text-sm">{t('Отмена', 'Bekor')}</button>
             <button type="submit" className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm hover:bg-orange-600">{t('Продолжить', 'Davom etish')}</button>

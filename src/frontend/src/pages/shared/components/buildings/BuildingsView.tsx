@@ -35,7 +35,7 @@ export function BuildingsView({
         <Search className="w-4 h-4 text-gray-300" />
         <input
           type="text"
-          placeholder={t('Поиск по домам...', "Uylar bo'yicha qidirish...")}
+          placeholder={t('Поиск по домам...', "Uylar bo'yicha qidirish ...")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="flex-1 bg-transparent outline-none text-[13px]"
@@ -117,8 +117,8 @@ export function BuildingsView({
           <div className="col-span-full">
             <EmptyState
               icon={<Building2 className="w-12 h-12" />}
-              title={language === 'ru' ? 'Нет зданий' : 'Binolar yo\'q'}
-              description={language === 'ru' ? 'Дома не найдены' : 'Uylar topilmadi'}
+              title={language === 'ru' ? 'Нет домов' : 'Uylar yo\'q'}
+              description={language === 'ru' ? 'Добавьте первый дом в комплекс' : 'Kompleksga birinchi uyni qo\'shing'}
             />
           </div>
         )}

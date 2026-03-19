@@ -8,7 +8,7 @@ import {
   Plus,
   Settings,
   Filter,
-  DollarSign,
+  Banknote,
   Calendar,
   Tag,
   FileText,
@@ -227,7 +227,7 @@ export default function IncomePage() {
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
-            <DollarSign className="w-6 h-6 text-emerald-600" />
+            <Banknote className="w-6 h-6 text-emerald-600" />
           </div>
           <div>
             <p className="text-sm text-gray-500">
@@ -345,7 +345,7 @@ export default function IncomePage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              <DollarSign className="w-3.5 h-3.5 inline mr-1" />
+              <Banknote className="w-3.5 h-3.5 inline mr-1" />
               {t('Сумма', 'Summa')} *
             </label>
             <input

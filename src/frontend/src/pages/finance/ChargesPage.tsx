@@ -6,7 +6,6 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
-  DollarSign,
   TrendingUp,
   AlertTriangle,
   ArrowUpCircle,
@@ -28,7 +27,7 @@ import { PageSkeleton } from '../../components/PageSkeleton';
 
 const fmt = (v: unknown): string => {
   const n = Number(v) || 0;
-  return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' сум';
 };
 
 const statusColor: Record<string, { bg: string; text: string }> = {
@@ -217,7 +216,7 @@ export default function ChargesPage() {
     {
       label: t('Начислено', 'Hisoblangan'),
       value: fmt(summary?.total_charged),
-      icon: <DollarSign className="w-5 h-5" />,
+      icon: <Banknote className="w-5 h-5" />,
       color: 'text-primary-600',
       bg: 'bg-primary-50',
     },
@@ -253,14 +252,14 @@ export default function ChargesPage() {
           <div className="flex flex-col gap-1 min-w-[180px]">
             <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
               <Building2 className="w-3.5 h-3.5" />
-              {t('Здание', 'Bino')}
+              {t('Комплекс', 'Kompleks')}
             </label>
             <select
               value={localBuilding}
               onChange={(e) => setLocalBuilding(e.target.value)}
               className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
             >
-              <option value="">{t('Все здания', 'Barcha binolar')}</option>
+              <option value="">{t('Все комплексы', 'Barcha komplekslar')}</option>
               {buildings.map((b) => (
                 <option key={b.id as string} value={b.id as string}>
                   {b.name as string}

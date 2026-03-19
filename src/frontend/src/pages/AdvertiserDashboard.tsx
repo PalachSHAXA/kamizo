@@ -1020,8 +1020,8 @@ export function AdvertiserDashboard() {
                       className="w-4 h-4 text-primary-600"
                     />
                     <div>
-                      <div className="font-medium text-gray-900">{language === 'ru' ? 'Выбрать объекты (здания)' : 'Obyektlarni tanlash (binolar)'}</div>
-                      <div className="text-xs text-gray-500">{language === 'ru' ? 'Только для определённых зданий' : 'Faqat ma\'lum binolar uchun'}</div>
+                      <div className="font-medium text-gray-900">{language === 'ru' ? 'Выбрать объекты (комплексы)' : 'Obyektlarni tanlash (komplekslar)'}</div>
+                      <div className="text-xs text-gray-500">{language === 'ru' ? 'Только для определённых комплексов' : 'Faqat ma\'lum komplekslar uchun'}</div>
                     </div>
                   </label>
                   <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">

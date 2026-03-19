@@ -32,7 +32,7 @@ export function DistrictsView({
         <>
           <div className="text-center">
             <h1 className="text-[28px] font-black tracking-tight">{t('Выберите район', 'Tumanni tanlang')}</h1>
-            <p className="text-[14px] text-gray-400 mt-2">{t('Нажмите на район чтобы перейти к ЖК', "TJMlarga o'tish uchun tumanni bosing")}</p>
+            <p className="text-[14px] text-gray-400 mt-2">{t('Нажмите на район чтобы перейти к комплексам', "Komplekslarga o'tish uchun tumanni bosing")}</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-[1100px] w-full">
             {allDistricts.map(district => {
@@ -66,11 +66,11 @@ export function DistrictsView({
                   <div className="p-4 flex flex-wrap gap-4">
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><Home className="w-4 h-4 text-blue-600" /></div>
-                      <div><div className="text-[18px] font-extrabold text-blue-600 leading-tight">{dBranches.length}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('ЖК', 'TJM')}</div></div>
+                      <div><div className="text-[18px] font-extrabold text-blue-600 leading-tight">{dBranches.length}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Комплексов', 'Komplekslar')}</div></div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><Building2 className="w-4 h-4 text-green-600" /></div>
-                      <div><div className="text-[18px] font-extrabold text-green-600 leading-tight">{totalBuildings}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Зданий', 'Binolar')}</div></div>
+                      <div><div className="text-[18px] font-extrabold text-green-600 leading-tight">{totalBuildings}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Домов', 'Uylar')}</div></div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><Users className="w-4 h-4 text-orange-500" /></div>
@@ -84,8 +84,8 @@ export function DistrictsView({
               <div onClick={() => onDistrictClick('')}
                 className="bg-white rounded-2xl border-2 border-dashed border-gray-200 cursor-pointer transition-all hover:border-orange-300 hover:-translate-y-1 hover:shadow-lg">
                 <div className="p-5 text-center">
-                  <p className="text-[14px] font-semibold text-gray-400">{t('Без района', 'Tumansiz ЖК')}</p>
-                  <p className="text-[12px] text-gray-300 mt-1">{branches.filter(b => !b.district).length} {t('ЖК', 'TJM')}</p>
+                  <p className="text-[14px] font-semibold text-gray-400">{t('Без района', 'Tumansiz komplekslar')}</p>
+                  <p className="text-[12px] text-gray-300 mt-1">{branches.filter(b => !b.district).length} {t('Комплексов', 'Komplekslar')}</p>
                 </div>
               </div>
             )}

@@ -86,8 +86,8 @@ export function ReportsPage() {
     const headers = [
       language === 'ru' ? 'Ф.И.О.' : 'F.I.O.',
       language === 'ru' ? 'Район' : 'Tuman',
-      language === 'ru' ? 'ЖК' : 'TJM',
-      language === 'ru' ? 'Здание' : 'Bino',
+      language === 'ru' ? 'Комплекс' : 'Kompleks',
+      language === 'ru' ? 'Комплекс' : 'Kompleks',
       language === 'ru' ? 'Подъезд' : 'Podyezd',
       language === 'ru' ? 'Квартира' : 'Xonadon',
       language === 'ru' ? 'Лицевой счёт' : 'Shaxsiy hisob',
@@ -526,7 +526,7 @@ export function ReportsPage() {
               <div className="text-center py-8 text-gray-500">
                 <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p>{language === 'ru' ? 'Нет данных по объектам' : 'Obyektlar bo\'yicha ma\'lumot yo\'q'}</p>
-                <p className="text-sm mt-1">{language === 'ru' ? 'Добавьте здания в разделе "Дома"' : '"Uylar" bo\'limiga binolarni qo\'shing'}</p>
+                <p className="text-sm mt-1">{language === 'ru' ? 'Добавьте комплексы в разделе "Комплексы"' : '"Komplekslar" bo\'limiga komplekslarni qo\'shing'}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -1216,7 +1216,7 @@ export function ReportsPage() {
                 onChange={e => setDebtFilterBuilding(e.target.value)}
                 className="glass-input min-w-[140px]"
               >
-                <option value="">{language === 'ru' ? 'Все здания' : 'Barcha binolar'}</option>
+                <option value="">{language === 'ru' ? 'Все комплексы' : 'Barcha komplekslar'}</option>
                 {debtBuildings.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
               {/* Debtors only toggle */}
@@ -1264,7 +1264,7 @@ export function ReportsPage() {
                         </button>
                       </th>
                       <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Район / ЖК' : 'Tuman / TJM'}</th>
-                      <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Здание' : 'Bino'}</th>
+                      <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Комплекс' : 'Kompleks'}</th>
                       <th className="px-4 py-3 font-medium">{language === 'ru' ? 'Пд.' : 'Pod.'}</th>
                       <th className="px-4 py-3 font-medium">
                         <button onClick={() => handleDebtSort('apartment')} className="flex items-center gap-1 hover:text-gray-700">

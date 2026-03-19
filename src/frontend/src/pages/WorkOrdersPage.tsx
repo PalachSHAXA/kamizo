@@ -352,7 +352,7 @@ export function WorkOrdersPage() {
             onChange={(e) => setFilterBuilding(e.target.value)}
             className="px-4 py-2 min-h-[44px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="all">{language === 'ru' ? 'Все дома' : 'Barcha binolar'}</option>
+            <option value="all">{language === 'ru' ? 'Все дома' : 'Barcha uylar'}</option>
             {buildings.map(b => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
@@ -852,7 +852,7 @@ function WorkOrderFormModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Дом *' : 'Bino *'}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Дом *' : 'Uy *'}</label>
               <select
                 required
                 value={formData.buildingId}

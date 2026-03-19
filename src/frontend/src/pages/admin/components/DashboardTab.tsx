@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, DollarSign, CheckCircle, XCircle, Edit2, Trash2, ExternalLink, ClipboardList, Vote, QrCode, UserCog, Settings, Search, RefreshCw, Sparkles } from 'lucide-react';
+import { Building2, Users, Banknote, CheckCircle, XCircle, Edit2, Trash2, ExternalLink, ClipboardList, Vote, QrCode, UserCog, Settings, Search, RefreshCw, Sparkles } from 'lucide-react';
 import { apiRequest } from '../../../services/api';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
@@ -214,7 +214,7 @@ export function DashboardTab({
                 { icon: ClipboardList, value: tenantStats.requests, label: 'Заявки', gradient: 'from-amber-500 to-orange-400' },
                 { icon: Vote, value: tenantStats.votes, label: 'Голосования', gradient: 'from-purple-500 to-violet-400' },
                 { icon: QrCode, value: tenantStats.qr_codes, label: 'QR-коды', gradient: 'from-emerald-500 to-green-400' },
-                { icon: Building2, value: tenantStats.buildings, label: 'Здания', gradient: 'from-orange-500 to-amber-400' },
+                { icon: Building2, value: tenantStats.buildings, label: 'Комплексы', gradient: 'from-orange-500 to-amber-400' },
                 { icon: UserCog, value: tenantStats.staff, label: 'Персонал', gradient: 'from-rose-500 to-red-400' },
               ].map((s, i) => {
                 const Icon = s.icon;
@@ -422,7 +422,7 @@ export function DashboardTab({
           { key: 'all' as const, icon: Building2, label: 'Всего УК', value: totalStats.total, gradient: 'from-orange-500 to-amber-400', bg: 'bg-orange-50', border: 'border-orange-200', ring: 'ring-orange-200' },
           { key: 'active' as const, icon: CheckCircle, label: 'Активных', value: totalStats.active, gradient: 'from-emerald-500 to-green-400', bg: 'bg-green-50', border: 'border-green-200', ring: 'ring-green-200' },
           { key: 'users' as const, icon: Users, label: 'Жителей', value: totalStats.users, gradient: 'from-blue-500 to-cyan-400', bg: 'bg-blue-50', border: 'border-blue-200', ring: 'ring-blue-200' },
-          { key: 'revenue' as const, icon: DollarSign, label: 'Доход', value: `$${totalStats.revenue.toLocaleString('en-US')}`, gradient: 'from-purple-500 to-violet-400', bg: 'bg-purple-50', border: 'border-purple-200', ring: 'ring-purple-200' },
+          { key: 'revenue' as const, icon: Banknote, label: 'Доход', value: `${totalStats.revenue.toLocaleString('ru-RU')} сум`, gradient: 'from-purple-500 to-violet-400', bg: 'bg-purple-50', border: 'border-purple-200', ring: 'ring-purple-200' },
         ].map(card => {
           const Icon = card.icon;
           const isActive = statFilter === card.key;

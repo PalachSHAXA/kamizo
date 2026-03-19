@@ -40,8 +40,8 @@ export function DeleteDistrictConfirm({
         <div className="space-y-2 mb-4">
           <p className="text-sm text-center text-red-700 bg-red-50 rounded-xl p-3">
             {language === 'ru'
-              ? `Будут безвозвратно удалены: ${dBranches.length} ЖК, ${totalBuildings} зд., ${totalResidents} жит. и все связанные данные.`
-              : `Butunlay o'chiriladi: ${dBranches.length} TJM, ${totalBuildings} bino, ${totalResidents} yashovchi va barcha bog'liq ma'lumotlar.`
+              ? `Будут безвозвратно удалены: ${dBranches.length} комплексов, ${totalBuildings} домов, ${totalResidents} жит. и все связанные данные.`
+              : `Butunlay o'chiriladi: ${dBranches.length} kompleks, ${totalBuildings} uy, ${totalResidents} yashovchi va barcha bog'liq ma'lumotlar.`
             }
           </p>
         </div>

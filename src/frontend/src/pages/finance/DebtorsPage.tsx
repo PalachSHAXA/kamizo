@@ -119,13 +119,13 @@ export default function DebtorsPage() {
         <div className="flex flex-wrap items-end gap-4">
           {/* Building */}
           <div className="flex flex-col gap-1 min-w-[180px]">
-            <label className="text-xs font-medium text-gray-500">{t('Здание', 'Bino')}</label>
+            <label className="text-xs font-medium text-gray-500">{t('Комплекс', 'Kompleks')}</label>
             <select
               value={filterBuilding}
               onChange={(e) => setFilterBuilding(e.target.value)}
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="">{t('Все здания', 'Barcha binolar')}</option>
+              <option value="">{t('Все комплексы', 'Barcha komplekslar')}</option>
               {buildings.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -221,7 +221,7 @@ export default function DebtorsPage() {
                 <tr className="border-b border-gray-200 bg-gray-50/50">
                   <th className="px-4 py-3 text-left font-medium text-gray-500">#</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">{t('Квартира', 'Xonadon')}</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">{t('Здание', 'Bino')}</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">{t('Комплекс', 'Kompleks')}</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">{t('Владелец', 'Egasi')}</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">{t('Телефон', 'Telefon')}</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">{t('Долг', 'Qarz')}</th>

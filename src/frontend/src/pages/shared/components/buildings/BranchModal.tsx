@@ -28,8 +28,8 @@ export function BranchModal({ branch, onClose, onSave, language, defaultDistrict
     if (!trimmed || trimmed === branch?.code) { setCodeEditing(false); return; }
     const confirmed = confirm(
       language === 'ru'
-        ? `Изменение кода ЖК с "${branch?.code}" на "${trimmed}" обновит все связанные здания. Продолжить?`
-        : `"${branch?.code}" dan "${trimmed}" ga TJM kodini o'zgartirish barcha binolarga ta'sir qiladi. Davom etasizmi?`
+        ? `Изменение кода комплекса с "${branch?.code}" на "${trimmed}" обновит все связанные дома. Продолжить?`
+        : `"${branch?.code}" dan "${trimmed}" ga kompleks kodini o'zgartirish barcha uylarga ta'sir qiladi. Davom etasizmi?`
     );
     if (!confirmed) return;
     setCodeLoading(true);
@@ -48,7 +48,7 @@ export function BranchModal({ branch, onClose, onSave, language, defaultDistrict
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
-          <h2 className="text-lg font-bold">{branch ? t('Редактировать ЖК', 'TJMni tahrirlash') : t('Новый ЖК', 'Yangi TJM')}</h2>
+          <h2 className="text-lg font-bold">{branch ? t('Редактировать комплекс', 'Kompleksni tahrirlash') : t('Новый комплекс', 'Yangi kompleks')}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); if (form.code && form.name) onSave(form); }} className="space-y-4">
@@ -59,7 +59,7 @@ export function BranchModal({ branch, onClose, onSave, language, defaultDistrict
               placeholder={t('Юнусабадский, Мирзо-Улугбекский...', 'Yunusobod, Mirzo-Ulugbek...')} />
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Код ЖК', 'TJM kodi')} *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Код комплекса', 'Kompleks kodi')} *</label>
             {branch && canEditCode ? (
               codeEditing ? (
                 <div className="flex gap-2">
@@ -89,10 +89,10 @@ export function BranchModal({ branch, onClose, onSave, language, defaultDistrict
             )}
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название ЖК', 'TJM nomi')} *</label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название комплекса', 'Kompleks nomi')} *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"
-              placeholder={t('ЖК "Ориент", ЖК "Юнусабад"...', 'TJM "Orient", TJM "Yunusobod"...')} />
+              placeholder={t('Комплекс "Ориент", ЖК "Юнусабад"...', 'Kompleks "Orient", Kompleks "Yunusobod"...')} />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Адрес', 'Manzil')}</label>

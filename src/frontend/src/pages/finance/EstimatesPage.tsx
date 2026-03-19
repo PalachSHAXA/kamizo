@@ -245,7 +245,7 @@ export default function EstimatesPage() {
             {t('Сметы', 'Smetalar')}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {t('Управление финансовыми сметами зданий', 'Binolar moliyaviy smetalarini boshqarish')}
+            {t('Управление финансовыми сметами комплексов', 'Komplekslar moliyaviy smetalarini boshqarish')}
           </p>
         </div>
         <button
@@ -268,7 +268,7 @@ export default function EstimatesPage() {
           onChange={(e) => setFilterBuilding(e.target.value)}
           className="flex-1 min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
         >
-          <option value="">{t('Все здания', 'Barcha binolar')}</option>
+          <option value="">{t('Все комплексы', 'Barcha komplekslar')}</option>
           {buildings.map((b) => (
             <option key={b.id as string} value={b.id as string}>
               {(b.name as string) || (b.address as string)}
@@ -334,7 +334,7 @@ export default function EstimatesPage() {
                 )}
                 <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-1">
                   <Building2 className="w-3.5 h-3.5" />
-                  <span className="truncate">{bName || t('Здание', 'Bino')}</span>
+                  <span className="truncate">{bName || t('Комплекс', 'Kompleks')}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-3">
                   <Calendar className="w-3.5 h-3.5" />
@@ -364,14 +364,14 @@ export default function EstimatesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Здание', 'Bino')} *
+                {t('Комплекс', 'Kompleks')} *
               </label>
               <select
                 value={formBuilding}
                 onChange={(e) => setFormBuilding(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               >
-                <option value="">{t('Выберите здание', 'Binoni tanlang')}</option>
+                <option value="">{t('Выберите комплекс', 'Kompleksni tanlang')}</option>
                 {buildings.map((b) => (
                   <option key={b.id as string} value={b.id as string}>
                     {(b.name as string) || (b.address as string)}
@@ -556,7 +556,7 @@ export default function EstimatesPage() {
               </span>
               <span className="text-sm text-gray-500 flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5" />
-                {buildingMap[currentEstimate.building_id as string] || t('Здание', 'Bino')}
+                {buildingMap[currentEstimate.building_id as string] || t('Комплекс', 'Kompleks')}
               </span>
               <span className="text-sm text-gray-500 flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />

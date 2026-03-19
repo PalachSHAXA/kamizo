@@ -358,7 +358,7 @@ export function StaffProfilePage() {
                 {[
                   { labelRu: 'Отчёты', labelUz: 'Hisobotlar', icon: '📊' },
                   { labelRu: 'Сотрудники', labelUz: 'Xodimlar', icon: '👥' },
-                  { labelRu: 'Здания', labelUz: 'Binolar', icon: '🏢' },
+                  { labelRu: 'Комплексы', labelUz: 'Komplekslar', icon: '🏢' },
                 ].map((item) => (
                   <div key={item.labelRu} className="bg-white/15 rounded-[12px] px-3 py-2.5 text-center">
                     <div className="text-xl mb-1">{item.icon}</div>

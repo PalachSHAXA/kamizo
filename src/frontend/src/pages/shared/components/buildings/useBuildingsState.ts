@@ -25,7 +25,7 @@ export function useBuildingsState() {
   const canManageImportExport = user && ['admin', 'director', 'manager'].includes(user.role);
 
   // Navigation
-  const [viewLevel, setViewLevel] = useState<ViewLevel>('districts');
+  const [viewLevel, setViewLevel] = useState<ViewLevel>('branches');
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<BuildingFull | null>(null);
@@ -251,15 +251,11 @@ export function useBuildingsState() {
     } else if (viewLevel === 'buildings') {
       setSelectedBranch(null);
       setViewLevel('branches');
-    } else if (viewLevel === 'branches') {
-      setSelectedBranch(null);
-      setSelectedDistrict(null);
-      setViewLevel('districts');
     }
     setSearchQuery('');
   };
 
-  useBackGuard(viewLevel !== 'districts', handleBack);
+  useBackGuard(viewLevel !== 'branches', handleBack);
 
   // CRUD: branches (ЖК)
   const handleAddBranch = async (data: { code: string; name: string; address?: string; phone?: string; district?: string }) => {
@@ -293,7 +289,7 @@ export function useBuildingsState() {
   };
 
   const handleDeleteBranch = async (id: string) => {
-    if (!confirm(t('Удалить этот ЖК?', "Bu TJMni o'chirasizmi?"))) return;
+    if (!confirm(t('Удалить этот комплекс?', "Bu kompleksni o'chirasizmi?"))) return;
     try {
       await apiRequest(`/api/branches/${id}`, { method: 'DELETE' });
       fetchBranches();
@@ -363,7 +359,7 @@ export function useBuildingsState() {
   };
 
   const handleDeleteBuilding = async (id: string) => {
-    if (!confirm(t('Удалить это здание?', "Bu binoni o'chirasizmi?"))) return;
+    if (!confirm(t('Удалить этот дом?', "Bu uyni o'chirasizmi?"))) return;
     try {
       await deleteBuilding(id);
       if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
@@ -511,6 +507,12 @@ export function useBuildingsState() {
   const districtBranches = selectedDistrict
     ? branches.filter(b => (b.district || '') === selectedDistrict)
     : branches;
+
+  // District filter handler (for dropdown)
+  const handleDistrictFilter = (district: string) => {
+    setSelectedDistrict(district || null);
+    setSearchQuery('');
+  };
   const searchedBranches = districtBranches.filter(b =>
     !searchQuery || b.name.toLowerCase().includes(searchQuery.toLowerCase()) || b.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -583,6 +585,7 @@ export function useBuildingsState() {
     handleApartmentClick, handleGenerateApartments,
     handleBranchClick, handleBuildingClick, handleDistrictClick,
     handleDeleteDistrict, handleBack, closeSidePanel,
+    handleDistrictFilter,
     handleAddBranch, handleUpdateBranch, handleChangeCode, handleDeleteBranch,
     handleExportBranch, handleImportSubmit,
     handleAddBuilding, handleUpdateBuilding, handleDeleteBuilding,

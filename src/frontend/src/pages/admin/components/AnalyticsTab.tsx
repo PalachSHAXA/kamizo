@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Users, DollarSign, FileText, TrendingUp, RefreshCw } from 'lucide-react';
+import { Building2, Users, Banknote, FileText, TrendingUp, RefreshCw } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -96,7 +96,7 @@ export function AnalyticsTab({ analytics, isLoadingAnalytics }: AnalyticsTabProp
               <Building2 className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <div className="text-xs text-gray-500">Здания</div>
+              <div className="text-xs text-gray-500">Комплексы</div>
               <div className="text-xl font-bold">{analytics.totals.buildings.toLocaleString()}</div>
             </div>
           </div>
@@ -104,7 +104,7 @@ export function AnalyticsTab({ analytics, isLoadingAnalytics }: AnalyticsTabProp
         <div className="bg-white p-5 rounded-lg shadow-sm border">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-purple-100 rounded-lg">
-              <DollarSign className="w-5 h-5 text-purple-600" />
+              <Banknote className="w-5 h-5 text-purple-600" />
             </div>
             <div>
               <div className="text-xs text-gray-500">Выручка</div>
@@ -168,7 +168,7 @@ export function AnalyticsTab({ analytics, isLoadingAnalytics }: AnalyticsTabProp
 
         <div className="bg-white p-5 rounded-lg shadow-sm border">
           <h3 className="font-semibold text-sm mb-4 flex items-center gap-2 text-gray-700">
-            <DollarSign className="w-4 h-4 text-green-500" />
+            <Banknote className="w-4 h-4 text-green-500" />
             Выручка по {periodLabel}
           </h3>
           <ResponsiveContainer width="100%" height={240}>

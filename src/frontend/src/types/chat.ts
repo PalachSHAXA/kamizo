@@ -53,11 +53,11 @@ export const CHAT_CHANNEL_LABELS: Record<ChatChannelType, { label: string; label
     descriptionUz: 'Boshqaruv kompaniyasi barcha turar joy egalari uchun umumiy chat'
   },
   building_general: {
-    label: 'Чат ЖК',
-    labelUz: 'TJM chat',
+    label: 'Чат комплекса',
+    labelUz: 'Kompleks chat',
     icon: '🏠',
-    description: 'Чат жителей вашего жилого комплекса',
-    descriptionUz: 'Sizning turar joy majmuangiz aholisi uchun chat'
+    description: 'Чат жителей вашего комплекса',
+    descriptionUz: 'Sizning kompleksingiz aholisi uchun chat'
   },
   entrance: {
     label: 'Чат подъезда',
