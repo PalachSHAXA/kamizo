@@ -108,14 +108,16 @@ route('POST', '/api/finance/estimates', async (request, env) => {
 
   const tenantId = getTenantId(request);
   const body = await request.json() as Record<string, unknown>;
-  const { building_id, period, title, items, uk_profit_percent, non_commercial_coefficient, show_profit_to_residents } = body as {
-    building_id: string; period: string; title?: string; items: { name: string; category?: string; amount: number; description?: string }[];
+  const { building_id, period, title, items, uk_profit_percent, non_commercial_coefficient, show_profit_to_residents,
+    effective_date, enterprise_profit_percent, commercial_rate: commercialRateInput, basement_rate, parking_rate } = body as {
+    building_id: string; period: string; title?: string; items: { name: string; category?: string; amount: number; monthly_amount?: number; description?: string }[];
     uk_profit_percent?: number; non_commercial_coefficient?: number; show_profit_to_residents?: number;
+    effective_date?: string; enterprise_profit_percent?: number; commercial_rate?: number; basement_rate?: number; parking_rate?: number;
   };
 
-  if (!building_id || !period || !items?.length) return error('building_id, period, and items are required');
+  if (!building_id || !items?.length) return error('building_id and items are required');
 
-  const profitPct = uk_profit_percent ?? 10;
+  const profitPct = uk_profit_percent ?? enterprise_profit_percent ?? 9;
   const ncCoeff = non_commercial_coefficient ?? 1.5;
   const totalAmount = items.reduce((sum, i) => sum + (i.amount || 0), 0);
   const totalWithProfit = totalAmount * (1 + profitPct / 100);
@@ -133,18 +135,18 @@ route('POST', '/api/finance/estimates', async (request, env) => {
 
   const id = generateId();
   await env.DB.prepare(
-    `INSERT INTO finance_estimates (id, building_id, period, title, total_amount, commercial_rate_per_sqm, non_commercial_rate_per_sqm, non_commercial_coefficient, uk_profit_percent, show_profit_to_residents, status, created_by, tenant_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`
-  ).bind(id, building_id, period, title || `Смета за ${period}`, totalAmount, commercialRate, nonCommercialRate, ncCoeff, profitPct, show_profit_to_residents || 0, user.id, tenantId || '').run();
+    `INSERT INTO finance_estimates (id, building_id, period, title, total_amount, commercial_rate_per_sqm, non_commercial_rate_per_sqm, non_commercial_coefficient, uk_profit_percent, show_profit_to_residents, effective_date, enterprise_profit_percent, commercial_rate, basement_rate, parking_rate, status, created_by, tenant_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`
+  ).bind(id, building_id, period || null, title || (effective_date ? `Смета с ${effective_date}` : `Смета за ${period}`), totalAmount, commercialRate, nonCommercialRate, ncCoeff, profitPct, show_profit_to_residents || 0, effective_date || null, enterprise_profit_percent ?? 9, commercialRateInput ?? 0, basement_rate ?? 0, parking_rate ?? 0, user.id, tenantId || '').run();
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     await env.DB.prepare(
-      'INSERT INTO finance_estimate_items (id, estimate_id, name, category, amount, description, sort_order, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(generateId(), id, item.name, item.category || 'maintenance', item.amount || 0, item.description || null, i, tenantId || '').run();
+      'INSERT INTO finance_estimate_items (id, estimate_id, name, category, amount, monthly_amount, description, sort_order, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(generateId(), id, item.name, item.category || 'maintenance', item.amount || 0, item.monthly_amount || 0, item.description || null, i, tenantId || '').run();
   }
 
-  return json({ estimate: { id, building_id, period, total_amount: totalAmount, commercial_rate_per_sqm: commercialRate, non_commercial_rate_per_sqm: nonCommercialRate, status: 'draft' } }, 201);
+  return json({ estimate: { id, building_id, period, effective_date, total_amount: totalAmount, commercial_rate_per_sqm: commercialRate, non_commercial_rate_per_sqm: nonCommercialRate, status: 'draft' } }, 201);
 });
 
 // 4. PUT /api/finance/estimates/:id — обновить смету (только draft)

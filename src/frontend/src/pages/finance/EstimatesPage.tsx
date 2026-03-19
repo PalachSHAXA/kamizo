@@ -16,15 +16,31 @@ import {
   CheckCircle2,
   Eye,
   AlertTriangle,
+  Banknote,
 } from 'lucide-react';
+import { formatAmount } from '../../utils/formatCurrency';
 
-interface EstimateItem {
+// ── Default expense articles (real УК template) ──
+const DEFAULT_EXPENSE_ARTICLES: Array<{ name_ru: string; name_uz: string }> = [
+  { name_ru: 'Хозяйственные товары', name_uz: 'Xo\'jalik mollari' },
+  { name_ru: 'Спецодежда с вышивкой', name_uz: 'Tikilgan maxsus kiyim' },
+  { name_ru: 'Канцелярские принадлежности', name_uz: 'Ish yuritish buyumlari' },
+  { name_ru: 'Принадлежности для электрика и сантехника', name_uz: 'Elektrik va santexnik uchun buyumlar' },
+  { name_ru: 'Закупка офисной мебели', name_uz: 'Ofis mebelini sotib olish' },
+  { name_ru: 'Закупка мебели для охранной будки', name_uz: 'Qo\'riqchi budkasi uchun mebel' },
+  { name_ru: 'Закупка оргтехники', name_uz: 'Orgtexnika sotib olish' },
+  { name_ru: 'Обслуживание лифта и домофона', name_uz: 'Lift va domofon xizmati' },
+  { name_ru: 'Общие коммунальные и профил. расходы', name_uz: 'Umumiy kommunal va profilaktika xarajatlari' },
+  { name_ru: 'Прочие расходы', name_uz: 'Boshqa xarajatlar' },
+  { name_ru: 'Расходы по зарплате', name_uz: 'Ish haqi xarajatlari' },
+  { name_ru: 'Расходы садовника', name_uz: 'Bog\'bon xarajatlari' },
+];
+
+interface ExpenseItem {
   name: string;
-  category: string;
-  amount: number;
+  monthly_amount: number;
+  amount: number; // yearly = monthly * 12
 }
-
-const CATEGORIES = ['maintenance', 'utilities', 'salary', 'other'] as const;
 
 const STATUS_STYLES: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -32,14 +48,9 @@ const STATUS_STYLES: Record<string, string> = {
   archived: 'bg-slate-100 text-slate-600',
 };
 
-function formatAmount(n: number | unknown): string {
-  const num = typeof n === 'number' ? n : Number(n) || 0;
-  return num.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
 export default function EstimatesPage() {
   const language = useLanguageStore((s) => s.language);
-  const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
+  const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
 
   const estimates = useFinanceStore((s) => s.estimates);
   const estimatesLoading = useFinanceStore((s) => s.estimatesLoading);
@@ -69,13 +80,19 @@ export default function EstimatesPage() {
 
   // Create form state
   const [formBuilding, setFormBuilding] = useState('');
-  const [formPeriod, setFormPeriod] = useState('');
+  const [formEffectiveDate, setFormEffectiveDate] = useState('');
   const [formTitle, setFormTitle] = useState('');
-  const [formItems, setFormItems] = useState<EstimateItem[]>([
-    { name: '', category: 'maintenance', amount: 0 },
-  ]);
-  const [formProfitPct, setFormProfitPct] = useState(10);
-  const [formNcCoeff, setFormNcCoeff] = useState(1.5);
+  const [formItems, setFormItems] = useState<ExpenseItem[]>(() =>
+    DEFAULT_EXPENSE_ARTICLES.map((a) => ({
+      name: language === 'ru' ? a.name_ru : a.name_uz,
+      monthly_amount: 0,
+      amount: 0,
+    }))
+  );
+  const [formProfitPct, setFormProfitPct] = useState(9);
+  const [formCommercialRate, setFormCommercialRate] = useState(0);
+  const [formBasementRate, setFormBasementRate] = useState(0);
+  const [formParkingRate, setFormParkingRate] = useState(0);
   const [formShowProfit, setFormShowProfit] = useState(false);
   const [formShowDebtor, setFormShowDebtor] = useState(false);
 
@@ -106,9 +123,42 @@ export default function EstimatesPage() {
     load();
   }, [filterBuilding, filterStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const formTotal = useMemo(
+  // Calculations
+  const formTotalYearly = useMemo(
     () => formItems.reduce((sum, it) => sum + (Number(it.amount) || 0), 0),
     [formItems],
+  );
+
+  const formTotalMonthly = useMemo(
+    () => formItems.reduce((sum, it) => sum + (Number(it.monthly_amount) || 0), 0),
+    [formItems],
+  );
+
+  const formEnterpiseIncome = useMemo(
+    () => Math.round(formTotalYearly * (formProfitPct / 100)),
+    [formTotalYearly, formProfitPct],
+  );
+
+  const formGrandTotal = useMemo(
+    () => formTotalYearly + formEnterpiseIncome,
+    [formTotalYearly, formEnterpiseIncome],
+  );
+
+  // Get building info for selected complex
+  const selectedBuilding = useMemo(
+    () => buildings.find((b) => (b.id as string) === formBuilding),
+    [buildings, formBuilding],
+  );
+
+  // Estimate total area from building data (if available)
+  const totalArea = useMemo(() => {
+    if (!selectedBuilding) return 0;
+    return Number((selectedBuilding as Record<string, unknown>).total_area) || 0;
+  }, [selectedBuilding]);
+
+  const costPerSqm = useMemo(
+    () => (totalArea > 0 ? Math.round(formGrandTotal / totalArea) : 0),
+    [formGrandTotal, totalArea],
   );
 
   const buildingMap = useMemo(() => {
@@ -119,37 +169,31 @@ export default function EstimatesPage() {
     return m;
   }, [buildings]);
 
-  const categoryLabel = useCallback(
-    (cat: string) => {
-      const map: Record<string, [string, string]> = {
-        maintenance: ['Обслуживание', 'Xizmat ko\'rsatish'],
-        utilities: ['Коммуналка', 'Kommunal'],
-        salary: ['Зарплата', 'Ish haqi'],
-        other: ['Прочее', 'Boshqa'],
-      };
-      const pair = map[cat];
-      return pair ? t(pair[0], pair[1]) : cat;
-    },
-    [language], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
   const statusLabel = useCallback(
     (status: string) => {
       const map: Record<string, [string, string]> = {
         draft: ['Черновик', 'Qoralama'],
-        active: ['Активна', 'Faol'],
+        active: ['Действующая', 'Amalda'],
         archived: ['Архив', 'Arxiv'],
       };
       const pair = map[status];
       return pair ? t(pair[0], pair[1]) : status;
     },
-    [language], // eslint-disable-line react-hooks/exhaustive-deps
+    [t],
   );
 
   // --- Item handlers ---
-  const updateItem = (idx: number, field: keyof EstimateItem, value: string | number) => {
+  const updateItem = (idx: number, field: keyof ExpenseItem, value: string | number) => {
     setFormItems((prev) =>
-      prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)),
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const updated = { ...it, [field]: value };
+        // Auto-calc yearly from monthly
+        if (field === 'monthly_amount') {
+          updated.amount = Math.round(Number(value) * 12);
+        }
+        return updated;
+      }),
     );
   };
 
@@ -158,36 +202,51 @@ export default function EstimatesPage() {
   };
 
   const addItem = () => {
-    setFormItems((prev) => [...prev, { name: '', category: 'maintenance', amount: 0 }]);
+    setFormItems((prev) => [...prev, { name: '', monthly_amount: 0, amount: 0 }]);
   };
 
   // --- Create ---
   const resetForm = () => {
     setFormBuilding('');
-    setFormPeriod('');
+    setFormEffectiveDate('');
     setFormTitle('');
-    setFormItems([{ name: '', category: 'maintenance', amount: 0 }]);
-    setFormProfitPct(10);
-    setFormNcCoeff(1.5);
+    setFormItems(
+      DEFAULT_EXPENSE_ARTICLES.map((a) => ({
+        name: language === 'ru' ? a.name_ru : a.name_uz,
+        monthly_amount: 0,
+        amount: 0,
+      }))
+    );
+    setFormProfitPct(9);
+    setFormCommercialRate(0);
+    setFormBasementRate(0);
+    setFormParkingRate(0);
     setFormShowProfit(false);
     setFormShowDebtor(false);
   };
 
   const handleCreate = async () => {
-    if (!formBuilding || !formPeriod || formItems.length === 0) return;
+    if (!formBuilding || formItems.length === 0) return;
     setSaving(true);
+    const validItems = formItems.filter((it) => it.name && (it.amount > 0 || it.monthly_amount > 0));
     const ok = await createEstimate({
       building_id: formBuilding,
-      period: formPeriod,
+      period: formEffectiveDate ? formEffectiveDate.slice(0, 7) : new Date().toISOString().slice(0, 7),
+      effective_date: formEffectiveDate || undefined,
       title: formTitle || undefined,
-      items: formItems.filter((it) => it.name && it.amount > 0).map((it) => ({
+      items: validItems.map((it) => ({
         name: it.name,
-        category: it.category,
+        category: 'maintenance',
         amount: Number(it.amount),
+        monthly_amount: Number(it.monthly_amount),
       })),
       uk_profit_percent: formProfitPct,
-      non_commercial_coefficient: formNcCoeff,
+      enterprise_profit_percent: formProfitPct,
+      non_commercial_coefficient: 1.5,
       show_profit_to_residents: formShowProfit ? 1 : 0,
+      commercial_rate: formCommercialRate,
+      basement_rate: formBasementRate,
+      parking_rate: formParkingRate,
     } as Parameters<typeof createEstimate>[0]);
     setSaving(false);
     if (ok) {
@@ -210,8 +269,8 @@ export default function EstimatesPage() {
     if (ok) {
       await fetchEstimate(currentEstimate.id as string);
       const msg = language === 'ru'
-        ? 'Смета активирована. Сформировать начисления на все квартиры?'
-        : 'Smeta faollashtirildi. Barcha xonadonlar uchun hisob-kitoblar yaratilsinmi?';
+        ? 'Смета утверждена. Сформировать начисления на все квартиры?'
+        : 'Smeta tasdiqlandi. Barcha xonadonlar uchun hisob-kitoblar yaratilsinmi?';
       if (window.confirm(msg)) {
         setGenerating(true);
         await generateCharges(currentEstimate.id as string);
@@ -282,7 +341,7 @@ export default function EstimatesPage() {
         >
           <option value="">{t('Все статусы', 'Barcha statuslar')}</option>
           <option value="draft">{t('Черновик', 'Qoralama')}</option>
-          <option value="active">{t('Активна', 'Faol')}</option>
+          <option value="active">{t('Действующая', 'Amalda')}</option>
           <option value="archived">{t('Архив', 'Arxiv')}</option>
         </select>
       </div>
@@ -313,6 +372,7 @@ export default function EstimatesPage() {
             const id = est.id as string;
             const status = (est.status as string) || 'draft';
             const bName = buildingMap[est.building_id as string] || '';
+            const effectiveDate = est.effective_date as string | undefined;
             return (
               <button
                 key={id}
@@ -338,11 +398,23 @@ export default function EstimatesPage() {
                 </div>
                 <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-3">
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>{(est.period as string) || '-'}</span>
+                  <span>
+                    {effectiveDate
+                      ? `${t('с', 'dan')} ${effectiveDate}`
+                      : (est.period as string) || '-'}
+                  </span>
                 </div>
-                <div className="text-lg font-bold text-gray-900">
-                  {formatAmount(est.total_amount)} {t('сум', 'so\'m')}
+                <div className="flex items-center gap-2">
+                  <Banknote className="w-4 h-4 text-primary-500" />
+                  <span className="text-lg font-bold text-gray-900">
+                    {formatAmount(est.total_amount)} {t('сум', "so'm")}
+                  </span>
                 </div>
+                {Number(est.commercial_rate_per_sqm) > 0 && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    1 {t('кв.м', 'kv.m')} = {formatAmount(est.commercial_rate_per_sqm)} {t('сум', "so'm")}
+                  </div>
+                )}
               </button>
             );
           })}
@@ -359,8 +431,8 @@ export default function EstimatesPage() {
         title={t('Новая смета', 'Yangi smeta')}
         size="2xl"
       >
-        <div className="space-y-5">
-          {/* Building + Period */}
+        <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+          {/* 1. Building + Effective Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -381,18 +453,18 @@ export default function EstimatesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Период', 'Davr')} *
+                {t('Вступает в силу с', 'Kuchga kirish sanasi')} *
               </label>
               <input
-                type="month"
-                value={formPeriod}
-                onChange={(e) => setFormPeriod(e.target.value)}
+                type="date"
+                value={formEffectiveDate}
+                onChange={(e) => setFormEffectiveDate(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               />
             </div>
           </div>
 
-          {/* Title */}
+          {/* 2. Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('Название', 'Nomi')}
@@ -401,48 +473,58 @@ export default function EstimatesPage() {
               type="text"
               value={formTitle}
               onChange={(e) => setFormTitle(e.target.value)}
-              placeholder={t('Например: Смета на март 2026', 'Masalan: 2026 mart smetasi')}
+              placeholder={t('Например: Смета на 2026 год', 'Masalan: 2026 yil smetasi')}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
             />
           </div>
 
-          {/* Items */}
+          {/* 3. Expense articles table */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('Статьи расходов', 'Xarajat bandlari')} *
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                {t('Б) Расходы', 'B) Xarajatlar')}
+              </label>
+              <span className="text-xs text-gray-400">
+                {t('Сумма в год = месяц × 12', "Yillik = oylik × 12")}
+              </span>
+            </div>
+
+            {/* Table header */}
+            <div className="hidden sm:grid sm:grid-cols-[1fr_120px_120px_40px] gap-2 px-1 mb-1">
+              <span className="text-xs font-medium text-gray-500">{t('Статья расхода', 'Xarajat bandi')}</span>
+              <span className="text-xs font-medium text-gray-500 text-right">{t('В месяц', 'Oylik')}</span>
+              <span className="text-xs font-medium text-gray-500 text-right">{t('В год', 'Yillik')}</span>
+              <span />
+            </div>
+
             <div className="space-y-2">
               {formItems.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_120px_40px] gap-2 items-center">
                   <input
                     type="text"
                     value={item.name}
                     onChange={(e) => updateItem(idx, 'name', e.target.value)}
-                    placeholder={t('Название', 'Nomi')}
-                    className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    placeholder={t('Название статьи', 'Band nomi')}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   />
-                  <select
-                    value={item.category}
-                    onChange={(e) => updateItem(idx, 'category', e.target.value)}
-                    className="w-36 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {categoryLabel(cat)}
-                      </option>
-                    ))}
-                  </select>
                   <input
                     type="number"
-                    value={item.amount || ''}
-                    onChange={(e) => updateItem(idx, 'amount', Number(e.target.value))}
-                    placeholder={t('Сумма', 'Summa')}
-                    className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    value={item.monthly_amount || ''}
+                    onChange={(e) => updateItem(idx, 'monthly_amount', Number(e.target.value))}
+                    placeholder={t('В месяц', 'Oylik')}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-right focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={item.amount || ''}
+                      readOnly
+                      className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-right text-gray-600 outline-none"
+                    />
+                  </div>
                   <button
                     onClick={() => removeItem(idx)}
-                    disabled={formItems.length <= 1}
-                    className="p-2 text-gray-400 hover:text-red-500 disabled:opacity-30 transition-colors"
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors justify-self-center"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -456,37 +538,92 @@ export default function EstimatesPage() {
               <Plus className="w-4 h-4" />
               {t('Добавить статью', 'Band qo\'shish')}
             </button>
-          </div>
 
-          {/* Coefficients */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Прибыль УК, %', 'BX foydasi, %')}
-              </label>
-              <input
-                type="number"
-                value={formProfitPct}
-                onChange={(e) => setFormProfitPct(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('Коэфф. нежилых', 'Noturar koeff.')}
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                value={formNcCoeff}
-                onChange={(e) => setFormNcCoeff(Number(e.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-              />
+            {/* Subtotals */}
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">{t('Итого расходов в месяц', 'Oylik xarajatlar jami')}</span>
+                <span className="font-semibold text-gray-900">{formatAmount(formTotalMonthly)} {t('сум', "so'm")}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">{t('Итого расходов в год', 'Yillik xarajatlar jami')}</span>
+                <span className="font-semibold text-gray-900">{formatAmount(formTotalYearly)} {t('сум', "so'm")}</span>
+              </div>
             </div>
           </div>
 
-          {/* Checkboxes */}
-          <div className="space-y-3">
+          {/* 4. Enterprise profit + rates */}
+          <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">
+              {t('Г) Параметры расчёта', 'G) Hisoblash parametrlari')}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {t('Доход предприятия, %', 'Korxona daromadi, %')}
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formProfitPct}
+                  onChange={(e) => setFormProfitPct(Number(e.target.value))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div className="bg-primary-50 rounded-lg p-3">
+                <p className="text-xs text-primary-600 mb-1">{t('Доход предприятия', 'Korxona daromadi')}</p>
+                <p className="text-lg font-bold text-primary-900">{formatAmount(formEnterpiseIncome)} {t('сум/год', "so'm/yil")}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Additional rates */}
+          <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">
+              {t('Дополнительные тарифы', 'Qo\'shimcha tariflar')}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {t('Коммерч. помещ. (за кв.м)', 'Tijoriy bino (kv.m uchun)')}
+                </label>
+                <input
+                  type="number"
+                  value={formCommercialRate || ''}
+                  onChange={(e) => setFormCommercialRate(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {t('Подвал (за кв.м)', 'Podval (kv.m uchun)')}
+                </label>
+                <input
+                  type="number"
+                  value={formBasementRate || ''}
+                  onChange={(e) => setFormBasementRate(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {t('Парковка (за место)', 'Avtoturargoh (joy uchun)')}
+                </label>
+                <input
+                  type="number"
+                  value={formParkingRate || ''}
+                  onChange={(e) => setFormParkingRate(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Checkboxes */}
+          <div className="border-t border-gray-100 pt-4 space-y-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -495,7 +632,7 @@ export default function EstimatesPage() {
                 className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               <span className="text-sm text-gray-700">
-                {t('Показывать прибыль жильцам', 'Foydani aholiga ko\'rsatish')}
+                {t('Показывать прибыль жильцам', "Foydani aholiga ko'rsatish")}
               </span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -506,22 +643,39 @@ export default function EstimatesPage() {
                 className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               <span className="text-sm text-gray-700">
-                {t('Показывать статус должника жильцам', 'Qarzdorlik statusini aholiga ko\'rsatish')}
+                {t('Показывать статус должника жильцам', "Qarzdorlik statusini aholiga ko'rsatish")}
               </span>
             </label>
           </div>
 
-          {/* Total + submit */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-            <div className="text-sm text-gray-500">
-              {t('Итого', 'Jami')}:{' '}
-              <span className="text-lg font-bold text-gray-900">
-                {formatAmount(formTotal)} {t('сум', 'so\'m')}
-              </span>
+          {/* 7. Grand total + cost per sqm */}
+          <div className="border-t border-gray-200 pt-4 bg-gradient-to-r from-primary-50 to-amber-50 -mx-1 px-4 pb-4 rounded-lg">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">{t('Итого расходов', 'Jami xarajatlar')}</p>
+                <p className="text-xl font-bold text-gray-900">{formatAmount(formTotalYearly)}</p>
+                <p className="text-xs text-gray-400">{t('сум/год', "so'm/yil")}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">{t('ВСЕГО (с доходом)', 'JAMI (daromad bilan)')}</p>
+                <p className="text-xl font-bold text-primary-700">{formatAmount(formGrandTotal)}</p>
+                <p className="text-xs text-gray-400">{t('сум/год', "so'm/yil")}</p>
+              </div>
+              {totalArea > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{t('Стоимость 1 кв.м', '1 kv.m narxi')}</p>
+                  <p className="text-xl font-bold text-amber-700">{formatAmount(costPerSqm)}</p>
+                  <p className="text-xs text-gray-400">{t('сум/кв.м/год', "so'm/kv.m/yil")}</p>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Submit */}
+          <div className="flex items-center justify-end pt-2">
             <button
               onClick={handleCreate}
-              disabled={saving || !formBuilding || !formPeriod || formItems.length === 0}
+              disabled={saving || !formBuilding || formItems.length === 0}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
             >
               {saving ? (
@@ -541,7 +695,7 @@ export default function EstimatesPage() {
         onClose={() => setShowDetail(false)}
         title={
           (currentEstimate?.title as string) ||
-          `${t('Смета', 'Smeta')} ${(currentEstimate?.period as string) || ''}`
+          `${t('Смета', 'Smeta')} ${(currentEstimate?.effective_date as string) || (currentEstimate?.period as string) || ''}`
         }
         size="2xl"
       >
@@ -560,28 +714,54 @@ export default function EstimatesPage() {
               </span>
               <span className="text-sm text-gray-500 flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
-                {(currentEstimate.period as string) || '-'}
+                {(currentEstimate.effective_date as string)
+                  ? `${t('с', 'dan')} ${currentEstimate.effective_date as string}`
+                  : (currentEstimate.period as string) || '-'}
               </span>
             </div>
 
-            {/* Rates */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-primary-50 rounded-lg p-4">
+            {/* Rates summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-primary-50 rounded-lg p-3">
                 <p className="text-xs text-primary-600 font-medium mb-1">
-                  {t('Ставка жилых (за м\u00B2)', 'Turar joy stavkasi (m\u00B2 uchun)')}
+                  {t('Жилое (за м²)', 'Turar joy (m² uchun)')}
                 </p>
-                <p className="text-xl font-bold text-primary-900">
-                  {formatAmount(currentEstimate.commercial_rate_per_sqm)} {t('сум', 'so\'m')}
+                <p className="text-lg font-bold text-primary-900">
+                  {formatAmount(currentEstimate.commercial_rate_per_sqm)}
                 </p>
+                <p className="text-xs text-primary-400">{t('сум', "so'm")}</p>
               </div>
-              <div className="bg-amber-50 rounded-lg p-4">
+              <div className="bg-amber-50 rounded-lg p-3">
                 <p className="text-xs text-amber-600 font-medium mb-1">
-                  {t('Ставка нежилых (за м\u00B2)', 'Noturar stavkasi (m\u00B2 uchun)')}
+                  {t('Нежилое (за м²)', 'Noturar (m² uchun)')}
                 </p>
-                <p className="text-xl font-bold text-amber-900">
-                  {formatAmount(currentEstimate.non_commercial_rate_per_sqm)} {t('сум', 'so\'m')}
+                <p className="text-lg font-bold text-amber-900">
+                  {formatAmount(currentEstimate.non_commercial_rate_per_sqm)}
                 </p>
+                <p className="text-xs text-amber-400">{t('сум', "so'm")}</p>
               </div>
+              {Number(currentEstimate.commercial_rate) > 0 && (
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-xs text-blue-600 font-medium mb-1">
+                    {t('Коммерч.', 'Tijoriy')}
+                  </p>
+                  <p className="text-lg font-bold text-blue-900">
+                    {formatAmount(currentEstimate.commercial_rate)}
+                  </p>
+                  <p className="text-xs text-blue-400">{t('сум/м²', "so'm/m²")}</p>
+                </div>
+              )}
+              {Number(currentEstimate.parking_rate) > 0 && (
+                <div className="bg-violet-50 rounded-lg p-3">
+                  <p className="text-xs text-violet-600 font-medium mb-1">
+                    {t('Парковка', 'Avtoturargoh')}
+                  </p>
+                  <p className="text-lg font-bold text-violet-900">
+                    {formatAmount(currentEstimate.parking_rate)}
+                  </p>
+                  <p className="text-xs text-violet-400">{t('сум/место', "so'm/joy")}</p>
+                </div>
+              )}
             </div>
 
             {/* Items table */}
@@ -591,24 +771,28 @@ export default function EstimatesPage() {
                   <thead>
                     <tr className="border-b border-gray-200">
                       <th className="text-left py-2 px-3 font-medium text-gray-500">
-                        {t('Статья', 'Band')}
+                        #
                       </th>
                       <th className="text-left py-2 px-3 font-medium text-gray-500">
-                        {t('Категория', 'Kategoriya')}
+                        {t('Статья расхода', 'Xarajat bandi')}
                       </th>
                       <th className="text-right py-2 px-3 font-medium text-gray-500">
-                        {t('Сумма', 'Summa')}
+                        {t('В месяц', 'Oylik')}
+                      </th>
+                      <th className="text-right py-2 px-3 font-medium text-gray-500">
+                        {t('В год', 'Yillik')}
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {detailItems.map((it, idx) => (
                       <tr key={idx} className="border-b border-gray-50">
+                        <td className="py-2 px-3 text-gray-400 text-xs">{idx + 1}</td>
                         <td className="py-2 px-3 text-gray-900">
                           {(it.name as string) || '-'}
                         </td>
-                        <td className="py-2 px-3 text-gray-600">
-                          {categoryLabel((it.category as string) || 'other')}
+                        <td className="py-2 px-3 text-right text-gray-600">
+                          {formatAmount(it.monthly_amount || Math.round(Number(it.amount) / 12))}
                         </td>
                         <td className="py-2 px-3 text-right font-medium text-gray-900">
                           {formatAmount(it.amount)}
@@ -618,13 +802,29 @@ export default function EstimatesPage() {
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-gray-200">
-                      <td colSpan={2} className="py-2 px-3 font-semibold text-gray-700">
-                        {t('Итого', 'Jami')}
+                      <td />
+                      <td className="py-2 px-3 font-semibold text-gray-700">
+                        {t('Итого расходов', 'Jami xarajatlar')}
+                      </td>
+                      <td className="py-2 px-3 text-right font-medium text-gray-600">
+                        {formatAmount(Math.round(Number(currentEstimate.total_amount) / 12))}
                       </td>
                       <td className="py-2 px-3 text-right font-bold text-gray-900">
-                        {formatAmount(currentEstimate.total_amount)} {t('сум', 'so\'m')}
+                        {formatAmount(currentEstimate.total_amount)} {t('сум', "so'm")}
                       </td>
                     </tr>
+                    {Number(currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent) > 0 && (
+                      <tr className="border-t border-gray-100">
+                        <td />
+                        <td className="py-2 px-3 text-gray-600">
+                          {t('Доход предприятия', 'Korxona daromadi')} ({currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent}%)
+                        </td>
+                        <td />
+                        <td className="py-2 px-3 text-right font-medium text-primary-700">
+                          {formatAmount(Math.round(Number(currentEstimate.total_amount) * Number(currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent || 0) / 100))} {t('сум', "so'm")}
+                        </td>
+                      </tr>
+                    )}
                   </tfoot>
                 </table>
               </div>
@@ -643,7 +843,7 @@ export default function EstimatesPage() {
                   ) : (
                     <CheckCircle2 className="w-4 h-4" />
                   )}
-                  {t('Активировать', 'Faollashtirish')}
+                  {t('Утвердить', 'Tasdiqlash')}
                 </button>
               )}
               {detailStatus === 'active' && (
@@ -657,13 +857,13 @@ export default function EstimatesPage() {
                   ) : (
                     <Zap className="w-4 h-4" />
                   )}
-                  {t('Сгенерировать начисления', 'Hisob-kitoblarni yaratish')}
+                  {t('Сформировать начисления', 'Hisob-kitoblarni yaratish')}
                 </button>
               )}
               {currentEstimate.show_profit_to_residents === 1 && (
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                   <Eye className="w-3.5 h-3.5" />
-                  {t('Прибыль видна жильцам', 'Foyda aholiga ko\'rinadi')}
+                  {t('Прибыль видна жильцам', "Foyda aholiga ko'rinadi")}
                 </span>
               )}
             </div>

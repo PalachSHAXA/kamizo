@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useMeetingStore } from '../stores/meetingStore';
+import { useToastStore } from '../stores/toastStore';
 import { pushNotifications } from '../services/pushNotifications';
 
 // Global event emitter for chat messages
@@ -32,14 +33,12 @@ function emitRescheduleUpdate(reschedule: any) {
 
 /**
  * WebSocket hook для real-time синхронизации данных
- * Заменяет SSE для улучшения производительности
  *
- * ПРЕИМУЩЕСТВА:
- * - Двусторонняя связь (клиент ⟷ сервер)
- * - Durable Objects управляют всеми соединениями
- * - 99.99% меньше нагрузки на D1 (6 polls/min вместо 60,000)
- * - Мгновенные обновления без polling на клиенте
- * - Автоматическое переподключение с exponential backoff
+ * ФИКСЫ:
+ * - Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (cap)
+ * - Max 10 attempts, then show toast and stop
+ * - Ref-based callbacks to prevent useEffect re-trigger loops
+ * - Guard against concurrent connect() calls
  */
 export function useWebSocketSync() {
   const { user, token } = useAuthStore();
@@ -47,52 +46,70 @@ export function useWebSocketSync() {
   const { fetchMeetings } = useMeetingStore();
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempts = useRef(0);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSyncRef = useRef<number>(0);
+  const connectingRef = useRef(false); // guard against concurrent connects
+  const gaveUpRef = useRef(false); // true after max attempts exhausted
+  const unmountedRef = useRef(false);
 
   const MAX_RECONNECT_ATTEMPTS = 10;
-  const SYNC_DEBOUNCE = 500; // Debounce sync calls
-  const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+  const SYNC_DEBOUNCE = 500;
+  const HEARTBEAT_INTERVAL = 30000;
+  const BASE_DELAY = 1000; // 1 second
+  const MAX_DELAY = 30000; // 30 seconds
+
+  // Keep latest callbacks in refs so connect() never goes stale
+  const userRef = useRef(user);
+  const tokenRef = useRef(token);
+  userRef.current = user;
+  tokenRef.current = token;
+
+  const fetchRequestsRef = useRef(fetchRequests);
+  const fetchExecutorsRef = useRef(fetchExecutors);
+  const fetchAnnouncementsRef = useRef(fetchAnnouncements);
+  const fetchPendingReschedulesRef = useRef(fetchPendingReschedules);
+  const fetchMeetingsRef = useRef(fetchMeetings);
+  fetchRequestsRef.current = fetchRequests;
+  fetchExecutorsRef.current = fetchExecutors;
+  fetchAnnouncementsRef.current = fetchAnnouncements;
+  fetchPendingReschedulesRef.current = fetchPendingReschedules;
+  fetchMeetingsRef.current = fetchMeetings;
 
   const syncData = useCallback(async (includeExecutors = true) => {
-    if (!user || user.role === 'super_admin') return;
+    const u = userRef.current;
+    if (!u || u.role === 'super_admin') return;
 
-    // Debounce: prevent multiple syncs in quick succession
     const now = Date.now();
-    if (now - lastSyncRef.current < SYNC_DEBOUNCE) {
-      return;
-    }
+    if (now - lastSyncRef.current < SYNC_DEBOUNCE) return;
     lastSyncRef.current = now;
 
     try {
-      const promises: Promise<void>[] = [fetchRequests()];
-
-      if (includeExecutors && ['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(user.role)) {
-        promises.push(fetchExecutors());
+      const promises: Promise<void>[] = [fetchRequestsRef.current()];
+      if (includeExecutors && ['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(u.role)) {
+        promises.push(fetchExecutorsRef.current());
       }
-
       await Promise.all(promises);
     } catch (error) {
       console.error('[WS] Error syncing data:', error);
     }
-  }, [user, fetchRequests, fetchExecutors]);
+  }, []);
 
   const syncMeetings = useCallback(async () => {
-    if (!user || user.role === 'super_admin') return;
+    const u = userRef.current;
+    if (!u || u.role === 'super_admin') return;
     try {
-      await fetchMeetings();
+      await fetchMeetingsRef.current();
     } catch (error) {
       console.error('[WS] Error syncing meetings:', error);
     }
-  }, [user, fetchMeetings]);
+  }, []);
 
   const startHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
     }
-
     heartbeatIntervalRef.current = setInterval(() => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'ping' }));
@@ -107,26 +124,46 @@ export function useWebSocketSync() {
     }
   }, []);
 
-  const connect = useCallback(() => {
-    if (!user || !token || user.role === 'super_admin') return;
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
 
-    // Close existing connection
+  const connect = useCallback(() => {
+    const u = userRef.current;
+    const t = tokenRef.current;
+    if (!u || !t || u.role === 'super_admin') return;
+
+    // Guard: don't open multiple connections simultaneously
+    if (connectingRef.current) return;
+    if (unmountedRef.current) return;
+
+    // Close existing connection cleanly (without triggering onclose reconnect)
     if (wsRef.current) {
+      // Remove onclose handler before closing to prevent cascade
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
       wsRef.current.close();
       wsRef.current = null;
     }
 
-    // Determine protocol (ws:// or wss://)
+    connectingRef.current = true;
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`;
+    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${t}`;
 
     try {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        connectingRef.current = false;
         reconnectAttempts.current = 0;
+        gaveUpRef.current = false;
         startHeartbeat();
+        console.log('[WS] Connected');
       };
 
       ws.onmessage = async (event) => {
@@ -135,30 +172,26 @@ export function useWebSocketSync() {
 
           switch (message.type) {
             case 'connected':
-              // Initial sync
               await syncData();
               await syncMeetings();
               break;
 
             case 'pong':
-              // Heartbeat response - connection is alive
               break;
 
             case 'request_update':
-              await syncData(false); // Only fetch requests, not executors
+              await syncData(false);
               break;
 
             case 'meeting_update':
               await syncMeetings();
-
-              // Show push notification for new/updated meetings
               if (message.data?.meetings && message.data.meetings.length > 0) {
                 const activeMeeting = message.data.meetings.find((m: any) =>
                   m.status === 'voting_open' || m.status === 'schedule_poll_open'
                 );
                 if (activeMeeting) {
                   await pushNotifications.show({
-                    title: '📢 Собрание жильцов',
+                    title: '\uD83D\uDCE2 Собрание жильцов',
                     body: activeMeeting.status === 'voting_open'
                       ? 'Голосование открыто! Примите участие в собрании.'
                       : 'Новое собрание объявлено. Выберите удобную дату.',
@@ -171,7 +204,7 @@ export function useWebSocketSync() {
               break;
 
             case 'announcement_update':
-              await fetchAnnouncements();
+              await fetchAnnouncementsRef.current();
               break;
 
             case 'chat_message':
@@ -183,13 +216,13 @@ export function useWebSocketSync() {
               break;
 
             case 'executor_update':
-              if (['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(user.role)) {
-                await fetchExecutors();
+              if (['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(userRef.current?.role || '')) {
+                await fetchExecutorsRef.current();
               }
               break;
 
             case 'reschedule_update':
-              await fetchPendingReschedules();
+              await fetchPendingReschedulesRef.current();
               if (message.data?.reschedule) {
                 emitRescheduleUpdate(message.data.reschedule);
               }
@@ -203,40 +236,62 @@ export function useWebSocketSync() {
         }
       };
 
-      ws.onerror = (error) => {
-        console.error('[WS] Error:', error);
+      ws.onerror = () => {
+        // onerror is always followed by onclose — reconnect logic lives there
+        connectingRef.current = false;
       };
 
       ws.onclose = () => {
         stopHeartbeat();
         wsRef.current = null;
+        connectingRef.current = false;
 
-        // Attempt reconnect with exponential backoff
+        // Don't reconnect if unmounted or gave up
+        if (unmountedRef.current || gaveUpRef.current) return;
+
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s, ...
+          const delay = Math.min(BASE_DELAY * Math.pow(2, reconnectAttempts.current), MAX_DELAY);
+          console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1}/${MAX_RECONNECT_ATTEMPTS})`);
 
+          clearReconnectTimeout();
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;
             connect();
           }, delay);
         } else {
-          console.error('[WS] Max reconnect attempts reached');
-          // Could fallback to polling here if needed
+          // Max attempts exhausted — stop trying, notify user
+          gaveUpRef.current = true;
+          console.error('[WS] Max reconnect attempts reached, giving up');
+          useToastStore.getState().addToast(
+            'error',
+            'Нет связи с сервером. Обновите страницу для повторного подключения.'
+          );
         }
       };
     } catch (error) {
       console.error('[WS] Failed to create WebSocket:', error);
+      connectingRef.current = false;
     }
-  }, [user, token, syncData, syncMeetings, startHeartbeat, stopHeartbeat, fetchPendingReschedules]);
+  }, [syncData, syncMeetings, startHeartbeat, stopHeartbeat, clearReconnectTimeout]);
 
+  // Main effect: connect on login, cleanup on logout/unmount
+  // Uses stable connect ref — does NOT re-run when callbacks change
   useEffect(() => {
+    unmountedRef.current = false;
+
     if (!user || !token) {
       // Cleanup on logout
       if (wsRef.current) {
+        wsRef.current.onclose = null;
         wsRef.current.close();
         wsRef.current = null;
       }
+      clearReconnectTimeout();
       stopHeartbeat();
+      reconnectAttempts.current = 0;
+      gaveUpRef.current = false;
+      connectingRef.current = false;
       return;
     }
 
@@ -247,29 +302,30 @@ export function useWebSocketSync() {
     // Connect via WebSocket
     connect();
 
-    // Cleanup on unmount
     return () => {
+      unmountedRef.current = true;
       if (wsRef.current) {
+        wsRef.current.onclose = null;
         wsRef.current.close();
         wsRef.current = null;
       }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      clearReconnectTimeout();
       stopHeartbeat();
+      connectingRef.current = false;
     };
-  }, [user, token, connect, syncData, syncMeetings, stopHeartbeat]);
+    // Only re-run when user ID or token actually change (not reference)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, token]);
 
-  // Handle visibility change - reconnect if disconnected
+  // Handle visibility change — reconnect if disconnected
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Tab became visible - sync data
+      if (!document.hidden && userRef.current && tokenRef.current) {
         syncData();
         syncMeetings();
 
-        // Reconnect WebSocket if disconnected
-        if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        // Reconnect WebSocket if disconnected (and haven't given up)
+        if ((!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) && !gaveUpRef.current) {
           reconnectAttempts.current = 0;
           connect();
         }

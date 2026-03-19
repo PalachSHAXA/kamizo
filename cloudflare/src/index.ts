@@ -672,7 +672,7 @@ export default {
         newHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         newHeaders.set('Pragma', 'no-cache');
         newHeaders.set('Expires', '0');
-        newHeaders.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.cloudflare.com; connect-src 'self' wss://*.kamizo.uz https://*.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+        newHeaders.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.cloudflare.com; media-src 'self' data: blob:; connect-src 'self' wss://*.kamizo.uz https://*.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
         return new Response(response.body, {
           status: response.status,
           statusText: response.statusText,
