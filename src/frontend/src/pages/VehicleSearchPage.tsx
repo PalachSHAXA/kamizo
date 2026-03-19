@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
-import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, AlertTriangle, QrCode } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, AlertTriangle, QrCode, Loader2 } from 'lucide-react';
 import { EmptyState } from '../components/common';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { apiRequest } from '../services/api';
+import { apiRequest, usersApi } from '../services/api';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
 
@@ -416,7 +416,13 @@ export function VehicleSearchPage() {
   });
 
   const isManager = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'director';
-  const ownerTypes: VehicleOwnerType[] = ['service', 'legal_entity'];
+  const ownerTypes: VehicleOwnerType[] = ['service', 'legal_entity', 'resident'];
+
+  // Resident search state
+  const [residentSearch, setResidentSearch] = useState('');
+  const [residentResults, setResidentResults] = useState<Array<{ id: string; name: string; phone?: string; apartment?: string; address?: string }>>([]);
+  const [selectedResidentUser, setSelectedResidentUser] = useState<{ id: string; name: string; phone?: string; apartment?: string; address?: string } | null>(null);
+  const [residentSearchLoading, setResidentSearchLoading] = useState(false);
 
   const resetForm = () => {
     setFormData({ brand: '', model: '', color: '', year: '', type: 'car', companyName: '', parkingSpot: '', notes: '' });
@@ -424,6 +430,9 @@ export function VehicleSearchPage() {
     setSelectedOwnerType('service');
     setEditingVehicle(null);
     setPlateError(null);
+    setResidentSearch('');
+    setResidentResults([]);
+    setSelectedResidentUser(null);
   };
 
   const handleOpenModal = (vehicle?: Vehicle) => {
@@ -453,6 +462,35 @@ export function VehicleSearchPage() {
       setPlateParts({ region: plateParts.region, letters1: '', digits: '', letters2: '' });
     }
   }, [selectedOwnerType]);
+
+  // Resident search with debounce
+  useEffect(() => {
+    if (selectedOwnerType !== 'resident' || residentSearch.length < 2) {
+      setResidentResults([]);
+      return;
+    }
+    setResidentSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await usersApi.getAll({ role: 'resident', limit: 20 });
+        const query = residentSearch.toLowerCase();
+        const filtered = (res.users || [])
+          .filter((u: any) =>
+            u.name?.toLowerCase().includes(query) ||
+            u.apartment?.toLowerCase().includes(query) ||
+            u.phone?.includes(query)
+          )
+          .slice(0, 10)
+          .map((u: any) => ({ id: u.id, name: u.name, phone: u.phone, apartment: u.apartment, address: u.address }));
+        setResidentResults(filtered);
+      } catch {
+        setResidentResults([]);
+      } finally {
+        setResidentSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [residentSearch, selectedOwnerType]);
 
   // Search vehicles via API based on search plate parts
   useEffect(() => {
@@ -551,19 +589,39 @@ export function VehicleSearchPage() {
     }
 
     const plateNumber = combinePlateNumber(plateParts, selectedOwnerType);
+
+    // Determine owner info based on type
+    let ownerName = user.name;
+    let ownerPhone = user.phone;
+    let apartment = '';
+    let address = language === 'ru' ? 'Служебный автомобиль' : 'Xizmat avtomobili';
+    let ownerId = user.id;
+
+    if (selectedOwnerType === 'service') {
+      ownerName = formData.companyName || (language === 'ru' ? 'Служебный' : 'Xizmat');
+    } else if (selectedOwnerType === 'resident' && selectedResidentUser) {
+      ownerId = selectedResidentUser.id;
+      ownerName = selectedResidentUser.name || '';
+      ownerPhone = selectedResidentUser.phone || '';
+      apartment = selectedResidentUser.apartment || '';
+      address = selectedResidentUser.address || '';
+    } else if (selectedOwnerType === 'legal_entity') {
+      ownerName = formData.companyName || user.name;
+    }
+
     const vehicleData = {
-      ownerId: user.id,
-      ownerName: selectedOwnerType === 'service' ? (formData.companyName || 'Служебный') : user.name,
-      ownerPhone: user.phone,
-      apartment: '',
-      address: 'Служебный автомобиль',
+      ownerId,
+      ownerName,
+      ownerPhone,
+      apartment,
+      address,
       plateNumber,
       brand: formData.brand,
       model: formData.model,
       color: formData.color,
       year: formData.year ? parseInt(formData.year) : undefined,
       type: formData.type,
-      ownerType: selectedOwnerType,
+      ownerType: selectedOwnerType === 'resident' ? 'individual' as VehicleOwnerType : selectedOwnerType,
       companyName: formData.companyName || undefined,
       parkingSpot: formData.parkingSpot || undefined,
       notes: formData.notes || undefined,
@@ -613,6 +671,7 @@ export function VehicleSearchPage() {
     if (!type) return <User className="w-4 h-4" />;
     switch (type) {
       case 'individual': return <User className="w-4 h-4" />;
+      case 'resident': return <User className="w-4 h-4" />;
       case 'legal_entity': return <Building2 className="w-4 h-4" />;
       case 'service': return <Car className="w-4 h-4" />;
     }
@@ -637,7 +696,7 @@ export function VehicleSearchPage() {
             >
               <Plus className="w-5 h-5" />
               <span className="hidden sm:inline">
-                {language === 'ru' ? 'Служебное авто' : 'Xizmat avtosi'}
+                {language === 'ru' ? 'Автомобиль' : 'Avtomobil'}
               </span>
             </button>
           )}
@@ -1032,7 +1091,7 @@ export function VehicleSearchPage() {
             ? 'Жители еще не добавили свои автомобили в систему'
             : 'Aholi hali avtomobillarini tizimga qo\'shmagan'}
           action={isManager ? {
-            label: language === 'ru' ? 'Добавить служебное авто' : 'Xizmat avtosini qo\'shish',
+            label: language === 'ru' ? 'Добавить автомобиль' : 'Avtomobil qo\'shish',
             onClick: () => handleOpenModal(),
           } : undefined}
         />
@@ -1047,7 +1106,7 @@ export function VehicleSearchPage() {
               <h2 className="text-base sm:text-lg font-bold">
                 {editingVehicle
                   ? (language === 'ru' ? 'Редактировать авто' : 'Avtoni tahrirlash')
-                  : (language === 'ru' ? 'Добавить служебное авто' : 'Xizmat avtosini qo\'shish')}
+                  : (language === 'ru' ? 'Добавить автомобиль' : 'Avtomobil qo\'shish')}
               </h2>
               <button
                 onClick={() => { setShowModal(false); resetForm(); }}
@@ -1085,18 +1144,82 @@ export function VehicleSearchPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {language === 'ru' ? 'Название/Компания' : 'Nomi/Kompaniya'}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.companyName}
-                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                    placeholder={language === 'ru' ? 'УК "Название" / ООО "Компания"' : 'BK "Nomi" / MChJ'}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none"
-                  />
-                </div>
+                {selectedOwnerType !== 'resident' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {language === 'ru' ? 'Название/Компания' : 'Nomi/Kompaniya'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.companyName}
+                      onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                      placeholder={language === 'ru' ? 'УК "Название" / ООО "Компания"' : 'BK "Nomi" / MChJ'}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none"
+                    />
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {language === 'ru' ? 'Выберите жителя' : 'Yashovchini tanlang'}
+                    </label>
+                    {selectedResidentUser ? (
+                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary-300 bg-primary-50">
+                        <User className="w-4 h-4 text-primary-600 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium text-sm text-gray-900">{selectedResidentUser.name}</span>
+                          {selectedResidentUser.apartment && (
+                            <span className="text-xs text-gray-500 ml-2">{language === 'ru' ? 'кв.' : 'xon.'} {selectedResidentUser.apartment}</span>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => { setSelectedResidentUser(null); setResidentSearch(''); }} className="p-1 hover:bg-primary-100 rounded">
+                          <X className="w-3.5 h-3.5 text-gray-500" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={residentSearch}
+                            onChange={(e) => setResidentSearch(e.target.value)}
+                            placeholder={language === 'ru' ? 'Поиск по ФИО, квартире, телефону...' : "FISh, xonadon, telefon bo'yicha qidirish..."}
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none text-sm"
+                          />
+                          {residentSearchLoading && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+                        {residentResults.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                            {residentResults.map(r => (
+                              <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedResidentUser(r);
+                                  setResidentSearch('');
+                                  setResidentResults([]);
+                                }}
+                                className="w-full text-left px-4 py-2.5 hover:bg-primary-50 flex items-center gap-2 text-sm border-b border-gray-50 last:border-0"
+                              >
+                                <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-medium text-gray-900 truncate">{r.name || (language === 'ru' ? 'Без имени' : 'Ismsiz')}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {r.apartment && <span>{language === 'ru' ? 'кв.' : 'xon.'} {r.apartment}</span>}
+                                    {r.phone && <span className="ml-2">{r.phone}</span>}
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Plate Number */}

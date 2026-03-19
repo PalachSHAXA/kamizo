@@ -3,7 +3,7 @@
 // ============================================
 
 export type VehicleType = 'car' | 'motorcycle' | 'truck' | 'other';
-export type VehicleOwnerType = 'individual' | 'legal_entity' | 'service';
+export type VehicleOwnerType = 'individual' | 'legal_entity' | 'service' | 'resident';
 
 export interface Vehicle {
   id: string;
@@ -37,4 +37,5 @@ export const VEHICLE_OWNER_TYPE_LABELS: Record<VehicleOwnerType, { label: string
   individual: { label: 'Физ. лицо', labelUz: 'Jismoniy shaxs', icon: '👤' },
   legal_entity: { label: 'Юр. лицо', labelUz: 'Yuridik shaxs', icon: '🏢' },
   service: { label: 'Служебный', labelUz: 'Xizmat', icon: '🚐' },
+  resident: { label: 'Житель', labelUz: 'Aholi', icon: '🏠' },
 };
