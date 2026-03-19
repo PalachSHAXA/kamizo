@@ -4,7 +4,7 @@ import { useFinanceStore } from '../../stores/financeStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
-import { apiRequest } from '../../services/api/client';
+import { teamApi } from '../../services/api';
 
 interface UserItem {
   id: string;
@@ -46,15 +46,22 @@ export default function SettingsPage() {
     setSelectedLevel('view_only');
     setUsersLoading(true);
     try {
-      const data = await apiRequest<{ users: UserItem[] }>('/api/users');
-      const filtered = data.users.filter((u) => ALLOWED_ROLES.includes(u.role));
-      setUsers(filtered);
+      const data = await teamApi.getAll();
+      // Combine all staff categories into one flat list
+      const allStaff: UserItem[] = [
+        ...(data.managers || []).map((u: any) => ({ id: u.id, name: u.name, role: u.role || 'manager' })),
+        ...(data.departmentHeads || []).map((u: any) => ({ id: u.id, name: u.name, role: u.role || 'department_head' })),
+        ...(data.executors || []).map((u: any) => ({ id: u.id, name: u.name, role: u.role || 'executor' })),
+      ];
+      // Exclude users who already have access
+      const existingUserIds = new Set(financeAccess.map((a: any) => a.user_id));
+      setUsers(allStaff.filter((u) => !existingUserIds.has(u.id)));
     } catch {
       setUsers([]);
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [financeAccess]);
 
   const handleGrant = useCallback(async () => {
     if (!selectedUserId) return;
