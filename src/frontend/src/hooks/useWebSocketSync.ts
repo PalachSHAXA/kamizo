@@ -53,12 +53,14 @@ export function useWebSocketSync() {
   const connectingRef = useRef(false); // guard against concurrent connects
   const gaveUpRef = useRef(false); // true after max attempts exhausted
   const unmountedRef = useRef(false);
+  const openedAtRef = useRef<number>(0); // timestamp when connection opened
 
   const MAX_RECONNECT_ATTEMPTS = 10;
   const SYNC_DEBOUNCE = 500;
   const HEARTBEAT_INTERVAL = 30000;
   const BASE_DELAY = 1000; // 1 second
   const MAX_DELAY = 30000; // 30 seconds
+  const STABLE_CONNECTION_MS = 5000; // connection must live 5s to reset attempts
 
   // Keep latest callbacks in refs so connect() never goes stale
   const userRef = useRef(user);
@@ -160,8 +162,8 @@ export function useWebSocketSync() {
 
       ws.onopen = () => {
         connectingRef.current = false;
-        reconnectAttempts.current = 0;
-        gaveUpRef.current = false;
+        openedAtRef.current = Date.now();
+        // Don't reset attempts here — wait until onclose checks stability
         startHeartbeat();
         console.log('[WS] Connected');
       };
@@ -248,6 +250,14 @@ export function useWebSocketSync() {
 
         // Don't reconnect if unmounted or gave up
         if (unmountedRef.current || gaveUpRef.current) return;
+
+        // Only reset attempts if connection was stable (lived 5+ seconds)
+        // This prevents infinite loop: open→reset→close→reconnect→open→reset→...
+        const connectionDuration = Date.now() - openedAtRef.current;
+        if (openedAtRef.current > 0 && connectionDuration >= STABLE_CONNECTION_MS) {
+          reconnectAttempts.current = 0;
+          console.log(`[WS] Connection was stable (${Math.round(connectionDuration / 1000)}s), resetting attempts`);
+        }
 
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s, ...
