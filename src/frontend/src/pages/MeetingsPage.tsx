@@ -4,7 +4,7 @@ import {
   FileText, Building2, User,
   ThumbsUp, ThumbsDown, Minus, Eye,
   Play, Square, BarChart3, Shield, X, Check, CalendarCheck, Download, Trash2,
-  MessageSquare, Send, Phone, Paperclip, Loader2, CalendarDays
+  MessageSquare, Send, Phone, Paperclip, Loader2, CalendarDays, Video, MapPin, Link2
 } from 'lucide-react';
 import { EmptyState, Modal } from '../components/common';
 import { PageSkeleton } from '../components/PageSkeleton';
@@ -13,7 +13,7 @@ import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useCRMStore } from '../stores/crmStore';
 import { generateProtocolDocx } from '../utils/protocolGenerator';
-import { uploadApi } from '../services/api';
+import { uploadApi, branchesApi, buildingsApi } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
 import type {
   Meeting, MeetingStatus, MeetingFormat, AgendaItem, AgendaItemType,
@@ -558,20 +558,87 @@ function CreateMeetingWizard({
     attachments: { name: string; url: string; type: string; size: number }[];
   }>({ title: '', description: '', threshold: 'simple_majority', attachments: [] });
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
+  // Cascading: branches → buildings
+  const [branchesList, setBranchesList] = useState<{ id: string; code: string; name: string }[]>([]);
+  const [buildingsForBranch, setBuildingsForBranch] = useState<{ id: string; name: string; address: string; branch_code: string }[]>([]);
+  const [selectedBranchCode, setSelectedBranchCode] = useState('');
+  const [loadingBranches, setLoadingBranches] = useState(true);
+  const [loadingBuildings, setLoadingBuildings] = useState(false);
+
   const [formData, setFormData] = useState({
-    buildingId: user?.buildingId || (buildings.length > 0 ? buildings[0].id : ''),
-    buildingAddress: buildings.length > 0 ? buildings[0].address : '',
+    buildingId: '',
+    buildingAddress: '',
     organizerType: 'management' as MeetingOrganizerType,
     format: 'online' as MeetingFormat,
     agendaItems: [] as AgendaItemType[],
     customItems: [] as { title: string; description: string; threshold: DecisionThreshold; attachments: { name: string; url: string; type: string; size: number }[] }[],
     location: '',
-    description: '', // Описание/обоснование собрания
-    meetingTime: '19:00', // Время проведения собрания
+    onlinePlatform: '' as string,
+    onlineLink: '',
+    description: '', // Повестка дня
+    meetingTime: '19:00',
   });
 
+  const ONLINE_PLATFORMS = [
+    { value: 'zoom', label: 'Zoom' },
+    { value: 'telegram', label: 'Telegram' },
+    { value: 'google_meet', label: 'Google Meet' },
+    { value: 'skype', label: 'Skype' },
+    { value: 'other', label: language === 'ru' ? 'Другое' : 'Boshqa' },
+  ];
+
+  // Load branches on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await branchesApi.getAll();
+        if (!cancelled && resp.branches) {
+          setBranchesList(resp.branches);
+          if (resp.branches.length > 0) {
+            setSelectedBranchCode(resp.branches[0].code);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load branches:', e);
+      } finally {
+        if (!cancelled) setLoadingBranches(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load buildings when branch changes
+  useEffect(() => {
+    if (!selectedBranchCode) return;
+    let cancelled = false;
+    setLoadingBuildings(true);
+    (async () => {
+      try {
+        const resp = await buildingsApi.getAll();
+        if (!cancelled && resp.buildings) {
+          const filtered = resp.buildings.filter((b: any) => b.branch_code === selectedBranchCode);
+          setBuildingsForBranch(filtered);
+          // Reset building selection
+          setFormData(prev => ({ ...prev, buildingId: '', buildingAddress: '' }));
+        }
+      } catch (e) {
+        console.error('Failed to load buildings:', e);
+      } finally {
+        if (!cancelled) setLoadingBuildings(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedBranchCode]);
+
+  const handleBranchChange = (code: string) => {
+    setSelectedBranchCode(code);
+    setFormData(prev => ({ ...prev, buildingId: '', buildingAddress: '' }));
+  };
+
   const handleBuildingChange = (buildingId: string) => {
-    const building = buildings.find(b => b.id === buildingId);
+    const building = buildingsForBranch.find(b => b.id === buildingId);
     setFormData({
       ...formData,
       buildingId,
@@ -588,7 +655,10 @@ function CreateMeetingWizard({
   };
 
   const handleCreate = async () => {
-    if (!user || !formData.buildingId || isSubmitting) return;
+    // If no specific building selected, use first building in branch (собрание для всего комплекса)
+    const effectiveBuildingId = formData.buildingId || (buildingsForBranch.length > 0 ? buildingsForBranch[0].id : '');
+    const effectiveBuildingAddress = formData.buildingAddress || (buildingsForBranch.length > 0 ? buildingsForBranch[0].address : '');
+    if (!user || !selectedBranchCode || isSubmitting) return;
 
     setIsSubmitting(true);
 
@@ -610,16 +680,24 @@ function CreateMeetingWizard({
       })),
     ];
 
+    // Build location string with online info
+    let locationStr = formData.location || '';
+    if ((formData.format === 'online' || formData.format === 'hybrid') && formData.onlinePlatform) {
+      const platform = ONLINE_PLATFORMS.find(p => p.value === formData.onlinePlatform)?.label || formData.onlinePlatform;
+      const onlineInfo = formData.onlineLink ? `${platform}: ${formData.onlineLink}` : platform;
+      locationStr = locationStr ? `${locationStr} | ${onlineInfo}` : onlineInfo;
+    }
+
     try {
       await onCreate({
-        buildingId: formData.buildingId,
-        buildingAddress: formData.buildingAddress,
+        buildingId: effectiveBuildingId,
+        buildingAddress: effectiveBuildingAddress,
         organizerType: formData.organizerType,
         organizerId: user.id,
         organizerName: user.name,
         format: formData.format,
         agendaItems,
-        location: formData.location || undefined,
+        location: locationStr || undefined,
         description: formData.description || undefined,
         meetingTime: formData.meetingTime || '19:00',
       });
@@ -629,16 +707,16 @@ function CreateMeetingWizard({
   };
 
   const steps = [
-    { num: 1, label: language === 'ru' ? 'Тип' : 'Turi' },
-    { num: 2, label: language === 'ru' ? 'Повестка' : 'Kun tartibi' },
-    { num: 3, label: language === 'ru' ? 'Публикация' : 'Nashr' },
+    { num: 1, label: language === 'ru' ? 'Основное' : 'Asosiy' },
+    { num: 2, label: language === 'ru' ? 'Вопросы' : 'Masalalar' },
+    { num: 3, label: language === 'ru' ? 'Подтверждение' : 'Tasdiqlash' },
   ];
 
   return (
     <Modal
       isOpen={true}
       onClose={onClose}
-      title={language === 'ru' ? 'Созвать собрание' : 'Yig\'ilish chaqirish'}
+      title={language === 'ru' ? 'Назначить собрание' : 'Yig\'ilish tayinlash'}
       size="2xl"
     >
         <p className="text-sm text-gray-500 -mt-2 mb-4">
@@ -670,31 +748,72 @@ function CreateMeetingWizard({
         <div className="p-6 space-y-6">
           {step === 1 && (
             <>
-              {/* Building Selection */}
+              {/* Cascading: Комплекс → Дом */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  {language === 'ru' ? 'Выберите дом' : 'Uyni tanlang'}
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Комплекс' : 'Kompleks'} <span className="text-red-500">*</span>
                 </label>
-                {buildings.length === 0 ? (
+                {loadingBranches ? (
+                  <div className="flex items-center gap-2 p-3 text-sm text-gray-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
+                  </div>
+                ) : branchesList.length === 0 ? (
                   <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-800">
                     {language === 'ru'
-                      ? 'Нет доступных домов. Сначала добавьте дом в системе.'
-                      : 'Mavjud uylar yo\'q. Avval tizimda uy qo\'shing.'}
+                      ? 'Нет доступных комплексов. Сначала добавьте комплекс в системе.'
+                      : 'Mavjud komplekslar yo\'q. Avval tizimda kompleks qo\'shing.'}
                   </div>
                 ) : (
                   <select
-                    value={formData.buildingId}
-                    onChange={(e) => handleBuildingChange(e.target.value)}
+                    value={selectedBranchCode}
+                    onChange={(e) => handleBranchChange(e.target.value)}
                     className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
                   >
-                    {buildings.map((building) => (
-                      <option key={building.id} value={building.id}>
-                        {building.name} - {building.address}
+                    {branchesList.map((branch) => (
+                      <option key={branch.id} value={branch.code}>
+                        {branch.name}
                       </option>
                     ))}
                   </select>
                 )}
               </div>
+
+              {selectedBranchCode && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {language === 'ru' ? 'Дом' : 'Uy'}
+                    <span className="text-gray-400 font-normal ml-1 text-xs">
+                      ({language === 'ru' ? 'если не выбран — собрание для всего комплекса' : 'tanlanmasa — butun kompleks uchun'})
+                    </span>
+                  </label>
+                  {loadingBuildings ? (
+                    <div className="flex items-center gap-2 p-3 text-sm text-gray-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {language === 'ru' ? 'Загрузка домов...' : 'Uylar yuklanmoqda...'}
+                    </div>
+                  ) : buildingsForBranch.length === 0 ? (
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">
+                      {language === 'ru' ? 'В этом комплексе нет домов' : 'Bu kompleksda uylar yo\'q'}
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.buildingId}
+                      onChange={(e) => handleBuildingChange(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+                    >
+                      <option value="">
+                        {language === 'ru' ? '— Весь комплекс —' : '— Butun kompleks —'}
+                      </option>
+                      {buildingsForBranch.map((building) => (
+                        <option key={building.id} value={building.id}>
+                          {building.name} — {building.address}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               {/* Organizer Type */}
               <div>
@@ -759,19 +878,69 @@ function CreateMeetingWizard({
                 </div>
               </div>
 
+              {/* Online fields: Platform + Link (for online/hybrid) */}
+              {(formData.format === 'online' || formData.format === 'hybrid') && (
+                <div className="space-y-3 p-4 rounded-xl bg-blue-50 border border-blue-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Video className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-700">
+                      {language === 'ru' ? 'Онлайн-подключение' : 'Onlayn ulanish'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      {language === 'ru' ? 'Платформа' : 'Platforma'}
+                    </label>
+                    <select
+                      value={formData.onlinePlatform}
+                      onChange={(e) => setFormData({ ...formData, onlinePlatform: e.target.value })}
+                      className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+                    >
+                      <option value="">{language === 'ru' ? 'Выберите платформу' : 'Platformani tanlang'}</option>
+                      {ONLINE_PLATFORMS.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      <div className="flex items-center gap-1">
+                        <Link2 className="w-3 h-3" />
+                        {language === 'ru' ? 'Ссылка на конференцию' : 'Konferensiya havolasi'}
+                      </div>
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.onlineLink}
+                      onChange={(e) => setFormData({ ...formData, onlineLink: e.target.value })}
+                      className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+                      placeholder="https://zoom.us/j/..."
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Location (for offline/hybrid) */}
-              {formData.format !== 'online' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {language === 'ru' ? 'Место проведения' : 'O\'tkazish joyi'}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="glass-input"
-                    placeholder={language === 'ru' ? 'Например: Холл 1 этажа' : 'Masalan: 1-qavat zali'}
-                  />
+              {(formData.format === 'offline' || formData.format === 'hybrid') && (
+                <div className="space-y-2 p-4 rounded-xl bg-green-50 border border-green-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-700">
+                      {language === 'ru' ? 'Очное присутствие' : 'Yuzma-yuz ishtirok'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      {language === 'ru' ? 'Место проведения' : 'O\'tkazish joyi'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
+                      placeholder={language === 'ru' ? 'Офис УК, 2 этаж' : 'UK ofisi, 2-qavat'}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -793,21 +962,21 @@ function CreateMeetingWizard({
                 </p>
               </div>
 
-              {/* Description/Justification */}
+              {/* Повестка дня (mandatory) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {language === 'ru' ? 'Обоснование собрания' : 'Yig\'ilish asoslashi'}
-                  <span className="text-gray-400 font-normal ml-1">
-                    ({language === 'ru' ? 'необязательно' : 'ixtiyoriy'})
-                  </span>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {language === 'ru' ? 'Повестка дня' : 'Kun tartibi'} <span className="text-red-500">*</span>
                 </label>
+                <p className="text-xs text-gray-400 mb-2">
+                  {language === 'ru' ? 'Опишите основные вопросы для обсуждения' : 'Muhokama uchun asosiy masalalarni tavsiflang'}
+                </p>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="glass-input min-h-[80px] resize-none"
                   placeholder={language === 'ru'
-                    ? 'Опишите причину созыва собрания и что планируется обсудить...'
-                    : 'Yig\'ilish sababi va nimalar muhokama qilinishini tasvirlang...'}
+                    ? 'Например: Утверждение сметы расходов на 2026 год, выбор подрядчика для ремонта крыши...'
+                    : 'Masalan: 2026 yil uchun xarajatlar smetasini tasdiqlash, tom ta\'mirlash uchun pudratchi tanlash...'}
                   rows={3}
                 />
               </div>
@@ -1110,6 +1279,20 @@ function CreateMeetingWizard({
 
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
+                      <span className="text-gray-500">{language === 'ru' ? 'Комплекс:' : 'Kompleks:'}</span>
+                      <span className="font-medium">
+                        {branchesList.find(b => b.code === selectedBranchCode)?.name || '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">{language === 'ru' ? 'Дом:' : 'Uy:'}</span>
+                      <span className="font-medium">
+                        {formData.buildingId
+                          ? (buildingsForBranch.find(b => b.id === formData.buildingId)?.name || formData.buildingAddress)
+                          : (language === 'ru' ? 'Весь комплекс' : 'Butun kompleks')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-gray-500">{language === 'ru' ? 'Формат:' : 'Format:'}</span>
                       <span className="font-medium">
                         {formData.format === 'online'
@@ -1119,12 +1302,20 @@ function CreateMeetingWizard({
                           : (language === 'ru' ? 'Смешанное' : 'Aralash')}
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">{language === 'ru' ? 'Дом:' : 'Uy:'}</span>
-                      <span className="font-medium">
-                        {buildings.find(b => b.id === formData.buildingId)?.name || formData.buildingAddress}
-                      </span>
-                    </div>
+                    {(formData.format === 'online' || formData.format === 'hybrid') && formData.onlinePlatform && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">{language === 'ru' ? 'Платформа:' : 'Platforma:'}</span>
+                        <span className="font-medium">
+                          {ONLINE_PLATFORMS.find(p => p.value === formData.onlinePlatform)?.label}
+                        </span>
+                      </div>
+                    )}
+                    {(formData.format === 'offline' || formData.format === 'hybrid') && formData.location && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">{language === 'ru' ? 'Место:' : 'Joy:'}</span>
+                        <span className="font-medium">{formData.location}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-gray-500">{language === 'ru' ? 'Организатор:' : 'Tashkilotchi:'}</span>
                       <span className="font-medium">
@@ -1135,7 +1326,7 @@ function CreateMeetingWizard({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">{language === 'ru' ? 'Вопросов:' : 'Savollar:'}</span>
-                      <span className="font-medium">{formData.agendaItems.length}</span>
+                      <span className="font-medium">{formData.agendaItems.length + formData.customItems.length}</span>
                     </div>
                   </div>
                 </div>
@@ -1174,13 +1365,13 @@ function CreateMeetingWizard({
                   </ol>
                 </div>
 
-                {/* Description preview */}
+                {/* Повестка дня preview */}
                 {formData.description && (
                   <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
                     <h4 className="font-medium mb-2">
-                      {language === 'ru' ? 'Обоснование:' : 'Asoslash:'}
+                      {language === 'ru' ? 'Повестка дня:' : 'Kun tartibi:'}
                     </h4>
-                    <p className="text-sm text-gray-600">{formData.description}</p>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{formData.description}</p>
                   </div>
                 )}
               </div>
@@ -1202,7 +1393,7 @@ function CreateMeetingWizard({
           {step < 3 ? (
             <button
               onClick={() => setStep(step + 1)}
-              disabled={(step === 1 && !formData.buildingId) || (step === 2 && formData.agendaItems.length === 0 && formData.customItems.length === 0)}
+              disabled={(step === 1 && (!selectedBranchCode || !formData.description.trim())) || (step === 2 && formData.agendaItems.length === 0 && formData.customItems.length === 0)}
               className="flex-1 py-3 rounded-xl font-medium bg-primary-400 text-gray-900 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {language === 'ru' ? 'Далее' : 'Keyingi'}
@@ -1210,7 +1401,7 @@ function CreateMeetingWizard({
           ) : (
             <button
               onClick={handleCreate}
-              disabled={isSubmitting || !formData.buildingId}
+              disabled={isSubmitting || !selectedBranchCode}
               className="flex-1 py-3 rounded-xl font-medium bg-primary-400 text-gray-900 hover:bg-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting
