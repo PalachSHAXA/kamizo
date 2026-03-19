@@ -170,7 +170,11 @@ route('PUT', '/api/finance/estimates/:id', async (request, env, params) => {
     uk_profit_percent?: number; non_commercial_coefficient?: number; show_profit_to_residents?: number; show_debtor_status_to_residents?: number;
   };
 
-  const profitPct = uk_profit_percent ?? 10;
+  // P07 fix: use existing estimate's profit percent as fallback instead of hardcoded 10
+  const existingEstimate = await env.DB.prepare(
+    `SELECT uk_profit_percent FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ uk_profit_percent?: number }>();
+  const profitPct = uk_profit_percent ?? existingEstimate?.uk_profit_percent ?? 9;
   const ncCoeff = non_commercial_coefficient ?? 1.5;
 
   if (items?.length) {
@@ -222,6 +226,23 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ status: string }>();
   if (!existing) return error('Estimate not found', 404);
   if (existing.status !== 'draft') return error('Only draft estimates can be activated', 400);
+
+  // P06 fix: validate estimate has items and positive total before activation
+  const itemsCount = await env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM finance_estimate_items WHERE estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ cnt: number }>();
+  if (!itemsCount?.cnt || itemsCount.cnt === 0) return error('Невозможно активировать смету без статей расходов', 400);
+
+  const estimateData = await env.DB.prepare(
+    `SELECT total_amount FROM finance_estimates WHERE id = ?`
+  ).bind(params.id).first<{ total_amount: number }>();
+  if (!estimateData?.total_amount || estimateData.total_amount <= 0) return error('Невозможно активировать смету с нулевой суммой', 400);
+
+  // P09: Check for existing active estimate for same building
+  const existingActive = await env.DB.prepare(
+    `SELECT id FROM finance_estimates WHERE building_id = (SELECT building_id FROM finance_estimates WHERE id = ?) AND status = 'active' AND id != ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, params.id, ...(tenantId ? [tenantId] : [])).first();
+  if (existingActive) return error('Для этого здания уже есть активная смета. Деактивируйте её перед активацией новой.', 400);
 
   await env.DB.prepare('UPDATE finance_estimates SET status = \'active\' WHERE id = ?').bind(params.id).run();
 
@@ -343,6 +364,18 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
     generated++;
   }
 
+  // P10: Auto-record UK income from enterprise profit in estimate
+  const enterpriseProfit = Number(estimate.enterprise_profit) || 0;
+  if (generated > 0 && enterpriseProfit > 0) {
+    await env.DB.prepare(
+      'INSERT INTO finance_income (id, category_id, amount, period, description, source_type, source_id, created_by, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(
+      generateId(), 'fic_other', enterpriseProfit, period,
+      `Доход предприятия от сметы (${generated} квартир)`,
+      'estimate', estimate_id, user.id, tenantId || ''
+    ).run();
+  }
+
   return json({ success: true, generated, total_apartments: apartments.length });
 });
 
@@ -438,7 +471,11 @@ route('POST', '/api/finance/payments', async (request, env) => {
     apartment_id: string; amount: number; payment_type?: string; receipt_number?: string; description?: string;
   };
 
-  if (!apartment_id || !amount || amount <= 0) return error('apartment_id and positive amount are required');
+  // P24: isFinite check
+  const parsedAmount = Number(amount);
+  if (!apartment_id || !parsedAmount || !isFinite(parsedAmount) || parsedAmount <= 0) return error('apartment_id and positive amount are required');
+  // P23: Max payment amount
+  if (parsedAmount > 100_000_000) return error('Сумма оплаты не может превышать 100 000 000', 400);
 
   // Generate receipt number: FIN-YYYY-NNNN
   const year = new Date().getFullYear();
@@ -455,8 +492,11 @@ route('POST', '/api/finance/payments', async (request, env) => {
      ORDER BY period ASC, created_at ASC`
   ).bind(apartment_id, ...(tenantId ? [tenantId] : [])).all();
 
-  let remaining = amount;
+  let remaining = parsedAmount;
   let firstChargeId: string | null = null;
+
+  // P01+P17: Collect batch updates instead of N+1 loop
+  const batchStatements: D1PreparedStatement[] = [];
 
   for (const charge of unpaidCharges) {
     if (remaining <= 0) break;
@@ -471,20 +511,36 @@ route('POST', '/api/finance/payments', async (request, env) => {
     const newPaid = paidAmount + apply;
     const newStatus = newPaid >= chargeAmount ? 'paid' : 'partial';
 
-    await env.DB.prepare(
-      'UPDATE finance_charges SET paid_amount = ?, status = ? WHERE id = ?'
-    ).bind(newPaid, newStatus, c.id as string).run();
+    batchStatements.push(
+      env.DB.prepare('UPDATE finance_charges SET paid_amount = ?, status = ? WHERE id = ?')
+        .bind(newPaid, newStatus, c.id as string)
+    );
 
     remaining -= apply;
   }
 
   const paymentId = generateId();
-  await env.DB.prepare(
-    `INSERT INTO finance_payments (id, charge_id, apartment_id, amount, payment_type, receipt_number, description, received_by, tenant_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(paymentId, firstChargeId, apartment_id, amount, payment_type || 'cash', generatedReceipt, description || null, user.id, tenantId || '').run();
+  batchStatements.push(
+    env.DB.prepare(
+      `INSERT INTO finance_payments (id, charge_id, apartment_id, amount, payment_type, receipt_number, description, received_by, tenant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(paymentId, firstChargeId, apartment_id, parsedAmount, payment_type || 'cash', generatedReceipt, description || null, user.id, tenantId || '')
+  );
 
-  return json({ payment: { id: paymentId, receipt_number: generatedReceipt, amount, remaining_overpay: remaining > 0 ? remaining : 0 } }, 201);
+  // P15: If overpayment remains, record it as credit
+  if (remaining > 0) {
+    batchStatements.push(
+      env.DB.prepare(
+        `INSERT INTO finance_payments (id, charge_id, apartment_id, amount, payment_type, receipt_number, description, received_by, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(generateId(), null, apartment_id, remaining, 'overpayment', generatedReceipt + '-OVP', 'Переплата (автоматически)', user.id, tenantId || '')
+    );
+  }
+
+  // Execute all in single batch transaction
+  await env.DB.batch(batchStatements);
+
+  return json({ payment: { id: paymentId, receipt_number: generatedReceipt, amount: parsedAmount, remaining_overpay: remaining > 0 ? remaining : 0 } }, 201);
 });
 
 // 10. GET /api/finance/payments — список оплат
@@ -542,6 +598,8 @@ route('GET', '/api/finance/debtors', async (request, env) => {
   const buildingId = url.searchParams.get('building_id');
   const minDebt = parseFloat(url.searchParams.get('min_debt') || '0');
   const minMonths = parseInt(url.searchParams.get('min_months_overdue') || '0', 10);
+  // P24: guard against NaN
+  if (!isFinite(minDebt) || !isFinite(minMonths)) return error('Invalid filter parameters', 400);
 
   let where = tenantId ? 'c.tenant_id = ?' : '1=1';
   const bindParams: (string | number)[] = tenantId ? [tenantId] : [];
@@ -560,7 +618,7 @@ route('GET', '/api/finance/debtors', async (request, env) => {
      JOIN apartments a ON c.apartment_id = a.id
      LEFT JOIN buildings b ON a.building_id = b.id
      LEFT JOIN users u ON a.primary_owner_id = u.id
-     WHERE ${where} AND c.status != 'paid' AND c.amount > c.paid_amount
+     WHERE ${where} AND c.status != 'paid' AND c.amount > c.paid_amount AND c.due_date < date('now')
      GROUP BY a.id
      HAVING total_debt >= ?
      ${minMonths > 0 ? 'AND months_overdue >= ?' : ''}
@@ -613,7 +671,7 @@ route('POST', '/api/finance/income', async (request, env) => {
     category_id?: string; amount: number; period?: string; description?: string; source_type?: string; source_id?: string;
   };
 
-  if (!amount || amount <= 0) return error('Positive amount is required');
+  if (!amount || !isFinite(Number(amount)) || Number(amount) <= 0) return error('Positive amount is required');
 
   const id = generateId();
   await env.DB.prepare(
@@ -667,6 +725,8 @@ route('GET', '/api/finance/materials', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
+  // P11 fix: restrict materials to management only
+  if (!isManagement(user)) return error('Manager access required', 403);
 
   const tenantId = getTenantId(request);
   const url = new URL(request.url);
@@ -700,9 +760,10 @@ route('POST', '/api/finance/materials', async (request, env) => {
   if (!name?.trim()) return error('Name is required');
 
   if (existingId) {
+    // P20 fix: add tenant_id to WHERE clause
     await env.DB.prepare(
-      'UPDATE finance_materials SET name = ?, unit = ?, quantity = ?, price_per_unit = ?, min_quantity = ?, building_id = ? WHERE id = ?'
-    ).bind(name.trim(), unit || 'шт', quantity ?? 0, price_per_unit ?? 0, min_quantity ?? 0, building_id || null, existingId).run();
+      `UPDATE finance_materials SET name = ?, unit = ?, quantity = ?, price_per_unit = ?, min_quantity = ?, building_id = ? WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(name.trim(), unit || 'шт', quantity ?? 0, price_per_unit ?? 0, min_quantity ?? 0, building_id || null, existingId, ...(tenantId ? [tenantId] : [])).run();
     return json({ material: { id: existingId } });
   }
 
@@ -720,6 +781,8 @@ route('POST', '/api/finance/materials/:id/usage', async (request, env, params) =
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
+  // P12 fix: restrict material usage to management only
+  if (!isManagement(user)) return error('Manager access required', 403);
 
   const tenantId = getTenantId(request);
   const material = await env.DB.prepare(
@@ -740,9 +803,12 @@ route('POST', '/api/finance/materials/:id/usage', async (request, env, params) =
     'INSERT INTO finance_material_usage (id, material_id, quantity, request_id, estimate_item_id, used_by, description, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   ).bind(usageId, params.id, quantity, request_id || null, estimate_item_id || null, user.id, description || null, tenantId || '').run();
 
-  await env.DB.prepare(
-    'UPDATE finance_materials SET quantity = quantity - ? WHERE id = ?'
-  ).bind(quantity, params.id).run();
+  // P21+P22 fix: atomic update with tenant_id and quantity check
+  const updateResult = await env.DB.prepare(
+    `UPDATE finance_materials SET quantity = quantity - ? WHERE id = ? AND quantity >= ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(quantity, params.id, quantity, ...(tenantId ? [tenantId] : [])).run();
+
+  if (!updateResult.meta.changes) return error('Insufficient stock or material not found', 400);
 
   return json({ usage: { id: usageId }, new_quantity: material.quantity - quantity }, 201);
 });
@@ -803,7 +869,7 @@ route('POST', '/api/finance/claims/reconciliation', async (request, env) => {
   return json({
     claim: { id: claimId, type: 'reconciliation', resident_id: resolvedResidentId },
     apartment, charges, payments,
-    totals: { charged: totalCharged, paid: totalPaid, balance: totalPaid - totalCharged }
+    totals: { charged: totalCharged, paid: totalPaid, balance: totalCharged - totalPaid }
   });
 });
 
@@ -947,7 +1013,7 @@ route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env
 
   const totalCharged = totals?.total_charged || 0;
   const totalPaid = totals?.total_paid || 0;
-  const balance = totalPaid - totalCharged;
+  const balance = totalCharged - totalPaid;
 
   // Charges by month
   const { results: chargesByMonth } = await env.DB.prepare(

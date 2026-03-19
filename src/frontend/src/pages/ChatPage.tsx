@@ -664,6 +664,15 @@ function ChatView({
     return () => { unsubscribe(); };
   }, [fetchMessages, channelId, markAsRead]);
 
+  // Polling fallback when WebSocket is disabled — fetch new messages every 10s
+  useEffect(() => {
+    if (!channelId || channelId === 'undefined') return;
+    const interval = setInterval(() => {
+      fetchMessages();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [fetchMessages, channelId]);
+
   // Scroll to bottom
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1131,10 +1140,10 @@ export function ChatPage() {
   }, [fetchChannels]);
 
   useEffect(() => {
-    if (isResident) return;
+    // Poll channels for all roles (staff every 15s, residents every 15s too since WS is off)
     const interval = setInterval(fetchChannels, 15000);
     return () => clearInterval(interval);
-  }, [fetchChannels, isResident]);
+  }, [fetchChannels]);
 
   const selectedChannel = channels.find(ch => ch.id === selectedChannelId);
 
