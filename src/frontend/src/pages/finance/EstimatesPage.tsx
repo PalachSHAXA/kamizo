@@ -15,6 +15,7 @@ import {
   Zap,
   CheckCircle2,
   Eye,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface EstimateItem {
@@ -53,6 +54,8 @@ export default function EstimatesPage() {
   const buildings = useBuildingStore((s) => s.buildings);
   const fetchBuildings = useBuildingStore((s) => s.fetchBuildings);
 
+  const [loadError, setLoadError] = useState(false);
+
   // Filters
   const [filterBuilding, setFilterBuilding] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -78,14 +81,29 @@ export default function EstimatesPage() {
 
   // Load data on mount
   useEffect(() => {
-    fetchBuildings();
-    fetchEstimates();
+    const load = async () => {
+      try {
+        setLoadError(false);
+        await Promise.all([fetchBuildings(), fetchEstimates()]);
+      } catch {
+        setLoadError(true);
+      }
+    };
+    load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch when filters change
   useEffect(() => {
-    setFilters({ buildingId: filterBuilding, status: filterStatus });
-    fetchEstimates();
+    const load = async () => {
+      try {
+        setLoadError(false);
+        setFilters({ buildingId: filterBuilding, status: filterStatus });
+        await fetchEstimates();
+      } catch {
+        setLoadError(true);
+      }
+    };
+    load();
   }, [filterBuilding, filterStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formTotal = useMemo(
@@ -270,7 +288,13 @@ export default function EstimatesPage() {
       </div>
 
       {/* List */}
-      {estimates.length === 0 ? (
+      {loadError && estimates.length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={t('Ошибка загрузки', 'Yuklashda xatolik')}
+          description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
+        />
+      ) : estimates.length === 0 ? (
         <EmptyState
           icon={FileSpreadsheet}
           title={t('Нет смет', 'Smetalar yo\'q')}

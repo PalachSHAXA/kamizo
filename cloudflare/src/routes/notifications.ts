@@ -582,6 +582,12 @@ async function sendWebPush(
   payloadJson: string
 ): Promise<{ success: boolean; status?: number; error?: string }> {
   try {
+    // Guard: if VAPID_PRIVATE_KEY is not configured, skip push silently
+    if (!env.VAPID_PRIVATE_KEY) {
+      console.error(JSON.stringify({ level: 'warn', message: 'VAPID_PRIVATE_KEY not set — push notification skipped' }));
+      return { success: false, error: 'VAPID_PRIVATE_KEY not configured' };
+    }
+
     // Create VAPID authorization
     const vapid = await createVapidAuthHeader(
       endpoint,

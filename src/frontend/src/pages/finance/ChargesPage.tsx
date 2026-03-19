@@ -70,6 +70,8 @@ export default function ChargesPage() {
   /* building statuses for residents */
   const [buildingStatuses, setBuildingStatuses] = useState<{ apartment_number: string; status: string }[]>([]);
 
+  const [loadError, setLoadError] = useState(false);
+
   /* local filter state — committed on Apply */
   const [localBuilding, setLocalBuilding] = useState(filters.buildingId);
   const [localPeriod, setLocalPeriod] = useState(filters.period);
@@ -90,12 +92,20 @@ export default function ChargesPage() {
 
   /* ── when filters change → fetch data ── */
   useEffect(() => {
-    fetchCharges(1);
-    if (filters.buildingId) {
-      fetchChargesSummary(filters.buildingId, filters.period || undefined);
-    } else {
-      fetchChargesSummary('', filters.period || undefined);
-    }
+    const load = async () => {
+      try {
+        setLoadError(false);
+        await fetchCharges(1);
+        if (filters.buildingId) {
+          await fetchChargesSummary(filters.buildingId, filters.period || undefined);
+        } else {
+          await fetchChargesSummary('', filters.period || undefined);
+        }
+      } catch {
+        setLoadError(true);
+      }
+    };
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.buildingId, filters.period, filters.status]);
 
@@ -322,7 +332,15 @@ export default function ChargesPage() {
       </div>
 
       {/* ── Table ── */}
-      {charges.length === 0 && !chargesLoading ? (
+      {loadError && charges.length === 0 ? (
+        <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm">
+          <EmptyState
+            icon={<AlertTriangle className="w-12 h-12" />}
+            title={t('Ошибка загрузки', 'Yuklashda xatolik')}
+            description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
+          />
+        </div>
+      ) : charges.length === 0 && !chargesLoading ? (
         <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm">
           <EmptyState
             icon={<Receipt className="w-12 h-12" />}

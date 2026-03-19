@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Package, Plus, MinusCircle, Filter } from 'lucide-react';
+import { Package, Plus, MinusCircle, Filter, AlertTriangle } from 'lucide-react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -45,10 +45,18 @@ export default function MaterialsPage() {
     description: '',
   });
   const [writeOffError, setWriteOffError] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    fetchBuildings();
-    fetchMaterials();
+    const load = async () => {
+      try {
+        setLoadError(false);
+        await Promise.all([fetchBuildings(), fetchMaterials()]);
+      } catch {
+        setLoadError(true);
+      }
+    };
+    load();
   }, [fetchBuildings, fetchMaterials]);
 
   const handleApplyFilter = useCallback(() => {
@@ -167,7 +175,13 @@ export default function MaterialsPage() {
       </div>
 
       {/* Table / Empty */}
-      {materials.length === 0 ? (
+      {loadError && materials.length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={t('Ошибка загрузки', 'Yuklashda xatolik')}
+          description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
+        />
+      ) : materials.length === 0 ? (
         <EmptyState
           icon={Package}
           title={t('Нет материалов', 'Materiallar yo\'q')}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, Plus, Trash2, Shield, Eye, CreditCard } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Shield, Eye, CreditCard, AlertTriangle } from 'lucide-react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { Modal, EmptyState } from '../../components/common';
@@ -20,6 +20,7 @@ export default function SettingsPage() {
 
   const { financeAccess, accessLoading, fetchFinanceAccess, grantAccess, revokeAccess } = useFinanceStore();
 
+  const [loadError, setLoadError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -28,7 +29,15 @@ export default function SettingsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchFinanceAccess();
+    const load = async () => {
+      try {
+        setLoadError(false);
+        await fetchFinanceAccess();
+      } catch {
+        setLoadError(true);
+      }
+    };
+    load();
   }, [fetchFinanceAccess]);
 
   const openModal = useCallback(async () => {
@@ -150,7 +159,13 @@ export default function SettingsPage() {
       </div>
 
       {/* Table / Empty */}
-      {financeAccess.length === 0 ? (
+      {loadError && financeAccess.length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={t('Ошибка загрузки', 'Yuklashda xatolik')}
+          description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
+        />
+      ) : financeAccess.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
           title={t('Нет записей доступа', 'Ruxsat yozuvlari yo\'q')}

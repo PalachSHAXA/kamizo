@@ -370,7 +370,7 @@ route('GET', '/api/finance/charges/summary', async (request, env) => {
   const buildingId = url.searchParams.get('building_id');
   const period = url.searchParams.get('period');
 
-  if (!buildingId) return error('building_id is required');
+  if (!buildingId) return json({ summary: { total_charged: 0, total_paid: 0, total_debt: 0, total_overpaid: 0 } });
 
   let where = 'c.apartment_id IN (SELECT id FROM apartments WHERE building_id = ?)';
   const bindParams: (string | number)[] = [buildingId];
@@ -944,7 +944,7 @@ route('GET', '/api/finance/charges/building-status', async (request, env) => {
   const buildingId = url.searchParams.get('building_id');
   const period = url.searchParams.get('period');
 
-  if (!buildingId || !period) return error('building_id and period are required');
+  if (!buildingId || !period) return json({ statuses: [] });
 
   // If resident — check that the active estimate allows showing debtor status
   if (user.role === 'resident' || user.role === 'tenant') {

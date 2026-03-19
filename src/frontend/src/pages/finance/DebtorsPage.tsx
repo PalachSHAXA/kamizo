@@ -39,10 +39,18 @@ export default function DebtorsPage() {
   const [filterBuilding, setFilterBuilding] = useState('');
   const [filterMinDebt, setFilterMinDebt] = useState('');
   const [filterMinMonths, setFilterMinMonths] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    fetchBuildings();
-    fetchDebtors();
+    const load = async () => {
+      try {
+        setLoadError(false);
+        await Promise.all([fetchBuildings(), fetchDebtors()]);
+      } catch {
+        setLoadError(true);
+      }
+    };
+    load();
   }, [fetchBuildings, fetchDebtors]);
 
   const handleApplyFilters = useCallback(() => {
@@ -190,7 +198,13 @@ export default function DebtorsPage() {
       </div>
 
       {/* Table or empty */}
-      {filtered.length === 0 ? (
+      {loadError && debtors.length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={t('Ошибка загрузки', 'Yuklashda xatolik')}
+          description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
+        />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={AlertTriangle}
           title={t('Должников не найдено', 'Qarzdorlar topilmadi')}

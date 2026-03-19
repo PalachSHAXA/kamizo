@@ -13,6 +13,7 @@ import {
   Tag,
   FileText,
   Layers,
+  AlertTriangle,
 } from 'lucide-react';
 
 const SOURCE_TYPES = ['rental', 'parking', 'advertising', 'basement', 'custom'] as const;
@@ -74,10 +75,18 @@ export default function IncomePage() {
   // Add category
   const [newCatName, setNewCatName] = useState('');
   const [catLoading, setCatLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    fetchIncomeCategories();
-    fetchIncome();
+    const load = async () => {
+      try {
+        setLoadError(false);
+        await Promise.all([fetchIncomeCategories(), fetchIncome()]);
+      } catch {
+        setLoadError(true);
+      }
+    };
+    load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApplyFilters = useCallback(() => {
@@ -234,7 +243,13 @@ export default function IncomePage() {
       </div>
 
       {/* Table or Empty */}
-      {filteredIncome.length === 0 ? (
+      {loadError && (income as unknown[]).length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={t('Ошибка загрузки', 'Yuklashda xatolik')}
+          description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
+        />
+      ) : filteredIncome.length === 0 ? (
         <EmptyState
           icon={TrendingUp}
           title={t('Нет записей о доходах', 'Daromad yozuvlari yo\'q')}
