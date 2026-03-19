@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   X, Key, Copy, Eye, EyeOff,
   MapPin, Home, Phone, CheckCircle, Edit3, Clock,
-  FileText, AlertTriangle, Loader2, ChevronDown, ChevronUp, UserX
+  FileText, AlertTriangle, Loader2, ChevronDown, ChevronUp, UserX,
+  Car, Wallet, CreditCard, Download, Send, ClipboardList, RefreshCw
 } from 'lucide-react';
-import { usersApi } from '../../../../services/api';
+import { usersApi, financeApi } from '../../../../services/api';
 import { useToastStore } from '../../../../stores/toastStore';
 import type { ResidentCardData } from './types';
 
@@ -27,6 +28,10 @@ const FIELD_LABELS: Record<string, [string, string]> = {
   password: ['Пароль', 'Parol'],
   status: ['Статус', 'Status'],
 };
+
+function formatSum(n: number): string {
+  return Math.abs(Math.round(n)).toLocaleString('ru-RU');
+}
 
 interface ResidentCardModalProps {
   resident: ResidentCardData;
@@ -65,6 +70,23 @@ interface ChangeLogEntry {
   created_at: string;
 }
 
+interface FinanceData {
+  balance: number;
+  lastPaymentDate?: string;
+  lastPaymentAmount?: number;
+  loading: boolean;
+}
+
+interface ReconciliationAct {
+  id: string;
+  claim_type: string;
+  total_debt: number;
+  period_from: string;
+  period_to: string;
+  created_at: string;
+  status?: string;
+}
+
 export function ResidentCardModal({
   resident,
   currentUserRole,
@@ -101,8 +123,48 @@ export function ResidentCardModal({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
+  // ── Finance data ──
+  const [financeData, setFinanceData] = useState<FinanceData>({ balance: 0, loading: false });
+
+  // ── Reconciliation ──
+  const [showReconciliation, setShowReconciliation] = useState(false);
+  const [reconcPeriodFrom, setReconcPeriodFrom] = useState('');
+  const [reconcPeriodTo, setReconcPeriodTo] = useState('');
+  const [reconcLoading, setReconcLoading] = useState(false);
+  const [reconcOneWay, setReconcOneWay] = useState(false);
+
   // ── Current resident data (may be updated after changes) ──
   const [currentResident, setCurrentResident] = useState(resident);
+
+  // ── Vehicle data ──
+  const [vehicles, setVehicles] = useState<Array<{ plate_number?: string; brand_model?: string; color?: string }>>([]);
+
+  // Load finance data
+  useEffect(() => {
+    const apartmentId = (resident as any).apartmentId || (resident as any).apartment_id;
+    if (!apartmentId) return;
+    setFinanceData(prev => ({ ...prev, loading: true }));
+    financeApi.getApartmentBalance(apartmentId).then(res => {
+      const bal = res.balance as any;
+      const balance = bal?.balance ?? bal?.total_debt ?? 0;
+      // Find last payment from charges_by_month
+      let lastPayDate: string | undefined;
+      let lastPayAmount: number | undefined;
+      if (res.charges_by_month && Array.isArray(res.charges_by_month)) {
+        for (let i = res.charges_by_month.length - 1; i >= 0; i--) {
+          const m = res.charges_by_month[i] as any;
+          if (m.paid && m.paid > 0) {
+            lastPayDate = m.period || m.month;
+            lastPayAmount = m.paid;
+            break;
+          }
+        }
+      }
+      setFinanceData({ balance, lastPaymentDate: lastPayDate, lastPaymentAmount: lastPayAmount, loading: false });
+    }).catch(() => {
+      setFinanceData(prev => ({ ...prev, loading: false }));
+    });
+  }, [resident]);
 
   // Load change history
   const loadHistory = useCallback(async () => {
@@ -183,13 +245,24 @@ export function ResidentCardModal({
       addToast('success', t('Данные жителя обновлены', "Yashovchi ma'lumotlari yangilandi"));
       setShowChangeModal(false);
       resetChangeModal();
-      // Reload history
       loadHistory();
     } catch (err: any) {
       addToast('error', err.message || t('Ошибка', 'Xatolik'));
     } finally {
       setChangeSaving(false);
     }
+  };
+
+  // Handle password reset via change-with-reason
+  const handleResetPassword = () => {
+    setChangeFields({ name: false, phone: false, apartment: false, password: true });
+    setChangeValues({
+      name: currentResident.name || '',
+      phone: currentResident.phone || '',
+      apartment: currentResident.apartment || '',
+      password: '',
+    });
+    setShowChangeModal(true);
   };
 
   // Handle deactivation
@@ -208,6 +281,33 @@ export function ResidentCardModal({
     }
   };
 
+  // Handle reconciliation
+  const handleReconciliation = async () => {
+    const apartmentId = (resident as any).apartmentId || (resident as any).apartment_id;
+    if (!apartmentId || !reconcPeriodFrom || !reconcPeriodTo) {
+      addToast('error', t('Укажите период', 'Davrni ko\'rsating'));
+      return;
+    }
+    setReconcLoading(true);
+    try {
+      const res = await financeApi.generateReconciliation({
+        apartment_id: apartmentId,
+        period_from: reconcPeriodFrom,
+        period_to: reconcPeriodTo,
+      });
+      addToast('success', t('Акт сверки сформирован', 'Solishtirma dalolatnomasi shakllandi'));
+      setShowReconciliation(false);
+      // If two-way, inform about notification
+      if (!reconcOneWay) {
+        addToast('info', t('Отправлено жителю на подтверждение', 'Yashovchiga tasdiqlash uchun yuborildi'));
+      }
+    } catch (err: any) {
+      addToast('error', err.message || t('Ошибка', 'Xatolik'));
+    } finally {
+      setReconcLoading(false);
+    }
+  };
+
   const anyFieldSelected = changeFields.name || changeFields.phone || changeFields.apartment || changeFields.password;
 
   const reasonLabel = (value: string) => {
@@ -220,10 +320,16 @@ export function ResidentCardModal({
     return pair ? (language === 'ru' ? pair[0] : pair[1]) : field;
   };
 
+  // Display name
+  const displayName = currentResident.name && currentResident.name.trim() && !/^\d+$/.test(currentResident.name.trim())
+    ? currentResident.name.trim()
+    : t('Не указано', 'Ko\'rsatilmagan');
+
   return (
     <div className="modal-backdrop items-end sm:items-center">
       <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
-        <div className="flex items-center justify-between mb-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg sm:text-xl font-bold">{t('Карточка жителя', 'Yashovchi kartasi')}</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/30 rounded-lg">
             <X className="w-5 h-5" />
@@ -238,22 +344,58 @@ export function ResidentCardModal({
           </div>
         )}
 
-        {/* Avatar + Name */}
-        <div className="text-center mb-6">
+        {/* ═══ 1. ФИО — large font at top ═══ */}
+        <div className="text-center mb-5">
           <div className="w-20 h-20 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
             <span className="text-2xl font-bold text-white">
-              {currentResident.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              {currentResident.apartment || displayName.split(' ').map(n => n[0]).join('').slice(0, 2)}
             </span>
           </div>
-          <h3 className="text-xl font-bold text-gray-900">{currentResident.name}</h3>
+          <h3 className="text-xl font-bold text-gray-900">{displayName}</h3>
+          {currentResident.address && (
+            <p className="text-sm text-gray-500 mt-1 flex items-center justify-center gap-1">
+              <MapPin className="w-3.5 h-3.5" />
+              {currentResident.address}
+            </p>
+          )}
         </div>
 
-        <div className="space-y-3 mb-6">
-          {/* Login */}
-          <div className="p-4 bg-primary-50 rounded-xl">
+        <div className="space-y-2.5 mb-5">
+          {/* ═══ 2. Квартира — номер, площадь, тип ═══ */}
+          {currentResident.apartment && (
+            <div className="p-3.5 bg-gray-50 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Home className="w-5 h-5 text-gray-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-gray-500 font-medium">{t('Квартира / Помещение', 'Xonadon / Xona')}</div>
+                  <div className="font-bold text-gray-900">{t('кв.', 'xon.')} {currentResident.apartment}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ 3. Контакты — телефон ═══ */}
+          {currentResident.phone && (
+            <div className="p-3.5 bg-gray-50 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Phone className="w-5 h-5 text-gray-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-gray-500 font-medium">{t('Телефон', 'Telefon')}</div>
+                  <div className="font-medium text-gray-900">{currentResident.phone}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ 4. Л/С (Логин) + копирование ═══ */}
+          <div className="p-3.5 bg-primary-50 rounded-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Key className="w-5 h-5 text-primary-600" />
                 </div>
                 <div>
@@ -267,11 +409,11 @@ export function ResidentCardModal({
             </div>
           </div>
 
-          {/* Password — view + copy only */}
-          <div className="p-4 bg-gray-50 rounded-xl">
+          {/* Password — view + copy */}
+          <div className="p-3.5 bg-gray-50 rounded-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Key className="w-5 h-5 text-gray-600" />
                 </div>
                 <div>
@@ -290,53 +432,151 @@ export function ResidentCardModal({
             </div>
           </div>
 
-          {/* Address */}
-          {currentResident.address && (
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <div className="flex items-start gap-3">
+          {/* ═══ 5. Финансы ═══ */}
+          <div className="p-3.5 bg-gray-50 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Wallet className="w-5 h-5 text-gray-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-gray-500 font-medium">{t('Финансы', 'Moliya')}</div>
+                {financeData.loading ? (
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                    <span className="text-xs text-gray-400">{t('Загрузка...', 'Yuklanmoqda...')}</span>
+                  </div>
+                ) : (
+                  <div className="mt-0.5">
+                    {financeData.balance > 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                        {t('Долг', 'Qarz')}: {formatSum(financeData.balance)} {t('сум', 'so\'m')}
+                      </span>
+                    ) : financeData.balance < 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                        {t('Переплата', 'Ortiqcha to\'lov')}: {formatSum(financeData.balance)} {t('сум', 'so\'m')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        <CheckCircle className="w-3 h-3" />
+                        {t('Оплачено', 'To\'langan')}
+                      </span>
+                    )}
+                    {financeData.lastPaymentDate && financeData.lastPaymentAmount && (
+                      <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <CreditCard className="w-3 h-3" />
+                        {t('Посл. оплата', 'Oxirgi to\'lov')}: {formatSum(financeData.lastPaymentAmount)} {t('сум', 'so\'m')} ({financeData.lastPaymentDate})
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ═══ 6. Автомобиль ═══ */}
+          {(resident as any).vehicle_count > 0 && (
+            <div className="p-3.5 bg-gray-50 rounded-xl">
+              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-5 h-5 text-gray-600" />
+                  <Car className="w-5 h-5 text-gray-600" />
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 font-medium">{t('Адрес', 'Manzil')}</div>
-                  <div className="font-medium text-gray-900">{currentResident.address}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Apartment */}
-          {currentResident.apartment && (
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <Home className="w-5 h-5 text-gray-600" />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 font-medium">{t('Квартира / Помещение', 'Xonadon / Xona')}</div>
-                  <div className="font-bold text-gray-900">{currentResident.apartment}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Phone */}
-          {currentResident.phone && (
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <Phone className="w-5 h-5 text-gray-600" />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 font-medium">{t('Телефон', 'Telefon')}</div>
-                  <div className="font-medium text-gray-900">{currentResident.phone}</div>
+                  <div className="text-xs text-gray-500 font-medium">{t('Автомобиль', 'Avtomobil')}</div>
+                  <div className="text-sm font-medium text-gray-900">
+                    {(resident as any).vehicle_count} {t('авто', 'avto')}
+                  </div>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Change History toggle ── */}
+        {/* ═══ 7. Акт сверки ═══ */}
+        {isManager && (
+          <div className="mb-4">
+            <button
+              onClick={() => {
+                // Set default period: last 12 months
+                const now = new Date();
+                const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+                setReconcPeriodFrom(`${yearAgo.getFullYear()}-${String(yearAgo.getMonth() + 1).padStart(2, '0')}`);
+                setReconcPeriodTo(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                setShowReconciliation(!showReconciliation);
+              }}
+              className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 rounded-xl text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <ClipboardList className="w-4 h-4" />
+                {t('Акт сверки', 'Solishtirma dalolatnomasi')}
+              </span>
+              {showReconciliation ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showReconciliation && (
+              <div className="mt-2 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('Период с', 'Davr boshlanishi')}</label>
+                    <input
+                      type="month"
+                      value={reconcPeriodFrom}
+                      onChange={e => setReconcPeriodFrom(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:border-blue-400 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t('Период по', 'Davr tugashi')}</label>
+                    <input
+                      type="month"
+                      value={reconcPeriodTo}
+                      onChange={e => setReconcPeriodTo(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:border-blue-400 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reconcOneWay}
+                    onChange={e => setReconcOneWay(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-600">{t('Односторонний акт', 'Bir tomonlama dalolatnoma')}</span>
+                </label>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleReconciliation}
+                    disabled={reconcLoading || !reconcPeriodFrom || !reconcPeriodTo}
+                    className="flex-1 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {reconcLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : reconcOneWay ? (
+                      <Download className="w-4 h-4" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    {reconcOneWay
+                      ? t('Сформировать', 'Shakllantirish')
+                      : t('Отправить жителю', 'Yashovchiga yuborish')
+                    }
+                  </button>
+                </div>
+
+                {!reconcOneWay && (
+                  <p className="text-xs text-gray-400">
+                    {t('Двусторонний акт будет отправлен жителю на подтверждение через push-уведомление',
+                       'Ikki tomonlama dalolatnoma yashovchiga push-xabar orqali tasdiqlash uchun yuboriladi')}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ 8. Change History toggle ═══ */}
         <button
           onClick={() => setShowHistory(!showHistory)}
           className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-xl mb-3 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
@@ -388,23 +628,32 @@ export function ResidentCardModal({
           </div>
         )}
 
-        {/* ── Action buttons ── */}
-        <div className="flex gap-3">
+        {/* ═══ 9. Action buttons ═══ */}
+        <div className="flex gap-2">
           {isManager && (
-            <button
-              onClick={openChangeModal}
-              className="btn-secondary flex-1 flex items-center justify-center gap-2 text-sm"
-            >
-              <Edit3 className="w-4 h-4" />
-              {t('Изменить данные', "Ma'lumotlarni o'zgartirish")}
-            </button>
+            <>
+              <button
+                onClick={openChangeModal}
+                className="btn-secondary flex-1 flex items-center justify-center gap-1.5 text-sm py-2.5"
+              >
+                <Edit3 className="w-4 h-4" />
+                {t('Изменить', "O'zgartirish")}
+              </button>
+              <button
+                onClick={handleResetPassword}
+                className="btn-secondary flex items-center justify-center gap-1.5 text-sm py-2.5 px-3"
+              >
+                <RefreshCw className="w-4 h-4" />
+                {t('Сбросить пароль', 'Parolni tiklash')}
+              </button>
+            </>
           )}
-          <button onClick={onClose} className="btn-primary flex-1 text-sm">
+          <button onClick={onClose} className="btn-primary flex-1 text-sm py-2.5">
             {t('Закрыть', 'Yopish')}
           </button>
         </div>
 
-        {/* Deactivate link */}
+        {/* ═══ 10. Deactivate link ═══ */}
         {isManager && (
           <button
             onClick={() => setShowDeactivate(true)}
