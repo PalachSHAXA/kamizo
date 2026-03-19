@@ -29,7 +29,7 @@ function ToastItem({ id, type, message }: { id: string; type: keyof typeof icons
     setTimeout(() => removeToast(id), 200);
   };
 
-  const Icon = icons[type];
+  const Icon = icons[type] || Info;
 
   return (
     <div

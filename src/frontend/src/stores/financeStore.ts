@@ -78,7 +78,7 @@ interface FinanceState {
 }
 
 const addToast = (msg: string, type: 'success' | 'error') =>
-  useToastStore.getState().addToast(msg, type);
+  useToastStore.getState().addToast(type, msg);
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
   estimates: [],

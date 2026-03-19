@@ -200,13 +200,13 @@ export default function DebtorsPage() {
       {/* Table or empty */}
       {loadError && debtors.length === 0 ? (
         <EmptyState
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="w-12 h-12" />}
           title={t('Ошибка загрузки', 'Yuklashda xatolik')}
           description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
         />
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="w-12 h-12" />}
           title={t('Должников не найдено', 'Qarzdorlar topilmadi')}
           description={t(
             'Нет жильцов с задолженностью по текущим фильтрам',

@@ -245,13 +245,13 @@ export default function IncomePage() {
       {/* Table or Empty */}
       {loadError && (income as unknown[]).length === 0 ? (
         <EmptyState
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="w-12 h-12" />}
           title={t('Ошибка загрузки', 'Yuklashda xatolik')}
           description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
         />
       ) : filteredIncome.length === 0 ? (
         <EmptyState
-          icon={TrendingUp}
+          icon={<TrendingUp className="w-12 h-12" />}
           title={t('Нет записей о доходах', 'Daromad yozuvlari yo\'q')}
           description={t(
             'Добавьте первый доход, чтобы начать отслеживание',

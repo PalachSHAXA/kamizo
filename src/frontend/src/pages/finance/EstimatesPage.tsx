@@ -290,27 +290,22 @@ export default function EstimatesPage() {
       {/* List */}
       {loadError && estimates.length === 0 ? (
         <EmptyState
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="w-12 h-12" />}
           title={t('Ошибка загрузки', 'Yuklashda xatolik')}
           description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
         />
       ) : estimates.length === 0 ? (
         <EmptyState
-          icon={FileSpreadsheet}
+          icon={<FileSpreadsheet className="w-12 h-12" />}
           title={t('Нет смет', 'Smetalar yo\'q')}
           description={t(
             'Создайте первую смету для начала работы с финансами',
             'Moliyaviy ish boshlash uchun birinchi smetani yarating',
           )}
-          action={
-            <button
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              {t('Создать смету', 'Smeta yaratish')}
-            </button>
-          }
+          action={{
+            label: t('Создать смету', 'Smeta yaratish'),
+            onClick: () => setShowCreate(true),
+          }}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

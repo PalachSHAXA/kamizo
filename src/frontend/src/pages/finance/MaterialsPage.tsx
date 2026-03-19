@@ -177,13 +177,13 @@ export default function MaterialsPage() {
       {/* Table / Empty */}
       {loadError && materials.length === 0 ? (
         <EmptyState
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="w-12 h-12" />}
           title={t('Ошибка загрузки', 'Yuklashda xatolik')}
           description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
         />
       ) : materials.length === 0 ? (
         <EmptyState
-          icon={Package}
+          icon={<Package className="w-12 h-12" />}
           title={t('Нет материалов', 'Materiallar yo\'q')}
           description={t('Добавьте первый материал', 'Birinchi materialni qo\'shing')}
         />

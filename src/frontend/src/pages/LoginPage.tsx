@@ -249,40 +249,38 @@ export function LoginPage() {
           )}
 
           {/* User Agreement Checkbox */}
-          <div
-            className="flex items-start gap-2.5 pt-1 cursor-pointer"
-            onClick={() => {
-              if (!agreedToTerms) {
-                setShowOfferModal(true);
-              } else {
-                setAgreedToTerms(false);
-              }
-            }}
-          >
-            <div
-              className={`flex-shrink-0 rounded border-[1.5px] flex items-center justify-center transition-all ${
-                agreedToTerms
-                  ? (tenant ? 'border-transparent' : 'bg-primary-500 border-primary-500')
-                  : 'border-gray-300 bg-white'
-              }`}
-              style={{
-                width: 18,
-                height: 18,
-                minWidth: 18,
-                minHeight: 18,
-                maxWidth: 18,
-                maxHeight: 18,
-                marginTop: 2,
-                ...(agreedToTerms && tenant ? { backgroundColor: brandColor, borderColor: brandColor } : {}),
-              }}
+          <div className="flex items-start gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => setAgreedToTerms(!agreedToTerms)}
+              className="flex-shrink-0 touch-manipulation"
+              aria-label={language === 'ru' ? 'Согласие с офертой' : 'Ofertaga rozilik'}
             >
-              {agreedToTerms && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-            </div>
+              <div
+                className={`rounded border-[1.5px] flex items-center justify-center transition-all ${
+                  agreedToTerms
+                    ? (tenant ? 'border-transparent' : 'bg-primary-500 border-primary-500')
+                    : 'border-gray-300 bg-white'
+                }`}
+                style={{
+                  width: 18,
+                  height: 18,
+                  minWidth: 18,
+                  minHeight: 18,
+                  maxWidth: 18,
+                  maxHeight: 18,
+                  marginTop: 2,
+                  ...(agreedToTerms && tenant ? { backgroundColor: brandColor, borderColor: brandColor } : {}),
+                }}
+              >
+                {agreedToTerms && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+              </div>
+            </button>
             <span className="text-[12px] text-gray-500 leading-relaxed">
               {language === 'ru' ? 'Я согласен с условиями' : 'Men'}{' '}
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setShowOfferModal(true); }}
+                onClick={() => setShowOfferModal(true)}
                 className="underline font-medium touch-manipulation"
                 style={{ color: tenant ? brandColor : 'var(--color-primary-600)' }}
               >
@@ -365,7 +363,7 @@ export function LoginPage() {
             <div
               ref={offerScrollRef}
               onScroll={handleOfferScroll}
-              className="flex-1 overflow-y-auto p-4 md:p-6 text-sm text-gray-700 leading-relaxed"
+              className="text-sm text-gray-700 leading-relaxed"
             >
               {language === 'ru' ? (
                 <div className="space-y-4">
@@ -506,8 +504,8 @@ export function LoginPage() {
               )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 md:p-6 border-t border-gray-200 bg-gray-50 sm:rounded-b-2xl">
+            {/* Modal Footer — sticky at bottom of scroll area */}
+            <div className="sticky bottom-0 -mx-6 -mb-4 p-4 md:p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
                 <p className={`text-xs sm:text-sm text-center sm:text-left ${canAcceptOffer ? 'text-green-600' : 'text-gray-500'}`}>
                   {canAcceptOffer
@@ -520,7 +518,7 @@ export function LoginPage() {
                     onClick={() => setShowOfferModal(false)}
                     className="flex-1 sm:flex-none px-4 py-3 sm:py-2.5 min-h-[44px] text-gray-600 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-sm sm:text-base"
                   >
-                    {language === 'ru' ? 'Закрыть' : 'Yopish'}
+                    {language === 'ru' ? 'Отклонить' : 'Rad etish'}
                   </button>
                   <button
                     onClick={handleAcceptOffer}

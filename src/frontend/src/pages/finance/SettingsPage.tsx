@@ -161,13 +161,13 @@ export default function SettingsPage() {
       {/* Table / Empty */}
       {loadError && financeAccess.length === 0 ? (
         <EmptyState
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="w-12 h-12" />}
           title={t('Ошибка загрузки', 'Yuklashda xatolik')}
           description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
         />
       ) : financeAccess.length === 0 ? (
         <EmptyState
-          icon={ShieldCheck}
+          icon={<ShieldCheck className="w-12 h-12" />}
           title={t('Нет записей доступа', 'Ruxsat yozuvlari yo\'q')}
           description={t(
             'Нажмите «Дать доступ», чтобы предоставить сотрудникам доступ к финансам',
