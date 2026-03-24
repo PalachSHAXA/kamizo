@@ -78,7 +78,19 @@ export const useAuthStore = create<AuthState>()(
           return true;
         } catch (apiError: unknown) {
           // Login failed
-          const message = apiError instanceof Error ? apiError.message : 'Неверный логин или пароль';
+          const rawMessage = apiError instanceof Error ? apiError.message : '';
+          // Normalize server-side "Invalid credentials" → Russian UX message
+          // Other errors (timeout, server error, rate limit) pass through as-is
+          const message =
+            !rawMessage || rawMessage === 'Invalid credentials'
+              ? 'Неверный логин или пароль'
+              : rawMessage === 'Превышено время ожидания запроса. Проверьте соединение.'
+                ? rawMessage
+                : rawMessage.toLowerCase().includes('too many') || rawMessage.toLowerCase().includes('rate limit')
+                  ? 'Слишком много попыток входа. Попробуйте через минуту.'
+                  : rawMessage.toLowerCase().includes('internal server') || rawMessage.toLowerCase().includes('500')
+                    ? 'Ошибка сервера. Попробуйте позже.'
+                    : rawMessage;
           set({
             isLoading: false,
             error: message
