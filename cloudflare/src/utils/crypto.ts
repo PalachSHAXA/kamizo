@@ -39,7 +39,8 @@ async function hmacVerify(data: string, signature: Uint8Array, secret: string): 
   return crypto.subtle.verify('HMAC', key, signature, enc.encode(data));
 }
 
-export async function createJWT(payload: JwtPayload, secret: string, expiresInSec: number): Promise<string> {
+export async function createJWT(payload: JwtPayload, secret: string | undefined, expiresInSec: number): Promise<string> {
+  if (!secret) throw new Error('JWT_SECRET is not configured — run: wrangler secret put JWT_SECRET');
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const fullPayload = { ...payload, iat: now, exp: now + expiresInSec };
@@ -52,7 +53,8 @@ export async function createJWT(payload: JwtPayload, secret: string, expiresInSe
   return `${unsigned}.${base64urlEncode(sig)}`;
 }
 
-export async function verifyJWT(token: string, secret: string): Promise<JwtPayload | null> {
+export async function verifyJWT(token: string, secret: string | undefined): Promise<JwtPayload | null> {
+  if (!secret) return null;
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
