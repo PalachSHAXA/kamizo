@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, Calendar, X,
-  User, Phone, Check, FileText, Wrench
+  User, Phone, Check, FileText
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -12,18 +12,19 @@ import type { Request } from '../types';
 
 export function ExecutorSchedulePage() {
   const { user } = useAuthStore();
-  const { requests, executors } = useDataStore();
+  const { requests } = useDataStore();
   const { language } = useLanguageStore();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTab, setActiveTab] = useState<'schedule' | 'all'>('schedule');
 
-  // Find current executor
-  const currentExecutor = executors.find(e => e.login === user?.login);
-
-  // Filter requests for this executor
-  const myRequests = requests.filter(r => r.executorId === currentExecutor?.id);
+  // Backend already filters requests by executor_id = user.id for executor role.
+  // Also filter client-side by user.id as a safety net.
+  const myRequests = useMemo(
+    () => requests.filter(r => r.executorId === user?.id),
+    [requests, user?.id]
+  );
 
   // Active requests (not completed/cancelled)
   const activeRequests = useMemo(() => {
@@ -32,26 +33,32 @@ export function ExecutorSchedulePage() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [myRequests]);
 
-  // Scheduled requests for agenda view (requests with scheduledDate)
+  // Helper: get the best calendar date for a request
+  // Priority: scheduledDate > assignedAt date > createdAt date
+  const getCalendarDate = (r: Request): string => {
+    if (r.scheduledDate) return r.scheduledDate;
+    if (r.assignedAt) return r.assignedAt.split('T')[0];
+    return r.createdAt.split('T')[0];
+  };
+
+  // All active requests shown in the calendar (with a resolved calendar date)
   const scheduledRequests = useMemo(() => {
     return myRequests
-      .filter(r => r.scheduledDate && ['assigned', 'accepted', 'in_progress'].includes(r.status))
+      .filter(r => ['assigned', 'accepted', 'in_progress'].includes(r.status))
       .sort((a, b) => {
-        const dateA = new Date(a.scheduledDate!).getTime();
-        const dateB = new Date(b.scheduledDate!).getTime();
+        const dateA = new Date(getCalendarDate(a)).getTime();
+        const dateB = new Date(getCalendarDate(b)).getTime();
         return dateA - dateB;
       });
   }, [myRequests]);
 
-  // Group scheduled requests by date for calendar
+  // Group requests by calendar date
   const requestsByDate = useMemo(() => {
     const grouped: Record<string, Request[]> = {};
     scheduledRequests.forEach(req => {
-      if (req.scheduledDate) {
-        const dateKey = req.scheduledDate;
-        if (!grouped[dateKey]) grouped[dateKey] = [];
-        grouped[dateKey].push(req);
-      }
+      const dateKey = getCalendarDate(req);
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(req);
     });
     return grouped;
   }, [scheduledRequests]);
@@ -288,7 +295,7 @@ export function ExecutorSchedulePage() {
           {(() => {
             // Filter requests based on selected date or show all upcoming
             const displayRequests = selectedCalendarDate
-              ? scheduledRequests.filter(r => r.scheduledDate === selectedCalendarDate)
+              ? scheduledRequests.filter(r => getCalendarDate(r) === selectedCalendarDate)
               : scheduledRequests;
 
             if (displayRequests.length === 0) {
@@ -310,12 +317,13 @@ export function ExecutorSchedulePage() {
             return (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {displayRequests.map((request) => {
-                  const scheduleDate = new Date(request.scheduledDate!);
-                  const isToday = new Date().toISOString().split('T')[0] === request.scheduledDate;
+                  const calDate = getCalendarDate(request);
+                  const scheduleDate = new Date(calDate);
+                  const isToday = new Date().toISOString().split('T')[0] === calDate;
                   const isTomorrow = (() => {
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
-                    return tomorrow.toISOString().split('T')[0] === request.scheduledDate;
+                    return tomorrow.toISOString().split('T')[0] === calDate;
                   })();
 
                   return (
