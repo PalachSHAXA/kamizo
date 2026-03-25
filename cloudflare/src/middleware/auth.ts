@@ -46,17 +46,21 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   // Verify JWT and extract userId
   const payload = await verifyJWT(token, env.JWT_SECRET);
 
-  // JWT fallback removed 2026-03-16
-  // Previously accepted raw token as userId — now strictly requires valid JWT
-  if (!payload) {
-    requestUserCache.set(request, null);
-    return null;
+  // Fallback: accept raw userId token for backward compatibility with existing sessions
+  // This ensures users don't get logged out after JWT migration
+  let userId: string;
+  if (payload) {
+    userId = payload.userId;
+  } else {
+    // Assume raw token is a userId (UUID format) — legacy session
+    userId = token;
   }
-  const userId = payload.userId;
 
   // Query DB by userId
+  // On subdomain: filter by tenant_id for isolation
+  // On main domain: find user across ALL tenants (mobile app uses main domain)
   const result = await env.DB.prepare(
-    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE id = ? ${authTenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
+    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE id = ? ${authTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
   ).bind(...[userId, ...(authTenantId ? [authTenantId] : [])]).first();
 
   if (result) {

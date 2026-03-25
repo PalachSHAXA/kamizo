@@ -439,20 +439,20 @@ export default function ResidentUsefulContactsPage() {
   return (
     <div className="max-w-4xl mx-auto pb-24 md:pb-0">
       {/* Header */}
-      <div className="mb-5 px-1">
+      <div className="mb-4 px-1">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
           {language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar'}
         </h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <p className="text-gray-500 text-sm mt-0.5">
           {language === 'ru'
-            ? 'Проверенные специалисты для жителей комплекса'
-            : 'Majmua aholisi uchun tekshirilgan mutaxassislar'}
+            ? 'Экстренные службы и проверенные специалисты'
+            : 'Tez yordam xizmatlari va tekshirilgan mutaxassislar'}
         </p>
       </div>
 
-      {/* Banners */}
-      {banners.length > 0 && (
-        <div className="mb-5 px-1 space-y-3">
+      {/* Kamizo Banner — compact single row */}
+      {banners.length > 0 ? (
+        <div className="mb-4 px-1 space-y-2.5">
           {banners.map((banner: any) => (
             <div
               key={banner.id}
@@ -463,18 +463,15 @@ export default function ResidentUsefulContactsPage() {
               {banner.image_url ? (
                 <img src={banner.image_url} alt={banner.title} className="w-full h-36 object-cover" />
               ) : (
-                <div className="p-5 flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--brand, #F97316), #FB923C)' }}>
-                        <span className="text-white font-extrabold text-lg">K</span>
-                      </div>
-                      <span className="font-bold text-gray-800">kamizo</span>
-                    </div>
-                    <h3 className="font-bold text-gray-900">{banner.title}</h3>
-                    {banner.description && <p className="text-sm text-gray-600 mt-0.5">{banner.description}</p>}
+                <div className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--brand, #F97316), #FB923C)' }}>
+                    <span className="text-white font-extrabold text-lg">K</span>
                   </div>
-                  <div className="px-5 py-2.5 rounded-xl text-white font-bold text-sm flex-shrink-0" style={{ background: 'var(--brand, #F97316)' }}>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-gray-800 text-sm">kamizo</span>
+                    <p className="text-xs text-gray-600 truncate">🎁 {banner.title || (language === 'ru' ? 'Привилегии для резидентов' : 'Rezidentlar uchun imtiyozlar')}</p>
+                  </div>
+                  <div className="px-4 py-2 rounded-xl text-white font-bold text-xs flex-shrink-0" style={{ background: 'var(--brand, #F97316)' }}>
                     {language === 'ru' ? 'СКИДКИ' : 'CHEGIRMALAR'}
                   </div>
                 </div>
@@ -482,44 +479,64 @@ export default function ResidentUsefulContactsPage() {
             </div>
           ))}
         </div>
+      ) : (
+        <div className="mb-4 px-1">
+          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, #FFF9E6 0%, #FFF3CC 100%)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--brand, #F97316), #FB923C)' }}>
+              <span className="text-white font-extrabold text-lg">K</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-gray-800 text-sm">kamizo</span>
+              <p className="text-xs text-gray-600">🎁 {language === 'ru' ? 'Привилегии для резидентов' : 'Rezidentlar uchun imtiyozlar'}</p>
+            </div>
+            <div className="px-4 py-2 rounded-xl text-white font-bold text-xs flex-shrink-0" style={{ background: 'var(--brand, #F97316)' }}>
+              {language === 'ru' ? 'СКИДКИ' : 'CHEGIRMALAR'}
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Emergency Services - Compact grid */}
-      <div className="mb-5 px-1">
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center">
-              <Siren className="w-4.5 h-4.5 text-red-600" />
-            </div>
-            <h2 className="font-semibold text-gray-900 text-[15px]">
+      {/* Emergency Services — horizontal scroll */}
+      <div className="mb-4 px-1">
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🆘</span>
+            <h2 className="font-bold text-gray-900 text-[15px]">
               {language === 'ru' ? 'Экстренные службы' : 'Tez yordam xizmatlari'}
             </h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {[
-              { name: language === 'ru' ? 'Пожарная' : 'Yong\'in xizmati', number: '101', icon: FireExtinguisher, color: 'bg-red-500' },
-              { name: language === 'ru' ? 'Полиция' : 'Politsiya', number: '102', icon: Shield, color: 'bg-blue-600' },
-              { name: language === 'ru' ? 'Скорая помощь' : 'Tez yordam', number: '103', icon: HeartPulse, color: 'bg-green-600' },
-              { name: language === 'ru' ? 'Газовая служба' : 'Gaz xizmati', number: '104', icon: Zap, color: 'bg-yellow-500' },
-              { name: language === 'ru' ? 'МЧС' : 'Favqulodda vaziyatlar', number: '1050', icon: Siren, color: 'bg-orange-500' },
-              { name: language === 'ru' ? 'Электросеть' : 'Elektr tarmog\'i', number: '1055', icon: PlugZap, color: 'bg-indigo-500' },
-            ].map(service => (
-              <a
-                key={service.number}
-                href={`tel:${service.number}`}
-                className="flex items-center gap-2.5 bg-gray-50 hover:bg-gray-100 rounded-xl p-2.5 transition-all active:scale-[0.98]"
-              >
-                <div className={`w-9 h-9 rounded-full ${service.color} flex items-center justify-center flex-shrink-0`}>
-                  <service.icon className="w-4 h-4 text-white" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[11px] text-gray-500 truncate leading-tight">{service.name}</div>
-                  <div className="text-[16px] font-bold text-gray-900 leading-tight">{service.number}</div>
-                </div>
-              </a>
-            ))}
-          </div>
+          <span className="text-xs text-gray-400 flex items-center gap-1">
+            {language === 'ru' ? 'листайте' : 'suring'} <ChevronRight className="w-3 h-3" />
+          </span>
         </div>
+        <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+          {[
+            { name: language === 'ru' ? 'Пожарная' : 'O\'t o\'chirish', number: '101', icon: Flame, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' },
+            { name: language === 'ru' ? 'Милиция' : 'Militsiya', number: '102', icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },
+            { name: language === 'ru' ? 'Скорая' : 'Tez yordam', number: '103', icon: HeartPulse, color: 'text-green-500', bg: 'bg-green-50', border: 'border-green-100' },
+            { name: language === 'ru' ? 'Газ' : 'Gaz', number: '104', icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-50', border: 'border-yellow-100' },
+            { name: language === 'ru' ? 'МЧС' : 'FVV', number: '1050', icon: Siren, color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100' },
+            { name: language === 'ru' ? 'Электросеть' : 'Elektr', number: '1055', icon: PlugZap, color: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-100' },
+          ].map(service => (
+            <a
+              key={service.number}
+              href={`tel:${service.number}`}
+              className={`flex flex-col items-center justify-center min-w-[90px] ${service.bg} border ${service.border} rounded-2xl p-3 active:scale-95 transition-transform flex-shrink-0`}
+            >
+              <service.icon className={`w-5 h-5 ${service.color} mb-1.5`} />
+              <div className="text-[11px] text-gray-500 font-medium truncate max-w-[80px] text-center">{service.name}</div>
+              <div className="text-[15px] font-black text-gray-900">{service.number}</div>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* Partners & Specialists section header */}
+      <div className="flex items-center gap-2 mb-2.5 px-1">
+        <span className="text-lg">🤝</span>
+        <h2 className="font-bold text-gray-900 text-[15px]">
+          {language === 'ru' ? 'Партнёры и специалисты' : 'Hamkorlar va mutaxassislar'}
+        </h2>
       </div>
 
       {/* Search */}
@@ -641,77 +658,26 @@ export default function ResidentUsefulContactsPage() {
           ))}
         </div>
       ) : (
-        /* Empty State */
-        (() => {
-          const showContactsBanner = (config?.tenant as any)?.show_useful_contacts_banner !== 0 && ads.length === 0 && !loading && !searchQuery;
-          if (showContactsBanner) {
-            return (
-              <div className="space-y-4 pb-24 md:pb-0">
-                {/* Privileges banner */}
-                <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #FFF9E6, #FFF3CC)' }}>
-                  <div className="p-5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-orange-500">
-                            <span className="text-white font-extrabold text-lg">K</span>
-                          </div>
-                          <span className="font-bold text-gray-800 text-lg">kamizo</span>
-                        </div>
-                        <h2 className="text-xl font-bold text-gray-900 mb-1">{language === 'ru' ? 'Привилегии для резидентов' : 'Rezidentlar uchun imtiyozlar'}</h2>
-                        <p className="text-sm text-gray-600">{language === 'ru' ? 'Особые условия у проверенных партнёров' : 'Tasdiqlangan hamkorlar bilan maxsus shartlar'}</p>
-                      </div>
-                      <div className="px-5 py-2.5 rounded-xl text-white font-bold text-sm flex-shrink-0 bg-orange-500 ml-3">
-                        {language === 'ru' ? 'СКИДКИ' : 'CHEGIRMALAR'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Emergency services */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border">
-                  <h3 className="font-bold text-gray-800 mb-3">{language === 'ru' ? 'Экстренные службы' : 'Favqulodda xizmatlar'}</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[{num:'101',label:language==='ru'?'Пожарные':'O\'t o\'chirish',color:'bg-red-100 text-red-700'},{num:'102',label:language==='ru'?'Полиция':'Militsiya',color:'bg-blue-100 text-blue-700'},{num:'103',label:language==='ru'?'Скорая':'Tez yordam',color:'bg-green-100 text-green-700'}].map(s => (
-                      <a key={s.num} href={`tel:${s.num}`} className={`flex flex-col items-center p-3 rounded-xl ${s.color} transition-all active:scale-95`}>
-                        <span className="text-2xl font-black">{s.num}</span>
-                        <span className="text-xs font-medium mt-1 text-center">{s.label}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-                {/* Coming soon partners */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm border text-center">
-                  <div className="w-14 h-14 mx-auto mb-3 bg-orange-50 rounded-2xl flex items-center justify-center">
-                    <span className="text-2xl">🤝</span>
-                  </div>
-                  <p className="font-semibold text-gray-700">{language === 'ru' ? 'Партнёры появятся скоро' : 'Hamkorlar tez orada paydo bo\'ladi'}</p>
-                  <p className="text-sm text-gray-400 mt-1">{language === 'ru' ? 'Ваша УК скоро добавит полезные контакты' : 'Sizning UKingiz tez orada foydali kontaktlar qo\'shadi'}</p>
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div className="text-center py-16 px-4">
-              <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-indigo-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                <Ticket className="w-10 h-10 text-primary-500" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                {searchQuery
-                  ? (language === 'ru' ? 'Ничего не найдено' : 'Hech narsa topilmadi')
-                  : (language === 'ru' ? 'Скоро здесь появятся предложения' : 'Tez orada takliflar paydo bo\'ladi')
-                }
-              </h3>
-              <p className="text-gray-500 text-sm max-w-xs mx-auto">
-                {searchQuery
-                  ? (language === 'ru' ? 'Попробуйте изменить поисковый запрос' : 'So\'rovni o\'zgartirib ko\'ring')
-                  : (language === 'ru'
-                      ? 'Мы подбираем лучших специалистов для жителей комплекса'
-                      : 'Majmua aholisi uchun eng yaxshi mutaxassislarni tanlamoqdamiz')
-                }
-              </p>
-            </div>
-          );
-        })()
+        /* Empty State — banner and emergency already shown above, just show "coming soon" */
+        <div className="text-center py-10 px-4">
+          <div className="w-16 h-16 bg-orange-50 rounded-3xl flex items-center justify-center mx-auto mb-3">
+            <span className="text-3xl">🤝</span>
+          </div>
+          <h3 className="text-base font-semibold text-gray-800 mb-1">
+            {searchQuery
+              ? (language === 'ru' ? 'Ничего не найдено' : 'Hech narsa topilmadi')
+              : (language === 'ru' ? 'Партнёры появятся скоро' : 'Hamkorlar tez orada paydo bo\'ladi')
+            }
+          </h3>
+          <p className="text-gray-400 text-sm max-w-xs mx-auto">
+            {searchQuery
+              ? (language === 'ru' ? 'Попробуйте изменить поисковый запрос' : 'So\'rovni o\'zgartirib ko\'ring')
+              : (language === 'ru'
+                  ? 'Мы отбираем лучших специалистов для вас'
+                  : 'Siz uchun eng yaxshi mutaxassislarni tanlamoqdamiz')
+            }
+          </p>
+        </div>
       )}
     </div>
   );

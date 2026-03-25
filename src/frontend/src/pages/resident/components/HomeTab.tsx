@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Wrench, ArrowRight, MessageCircle, QrCode,
-  ShoppingBag, Search, Phone, Wallet, Vote, Star, ScrollText,
+  ShoppingBag, Car, Users, Wallet, Vote, Star, ScrollText,
   FileText, Megaphone
 } from 'lucide-react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
@@ -118,17 +118,17 @@ export function HomeTab({
           className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.94] transition-transform touch-manipulation"
         >
           <div className="w-[42px] h-[42px] rounded-[13px] bg-amber-50 flex items-center justify-center mb-[11px]">
-            <Search className="w-[21px] h-[21px] text-amber-500" strokeWidth={1.8} />
+            <Car className="w-[21px] h-[21px] text-amber-500" strokeWidth={1.8} />
           </div>
-          <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Найти авто' : 'Avto qidirish'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Поиск по номеру' : 'Raqam bo\'yicha qidirish'}</div>
+          <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Мои авто' : 'Avtomobillarim'}</div>
+          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Реестр авто' : 'Avto ro\'yxati'}</div>
         </button>
         <button
           onClick={() => navigate('/useful-contacts')}
           className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.94] transition-transform touch-manipulation"
         >
-          <div className="w-[42px] h-[42px] rounded-[13px] bg-red-50 flex items-center justify-center mb-[11px]">
-            <Phone className="w-[21px] h-[21px] text-red-500" strokeWidth={1.8} />
+          <div className="w-[42px] h-[42px] rounded-[13px] bg-primary-50 flex items-center justify-center mb-[11px]">
+            <Users className="w-[21px] h-[21px] text-primary-500" strokeWidth={1.8} />
           </div>
           <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Контакты' : 'Kontaktlar'}</div>
           <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Полезные' : 'Foydali'}</div>

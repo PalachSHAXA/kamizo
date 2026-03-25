@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useTenantStore } from '../../stores/tenantStore';
 import { Modal } from '../../components/common';
 import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
@@ -13,8 +14,10 @@ export function SettingsPage() {
   const { settings, updateSettings } = useDataStore();
   const { user, updateUserProfile } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
+  const { config, hasFeature, fetchConfig } = useTenantStore();
+  const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
   const isAdmin = user?.role === 'admin';
-  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'notifications' | 'integrations' | 'users'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'modules' | 'notifications' | 'integrations' | 'users'>('profile');
   const [saved, setSaved] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -269,12 +272,14 @@ export function SettingsPage() {
     ? [
         { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
         { id: 'general' as const, label: language === 'ru' ? 'Общие' : 'Umumiy', icon: Settings },
+        { id: 'modules' as const, label: language === 'ru' ? 'Модули' : 'Modullar', icon: ToggleRight },
         { id: 'notifications' as const, label: language === 'ru' ? 'Уведомления' : 'Bildirishnomalar', icon: Bell },
         { id: 'integrations' as const, label: language === 'ru' ? 'Интеграции' : 'Integratsiyalar', icon: Globe },
         { id: 'users' as const, label: language === 'ru' ? 'Пользователи' : 'Foydalanuvchilar', icon: Users },
       ]
     : [
         { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
+        { id: 'modules' as const, label: language === 'ru' ? 'Модули' : 'Modullar', icon: ToggleRight },
         { id: 'notifications' as const, label: language === 'ru' ? 'Уведомления' : 'Bildirishnomalar', icon: Bell },
       ];
 
@@ -684,6 +689,69 @@ export function SettingsPage() {
                   {resetMessage.text}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modules Settings */}
+      {activeTab === 'modules' && (
+        <div className="space-y-4 md:space-y-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
+            <h2 className="text-base md:text-lg font-semibold mb-1 flex items-center gap-2">
+              <ToggleRight className="w-5 h-5 text-gray-400" />
+              {language === 'ru' ? 'Модули платформы' : 'Platforma modullari'}
+            </h2>
+            <p className="text-xs text-gray-500 mb-4">
+              {language === 'ru' ? 'Включайте модули по мере готовности вашей компании' : 'Kompaniyangiz tayyor bo\'lganda modullarni yoqing'}
+            </p>
+            <div className="space-y-2">
+              {[
+                { key: 'marketplace', icon: ShoppingBag, label: { ru: 'Маркетплейс', uz: 'Marketplace' }, desc: { ru: 'Магазин товаров для жителей', uz: 'Aholisi uchun do\'kon' }, color: 'text-purple-500 bg-purple-50' },
+                { key: 'chat', icon: MessageCircle, label: { ru: 'Чат', uz: 'Chat' }, desc: { ru: 'Обращения жителей', uz: 'Aholisi murojaatlari' }, color: 'text-blue-500 bg-blue-50' },
+                { key: 'meetings', icon: Vote, label: { ru: 'Собрания', uz: 'Yig\'ilishlar' }, desc: { ru: 'Голосование и протоколы', uz: 'Ovoz berish va bayonnomalar' }, color: 'text-amber-500 bg-amber-50' },
+                { key: 'announcements', icon: Megaphone, label: { ru: 'Объявления', uz: 'E\'lonlar' }, desc: { ru: 'Новости для жителей', uz: 'Aholi uchun yangiliklar' }, color: 'text-orange-500 bg-orange-50' },
+                { key: 'qr', icon: QrCode, label: { ru: 'QR-пропуска', uz: 'QR-ruxsatnomalar' }, desc: { ru: 'Гостевой доступ', uz: 'Mehmonlar kirishi' }, color: 'text-green-500 bg-green-50' },
+                { key: 'vehicles', icon: Car, label: { ru: 'Автомобили', uz: 'Avtomobillar' }, desc: { ru: 'Реестр и поиск авто', uz: 'Avto ro\'yxati va qidirish' }, color: 'text-cyan-500 bg-cyan-50' },
+                { key: 'trainings', icon: BookOpen, label: { ru: 'Обучение', uz: 'O\'qitish' }, desc: { ru: 'Курсы для сотрудников', uz: 'Xodimlar uchun kurslar' }, color: 'text-indigo-500 bg-indigo-50' },
+                { key: 'useful-contacts', icon: Phone, label: { ru: 'Полезные контакты', uz: 'Foydali kontaktlar' }, desc: { ru: 'Партнёры и специалисты', uz: 'Hamkorlar va mutaxassislar' }, color: 'text-red-500 bg-red-50' },
+                { key: 'notepad', icon: StickyNote, label: { ru: 'Заметки', uz: 'Eslatmalar' }, desc: { ru: 'Блокнот менеджера', uz: 'Menejer bloknoti' }, color: 'text-yellow-500 bg-yellow-50' },
+                { key: 'communal', icon: CreditCard, label: { ru: 'Коммунальные', uz: 'Kommunal' }, desc: { ru: 'Платежи и начисления', uz: 'To\'lovlar va hisob-kitoblar' }, color: 'text-emerald-500 bg-emerald-50' },
+              ].map(mod => {
+                const enabled = hasFeature(mod.key);
+                const ModIcon = mod.icon;
+                return (
+                  <div key={mod.key} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${mod.color}`}>
+                      <ModIcon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900">{language === 'ru' ? mod.label.ru : mod.label.uz}</div>
+                      <div className="text-xs text-gray-500">{language === 'ru' ? mod.desc.ru : mod.desc.uz}</div>
+                    </div>
+                    <button
+                      disabled={togglingFeature === mod.key}
+                      onClick={async () => {
+                        setTogglingFeature(mod.key);
+                        try {
+                          await apiRequest('/api/tenant/features', { method: 'PATCH', body: JSON.stringify({ feature: mod.key, enabled: !enabled }) });
+                          await fetchConfig();
+                        } catch {}
+                        setTogglingFeature(null);
+                      }}
+                      className="flex-shrink-0 transition-colors"
+                    >
+                      {togglingFeature === mod.key ? (
+                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                      ) : enabled ? (
+                        <ToggleRight className="w-8 h-8 text-green-500" />
+                      ) : (
+                        <ToggleLeft className="w-8 h-8 text-gray-300" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
