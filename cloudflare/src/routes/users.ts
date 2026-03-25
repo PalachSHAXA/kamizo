@@ -501,20 +501,16 @@ route('POST', '/api/auth/login', async (request, env) => {
   if (validationErrors) return error(validationErrors, 400);
   const { login, password } = body;
 
-  // Fetch user with password hash (filter by tenant if on a subdomain)
-  // On main domain: find non-tenant users (super_admin) or kamizo-demo users
-  // On subdomain: find users belonging to that tenant OR super_admin users (tenant_id IS NULL)
+  // Fetch user with password hash
+  // On subdomain: find users of that specific tenant (or super_admin)
+  // On main domain (workers.dev has no subdomains): search all users by login —
+  //   tenant context is derived post-login from user.tenant_id (see below)
   const tenantId = getTenantId(request);
   let userWithHash = await env.DB.prepare(
-    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? ${tenantId ? "AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))" : "AND (tenant_id IS NULL OR tenant_id = '')"}`
-  ).bind(...[login.trim(), ...(tenantId ? [tenantId] : [])]).first() as any;
-
-  // On main domain, also try any demo tenant for accounts starting with 'demo-'
-  if (!userWithHash && !tenantId && login.trim().startsWith('demo-')) {
-    userWithHash = await env.DB.prepare(
-      `SELECT u.id, u.login, u.phone, u.name, u.role, u.specialization, u.address, u.apartment, u.building_id, u.branch, u.building, u.entrance, u.floor, u.total_area, u.password_hash, u.password_changed_at, u.contract_signed_at, u.account_type, u.tenant_id FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.login = ? AND t.is_demo = 1 LIMIT 1`
-    ).bind(login.trim()).first() as any;
-  }
+    tenantId
+      ? `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
+      : `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? LIMIT 1`
+  ).bind(...(tenantId ? [login.trim(), tenantId] : [login.trim()])).first() as any;
 
   if (!userWithHash) {
     return error('Invalid credentials', 401);
