@@ -6,3 +6,21 @@ dist/
 .dev.vars
 .wrangler/
 *.timestamp-*
+
+# Build artifacts (deployed via wrangler, not needed in git)
+cloudflare/public/assets/
+cloudflare/public/index.html
+
+# Audit/doc files (generated, not source)
+ARCHITECTURE_DIAGRAM.txt
+AUDIT_FILES_CHECKLIST.txt
+AUDIT_SUMMARY.txt
+CHANGELOG_AUDIT_FIX.html
+PROJECT_INDEX.md
+README_AUDIT.md
+ROUTE_AUDIT.md
+ROUTE_QUICK_REFERENCE.txt
+
+# Mobile build artifacts
+*.apk
+src/frontend/android/
