@@ -12,6 +12,7 @@ const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/offline.html',
 ];
 
 // Install event - cache static shell
@@ -121,9 +122,9 @@ self.addEventListener('fetch', (event) => {
         // Offline fallback
         return caches.match(request).then((cached) => {
           if (cached) return cached;
-          // For navigation requests, serve the cached index.html (SPA)
+          // For navigation requests, show offline page (better UX than blank screen)
           if (request.mode === 'navigate') {
-            return caches.match('/index.html');
+            return caches.match('/offline.html') || caches.match('/index.html');
           }
           return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
         });
