@@ -62,7 +62,7 @@ export function ExecutorDetailsModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl"
+        className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

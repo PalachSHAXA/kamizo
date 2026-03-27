@@ -19,15 +19,15 @@
 }
 
 html {
-  /* Safe area for iOS devices */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Safe area top only — bottom handled per-element to avoid double-counting with position:fixed BottomBar */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: linear-gradient(135deg, #fefefe 0%, var(--brand-bg) 50%, var(--brand-bg) 100%);
   min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  min-height: 100dvh;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -38,6 +38,50 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
+}
+
+/* ── Mobile: lock body scroll so BottomBar never jumps ─────────────────────
+   On iOS Safari the address bar animates in/out causing 100vh to change,
+   which makes position:fixed elements visibly jump. Fix: the page body must
+   NOT scroll. Only the .main-content inner container scrolls.
+   ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  html, body {
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  #root {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Layout root wrapper fills #root */
+  .layout-root {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Scrollable content area — only this scrolls on mobile */
+  .main-content,
+  .main-content-full {
+    flex: 1 1 0%;
+    min-height: 0; /* critical: allows flex child to shrink below content size */
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Bottom padding so content isn't hidden under the fixed BottomBar */
+  #main-content {
+    padding-bottom: 90px !important;
+  }
 }
 
 .glass-card {

@@ -48,7 +48,7 @@ export default function RescheduleModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="glass-card p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto rounded-none sm:rounded-2xl">
+      <div className="glass-card p-6 w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto rounded-none sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-amber-600 flex items-center gap-2">
             <RefreshCw className="w-5 h-5" />

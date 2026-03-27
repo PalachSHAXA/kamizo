@@ -432,7 +432,7 @@ export default function EstimatesPage() {
         title={t('Новая смета', 'Yangi smeta')}
         size="2xl"
       >
-        <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+        <div className="space-y-5 max-h-[75dvh] overflow-y-auto pr-1">
           {/* 1. Building + Effective Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

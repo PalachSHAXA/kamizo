@@ -1543,7 +1543,7 @@ function MeetingDetailsModal({
   // TODO: migrate to <Modal> component
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
           <div>

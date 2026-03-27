@@ -495,7 +495,7 @@ export function ExecutorSchedulePage() {
       {/* TODO: migrate to <Modal> component */}
       {selectedRequest && (
         <div className="modal-backdrop items-end sm:items-center" onClick={() => setSelectedRequest(null)}>
-          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" onClick={e => e.stopPropagation()}>
+          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="text-sm text-gray-500">{language === 'ru' ? 'Заявка' : 'Ariza'} #{selectedRequest.number}</div>

@@ -516,12 +516,12 @@ export function AnnouncementsPage() {
         </div>
 
         {/* Date Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
+        <div className="flex flex-row flex-nowrap items-center gap-2">
+          <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <select
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-            className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 min-w-0"
           >
             <option value="all">{language === 'ru' ? 'Все время' : 'Barcha vaqt'}</option>
             <option value="today">{language === 'ru' ? 'Сегодня' : 'Bugun'}</option>
@@ -565,7 +565,7 @@ export function AnnouncementsPage() {
       {/* TODO: Refactor to use <Modal> component */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-base sm:text-lg md:text-xl font-bold">{t('announcements.add')}</h2>
               <button
@@ -976,7 +976,7 @@ export function AnnouncementsPage() {
       {/* Edit Announcement Modal */}
       {showEditModal && editingAnnouncement && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-base sm:text-lg md:text-xl font-bold">{language === 'ru' ? 'Редактировать объявление' : 'E\'lonni tahrirlash'}</h2>
               <button
@@ -1250,7 +1250,7 @@ function AnnouncementCard({
       {/* Viewers Modal with Statistics */}
       {showViewers && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setShowViewers(false)}>
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80dvh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">
                 <Eye className="w-5 h-5 text-blue-500" />
@@ -1260,7 +1260,7 @@ function AnnouncementCard({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 max-h-[60vh] overflow-y-auto space-y-4">
+            <div className="p-4 max-h-[60dvh] overflow-y-auto space-y-4">
               {isLoadingViewers ? (
                 <div className="text-center py-8 text-gray-500">
                   {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}

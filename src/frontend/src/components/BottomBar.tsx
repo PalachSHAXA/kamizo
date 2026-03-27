@@ -83,7 +83,7 @@ export function BottomBar() {
       return [
         { id: 'home', icon: FileText, label: language === 'ru' ? 'Задачи' : 'Vazifalar', path: '/', badge: executorRequestBadge },
         { id: 'schedule', icon: CalendarDays, label: language === 'ru' ? 'График' : 'Jadval', path: '/schedule', badge: 0 },
-        { id: 'stats', icon: BarChart3, label: language === 'ru' ? 'Стат.' : 'Stat.', path: '/stats', badge: 0 },
+        { id: 'stats', icon: BarChart3, label: language === 'ru' ? 'Стат.' : 'Stat.', path: '/my-stats', badge: 0 },
         { id: 'announcements', icon: Bell, label: language === 'ru' ? 'Новости' : 'Yangiliklar', path: '/announcements', badge: unreadNews, feature: 'announcements' },
         { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
       ];

@@ -588,7 +588,7 @@ function CreateRequestModal({
 
   return (
     <div className="modal-backdrop items-end sm:items-center">
-      <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+      <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</h2>
           <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg" aria-label="Закрыть">
@@ -926,8 +926,8 @@ function CreateRequestModal({
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t">
+          {/* Actions — sticky at bottom so always visible */}
+          <div className="flex gap-3 pt-4 border-t sticky bottom-0 bg-white -mx-4 px-4 sm:-mx-6 sm:px-6 pb-1">
             <button
               type="button"
               onClick={onClose}

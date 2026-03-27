@@ -1136,7 +1136,7 @@ export function ResidentVehiclesPage() {
       {/* Add/Edit Modal - Mobile full-screen, centered on desktop */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-[200] md:flex md:items-center md:justify-center">
-          <div className="h-full md:h-auto w-full md:max-w-2xl md:mx-4 bg-white md:rounded-2xl overflow-hidden md:max-h-[85vh] flex flex-col">
+          <div className="h-full md:h-auto w-full md:max-w-2xl md:mx-4 bg-white md:rounded-2xl overflow-hidden md:max-h-[85dvh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
               <h2 className="text-lg font-bold">
                 {editingVehicle

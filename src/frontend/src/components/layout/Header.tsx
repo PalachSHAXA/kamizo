@@ -610,7 +610,7 @@ export function Header() {
           {/* Dropdown */}
           <div
             className="fixed right-4 left-4 sm:left-auto sm:right-6 top-20 sm:w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
-            style={{ zIndex: 10001, maxHeight: 'calc(100vh - 100px)' }}
+            style={{ zIndex: 10001, maxHeight: 'calc(100dvh - 100px)' }}
             role="region"
             aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >

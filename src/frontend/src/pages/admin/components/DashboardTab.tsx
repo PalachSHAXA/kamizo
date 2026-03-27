@@ -449,9 +449,9 @@ export function DashboardTab({
       </div>
 
       {/* Master-Detail */}
-      <div className="flex flex-col md:flex-row gap-4" style={{ minHeight: 'min(500px, calc(100vh - 370px))' }}>
+      <div className="flex flex-col md:flex-row gap-4" style={{ minHeight: 'min(500px, calc(100dvh - 370px))' }}>
       {/* Left: Tenant List */}
-      <div className="w-full md:w-80 md:flex-shrink-0 bg-white border border-gray-100 rounded-2xl p-3 sm:p-4 space-y-3 overflow-y-auto shadow-sm max-h-[40vh] md:max-h-none">
+      <div className="w-full md:w-80 md:flex-shrink-0 bg-white border border-gray-100 rounded-2xl p-3 sm:p-4 space-y-3 overflow-y-auto shadow-sm max-h-[40dvh] md:max-h-none">
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
           <input
@@ -529,7 +529,7 @@ export function DashboardTab({
       </div>
 
         {/* Right: Detail View */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 overflow-y-auto max-h-[60vh] md:max-h-none shadow-sm">
+        <div className="flex-1 bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 overflow-y-auto max-h-[60dvh] md:max-h-none shadow-sm">
           {renderTenantDetail()}
         </div>
       </div>

@@ -18,7 +18,7 @@ export function RequestDetailsModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-lg mx-4 max-h-[90dvh] overflow-y-auto">
         {/* Status Tracker */}
         <RequestStatusTracker
           request={request}

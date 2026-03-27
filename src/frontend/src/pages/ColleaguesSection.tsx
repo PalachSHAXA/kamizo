@@ -187,7 +187,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
 
   return (
     <Modal isOpen={true} onClose={onClose} title={`${language === 'ru' ? 'Оценить' : 'Baholash'}: ${employee.name}`} size="lg">
-      <div className="max-h-[70vh] overflow-y-auto">
+      <div className="max-h-[70dvh] overflow-y-auto">
         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-sm text-yellow-800">{language === 'ru' ? 'Ваша оценка абсолютно анонимна' : 'Sizning bahongiz mutlaqo anonimdir'}</p>
         </div>

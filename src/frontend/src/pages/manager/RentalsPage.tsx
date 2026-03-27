@@ -407,7 +407,7 @@ export function RentalsPage() {
       {/* Apartment Details Modal */}
       {selectedApartment && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setSelectedApartment(null)}>
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {(() => {
               const apartment = rentalApartments.find(a => a.id === selectedApartment);
               const records = getApartmentRecords(selectedApartment);
@@ -512,7 +512,7 @@ export function RentalsPage() {
       {/* Add Apartment Modal */}
       {showAddApartmentModal && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-6">{language === 'ru' ? 'Добавить квартиру' : 'Xonadon qo\'shish'}</h2>
             <div className="space-y-4">
               {/* Apartment Name */}

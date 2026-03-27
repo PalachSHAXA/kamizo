@@ -61,7 +61,7 @@ export function TenantFormModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-t-2xl sm:rounded-lg max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
         <div className="p-4 sm:p-6 border-b">
           <h2 className="text-lg sm:text-xl font-bold">
             {editingTenant ? 'Редактировать УК' : 'Создать УК'}

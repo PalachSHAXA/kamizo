@@ -725,7 +725,7 @@ function MeetingVotingModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[200] flex items-end md:items-center justify-center">
-      <div className="max-h-[85vh] md:max-h-[90vh] w-full md:max-w-lg md:mx-4 bg-white rounded-t-2xl md:rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 duration-200">
+      <div className="max-h-[85dvh] md:max-h-[90dvh] w-full md:max-w-lg md:mx-4 bg-white rounded-t-2xl md:rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 duration-200">
         {/* Header - more compact */}
         <div className="flex items-center justify-between p-3 border-b border-gray-100 bg-white sticky top-0 z-10">
           <div className="flex-1 min-w-0">

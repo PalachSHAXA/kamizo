@@ -1101,7 +1101,7 @@ export function VehicleSearchPage() {
       {/* TODO: migrate to <Modal> component */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
+          <div className="w-full max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden max-h-[85dvh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
               <h2 className="text-base sm:text-lg font-bold">
                 {editingVehicle

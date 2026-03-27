@@ -65,7 +65,7 @@ export function AssignExecutorModal({ isOpen, onClose, request, executors, onAss
 
   return (
     <div className="modal-backdrop">
-      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-lg mx-3 md:mx-4 max-h-[85dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-start justify-between mb-4 md:mb-6 gap-2">
           <div className="min-w-0">
             <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}</h2>

@@ -45,7 +45,7 @@ export function ContractPreview({ user, qrCodeUrl, language }: ContractPreviewPr
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="max-h-[80vh] overflow-y-auto p-4 md:p-6 text-[11px] leading-relaxed text-gray-800">
+      <div className="max-h-[80dvh] overflow-y-auto p-4 md:p-6 text-[11px] leading-relaxed text-gray-800">
         {/* Contract Title */}
         <div className="text-center mb-4">
           <h3 className="text-sm font-bold text-gray-900">ДОГОВОР УПРАВЛЕНИЯ</h3>

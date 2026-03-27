@@ -39,7 +39,7 @@ function DetailModal({
 }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
-      <div className="overflow-y-auto max-h-[60vh]">
+      <div className="overflow-y-auto max-h-[60dvh]">
         {children}
       </div>
     </Modal>

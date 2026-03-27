@@ -50,7 +50,7 @@ export function AddExecutorModal({
   // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop">
-      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+      <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 w-full max-w-md mx-3 md:mx-4 max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-bold">{language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}</h2>
           <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg sm:rounded-xl touch-manipulation active:bg-gray-200" aria-label="Закрыть">
@@ -148,7 +148,7 @@ export function AddExecutorModal({
             </div>
           )}
 
-          <div className="flex gap-2 md:gap-3 pt-3 md:pt-4">
+          <div className="flex gap-2 md:gap-3 pt-3 md:pt-4 sticky bottom-0 bg-white -mx-3 px-3 sm:-mx-4 sm:px-4 md:-mx-5 md:px-5 pb-1">
             <button type="button" onClick={onClose} className="btn-secondary flex-1 min-h-[44px] py-2.5 text-sm touch-manipulation active:scale-[0.98]">
               {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>

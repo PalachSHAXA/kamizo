@@ -446,7 +446,7 @@ export function ManagerGuestAccessPage() {
       {/* Detail modal */}
       {selectedCode && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold">
                 {language === 'ru' ? 'Детали пропуска' : 'Ruxsatnoma tafsilotlari'}

@@ -55,7 +55,7 @@ export function MarketplaceOrderDetailsModal({
   // TODO: migrate to <Modal> component
   return (
     <div className="modal-backdrop">
-      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl">
+      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90dvh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="text-sm text-gray-500">

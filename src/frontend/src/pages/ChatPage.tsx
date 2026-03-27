@@ -1164,7 +1164,7 @@ export function ChatPage() {
     if (isLoading) {
       return (
         <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
-          <div className="bg-[#f8f7f4] md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100vh-210px)] md:h-[calc(100vh-180px)] flex items-center justify-center">
+          <div className="bg-[#f8f7f4] md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100dvh-210px)] md:h-[calc(100dvh-180px)] flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin text-orange-400 mx-auto mb-3" />
               <p className="text-sm text-gray-400">{language === 'ru' ? 'Загрузка чата...' : 'Chat yuklanmoqda...'}</p>
@@ -1177,7 +1177,7 @@ export function ChatPage() {
     if (residentChannel) {
       return (
         <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
-          <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100vh-210px)] md:h-[calc(100vh-180px)] flex flex-col">
+          <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100dvh-210px)] md:h-[calc(100dvh-180px)] flex flex-col">
             <ChatView
               channelId={residentChannel.id}
               channel={residentChannel}
@@ -1191,7 +1191,7 @@ export function ChatPage() {
 
     return (
       <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
-        <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100vh-210px)] md:h-[calc(100vh-180px)] flex flex-col items-center justify-center gap-4 p-6">
+        <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100dvh-210px)] md:h-[calc(100dvh-180px)] flex flex-col items-center justify-center gap-4 p-6">
           <div className="w-16 h-16 bg-red-50 rounded-[20px] flex items-center justify-center">
             <AlertCircle className="w-8 h-8 text-red-400" />
           </div>
@@ -1213,7 +1213,7 @@ export function ChatPage() {
 
   // ── Admin/Manager View ──
   return (
-    <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 h-[calc(100vh-210px)] md:h-[calc(100vh-140px)] bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden">
+    <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 h-[calc(100dvh-210px)] md:h-[calc(100dvh-140px)] bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden">
       <div className="h-full flex">
         <div className={`${
           selectedChannelId ? 'hidden md:flex md:flex-col' : 'flex flex-col'

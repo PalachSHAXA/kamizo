@@ -327,7 +327,7 @@ export function ResidentCardModal({
 
   return (
     <div className="modal-backdrop items-end sm:items-center">
-      <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+      <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg sm:text-xl font-bold">{t('Карточка жителя', 'Yashovchi kartasi')}</h2>
@@ -668,7 +668,7 @@ export function ResidentCardModal({
       {/* ═══ Change Data Modal ═══ */}
       {showChangeModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[300]" onClick={() => setShowChangeModal(false)}>
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 max-h-[85vh] overflow-y-auto border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 max-h-[85dvh] overflow-y-auto border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">{t('Изменение данных жителя', "Yashovchi ma'lumotlarini o'zgartirish")}</h2>
               <button onClick={() => setShowChangeModal(false)} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400">
