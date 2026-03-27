@@ -59,12 +59,12 @@ body {
     flex-direction: column;
   }
 
-  /* Layout root wrapper fills #root */
+  /* Layout root wrapper fills #root — NO overflow:hidden here so that
+     position:fixed children (BottomBar) are never clipped on old iOS */
   .layout-root {
     height: 100%;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
 
   /* Scrollable content area — only this scrolls on mobile */
@@ -74,7 +74,9 @@ body {
     min-height: 0; /* critical: allows flex child to shrink below content size */
     overflow-y: auto;
     overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
+    /* NOTE: -webkit-overflow-scrolling: touch is intentionally omitted —
+       it is deprecated and causes position:fixed elements (BottomBar) to
+       jitter/jump on iOS Safari due to separate compositing layers */
     overscroll-behavior-y: contain;
   }
 
@@ -459,8 +461,10 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-    position: sticky;
-    top: 0;
+    /* position:relative keeps it as a static flex-child in layout-root;
+       sticky does not work in overflow:hidden containers anyway */
+    position: relative;
+    flex-shrink: 0;
     z-index: 30;
   }
 

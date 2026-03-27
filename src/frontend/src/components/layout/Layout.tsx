@@ -221,7 +221,7 @@ export function Layout() {
   const isSuperAdmin = user?.role === 'super_admin';
 
   return (
-    <div className="layout-root min-h-screen min-h-dvh">
+    <div className="layout-root">
       {/* Skip navigation link for accessibility */}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:bg-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:text-indigo-600">
         Перейти к содержимому
