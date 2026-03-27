@@ -78,9 +78,21 @@ body {
     overscroll-behavior-y: contain;
   }
 
-  /* Bottom padding so content isn't hidden under the fixed BottomBar */
+  /* Bottom padding so content isn't hidden under the fixed BottomBar.
+     Uses calc() to add safe-area-inset-bottom for Android gesture nav & iOS home indicator. */
   #main-content {
-    padding-bottom: 90px !important;
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Minimum touch target size — all interactive elements */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Base font size on mobile — never below 14px */
+  body {
+    font-size: 14px;
   }
 }
 

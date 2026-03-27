@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/shahz/Desktop/IT/Kamizo/.claude/worktrees/frosty-heisenberg/src/frontend -name *worker* -o -name *sw*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

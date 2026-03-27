@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { usePopupNotifications } from '../../hooks/usePopupNotifications';
@@ -11,7 +11,23 @@ import { PopupManager } from '../PopupNotification';
 import { PerformanceMonitor } from '../PerformanceMonitor';
 import { BottomBar } from '../BottomBar';
 import { ProtectedRoute } from './ProtectedRoute';
-import { Loader2, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { Loader2, ArrowLeft, ShieldAlert, Home } from 'lucide-react';
+
+// Simple 404 page
+const NotFoundPage = () => (
+  <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 gap-4">
+    <div className="text-[72px] font-black text-gray-100 leading-none select-none">404</div>
+    <div className="text-[20px] font-bold text-gray-700">Страница не найдена</div>
+    <div className="text-[14px] text-gray-400 max-w-xs">Такой страницы не существует или у вас нет доступа</div>
+    <Link
+      to="/"
+      className="mt-2 flex items-center gap-2 px-5 py-3 rounded-[14px] bg-primary-500 text-white font-semibold text-[14px] active:scale-95 transition-transform touch-manipulation"
+    >
+      <Home className="w-4 h-4" />
+      На главную
+    </Link>
+  </div>
+);
 
 // Page loading fallback
 const PageLoader = () => (
@@ -130,8 +146,8 @@ export function Layout() {
   const swipeRef = useRef<{ startX: number; startY: number; started: boolean }>({ startX: 0, startY: 0, started: false });
   const handleGlobalTouchStart = useCallback((e: TouchEvent) => {
     const x = e.touches[0].clientX;
-    // Only trigger from left 25px edge
-    if (x < 25 && !sidebarOpen) {
+    // Only trigger from left 15px edge (avoid conflict with iOS back gesture zone ~20px)
+    if (x < 15 && !sidebarOpen) {
       swipeRef.current = { startX: x, startY: e.touches[0].clientY, started: true };
     }
   }, [sidebarOpen]);
@@ -411,6 +427,8 @@ export function Layout() {
               {user?.role === 'super_admin' && (
                 <Route path="/super-admin" element={<SuperAdminDashboard />} />
               )}
+              {/* 404 — catch all unmatched routes */}
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </main>

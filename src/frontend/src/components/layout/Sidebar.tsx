@@ -6,7 +6,8 @@ import {
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
   X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock, CreditCard,
-  Wallet, FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck
+  Wallet, FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck,
+  ChevronDown
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -32,6 +33,15 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { hasFeature, config } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
+  // Collapsible sidebar sections — persisted per session
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const toggleSection = (section: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section); else next.add(section);
+      return next;
+    });
+  };
 
   // Swipe to close sidebar
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -252,14 +262,12 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/', icon: FileText, label: language === 'ru' ? (user?.specialization === 'courier' ? 'Заказы' : 'Заявки') : (user?.specialization === 'courier' ? 'Buyurtmalar' : 'Arizalar'), section: language === 'ru' ? 'Работа' : 'Ish' },
         { path: '/schedule', icon: CalendarDays, label: language === 'ru' ? 'Расписание' : 'Jadval' },
         { path: '/my-stats', icon: BarChart3, label: language === 'ru' ? 'Статистика' : 'Statistika' },
-        // Инструменты
+        // Инструменты — security получает QR + поиск авто, обычный executor не нужен поиск авто
         ...(isSecurity ? [
           { path: '/qr-scanner', icon: QrCode, label: language === 'ru' ? 'Сканер QR' : 'QR skaner', section: language === 'ru' ? 'Инструменты' : 'Asboblar' },
-        ] : [
-          { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish', section: language === 'ru' ? 'Инструменты' : 'Asboblar' },
-        ]),
-        ...(isSecurity ? [{ path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' }] : []),
-        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat' },
+          { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
+        ] : []),
+        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', section: isSecurity ? undefined : (language === 'ru' ? 'Инструменты' : 'Asboblar') },
         // Прочее
         { path: '/announcements', icon: Megaphone, label: language === 'ru' ? 'Объявления' : 'E\'lonlar', section: language === 'ru' ? 'Прочее' : 'Boshqa' },
         { path: '/trainings', icon: GraduationCap, label: language === 'ru' ? 'Тренинги' : 'Treninglar' },
@@ -538,54 +546,77 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         <div className="h-px bg-gray-100 mx-4 mb-1" />
 
         <nav className="flex-1 py-1 overflow-y-auto px-1">
-          {navItems.map((item: { path: string; icon: React.ElementType; label: string; section?: string }, index: number) => {
-            const badgeCount = badges[item.path as keyof typeof badges] || 0;
-            const isMeetingsTab = item.path === '/meetings';
-            const badgeColor = isMeetingsTab && meetingStatus
-              ? (meetingStatus === 'voting' ? 'bg-blue-500' : meetingStatus === 'confirmed' ? 'bg-green-500' : 'bg-primary-500')
-              : 'bg-primary-500';
-            const shouldAnimate = !isMeetingsTab || meetingStatus === 'voting';
-            const isResident = user?.role === 'resident';
-            const isActive = location.pathname === item.path;
-            const locked = isPathLocked(item.path);
+          {(() => {
+            // Precompute which section each item belongs to
+            let currentSection = '';
+            const itemsWithSection = navItems.map((item: { path: string; icon: React.ElementType; label: string; section?: string }) => {
+              if (item.section) currentSection = item.section;
+              return { ...item, currentSection };
+            });
 
-            return (
-              <div key={item.path}>
-                {item.section && (
-                  <div className={`px-5 pt-5 pb-2 ${index === 0 ? '' : 'mt-1'}`}>
-                    <span className={`text-[11px] font-bold uppercase tracking-[1.2px] ${isResident ? 'text-primary-500' : 'text-gray-400'}`}>
-                      {item.section}
-                    </span>
-                  </div>
-                )}
-                {locked ? (
-                  <button
-                    onClick={() => { setLockedFeatureName(getFeatureName(item.path)); onClose(); }}
-                    className={`sidebar-item min-h-[46px] touch-manipulation w-full opacity-50 ${isResident ? 'sidebar-item-resident' : ''}`}
-                  >
-                    <item.icon className="w-[20px] h-[20px] shrink-0 text-gray-300" />
-                    <span className="flex-1 truncate text-gray-400">{item.label}</span>
-                    <Lock className="w-3.5 h-3.5 text-gray-300 ml-auto shrink-0" />
-                  </button>
-                ) : (
-                  <Link
-                    to={item.path}
-                    onClick={handleNavClick}
-                    className={`sidebar-item min-h-[46px] touch-manipulation ${isActive ? 'active' : ''} ${isResident ? 'sidebar-item-resident' : ''}`}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <item.icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? 'text-primary-500' : 'text-gray-400'}`} />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {badgeCount > 0 && (
-                      <span className={`ml-auto w-6 h-6 flex items-center justify-center text-[11px] font-bold text-white ${badgeColor} rounded-full ${shouldAnimate ? 'animate-pulse' : ''}`}>
-                        {badgeCount > 99 ? '99+' : badgeCount}
+            return itemsWithSection.map((item, index) => {
+              const badgeCount = badges[item.path as keyof typeof badges] || 0;
+              const isMeetingsTab = item.path === '/meetings';
+              const badgeColor = isMeetingsTab && meetingStatus
+                ? (meetingStatus === 'voting' ? 'bg-blue-500' : meetingStatus === 'confirmed' ? 'bg-green-500' : 'bg-primary-500')
+                : 'bg-primary-500';
+              const shouldAnimate = !isMeetingsTab || meetingStatus === 'voting';
+              const isResident = user?.role === 'resident';
+              const isActive = location.pathname === item.path;
+              const locked = isPathLocked(item.path);
+
+              // Hide item if its section is collapsed (but not the section header itself)
+              const sectionCollapsed = item.currentSection && collapsedSections.has(item.currentSection);
+              const isHidden = sectionCollapsed && !item.section;
+
+              return (
+                <div key={item.path + index}>
+                  {/* Section header — clickable to collapse/expand */}
+                  {item.section && (
+                    <button
+                      onClick={() => toggleSection(item.section!)}
+                      className={`w-full flex items-center justify-between px-5 pb-2 touch-manipulation select-none ${index === 0 ? 'pt-3' : 'pt-5 mt-1'}`}
+                    >
+                      <span className={`text-[11px] font-bold uppercase tracking-[1.2px] ${isResident ? 'text-primary-500' : 'text-gray-400'}`}>
+                        {item.section}
                       </span>
-                    )}
-                  </Link>
-                )}
-              </div>
-            );
-          })}
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${isResident ? 'text-primary-400' : 'text-gray-300'} ${collapsedSections.has(item.section) ? '-rotate-90' : ''}`}
+                      />
+                    </button>
+                  )}
+                  {/* Nav item — hidden when section is collapsed */}
+                  {!isHidden && (
+                    locked ? (
+                      <button
+                        onClick={() => { setLockedFeatureName(getFeatureName(item.path)); onClose(); }}
+                        className={`sidebar-item min-h-[46px] touch-manipulation w-full opacity-50 ${isResident ? 'sidebar-item-resident' : ''}`}
+                      >
+                        <item.icon className="w-[20px] h-[20px] shrink-0 text-gray-300" />
+                        <span className="flex-1 truncate text-gray-400">{item.label}</span>
+                        <Lock className="w-3.5 h-3.5 text-gray-300 ml-auto shrink-0" />
+                      </button>
+                    ) : (
+                      <Link
+                        to={item.path}
+                        onClick={handleNavClick}
+                        className={`sidebar-item min-h-[46px] touch-manipulation ${isActive ? 'active' : ''} ${isResident ? 'sidebar-item-resident' : ''}`}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        <item.icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? 'text-primary-500' : 'text-gray-400'}`} />
+                        <span className="flex-1 truncate">{item.label}</span>
+                        {badgeCount > 0 && (
+                          <span className={`ml-auto w-6 h-6 flex items-center justify-center text-[11px] font-bold text-white ${badgeColor} rounded-full ${shouldAnimate ? 'animate-pulse' : ''}`}>
+                            {badgeCount > 99 ? '99+' : badgeCount}
+                          </span>
+                        )}
+                      </Link>
+                    )
+                  )}
+                </div>
+              );
+            });
+          })()}
         </nav>
 
         <div className="mx-5 h-px bg-gray-100" />
