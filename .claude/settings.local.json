@@ -2,7 +2,22 @@
   "permissions": {
     "allow": [
       "Bash(find /c/Users/shahz/Desktop/IT/Kamizo/.claude/worktrees/frosty-heisenberg/src/frontend -name *worker* -o -name *sw*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(\"C:\\\\Users\\\\shahz\\\\AppData\\\\Local\\\\Temp\\\\node20\\\\node.exe\" \"C:\\\\Users\\\\shahz\\\\AppData\\\\Local\\\\Temp\\\\node20\\\\node_modules\\\\npm\\\\bin\\\\npm-cli.js\" run build)",
+      "Bash(cmd.exe /c \"where node 2>nul\")",
+      "Bash(powershell.exe -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source; Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(export PATH=/usr/local/bin:/usr/bin:$PATH)",
+      "Read(//root/.nvm/versions/**)",
+      "Bash(ls /mnt/c/Windows/System32/node*)",
+      "Bash(cmd.exe /c 'dir C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\.claude\\\\worktrees\\\\charming-edison\\\\src\\\\frontend\\\\node_modules\\\\.bin\\\\vite* 2>nul')",
+      "Bash(cmd.exe /c \"dir C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\.claude\\\\worktrees\\\\charming-edison\\\\src\\\\frontend\\\\node_modules\\\\.bin\" \")",
+      "Bash(cmd.exe /c \"dir C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\.claude\\\\worktrees\\\\charming-edison\\\\src\\\\frontend\\\\node_modules\\\\.bin 2>&1\")",
+      "Bash(powershell.exe -NoProfile -NonInteractive -Command \"Test-Path ''C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\.claude\\\\worktrees\\\\charming-edison\\\\src\\\\frontend\\\\node_modules''\")",
+      "Bash(powershell.exe -NoProfile -NonInteractive -Command \"Test-Path ''C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\src\\\\frontend\\\\node_modules''\")",
+      "Bash(powershell.exe -NoProfile -NonInteractive -Command \"Get-Command node -ErrorAction SilentlyContinue | Select -ExpandProperty Source\")",
+      "Bash(powershell.exe -NoProfile -NonInteractive -Command \"\\(Get-Item ''C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\src\\\\frontend\\\\node_modules\\\\.bin\\\\vite.cmd''\\).FullName\")",
+      "Bash(powershell.exe -NoProfile -NonInteractive -Command \":*)"
     ]
   }
 }

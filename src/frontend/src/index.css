@@ -74,16 +74,12 @@ body {
     min-height: 0; /* critical: allows flex child to shrink below content size */
     overflow-y: auto;
     overflow-x: hidden;
-    /* NOTE: -webkit-overflow-scrolling: touch is intentionally omitted —
-       it is deprecated and causes position:fixed elements (BottomBar) to
-       jitter/jump on iOS Safari due to separate compositing layers */
     overscroll-behavior-y: contain;
   }
 
-  /* Bottom padding so content isn't hidden under the fixed BottomBar.
-     Uses calc() to add safe-area-inset-bottom for Android gesture nav & iOS home indicator. */
+  /* BottomBar is now a flex child (not position:fixed), so only small padding needed. */
   #main-content {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: 16px !important;
   }
 
   /* Minimum touch target size — all interactive elements */
@@ -536,6 +532,20 @@ body {
   .badge {
     padding: 3px 8px;
     font-size: 11px;
+  }
+}
+
+/* Admin/staff tables: allow horizontal scroll on mobile instead of clipping */
+@media (max-width: 768px) {
+  .table-container,
+  .overflow-x-auto {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .table-container::-webkit-scrollbar,
+  .overflow-x-auto::-webkit-scrollbar {
+    display: none;
   }
 }
 

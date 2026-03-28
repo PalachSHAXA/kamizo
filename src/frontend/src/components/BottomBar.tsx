@@ -208,8 +208,8 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', willChange: 'transform', transform: 'translateZ(0)' }}
+      className="md:hidden z-50 flex-shrink-0 relative"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
     >
