@@ -208,7 +208,7 @@ export function DashboardTab({
           </div>
         ) : tenantStats && (
           <>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
               {[
                 { icon: Users, value: tenantStats.residents, label: 'Жители', gradient: 'from-blue-500 to-cyan-400' },
                 { icon: ClipboardList, value: tenantStats.requests, label: 'Заявки', gradient: 'from-amber-500 to-orange-400' },

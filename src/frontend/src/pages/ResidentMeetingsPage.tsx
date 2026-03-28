@@ -84,11 +84,11 @@ export function ResidentMeetingsPage() {
     loadReconsiderationRequests(true);
   }, [loadReconsiderationRequests]);
 
-  // Poll for new reconsideration requests every 5 seconds
+  // Poll for new reconsideration requests every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       loadReconsiderationRequests(false);
-    }, 5000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [loadReconsiderationRequests]);

@@ -549,7 +549,7 @@ export function TeamPage() {
           e.stopPropagation();
           handleDeleteMember(member);
         }}
-        className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+        className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
         title={language === 'ru' ? 'Удалить сотрудника' : 'Xodimni o\'chirish'}
       >
         <Trash2 className="w-4 h-4" />

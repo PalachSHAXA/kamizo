@@ -247,14 +247,20 @@ export function MarketplaceManagerDashboard() {
     }
   };
 
-  // Delete product
+  // Delete product with confirmation state
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const deleteProduct = async (productId: string) => {
-    if (!confirm(language === 'ru' ? 'Удалить товар?' : 'Mahsulotni o\'chirmoqchimisiz?')) return;
+    setPendingDeleteId(productId);
+  };
+  const confirmDeleteProduct = async () => {
+    if (!pendingDeleteId) return;
     try {
-      await apiRequest(`/api/marketplace/admin/products/${productId}`, { method: 'DELETE' });
+      await apiRequest(`/api/marketplace/admin/products/${pendingDeleteId}`, { method: 'DELETE' });
       await fetchData();
     } catch (error) {
       console.error('Error deleting product:', error);
+    } finally {
+      setPendingDeleteId(null);
     }
   };
 
@@ -329,6 +335,19 @@ export function MarketplaceManagerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Delete confirmation modal */}
+      {pendingDeleteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-bold mb-2">{language === 'ru' ? 'Удалить товар?' : 'Mahsulotni o\'chirmoqchimisiz?'}</h3>
+            <p className="text-sm text-gray-500 mb-4">{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni qaytarib bo\'lmaydi'}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setPendingDeleteId(null)} className="btn-secondary flex-1 min-h-[44px]">{language === 'ru' ? 'Отмена' : 'Bekor'}</button>
+              <button onClick={confirmDeleteProduct} className="flex-1 min-h-[44px] bg-red-500 text-white rounded-xl font-semibold active:scale-95">{language === 'ru' ? 'Удалить' : 'O\'chirish'}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-white border-b px-4 py-4">
         <h1 className="text-xl font-bold text-gray-900">

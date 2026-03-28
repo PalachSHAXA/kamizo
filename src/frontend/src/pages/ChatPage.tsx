@@ -1095,7 +1095,7 @@ export function ChatPage() {
   const prevUnreadRef = useRef<number>(0);
   const playSound = useNotificationSound();
 
-  const isResident = user?.role === 'resident';
+  const isResident = user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner';
 
   const fetchChannels = useCallback(async () => {
     try {

@@ -109,7 +109,7 @@ function SearchPlateInput({ value, onChange, language, onSearch }: SearchPlateIn
   return (
     <div className="flex flex-col items-center">
       {/* License plate like avtoraqam.uzex.uz */}
-      <div className="relative bg-white border-[3px] border-black rounded-xl shadow-xl overflow-visible" style={{ minWidth: '380px' }}>
+      <div className="relative bg-white border-[3px] border-black rounded-xl shadow-xl overflow-visible w-full max-w-[380px]">
         <div className="flex items-center h-20 bg-white rounded-xl">
           {/* Region section with dropdown */}
           <div className="relative flex items-center justify-center border-r-2 border-black h-full px-3 bg-gray-50 rounded-l-xl">

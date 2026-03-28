@@ -244,7 +244,7 @@ export default function ChargesPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* ── Filter bar ── */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap items-end gap-3">

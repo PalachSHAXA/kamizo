@@ -75,7 +75,7 @@ export function TenantFormModal({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Название *</label>
               <input
@@ -229,7 +229,7 @@ export function TenantFormModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Email администратора' : 'Adminstrator emali'}</label>
               <input
@@ -296,7 +296,7 @@ export function TenantFormModal({
 
           <div>
             <label className="block text-sm font-medium mb-2">{language === 'ru' ? 'Доступные функции' : 'Mavjud imkoniyatlar'}</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {AVAILABLE_FEATURES.map((feature) => (
                 <label key={feature.value} className="flex items-center gap-2 cursor-pointer">
                   <input

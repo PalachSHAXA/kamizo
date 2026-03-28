@@ -64,7 +64,7 @@ export function BottomBar() {
         { id: 'home', icon: Home, label: language === 'ru' ? 'Главная' : 'Bosh', path: '/', badge: 0 },
         { id: 'requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar', path: '/?tab=requests', badge: activeRequestsCount + pendingApprovalCount, feature: 'requests' },
         { id: 'fab', icon: Plus, label: '', path: '', badge: 0, isFab: true },
-        { id: 'marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Магазин' : 'Do\'kon', path: '/marketplace', badge: 0, feature: 'marketplace' },
+        { id: 'chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', path: '/chat', badge: 0, feature: 'chat' },
         { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
       ];
     }
@@ -84,7 +84,7 @@ export function BottomBar() {
         { id: 'home', icon: FileText, label: language === 'ru' ? 'Задачи' : 'Vazifalar', path: '/', badge: executorRequestBadge },
         { id: 'schedule', icon: CalendarDays, label: language === 'ru' ? 'График' : 'Jadval', path: '/schedule', badge: 0 },
         { id: 'stats', icon: BarChart3, label: language === 'ru' ? 'Стат.' : 'Stat.', path: '/my-stats', badge: 0 },
-        { id: 'announcements', icon: Bell, label: language === 'ru' ? 'Новости' : 'Yangiliklar', path: '/announcements', badge: unreadNews, feature: 'announcements' },
+        { id: 'chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', path: '/chat', badge: 0, feature: 'chat' },
         { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
       ];
     }
