@@ -28,6 +28,7 @@ export function BottomBar() {
   const barRef = useRef<HTMLDivElement>(null);
   const [fabPressed, setFabPressed] = useState(false);
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
+  const [lockedFeatureKey, setLockedFeatureKey] = useState<string | null>(null);
   const hasTenant = !!config?.tenant;
 
   if (!user) return null;
@@ -200,6 +201,7 @@ export function BottomBar() {
     if (isTabLocked(tab)) {
       const lang = language === 'ru' ? 'ru' : 'uz';
       setLockedFeatureName(featureNameMap[tab.feature!]?.[lang] || (language === 'ru' ? 'Функция' : 'Funksiya'));
+      setLockedFeatureKey(tab.feature || null);
       return;
     }
     navigate(tab.path);
@@ -316,8 +318,9 @@ export function BottomBar() {
 
       <FeatureLockedModal
         isOpen={!!lockedFeatureName}
-        onClose={() => setLockedFeatureName(null)}
+        onClose={() => { setLockedFeatureName(null); setLockedFeatureKey(null); }}
         featureName={lockedFeatureName || undefined}
+        featureKey={lockedFeatureKey || undefined}
       />
     </div>
   );

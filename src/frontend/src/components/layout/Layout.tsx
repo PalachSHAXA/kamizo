@@ -11,6 +11,9 @@ import { PopupManager } from '../PopupNotification';
 import { PerformanceMonitor } from '../PerformanceMonitor';
 import { BottomBar } from '../BottomBar';
 import { ProtectedRoute } from './ProtectedRoute';
+import { OnboardingWizard } from '../OnboardingWizard';
+import { OnboardingTooltips } from '../OnboardingTooltips';
+import { settingsApi } from '../../services/api/settings';
 import { Loader2, ArrowLeft, ShieldAlert, Home } from 'lucide-react';
 
 // Simple 404 page
@@ -96,6 +99,21 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { getUnreadCount, fetchAnnouncements } = useDataStore();
   const unreadCount = user ? getUnreadCount(user.id) : 0;
+
+  // Director onboarding wizard
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    if (user?.role !== 'director' || !user?.id) return;
+    // Fast check via localStorage first
+    if (localStorage.getItem(`kamizo_ob_done_${user.id}`)) return;
+    // Async check via settings API
+    settingsApi.get('onboarding_completed').then(res => {
+      if (!res.data?.value) setShowOnboarding(true);
+    }).catch(() => {
+      // If API fails, show wizard (better to show than miss)
+      setShowOnboarding(true);
+    });
+  }, [user?.role, user?.id]);
 
   // Impersonation banner — shown when super admin entered via "Войти в админку УК"
   const [impersonation, setImpersonation] = useState<{ origin_url: string; tenant_name: string } | null>(() => {
@@ -442,6 +460,19 @@ export function Layout() {
 
       {/* Performance Monitor (только в dev mode) */}
       <PerformanceMonitor />
+
+      {/* Director onboarding wizard — shown on first login */}
+      {showOnboarding && user && (
+        <OnboardingWizard
+          userId={user.id}
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
+
+      {/* Role-based onboarding tooltips — shown once per role */}
+      {!showOnboarding && user && user.role !== 'super_admin' && (
+        <OnboardingTooltips role={user.role} userId={user.id} />
+      )}
     </div>
   );
 }
