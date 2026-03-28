@@ -53,7 +53,7 @@ export function RequestsTab({
         <div className="bg-white rounded-[16px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-3">
           {/* Category filter */}
           <div>
-            <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
               {language === 'ru' ? 'Категория' : 'Kategoriya'}
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -69,7 +69,7 @@ export function RequestsTab({
           </div>
           {/* Priority filter */}
           <div>
-            <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
               {language === 'ru' ? 'Приоритет' : 'Ustuvorlik'}
             </label>
             <div className="flex flex-wrap gap-1.5">

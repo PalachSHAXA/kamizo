@@ -167,7 +167,7 @@ export function ServiceBottomSheet({
           </div>
 
           {/* Section label */}
-          <div className="text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-2.5">
+          <div className="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5">
             {language === 'ru'
               ? (serviceCatFilter === 'all' ? 'Все услуги' : catTabs.find(t => t.id === serviceCatFilter)?.label || 'Услуги')
               : (serviceCatFilter === 'all' ? 'Barcha xizmatlar' : catTabs.find(t => t.id === serviceCatFilter)?.label || 'Xizmatlar')
@@ -220,7 +220,7 @@ export function ServiceBottomSheet({
 
                   {/* Name */}
                   <span
-                    className="text-[11px] font-bold text-center leading-tight"
+                    className="text-xs font-bold text-center leading-tight"
                     style={{ color: isSelected ? colors.color : '#1C1C1E' }}
                   >
                     {language === 'ru' ? category.name : category.nameUz}

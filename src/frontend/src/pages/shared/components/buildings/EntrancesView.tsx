@@ -69,7 +69,7 @@ export function EntrancesView({
                   >
                     <DoorOpen className="w-4 h-4 opacity-80" />
                     <span className="text-[13px] font-bold">{t('Подъезд', 'Podyezd')} {ent.number}</span>
-                    <span className="text-[11px] opacity-60 ml-1">{ent.apartments_from}–{ent.apartments_to}</span>
+                    <span className="text-xs opacity-60 ml-1">{ent.apartments_from}–{ent.apartments_to}</span>
                   </button>
                 ))}
               </div>
@@ -109,7 +109,7 @@ export function EntrancesView({
                       <DoorOpen className="w-4 h-4 opacity-80" />
                       <span className="text-[13px] font-bold">{t('Подъезд', 'Podyezd')} {ent.number}</span>
                     </div>
-                    <div className="text-[11px] text-gray-500 flex items-center gap-1">
+                    <div className="text-xs text-gray-500 flex items-center gap-1">
                       <Home className="w-3 h-3" />{aptsInEnt.length}
                       {resCount > 0 && <><span className="mx-0.5">·</span><Users className="w-3 h-3 text-green-600" /><span className="font-bold text-green-600">{resCount}</span></>}
                     </div>
@@ -133,7 +133,7 @@ export function EntrancesView({
                           <div key={floor} className="flex items-center mb-[4px]">
                             {/* Floor number on the wall */}
                             <div className="w-8 flex-shrink-0 text-right pr-2">
-                              <span className="text-[11px] font-bold" style={{ color: 'rgba(255,255,255,.5)' }}>
+                              <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,.5)' }}>
                                 {floor}
                               </span>
                             </div>

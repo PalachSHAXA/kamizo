@@ -266,11 +266,11 @@ export function ResidentProfilePage() {
             <div className="flex-1 min-w-0">
               <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{user.name}</h1>
               <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 bg-primary-50 text-primary-600 rounded-full text-[11px] font-semibold">
+                <span className="px-2.5 py-0.5 bg-primary-50 text-primary-600 rounded-full text-xs font-semibold">
                   {roleLabel}
                 </span>
                 {!isRentalUser && user.contractSignedAt && (
-                  <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-[11px] font-semibold flex items-center gap-1">
+                  <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-xs font-semibold flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" />
                     {t.active}
                   </span>
@@ -312,7 +312,7 @@ export function ResidentProfilePage() {
                 <Key className="w-4 h-4 text-primary-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-gray-400 font-medium">{t.personalAccount}</div>
+                <div className="text-xs text-gray-400 font-medium">{t.personalAccount}</div>
                 <div className="font-mono font-bold text-[14px] text-gray-900">{user.login}</div>
               </div>
               <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{t.cannotChange}</span>
@@ -325,7 +325,7 @@ export function ResidentProfilePage() {
                   <MapPin className="w-4 h-4 text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] text-gray-400 font-medium">{t.address}</div>
+                  <div className="text-xs text-gray-400 font-medium">{t.address}</div>
                   <div className="font-medium text-[14px] text-gray-900 break-words leading-snug">{user.address}</div>
                 </div>
               </div>
@@ -341,7 +341,7 @@ export function ResidentProfilePage() {
                         <Home className="w-4 h-4 text-purple-600" />
                       </div>
                       <div>
-                        <div className="text-[11px] text-gray-400 font-medium">{t.apartment}</div>
+                        <div className="text-xs text-gray-400 font-medium">{t.apartment}</div>
                         <div className="font-bold text-[14px] text-gray-900">{user.apartment}</div>
                       </div>
                     </div>
@@ -352,7 +352,7 @@ export function ResidentProfilePage() {
                         <Ruler className="w-4 h-4 text-cyan-600" />
                       </div>
                       <div>
-                        <div className="text-[11px] text-gray-400 font-medium">{t.area}</div>
+                        <div className="text-xs text-gray-400 font-medium">{t.area}</div>
                         <div className="font-bold text-[14px] text-gray-900">{user.totalArea} m²</div>
                       </div>
                     </div>
@@ -368,7 +368,7 @@ export function ResidentProfilePage() {
                   <Building2 className="w-4 h-4 text-amber-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] text-gray-400 font-medium">{t.branch}</div>
+                  <div className="text-xs text-gray-400 font-medium">{t.branch}</div>
                   <div className="font-bold text-[14px] text-gray-900">{user.branch}</div>
                 </div>
               </div>
@@ -380,7 +380,7 @@ export function ResidentProfilePage() {
                 <Phone className="w-4 h-4 text-primary-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-gray-400 font-medium">{t.phone}</div>
+                <div className="text-xs text-gray-400 font-medium">{t.phone}</div>
                 {!editingPhone ? (
                   <div className="font-medium text-[14px] text-gray-900">
                     {user.phone || t.notSpecified}
@@ -484,13 +484,13 @@ export function ResidentProfilePage() {
                 {/* Contract Number & Status */}
                 <div className="flex gap-3">
                   <div className="flex-1 p-3 bg-yellow-50 rounded-[12px]">
-                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractNumber}</div>
+                    <div className="text-xs text-gray-400 mb-0.5">{t.contractNumber}</div>
                     <div className="font-mono font-bold text-[13px] text-gray-900">
                       {user.contractNumber || `ДОГ-${new Date().getFullYear()}-${user.login}`}
                     </div>
                   </div>
                   <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
-                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractStatus}</div>
+                    <div className="text-xs text-gray-400 mb-0.5">{t.contractStatus}</div>
                     <div className="flex items-center gap-1.5">
                       {user.contractSignedAt ? (
                         <>
@@ -510,11 +510,11 @@ export function ResidentProfilePage() {
                 {/* Contract Type & Dates */}
                 <div className="flex gap-3">
                   <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
-                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractType}</div>
+                    <div className="text-xs text-gray-400 mb-0.5">{t.contractType}</div>
                     <div className="font-medium text-[13px] text-gray-900">{getContractTypeLabel(user.contractType)}</div>
                   </div>
                   <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
-                    <div className="text-[11px] text-gray-400 mb-0.5">{t.contractEnd}</div>
+                    <div className="text-xs text-gray-400 mb-0.5">{t.contractEnd}</div>
                     <div className="font-medium text-[13px] text-gray-900 flex items-center gap-1">
                       {user.contractEndDate ? formatDate(user.contractEndDate) : (
                         <>
@@ -538,7 +538,7 @@ export function ResidentProfilePage() {
                       <QrCode className="w-3.5 h-3.5 text-gray-500" />
                       {t.yourQrCode}
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">{t.qrHint}</p>
+                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">{t.qrHint}</p>
                     <div className="mt-1.5">
                       <span className="text-[10px] text-gray-400">ID:</span>
                       <span className="font-mono text-[10px] font-bold text-gray-500 ml-1 select-all">{user.id}</span>
@@ -600,7 +600,7 @@ export function ResidentProfilePage() {
                 </div>
                 <div className="flex-1 text-left">
                   <div className="text-[14px] font-semibold text-gray-900">{t.changePassword}</div>
-                  <div className="text-[11px] text-gray-400">••••••••</div>
+                  <div className="text-xs text-gray-400">••••••••</div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300" />
               </button>

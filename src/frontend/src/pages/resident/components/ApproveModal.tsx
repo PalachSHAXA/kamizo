@@ -86,7 +86,7 @@ export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveM
         <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
           {/* Request Info */}
           <div className="bg-gray-50 rounded-[14px] p-4">
-            <div className="text-[11px] text-gray-400 font-medium">{language === 'ru' ? 'Заявка' : 'Ariza'} #{request.number}</div>
+            <div className="text-xs text-gray-400 font-medium">{language === 'ru' ? 'Заявка' : 'Ariza'} #{request.number}</div>
             <div className="font-bold text-[15px] text-gray-900 mt-0.5">{request.title}</div>
             <div className="flex flex-wrap gap-2 mt-2.5">
               <span className="flex items-center gap-1.5 text-[12px] text-gray-600 bg-white px-2.5 py-1.5 rounded-[10px]">

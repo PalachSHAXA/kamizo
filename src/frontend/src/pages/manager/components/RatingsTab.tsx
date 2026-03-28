@@ -70,7 +70,7 @@ export function RatingsTab({
                     ))}
                   </div>
                 )}
-                <div className="text-[11px] text-gray-400 mt-1">
+                <div className="text-xs text-gray-400 mt-1">
                   {ratingSummary.current.count || 0} {language === 'ru' ? 'голосов' : 'ovozlar'}
                 </div>
               </div>
@@ -178,7 +178,7 @@ export function RatingsTab({
                           />
                         ))}
                       </div>
-                      <span className="text-[11px] text-gray-400">{comment.created_at?.slice(0, 10)}</span>
+                      <span className="text-xs text-gray-400">{comment.created_at?.slice(0, 10)}</span>
                     </div>
                     <p className="text-[13px] text-gray-600">{comment.comment}</p>
                   </div>

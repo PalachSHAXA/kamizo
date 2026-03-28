@@ -311,7 +311,7 @@ function AdminChannelList({
             </span>
           )}
         </div>
-        <p className="text-[11px] text-gray-400 mb-3">
+        <p className="text-xs text-gray-400 mb-3">
           {language === 'ru' ? 'Обращения жителей' : 'Aholi murojatlari'}
         </p>
 
@@ -359,7 +359,7 @@ function AdminChannelList({
       {/* Branch tabs (only if multiple branches) */}
       {branchNames.length > 1 && (
         <div className="px-4 pb-2">
-          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
             <MapPin className="w-2.5 h-2.5" />
             {language === 'ru' ? 'Филиал' : 'Filial'}
           </p>
@@ -367,7 +367,7 @@ function AdminChannelList({
             {/* All branches tab */}
             <button
               onClick={() => handleBranchChange(null)}
-              className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-[11px] font-semibold transition-all ${
+              className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${
                 !selectedBranchTab
                   ? 'bg-orange-500 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -386,7 +386,7 @@ function AdminChannelList({
                 <button
                   key={branch}
                   onClick={() => handleBranchChange(branch)}
-                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-[11px] font-semibold transition-all ${
+                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${
                     isActive ? color.active + ' shadow-sm' : color.inactive + ' hover:opacity-80'
                   }`}
                 >
@@ -409,14 +409,14 @@ function AdminChannelList({
       {/* Building filter (if branch selected and has multiple buildings) */}
       {selectedBranchTab && buildingNames.length > 1 && (
         <div className="px-4 pb-2">
-          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
             <Building2 className="w-2.5 h-2.5" />
             {language === 'ru' ? 'Объект' : 'Obyekt'}
           </p>
           <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
             <button
               onClick={() => setSelectedBuilding(null)}
-              className={`flex-shrink-0 px-2.5 py-1 rounded-[8px] text-[11px] font-medium transition-all ${
+              className={`flex-shrink-0 px-2.5 py-1 rounded-[8px] text-xs font-medium transition-all ${
                 !selectedBuilding
                   ? 'bg-emerald-500 text-white shadow-sm'
                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
@@ -428,7 +428,7 @@ function AdminChannelList({
               <button
                 key={building}
                 onClick={() => setSelectedBuilding(building === selectedBuilding ? null : building)}
-                className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-[8px] text-[11px] font-medium transition-all ${
+                className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-[8px] text-xs font-medium transition-all ${
                   selectedBuilding === building
                     ? 'bg-emerald-500 text-white shadow-sm'
                     : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
@@ -505,7 +505,7 @@ function AdminChannelList({
                       {channel.name}
                     </span>
                     {channel.last_message_at && (
-                      <span className={`text-[11px] flex-shrink-0 ${hasUnread ? 'text-orange-500 font-semibold' : 'text-gray-400'}`}>
+                      <span className={`text-xs flex-shrink-0 ${hasUnread ? 'text-orange-500 font-semibold' : 'text-gray-400'}`}>
                         {formatTime(channel.last_message_at, language)}
                       </span>
                     )}
@@ -796,7 +796,7 @@ function ChatView({
 
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-bold text-gray-900 truncate">{getTitle()}</h3>
-            <p className="text-[11px] text-gray-500 truncate">{getSubtitle()}</p>
+            <p className="text-xs text-gray-500 truncate">{getSubtitle()}</p>
           </div>
 
           <button
@@ -816,20 +816,20 @@ function ChatView({
               <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-[14px] shadow-lg border border-gray-100 z-50 p-4">
                 <div className="space-y-2.5">
                   <div>
-                    <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Название' : 'Nomi'}</p>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Название' : 'Nomi'}</p>
                     <p className="text-sm font-semibold text-gray-900 mt-0.5">{getTitle()}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Тип' : 'Turi'}</p>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Тип' : 'Turi'}</p>
                     <p className="text-sm text-gray-700 mt-0.5">{channel?.type ? (CHAT_CHANNEL_LABELS[channel.type] ? (language === 'ru' ? CHAT_CHANNEL_LABELS[channel.type].label : CHAT_CHANNEL_LABELS[channel.type].labelUz) : channel.type) : '-'}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Сообщений' : 'Xabarlar'}</p>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Сообщений' : 'Xabarlar'}</p>
                     <p className="text-sm text-gray-700 mt-0.5">{messages.length}</p>
                   </div>
                   {getSubtitle() && (
                     <div>
-                      <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Детали' : 'Tafsilotlar'}</p>
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Детали' : 'Tafsilotlar'}</p>
                       <p className="text-sm text-gray-700 mt-0.5">{getSubtitle()}</p>
                     </div>
                   )}
@@ -941,7 +941,7 @@ function ChatView({
                 <div key={message.id} id={`msg-${index}`}>
                   {showDateSeparator && (
                     <div className="flex items-center justify-center py-3">
-                      <span className="px-3 py-1 bg-white/80 backdrop-blur-sm rounded-[10px] text-[11px] text-gray-400 font-medium shadow-sm">
+                      <span className="px-3 py-1 bg-white/80 backdrop-blur-sm rounded-[10px] text-xs text-gray-400 font-medium shadow-sm">
                         {formatDateSeparator(message.created_at, language)}
                       </span>
                     </div>

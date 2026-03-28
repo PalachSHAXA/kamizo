@@ -56,13 +56,13 @@ export function BranchModal({ branch, onClose, onSave, language, defaultDistrict
         </div>
         <form onSubmit={e => { e.preventDefault(); if (form.code && form.name) onSave(form); }} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название комплекса', 'Kompleks nomi')} *</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название комплекса', 'Kompleks nomi')} *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
               className={`${inputClass} font-semibold`}
               placeholder={t('Комплекс "Ориент", ЖК "Юнусабад"...', 'Kompleks "Orient", Kompleks "Yunusobod"...')} />
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Код комплекса', 'Kompleks kodi')} *</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Код комплекса', 'Kompleks kodi')} *</label>
             {branch && canEditCode ? (
               codeEditing ? (
                 <div className="flex gap-2">
@@ -92,7 +92,7 @@ export function BranchModal({ branch, onClose, onSave, language, defaultDistrict
             )}
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Район', 'Tuman')}</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Район', 'Tuman')}</label>
             {districts && districts.length > 0 ? (
               <select value={form.district} onChange={e => setForm({ ...form, district: e.target.value })}
                 className={inputClass}>
@@ -108,12 +108,12 @@ export function BranchModal({ branch, onClose, onSave, language, defaultDistrict
             )}
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Адрес (улица)', "Manzil (ko'cha)")}</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Адрес (улица)', "Manzil (ko'cha)")}</label>
             <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
               className={inputClass} />
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Телефон', 'Telefon')}</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Телефон', 'Telefon')}</label>
             <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
               className={inputClass} placeholder="+998..." />
           </div>

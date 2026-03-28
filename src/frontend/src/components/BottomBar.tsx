@@ -286,7 +286,7 @@ export function BottomBar() {
 
               {/* Label */}
               <span
-                className={`relative z-10 text-[10px] leading-tight transition-all duration-200 ${
+                className={`relative z-10 text-xs leading-tight transition-all duration-200 ${
                   locked ? 'font-medium text-gray-300' : active ? 'font-bold text-primary-600' : 'font-medium text-gray-400'
                 }`}
               >

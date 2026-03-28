@@ -504,14 +504,14 @@ export function DashboardTab({
               )}
               <div className="min-w-0 flex-1">
                 <div className="font-semibold text-sm text-gray-900 truncate">{tenant.name}</div>
-                <div className="text-[11px] text-gray-400 truncate">{tenant.url?.replace('https://', '') || `${tenant.slug}.${BASE_DOMAIN}`}</div>
+                <div className="text-xs text-gray-400 truncate">{tenant.url?.replace('https://', '') || `${tenant.slug}.${BASE_DOMAIN}`}</div>
               </div>
               {!tenant.is_active && (
                 <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded-md text-[9px] font-medium flex-shrink-0">OFF</span>
               )}
             </div>
             <div className="flex items-center justify-between mt-2 pl-[52px]">
-              <div className="flex items-center gap-3 text-[11px] text-gray-400">
+              <div className="flex items-center gap-3 text-xs text-gray-400">
                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count || 0}</span>
                 <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count || 0}</span>
                 <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {(tenant as any).buildings_count || 0}</span>

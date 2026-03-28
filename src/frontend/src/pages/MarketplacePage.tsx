@@ -98,7 +98,7 @@ function ProductCardPlaceholder({ name, categoryId, size = 'md' }: { name: strin
       <span className={`${emojiSize} absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 drop-shadow-lg`}>{emoji}</span>
       {size !== 'xs' && (
         <div className="relative z-10 w-full px-2 pb-2 pt-6 bg-gradient-to-t from-black/40 to-transparent">
-          <span className={`text-white font-semibold leading-tight line-clamp-2 drop-shadow ${size === 'sm' ? 'text-[9px]' : size === 'md' ? 'text-[10px]' : size === 'lg' ? 'text-[11px]' : 'text-[13px]'}`}>{name}</span>
+          <span className={`text-white font-semibold leading-tight line-clamp-2 drop-shadow ${size === 'sm' ? 'text-[9px]' : size === 'md' ? 'text-[10px]' : size === 'lg' ? 'text-xs' : 'text-[13px]'}`}>{name}</span>
         </div>
       )}
     </div>
@@ -111,7 +111,7 @@ function ProductPhoto({ src, name, size = 'md' }: { src: string; name: string; c
       <img src={src} alt={name} className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
       {size !== 'xs' && size !== 'sm' && (
         <div className="absolute bottom-0 left-0 right-0 px-2 pb-2 pt-6 bg-gradient-to-t from-black/50 to-transparent">
-          <span className={`text-white font-semibold leading-tight line-clamp-1 drop-shadow ${size === 'lg' ? 'text-[11px]' : 'text-[13px]'}`}>{name}</span>
+          <span className={`text-white font-semibold leading-tight line-clamp-1 drop-shadow ${size === 'lg' ? 'text-xs' : 'text-[13px]'}`}>{name}</span>
         </div>
       )}
     </div>
@@ -281,7 +281,7 @@ export function MarketplacePage() {
           </button>
           <div className="text-center">
             <h1 className="text-[16px] font-bold text-gray-900">{language === 'ru' ? 'Магазин' : 'Do\'kon'}</h1>
-            <p className="text-[11px] font-medium text-primary-500">{language === 'ru' ? 'Доставка в квартиру' : 'Kvartirangizga yetkazamiz'}</p>
+            <p className="text-xs font-medium text-primary-500">{language === 'ru' ? 'Доставка в квартиру' : 'Kvartirangizga yetkazamiz'}</p>
           </div>
           <div className="flex gap-2">
             {activeOrders.length > 0 && (
@@ -390,8 +390,8 @@ export function MarketplacePage() {
                 <div className="mb-3 bg-white rounded-[20px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.08)] cursor-pointer active:scale-[0.99] transition-transform" onClick={() => setSelectedProduct(featured[0])}>
                   <div className="relative aspect-[2/1] bg-gradient-to-br from-primary-50 to-primary-100/50 flex items-center justify-center">
                     {featured[0].image_url ? <ProductPhoto src={featured[0].image_url} name={language === 'ru' ? featured[0].name_ru : featured[0].name_uz} categoryId={featured[0].category_id} size="xl" /> : <ProductCardPlaceholder name={language === 'ru' ? featured[0].name_ru : featured[0].name_uz} categoryId={featured[0].category_id} size="xl" />}
-                    {featured[0].old_price && <div className="absolute top-3 left-3 bg-red-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-[10px]">-{Math.round((1 - featured[0].price / featured[0].old_price) * 100)}%</div>}
-                    {!featured[0].old_price && <div className="absolute top-3 left-3 bg-primary-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-[10px]">ХИТ</div>}
+                    {featured[0].old_price && <div className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-[10px]">-{Math.round((1 - featured[0].price / featured[0].old_price) * 100)}%</div>}
+                    {!featured[0].old_price && <div className="absolute top-3 left-3 bg-primary-500 text-white text-xs font-bold px-2.5 py-1 rounded-[10px]">ХИТ</div>}
                   </div>
                   <div className="p-3.5">
                     <h3 className="font-bold text-[15px] text-gray-900 line-clamp-1">{language === 'ru' ? featured[0].name_ru : featured[0].name_uz}</h3>
@@ -466,13 +466,13 @@ export function MarketplacePage() {
                         <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-2 min-h-[36px] leading-snug">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
                         <div className="flex items-center gap-1 mt-1.5">
                           <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                          <span className="text-[11px] font-semibold text-gray-700">{getProductRating(p.id).rating}</span>
-                          <span className="text-[11px] text-gray-400">({getProductRating(p.id).count})</span>
+                          <span className="text-xs font-semibold text-gray-700">{getProductRating(p.id).rating}</span>
+                          <span className="text-xs text-gray-400">({getProductRating(p.id).count})</span>
                         </div>
                         <div className="mt-2">
                           <div className="flex items-baseline gap-1.5">
                             <p className="font-extrabold text-[15px] text-gray-900">{fmt(p.price)}</p>
-                            {p.old_price && <p className="text-[11px] text-gray-400 line-through">{fmt(p.old_price)}</p>}
+                            {p.old_price && <p className="text-xs text-gray-400 line-through">{fmt(p.old_price)}</p>}
                           </div>
                           <div className="mt-2">
                             {qty > 0 ? (
@@ -536,12 +536,12 @@ export function MarketplacePage() {
                       <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-2 min-h-[36px] leading-snug">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
                       <div className="flex items-center gap-1 mt-1.5">
                         <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                        <span className="text-[11px] font-semibold text-gray-700">{getProductRating(p.id).rating}</span>
+                        <span className="text-xs font-semibold text-gray-700">{getProductRating(p.id).rating}</span>
                       </div>
                       <div className="mt-2">
                         <div className="flex items-baseline gap-1.5">
                           <p className="font-extrabold text-[15px] text-gray-900">{fmt(p.price)}</p>
-                          {p.old_price && <p className="text-[11px] text-gray-400 line-through">{fmt(p.old_price)}</p>}
+                          {p.old_price && <p className="text-xs text-gray-400 line-through">{fmt(p.old_price)}</p>}
                         </div>
                         <div className="mt-2">
                           {qty > 0 ? (
@@ -585,7 +585,7 @@ export function MarketplacePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-1">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
-                        <p className="text-[11px] text-gray-400 mt-0.5">{p.unit}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{p.unit}</p>
                         <p className="font-bold text-[14px] text-primary-600 mt-1">{fmt(p.price * item.quantity)}</p>
                       </div>
                       <div className="flex flex-col items-end justify-between">
@@ -615,7 +615,7 @@ export function MarketplacePage() {
         <div className="px-4 pt-3 pb-24 md:pb-4 space-y-3">
           {activeOrders.length > 0 && (
             <div className="space-y-2.5">
-              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.8px] px-0.5">{language === 'ru' ? 'Активные' : 'Faol'}</div>
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px] px-0.5">{language === 'ru' ? 'Активные' : 'Faol'}</div>
               {activeOrders.map(order => {
                 const si = getOrderStageIndex(order.status);
                 const sm = getOrderStatusMessage(order.status, language);
@@ -625,7 +625,7 @@ export function MarketplacePage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-900">#{order.order_number}</span>
-                          <span className="text-[11px] font-medium text-primary-700 bg-primary-100 px-2.5 py-0.5 rounded-full">{sm.title}</span>
+                          <span className="text-xs font-medium text-primary-700 bg-primary-100 px-2.5 py-0.5 rounded-full">{sm.title}</span>
                         </div>
                         {sm.subtitle && <p className="text-[12px] text-gray-500 mt-0.5">{sm.subtitle}</p>}
                         <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-2">
@@ -644,7 +644,7 @@ export function MarketplacePage() {
                     </div>
                     <div className="mt-3 flex items-center gap-1.5">
                       {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
-                      {(order.items || []).length > 4 && <span className="text-[11px] text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
+                      {(order.items || []).length > 4 && <span className="text-xs text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
                       <div className="flex-1" />
                       {['new', 'confirmed'].includes(order.status) && <button onClick={(e) => { e.stopPropagation(); cancelOrder(order.id); }} disabled={cancellingOrderId === order.id} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[12px] font-medium disabled:opacity-50 hover:bg-red-100 transition-colors">{language === 'ru' ? 'Отменить' : 'Bekor'}</button>}
                     </div>
@@ -655,14 +655,14 @@ export function MarketplacePage() {
           )}
           {historyOrders.length > 0 && (
             <div className="space-y-2.5">
-              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.8px] px-0.5">{language === 'ru' ? 'История' : 'Tarix'}</div>
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px] px-0.5">{language === 'ru' ? 'История' : 'Tarix'}</div>
               {historyOrders.map(order => (
                 <div key={order.id} className="glass-card p-4 hover:shadow-lg transition-shadow cursor-pointer active:scale-[0.99]" onClick={() => setSelectedOrder(order)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900">#{order.order_number}</span>
-                        <span className={`text-[11px] font-medium px-2.5 py-0.5 rounded-full ${order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{order.status === 'cancelled' ? (language === 'ru' ? 'Отменён' : 'Bekor') : (language === 'ru' ? 'Доставлен' : 'Yetkazildi')}</span>
+                        <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{order.status === 'cancelled' ? (language === 'ru' ? 'Отменён' : 'Bekor') : (language === 'ru' ? 'Доставлен' : 'Yetkazildi')}</span>
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1.5">
                         <span className="flex items-center gap-1">
@@ -676,7 +676,7 @@ export function MarketplacePage() {
                   </div>
                   <div className="flex items-center gap-1.5 mt-3">
                     {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-[10px] text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
-                    {(order.items || []).length > 4 && <span className="text-[11px] text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
+                    {(order.items || []).length > 4 && <span className="text-xs text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
                   </div>
                   {order.status === 'delivered' && !order.rating && (
                     <button onClick={(e) => { e.stopPropagation(); setRatingOrderId(order.id); setShowDeliveryRatingModal(true); }} className="mt-3 w-full py-2 bg-primary-50 text-primary-600 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-1.5 active:bg-primary-100 transition-colors">
@@ -684,7 +684,7 @@ export function MarketplacePage() {
                     </button>
                   )}
                   {order.status === 'delivered' && order.rating && (
-                    <div className="flex items-center gap-0.5 mt-3">{[1,2,3,4,5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= (order.rating||0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />)}<span className="text-[11px] text-gray-400 ml-1.5">{language === 'ru' ? 'Ваша оценка' : 'Baho'}</span></div>
+                    <div className="flex items-center gap-0.5 mt-3">{[1,2,3,4,5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= (order.rating||0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />)}<span className="text-xs text-gray-400 ml-1.5">{language === 'ru' ? 'Ваша оценка' : 'Baho'}</span></div>
                   )}
                 </div>
               ))}

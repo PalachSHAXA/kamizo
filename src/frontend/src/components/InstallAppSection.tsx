@@ -154,7 +154,7 @@ export function InstallAppSection({ language, roleContext }: { language: string;
                   </div>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span
-                      className="w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center flex-shrink-0 text-white"
+                      className="w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 text-white"
                       style={{ background: 'rgb(var(--brand-rgb))' }}
                     >
                       {i + 1}
@@ -194,9 +194,9 @@ export function InstallAppSection({ language, roleContext }: { language: string;
                 <CheckCircle className="w-3.5 h-3.5" /> {t.notifGranted}
               </span>
             ) : notifPermission === 'denied' ? (
-              <span className="text-[11px] text-red-500 text-right max-w-[180px]">{t.notifDenied}</span>
+              <span className="text-xs text-red-500 text-right max-w-[180px]">{t.notifDenied}</span>
             ) : platform === 'ios' && !isInstalled ? (
-              <span className="text-[11px] text-amber-600 font-medium">{t.notifNote}</span>
+              <span className="text-xs text-amber-600 font-medium">{t.notifNote}</span>
             ) : (
               <button
                 onClick={handleEnableNotifications}

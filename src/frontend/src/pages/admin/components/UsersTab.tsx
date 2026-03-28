@@ -119,7 +119,7 @@ export function UsersTab({ tenants, error, setError }: UsersTabProps) {
                     </td>
                     <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{u.name || '—'}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                         u.role === 'admin' ? 'bg-red-100 text-red-700' :
                         u.role === 'director' ? 'bg-rose-100 text-rose-700' :
                         u.role === 'manager' ? 'bg-blue-100 text-blue-700' :

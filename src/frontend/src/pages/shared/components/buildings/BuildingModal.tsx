@@ -28,46 +28,46 @@ export function BuildingModal({ building, onClose, onSave, language }: BuildingM
         </div>
         <form onSubmit={e => { e.preventDefault(); if (form.name && form.address) onSave(form); }} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название', 'Nomi')} *</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название', 'Nomi')} *</label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" placeholder={t('Дом 5Б, Корпус 2...', 'Uy 5B, Korpus 2...')} />
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Адрес', 'Manzil')} *</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Адрес', 'Manzil')} *</label>
             <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Номер дома', 'Uy raqami')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Номер дома', 'Uy raqami')}</label>
               <input value={form.buildingNumber} onChange={e => setForm({ ...form, buildingNumber: e.target.value.toUpperCase() })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-mono font-bold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" placeholder="8A" />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Год постройки', 'Qurilgan yili')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Год постройки', 'Qurilgan yili')}</label>
               <input type="number" value={form.yearBuilt} onChange={e => setForm({ ...form, yearBuilt: parseInt(e.target.value) || 2020 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Этажей', 'Qavatlar')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Этажей', 'Qavatlar')}</label>
               <input type="number" value={form.floors} onChange={e => setForm({ ...form, floors: parseInt(e.target.value) || 1 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Подъездов', 'Podyezdlar')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Подъездов', 'Podyezdlar')}</label>
               <input type="number" value={form.entrances} onChange={e => setForm({ ...form, entrances: parseInt(e.target.value) || 1 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Квартир', 'Xonadonlar')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Квартир', 'Xonadonlar')}</label>
               <input type="number" value={form.totalApartments} onChange={e => setForm({ ...form, totalApartments: parseInt(e.target.value) || 1 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
             </div>
           </div>
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Тип дома', 'Uy turi')}</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Тип дома', 'Uy turi')}</label>
             <select value={form.buildingType} onChange={e => setForm({ ...form, buildingType: e.target.value as any })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none">
               <option value="panel">{t('Панельный', 'Panelli')}</option>

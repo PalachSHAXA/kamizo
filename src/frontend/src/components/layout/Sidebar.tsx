@@ -535,7 +535,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             </div>
             <button
               onClick={onClose}
-              className="md:hidden w-9 h-9 flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
+              className="md:hidden w-11 h-11 flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation"
               aria-label={language === 'ru' ? 'Закрыть меню' : 'Menyuni yopish'}
             >
               <CloseIcon className="w-4.5 h-4.5 text-gray-400" />
@@ -577,7 +577,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                       onClick={() => toggleSection(item.section!)}
                       className={`w-full flex items-center justify-between px-5 pb-2 touch-manipulation select-none ${index === 0 ? 'pt-3' : 'pt-5 mt-1'}`}
                     >
-                      <span className={`text-[11px] font-bold uppercase tracking-[1.2px] ${isResident ? 'text-primary-500' : 'text-gray-400'}`}>
+                      <span className={`text-xs font-bold uppercase tracking-[1.2px] ${isResident ? 'text-primary-500' : 'text-gray-400'}`}>
                         {item.section}
                       </span>
                       <ChevronDown
@@ -606,7 +606,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                         <item.icon className={`w-[20px] h-[20px] shrink-0 ${isActive ? 'text-primary-500' : 'text-gray-400'}`} />
                         <span className="flex-1 truncate">{item.label}</span>
                         {badgeCount > 0 && (
-                          <span className={`ml-auto w-6 h-6 flex items-center justify-center text-[11px] font-bold text-white ${badgeColor} rounded-full ${shouldAnimate ? 'animate-pulse' : ''}`}>
+                          <span className={`ml-auto w-6 h-6 flex items-center justify-center text-xs font-bold text-white ${badgeColor} rounded-full ${shouldAnimate ? 'animate-pulse' : ''}`}>
                             {badgeCount > 99 ? '99+' : badgeCount}
                           </span>
                         )}

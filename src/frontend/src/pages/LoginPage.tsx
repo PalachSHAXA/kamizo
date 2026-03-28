@@ -204,7 +204,7 @@ export function LoginPage() {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.login')}</label>
+            <label className="block text-xs font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.login')}</label>
             <input
               type="text"
               value={loginValue}
@@ -216,7 +216,7 @@ export function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.password')}</label>
+            <label className="block text-xs font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.password')}</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -307,7 +307,7 @@ export function LoginPage() {
         </form>
 
         {/* Footer text */}
-        <p className="text-center text-[11px] text-gray-300 mt-4">
+        <p className="text-center text-xs text-gray-300 mt-4">
           {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'} · Kamizo CRM
         </p>
 
@@ -341,7 +341,7 @@ export function LoginPage() {
                     >
                       <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
-                    <span className="text-[11px] sm:text-xs font-medium text-gray-700 truncate leading-tight">
+                    <span className="text-xs sm:text-xs font-medium text-gray-700 truncate leading-tight">
                       {language === 'ru' ? account.labelRu : account.labelUz}
                     </span>
                   </button>

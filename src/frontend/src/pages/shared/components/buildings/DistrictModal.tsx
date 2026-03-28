@@ -20,7 +20,7 @@ export function DistrictModal({ onClose, onSave, language }: DistrictModalProps)
         </div>
         <form onSubmit={e => { e.preventDefault(); if (name.trim()) onSave(name.trim()); }} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название района', 'Tuman nomi')} *</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Название района', 'Tuman nomi')} *</label>
             <input
               value={name} onChange={e => setName(e.target.value)} autoFocus
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"

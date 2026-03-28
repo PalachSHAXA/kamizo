@@ -524,7 +524,7 @@ export default function ResidentUsefulContactsPage() {
               className={`flex flex-col items-center justify-center min-w-[90px] ${service.bg} border ${service.border} rounded-2xl p-3 active:scale-95 transition-transform flex-shrink-0`}
             >
               <service.icon className={`w-5 h-5 ${service.color} mb-1.5`} />
-              <div className="text-[11px] text-gray-500 font-medium truncate max-w-[80px] text-center">{service.name}</div>
+              <div className="text-xs text-gray-500 font-medium truncate max-w-[80px] text-center">{service.name}</div>
               <div className="text-[15px] font-black text-gray-900">{service.number}</div>
             </a>
           ))}
@@ -600,9 +600,9 @@ export default function ResidentUsefulContactsPage() {
                         {/* Badges */}
                         {(ad.badges?.new || ad.badges?.hot || ad.discount_percent > 0) && (
                           <div className="flex items-center gap-1.5 mt-1">
-                            {ad.badges?.new && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[11px] font-semibold">{language === 'ru' ? 'Новый' : 'Yangi'}</span>}
-                            {ad.badges?.hot && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[11px] font-semibold">{language === 'ru' ? 'Топ' : 'Top'}</span>}
-                            {ad.discount_percent > 0 && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[11px] font-bold">-{ad.discount_percent}%</span>}
+                            {ad.badges?.new && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">{language === 'ru' ? 'Новый' : 'Yangi'}</span>}
+                            {ad.badges?.hot && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">{language === 'ru' ? 'Топ' : 'Top'}</span>}
+                            {ad.discount_percent > 0 && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-bold">-{ad.discount_percent}%</span>}
                           </div>
                         )}
 
@@ -642,7 +642,7 @@ export default function ResidentUsefulContactsPage() {
                           </div>
 
                           {ad.user_has_coupon > 0 && (
-                            <span className="flex items-center gap-1 text-[11px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-medium ml-auto">
+                            <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-medium ml-auto">
                               <Ticket className="w-3 h-3" /> {language === 'ru' ? 'Купон' : 'Kupon'}
                             </span>
                           )}

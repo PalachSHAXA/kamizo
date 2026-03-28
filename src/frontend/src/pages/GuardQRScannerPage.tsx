@@ -255,7 +255,7 @@ export function GuardQRScannerPage() {
               <div className="absolute inset-0 bg-gray-800 flex items-center justify-center p-4">
                 <div className="text-center">
                   <Camera className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                  <p className="text-gray-400 text-[11px] font-medium mb-3">{cameraError}</p>
+                  <p className="text-gray-400 text-xs font-medium mb-3">{cameraError}</p>
                   <button onClick={startCamera} className="px-4 py-2 rounded-xl bg-primary-500 text-white font-bold text-[12px] active:scale-95 transition-transform">
                     {language === 'ru' ? 'Повторить' : 'Qayta'}
                   </button>
@@ -297,7 +297,7 @@ export function GuardQRScannerPage() {
         {/* Recent passes */}
         {recentLogs.length > 0 && (
           <div className="px-4 pt-3 pb-2">
-            <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+            <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
               {language === 'ru' ? 'Последние пропуска' : 'Oxirgi ruxsatnomalar'}
             </div>
             {recentLogs.slice(0, 2).map((log) => {
@@ -311,7 +311,7 @@ export function GuardQRScannerPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-bold text-gray-900 truncate">{log.resident_name}</div>
-                    <div className="text-[11px] text-gray-400 font-medium">
+                    <div className="text-xs text-gray-400 font-medium">
                       {isAllowed ? (language === 'ru' ? 'Пропущен' : 'O\'tkazildi') : (language === 'ru' ? 'Отказано' : 'Rad etildi')} · {formatTime(log.scanned_at)}
                     </div>
                   </div>
@@ -419,7 +419,7 @@ export function GuardQRScannerPage() {
                       </div>
                     )}
                   </div>
-                  <div className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
+                  <div className={`px-2 py-1 rounded-lg text-xs font-bold ${
                     scanResult.status === 'success' ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-red-50 text-red-500 border border-red-200'
                   }`}>
                     {scanResult.status === 'success' ? (language === 'ru' ? 'Активен' : 'Faol') : (language === 'ru' ? 'Недействит.' : 'Amal qilmaydi')}

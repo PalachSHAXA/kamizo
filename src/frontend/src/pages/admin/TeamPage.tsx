@@ -1342,13 +1342,13 @@ export function TeamPage() {
                     </div>
                     <div className="flex gap-4">
                       {importResult.stats?.created > 0 && (
-                        <div className="text-center"><div className="text-[22px] font-extrabold text-green-600">{importResult.stats.created}</div><div className="text-[11px] text-gray-400">{language === 'ru' ? 'Создано' : 'Yaratildi'}</div></div>
+                        <div className="text-center"><div className="text-[22px] font-extrabold text-green-600">{importResult.stats.created}</div><div className="text-xs text-gray-400">{language === 'ru' ? 'Создано' : 'Yaratildi'}</div></div>
                       )}
                       {importResult.stats?.updated > 0 && (
-                        <div className="text-center"><div className="text-[22px] font-extrabold text-blue-600">{importResult.stats.updated}</div><div className="text-[11px] text-gray-400">{language === 'ru' ? 'Обновлено' : 'Yangilandi'}</div></div>
+                        <div className="text-center"><div className="text-[22px] font-extrabold text-blue-600">{importResult.stats.updated}</div><div className="text-xs text-gray-400">{language === 'ru' ? 'Обновлено' : 'Yangilandi'}</div></div>
                       )}
                       {importResult.stats?.skipped > 0 && (
-                        <div className="text-center"><div className="text-[22px] font-extrabold text-gray-400">{importResult.stats.skipped}</div><div className="text-[11px] text-gray-400">{language === 'ru' ? 'Пропущено' : 'O\'tkazib yuborildi'}</div></div>
+                        <div className="text-center"><div className="text-[22px] font-extrabold text-gray-400">{importResult.stats.skipped}</div><div className="text-xs text-gray-400">{language === 'ru' ? 'Пропущено' : 'O\'tkazib yuborildi'}</div></div>
                       )}
                     </div>
                   </div>

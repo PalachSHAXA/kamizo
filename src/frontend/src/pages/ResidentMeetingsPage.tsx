@@ -407,7 +407,7 @@ export function ResidentMeetingsPage() {
                       {quorum.quorumReached && (
                         <div className="flex items-center gap-1 mt-1">
                           <CheckCircle className="w-3 h-3 text-emerald-500" />
-                          <span className="text-[11px] text-emerald-600 font-medium">
+                          <span className="text-xs text-emerald-600 font-medium">
                             {language === 'ru' ? 'Кворум достигнут' : 'Kvorum yig\'ildi'}
                           </span>
                         </div>

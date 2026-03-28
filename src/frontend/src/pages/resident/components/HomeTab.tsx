@@ -50,7 +50,7 @@ export function HomeTab({
       )}
 
       {/* Actions Section */}
-      <div className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.8px] px-1">
+      <div className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px] px-1">
         {language === 'ru' ? 'Действия' : 'Amallar'}
       </div>
 
@@ -82,7 +82,7 @@ export function HomeTab({
             <MessageCircle className="w-[21px] h-[21px] text-primary-500" strokeWidth={1.8} />
           </div>
           <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Чат' : 'Chat'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Написать в УК' : 'UK ga yozish'}</div>
+          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Написать в УК' : 'UK ga yozish'}</div>
         </button>
         <button
           onClick={() => navigate('/guest-access')}
@@ -92,7 +92,7 @@ export function HomeTab({
             <QrCode className="w-[21px] h-[21px] text-green-500" strokeWidth={1.8} />
           </div>
           <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Гости' : 'Mehmonlar'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'QR-пропуск' : 'QR-ruxsatnoma'}</div>
+          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'QR-пропуск' : 'QR-ruxsatnoma'}</div>
         </button>
       </div>
 
@@ -106,7 +106,7 @@ export function HomeTab({
         </div>
         <div className="flex-1">
           <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Магазин' : 'Do\'kon'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Товары для дома · Быстрая доставка' : 'Uy uchun mahsulotlar'}</div>
+          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Товары для дома · Быстрая доставка' : 'Uy uchun mahsulotlar'}</div>
         </div>
         <ChevronRight className="w-[15px] h-[15px] text-gray-300" />
       </button>
@@ -121,7 +121,7 @@ export function HomeTab({
             <Car className="w-[21px] h-[21px] text-amber-500" strokeWidth={1.8} />
           </div>
           <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Мои авто' : 'Avtomobillarim'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Реестр авто' : 'Avto ro\'yxati'}</div>
+          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Реестр авто' : 'Avto ro\'yxati'}</div>
         </button>
         <button
           onClick={() => navigate('/useful-contacts')}
@@ -131,7 +131,7 @@ export function HomeTab({
             <Users className="w-[21px] h-[21px] text-primary-500" strokeWidth={1.8} />
           </div>
           <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Контакты' : 'Kontaktlar'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Полезные' : 'Foydali'}</div>
+          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Полезные' : 'Foydali'}</div>
         </button>
       </div>
 
@@ -154,7 +154,7 @@ export function HomeTab({
       {/* News - Announcements & Meetings */}
       {(latestAnnouncements.length > 0 || activeMeetings.length > 0) && (
         <div className="space-y-2.5">
-          <div className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.8px] px-1">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px] px-1">
             {language === 'ru' ? 'Новости дома' : 'Uy yangiliklari'}
           </div>
 
@@ -194,7 +194,7 @@ export function HomeTab({
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <div className="text-[14px] font-bold text-gray-900 line-clamp-1">{ann.title}</div>
-                <div className="text-[11px] text-gray-400 mt-0.5 line-clamp-1 font-medium">{ann.content}</div>
+                <div className="text-xs text-gray-400 mt-0.5 line-clamp-1 font-medium">{ann.content}</div>
               </div>
               {!ann.viewedBy?.includes(user?.id || '') && (
                 <div className="w-2 h-2 rounded-full bg-primary-500 shrink-0" />
@@ -208,7 +208,7 @@ export function HomeTab({
       {financeBalance && (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.8px]">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px]">
               {language === 'ru' ? 'Финансы' : 'Moliya'}
             </span>
           </div>
@@ -219,7 +219,7 @@ export function HomeTab({
                   <Wallet className="w-5 h-5" style={{ color: (financeBalance.debt as number) > 0 ? '#EF4444' : '#22C55E' }} />
                 </div>
                 <div>
-                  <p className="text-[11px] text-gray-400 font-medium">{language === 'ru' ? 'Баланс' : 'Balans'}</p>
+                  <p className="text-xs text-gray-400 font-medium">{language === 'ru' ? 'Баланс' : 'Balans'}</p>
                   <p className={`text-[16px] font-bold ${(financeBalance.debt as number) > 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {(financeBalance.debt as number) > 0
                       ? `${((financeBalance.debt as number) || 0).toLocaleString()} ${language === 'ru' ? 'сум долг' : "so'm qarz"}`
@@ -260,7 +260,7 @@ export function HomeTab({
       {/* More Services - small grid */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
-          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.8px]">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px]">
             {language === 'ru' ? 'Ещё' : 'Yana'}
           </span>
         </div>
@@ -286,7 +286,7 @@ export function HomeTab({
                     {item.badge}
                   </span>
                 )}
-                <span className="text-[11px] font-bold text-gray-900 text-center leading-tight">{item.label}</span>
+                <span className="text-xs font-bold text-gray-900 text-center leading-tight">{item.label}</span>
               </button>
             );
           })}

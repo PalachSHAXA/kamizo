@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+  <title>Нет подключения — kamizo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+      background: #fff7ed;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: #1a1a1a;
+      text-align: center;
+    }
+    .icon {
+      width: 80px; height: 80px;
+      background: #fff;
+      border-radius: 24px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 24px;
+      box-shadow: 0 8px 32px rgba(249,115,22,0.15);
+    }
+    .icon svg { width: 40px; height: 40px; color: #F97316; }
+    h1 { font-size: 22px; font-weight: 800; color: #111; margin-bottom: 10px; }
+    p { font-size: 14px; color: #6b7280; line-height: 1.6; max-width: 300px; margin: 0 auto 28px; }
+    button {
+      background: #F97316; color: #fff;
+      border: none; border-radius: 14px;
+      padding: 14px 28px; font-size: 15px; font-weight: 700;
+      cursor: pointer; min-height: 50px;
+      transition: transform 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    button:active { transform: scale(0.96); }
+    .hint { margin-top: 16px; font-size: 12px; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <div class="icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="1" y1="1" x2="23" y2="23"/>
+      <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+      <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+      <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+      <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+      <line x1="12" y1="20" x2="12.01" y2="20"/>
+    </svg>
+  </div>
+  <h1>Нет подключения к сети</h1>
+  <p>Проверьте интернет-соединение и попробуйте снова. Ваши несохранённые изменения будут отправлены автоматически при восстановлении связи.</p>
+  <button onclick="window.location.reload()">Попробовать снова</button>
+  <p class="hint">kamizo работает офлайн — некоторые данные доступны из кэша</p>
+</body>
+</html>

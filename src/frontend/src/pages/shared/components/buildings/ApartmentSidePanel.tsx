@@ -90,29 +90,29 @@ export function ApartmentSidePanel({
         {(isEditingApartment || isAddingApartment) ? (
           <div className="p-5 space-y-3.5">
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Номер квартиры', 'Xonadon raqami')} *</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Номер квартиры', 'Xonadon raqami')} *</label>
               <input type="text" value={editForm.number} onChange={e => setEditForm({ ...editForm, number: e.target.value })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-[14px] font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none transition-all" placeholder="1, 2, 101..." />
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Этаж', 'Qavat')}</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Этаж', 'Qavat')}</label>
                 <input type="number" value={editForm.floor} onChange={e => setEditForm({ ...editForm, floor: e.target.value })}
                   className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-[14px] font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none transition-all" min="1" />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Комнат', 'Xonalar')}</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Комнат', 'Xonalar')}</label>
                 <input type="number" value={editForm.rooms} onChange={e => setEditForm({ ...editForm, rooms: e.target.value })}
                   className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-[14px] font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none transition-all" min="1" />
               </div>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Площадь (м²)', 'Maydon (m²)')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Площадь (м²)', 'Maydon (m²)')}</label>
               <input type="number" value={editForm.total_area} onChange={e => setEditForm({ ...editForm, total_area: e.target.value })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-[14px] font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none transition-all" step="0.1" />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Подъезд', 'Podyezd')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Подъезд', 'Podyezd')}</label>
               <select value={editForm.entrance_id} onChange={e => setEditForm({ ...editForm, entrance_id: e.target.value })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-[14px] font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none transition-all">
                 <option value="">—</option>
@@ -122,7 +122,7 @@ export function ApartmentSidePanel({
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Статус', 'Holat')}</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Статус', 'Holat')}</label>
               <select value={editForm.status} onChange={e => setEditForm({ ...editForm, status: e.target.value })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-[14px] font-semibold bg-gray-50 focus:bg-white focus:border-orange-400 outline-none transition-all">
                 <option value="occupied">{t('Занята', 'Band')}</option>
@@ -180,7 +180,7 @@ export function ApartmentSidePanel({
 
             {/* Residents */}
             <div className="p-5">
-              <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                 <User className="w-3.5 h-3.5" /> {t('Жильцы', 'Yashovchilar')}
               </h4>
               {isLoadingResidents ? (
@@ -202,17 +202,17 @@ export function ApartmentSidePanel({
                       </div>
                       <div className="space-y-1 pl-0.5">
                         {r.phone && (
-                          <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
                             <Phone className="w-3 h-3 text-gray-300" /> {r.phone}
                           </div>
                         )}
                         {r.login && (
-                          <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
                             <Key className="w-3 h-3 text-gray-300" /> <span className="font-mono">{t('Логин', 'Login')}: {r.login}</span>
                           </div>
                         )}
                         {r.password_decrypted && (
-                          <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
                             <Key className="w-3 h-3 text-gray-300" /> <span className="font-mono">{t('Пароль', 'Parol')}: {r.password_decrypted}</span>
                           </div>
                         )}

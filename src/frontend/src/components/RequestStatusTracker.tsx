@@ -477,7 +477,7 @@ export function RequestStatusTrackerCompact({
               <span className="font-bold text-gray-900 text-[15px]">
                 {language === 'ru' ? categoryInfo.name : categoryInfo.nameUz}
               </span>
-              <span className="text-[11px] text-gray-400 font-medium">
+              <span className="text-xs text-gray-400 font-medium">
                 #{request.number || request.id.slice(-6).toUpperCase()}
               </span>
             </div>

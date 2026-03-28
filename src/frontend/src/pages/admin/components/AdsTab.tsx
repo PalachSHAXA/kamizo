@@ -543,7 +543,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900 truncate">{v.user_name || 'Без имени'}</div>
-                        <div className="text-[11px] text-gray-400">
+                        <div className="text-xs text-gray-400">
                           {v.user_phone && <span>{v.user_phone}</span>}
                           {v.apartment_number && <span> · кв. {v.apartment_number}</span>}
                         </div>
@@ -610,12 +610,12 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                             <span className="text-[10px] font-bold text-red-500">-{c.discount_percent}%</span>
                           )}
                         </div>
-                        <div className="text-[11px] text-gray-400 mt-0.5">
+                        <div className="text-xs text-gray-400 mt-0.5">
                           {c.user_name || 'Без имени'}{c.user_phone ? ` · ${c.user_phone}` : ''}
                           {c.issued_at && ` · ${new Date(c.issued_at).toLocaleDateString('ru-RU')}`}
                         </div>
                         {c.status === 'activated' && c.discount_amount != null && (
-                          <div className="text-[11px] text-green-600 mt-0.5">
+                          <div className="text-xs text-green-600 mt-0.5">
                             Скидка: {Number(c.discount_amount).toLocaleString()} сум
                             {c.activated_by_name && ` · ${c.activated_by_name}`}
                           </div>
