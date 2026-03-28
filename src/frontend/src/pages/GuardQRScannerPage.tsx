@@ -66,21 +66,44 @@ export function GuardQRScannerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const processQRCode = useCallback((qrData: string) => {
-    const result = validateGuestAccessCode(qrData);
-    if (!result.valid) {
-      let message = '';
-      let status: ScanResult['status'] = 'invalid';
-      switch (result.error) {
-        case 'expired': status = 'expired'; message = language === 'ru' ? 'Пропуск истёк' : 'Ruxsatnoma muddati tugagan'; break;
-        case 'revoked': status = 'revoked'; message = language === 'ru' ? 'Пропуск отменён' : 'Ruxsatnoma bekor qilingan'; break;
-        case 'already_used': case 'max_uses_reached': status = 'used'; message = language === 'ru' ? 'Пропуск уже использован' : 'Ruxsatnoma ishlatilgan'; break;
-        case 'not_yet_valid': status = 'not_yet_valid'; message = language === 'ru' ? 'Пропуск ещё не действителен' : 'Ruxsatnoma hali amal qilmaydi'; break;
-        default: status = 'invalid'; message = language === 'ru' ? 'Недействительный QR-код' : 'Noto\'g\'ri QR-kod';
+  const processQRCode = useCallback(async (qrData: string) => {
+    // Server-side validation (authoritative); fallback to client-side store if offline
+    try {
+      const serverResult = await apiRequest<{valid: boolean; error?: string; code?: any}>('/api/guest-codes/validate', {
+        method: 'POST',
+        body: JSON.stringify({ qr_data: qrData }),
+      });
+      if (!serverResult.valid) {
+        let status: ScanResult['status'] = 'invalid';
+        let message = '';
+        switch (serverResult.error) {
+          case 'expired': status = 'expired'; message = language === 'ru' ? 'Пропуск истёк' : 'Ruxsatnoma muddati tugagan'; break;
+          case 'revoked': status = 'revoked'; message = language === 'ru' ? 'Пропуск отменён' : 'Ruxsatnoma bekor qilingan'; break;
+          case 'already_used': case 'max_uses_reached': status = 'used'; message = language === 'ru' ? 'Пропуск уже использован' : 'Ruxsatnoma ishlatilgan'; break;
+          case 'not_yet_valid': status = 'not_yet_valid'; message = language === 'ru' ? 'Пропуск ещё не действителен' : 'Ruxsatnoma hali amal qilmaydi'; break;
+          default: status = 'invalid'; message = language === 'ru' ? 'Недействительный QR-код' : "Noto'g'ri QR-kod";
+        }
+        setScanResult({ status, code: serverResult.code || null, message });
+      } else {
+        setScanResult({ status: 'success', code: serverResult.code, message: language === 'ru' ? 'Пропуск найден' : 'Ruxsatnoma topildi' });
       }
-      setScanResult({ status, code: result.code, message });
-    } else {
-      setScanResult({ status: 'success', code: result.code, message: language === 'ru' ? 'Пропуск найден' : 'Ruxsatnoma topildi' });
+    } catch {
+      // Offline fallback: use client-side store data
+      const result = validateGuestAccessCode(qrData);
+      if (!result.valid) {
+        let message = '';
+        let status: ScanResult['status'] = 'invalid';
+        switch (result.error) {
+          case 'expired': status = 'expired'; message = language === 'ru' ? 'Пропуск истёк' : 'Ruxsatnoma muddati tugagan'; break;
+          case 'revoked': status = 'revoked'; message = language === 'ru' ? 'Пропуск отменён' : 'Ruxsatnoma bekor qilingan'; break;
+          case 'already_used': case 'max_uses_reached': status = 'used'; message = language === 'ru' ? 'Пропуск уже использован' : 'Ruxsatnoma ishlatilgan'; break;
+          case 'not_yet_valid': status = 'not_yet_valid'; message = language === 'ru' ? 'Пропуск ещё не действителен' : 'Ruxsatnoma hali amal qilmaydi'; break;
+          default: status = 'invalid'; message = language === 'ru' ? 'Недействительный QR-код' : "Noto'g'ri QR-kod";
+        }
+        setScanResult({ status, code: result.code, message });
+      } else {
+        setScanResult({ status: 'success', code: result.code, message: language === 'ru' ? 'Пропуск найден' : 'Ruxsatnoma topildi' });
+      }
     }
   }, [validateGuestAccessCode, language]);
 

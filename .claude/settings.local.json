@@ -2,7 +2,26 @@
   "permissions": {
     "allow": [
       "Bash(find /c/Users/shahz/Desktop/IT/Kamizo/.claude/worktrees/frosty-heisenberg/src/frontend -name *worker* -o -name *sw*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(sed -n '1188,1210p' \"C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\.claire\\\\worktrees\\\\zealous-easley\\\\cloudflare\\\\schema.sql\")",
+      "Bash(sed -n '1188,1210p' \"C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\.claude\\\\worktrees\\\\zealous-easley\\\\cloudflare\\\\schema.sql\")",
+      "Bash(__NEW_LINE_9937029bdc28246b__ FILE=\"C:\\\\Users\\\\shahz\\\\Desktop\\\\IT\\\\Kamizo\\\\.claude\\\\worktrees\\\\zealous-easley\\\\src\\\\frontend\\\\src\\\\pages\\\\GuardQRScannerPage.tsx\")",
+      "Read(//c/Users/shahz/Desktop/IT/Kamizo/.claude/worktrees/zealous-easley/**)",
+      "Read(//usr/local/bin/**)",
+      "Read(//c/Users/shahz/AppData/Local/Temp/node20/**)",
+      "Read(//c/Windows/System32/**)",
+      "Bash(__NEW_LINE_b0c14504df951909__ NODE=\"/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node.exe\")",
+      "Bash(FILE=\"C:/Users/shahz/Desktop/IT/Kamizo/.claude/worktrees/zealous-easley/src/frontend/src/pages/GuardQRScannerPage.tsx\")",
+      "Bash(__NEW_LINE_b0c14504df951909__ $NODE -e \":*)",
+      "Bash(__NEW_LINE_ec644f50ab8372fb__ NODE=\"/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node.exe\")",
+      "Bash(FILE=\"C:/Users/shahz/Desktop/IT/Kamizo/.claude/worktrees/zealous-easley/src/frontend/src/pages/VehicleSearchPage.tsx\")",
+      "Bash(__NEW_LINE_ec644f50ab8372fb__ $NODE:*)",
+      "Bash(__NEW_LINE_ec644f50ab8372fb__ grep:*)",
+      "Bash(/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node.exe /c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node_modules/npm/bin/npm-cli.js run build)",
+      "Bash(/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node.exe node_modules/.bin/vite build)",
+      "Bash(/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node.exe /c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node_modules/npm/bin/npm-cli.js install --prefer-offline)",
+      "Bash(export PATH=\"/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64:$PATH\")",
+      "Bash(npm install:*)"
     ]
   }
 }

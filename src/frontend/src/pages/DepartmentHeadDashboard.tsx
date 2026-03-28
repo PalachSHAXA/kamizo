@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
+import { EmptyState } from '../components/common';
 import { PageSkeleton } from '../components/PageSkeleton';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,

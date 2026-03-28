@@ -1099,9 +1099,7 @@ export function DirectorDashboard() {
               </div>
             ))}
             {buildingStats.length === 0 && (
-              <div className="text-center text-gray-400 py-8">
-                {language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}
-              </div>
+              <EmptyState title={language === 'ru' ? 'Нет данных' : "Ma'lumot yo'q"} />
             )}
           </div>
         </div>

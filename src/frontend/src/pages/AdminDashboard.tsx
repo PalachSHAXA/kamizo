@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { EmptyState } from '../components/common';
 import { InstallAppSection } from '../components/InstallAppSection';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -933,7 +934,7 @@ export function AdminDashboard() {
                       </div>
                     ))}
                     {marketplaceReport.top_products.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
+                      <EmptyState title={language === 'ru' ? 'Нет данных' : "Ma'lumot yo'q"} />
                     )}
                   </div>
                 </div>
@@ -962,7 +963,7 @@ export function AdminDashboard() {
                       </div>
                     ))}
                     {marketplaceReport.categories.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
+                      <EmptyState title={language === 'ru' ? 'Нет данных' : "Ma'lumot yo'q"} />
                     )}
                   </div>
                 </div>
@@ -993,7 +994,7 @@ export function AdminDashboard() {
                       </div>
                     ))}
                     {marketplaceReport.top_customers.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
+                      <EmptyState title={language === 'ru' ? 'Нет данных' : "Ma'lumot yo'q"} />
                     )}
                   </div>
                 </div>
@@ -1023,7 +1024,7 @@ export function AdminDashboard() {
                       </div>
                     ))}
                     {marketplaceReport.executor_stats.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
+                      <EmptyState title={language === 'ru' ? 'Нет данных' : "Ma'lumot yo'q"} />
                     )}
                   </div>
                 </div>
@@ -1093,7 +1094,7 @@ export function AdminDashboard() {
               </div>
             </>
           ) : (
-            <div className="text-center text-gray-400 py-20">{language === 'ru' ? 'Нет данных' : 'Ma\'lumot yo\'q'}</div>
+            <EmptyState title={language === 'ru' ? 'Нет данных' : "Ma'lumot yo'q"} />
           )}
         </div>
       )}

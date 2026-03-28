@@ -244,7 +244,7 @@ export default function ChargesPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-0">
       {/* ── Filter bar ── */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -352,7 +352,31 @@ export default function ChargesPage() {
         </div>
       ) : (
         <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="md:hidden divide-y divide-gray-50">
+            {charges.map((ch) => {
+              const charged = Number(ch.amount) || 0;
+              const paid = Number(ch.paid_amount) || 0;
+              const debt = charged - paid;
+              const st = (ch.status as string) || 'pending';
+              const sc = statusColor[st] || statusColor.pending;
+              return (
+                <div key={ch.id as string} onClick={() => setSelected(ch)}
+                  className="p-4 hover:bg-primary-50/40 cursor-pointer transition-colors">
+                  <div className="flex items-start justify-between mb-2">
+                    <span className="font-semibold text-gray-800">{t('Кв.', 'Xon.')} {ch.apartment_number as string}</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${sc.bg} ${sc.text}`}>{statusLabel(st)}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div><p className="text-gray-400 text-xs">{t('Начислено', 'Hisoblan.')}</p><p className="font-medium text-gray-800">{fmt(charged)}</p></div>
+                    <div><p className="text-gray-400 text-xs">{t('Оплачено', "To'langan")}</p><p className="font-medium text-green-600">{fmt(paid)}</p></div>
+                    <div><p className="text-gray-400 text-xs">{t('Долг', 'Qarz')}</p><p className="font-medium text-red-600">{debt > 0 ? fmt(debt) : '—'}</p></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">

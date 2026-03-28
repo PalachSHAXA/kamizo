@@ -88,7 +88,7 @@ export function ResidentMeetingsPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       loadReconsiderationRequests(false);
-    }, 5000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [loadReconsiderationRequests]);

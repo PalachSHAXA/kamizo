@@ -118,6 +118,7 @@ export function MarketplaceManagerDashboard() {
 
   // Stock update modal
   const [showStockModal, setShowStockModal] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [stockProduct, setStockProduct] = useState<MarketplaceProductAPI | null>(null);
   const [stockQuantity, setStockQuantity] = useState('');
 
@@ -249,13 +250,13 @@ export function MarketplaceManagerDashboard() {
 
   // Delete product
   const deleteProduct = async (productId: string) => {
-    if (!confirm(language === 'ru' ? 'Удалить товар?' : 'Mahsulotni o\'chirmoqchimisiz?')) return;
     try {
       await apiRequest(`/api/marketplace/admin/products/${productId}`, { method: 'DELETE' });
       await fetchData();
     } catch (error) {
       console.error('Error deleting product:', error);
     }
+    setDeleteConfirmId(null);
   };
 
   // Edit product
@@ -507,7 +508,7 @@ export function MarketplaceManagerDashboard() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => deleteProduct(product.id)}
+                        onClick={() => setDeleteConfirmId(product.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -977,6 +978,29 @@ export function MarketplaceManagerDashboard() {
                 className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium"
               >
                 {language === 'ru' ? 'Сохранить' : 'Saqlash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete confirmation modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <p className="font-semibold text-gray-800 mb-1 text-lg">
+              {language === 'ru' ? 'Удалить товар?' : "Mahsulotni o'chirasizmi?"}
+            </p>
+            <p className="text-sm text-gray-500 mb-5">
+              {language === 'ru' ? 'Это действие нельзя отменить.' : "Bu amalni bekor qilib bo'lmaydi."}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 py-2.5 min-h-[44px] border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 touch-manipulation">
+                {language === 'ru' ? 'Отмена' : 'Bekor'}
+              </button>
+              <button onClick={() => deleteProduct(deleteConfirmId)}
+                className="flex-1 py-2.5 min-h-[44px] bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 touch-manipulation">
+                {language === 'ru' ? 'Удалить' : "O'chirish"}
               </button>
             </div>
           </div>

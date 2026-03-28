@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { ukRatingsApi } from '../services/api';
+import { apiRequest } from '../services/api/client';
 import type { Executor } from '../types';
 import { SPECIALIZATION_LABELS } from '../types';
 import { Modal } from '../components/common';
@@ -119,14 +120,16 @@ export function ResidentRateEmployeesPage() {
     fetchRequests();
   }, [fetchExecutors, fetchRequests]);
 
-  // Load rated executors on mount
+  // Load rated executors from API on mount
   useEffect(() => {
     if (user) {
-      const allRatings = getRatingsFromStorage();
-      const ratedIds = allRatings.filter(r => r.residentId === user.id).map(r => r.executorId);
-      setRatedExecutorIds(ratedIds);
+      apiRequest<{executor_id: string}[]>('/api/ratings').then(data => {
+        if (Array.isArray(data)) {
+          setRatedExecutorIds(data.map((r: {executor_id: string}) => r.executor_id));
+        }
+      }).catch(() => {});
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Get executors who worked on user's completed requests
   const getExecutorsWhoWorkedForUser = (): string[] => {
@@ -163,37 +166,27 @@ export function ResidentRateEmployeesPage() {
 
   const handleOpenRating = (executor: Executor) => {
     setSelectedExecutor(executor);
-    // Check if already rated
-    const existingRating = getExecutorRating(executor.id, user?.id || '');
-    if (existingRating) {
-      setRatings({
-        quality: existingRating.quality,
-        speed: existingRating.speed,
-        politeness: existingRating.politeness,
-        comment: existingRating.comment
-      });
-    } else {
-      setRatings({ quality: 0, speed: 0, politeness: 0, comment: '' });
-    }
+    setRatings({ quality: 0, speed: 0, politeness: 0, comment: '' });
     setShowRatingModal(true);
   };
 
-  const handleSubmitRating = () => {
+  const handleSubmitRating = async () => {
     if (!selectedExecutor || !user) return;
 
-    // Сохраняем оценку
-    const newRating: EmployeeRating = {
-      id: Date.now().toString(),
-      executorId: selectedExecutor.id,
-      residentId: user.id,
-      quality: ratings.quality,
-      speed: ratings.speed,
-      politeness: ratings.politeness,
-      comment: ratings.comment,
-      createdAt: new Date().toISOString()
-    };
-
-    saveRatingToStorage(newRating);
+    try {
+      await apiRequest('/api/ratings', {
+        method: 'POST',
+        body: JSON.stringify({
+          executor_id: selectedExecutor.id,
+          quality: ratings.quality || null,
+          speed: ratings.speed || null,
+          politeness: ratings.politeness || null,
+          comment: ratings.comment || null,
+        }),
+      });
+    } catch {
+      // Best-effort: mark rated locally even if API fails
+    }
     setRatedExecutorIds(prev => {
       if (!prev.includes(selectedExecutor.id)) {
         return [...prev, selectedExecutor.id];
