@@ -638,7 +638,8 @@ export function ResidentVehiclesPage() {
     });
   };
 
-  const formatPlateDisplay = (plate: string) => {
+  const formatPlateDisplay = (plate: string | null | undefined) => {
+    if (!plate) return '—';
     // Format for display: 01 A 123 EA or 01 123 EAA
     const cleaned = plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (cleaned.length === 8 && /^\d{2}[A-Z]\d{3}[A-Z]{2}$/.test(cleaned)) {
@@ -796,8 +797,8 @@ export function ResidentVehiclesPage() {
                         }`}>
                           {getOwnerTypeIcon(vehicle.ownerType)}
                           {language === 'ru'
-                            ? VEHICLE_OWNER_TYPE_LABELS[vehicle.ownerType].label
-                            : VEHICLE_OWNER_TYPE_LABELS[vehicle.ownerType].labelUz}
+                            ? (VEHICLE_OWNER_TYPE_LABELS[vehicle.ownerType]?.label ?? vehicle.ownerType)
+                            : (VEHICLE_OWNER_TYPE_LABELS[vehicle.ownerType]?.labelUz ?? vehicle.ownerType)}
                         </span>
                       </div>
                     )}
@@ -811,8 +812,8 @@ export function ResidentVehiclesPage() {
                       <span className="text-gray-500">{language === 'ru' ? 'Тип' : 'Turi'}:</span>
                       <span className="text-gray-900">
                         {language === 'ru'
-                          ? VEHICLE_TYPE_LABELS[vehicle.type].label
-                          : VEHICLE_TYPE_LABELS[vehicle.type].labelUz}
+                          ? (VEHICLE_TYPE_LABELS[vehicle.type]?.label ?? vehicle.type)
+                          : (VEHICLE_TYPE_LABELS[vehicle.type]?.labelUz ?? vehicle.type)}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -1006,8 +1007,8 @@ export function ResidentVehiclesPage() {
                         <p className="text-xs text-gray-500">{language === 'ru' ? 'Тип транспорта' : 'Transport turi'}</p>
                         <p className="font-medium">
                           {language === 'ru'
-                            ? VEHICLE_TYPE_LABELS[searchResult.type].label
-                            : VEHICLE_TYPE_LABELS[searchResult.type].labelUz}
+                            ? (VEHICLE_TYPE_LABELS[searchResult.type]?.label ?? searchResult.type)
+                            : (VEHICLE_TYPE_LABELS[searchResult.type]?.labelUz ?? searchResult.type)}
                         </p>
                       </div>
                     </div>
