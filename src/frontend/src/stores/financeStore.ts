@@ -77,8 +77,11 @@ interface FinanceState {
   setFilters: (filters: Partial<FinanceFilters>) => void;
 }
 
-const addToast = (msg: string, type: 'success' | 'error') =>
+const addToast = (msg: string, type: 'success' | 'error') => {
+  // Suppress 403/Access denied errors silently — resident/executor don't have finance access
+  if (type === 'error' && msg && (msg.includes('Access denied') || msg.includes('Forbidden') || msg.includes('403') || msg.includes('access denied'))) return;
   useToastStore.getState().addToast(type, msg);
+};
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
   estimates: [],

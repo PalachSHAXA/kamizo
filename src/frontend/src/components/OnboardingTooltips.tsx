@@ -16,60 +16,60 @@ interface Tip {
 const ROLE_TIPS: Record<string, Tip[]> = {
   resident: [
     {
-      textRu: '👋 Здесь можно создать заявку — нажмите «Вызвать мастера»',
-      textUz: '👋 Bu yerda ariza yaratishingiz mumkin — «Usta chaqirish»ni bosing',
+      textRu: '👋 Создайте заявку — нажмите «Вызвать мастера»',
+      textUz: '👋 Ariza yarating — «Usta chaqirish»ni bosing',
       spotlight: { top: 30, left: 10, width: 80, height: 12, radius: 12 },
       cardAnchor: 'below-spotlight',
     },
     {
-      textRu: '📋 Здесь ваши активные заявки — следите за статусом',
-      textUz: '📋 Bu yerda sizning faol arizalaringiz — holatni kuzating',
+      textRu: '📋 Ваши активные заявки — следите за статусом',
+      textUz: '📋 Faol arizalaringiz — holatni kuzating',
       spotlight: { top: 47, left: 4, width: 92, height: 28, radius: 12 },
       cardAnchor: 'above-spotlight',
     },
     {
-      textRu: '💬 Чат с УК — нажмите иконку чата внизу экрана',
-      textUz: '💬 UK bilan chat — ekranning pastidagi chat ikonkasini bosing',
+      textRu: '💬 Чат с УК — иконка чата внизу экрана',
+      textUz: '💬 UK bilan chat — pastdagi chat ikonkasi',
       spotlight: { top: 87, left: 57, width: 14, height: 10, radius: 10 },
       cardAnchor: 'above-spotlight',
     },
     {
-      textRu: '🚪 QR-пропуск для гостей — нажмите «Гости» в меню',
-      textUz: '🚪 Mehmonlar uchun QR-o\'tkazma — menyuda «Mehmonlar»ni bosing',
+      textRu: '🚪 QR-пропуск для гостей — раздел «Гости»',
+      textUz: '🚪 Mehmonlar uchun QR-o\'tkazma — «Mehmonlar»',
       spotlight: { top: 87, left: 71, width: 14, height: 10, radius: 10 },
       cardAnchor: 'above-spotlight',
     },
   ],
   manager: [
     {
-      textRu: '📬 Входящие заявки от жителей — обрабатывайте и назначайте исполнителей',
-      textUz: '📬 Aholidan kelgan arizalar — ko\'rib chiqing va ijrochilarni tayinlang',
+      textRu: '📬 Заявки жителей — назначайте исполнителей',
+      textUz: '📬 Aholining arizalari — ijrochilarni tayinlang',
       spotlight: { top: 28, left: 4, width: 92, height: 32, radius: 12 },
       cardAnchor: 'above-spotlight',
     },
     {
-      textRu: '👤 Кнопка «Назначить» появляется в карточке заявки',
-      textUz: '👤 «Tayinlash» tugmasi ariza kartasida paydo bo\'ladi',
+      textRu: '👤 Кнопка «Назначить» — в карточке заявки',
+      textUz: '👤 «Tayinlash» tugmasi — ariza kartasida',
       spotlight: { top: 50, left: 55, width: 40, height: 8, radius: 8 },
       cardAnchor: 'above-spotlight',
     },
     {
-      textRu: '🏘️ Управление зданиями и жителями — в боковом меню слева',
-      textUz: '🏘️ Binolar va aholini boshqarish — chap yon menyuda',
+      textRu: '🏘️ Здания и жители — в боковом меню слева',
+      textUz: '🏘️ Binolar va aholi — chap yon menyuda',
       spotlight: { top: 10, left: 0, width: 4, height: 70, radius: 0 },
       cardAnchor: 'center',
     },
   ],
   executor: [
     {
-      textRu: '🔧 Ваши назначенные задачи — список заявок для выполнения',
-      textUz: '🔧 Sizning tayinlangan vazifalaringiz — bajarish uchun arizalar ro\'yxati',
+      textRu: '🔧 Ваши задачи — список заявок для выполнения',
+      textUz: '🔧 Vazifalaringiz — bajarish uchun arizalar',
       spotlight: { top: 20, left: 4, width: 92, height: 40, radius: 12 },
       cardAnchor: 'above-spotlight',
     },
     {
-      textRu: '📅 Ваш график работы — нажмите «График» в меню внизу',
-      textUz: '📅 Sizning ish jadvalingiz — pastki menyuda «Jadval»ni bosing',
+      textRu: '📅 График работы — «График» в меню внизу',
+      textUz: '📅 Ish jadvali — pastki menyuda «Jadval»',
       spotlight: { top: 87, left: 14, width: 14, height: 10, radius: 10 },
       cardAnchor: 'above-spotlight',
     },
@@ -117,18 +117,18 @@ export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
   const sa = tip.spotlight;
 
-  // Determine tooltip card vertical position
+  // Determine tooltip card vertical position (clamped to stay on-screen)
   const getCardStyle = (): React.CSSProperties => {
     if (!sa || tip.cardAnchor === 'center') {
       return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
     }
     if (tip.cardAnchor === 'above-spotlight') {
-      // Position card above the spotlight area
-      const topPercent = sa.top - 2;
-      return { bottom: `${100 - topPercent}%`, left: '50%', transform: 'translateX(-50%)' };
+      // Position card above spotlight, clamp so it doesn't exceed top of screen
+      const topPercent = Math.max(sa.top - 2, 5);
+      return { bottom: `${Math.min(100 - topPercent, 65)}%`, left: '50%', transform: 'translateX(-50%)' };
     }
-    // below-spotlight
-    const bottomPercent = sa.top + sa.height + 2;
+    // below-spotlight — clamp so card doesn't overflow bottom
+    const bottomPercent = Math.min(sa.top + sa.height + 2, 50);
     return { top: `${bottomPercent}%`, left: '50%', transform: 'translateX(-50%)' };
   };
 
@@ -162,7 +162,7 @@ export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
 
       {/* Tooltip card */}
       <div
-        className="absolute z-[252] w-[calc(100vw-32px)] max-w-sm bg-white rounded-2xl shadow-2xl p-4"
+        className="absolute z-[252] w-[calc(100vw-32px)] max-w-[320px] bg-white rounded-2xl shadow-2xl p-4 overflow-hidden"
         style={getCardStyle()}
         onClick={e => e.stopPropagation()}
       >
@@ -189,7 +189,7 @@ export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
           </button>
         </div>
 
-        <p className="text-[14px] text-gray-800 leading-relaxed mb-4">
+        <p className="text-sm text-gray-800 leading-snug mb-4 break-words">
           {language === 'ru' ? tip.textRu : tip.textUz}
         </p>
 
