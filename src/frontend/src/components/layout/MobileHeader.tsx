@@ -133,7 +133,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   return (
     <>
       <header className="mobile-header" role="banner">
-        <button onClick={onMenuClick} className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation" aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'} aria-expanded={false}>
+        <button onClick={onMenuClick} className="min-w-[44px] min-h-[44px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation" aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'} aria-expanded={false}>
           <Menu className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
           {/* Badge on menu button for pending tasks */}
           {totalMenuBadge > 0 && (
@@ -150,7 +150,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
         <button
           onClick={() => setShowNotifications(!showNotifications)}
-          className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation"
+          className="min-w-[44px] min-h-[44px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation"
           aria-label={language === 'ru' ? `Уведомления, ${totalNotificationsBadge} новых` : `Bildirishnomalar, ${totalNotificationsBadge} yangi`}
           aria-pressed={showNotifications}
         >

@@ -157,7 +157,7 @@ export function LoginPage() {
                 )}
                 <div>
                   <h2 className="text-[15px] font-bold leading-tight" style={{ color: '#1a1a1a' }}>{tenant.name}</h2>
-                  <p className="text-[10px] font-bold uppercase tracking-wider mt-0.5" style={{ color: tenant.color }}>{tenant.is_demo ? 'DEMO' : (tenant.slug?.toUpperCase() || '')}</p>
+                  <p className="text-sm font-bold uppercase tracking-wider mt-0.5" style={{ color: tenant.color }}>{tenant.is_demo ? 'DEMO' : (tenant.slug?.toUpperCase() || '')}</p>
                 </div>
               </>
             ) : (
@@ -165,7 +165,7 @@ export function LoginPage() {
                 <AppLogo size="md" forceDefault />
                 <div>
                   <h1 className="text-[15px] font-bold text-gray-900 leading-tight">Kamizo</h1>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary-500 mt-0.5">CRM</p>
+                  <p className="text-sm font-bold uppercase tracking-wider text-primary-500 mt-0.5">CRM</p>
                 </div>
               </>
             )}

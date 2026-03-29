@@ -70,7 +70,7 @@ const ROLE_CONFIG: Record<string, { label: string; labelUz: string; emoji: strin
 function RoleBadge({ role, language }: { role: UserRole; language: string }) {
   const config = ROLE_CONFIG[role] || ROLE_CONFIG.resident;
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[10px] font-semibold ${config.bg} ${config.text}`}>
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold ${config.bg} ${config.text}`}>
       <span>{config.emoji}</span>
       {language === 'ru' ? config.label : config.labelUz}
     </span>
@@ -169,19 +169,19 @@ function LocationBadges({ channel, language, branchIndex }: { channel: ChatChann
   return (
     <div className="flex items-center gap-1 flex-wrap mt-1">
       {channel.resident_branch_name && (
-        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[10px] font-semibold ${color.inactive}`}>
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold ${color.inactive}`}>
           <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
           <span className="truncate max-w-[80px]">{channel.resident_branch_name}</span>
         </span>
       )}
       {channel.resident_building_name && (
-        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
           <Building2 className="w-2.5 h-2.5 flex-shrink-0" />
           <span className="truncate max-w-[80px]">{channel.resident_building_name}</span>
         </span>
       )}
       {channel.resident_apartment && (
-        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[10px] font-medium bg-gray-100 text-gray-600">
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-medium bg-gray-100 text-gray-600">
           <Home className="w-2.5 h-2.5 flex-shrink-0" />
           {language === 'ru' ? 'кв.' : 'xon.'} {channel.resident_apartment}
         </span>
@@ -359,7 +359,7 @@ function AdminChannelList({
       {/* Branch tabs (only if multiple branches) */}
       {branchNames.length > 1 && (
         <div className="px-4 pb-2">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
             <MapPin className="w-2.5 h-2.5" />
             {language === 'ru' ? 'Филиал' : 'Filial'}
           </p>
@@ -374,7 +374,7 @@ function AdminChannelList({
               }`}
             >
               {language === 'ru' ? 'Все' : 'Barchasi'}
-              <span className={`text-[10px] font-bold ${!selectedBranchTab ? 'text-white/80' : 'text-gray-400'}`}>
+              <span className={`text-xs font-bold ${!selectedBranchTab ? 'text-white/80' : 'text-gray-400'}`}>
                 {supportChannels.length}
               </span>
             </button>
@@ -391,11 +391,11 @@ function AdminChannelList({
                   }`}
                 >
                   <span className="truncate max-w-[90px]">{branch}</span>
-                  <span className={`text-[10px] font-bold ${isActive ? 'text-white/80' : ''}`}>
+                  <span className={`text-xs font-bold ${isActive ? 'text-white/80' : ''}`}>
                     {branchCount[branch] || 0}
                   </span>
                   {bUnread > 0 && (
-                    <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${isActive ? 'bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
+                    <span className={`w-4 h-4 rounded-full text-xs font-bold flex items-center justify-center ${isActive ? 'bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
                       {bUnread > 9 ? '9+' : bUnread}
                     </span>
                   )}
@@ -409,7 +409,7 @@ function AdminChannelList({
       {/* Building filter (if branch selected and has multiple buildings) */}
       {selectedBranchTab && buildingNames.length > 1 && (
         <div className="px-4 pb-2">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
             <Building2 className="w-2.5 h-2.5" />
             {language === 'ru' ? 'Объект' : 'Obyekt'}
           </p>
@@ -444,7 +444,7 @@ function AdminChannelList({
 
       {/* Section label */}
       <div className="px-4 py-1.5 border-t bg-gray-50/60">
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
           {filteredChannels.length} {language === 'ru' ? 'диалогов' : 'dialog'}
         </span>
       </div>
@@ -491,7 +491,7 @@ function AdminChannelList({
                   </div>
                   {hasUnread && (
                     <div className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] bg-orange-500 rounded-full flex items-center justify-center shadow-sm">
-                      <span className="text-[9px] text-white font-bold px-1">
+                      <span className="text-xs text-white font-bold px-1">
                         {channel.unread_count! > 99 ? '99+' : channel.unread_count}
                       </span>
                     </div>
@@ -608,7 +608,7 @@ function ChatView({
   };
 
   const isStaff = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'super_admin' || user?.role === 'director' || user?.role === 'department_head';
-  const isResident = user?.role === 'resident';
+  const isResident = user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner';
   const isPrivateSupport = channel?.type === 'private_support';
 
   // Fetch messages
@@ -965,7 +965,7 @@ function ChatView({
                         <div className={`flex items-center justify-end gap-1 mt-1 ${
                           isOwn ? 'text-white/60' : 'text-gray-400'
                         }`}>
-                          <span className="text-[10px]">{formatMessageTime(message.created_at, language)}</span>
+                          <span className="text-xs">{formatMessageTime(message.created_at, language)}</span>
                           {isOwn && (
                             message.read_by && message.read_by.length > 1
                               ? <CheckCheck className="w-3 h-3" />

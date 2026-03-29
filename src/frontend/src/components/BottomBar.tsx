@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Users, Wrench } from 'lucide-react';
+import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Users, Wrench, Car } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguageStore } from '../stores/languageStore';
 import { useDataStore } from '../stores/dataStore';
@@ -75,7 +75,7 @@ export function BottomBar() {
       if (isSecurity) {
         return [
           { id: 'home', icon: FileText, label: language === 'ru' ? 'Задачи' : 'Vazifalar', path: '/', badge: executorRequestBadge },
-          { id: 'schedule', icon: CalendarDays, label: language === 'ru' ? 'График' : 'Jadval', path: '/schedule', badge: 0 },
+          { id: 'vehicle', icon: Car, label: language === 'ru' ? 'Машины' : 'Mashinalar', path: '/vehicle-search', badge: 0 },
           { id: 'qr', icon: QrCode, label: '', path: '/qr-scanner', badge: 0, isFab: true },
           { id: 'stats', icon: BarChart3, label: language === 'ru' ? 'Стат.' : 'Stat.', path: '/my-stats', badge: 0 },
           { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
@@ -298,7 +298,7 @@ export function BottomBar() {
               {/* Badge */}
               {tab.badge > 0 && !locked && (
                 <span
-                  className="absolute top-0 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
+                  className="absolute top-0 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
                   style={{ right: `calc(50% - 18px)` }}
                 >
                   {tab.badge > 9 ? '9+' : tab.badge}
