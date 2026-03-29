@@ -33,6 +33,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { hasFeature, config } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
+  const [lockedFeatureKey, setLockedFeatureKey] = useState<string | null>(null);
   // Collapsible sidebar sections — persisted per session
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const toggleSection = (section: string) => {
@@ -483,6 +484,14 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     return nameMap[path]?.[lang] || (language === 'ru' ? 'Функция' : 'Funksiya');
   };
 
+  // Get feature key for a locked path
+  const getFeatureKey = (path: string): string | null => {
+    for (const [feature, paths] of Object.entries(featurePathMap)) {
+      if (paths.includes(path)) return feature;
+    }
+    return null;
+  };
+
   // Filter: still show all items but mark locked ones
   const filterByFeatures = (items: Array<{ path: string; icon: any; label: string; section?: string }>): Array<{ path: string; icon: any; label: string; section?: string }> => {
     // If no tenant (main domain) or super_admin, show all items
@@ -589,7 +598,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                   {!isHidden && (
                     locked ? (
                       <button
-                        onClick={() => { setLockedFeatureName(getFeatureName(item.path)); onClose(); }}
+                        onClick={() => { setLockedFeatureName(getFeatureName(item.path)); setLockedFeatureKey(getFeatureKey(item.path)); onClose(); }}
                         className={`sidebar-item min-h-[46px] touch-manipulation w-full opacity-50 ${isResident ? 'sidebar-item-resident' : ''}`}
                       >
                         <item.icon className="w-[20px] h-[20px] shrink-0 text-gray-300" />
@@ -641,8 +650,9 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
       <FeatureLockedModal
         isOpen={!!lockedFeatureName}
-        onClose={() => setLockedFeatureName(null)}
+        onClose={() => { setLockedFeatureName(null); setLockedFeatureKey(null); }}
         featureName={lockedFeatureName || undefined}
+        featureKey={lockedFeatureKey || undefined}
       />
     </>
   );
