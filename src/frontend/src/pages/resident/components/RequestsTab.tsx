@@ -113,7 +113,7 @@ export function RequestsTab({
           >
             {sub.label}
             {sub.count > 0 && (
-              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold ${
                 requestsSubTab === sub.id ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
               }`}>
                 {sub.count}

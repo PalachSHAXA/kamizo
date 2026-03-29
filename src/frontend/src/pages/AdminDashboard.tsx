@@ -1191,7 +1191,7 @@ export function AdminDashboard() {
                   {/* Building targeting info */}
                   {ad.target_type && ad.target_type !== 'all' && (
                     <div className="px-4 pb-3">
-                      <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
                         <Building2 className="w-3 h-3" />
                         {language === 'ru' ? 'Таргетинг:' : 'Maqsad:'} {ad.target_type === 'branches' ? 'по филиалам' : 'по комплексам'}
                       </span>

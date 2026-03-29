@@ -359,15 +359,15 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                     <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-4">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Категория</div>
+                          <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Категория</div>
                           <div className="font-medium text-gray-700">{adCategoryIcons[ad.category_icon] || '📋'} {ad.category_name}</div>
                         </div>
                         <div>
-                          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">УК</div>
+                          <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">УК</div>
                           {ad.tenant_name ? (
                             <>
                               <div className="font-medium text-gray-700">{ad.tenant_name}</div>
-                              <div className="text-[10px] text-gray-400">{ad.tenant_slug}.{BASE_DOMAIN}</div>
+                              <div className="text-xs text-gray-400">{ad.tenant_slug}.{BASE_DOMAIN}</div>
                             </>
                           ) : (
                             <button
@@ -379,13 +379,13 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                           )}
                         </div>
                         <div>
-                          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Период</div>
+                          <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Период</div>
                           <div className="font-medium text-gray-700">
                             {ad.starts_at ? new Date(ad.starts_at).toLocaleDateString('ru-RU') : '—'} — {ad.expires_at ? new Date(ad.expires_at).toLocaleDateString('ru-RU') : '—'}
                           </div>
                         </div>
                         <div>
-                          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Статистика</div>
+                          <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Статистика</div>
                           <div className="flex gap-3 text-gray-700">
                             <button onClick={() => loadAdViews(ad)} className="font-medium hover:text-blue-600 transition-colors">
                               <Eye className="w-3.5 h-3.5 inline mr-0.5" /> {ad.views_count || 0}
@@ -400,19 +400,19 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                         <div className="grid grid-cols-2 gap-4 text-sm mt-4 pt-4 border-t border-gray-200/60">
                           {ad.description && (
                             <div className="col-span-2">
-                              <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Описание</div>
+                              <div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Описание</div>
                               <div className="text-gray-700">{ad.description}</div>
                             </div>
                           )}
-                          {ad.phone2 && <div><div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Доп. телефон</div><div className="text-gray-700">{ad.phone2}</div></div>}
-                          {ad.telegram && <div><div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Telegram</div><div className="text-gray-700">@{ad.telegram}</div></div>}
-                          {ad.instagram && <div><div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Instagram</div><div className="text-gray-700">@{ad.instagram}</div></div>}
-                          {ad.website && <div><div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Сайт</div><div className="text-gray-700">{ad.website}</div></div>}
-                          {ad.address && <div><div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Адрес</div><div className="text-gray-700">{ad.address}</div></div>}
-                          {ad.work_hours && <div><div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Часы работы</div><div className="text-gray-700">{ad.work_hours}</div></div>}
+                          {ad.phone2 && <div><div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Доп. телефон</div><div className="text-gray-700">{ad.phone2}</div></div>}
+                          {ad.telegram && <div><div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Telegram</div><div className="text-gray-700">@{ad.telegram}</div></div>}
+                          {ad.instagram && <div><div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Instagram</div><div className="text-gray-700">@{ad.instagram}</div></div>}
+                          {ad.website && <div><div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Сайт</div><div className="text-gray-700">{ad.website}</div></div>}
+                          {ad.address && <div><div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Адрес</div><div className="text-gray-700">{ad.address}</div></div>}
+                          {ad.work_hours && <div><div className="text-xs uppercase tracking-wider text-gray-400 mb-1">Часы работы</div><div className="text-gray-700">{ad.work_hours}</div></div>}
                         </div>
                       )}
-                      <div className="text-[10px] text-gray-400 mt-4 pt-2 border-t border-gray-200/60">
+                      <div className="text-xs text-gray-400 mt-4 pt-2 border-t border-gray-200/60">
                         Создано: {ad.created_at ? new Date(ad.created_at).toLocaleString('ru-RU') : '—'} {ad.creator_name && `(${ad.creator_name})`}
                       </div>
                     </div>
@@ -477,7 +477,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-gray-900 truncate">{t.name}</div>
-                            <div className="text-[10px] text-gray-400">{t.slug}</div>
+                            <div className="text-xs text-gray-400">{t.slug}</div>
                           </div>
                           {isSelected && assignment && (
                             <button
@@ -548,7 +548,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                           {v.apartment_number && <span> · кв. {v.apartment_number}</span>}
                         </div>
                       </div>
-                      <div className="text-[10px] text-gray-400 flex-shrink-0">
+                      <div className="text-xs text-gray-400 flex-shrink-0">
                         {v.viewed_at ? new Date(v.viewed_at).toLocaleDateString('ru-RU') : ''}
                       </div>
                     </div>
@@ -599,7 +599,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <code className="text-sm font-bold text-gray-900 bg-white px-1.5 py-0.5 rounded border">{c.code}</code>
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
                             c.status === 'activated' ? 'bg-green-100 text-green-700' :
                             c.status === 'expired' ? 'bg-gray-100 text-gray-500' :
                             'bg-purple-100 text-purple-700'
@@ -607,7 +607,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                             {c.status === 'activated' ? 'Активирован' : c.status === 'expired' ? 'Истёк' : 'Выдан'}
                           </span>
                           {c.discount_percent > 0 && (
-                            <span className="text-[10px] font-bold text-red-500">-{c.discount_percent}%</span>
+                            <span className="text-xs font-bold text-red-500">-{c.discount_percent}%</span>
                           )}
                         </div>
                         <div className="text-xs text-gray-400 mt-0.5">
@@ -786,7 +786,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                         }}
                         className="w-4 h-4 text-orange-600 rounded"
                       />
-                      <div className="w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ background: `linear-gradient(135deg, ${t.color}, ${t.color_secondary})` }}>{t.name[0]}</div>
+                      <div className="w-5 h-5 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: `linear-gradient(135deg, ${t.color}, ${t.color_secondary})` }}>{t.name[0]}</div>
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-gray-900 truncate">{t.name}</div>
                       </div>

@@ -137,7 +137,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
           <Menu className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
           {/* Badge on menu button for pending tasks */}
           {totalMenuBadge > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-[9px] font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-xs font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
               {totalMenuBadge > 9 ? '9+' : totalMenuBadge}
             </span>
           )}
@@ -156,7 +156,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
         >
           <Bell className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
           {totalNotificationsBadge > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-[9px] font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
               {totalNotificationsBadge > 9 ? '9+' : totalNotificationsBadge}
             </span>
           )}

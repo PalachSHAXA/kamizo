@@ -177,7 +177,7 @@ export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
                 }`}
               />
             ))}
-            <span className="text-[11px] text-gray-400 ml-1">
+            <span className="text-xs text-gray-400 ml-1">
               {currentTip + 1}/{tips.length}
             </span>
           </div>

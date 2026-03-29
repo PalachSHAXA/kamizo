@@ -369,7 +369,7 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
 
             {createdCredentials && (
               <div className="mb-5 p-4 bg-blue-50 border border-blue-100 rounded-xl text-left relative">
-                <p className="text-[11px] font-bold text-blue-500 uppercase tracking-wide mb-2">
+                <p className="text-xs font-bold text-blue-500 uppercase tracking-wide mb-2">
                   {t('Данные управляющего', 'Menejer ma\'lumotlari')}
                 </p>
                 <p className="text-[14px] text-blue-900 font-medium">

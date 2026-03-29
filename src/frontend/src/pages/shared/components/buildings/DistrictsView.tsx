@@ -66,15 +66,15 @@ export function DistrictsView({
                   <div className="p-4 flex flex-wrap gap-4">
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><Home className="w-4 h-4 text-blue-600" /></div>
-                      <div><div className="text-[18px] font-extrabold text-blue-600 leading-tight">{dBranches.length}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Комплексов', 'Komplekslar')}</div></div>
+                      <div><div className="text-[18px] font-extrabold text-blue-600 leading-tight">{dBranches.length}</div><div className="text-xs text-gray-400 uppercase tracking-wide">{t('Комплексов', 'Komplekslar')}</div></div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center"><Building2 className="w-4 h-4 text-green-600" /></div>
-                      <div><div className="text-[18px] font-extrabold text-green-600 leading-tight">{totalBuildings}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Домов', 'Uylar')}</div></div>
+                      <div><div className="text-[18px] font-extrabold text-green-600 leading-tight">{totalBuildings}</div><div className="text-xs text-gray-400 uppercase tracking-wide">{t('Домов', 'Uylar')}</div></div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center"><Users className="w-4 h-4 text-orange-500" /></div>
-                      <div><div className="text-[18px] font-extrabold text-orange-500 leading-tight">{totalResidents}</div><div className="text-[10px] text-gray-400 uppercase tracking-wide">{t('Жителей', 'Yashovchilar')}</div></div>
+                      <div><div className="text-[18px] font-extrabold text-orange-500 leading-tight">{totalResidents}</div><div className="text-xs text-gray-400 uppercase tracking-wide">{t('Жителей', 'Yashovchilar')}</div></div>
                     </div>
                   </div>
                 </div>

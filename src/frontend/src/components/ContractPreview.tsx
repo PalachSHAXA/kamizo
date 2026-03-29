@@ -203,11 +203,11 @@ export function ContractPreview({ user, qrCodeUrl, language }: ContractPreviewPr
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 bg-gray-50 rounded-lg">
               <p className="font-bold text-xs mb-2">УК: ООО "KAMIZO"</p>
-              <p className="text-[10px] text-gray-600">г. Ташкент, Яшнобадский район,</p>
-              <p className="text-[10px] text-gray-600">ул. Махтумкули, дом 93/3</p>
-              <p className="text-[10px] text-gray-600">Банк: «Ориент Финанс» ЧАКБ</p>
-              <p className="text-[10px] text-gray-600">Р/С: 20208000805307918001</p>
-              <p className="text-[10px] text-gray-600">ИНН: 307928888 МФО: 01071</p>
+              <p className="text-xs text-gray-600">г. Ташкент, Яшнобадский район,</p>
+              <p className="text-xs text-gray-600">ул. Махтумкули, дом 93/3</p>
+              <p className="text-xs text-gray-600">Банк: «Ориент Финанс» ЧАКБ</p>
+              <p className="text-xs text-gray-600">Р/С: 20208000805307918001</p>
+              <p className="text-xs text-gray-600">ИНН: 307928888 МФО: 01071</p>
               {ukQrCodeUrl ? (
                 <img src={ukQrCodeUrl} alt="UK QR" className="w-20 h-20 mx-auto mt-2" />
               ) : (
@@ -216,10 +216,10 @@ export function ContractPreview({ user, qrCodeUrl, language }: ContractPreviewPr
             </div>
             <div className="p-3 bg-gray-50 rounded-lg">
               <p className="font-bold text-xs mb-2">СОБСТВЕННИК:</p>
-              <p className="text-[10px] text-gray-800 font-medium">{user.name}</p>
-              <p className="text-[10px] text-gray-600 break-words">Адрес: {user.address}{user.apartment ? `, кв. ${user.apartment}` : ''}</p>
-              <p className="text-[10px] text-gray-600">Тел: {user.phone || '___'}</p>
-              <p className="text-[10px] text-gray-600">Л/С: {user.login}</p>
+              <p className="text-xs text-gray-800 font-medium">{user.name}</p>
+              <p className="text-xs text-gray-600 break-words">Адрес: {user.address}{user.apartment ? `, кв. ${user.apartment}` : ''}</p>
+              <p className="text-xs text-gray-600">Тел: {user.phone || '___'}</p>
+              <p className="text-xs text-gray-600">Л/С: {user.login}</p>
               {qrCodeUrl ? (
                 <img src={qrCodeUrl} alt="Resident QR" className="w-20 h-20 mx-auto mt-2" />
               ) : (

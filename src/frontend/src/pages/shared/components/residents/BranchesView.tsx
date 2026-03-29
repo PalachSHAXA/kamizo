@@ -88,7 +88,7 @@ export function BranchesView({
                       </div>
                       <div>
                         <div className="text-[20px] font-extrabold text-green-600 leading-tight">{branch.buildings_count}</div>
-                        <div className="text-[10px] text-gray-400 uppercase tracking-wide">{language === 'ru' ? 'Домов' : 'Uylar'}</div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wide">{language === 'ru' ? 'Домов' : 'Uylar'}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5">
@@ -97,7 +97,7 @@ export function BranchesView({
                       </div>
                       <div>
                         <div className="text-[20px] font-extrabold text-orange-500 leading-tight">{branch.residents_count}</div>
-                        <div className="text-[10px] text-gray-400 uppercase tracking-wide">{language === 'ru' ? 'Жителей' : 'Yashovchilar'}</div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wide">{language === 'ru' ? 'Жителей' : 'Yashovchilar'}</div>
                       </div>
                     </div>
                   </div>

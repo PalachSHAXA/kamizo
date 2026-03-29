@@ -536,7 +536,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-gray-900 text-[15px]">{tenantName}</span>
                 {config?.tenant?.slug && (
-                  <span className="text-[9px] font-bold uppercase tracking-wide bg-primary-50 text-primary-500 px-1.5 py-0.5 rounded-md">
+                  <span className="text-xs font-bold uppercase tracking-wide bg-primary-50 text-primary-500 px-1.5 py-0.5 rounded-md">
                     {config.tenant.is_demo ? 'DEMO' : config.tenant.slug.toUpperCase()}
                   </span>
                 )}

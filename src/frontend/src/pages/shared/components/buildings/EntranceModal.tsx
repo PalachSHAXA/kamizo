@@ -19,7 +19,7 @@ export function EntranceModal({ onClose, onSave, existingEntrances, language }: 
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{t('Новый подъезд', 'Yangi podyezd')}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="min-w-[44px] min-h-[44px] rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); onSave(form); }} className="space-y-4">
           <div>

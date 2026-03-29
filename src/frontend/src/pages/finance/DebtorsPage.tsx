@@ -110,7 +110,7 @@ export default function DebtorsPage() {
   if (debtorsLoading) return <PageSkeleton variant="list" />;
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 p-4 md:p-6 pb-24 md:pb-0">
       {/* Header */}
       <h1 className="text-2xl font-bold text-gray-900">{t('Должники', 'Qarzdorlar')}</h1>
 

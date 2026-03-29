@@ -98,7 +98,7 @@ function ProductCardPlaceholder({ name, categoryId, size = 'md' }: { name: strin
       <span className={`${emojiSize} absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 drop-shadow-lg`}>{emoji}</span>
       {size !== 'xs' && (
         <div className="relative z-10 w-full px-2 pb-2 pt-6 bg-gradient-to-t from-black/40 to-transparent">
-          <span className={`text-white font-semibold leading-tight line-clamp-2 drop-shadow ${size === 'sm' ? 'text-[9px]' : size === 'md' ? 'text-[10px]' : size === 'lg' ? 'text-xs' : 'text-[13px]'}`}>{name}</span>
+          <span className={`text-white font-semibold leading-tight line-clamp-2 drop-shadow ${size === 'sm' ? 'text-xs' : size === 'md' ? 'text-xs' : size === 'lg' ? 'text-xs' : 'text-[13px]'}`}>{name}</span>
         </div>
       )}
     </div>
@@ -287,12 +287,12 @@ export function MarketplacePage() {
             {activeOrders.length > 0 && (
               <button onClick={() => setActiveTab('orders')} className="w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation">
                 <Package className="w-[18px] h-[18px] text-gray-700" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center border-2 border-white">{activeOrders.length}</span>
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-white">{activeOrders.length}</span>
               </button>
             )}
             <button onClick={() => setActiveTab('cart')} className="w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation">
               <ShoppingCart className="w-[18px] h-[18px] text-gray-700" />
-              {cartCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center border-2 border-white">{cartCount > 9 ? '9+' : cartCount}</span>}
+              {cartCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-white">{cartCount > 9 ? '9+' : cartCount}</span>}
             </button>
           </div>
         </div>
@@ -407,9 +407,9 @@ export function MarketplacePage() {
                       </div>
                       {getCartQty(featured[0].id) > 0 ? (
                         <div className="flex items-center gap-1.5">
-                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) - 1); }} className="w-8 h-8 rounded-[10px] bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
+                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) - 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
                           <span className="text-[14px] font-bold text-gray-900 w-5 text-center">{getCartQty(featured[0].id)}</span>
-                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) + 1); }} className="w-8 h-8 rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
+                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) + 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
                         </div>
                       ) : (
                         <button onClick={e => { e.stopPropagation(); addToCart(featured[0].id); }} className="px-4 py-2 rounded-[12px] bg-primary-500 text-white text-[13px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]"><Plus className="w-4 h-4" />{language === 'ru' ? 'В корзину' : 'Savatga'}</button>
@@ -425,13 +425,13 @@ export function MarketplacePage() {
                     <div key={p.id} className="w-[140px] shrink-0 bg-white rounded-[16px] overflow-hidden shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
                       <div className="aspect-square bg-gray-50 flex items-center justify-center cursor-pointer relative" onClick={() => setSelectedProduct(p)}>
                         {p.image_url ? <ProductPhoto src={p.image_url} name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="sm" /> : <ProductCardPlaceholder name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="sm" />}
-                        {p.old_price && <div className="absolute top-1.5 left-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">-{Math.round((1 - p.price / p.old_price) * 100)}%</div>}
+                        {p.old_price && <div className="absolute top-1.5 left-1.5 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-md">-{Math.round((1 - p.price / p.old_price) * 100)}%</div>}
                       </div>
                       <div className="p-2">
                         <h3 className="font-medium text-[12px] text-gray-900 line-clamp-2 min-h-[30px] leading-tight">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
                         <div className="flex items-end justify-between mt-1.5">
                           <span className="font-bold text-[13px] text-gray-900">{fmt(p.price)}</span>
-                          {getCartQty(p.id) > 0 ? <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded-full">{getCartQty(p.id)}</span> : (
+                          {getCartQty(p.id) > 0 ? <span className="text-xs font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded-full">{getCartQty(p.id)}</span> : (
                             <button onClick={e => { e.stopPropagation(); addToCart(p.id); }} className="w-7 h-7 rounded-full bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
                           )}
                         </div>
@@ -458,8 +458,8 @@ export function MarketplacePage() {
                         <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform">
                           <Heart className={`w-[15px] h-[15px] ${fav ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} strokeWidth={1.8} />
                         </button>
-                        {p.is_featured && disc === 0 && <div className="absolute top-2 left-2 bg-primary-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-[8px]">ХИТ</div>}
-                        {disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
+                        {p.is_featured && disc === 0 && <div className="absolute top-2 left-2 bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">ХИТ</div>}
+                        {disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
                         {p.stock_quantity === 0 && <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center"><span className="text-white text-[12px] font-bold bg-gray-900/60 px-3 py-1 rounded-full">{language === 'ru' ? 'Нет в наличии' : 'Mavjud emas'}</span></div>}
                       </div>
                       <div className="p-3">
@@ -477,9 +477,9 @@ export function MarketplacePage() {
                           <div className="mt-2">
                             {qty > 0 ? (
                               <div className="flex items-center justify-between bg-gray-50 rounded-[12px] p-1">
-                                <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="w-8 h-8 rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
+                                <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
                                 <span className="text-[14px] font-bold text-gray-900">{qty}</span>
-                                <button onClick={() => updateCartQuantity(p.id, qty + 1)} className="w-8 h-8 rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
+                                <button onClick={() => updateCartQuantity(p.id, qty + 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
                               </div>
                             ) : (
                               <button onClick={() => addToCart(p.id)} disabled={p.stock_quantity === 0} className={`w-full py-2 rounded-[12px] flex items-center justify-center gap-1.5 text-[13px] font-semibold active:scale-[0.97] transition-transform ${p.stock_quantity === 0 ? 'bg-gray-100 text-gray-400' : 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.25)]'}`}>
@@ -529,7 +529,7 @@ export function MarketplacePage() {
                       <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform">
                         <Heart className="w-[15px] h-[15px] fill-red-500 text-red-500" strokeWidth={1.8} />
                       </button>
-                      {disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
+                      {disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
                       {p.stock_quantity === 0 && <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center"><span className="text-white text-[12px] font-bold bg-gray-900/60 px-3 py-1 rounded-full">{language === 'ru' ? 'Нет в наличии' : 'Mavjud emas'}</span></div>}
                     </div>
                     <div className="p-3">
@@ -546,9 +546,9 @@ export function MarketplacePage() {
                         <div className="mt-2">
                           {qty > 0 ? (
                             <div className="flex items-center justify-between bg-gray-50 rounded-[12px] p-1">
-                              <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="w-8 h-8 rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
+                              <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
                               <span className="text-[14px] font-bold text-gray-900">{qty}</span>
-                              <button onClick={() => updateCartQuantity(p.id, qty + 1)} className="w-8 h-8 rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
+                              <button onClick={() => updateCartQuantity(p.id, qty + 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
                             </div>
                           ) : (
                             <button onClick={() => addToCart(p.id)} disabled={p.stock_quantity === 0} className={`w-full py-2 rounded-[12px] flex items-center justify-center gap-1.5 text-[13px] font-semibold active:scale-[0.97] transition-transform ${p.stock_quantity === 0 ? 'bg-gray-100 text-gray-400' : 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.25)]'}`}>
@@ -571,7 +571,7 @@ export function MarketplacePage() {
       {activeTab === 'cart' && (
         <div className="px-4 pt-3 pb-24 md:pb-4">
           {cart.length === 0 ? (
-            <div className="text-center py-16"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"><ShoppingCart className="w-8 h-8 text-gray-300" /></div><p className="text-gray-500 font-medium mb-2">{language === 'ru' ? 'Корзина пуста' : 'Savat bo\'sh'}</p><button onClick={() => setActiveTab('shop')} className="text-primary-600 font-medium text-sm">{language === 'ru' ? 'К покупкам' : 'Xaridga'}</button></div>
+            <div className="text-center py-16"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"><ShoppingCart className="min-w-[44px] min-h-[44px] text-gray-300" /></div><p className="text-gray-500 font-medium mb-2">{language === 'ru' ? 'Корзина пуста' : 'Savat bo\'sh'}</p><button onClick={() => setActiveTab('shop')} className="text-primary-600 font-medium text-sm">{language === 'ru' ? 'К покупкам' : 'Xaridga'}</button></div>
           ) : (
             <>
               <div className="space-y-2 mb-3">
@@ -640,7 +640,7 @@ export function MarketplacePage() {
                     </div>
                     <div className="mt-3">
                       <div className="flex items-center gap-1">{ORDER_STAGES.map((s, i) => <div key={s.id} className="flex-1"><div className={`w-full h-[3px] rounded-full transition-colors ${si >= i ? 'bg-primary-500' : 'bg-gray-200'}`} /></div>)}</div>
-                      <div className="flex justify-between mt-1"><span className="text-[9px] text-gray-400">{language === 'ru' ? 'Новый' : 'Yangi'}</span><span className="text-[9px] text-gray-400">{language === 'ru' ? 'Получен' : 'Qabul'}</span></div>
+                      <div className="flex justify-between mt-1"><span className="text-xs text-gray-400">{language === 'ru' ? 'Новый' : 'Yangi'}</span><span className="text-xs text-gray-400">{language === 'ru' ? 'Получен' : 'Qabul'}</span></div>
                     </div>
                     <div className="mt-3 flex items-center gap-1.5">
                       {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
@@ -675,7 +675,7 @@ export function MarketplacePage() {
                     <span className="text-[14px] font-bold text-gray-700 shrink-0">{fmt(order.total_amount)}</span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-3">
-                    {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-[10px] text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
+                    {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
                     {(order.items || []).length > 4 && <span className="text-xs text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
                   </div>
                   {order.status === 'delivered' && !order.rating && (
@@ -690,7 +690,7 @@ export function MarketplacePage() {
               ))}
             </div>
           )}
-          {orders.length === 0 && <div className="text-center py-16"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"><Package className="w-8 h-8 text-gray-300" /></div><p className="text-gray-500 font-medium mb-2">{language === 'ru' ? 'Нет заказов' : 'Buyurtmalar yo\'q'}</p><button onClick={() => setActiveTab('shop')} className="text-primary-600 font-medium text-sm">{language === 'ru' ? 'К покупкам' : 'Xaridga'}</button></div>}
+          {orders.length === 0 && <div className="text-center py-16"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"><Package className="min-w-[44px] min-h-[44px] text-gray-300" /></div><p className="text-gray-500 font-medium mb-2">{language === 'ru' ? 'Нет заказов' : 'Buyurtmalar yo\'q'}</p><button onClick={() => setActiveTab('shop')} className="text-primary-600 font-medium text-sm">{language === 'ru' ? 'К покупкам' : 'Xaridga'}</button></div>}
         </div>
       )}
 
@@ -712,8 +712,8 @@ export function MarketplacePage() {
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="relative">
               <div className="aspect-square bg-gray-50 flex items-center justify-center">{selectedProduct.image_url ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" /> : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}</div>
-              <button onClick={() => setSelectedProduct(null)} className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm"><X className="w-4 h-4 text-gray-600" /></button>
-              <button onClick={() => toggleFavorite(selectedProduct.id)} className="absolute top-3 left-3 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm"><Heart className={`w-4 h-4 ${favorites.includes(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} /></button>
+              <button onClick={() => setSelectedProduct(null)} className="absolute top-3 right-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm"><X className="w-4 h-4 text-gray-600" /></button>
+              <button onClick={() => toggleFavorite(selectedProduct.id)} className="absolute top-3 left-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm"><Heart className={`w-4 h-4 ${favorites.includes(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} /></button>
             </div>
             <div className="p-4">
               <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
@@ -764,7 +764,7 @@ export function MarketplacePage() {
                       {new Date(selectedOrder.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
-                  <button onClick={() => setSelectedOrder(null)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+                  <button onClick={() => setSelectedOrder(null)} className="min-w-[44px] min-h-[44px] bg-gray-100 rounded-full flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
                 </div>
               </div>
 

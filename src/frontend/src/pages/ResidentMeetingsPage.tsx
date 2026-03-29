@@ -331,7 +331,7 @@ export function ResidentMeetingsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-white/70 text-xs font-medium">#{meeting.number}</span>
                     {hasVoted && meeting.status === 'voting_open' && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-sm flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-white/20 text-white backdrop-blur-sm flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" />
                         {language === 'ru' ? 'Голос принят' : 'Ovoz qabul qilindi'}
                       </span>

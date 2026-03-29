@@ -1307,7 +1307,7 @@ export function TeamPage() {
                 <h3 className="text-[18px] font-extrabold">{language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}</h3>
                 <p className="text-[13px] text-gray-400 mt-0.5">{language === 'ru' ? 'Загрузите .json файл с данными сотрудников' : 'Xodimlar ma\'lumotlari bilan .json faylni yuklang'}</p>
               </div>
-              <button onClick={() => setShowImportModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100">
+              <button onClick={() => setShowImportModal(false)} className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-gray-100">
                 <X className="w-4 h-4" />
               </button>
             </div>

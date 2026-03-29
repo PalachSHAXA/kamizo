@@ -218,7 +218,7 @@ export function SuperAdminDashboard() {
               </div>
               <div>
                 <h1 className="text-base sm:text-lg font-bold text-gray-900">Kamizo</h1>
-                <p className="text-[10px] text-gray-400 -mt-0.5 hidden sm:block">Super Admin Panel</p>
+                <p className="text-xs text-gray-400 -mt-0.5 hidden sm:block">Super Admin Panel</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">

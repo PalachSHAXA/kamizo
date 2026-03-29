@@ -146,7 +146,7 @@ export function HomeTab({
           <div className="text-[17px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Ком. услуги' : 'Kommunal xizmatlar'}</div>
           <div className="text-[12px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Оплата · Квитанции · Счета' : 'To\'lov · Kvitansiyalar · Hisoblar'}</div>
         </div>
-        <span className="px-2.5 py-1 rounded-[8px] bg-emerald-50 text-[10px] font-bold text-emerald-600 uppercase tracking-wide shrink-0">
+        <span className="px-2.5 py-1 rounded-[8px] bg-emerald-50 text-xs font-bold text-emerald-600 uppercase tracking-wide shrink-0">
           {language === 'ru' ? 'Скоро' : 'Tez kunda'}
         </span>
       </button>
@@ -171,7 +171,7 @@ export function HomeTab({
                   <Vote className={`w-5 h-5 ${isVoting ? 'text-primary-500' : 'text-green-500'}`} />
                 </div>
                 <div className="flex-1 min-w-0 text-left">
-                  <div className={`text-[10px] font-bold uppercase tracking-wider mb-[3px] ${isVoting ? 'text-primary-500' : 'text-green-600'}`}>
+                  <div className={`text-xs font-bold uppercase tracking-wider mb-[3px] ${isVoting ? 'text-primary-500' : 'text-green-600'}`}>
                     {isVoting
                       ? (language === 'ru' ? '🗳 Голосование открыто' : '🗳 Ovoz berish ochiq')
                       : (language === 'ru' ? 'Собрание' : 'Yig\'ilish')}
@@ -282,7 +282,7 @@ export function HomeTab({
                   <Icon className="w-[21px] h-[21px]" style={{ color: item.color }} strokeWidth={1.8} />
                 </div>
                 {item.badge && (
-                  <span className="absolute top-2 right-2 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                  <span className="absolute top-2 right-2 min-w-[16px] h-4 flex items-center justify-center px-1 text-xs font-bold text-white bg-red-500 rounded-full">
                     {item.badge}
                   </span>
                 )}

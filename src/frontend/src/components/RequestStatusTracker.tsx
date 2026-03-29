@@ -569,7 +569,7 @@ export function RequestStatusTrackerCompact({
                 <div className="text-xs font-semibold text-amber-800">
                   {language === 'ru' ? 'Перенос на:' : 'Ko\'chirish:'} {rescheduleInfo.proposedDate} {rescheduleInfo.proposedTime}
                 </div>
-                <div className="text-[10px] text-amber-600">
+                <div className="text-xs text-amber-600">
                   {rescheduleInfo.initiator === 'resident'
                     ? (language === 'ru' ? 'Ожидает подтверждения' : 'Tasdiqlash kutilmoqda')
                     : (language === 'ru' ? 'Требуется ваш ответ' : 'Javobingiz kerak')

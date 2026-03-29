@@ -33,7 +33,7 @@ export function ImportModal({
             <h3 className="text-[18px] font-extrabold">{t('Импорт комплекса', 'Kompleksni import qilish')}</h3>
             <p className="text-[13px] text-gray-400 mt-0.5">{t('Загрузите .json файл экспорта', 'Eksport .json faylini yuklang')}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label="Закрыть">
+          <button onClick={onClose} className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label="Закрыть">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -81,7 +81,7 @@ export function ImportModal({
                     val as number > 0 && (
                       <div key={key} className="bg-white rounded-lg p-2 text-center">
                         <div className="text-[18px] font-extrabold text-green-600">{val as number}</div>
-                        <div className="text-[10px] text-gray-400 capitalize">{key.replace('_', ' ')}</div>
+                        <div className="text-xs text-gray-400 capitalize">{key.replace('_', ' ')}</div>
                       </div>
                     )
                   ))}

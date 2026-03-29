@@ -186,7 +186,7 @@ export function StaffProfilePage() {
                 <div className="text-xs text-gray-400 font-medium">{t.login}</div>
                 <div className="font-mono font-bold text-[14px] text-gray-900">{user.login}</div>
               </div>
-              <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{t.cannotChange}</span>
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{t.cannotChange}</span>
             </div>
 
             {/* Role */}

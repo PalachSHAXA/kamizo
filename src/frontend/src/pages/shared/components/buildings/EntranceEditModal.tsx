@@ -31,7 +31,7 @@ export function EntranceEditModal({ entrance, existingApartmentCount, onClose, o
             <h2 className="text-lg font-bold">{t('Подъезд', 'Podyezd')} {entrance.number}</h2>
             <p className="text-[12px] text-gray-400 mt-0.5">{t('Редактирование параметров', 'Parametrlarni tahrirlash')}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="min-w-[44px] min-h-[44px] rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
 
         <form onSubmit={async e => {

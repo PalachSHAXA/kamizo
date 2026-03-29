@@ -315,7 +315,7 @@ export function ResidentProfilePage() {
                 <div className="text-xs text-gray-400 font-medium">{t.personalAccount}</div>
                 <div className="font-mono font-bold text-[14px] text-gray-900">{user.login}</div>
               </div>
-              <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{t.cannotChange}</span>
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{t.cannotChange}</span>
             </div>
 
             {/* Address */}
@@ -540,8 +540,8 @@ export function ResidentProfilePage() {
                     </div>
                     <p className="text-xs text-gray-400 mt-1 leading-relaxed">{t.qrHint}</p>
                     <div className="mt-1.5">
-                      <span className="text-[10px] text-gray-400">ID:</span>
-                      <span className="font-mono text-[10px] font-bold text-gray-500 ml-1 select-all">{user.id}</span>
+                      <span className="text-xs text-gray-400">ID:</span>
+                      <span className="font-mono text-xs font-bold text-gray-500 ml-1 select-all">{user.id}</span>
                     </div>
                   </div>
                 </div>

@@ -226,7 +226,7 @@ export function DashboardTab({
                       </div>
                       <div>
                         <div className="text-base font-bold text-gray-900">{s.value}</div>
-                        <div className="text-[10px] text-gray-400">{s.label}</div>
+                        <div className="text-xs text-gray-400">{s.label}</div>
                       </div>
                     </div>
                   </div>
@@ -439,7 +439,7 @@ export function DashboardTab({
                   <Icon className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="text-[10px] sm:text-xs text-gray-400 font-medium uppercase tracking-wider">{card.label}</div>
+                  <div className="text-xs sm:text-xs text-gray-400 font-medium uppercase tracking-wider">{card.label}</div>
                   <div className="text-xl sm:text-2xl font-bold text-gray-900">{card.value}</div>
                 </div>
               </div>
@@ -462,7 +462,7 @@ export function DashboardTab({
             className="w-full pl-10 pr-4 py-2.5 bg-gray-50/80 border border-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-orange-400/40 focus:border-orange-300 transition-all"
           />
         </div>
-        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1">
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
           {statFilter === 'active' ? 'Активные' : statFilter === 'users' ? 'По жителям ↓' : statFilter === 'revenue' ? 'По доходу ↓' : 'Управляющие компании'} ({tenants
             .filter(t => {
               if (statFilter === 'active' && !t.is_active) return false;
@@ -507,7 +507,7 @@ export function DashboardTab({
                 <div className="text-xs text-gray-400 truncate">{tenant.url?.replace('https://', '') || `${tenant.slug}.${BASE_DOMAIN}`}</div>
               </div>
               {!tenant.is_active && (
-                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded-md text-[9px] font-medium flex-shrink-0">OFF</span>
+                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded-md text-xs font-medium flex-shrink-0">OFF</span>
               )}
             </div>
             <div className="flex items-center justify-between mt-2 pl-[52px]">

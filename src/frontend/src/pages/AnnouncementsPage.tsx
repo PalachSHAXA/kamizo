@@ -488,7 +488,7 @@ export function AnnouncementsPage() {
             <Users className="w-4 h-4" />
             {t('announcements.forResidents')}
             {residentAnnouncements.length > 0 && (
-              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${
                 activeTab === 'residents' ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
               }`}>
                 {residentAnnouncements.length}
@@ -506,7 +506,7 @@ export function AnnouncementsPage() {
             <Briefcase className="w-4 h-4" />
             {t('announcements.forStaff')}
             {employeeAnnouncements.length > 0 && (
-              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${
                 activeTab === 'employees' ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
               }`}>
                 {employeeAnnouncements.length}

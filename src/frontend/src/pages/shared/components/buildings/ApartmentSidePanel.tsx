@@ -197,7 +197,7 @@ export function ApartmentSidePanel({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-[13px] truncate">{r.name || t('Без имени', 'Ismsiz')}</div>
-                          {r.type === 'owner' && <span className="text-[10px] text-orange-600 font-bold">{t('Собственник', 'Mulkdor')}</span>}
+                          {r.type === 'owner' && <span className="text-xs text-orange-600 font-bold">{t('Собственник', 'Mulkdor')}</span>}
                         </div>
                       </div>
                       <div className="space-y-1 pl-0.5">

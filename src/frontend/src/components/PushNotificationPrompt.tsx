@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Bell, X, Loader2, Share, Plus } from 'lucide-react';
 import { pushNotifications } from '../services/pushNotifications';
 import { useAuthStore } from '../stores/authStore';
+import { useTenantStore } from '../stores/tenantStore';
 
 // Detect iOS (iPhone, iPad, iPod)
 function isIOS(): boolean {
@@ -21,6 +22,7 @@ export function PushNotificationPrompt() {
   const [dismissed, setDismissed] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const { user } = useAuthStore();
+  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
 
   useEffect(() => {
     const dismissedKey = `push_prompt_dismissed_${user?.id || 'anon'}`;
@@ -68,7 +70,7 @@ export function PushNotificationPrompt() {
           const swRegistration = await navigator.serviceWorker.ready;
           await swRegistration.showNotification('Уведомления включены!', {
             body: subscription
-              ? 'Теперь вы будете получать уведомления от УК Kamizo даже когда приложение закрыто.'
+              ? `Теперь вы будете получать уведомления от УК ${tenantName} даже когда приложение закрыто.`
               : 'Теперь вы будете получать важные уведомления о заявках и объявлениях.',
             icon: '/icons/favicon.ico',
             badge: '/icons/favicon.ico',
@@ -124,7 +126,7 @@ export function PushNotificationPrompt() {
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900">Установите приложение</h3>
               <p className="text-sm text-gray-600 mt-1">
-                Чтобы получать уведомления на iPhone, добавьте Kamizo на домашний экран:
+                Чтобы получать уведомления на iPhone, добавьте {tenantName} на домашний экран:
               </p>
               <div className="mt-2 space-y-1.5">
                 <div className="flex items-center gap-2 text-sm text-gray-700">

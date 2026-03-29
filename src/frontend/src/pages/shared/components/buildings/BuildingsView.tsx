@@ -77,10 +77,10 @@ export function BuildingsView({
                     </div>
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => onEditBuilding(building)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label="Редактировать">
+                    <button onClick={() => onEditBuilding(building)} className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label="Редактировать">
                       <Edit className="w-4 h-4 text-gray-400" />
                     </button>
-                    <button onClick={() => onDeleteBuilding(building.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50" aria-label="Удалить">
+                    <button onClick={() => onDeleteBuilding(building.id)} className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-red-50" aria-label="Удалить">
                       <Trash2 className="w-4 h-4 text-red-400" />
                     </button>
                   </div>

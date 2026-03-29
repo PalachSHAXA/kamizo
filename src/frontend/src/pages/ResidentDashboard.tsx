@@ -225,7 +225,7 @@ export function ResidentDashboard() {
             >
               <Bell className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
               {unreadAnnouncementsCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-[9px] font-extrabold text-white flex items-center justify-center border-2 border-[#F2F2F7]">
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-extrabold text-white flex items-center justify-center border-2 border-[#F2F2F7]">
                   {unreadAnnouncementsCount > 9 ? '9+' : unreadAnnouncementsCount}
                 </span>
               )}

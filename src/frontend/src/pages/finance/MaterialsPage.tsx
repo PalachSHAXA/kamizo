@@ -163,7 +163,7 @@ export default function MaterialsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-xl font-bold text-gray-900">

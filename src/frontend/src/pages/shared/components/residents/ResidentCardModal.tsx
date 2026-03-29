@@ -671,7 +671,7 @@ export function ResidentCardModal({
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 max-h-[85dvh] overflow-y-auto border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">{t('Изменение данных жителя', "Yashovchi ma'lumotlarini o'zgartirish")}</h2>
-              <button onClick={() => setShowChangeModal(false)} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400">
+              <button onClick={() => setShowChangeModal(false)} className="min-w-[44px] min-h-[44px] rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400">
                 <X className="w-4 h-4" />
               </button>
             </div>

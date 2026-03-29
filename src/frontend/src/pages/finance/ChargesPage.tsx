@@ -491,7 +491,7 @@ export default function ChargesPage() {
               </div>
             ))}
           </div>
-          <div className="flex gap-4 mt-3 text-[10px] text-gray-400">
+          <div className="flex gap-4 mt-3 text-xs text-gray-400">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" />{t('Оплачено', 'To\'langan')}</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" />{t('Частично', 'Qisman')}</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />{t('Долг', 'Qarz')}</span>
