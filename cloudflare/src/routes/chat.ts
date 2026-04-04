@@ -223,7 +223,7 @@ export function registerChatRoutes(env: Env) {
     } catch (e: any) {
       const log = createRequestLogger(request);
       log.error('Failed to insert chat message', e);
-      return error(`Failed to send message: ${e.message || 'Database error'}`, 500);
+      return error('Failed to send message', 500);
     }
 
     const created_at = new Date().toISOString();
@@ -311,7 +311,8 @@ export function registerChatRoutes(env: Env) {
           body: JSON.stringify({
             type: 'chat_message',
             data: { message },
-            channels
+            channels,
+            tenantId: tenantId || undefined,
           })
         });
       }
@@ -402,7 +403,8 @@ export function registerChatRoutes(env: Env) {
             user_id: user.id,
             user_name: user.name
           },
-          channels: [`chat:channel:${channelId}`]
+          channels: [`chat:channel:${channelId}`],
+          tenantId: tenantId || undefined,
         })
       });
     } catch (e) {

@@ -12,6 +12,7 @@
   --brand-bg: #fff7ed;
   /* Fixed nav heights (used for content padding offsets) */
   --mobile-header-h: calc(68px + env(safe-area-inset-top, 0px));
+  /* BottomBar itself handles safe-area internally, so height var = bar chrome only */
   --bottom-bar-h: calc(58px + env(safe-area-inset-bottom, 0px));
 }
 
@@ -52,17 +53,18 @@ body {
 @media (max-width: 768px) {
   html, body {
     height: 100dvh;
-    overflow: hidden;
+    height: -webkit-fill-available; /* fallback for older Safari */
+    overflow-x: hidden;
+    overflow-y: hidden;
     overscroll-behavior: none;
   }
 
   #root {
     height: 100dvh;
+    height: -webkit-fill-available;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    /* NOTE: NO transform here — transform on #root would make it the containing block
-       for position:fixed children (MobileHeader, BottomBar), breaking their positioning */
   }
 
   /* Layout root wrapper fills #root.
@@ -206,7 +208,7 @@ body {
   border-right: 1px solid #f0f0f0;
   display: flex;
   flex-direction: column;
-  z-index: 100;
+  z-index: 80;
   /* Hardware-accelerated compositing — prevents scroll-related lag */
   will-change: transform;
   backface-visibility: hidden;
@@ -244,7 +246,7 @@ body {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    z-index: 90;
+    z-index: 70;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.26s ease;
@@ -339,7 +341,7 @@ body {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 200;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -354,7 +356,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 20px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  z-index: 201;
+  z-index: 110;
   max-height: 90vh;
   max-height: 90dvh;
   overflow-y: auto;
@@ -373,7 +375,7 @@ body {
     max-height: 95vh;
     max-height: 95dvh;
     border-radius: 20px 20px 0 0;
-    padding-bottom: env(safe-area-inset-bottom, 20px);
+    padding-bottom: env(safe-area-inset-bottom, 16px);
   }
 
   .glass-card.modal {
@@ -514,7 +516,7 @@ body {
     top: var(--impersonation-h, 0px);
     left: 0;
     right: 0;
-    z-index: 50;
+    z-index: 10;
     /* Force GPU compositing layer — prevents iOS Safari from re-painting the header during scroll */
     -webkit-transform: translate3d(0, 0, 0);
     transform: translate3d(0, 0, 0);
@@ -770,7 +772,7 @@ body {
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 20px rgba(var(--brand-rgb), 0.4);
-  z-index: 40;
+  z-index: 10;
   transition: all 0.3s ease;
 }
 
@@ -832,7 +834,7 @@ body {
 /* Toast notifications */
 .toast {
   position: fixed;
-  bottom: 100px;
+  bottom: calc(var(--bottom-bar-h, 70px) + 16px);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.9);
@@ -840,7 +842,7 @@ body {
   padding: 12px 24px;
   border-radius: 12px;
   font-size: 14px;
-  z-index: 200;
+  z-index: 150;
   animation: toast-in 0.3s ease;
 }
 
@@ -934,7 +936,7 @@ a.btn-secondary:active,
 
 /* Safe area padding utilities */
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .safe-area-top {
@@ -1246,5 +1248,41 @@ a.btn-secondary:active,
 
   .main-content {
     margin-left: 300px;
+  }
+}
+
+/* ============================================
+   SMALL PHONES (iPhone SE, Galaxy S10, etc.)
+   ============================================ */
+@media (max-width: 375px) {
+  .page-content {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .glass-card {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .modal-content {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  h2 {
+    font-size: 1.125rem;
+  }
+}
+
+/* ── PWA Standalone mode fix ───────────────────────────────────────────── */
+@media (display-mode: standalone) {
+  html, body, #root {
+    height: 100dvh;
+    height: -webkit-fill-available;
   }
 }

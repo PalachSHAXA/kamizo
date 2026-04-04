@@ -168,12 +168,12 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
         <div className="notifications-portal">
           <div
             className="fixed inset-0 bg-black/20"
-            style={{ zIndex: 10000 }}
+            style={{ zIndex: 100 }}
             onClick={() => setShowNotifications(false)}
           />
           <div
             className="fixed left-3 right-3 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-            style={{ zIndex: 10001, maxHeight: '70vh', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
+            style={{ zIndex: 110, maxHeight: '70vh', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
             role="region"
             aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >

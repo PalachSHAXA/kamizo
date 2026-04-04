@@ -172,9 +172,30 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     return hashB64 === expectedHashB64;
   }
 
-  // Legacy format: "saltB64:hashB64" — old 100,000-iteration hashes.
-  // These cannot be safely verified on Workers (CPU timeout). Return false so
-  // the caller gets a clean 401 instead of a 1101 crash. The login handler's
-  // auto-migration will re-hash the password after a successful admin-forced reset.
+  // Legacy format: "saltB64:hashB64" — old hashes without iteration prefix.
+  // Try with common iteration counts (100k was the old default, 10k was intermediate).
+  if (parts.length === 2) {
+    const saltB64 = parts[0];
+    const expectedHashB64 = parts[1];
+    const salt = new Uint8Array(atob(saltB64).split('').map(c => c.charCodeAt(0)));
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+    );
+    // Try 10k iterations first (fast), then 100k
+    for (const iterations of [10000, 50000, 100000]) {
+      try {
+        const hash = await crypto.subtle.deriveBits(
+          { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+          keyMaterial, 256
+        );
+        const hashB64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
+        if (hashB64 === expectedHashB64) return true;
+      } catch {
+        // CPU timeout on high iterations — skip
+        break;
+      }
+    }
+  }
+
   return false;
 }

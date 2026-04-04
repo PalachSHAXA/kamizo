@@ -191,14 +191,14 @@ export function SettingsPage() {
     setResetMessage(null);
     try {
       await apiRequest('/api/admin/requests/reset', { method: 'POST' });
-      setResetMessage({ type: 'success', text: 'Все заявки успешно удалены' });
+      setResetMessage({ type: 'success', text: language === 'ru' ? 'Все заявки успешно удалены' : 'Barcha arizalar muvaffaqiyatli o\'chirildi' });
       setShowResetModal(false);
       // Refresh page data after 2 seconds
       setTimeout(() => {
         window.location.reload();
       }, 2000);
     } catch (err: any) {
-      setResetMessage({ type: 'error', text: err.message || 'Ошибка при сбросе заявок' });
+      setResetMessage({ type: 'error', text: err.message || (language === 'ru' ? 'Ошибка при сбросе заявок' : 'Arizalarni tiklashda xatolik') });
     } finally {
       setIsResetting(false);
     }
@@ -219,7 +219,7 @@ export function SettingsPage() {
       setProfileMessage({ type: 'success', text: language === 'ru' ? 'Профиль успешно сохранён' : 'Profil muvaffaqiyatli saqlandi' });
       setTimeout(() => setProfileMessage(null), 3000);
     } catch (err: any) {
-      setProfileMessage({ type: 'error', text: err.message || 'Ошибка при сохранении профиля' });
+      setProfileMessage({ type: 'error', text: err.message || (language === 'ru' ? 'Ошибка при сохранении профиля' : 'Profilni saqlashda xatolik') });
     } finally {
       setIsProfileSaving(false);
     }
@@ -256,7 +256,7 @@ export function SettingsPage() {
       setConfirmPassword('');
       setTimeout(() => setPasswordMessage(null), 3000);
     } catch (err: any) {
-      setPasswordMessage({ type: 'error', text: err.message || 'Ошибка при смене пароля' });
+      setPasswordMessage({ type: 'error', text: err.message || (language === 'ru' ? 'Ошибка при смене пароля' : 'Parolni o\'zgartirishda xatolik') });
     } finally {
       setIsPasswordSaving(false);
     }

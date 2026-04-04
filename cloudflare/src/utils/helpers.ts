@@ -66,3 +66,46 @@ export function isAdminLevel(user: { role: string } | null | undefined): boolean
   if (!user) return false;
   return user.role === 'admin' || user.role === 'director';
 }
+
+// Check if user has executor role (executor or security)
+export function isExecutorRole(role: string): boolean {
+  return role === 'executor' || role === 'security';
+}
+
+// Check if user is super admin
+export function isSuperAdmin(user: any): user is { role: string; id: string; [key: string]: any } {
+  return user?.role === 'super_admin';
+}
+
+// Sanitize user input to prevent stored XSS
+export function sanitizeInput(input: string | null | undefined, maxLength = 1000): string | null {
+  if (!input) return null;
+  return input
+    .slice(0, maxLength)
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
+// Sanitize error messages — strip SQL/DB internals before sending to client
+export function sanitizeErrorMessage(message: string | undefined, statusCode: number): string {
+  if (!message) return 'Internal server error';
+  // For 5xx errors, never expose SQL/DB details
+  if (statusCode >= 500) {
+    const sqlPatterns = /SQLITE|SQL|UNIQUE constraint|FOREIGN KEY|NOT NULL|CHECK constraint|no such table|no such column|database|D1_ERROR/i;
+    if (sqlPatterns.test(message)) {
+      return 'Internal server error';
+    }
+  }
+  return message;
+}
+
+// Validate and sanitize URL (prevent javascript: protocol XSS)
+export function sanitizeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const trimmed = url.trim().slice(0, 2000);
+  if (/^(https?:\/\/|\/)/i.test(trimmed)) return trimmed;
+  return null;
+}

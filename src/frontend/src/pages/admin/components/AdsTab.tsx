@@ -426,7 +426,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
 
       {/* Tenant Assignment Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setShowAssignModal(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4" onClick={() => setShowAssignModal(null)}>
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-lg w-full max-h-[85dvh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
               <div>
@@ -513,7 +513,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
 
       {/* Views Modal */}
       {showViewsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setShowViewsModal(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4" onClick={() => setShowViewsModal(null)}>
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-lg w-full max-h-[80dvh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
               <div>
@@ -562,7 +562,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
 
       {/* Coupons Modal */}
       {showCouponsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setShowCouponsModal(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4" onClick={() => setShowCouponsModal(null)}>
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-lg w-full max-h-[80dvh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
               <div>
@@ -632,7 +632,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
 
       {/* Ad Creation Modal */}
       {showAdModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-lg max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
             <div className="p-5 border-b flex items-center justify-between sticky top-0 bg-white z-10">
               <h2 className="text-lg font-bold">Добавить рекламу</h2>

@@ -1236,6 +1236,7 @@ CREATE INDEX IF NOT EXISTS idx_entrances_building ON entrances(building_id);
 CREATE INDEX IF NOT EXISTS idx_building_docs_building ON building_documents(building_id);
 CREATE INDEX IF NOT EXISTS idx_buildings_branch ON buildings(branch_code);
 CREATE INDEX IF NOT EXISTS idx_apartments_building ON apartments(building_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_apartments_building_number ON apartments(building_id, number);
 CREATE INDEX IF NOT EXISTS idx_apartments_entrance ON apartments(entrance_id);
 CREATE INDEX IF NOT EXISTS idx_apartments_owner ON apartments(primary_owner_id);
 CREATE INDEX IF NOT EXISTS idx_owners_phone ON owners(phone);
@@ -1975,3 +1976,29 @@ CREATE INDEX IF NOT EXISTS idx_fe_tenant ON finance_expenses(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_fe_building ON finance_expenses(building_id);
 CREATE INDEX IF NOT EXISTS idx_fe_estimate ON finance_expenses(estimate_id);
 -- Logical FK: estimate_item_id -> finance_estimate_items.id (enforced at application level)
+
+-- Missing tenant_id indexes for frequently queried tables
+CREATE INDEX IF NOT EXISTS idx_announcements_tenant_id ON announcements(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_guest_codes_tenant_id ON guest_access_codes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_tenant_id ON vehicles(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ads_tenant_id ON ads(tenant_id);
+
+-- Audit log for sensitive operations (user deactivation, password changes, role changes)
+CREATE TABLE IF NOT EXISTS audit_log (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT,
+  actor_id TEXT NOT NULL,
+  actor_name TEXT,
+  actor_role TEXT,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  details TEXT,
+  ip_address TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant ON audit_log(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);

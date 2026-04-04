@@ -112,7 +112,7 @@ export function FeatureLockedModal({ isOpen, onClose, featureName, featureKey }:
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-[200] flex items-end sm:items-center justify-center"
+      className="fixed inset-0 bg-black/40 z-[110] flex items-end sm:items-center justify-center"
       onClick={onClose}
     >
       <div

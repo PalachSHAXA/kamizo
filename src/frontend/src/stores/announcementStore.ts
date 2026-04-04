@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Announcement } from '../types';
+import { useToastStore } from './toastStore';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -98,6 +99,7 @@ export const useAnnouncementStore = create<AnnouncementState>()(
         });
       } catch (error) {
         console.error('[DataStore] Failed to update announcement via API:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Failed to update announcement');
       }
     },
 
@@ -107,6 +109,7 @@ export const useAnnouncementStore = create<AnnouncementState>()(
         await announcementsApi.delete(id);
       } catch (error) {
         console.error('[DataStore] Failed to delete announcement via API:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Failed to delete announcement');
       }
       set((state) => ({
         announcements: state.announcements.filter((a) => a.id !== id),
@@ -281,6 +284,7 @@ export const useAnnouncementStore = create<AnnouncementState>()(
         set({ announcements });
       } catch (error) {
         console.error('[DataStore] Failed to fetch announcements:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Failed to load announcements');
       }
     },
   })

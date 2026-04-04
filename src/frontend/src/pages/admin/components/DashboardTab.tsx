@@ -172,7 +172,7 @@ export function DashboardTab({
                   };
                   const authData = btoa(encodeURIComponent(JSON.stringify({
                     state: { user: transformedUser, token: resp.token },
-                    version: 3,
+                    version: 4,
                     is_impersonated: true,
                     super_admin_url: window.location.href,
                     tenant_name: resp.tenantName || selectedTenant.name,

@@ -84,7 +84,7 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
       }
     }
 
-    setCache(cacheKey, user, 60000);
+    setCache(cacheKey, user, 15000);
     requestUserCache.set(request, user as User);
     return user as User;
   }

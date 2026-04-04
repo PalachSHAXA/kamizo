@@ -414,8 +414,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   getApartmentBalance: async (apartmentId) => {
     try {
       return await financeApi.getApartmentBalance(apartmentId);
-    } catch (err) {
-      addToast((err as Error).message || 'Ошибка загрузки баланса', 'error');
+    } catch {
+      // Silent fail — balance widget is optional, don't show error toast
       return null;
     }
   },

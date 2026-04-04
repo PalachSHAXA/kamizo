@@ -213,8 +213,8 @@ export function SuperAdminDashboard() {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-sm">
-                <Building2 className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-xl overflow-hidden shadow-sm flex-shrink-0">
+                <img src="/icons/favicon-64x64.png" alt="Kamizo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h1 className="text-base sm:text-lg font-bold text-gray-900">Kamizo</h1>

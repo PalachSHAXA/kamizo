@@ -210,7 +210,8 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50"
+      className="md:hidden fixed left-0 right-0 z-10"
+      style={{ bottom: 0 }}
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
     >
@@ -260,7 +261,7 @@ export function BottomBar() {
             <button
               key={tab.id}
               onClick={() => handleTap(tab)}
-              className={`relative flex-1 flex flex-col items-center gap-[2px] touch-manipulation py-1 overflow-hidden ${locked ? 'opacity-40' : ''}`}
+              className={`relative flex-1 flex flex-col items-center gap-[2px] touch-manipulation py-2.5 min-h-[48px] overflow-hidden ${locked ? 'opacity-40' : ''}`}
               style={{ WebkitTapHighlightColor: 'transparent' }}
               aria-current={isActive(tab) ? 'page' : undefined}
               aria-label={tab.label}
@@ -303,7 +304,7 @@ export function BottomBar() {
               {/* Badge */}
               {tab.badge > 0 && !locked && (
                 <span
-                  className="absolute top-0 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
+                  className="absolute top-0 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
                   style={{ right: `calc(50% - 18px)` }}
                 >
                   {tab.badge > 9 ? '9+' : tab.badge}

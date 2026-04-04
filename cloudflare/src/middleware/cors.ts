@@ -15,13 +15,16 @@ const DEV_ORIGINS = [
 // Default to production-only origins (secure by default).
 // initCors() adds DEV_ORIGINS when environment !== 'production'.
 let allowedOrigins = [...PRODUCTION_ORIGINS];
+let devMode = false;
 
 // Call once at startup to configure CORS based on environment
 export function initCors(environment: string): void {
   if (environment === 'production') {
     allowedOrigins = [...PRODUCTION_ORIGINS];
+    devMode = false;
   } else {
     allowedOrigins = [...PRODUCTION_ORIGINS, ...DEV_ORIGINS];
+    devMode = true;
   }
 }
 
@@ -31,7 +34,11 @@ export function setCorsOrigin(request: Request): void {
   const origin = request.headers.get('Origin') || '';
   if (allowedOrigins.includes(origin)) {
     currentCorsOrigin = origin;
-  } else if (/^https:\/\/[a-z0-9-]+\.kamizo\.uz$/.test(origin)) {
+  } else if (/^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)?kamizo\.uz$/.test(origin)) {
+    // Dynamic tenant subdomains (production only, RFC-compliant label check)
+    currentCorsOrigin = origin;
+  } else if (devMode && /^http:\/\/localhost:\d+$/.test(origin)) {
+    // Any localhost port in dev mode
     currentCorsOrigin = origin;
   } else if (!origin) {
     currentCorsOrigin = 'https://app.kamizo.uz';

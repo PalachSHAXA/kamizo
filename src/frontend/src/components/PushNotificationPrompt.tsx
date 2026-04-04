@@ -117,7 +117,7 @@ export function PushNotificationPrompt() {
   // iOS "Add to Home Screen" prompt
   if (showIOSPrompt) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom-4 duration-300">
+      <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[150] animate-in slide-in-from-bottom-4 duration-300">
         <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -161,7 +161,7 @@ export function PushNotificationPrompt() {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom-4 duration-300">
+    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[150] animate-in slide-in-from-bottom-4 duration-300">
       <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-4">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">

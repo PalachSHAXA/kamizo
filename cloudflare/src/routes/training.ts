@@ -32,7 +32,7 @@ route('GET', '/api/training/partners', async (request, env) => {
     whereClause += (whereClause ? ' AND ' : 'WHERE ') + 'is_active = 1';
   }
 
-  const query = `SELECT * FROM training_partners ${whereClause} ORDER BY name`;
+  const query = `SELECT * FROM training_partners ${whereClause} ORDER BY name LIMIT 500`;
   const { results } = await env.DB.prepare(query).bind(...params).all();
   return json({ partners: results });
 });
@@ -239,11 +239,11 @@ route('GET', '/api/training/proposals/:id', async (request, env, params) => {
 
   // Get votes, registrations, feedback
   const [votes, registrations, feedback] = await Promise.all([
-    env.DB.prepare('SELECT * FROM training_votes WHERE proposal_id = ? ORDER BY voted_at DESC')
+    env.DB.prepare('SELECT * FROM training_votes WHERE proposal_id = ? ORDER BY voted_at DESC LIMIT 500')
       .bind(params.id).all(),
-    env.DB.prepare('SELECT * FROM training_registrations WHERE proposal_id = ? ORDER BY registered_at DESC')
+    env.DB.prepare('SELECT * FROM training_registrations WHERE proposal_id = ? ORDER BY registered_at DESC LIMIT 500')
       .bind(params.id).all(),
-    env.DB.prepare('SELECT * FROM training_feedback WHERE proposal_id = ? ORDER BY created_at DESC')
+    env.DB.prepare('SELECT * FROM training_feedback WHERE proposal_id = ? ORDER BY created_at DESC LIMIT 500')
       .bind(params.id).all()
   ]);
 
@@ -459,7 +459,7 @@ route('POST', '/api/training/proposals/:id/schedule', async (request, env, param
   // Notify all voters about scheduling
   const proposal = await env.DB.prepare(`SELECT topic FROM training_proposals WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
-  const { results: votes } = await env.DB.prepare('SELECT DISTINCT voter_id FROM training_votes WHERE proposal_id = ?')
+  const { results: votes } = await env.DB.prepare('SELECT DISTINCT voter_id FROM training_votes WHERE proposal_id = ? LIMIT 500')
     .bind(params.id).all();
 
   for (const vote of votes) {
@@ -671,7 +671,7 @@ route('GET', '/api/training/proposals/:proposalId/votes', async (request, env, p
   }
 
   const { results } = await env.DB.prepare(
-    'SELECT * FROM training_votes WHERE proposal_id = ? ORDER BY voted_at DESC'
+    'SELECT * FROM training_votes WHERE proposal_id = ? ORDER BY voted_at DESC LIMIT 500'
   ).bind(params.proposalId).all();
 
   return json({ votes: results });
@@ -857,7 +857,7 @@ route('GET', '/api/training/proposals/:proposalId/feedback', async (request, env
   }
 
   const { results } = await env.DB.prepare(
-    'SELECT * FROM training_feedback WHERE proposal_id = ? ORDER BY created_at DESC'
+    'SELECT * FROM training_feedback WHERE proposal_id = ? ORDER BY created_at DESC LIMIT 500'
   ).bind(params.proposalId).all();
 
   return json({ feedback: results });
@@ -881,17 +881,15 @@ route('GET', '/api/training/notifications', async (request, env) => {
 
   let query = `
     SELECT tn.* FROM training_notifications tn
-    LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
     WHERE (tn.recipient_id = ? OR tn.recipient_id = 'all')
-    ${tenantId ? 'AND (tp.tenant_id = ? OR tp.id IS NULL)' : ''}
+    ${tenantId ? 'AND tn.tenant_id = ?' : ''}
   `;
 
   if (isAdminLevel(authUser)) {
     query = `
       SELECT tn.* FROM training_notifications tn
-      LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
       WHERE (tn.recipient_id = ? OR tn.recipient_id = 'all' OR tn.recipient_id = 'admin')
-      ${tenantId ? 'AND (tp.tenant_id = ? OR tp.id IS NULL)' : ''}
+      ${tenantId ? 'AND tn.tenant_id = ?' : ''}
     `;
   }
 
@@ -915,13 +913,12 @@ route('POST', '/api/training/notifications/:id/read', async (request, env, param
     return error('Unauthorized', 401);
   }
 
-  // MULTI-TENANCY: Verify notification belongs to tenant via proposals
+  // MULTI-TENANCY: Verify notification belongs to tenant
   const tenantId = getTenantId(request);
   if (tenantId) {
     const notif = await env.DB.prepare(`
-      SELECT tn.id FROM training_notifications tn
-      LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
-      WHERE tn.id = ? AND (tp.tenant_id = ? OR tp.id IS NULL)
+      SELECT id FROM training_notifications
+      WHERE id = ? AND tenant_id = ?
     `).bind(params.id, tenantId).first();
 
     if (!notif) {
@@ -952,22 +949,14 @@ route('POST', '/api/training/notifications/read-all', async (request, env) => {
     await env.DB.prepare(`
       UPDATE training_notifications SET is_read = 1
       WHERE (recipient_id = ? OR recipient_id = 'all')
-      AND id IN (
-        SELECT tn.id FROM training_notifications tn
-        LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
-        WHERE tp.tenant_id = ? OR tp.id IS NULL
-      )
+      AND tenant_id = ?
     `).bind(authUser.id, tenantId).run();
 
     if (isAdminLevel(authUser)) {
       await env.DB.prepare(`
         UPDATE training_notifications SET is_read = 1
         WHERE recipient_id = 'admin'
-        AND id IN (
-          SELECT tn.id FROM training_notifications tn
-          LEFT JOIN training_proposals tp ON tn.proposal_id = tp.id
-          WHERE tp.tenant_id = ? OR tp.id IS NULL
-        )
+        AND tenant_id = ?
       `).bind(tenantId).run();
     }
   } else {
@@ -996,7 +985,7 @@ route('GET', '/api/training/settings', async (request, env) => {
 
   const tenantId = getTenantId(request);
   const { results } = await env.DB.prepare(
-    `SELECT * FROM training_settings ${tenantId ? 'WHERE tenant_id = ?' : ''}`
+    `SELECT * FROM training_settings ${tenantId ? 'WHERE tenant_id = ?' : ''} LIMIT 500`
   ).bind(...(tenantId ? [tenantId] : [])).all();
 
   // Convert to object

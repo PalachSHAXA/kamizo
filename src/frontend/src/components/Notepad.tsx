@@ -265,8 +265,8 @@ function NoteModal({
   const [content, setContent] = useState(note?.content || '');
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <h2 className="text-lg font-bold">
             {note ? (language === 'ru' ? 'Редактировать заметку' : 'Yozuvni tahrirlash') : (language === 'ru' ? 'Новая заметка' : 'Yangi yozuv')}
@@ -280,7 +280,7 @@ function NoteModal({
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 flex-1 overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               {language === 'ru' ? 'Заголовок' : 'Sarlavha'} <span className="text-red-500">*</span>

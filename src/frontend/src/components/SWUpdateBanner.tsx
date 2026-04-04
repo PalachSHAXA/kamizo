@@ -24,7 +24,7 @@ export function SWUpdateBanner() {
   };
 
   return (
-    <div className="fixed top-4 left-4 right-4 z-[9999] animate-slide-up sm:left-auto sm:right-4 sm:w-80">
+    <div className="fixed top-4 left-4 right-4 z-[150] animate-slide-up sm:left-auto sm:right-4 sm:w-80">
       <div className="flex items-center gap-3 rounded-xl bg-gray-900 p-3 shadow-2xl">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500/20">
           <RefreshCw className="h-5 w-5 text-primary-400" />

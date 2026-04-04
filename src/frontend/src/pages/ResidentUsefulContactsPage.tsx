@@ -464,8 +464,8 @@ export default function ResidentUsefulContactsPage() {
                 <img src={banner.image_url} alt={banner.title} className="w-full h-36 object-cover" />
               ) : (
                 <div className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--brand, #F97316), #FB923C)' }}>
-                    <span className="text-white font-extrabold text-lg">K</span>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-orange-50">
+                    <img src="/icons/favicon-64x64.png" alt="kamizo" className="w-8 h-8 object-contain" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="font-bold text-gray-800 text-sm">kamizo</span>

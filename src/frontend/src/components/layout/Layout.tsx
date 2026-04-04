@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
+import { useLanguageStore } from '../../stores/languageStore';
 import { usePopupNotifications } from '../../hooks/usePopupNotifications';
 import { useWebSocketSync } from '../../hooks/useWebSocketSync';
 import { Sidebar } from './Sidebar';
@@ -17,20 +18,23 @@ import { settingsApi } from '../../services/api/settings';
 import { Loader2, ArrowLeft, ShieldAlert, Home } from 'lucide-react';
 
 // Simple 404 page
-const NotFoundPage = () => (
-  <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 gap-4">
-    <div className="text-[72px] font-black text-gray-100 leading-none select-none">404</div>
-    <div className="text-[20px] font-bold text-gray-700">Страница не найдена</div>
-    <div className="text-[14px] text-gray-400 max-w-xs">Такой страницы не существует или у вас нет доступа</div>
-    <Link
-      to="/"
-      className="mt-2 flex items-center gap-2 px-5 py-3 rounded-[14px] bg-primary-500 text-white font-semibold text-[14px] active:scale-95 transition-transform touch-manipulation"
-    >
-      <Home className="w-4 h-4" />
-      На главную
-    </Link>
-  </div>
-);
+const NotFoundPage = () => {
+  const { language } = useLanguageStore();
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 gap-4">
+      <div className="text-[72px] font-black text-gray-100 leading-none select-none">404</div>
+      <div className="text-[20px] font-bold text-gray-700">{language === 'ru' ? 'Страница не найдена' : 'Sahifa topilmadi'}</div>
+      <div className="text-[14px] text-gray-400 max-w-xs">{language === 'ru' ? 'Такой страницы не существует или у вас нет доступа' : 'Bunday sahifa mavjud emas yoki sizda ruxsat yo\'q'}</div>
+      <Link
+        to="/"
+        className="mt-2 flex items-center gap-2 px-5 py-3 rounded-[14px] bg-primary-500 text-white font-semibold text-[14px] active:scale-95 transition-transform touch-manipulation"
+      >
+        <Home className="w-4 h-4" />
+        {language === 'ru' ? 'На главную' : 'Bosh sahifaga'}
+      </Link>
+    </div>
+  );
+};
 
 // Page loading fallback
 const PageLoader = () => (
@@ -96,6 +100,7 @@ const FinanceExpensesPage = lazy(() => import('../../pages/finance/ExpensesPage'
 export function Layout() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const { language } = useLanguageStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { getUnreadCount, fetchAnnouncements } = useDataStore();
   const unreadCount = user ? getUnreadCount(user.id) : 0;
@@ -265,16 +270,16 @@ export function Layout() {
       style={impersonation ? { '--impersonation-h': '42px' } as React.CSSProperties : undefined}
     >
       {/* Skip navigation link for accessibility */}
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:bg-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:text-indigo-600">
-        Перейти к содержимому
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:text-indigo-600">
+        {language === 'ru' ? 'Перейти к содержимому' : 'Kontentga o\'tish'}
       </a>
       {/* Impersonation banner — shown when super admin entered tenant via "Войти в админку УК" */}
       {impersonation && (
-        <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
+        <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
           <div className="flex items-center gap-2 min-w-0">
             <ShieldAlert className="w-4 h-4 flex-shrink-0" />
             <span className="text-[13px] font-semibold truncate">
-              Режим super admin — компания «{impersonation.tenant_name}»
+              {language === 'ru' ? `Режим super admin — компания «${impersonation.tenant_name}»` : `Super admin rejimi — kompaniya «${impersonation.tenant_name}»`}
             </span>
           </div>
           <button
@@ -282,7 +287,7 @@ export function Layout() {
             className="flex items-center gap-1.5 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-[12px] font-bold flex-shrink-0 transition-colors active:scale-95"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Вернуться в супер-админку
+            {language === 'ru' ? 'Вернуться в супер-админку' : 'Super adminga qaytish'}
           </button>
         </div>
       )}

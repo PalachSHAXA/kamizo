@@ -5,7 +5,7 @@ import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, clearFeatureCache } from '../middleware/tenant';
-import { json, error, generateId, isManagement } from '../utils/helpers';
+import { json, error, generateId, isManagement, sanitizeInput, sanitizeUrl } from '../utils/helpers';
 import { hashPassword, createJWT } from '../utils/crypto';
 import { isSuperAdmin } from '../index';
 import { createRequestLogger } from '../utils/logger';
@@ -20,7 +20,7 @@ export function registerSuperAdminRoutes() {
 route('GET', '/api/super-admin/banners', async (request, env) => {
   const user = await getUser(request, env);
   if (!isSuperAdmin(user)) return error('Access denied', 403);
-  const { results } = await env.DB.prepare('SELECT * FROM super_banners ORDER BY sort_order, created_at DESC').all();
+  const { results } = await env.DB.prepare('SELECT * FROM super_banners ORDER BY sort_order, created_at DESC LIMIT 500').all();
   return json({ banners: results });
 });
 
@@ -28,7 +28,7 @@ route('GET', '/api/super-admin/banners', async (request, env) => {
 route('GET', '/api/banners', async (request, env) => {
   const url = new URL(request.url);
   const placement = url.searchParams.get('placement') || 'marketplace';
-  const { results } = await env.DB.prepare('SELECT * FROM super_banners WHERE is_active = 1 AND placement = ? ORDER BY sort_order, created_at DESC').bind(placement).all();
+  const { results } = await env.DB.prepare('SELECT * FROM super_banners WHERE is_active = 1 AND placement = ? ORDER BY sort_order, created_at DESC LIMIT 500').bind(placement).all();
   return json({ banners: results });
 });
 
@@ -94,6 +94,7 @@ route('GET', '/api/super-admin/ads', async (request, env) => {
     LEFT JOIN tenants t ON a.tenant_id = t.id
     LEFT JOIN users u ON a.created_by = u.id
     ORDER BY a.created_at DESC
+    LIMIT 500
   `).all();
 
   return json({ ads: results || [] });
@@ -108,6 +109,18 @@ route('POST', '/api/super-admin/ads', async (request, env) => {
   if (!body.category_id || !body.title || !body.phone) {
     return error('category_id, title, and phone are required', 400);
   }
+
+  // Sanitize text inputs to prevent stored XSS
+  body.title = sanitizeInput(body.title, 200);
+  body.description = sanitizeInput(body.description, 2000);
+  body.phone = sanitizeInput(body.phone, 20);
+  body.phone2 = sanitizeInput(body.phone2, 20);
+  body.address = sanitizeInput(body.address, 500);
+  body.work_hours = sanitizeInput(body.work_hours, 200);
+  body.work_days = sanitizeInput(body.work_days, 200);
+  body.logo_url = sanitizeUrl(body.logo_url);
+  body.website = sanitizeUrl(body.website);
+  body.link_url = sanitizeUrl(body.link_url);
 
   const targetTenantIds: string[] = body.target_tenant_ids || [];
   if (targetTenantIds.length === 0) {
@@ -302,7 +315,7 @@ route('GET', '/api/tenants', async (request, env) => {
   const user = await getUser(request, env);
   if (!isSuperAdmin(user)) return error('Access denied', 403);
 
-  const result = await env.DB.prepare(`SELECT * FROM tenants ORDER BY created_at DESC`).all();
+  const result = await env.DB.prepare(`SELECT * FROM tenants ORDER BY created_at DESC LIMIT 500`).all();
   return json({ tenants: result.results || [] });
 });
 
@@ -563,15 +576,15 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
   const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(tenantId).first() as any;
   if (!tenant) return error('Tenant not found', 404);
 
-  // Find the primary admin user for this tenant (role = 'admin' only — never fallback to director)
+  // Find management user for this tenant: admin → director → manager (by priority)
   const adminUser = await env.DB.prepare(
     `SELECT id, login, name, role, phone, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, account_type, tenant_id
-     FROM users WHERE tenant_id = ? AND role = 'admin' AND is_active = 1
-     ORDER BY created_at ASC
+     FROM users WHERE tenant_id = ? AND role IN ('admin', 'director', 'manager') AND is_active = 1
+     ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'director' THEN 1 WHEN 'manager' THEN 2 END, created_at ASC
      LIMIT 1`
   ).bind(tenantId).first() as any;
 
-  if (!adminUser) return error('В выбранной компании не создан пользователь с ролью администратора', 404);
+  if (!adminUser) return error('В выбранной компании нет активных сотрудников', 404);
 
   // Issue JWT for impersonated admin (7 days)
   const impersonateToken = await createJWT(

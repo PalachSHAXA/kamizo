@@ -94,7 +94,7 @@ export function PopupNotification({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="presentation" aria-hidden="false">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="presentation" aria-hidden="false">
       <div
         className={`
           relative w-full max-w-sm rounded-2xl border-2 shadow-2xl p-6

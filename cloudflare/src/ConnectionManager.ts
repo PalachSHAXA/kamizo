@@ -31,6 +31,7 @@ interface UpdateMessage {
   type: string;
   data: any;
   channels: string[];
+  tenantId?: string;
 }
 
 export class ConnectionManager extends DurableObject {
@@ -540,7 +541,7 @@ export class ConnectionManager extends DurableObject {
 
   // Pre-serialize JSON once, then send to all matching sessions
   // Tenant isolation: only delivers to sessions with the same tenantId
-  private broadcastUpdate(message: UpdateMessage & { tenantId?: string }) {
+  private broadcastUpdate(message: UpdateMessage) {
     const serialized = JSON.stringify({
       type: message.type,
       data: message.data,
@@ -550,8 +551,13 @@ export class ConnectionManager extends DurableObject {
     let sentCount = 0;
 
     for (const session of this.sessions.values()) {
-      // Tenant isolation: skip sessions from other tenants
-      if (message.tenantId && session.tenantId && message.tenantId !== session.tenantId) continue;
+      // Tenant isolation: strict bidirectional check
+      // 1) If message has a tenantId, only deliver to sessions with the exact same tenantId
+      if (message.tenantId) {
+        if (!session.tenantId || session.tenantId !== message.tenantId) continue;
+      }
+      // 2) If session belongs to a tenant but message has no tenantId, skip to prevent cross-tenant leaks
+      if (session.tenantId && !message.tenantId) continue;
 
       const isSubscribed = message.channels.some(ch => session.subscriptions.has(ch));
       if (!isSubscribed) continue;

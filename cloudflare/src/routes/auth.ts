@@ -51,19 +51,94 @@ export function registerAuthRoutes(env: Env) {
 
     // Fetch user with password hash (filter by tenant if on a subdomain)
     const tenantId = getTenantId(request);
-    let userWithHash = await env.DB.prepare(
-      `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? ${tenantId ? "AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))" : "AND (tenant_id IS NULL OR tenant_id = '')"}`
-    ).bind(...[login.trim(), ...(tenantId ? [tenantId] : [])]).first() as any;
+    // BUG-AUTH-01 fix: always filter is_active = 1 at login
+    // BUG-AUTH-05 fix: input validation — limit login length
+    const trimmedLogin = login.trim().slice(0, 100);
 
-    // On main domain, also try any demo tenant for accounts starting with 'demo-'
-    if (!userWithHash && !tenantId && login.trim().startsWith('demo-')) {
+    let userWithHash: any = null;
+    if (tenantId) {
+      // Subdomain: filter by tenant + allow super_admin
       userWithHash = await env.DB.prepare(
-        `SELECT u.id, u.login, u.phone, u.name, u.role, u.specialization, u.address, u.apartment, u.building_id, u.branch, u.building, u.entrance, u.floor, u.total_area, u.password_hash, u.password_changed_at, u.contract_signed_at, u.account_type, u.tenant_id FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.login = ? AND t.is_demo = 1 LIMIT 1`
-      ).bind(login.trim()).first() as any;
+        `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id, is_active FROM users WHERE login = ? AND is_active = 1 AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = ''))) LIMIT 1`
+      ).bind(trimmedLogin, tenantId).first() as any;
+    } else {
+      // Main domain: try all tenants, match password against each (BUG-AUTH-01 multi-tenant)
+      const { results: candidates } = await env.DB.prepare(
+        `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id, is_active FROM users WHERE login = ? AND is_active = 1 ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 10`
+      ).bind(trimmedLogin).all() as { results: any[] };
+
+      for (const candidate of (candidates || [])) {
+        const valid = await verifyPassword(password, candidate.password_hash);
+        if (valid) {
+          userWithHash = candidate;
+          break;
+        }
+      }
+      // If multi-tenant match found, skip second verify below
+      if (userWithHash) {
+        // password already verified — jump to rehash logic
+        const { password_hash: _ph, is_active: _ia, ...user } = userWithHash;
+
+        // Auto-migrate password hash if needed
+        const parts = userWithHash.password_hash.split(':');
+        const CURRENT_ITERATIONS = 50000;
+        const needsRehash = !userWithHash.password_hash.includes(':') ||
+          (parts.length === 2) ||
+          (parts.length === 3 && parseInt(parts[0], 10) !== CURRENT_ITERATIONS);
+        if (needsRehash) {
+          const newHash = await hashPassword(password);
+          await env.DB.prepare('UPDATE users SET password_hash = ?, last_login_at = datetime(\'now\') WHERE id = ?')
+            .bind(newHash, userWithHash.id).run();
+        } else {
+          await env.DB.prepare('UPDATE users SET last_login_at = datetime(\'now\') WHERE id = ?')
+            .bind(userWithHash.id).run();
+        }
+
+        if (!tenantId) {
+          if (user.tenant_id) {
+            setTenantForRequest(request, { id: user.tenant_id });
+          } else if (user.role !== 'super_admin') {
+            setTenantForRequest(request, { id: '__no_tenant__' });
+          }
+        }
+
+        const featureGatedRoles: Record<string, string> = { advertiser: 'advertiser' };
+        if (user.tenant_id && featureGatedRoles[user.role]) {
+          const tenantData = await env.DB.prepare('SELECT features FROM tenants WHERE id = ?').bind(user.tenant_id).first() as any;
+          const features: string[] = tenantData?.features ? JSON.parse(tenantData.features) : [];
+          if (!features.includes(featureGatedRoles[user.role])) {
+            return error('Ваш аккаунт деактивирован. Обратитесь к администратору.', 403);
+          }
+        }
+
+        const jwt = await createJWT(
+          { userId: user.id, role: user.role, tenantId: user.tenant_id || undefined },
+          env.JWT_SECRET,
+          24 * 60 * 60
+        );
+
+        return new Response(JSON.stringify({ user, token: jwt }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'X-RateLimit-Limit': '5',
+            'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+            'X-RateLimit-Reset': rateLimit.resetAt.toString()
+          }
+        });
+      }
     }
 
     if (!userWithHash) {
       return error('Invalid credentials', 401);
+    }
+
+    // Check if deactivated (explicit message instead of generic "invalid credentials")
+    if (userWithHash.is_active === 0) {
+      return error('Аккаунт деактивирован. Обратитесь к администратору.', 403);
     }
 
     // Verify password using new secure method (supports both legacy SHA-256 and new PBKDF2)
@@ -73,11 +148,12 @@ export function registerAuthRoutes(env: Env) {
       return error('Invalid credentials', 401);
     }
 
-    // Auto-migrate legacy or old-format password hashes to new 10k-iteration format on successful login
+    // Auto-migrate password hashes to current iteration count on successful login
     const parts = userWithHash.password_hash.split(':');
+    const CURRENT_ITERATIONS = 50000;
     const needsRehash = !userWithHash.password_hash.includes(':') || // legacy SHA-256
-      (parts.length === 2) || // old PBKDF2-100k without iteration prefix
-      (parts.length === 3 && parseInt(parts[0], 10) !== 10000); // different iteration count
+      (parts.length === 2) || // old PBKDF2 without iteration prefix
+      (parts.length === 3 && parseInt(parts[0], 10) !== CURRENT_ITERATIONS);
     if (needsRehash) {
       const newHash = await hashPassword(password);
       await env.DB.prepare('UPDATE users SET password_hash = ?, last_login_at = datetime(\'now\') WHERE id = ?')
@@ -87,8 +163,8 @@ export function registerAuthRoutes(env: Env) {
         .bind(userWithHash.id).run();
     }
 
-    // Remove password_hash from response
-    const { password_hash, ...user } = userWithHash;
+    // Remove sensitive fields from response
+    const { password_hash, is_active, ...user } = userWithHash;
 
     // On main domain, derive tenant from user's own tenant_id for data isolation
     if (!tenantId) {
@@ -226,7 +302,7 @@ export function registerAuthRoutes(env: Env) {
       }
     }
 
-    return json({ user: { id, login, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, password } }, 201);
+    return json({ user: { id, login, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building } }, 201);
   });
 
   // Auth: Bulk register
@@ -446,6 +522,10 @@ export function registerAuthRoutes(env: Env) {
 
     const { current_password, new_password } = await request.json() as any;
 
+    if (!new_password || new_password.length < 4) {
+      return error('Пароль должен быть минимум 4 символа', 400);
+    }
+
     // Fetch current password hash
     const userWithHash = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?')
       .bind(user.id).first() as any;
@@ -500,11 +580,11 @@ export function registerAuthRoutes(env: Env) {
     // Verify user still exists and is active
     const tenantId = getTenantId(request);
     const user = await env.DB.prepare(
-      `SELECT id, role, tenant_id FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
+      `SELECT id, role, tenant_id FROM users WHERE id = ? AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
     ).bind(...[payload.userId, ...(tenantId ? [tenantId] : [])]).first() as { id: string; role: string; tenant_id?: string } | null;
 
     if (!user) {
-      return error('User not found', 401);
+      return error('User not found or deactivated', 401);
     }
 
     // Issue fresh JWT (24h)

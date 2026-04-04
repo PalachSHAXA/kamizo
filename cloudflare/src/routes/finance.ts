@@ -54,7 +54,7 @@ route('GET', '/api/finance/estimates', async (request, env) => {
   if (status) { where += ' AND e.status = ?'; params.push(status); }
 
   const { results: estimates } = await env.DB.prepare(
-    `SELECT e.*, b.name as building_name FROM finance_estimates e LEFT JOIN buildings b ON e.building_id = b.id WHERE ${where} ORDER BY e.period DESC, e.created_at DESC`
+    `SELECT e.*, b.name as building_name FROM finance_estimates e LEFT JOIN buildings b ON e.building_id = b.id WHERE ${where} ORDER BY e.period DESC, e.created_at DESC LIMIT 500`
   ).bind(...params).all();
 
   // Fetch items for each estimate
@@ -201,12 +201,12 @@ route('PUT', '/api/finance/estimates/:id', async (request, env, params) => {
     const nonCommercialRate = commercialRate * ncCoeff;
 
     await env.DB.prepare(
-      `UPDATE finance_estimates SET title = COALESCE(?, title), total_amount = ?, commercial_rate_per_sqm = ?, non_commercial_rate_per_sqm = ?, non_commercial_coefficient = ?, uk_profit_percent = ?, show_profit_to_residents = COALESCE(?, show_profit_to_residents), show_debtor_status_to_residents = COALESCE(?, show_debtor_status_to_residents) WHERE id = ?`
-    ).bind(title || null, totalAmount, commercialRate, nonCommercialRate, ncCoeff, profitPct, show_profit_to_residents ?? null, show_debtor_status_to_residents ?? null, params.id).run();
+      `UPDATE finance_estimates SET title = COALESCE(?, title), total_amount = ?, commercial_rate_per_sqm = ?, non_commercial_rate_per_sqm = ?, non_commercial_coefficient = ?, uk_profit_percent = ?, show_profit_to_residents = COALESCE(?, show_profit_to_residents), show_debtor_status_to_residents = COALESCE(?, show_debtor_status_to_residents) WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(title || null, totalAmount, commercialRate, nonCommercialRate, ncCoeff, profitPct, show_profit_to_residents ?? null, show_debtor_status_to_residents ?? null, params.id, ...(tenantId ? [tenantId] : [])).run();
   } else {
     await env.DB.prepare(
-      'UPDATE finance_estimates SET title = COALESCE(?, title), uk_profit_percent = ?, non_commercial_coefficient = ?, show_profit_to_residents = COALESCE(?, show_profit_to_residents), show_debtor_status_to_residents = COALESCE(?, show_debtor_status_to_residents) WHERE id = ?'
-    ).bind(title || null, profitPct, ncCoeff, show_profit_to_residents ?? null, show_debtor_status_to_residents ?? null, params.id).run();
+      `UPDATE finance_estimates SET title = COALESCE(?, title), uk_profit_percent = ?, non_commercial_coefficient = ?, show_profit_to_residents = COALESCE(?, show_profit_to_residents), show_debtor_status_to_residents = COALESCE(?, show_debtor_status_to_residents) WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(title || null, profitPct, ncCoeff, show_profit_to_residents ?? null, show_debtor_status_to_residents ?? null, params.id, ...(tenantId ? [tenantId] : [])).run();
   }
 
   return json({ success: true });
@@ -234,8 +234,8 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
   if (!itemsCount?.cnt || itemsCount.cnt === 0) return error('Невозможно активировать смету без статей расходов', 400);
 
   const estimateData = await env.DB.prepare(
-    `SELECT total_amount FROM finance_estimates WHERE id = ?`
-  ).bind(params.id).first<{ total_amount: number }>();
+    `SELECT total_amount FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ total_amount: number }>();
   if (!estimateData?.total_amount || estimateData.total_amount <= 0) return error('Невозможно активировать смету с нулевой суммой', 400);
 
   // P09: Check for existing active estimate for same building
@@ -244,7 +244,7 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
   ).bind(params.id, params.id, ...(tenantId ? [tenantId] : [])).first();
   if (existingActive) return error('Для этого здания уже есть активная смета. Деактивируйте её перед активацией новой.', 400);
 
-  await env.DB.prepare('UPDATE finance_estimates SET status = \'active\' WHERE id = ?').bind(params.id).run();
+  await env.DB.prepare(`UPDATE finance_estimates SET status = 'active' WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   // Check if charges already exist for this estimate
   const chargesCount = await env.DB.prepare(
@@ -622,7 +622,7 @@ route('GET', '/api/finance/debtors', async (request, env) => {
      GROUP BY a.id
      HAVING total_debt >= ?
      ${minMonths > 0 ? 'AND months_overdue >= ?' : ''}
-     ORDER BY total_debt DESC`
+     ORDER BY total_debt DESC LIMIT 500`
   ).bind(...bindParams, minDebt, ...(minMonths > 0 ? [minMonths] : [])).all();
 
   return json({ debtors: results });
@@ -651,7 +651,7 @@ route('GET', '/api/finance/income', async (request, env) => {
   const { results } = await env.DB.prepare(
     `SELECT i.*, c.name as category_name FROM finance_income i
      LEFT JOIN finance_income_categories c ON i.category_id = c.id
-     WHERE ${where} ORDER BY i.created_at DESC`
+     WHERE ${where} ORDER BY i.created_at DESC LIMIT 500`
   ).bind(...bindParams).all();
 
   return json({ income: results });
@@ -737,7 +737,7 @@ route('GET', '/api/finance/materials', async (request, env) => {
   if (buildingId) { where += ' AND building_id = ?'; bindParams.push(buildingId); }
 
   const { results } = await env.DB.prepare(
-    `SELECT * FROM finance_materials WHERE ${where} ORDER BY name`
+    `SELECT * FROM finance_materials WHERE ${where} ORDER BY name LIMIT 500`
   ).bind(...bindParams).all();
 
   return json({ materials: results });
@@ -932,7 +932,7 @@ route('GET', '/api/finance/access', async (request, env) => {
      FROM finance_access fa
      LEFT JOIN users u ON fa.user_id = u.id
      LEFT JOIN users gu ON fa.granted_by = gu.id
-     WHERE ${tenantId ? 'fa.tenant_id = ?' : '1=1'} ORDER BY fa.granted_at DESC`
+     WHERE ${tenantId ? 'fa.tenant_id = ?' : '1=1'} ORDER BY fa.granted_at DESC LIMIT 500`
   ).bind(...(tenantId ? [tenantId] : [])).all();
 
   return json({ access: results });
@@ -986,11 +986,15 @@ route('DELETE', '/api/finance/access/:id', async (request, env, params) => {
 // ── БАЛАНС КВАРТИРЫ ──────────────────────────────────────────────
 
 // 24. GET /api/finance/apartments/:apartmentId/balance — полный баланс
+// Residents can always view their own balance (even if 'communal' feature is off for admin panel)
 route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  const fc = await requireFeature('communal', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
+  // Only require 'communal' feature for staff (not residents viewing their own balance)
+  if (user.role !== 'resident' && user.role !== 'tenant') {
+    const fc = await requireFeature('communal', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
+  }
 
   const tenantId = getTenantId(request);
   const aptId = params.apartmentId;
