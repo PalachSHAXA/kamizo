@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
 import {
-  User, ChevronRight, MapPin, Bell, Menu
+  ChevronRight, MapPin
 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -27,7 +27,6 @@ import {
 import type { ActiveTab, RequestsSubTab } from './resident/components';
 
 export function ResidentDashboard() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { requests, addRequest, approveRequest, rejectRequest, cancelRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, getActiveRescheduleForRequest, fetchRequests, fetchPendingReschedules, isLoadingRequests } = useDataStore();
@@ -207,39 +206,9 @@ export function ResidentDashboard() {
 
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0">
-      {/* ===== HEADER (super-app style) ===== */}
-      <div className="px-5 pt-2 pb-1.5 md:px-0">
-        {/* Top row: hamburger + logo on left, bell + profile on right */}
-        <div className="flex items-center justify-between mb-1.5 md:hidden">
-          <button
-            onClick={() => window.dispatchEvent(new Event('open-sidebar'))}
-            className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.88] transition-transform touch-manipulation"
-          >
-            <Menu className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
-          </button>
-          <span className="text-[13px] font-bold text-gray-500">{tenantName}</span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate('/announcements')}
-              className="w-[38px] h-[38px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation"
-            >
-              <Bell className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
-              {unreadAnnouncementsCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-extrabold text-white flex items-center justify-center border-2 border-[#F2F2F7]">
-                  {unreadAnnouncementsCount > 9 ? '9+' : unreadAnnouncementsCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => navigate('/profile')}
-              className="w-[38px] h-[38px] rounded-[13px] bg-primary-50 flex items-center justify-center active:scale-[0.88] transition-transform touch-manipulation border border-primary-100"
-            >
-              <User className="w-[18px] h-[18px] text-primary-600" strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-        {/* Greeting - only on home tab */}
-        {activeTab === 'home' && (
+      {/* Greeting - only on home tab */}
+      {activeTab === 'home' && (
+        <div className="px-5 pt-2 pb-1.5 md:px-0">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[12px] font-semibold text-gray-400 tracking-wide">
@@ -250,8 +219,8 @@ export function ResidentDashboard() {
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Address pill - only on home tab */}
       {activeTab === 'home' && (

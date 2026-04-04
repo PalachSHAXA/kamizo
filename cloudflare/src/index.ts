@@ -209,12 +209,11 @@ route('POST', '/api/seed-kamizo-demo', async (request, env) => {
 
   for (const u of demoUsers) {
     const passwordHash = await hashPassword(u.password);
-    const passwordPlain = await encryptPassword(u.password, env.ENCRYPTION_KEY);
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, specialization, address, apartment, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))
+      INSERT INTO users (id, login, password_hash, name, role, phone, specialization, address, apartment, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))
     `).bind(
-      u.id, u.login, passwordHash, passwordPlain, u.name, u.role, u.phone,
+      u.id, u.login, passwordHash, u.name, u.role, u.phone,
       (u as any).specialization || null,
       (u as any).address || null,
       (u as any).apartment || null,
@@ -740,14 +739,10 @@ route('POST', '/api/auth/register', async (request, env) => {
   const id = generateId();
   const passwordHash = await hashPassword(password);
 
-  // Store encrypted password only for staff roles (for admin convenience)
-  const staffRoles = ['manager', 'department_head', 'executor', 'security', 'advertiser'];
-  const passwordPlain = staffRoles.includes(role) ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
-
   await env.DB.prepare(`
-    INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, login.trim(), passwordHash, passwordPlain, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, tenantId).run();
+    INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, login.trim(), passwordHash, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, tenantId).run();
 
   // Auto-create apartment record if resident has building_id + apartment number
   if (building_id && apartment && (role === 'resident' || role === 'tenant')) {
@@ -817,9 +812,8 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
       // Also update password if provided
       if (u.password) {
         const passwordHash = await hashPassword(u.password);
-        const encPwd = await encryptPassword(u.password, env.ENCRYPTION_KEY);
-        await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ?')
-          .bind(passwordHash, encPwd, existing.id).run();
+        await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+          .bind(passwordHash, existing.id).run();
       }
 
       updated.push({ id: existing.id, login: u.login, name: u.name });
@@ -828,13 +822,12 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
       const id = generateId();
       const rawPwd = u.password || 'kamizo';
       const passwordHash = await hashPassword(rawPwd);
-      const encPwd = await encryptPassword(rawPwd, env.ENCRYPTION_KEY);
 
       await env.DB.prepare(`
-        INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, total_area, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, total_area, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        id, u.login.trim(), passwordHash, encPwd, u.name, 'resident',
+        id, u.login.trim(), passwordHash, u.name, 'resident',
         u.phone || null, u.address || null, u.apartment || null, u.building_id || null, u.entrance || null, u.floor || null, u.total_area || null, getTenantId(request)
       ).run();
 
@@ -1461,7 +1454,7 @@ route('GET', '/api/rentals/apartments', async (request, env) => {
       ra.id, ra.name, ra.address, ra.apartment, ra.owner_id, ra.owner_type,
       ra.is_active, ra.created_at,
       u.name as owner_name, u.phone as owner_phone, u.login as owner_login,
-      u.password_plain as owner_password
+      NULL as owner_password
     FROM rental_apartments ra
     LEFT JOIN users u ON u.id = ra.owner_id
     ${tenantId ? 'WHERE ra.tenant_id = ?' : ''}
@@ -1536,11 +1529,10 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
       // Create NEW user with tenant/commercial_owner role
       userId = generateId();
       const passwordHash = await hashPassword(ownerPassword);
-      const encOwnerPwd = await encryptPassword(ownerPassword, env.ENCRYPTION_KEY);
       await env.DB.prepare(`
-        INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(userId, ownerLogin.trim(), passwordHash, encOwnerPwd, finalOwnerName, ownerType, finalOwnerPhone || null, getTenantId(request)).run();
+        INSERT INTO users (id, login, password_hash, name, role, phone, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(userId, ownerLogin.trim(), passwordHash, finalOwnerName, ownerType, finalOwnerPhone || null, getTenantId(request)).run();
 
       finalOwnerLogin = ownerLogin.trim();
       finalOwnerPassword = ownerPassword;
@@ -1557,11 +1549,10 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
 
       userId = generateId();
       const passwordHash2 = await hashPassword(ownerPassword);
-      const encOwnerPwd2 = await encryptPassword(ownerPassword, env.ENCRYPTION_KEY);
       await env.DB.prepare(`
-        INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(userId, ownerLogin.trim(), passwordHash2, encOwnerPwd2, ownerName || name, ownerType, ownerPhone || null, getTenantId(request)).run();
+        INSERT INTO users (id, login, password_hash, name, role, phone, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(userId, ownerLogin.trim(), passwordHash2, ownerName || name, ownerType, ownerPhone || null, getTenantId(request)).run();
       console.log('[API] New user created for rental:', userId);
     }
 
@@ -3344,11 +3335,10 @@ route('GET', '/api/team', async (request, env) => {
   }
 
   // Get all staff with stats (limited to 500 max for performance)
-  // Include password_plain for admin convenience
   const { results: staff } = await env.DB.prepare(`
     SELECT
       u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at,
-      u.password_plain as password,
+      NULL as password,
       COALESCE(stats.completed_count, 0) as completed_count,
       COALESCE(stats.active_count, 0) as active_count,
       COALESCE(stats.avg_rating, 0) as avg_rating
@@ -3405,7 +3395,7 @@ route('GET', '/api/team/:id', async (request, env, params) => {
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
   const staff = await env.DB.prepare(`
-    SELECT id, login, name, phone, role, specialization, status, created_at, password_plain as password
+    SELECT id, login, name, phone, role, specialization, status, created_at, NULL as password
     FROM users
     WHERE id = ? AND role IN ('admin', 'manager', 'department_head', 'executor', 'director', 'advertiser')
       ${tenantId ? 'AND tenant_id = ?' : ''}
@@ -3446,12 +3436,11 @@ route('POST', '/api/admin/reset-password', async (request, env) => {
     return error('User not found', 404);
   }
 
-  // Hash and update password (encrypted)
+  // Hash and update password
   const hashedPassword = await hashPassword(password);
-  const encResetPwd = await encryptPassword(password, env.ENCRYPTION_KEY);
   await env.DB.prepare(`
-    UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ? ${tenantIdReset ? 'AND tenant_id = ?' : ''}
-  `).bind(hashedPassword, encResetPwd, targetUser.id, ...(tenantIdReset ? [tenantIdReset] : [])).run();
+    UPDATE users SET password_hash = ? WHERE id = ? ${tenantIdReset ? 'AND tenant_id = ?' : ''}
+  `).bind(hashedPassword, targetUser.id, ...(tenantIdReset ? [tenantIdReset] : [])).run();
 
   // Invalidate cache
   await invalidateOnChange('users', env.RATE_LIMITER);
@@ -3476,15 +3465,10 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
   if (body.name) { updates.push('name = ?'); values.push(body.name); }
   if (body.phone) { updates.push('phone = ?'); values.push(body.phone); }
   if (body.login) { updates.push('login = ?'); values.push(body.login); }
-  // Hash password and also store plain version for admin convenience
   if (body.password) {
     const hashedPassword = await hashPassword(body.password);
     updates.push('password_hash = ?');
     values.push(hashedPassword);
-    // Store encrypted password for staff roles (admin convenience)
-    const encTeamPwd = await encryptPassword(body.password, env.ENCRYPTION_KEY);
-    updates.push('password_plain = ?');
-    values.push(encTeamPwd);
   }
   if (body.specialization) { updates.push('specialization = ?'); values.push(body.specialization); }
   if (body.status) { updates.push('status = ?'); values.push(body.status); }
@@ -3509,15 +3493,10 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
   await invalidateOnChange('users', env.RATE_LIMITER);
 
   const updated = await env.DB.prepare(`
-    SELECT id, login, name, phone, role, specialization, status, created_at, password_plain as password
+    SELECT id, login, name, phone, role, specialization, status, created_at
     FROM users
     WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
-
-  // Decrypt password for display
-  if (updated && (updated as any).password) {
-    (updated as any).password = await decryptPassword((updated as any).password, env.ENCRYPTION_KEY);
-  }
 
   return json({ user: updated });
 });
@@ -3556,27 +3535,12 @@ route('DELETE', '/api/team/:id', async (request, env, params) => {
   return json({ success: true });
 });
 
-// One-time migration: encrypt existing plain passwords
+// One-time migration: encrypt existing plain passwords (no-op — password_plain column was dropped)
 route('POST', '/api/admin/migrate-passwords', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (user.role !== 'super_admin' && user.role !== 'admin') return error('Super admin or admin only', 403);
-
-  // Find all users with unencrypted password_plain (not starting with 'enc:')
-  const { results } = await env.DB.prepare(`
-    SELECT id, password_plain FROM users
-    WHERE password_plain IS NOT NULL AND password_plain != '' AND password_plain NOT LIKE 'enc:%'
-  `).all();
-
-  let migrated = 0;
-  for (const u of results as any[]) {
-    const encrypted = await encryptPassword(u.password_plain, env.ENCRYPTION_KEY);
-    await env.DB.prepare('UPDATE users SET password_plain = ? WHERE id = ?')
-      .bind(encrypted, u.id).run();
-    migrated++;
-  }
-
-  return json({ success: true, migrated, total: results.length });
+  return json({ success: true, migrated: 0, total: 0, message: 'password_plain column was removed for security' });
 });
 
 // Team: Reset passwords for all staff members without password_plain
@@ -3589,12 +3553,11 @@ route('POST', '/api/team/reset-all-passwords', async (request, env) => {
   // MULTI-TENANCY: Filter by tenant_id
   const tenantId = getTenantId(request);
 
-  // Find all staff members without password_plain
+  // Find all staff members
   const staffRoles = ['manager', 'department_head', 'executor'];
   const { results: staffWithoutPassword } = await env.DB.prepare(`
     SELECT id, login, name, role FROM users
     WHERE role IN (?, ?, ?)
-    AND (password_plain IS NULL OR password_plain = '')
     ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(...staffRoles, ...(tenantId ? [tenantId] : [])).all();
 
@@ -3610,13 +3573,10 @@ route('POST', '/api/team/reset-all-passwords', async (request, env) => {
     const randomSuffix = Math.random().toString(36).substring(2, 6);
     const newPassword = `${staff.login}${staff.role.charAt(0)}${randomSuffix}`;
 
-    // Hash and store encrypted password
     const hashedPassword = await hashPassword(newPassword);
-    const encNewPwd = await encryptPassword(newPassword, env.ENCRYPTION_KEY);
-
     await env.DB.prepare(`
-      UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ?
-    `).bind(hashedPassword, encNewPwd, staff.id).run();
+      UPDATE users SET password_hash = ? WHERE id = ?
+    `).bind(hashedPassword, staff.id).run();
 
     results.push({
       id: staff.id,
@@ -3646,7 +3606,7 @@ route('GET', '/api/team/export', async (request, env) => {
   const STAFF_ROLES = ['admin', 'director', 'manager', 'department_head', 'dispatcher', 'executor', 'security'];
   const ph = STAFF_ROLES.map(() => '?').join(',');
   const { results: staff } = await env.DB.prepare(
-    `SELECT id, login, name, phone, role, specialization, password_plain, branch, is_active
+    `SELECT id, login, name, phone, role, specialization, branch, is_active
      FROM users WHERE role IN (${ph}) ${tenantId ? 'AND tenant_id=?' : ''} ORDER BY role, name`
   ).bind(...STAFF_ROLES, ...(tenantId ? [tenantId] : [])).all() as any;
 
@@ -3718,9 +3678,9 @@ route('POST', '/api/team/import', async (request, env) => {
     const chunk = toInsert.slice(i, i + CHUNK);
     await env.DB.batch(chunk.map((m: any) =>
       env.DB.prepare(
-        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,password_plain,role,specialization,branch,tenant_id,is_active)
-         VALUES (?,?,?,?,?,?,?,?,?,?,1)`
-      ).bind(generateId(), m.login, m.name||m.login, m.phone||null, m.password_hash||'', m.password||m.password_plain||null, m.role, m.specialization||null, m.branch||null, tenantId||null)
+        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,role,specialization,branch,tenant_id,is_active)
+         VALUES (?,?,?,?,?,?,?,?,?,1)`
+      ).bind(generateId(), m.login, m.name||m.login, m.phone||null, m.password_hash||'', m.role, m.specialization||null, m.branch||null, tenantId||null)
     ));
     stats.created += chunk.length;
   }
@@ -3728,8 +3688,8 @@ route('POST', '/api/team/import', async (request, env) => {
   for (let i = 0; i < toUpdate.length; i += CHUNK) {
     const chunk = toUpdate.slice(i, i + CHUNK);
     await env.DB.batch(chunk.map((m: any) =>
-      env.DB.prepare(`UPDATE users SET name=?,phone=?,role=?,specialization=?,password_plain=COALESCE(NULLIF(?,\\'\\'),password_plain) WHERE id=?`)
-        .bind(m.name||m.login, m.phone||null, m.role, m.specialization||null, m.password||m.password_plain||'', m.id)
+      env.DB.prepare(`UPDATE users SET name=?,phone=?,role=?,specialization=? WHERE id=?`)
+        .bind(m.name||m.login, m.phone||null, m.role, m.specialization||null, m.id)
     ));
     stats.updated += chunk.length;
   }
@@ -3811,7 +3771,7 @@ route('GET', '/api/executors', async (request, env) => {
   // MULTI-TENANCY: Also filter requests stats by tenant_id
   const dataQuery = `
     SELECT
-      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.status, u.is_active, u.created_at${includePassword ? ', u.password_plain as password' : ''},
+      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.status, u.is_active, u.created_at,
       COALESCE(stats.completed_count, 0) as completed_count,
       COALESCE(stats.active_requests, 0) as active_requests,
       COALESCE(stats.rating, 5.0) as rating,
@@ -3873,18 +3833,13 @@ route('GET', '/api/executors/:id', async (request, env, params) => {
   const includePassword = ['admin', 'director', 'manager'].includes(user.role);
 
   const executor = await env.DB.prepare(`
-    SELECT id, login, name, phone, role, specialization, status, created_at${includePassword ? ', password_plain as password' : ''}
+    SELECT id, login, name, phone, role, specialization, status, created_at
     FROM users
     WHERE id = ? AND role IN ('executor', 'department_head') ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!executor) {
     return error('Executor not found', 404);
-  }
-
-  // Decrypt password for display
-  if (includePassword && (executor as any).password) {
-    (executor as any).password = await decryptPassword((executor as any).password, env.ENCRYPTION_KEY);
   }
 
   return json({ executor });
@@ -4485,8 +4440,8 @@ route('POST', '/api/branches/import', async (request, env) => {
   // Old platform format: { exportType, data: { branches: [{ code, buildings: [{ name, residents: [...] }] }] } }
   // New Kamizo format:   { branch, buildings: [...], residents: [...], staff: [...] }
   type NormalBuilding = { name: string; address?: string; floors?: number; entrances_count?: number; apartments_count?: number; entrances?: any[]; apartments?: any[]; residents?: any[] };
-  type NormalResident = { login: string; name?: string; phone?: string; apartment?: string; building?: string; password_plain?: string; password_hash?: string; role?: string; entrance?: string; floor?: string };
-  type NormalStaff = { login: string; name?: string; phone?: string; role: string; specialization?: string; password_plain?: string; password_hash?: string };
+  type NormalResident = { login: string; name?: string; phone?: string; apartment?: string; building?: string; password?: string; password_hash?: string; role?: string; entrance?: string; floor?: string };
+  type NormalStaff = { login: string; name?: string; phone?: string; role: string; specialization?: string; password?: string; password_hash?: string };
 
   let normalBuildings: NormalBuilding[] = [];
   let normalResidents: NormalResident[] = [];
@@ -4519,7 +4474,7 @@ route('POST', '/api/branches/import', async (request, env) => {
             building: bld.name,
             entrance: res.entrance || null,
             floor: res.floor || null,
-            password_plain: res.password || null,
+            password: res.password || null,
             password_hash: '',
             role: res.role || 'resident',
           });
@@ -4614,20 +4569,22 @@ route('POST', '/api/branches/import', async (request, env) => {
   const CHUNK = 40;
   for (let i = 0; i < toInsert.length; i += CHUNK) {
     const chunk = toInsert.slice(i, i + CHUNK);
-    const stmts = chunk.map((res: any) => {
+    const stmts = await Promise.all(chunk.map(async (res: any) => {
       const isStaff = ['admin','director','manager','department_head','dispatcher','executor','security'].includes(res.role);
       const resolvedBuildingId = (!isStaff && res.building) ? (buildingNameToId.get(res.building) || null) : null;
+      const rawPwd = res.password || 'kamizo';
+      const pwdHash = res.password_hash || await hashPassword(rawPwd);
       return env.DB.prepare(
-        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,password_plain,role,apartment,building,building_id,branch,entrance,floor,specialization,tenant_id,is_active)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`
+        `INSERT OR IGNORE INTO users (id,login,name,phone,password_hash,role,apartment,building,building_id,branch,entrance,floor,specialization,tenant_id,is_active)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`
       ).bind(
         generateId(), res.login, res.name||res.login, res.phone||null,
-        res.password_hash||'', res.password_plain||null,
+        pwdHash,
         res.role, isStaff ? null : (res.apartment||null), isStaff ? null : (res.building||null),
         resolvedBuildingId,
         branchCode, res.entrance||null, res.floor||null, res.specialization||null, tenantId||null
       );
-    });
+    }));
     await env.DB.batch(stmts);
     stats.residents += chunk.filter((r: any) => r.role === 'resident' || r.role === 'commercial_owner').length;
     stats.staff += chunk.filter((r: any) => ['admin','director','manager','department_head','dispatcher','executor','security'].includes(r.role)).length;
@@ -5378,20 +5335,13 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
       // Direct query matching apartment's building_id and number - no tenant filter needed
       // since we already verified apartment access above
       const { results } = await env.DB.prepare(`
-        SELECT id, name, phone, login, address, apartment, total_area, password_plain, role
+        SELECT id, name, phone, login, address, apartment, total_area, role
         FROM users
         WHERE building_id = ?
         AND TRIM(apartment) = ?
         AND role IN ('resident', 'tenant')
       `).bind(apt.building_id, aptNumber).all();
-      // Decrypt passwords for management view
-      userResidents = await Promise.all((results || []).map(async (u: any) => {
-        let decryptedPassword = null;
-        if (u.password_plain) {
-          try { decryptedPassword = await decryptPassword(u.password_plain, env.ENCRYPTION_KEY); } catch {}
-        }
-        return { ...u, password_plain: decryptedPassword ? '***' : null, password_decrypted: decryptedPassword };
-      }));
+      userResidents = (results || []).map((u: any) => ({ ...u, password_plain: null, password_decrypted: null }));
     }
   } catch (e) {}
 
@@ -16032,11 +15982,10 @@ route('POST', '/api/tenants', async (request, env) => {
   if (body.director_login && body.director_password && body.director_name) {
     const directorId = generateId();
     const passwordHash = await hashPassword(body.director_password);
-    const directorPasswordPlain = await encryptPassword(body.director_password, env.ENCRYPTION_KEY);
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
-    `).bind(directorId, body.director_login, passwordHash, directorPasswordPlain, body.director_name, id).run();
+      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
+    `).bind(directorId, body.director_login, passwordHash, body.director_name, id).run();
     directorCreated = true;
   }
 
@@ -16045,11 +15994,10 @@ route('POST', '/api/tenants', async (request, env) => {
   if (body.admin_login && body.admin_password && body.admin_name) {
     const adminId = generateId();
     const adminPasswordHash = await hashPassword(body.admin_password);
-    const adminPasswordPlain = await encryptPassword(body.admin_password, env.ENCRYPTION_KEY);
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
-    `).bind(adminId, body.admin_login, adminPasswordHash, adminPasswordPlain, body.admin_name, id).run();
+      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
+    `).bind(adminId, body.admin_login, adminPasswordHash, body.admin_name, id).run();
     adminCreated = true;
   }
 
@@ -16354,9 +16302,8 @@ route('POST', '/api/super-admin/reset-password', async (request, env) => {
   if (!targetUser) return error('User not found', 404);
 
   const hashedPwd = await hashPassword(password);
-  const encPwd = await encryptPassword(password, env.ENCRYPTION_KEY);
-  await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ?, updated_at = datetime("now") WHERE id = ?')
-    .bind(hashedPwd, encPwd, user_id).run();
+  await env.DB.prepare('UPDATE users SET password_hash = ?, updated_at = datetime("now") WHERE id = ?')
+    .bind(hashedPwd, user_id).run();
 
   return json({ success: true, message: `Password reset for ${targetUser.login}` });
 });
@@ -16375,23 +16322,8 @@ route('POST', '/api/super-admin/fix-passwords', async (request, env) => {
   const user = await getUser(request, env);
   if (!isSuperAdmin(user)) return error('Access denied', 403);
 
-  const { results } = await env.DB.prepare(
-    "SELECT id, password_plain FROM users WHERE (password_hash IS NULL OR password_hash = '') AND password_plain IS NOT NULL AND password_plain != ''"
-  ).all();
-
-  let fixed = 0;
-  for (const u of (results || [])) {
-    const plainPwd = u.password_plain as string;
-    try {
-      const hashed = await hashPassword(plainPwd);
-      const encrypted = await encryptPassword(plainPwd, env.ENCRYPTION_KEY);
-      await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ?, updated_at = datetime("now") WHERE id = ?')
-        .bind(hashed, encrypted, u.id).run();
-      fixed++;
-    } catch {}
-  }
-
-  return json({ success: true, fixed, total: (results || []).length });
+  // password_plain column was dropped — nothing to fix
+  return json({ success: true, fixed: 0, total: 0, message: 'password_plain column was removed for security' });
 });
 
 // GET /api/super-admin/analytics - cross-tenant analytics

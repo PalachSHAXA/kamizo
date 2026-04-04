@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useMemo, useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, FileText, Users, Wrench, Building2, Settings,
   LogOut, User, Home, Shield, BarChart3,
@@ -46,28 +47,50 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
   // Swipe to close sidebar
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [touchCurrentX, setTouchCurrentX] = useState<number | null>(null);
   const [isSwiping, setIsSwiping] = useState(false);
+  // null = undecided, 'h' = horizontal swipe, 'v' = vertical scroll
+  const [touchAxis, setTouchAxis] = useState<'h' | 'v' | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
     setTouchCurrentX(e.touches[0].clientX);
     setIsSwiping(false);
+    setTouchAxis(null);
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (touchStartX === null) return;
+    if (touchStartX === null || touchStartY === null) return;
     const currentX = e.touches[0].clientX;
-    const diff = touchStartX - currentX;
-    // Only track left swipes (closing)
-    if (diff > 10) {
+    const currentY = e.touches[0].clientY;
+    const diffX = touchStartX - currentX;  // positive = swipe left
+    const diffY = Math.abs(currentY - touchStartY);
+
+    // Axis lock: determine dominant direction once threshold exceeded
+    if (touchAxis === null) {
+      if (Math.abs(diffX) < 5 && diffY < 5) return; // not enough movement yet
+      if (diffY > Math.abs(diffX)) {
+        // Primarily vertical — mark as scroll, never apply horizontal offset
+        setTouchAxis('v');
+        return;
+      }
+      // Primarily horizontal
+      setTouchAxis('h');
+    }
+
+    if (touchAxis === 'v') return; // locked to vertical scroll
+
+    // Only track leftward swipes (closing direction)
+    if (diffX > 8) {
       setIsSwiping(true);
       setTouchCurrentX(currentX);
     }
-  }, [touchStartX]);
+  }, [touchStartX, touchStartY, touchAxis]);
 
   const handleTouchEnd = useCallback(() => {
-    if (touchStartX !== null && touchCurrentX !== null && isSwiping) {
+    if (touchStartX !== null && touchCurrentX !== null && isSwiping && touchAxis === 'h') {
       const swipeDistance = touchStartX - touchCurrentX;
       // Close if swiped more than 80px to the left
       if (swipeDistance > 80) {
@@ -75,12 +98,14 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       }
     }
     setTouchStartX(null);
+    setTouchStartY(null);
     setTouchCurrentX(null);
     setIsSwiping(false);
-  }, [touchStartX, touchCurrentX, isSwiping, onClose]);
+    setTouchAxis(null);
+  }, [touchStartX, touchCurrentX, isSwiping, touchAxis, onClose]);
 
-  // Calculate swipe offset for visual feedback
-  const swipeOffset = isSwiping && touchStartX !== null && touchCurrentX !== null
+  // Calculate swipe offset for visual feedback — only when axis is horizontal
+  const swipeOffset = (isSwiping && touchAxis === 'h' && touchStartX !== null && touchCurrentX !== null)
     ? Math.max(0, touchStartX - touchCurrentX)
     : 0;
 
@@ -511,9 +536,9 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
   };
 
-  return (
+  return createPortal(
     <>
-      {/* Mobile overlay */}
+      {/* Mobile overlay — rendered at document.body level to avoid scroll/stacking issues */}
       <div
         className={`sidebar-overlay touch-manipulation ${isOpen ? 'open' : ''}`}
         onClick={onClose}
@@ -554,7 +579,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
         <div className="h-px bg-gray-100 mx-4 mb-1" />
 
-        <nav className="flex-1 py-1 overflow-y-auto px-1">
+        <nav className="flex-1 py-1 overflow-y-auto overflow-x-hidden px-1" style={{ contain: 'layout', willChange: 'scroll-position' }}>
           {(() => {
             // Precompute which section each item belongs to
             let currentSection = '';
@@ -579,7 +604,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
               const isHidden = sectionCollapsed && !item.section;
 
               return (
-                <div key={item.path + index}>
+                <div key={item.path + index} style={{ width: '100%', position: 'relative' }}>
                   {/* Section header — clickable to collapse/expand */}
                   {item.section && (
                     <button
@@ -654,6 +679,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         featureName={lockedFeatureName || undefined}
         featureKey={lockedFeatureKey || undefined}
       />
-    </>
+    </>,
+    document.body
   );
 }

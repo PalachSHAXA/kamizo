@@ -87,6 +87,7 @@ export interface ResidentCardData {
   phone?: string;
   branch?: string;
   building?: string;
+  buildingId?: string;
 }
 
 export type { BuildingFull };

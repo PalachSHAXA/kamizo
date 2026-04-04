@@ -774,7 +774,7 @@ function ChatView({
     <div className="h-full flex flex-col bg-[#f8f7f4]">
       {/* ── Header ── */}
       <div className="bg-white border-b shadow-sm">
-        <div className="flex items-center gap-3 px-4 py-3" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)` }}>
+        <div className="flex items-center gap-3 px-4 py-3">
           <button
             onClick={onBack}
             className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${hideBackOnDesktop ? 'md:hidden' : ''}`}
@@ -909,7 +909,7 @@ function ChatView({
       )}
 
       {/* ── Messages ── */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3" style={{ overscrollBehaviorY: 'contain' }}>
         {isLoading ? (
           <div className="h-full flex items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
@@ -1174,8 +1174,8 @@ export function ChatPage() {
   if (isResident) {
     if (isLoading) {
       return (
-        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
-          <div className="bg-[#f8f7f4] md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100dvh-112px)] md:h-[calc(100dvh-140px)] flex items-center justify-center">
+        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto overflow-hidden">
+          <div className="resident-chat-container bg-[#f8f7f4] md:rounded-[22px] md:shadow-sm md:border overflow-hidden flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin text-orange-400 mx-auto mb-3" />
               <p className="text-sm text-gray-400">{language === 'ru' ? 'Загрузка чата...' : 'Chat yuklanmoqda...'}</p>
@@ -1187,8 +1187,8 @@ export function ChatPage() {
 
     if (residentChannel) {
       return (
-        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
-          <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100dvh-112px)] md:h-[calc(100dvh-140px)] flex flex-col">
+        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto overflow-hidden">
+          <div className="resident-chat-container bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden flex flex-col">
             <ChatView
               channelId={residentChannel.id}
               channel={residentChannel}
@@ -1202,7 +1202,7 @@ export function ChatPage() {
 
     return (
       <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto">
-        <div className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden h-[calc(100dvh-112px)] md:h-[calc(100dvh-140px)] flex flex-col items-center justify-center gap-4 p-6">
+        <div className="resident-chat-container bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden flex flex-col items-center justify-center gap-4 p-6">
           <div className="w-16 h-16 bg-red-50 rounded-[20px] flex items-center justify-center">
             <AlertCircle className="w-8 h-8 text-red-400" />
           </div>

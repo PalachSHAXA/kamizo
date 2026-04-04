@@ -69,9 +69,10 @@ export function useResidentsLogic() {
     personalAccount: '',
   });
 
-  // Load branches on mount
+  // Load branches and buildings on mount (buildings needed for password display)
   useEffect(() => {
     fetchBranches();
+    fetchBuildings();
   }, []);
 
   // Load buildings when branch is selected
@@ -206,7 +207,12 @@ export function useResidentsLogic() {
   const getResidentPassword = (resident: ResidentCardData): string => {
     const storedPassword = getUserPassword(resident.login);
     if (storedPassword) return storedPassword;
-    const residentBuilding = buildings.find(b => b.id === (resident as any).buildingId) || selectedBuilding;
+
+    // Priority 1: find building by ID from buildings store (always loaded on mount)
+    const residentBuilding = buildings.find(b => b.id === resident.buildingId)
+      || (selectedBuilding?.id === resident.buildingId ? selectedBuilding : null)
+      || (resident.buildingId ? null : selectedBuilding); // only fall back to selectedBuilding if resident has no buildingId
+
     const apartmentFromAddress = resident.address ? extractApartmentFromAddress(resident.address) : '';
     const apartmentNumber = resident.apartment || apartmentFromAddress || '0';
     const buildingFromAddress = resident.address ? extractBuildingFromAddress(resident.address) : '';

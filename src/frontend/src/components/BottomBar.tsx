@@ -210,15 +210,20 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden z-50 flex-shrink-0 relative"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
     >
-      {/* Frosted glass background */}
-      <div className="absolute inset-0 bg-white/80 backdrop-blur-2xl border-t border-gray-200/30" />
+      {/* Frosted glass background — extends past bottom-0 into home indicator zone */}
+      <div
+        className="absolute left-0 right-0 top-0 bg-white/92 backdrop-blur-2xl border-t border-gray-200/40"
+        style={{ bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))' }}
+      />
 
-      <div className="relative flex items-end justify-around px-1 pt-[6px] pb-[8px]">
+      <div
+        className="relative flex items-end justify-around px-1 pt-[6px]"
+        style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
+      >
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = isActive(tab);

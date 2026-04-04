@@ -172,8 +172,8 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
             onClick={() => setShowNotifications(false)}
           />
           <div
-            className="fixed left-3 right-3 bottom-16 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-            style={{ zIndex: 10001, maxHeight: '70vh' }}
+            className="fixed left-3 right-3 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            style={{ zIndex: 10001, maxHeight: '70vh', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
             role="region"
             aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >

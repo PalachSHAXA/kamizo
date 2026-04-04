@@ -10,6 +10,9 @@
   --brand-dark: #EA580C;
   --brand-rgb: 249, 115, 22;
   --brand-bg: #fff7ed;
+  /* Fixed nav heights (used for content padding offsets) */
+  --mobile-header-h: calc(68px + env(safe-area-inset-top, 0px));
+  --bottom-bar-h: calc(58px + env(safe-area-inset-bottom, 0px));
 }
 
 * {
@@ -19,8 +22,9 @@
 }
 
 html {
-  /* Safe area top only — bottom handled per-element to avoid double-counting with position:fixed BottomBar */
-  padding-top: env(safe-area-inset-top, 0px);
+  /* No padding-top: safe area is handled inside MobileHeader (padding-top: calc(safe-area-inset-top + 12px))
+     and via --mobile-header-h. Adding it here would make html content taller than viewport,
+     causing iOS Safari elastic bounce that makes position:fixed elements appear to move. */
 }
 
 body {
@@ -40,10 +44,10 @@ body {
   width: 100%;
 }
 
-/* ── Mobile: lock body scroll so BottomBar never jumps ─────────────────────
-   On iOS Safari the address bar animates in/out causing 100vh to change,
-   which makes position:fixed elements visibly jump. Fix: the page body must
-   NOT scroll. Only the .main-content inner container scrolls.
+/* ── Mobile: MobileHeader + BottomBar are position:fixed ────────────────────
+   Both nav bars are fixed to the viewport. Only .main-content scrolls.
+   Body overflow:hidden prevents iOS Safari address-bar resize from causing
+   the fixed bars to jump. .has-mobile-header padding-top offsets the header.
    ───────────────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   html, body {
@@ -57,11 +61,13 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    /* NOTE: NO transform here — transform on #root would make it the containing block
+       for position:fixed children (MobileHeader, BottomBar), breaking their positioning */
   }
 
   /* Layout root wrapper fills #root.
-     overflow:hidden is SAFE here — BottomBar uses position:fixed which is
-     relative to the viewport, NOT the parent, so it is never clipped. */
+     overflow:hidden is SAFE here — both MobileHeader and BottomBar use
+     position:fixed (viewport-relative) so they are never clipped. */
   .layout-root {
     height: 100%;
     display: flex;
@@ -77,11 +83,17 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* BottomBar is now a flex child (not position:fixed), so only small padding needed. */
+  /* BottomBar is position:fixed — pad content so it's not hidden behind the bar */
   #main-content {
-    padding-bottom: 16px !important;
+    padding-bottom: calc(var(--bottom-bar-h) + 16px) !important;
+  }
+
+  /* Chat page full-height container: exactly fills the area between fixed header and fixed bottom bar */
+  .resident-chat-container {
+    height: calc(100dvh - var(--mobile-header-h) - var(--bottom-bar-h));
   }
 
   /* Minimum touch target size — all interactive elements */
@@ -195,7 +207,12 @@ body {
   display: flex;
   flex-direction: column;
   z-index: 100;
-  transition: transform 0.3s ease;
+  /* Hardware-accelerated compositing — prevents scroll-related lag */
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.03);
 }
 
@@ -206,7 +223,8 @@ body {
 /* Mobile sidebar - hidden by default, shown as overlay */
 @media (max-width: 768px) {
   .sidebar {
-    transform: translateX(-100%);
+    /* Start off-screen to the left */
+    transform: translate3d(-100%, 0, 0);
     width: 300px;
     border-radius: 0 20px 20px 0;
     box-shadow: 8px 0 30px rgba(0, 0, 0, 0.15);
@@ -218,25 +236,33 @@ body {
   }
 
   .sidebar.open {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 
+  /* Overlay: plain dimmer without backdrop-filter (cheaper on GPU) */
   .sidebar-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.45);
     z-index: 90;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.3s ease;
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
+    transition: opacity 0.26s ease;
   }
 
   .sidebar-overlay.open {
     opacity: 1;
     pointer-events: auto;
   }
+}
+
+/* Sidebar internal nav scrolls independently — overscroll stays inside */
+.sidebar nav {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
+  /* Prevent scroll-chaining and horizontal drift */
+  touch-action: pan-y;
 }
 
 .sidebar-item {
@@ -250,8 +276,13 @@ body {
   font-size: 15px;
   font-weight: 500;
   text-decoration: none;
-  transition: all 0.15s ease;
+  /* Only transition background and color — avoid animating layout props */
+  transition: background-color 0.15s ease, color 0.15s ease;
   position: relative;
+  /* Prevent item from shifting horizontally during scroll */
+  width: calc(100% - 20px);
+  box-sizing: border-box;
+  transform: none;
 }
 
 @media (hover: hover) {
@@ -414,6 +445,13 @@ body {
   }
 }
 
+/* Chat container — desktop override (no bottom bar, different header height) */
+@media (min-width: 769px) {
+  .resident-chat-container {
+    height: calc(100dvh - 140px);
+  }
+}
+
 /* ============================================
    LARGE SCREEN IMPROVEMENTS (lg, xl, 2xl)
    ============================================ */
@@ -467,17 +505,29 @@ body {
     justify-content: space-between;
     padding: 12px 16px;
     padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-    position: relative;
-    flex-shrink: 0;
-    z-index: 30;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    /* Fixed at top of viewport, offset below impersonation banner if present */
+    position: fixed;
+    top: var(--impersonation-h, 0px);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    /* Force GPU compositing layer — prevents iOS Safari from re-painting the header during scroll */
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
     /* Prevent pull-to-refresh / drag on the header */
     touch-action: manipulation;
     -webkit-user-select: none;
     user-select: none;
+  }
+
+  /* When mobile header is visible, push content down by header height + impersonation banner */
+  .main-content.has-mobile-header,
+  .main-content-full.has-mobile-header {
+    padding-top: calc(var(--mobile-header-h) + var(--impersonation-h, 0px));
   }
 
   .desktop-header {

@@ -254,8 +254,16 @@ export function Layout() {
 
   const isSuperAdmin = user?.role === 'super_admin';
 
+  // Whether the MobileHeader is rendered (same condition as below)
+  const showMobileHeader = !isSuperAdmin
+    && location.pathname !== '/marketplace'
+    && location.pathname !== '/profile';
+
   return (
-    <div className="layout-root">
+    <div
+      className="layout-root"
+      style={impersonation ? { '--impersonation-h': '42px' } as React.CSSProperties : undefined}
+    >
       {/* Skip navigation link for accessibility */}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:bg-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:text-indigo-600">
         Перейти к содержимому
@@ -287,15 +295,18 @@ export function Layout() {
         />
       )}
 
-      {/* Mobile Header - hidden for residents on home page (custom header), marketplace (own header), and profile */}
-      {!isSuperAdmin && !(user?.role === 'resident' && location.pathname === '/') && location.pathname !== '/marketplace' && location.pathname !== '/profile' && (
+      {/* Mobile Header - fixed at top; hidden for residents on home page, marketplace, and profile */}
+      {showMobileHeader && (
         <MobileHeader
           onMenuClick={() => setSidebarOpen(true)}
           unreadCount={unreadCount}
         />
       )}
 
-      <div className={isSuperAdmin ? "main-content-full" : "main-content"} style={impersonation ? { paddingTop: '42px' } : undefined}>
+      <div
+        className={`${isSuperAdmin ? "main-content-full" : "main-content"}${showMobileHeader ? ' has-mobile-header' : ''}`}
+        style={impersonation && !showMobileHeader ? { paddingTop: '42px' } : undefined}
+      >
         {/* Desktop Header */}
         <div className="hide-mobile">
           <Header />
