@@ -26,7 +26,7 @@ export function ImportModal({
   const importFileRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/60">
         <div className="flex items-center justify-between mb-5">
           <div>

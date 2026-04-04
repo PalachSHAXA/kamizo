@@ -1206,6 +1206,7 @@ CREATE INDEX IF NOT EXISTS idx_entrances_building ON entrances(building_id);
 CREATE INDEX IF NOT EXISTS idx_building_docs_building ON building_documents(building_id);
 CREATE INDEX IF NOT EXISTS idx_buildings_branch ON buildings(branch_code);
 CREATE INDEX IF NOT EXISTS idx_apartments_building ON apartments(building_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_apartments_building_number ON apartments(building_id, number);
 CREATE INDEX IF NOT EXISTS idx_apartments_entrance ON apartments(entrance_id);
 CREATE INDEX IF NOT EXISTS idx_apartments_owner ON apartments(primary_owner_id);
 CREATE INDEX IF NOT EXISTS idx_owners_phone ON owners(phone);

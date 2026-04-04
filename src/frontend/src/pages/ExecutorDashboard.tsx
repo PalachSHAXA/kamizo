@@ -64,21 +64,18 @@ export function ExecutorDashboard() {
 
   // Fetch requests and pending reschedules from D1 database on mount and poll every 30 seconds
   useEffect(() => {
-    fetchRequests();
-    fetchPendingReschedules();
-    // Only fetch marketplace orders for couriers
-    if (user?.specialization === 'courier') {
-      fetchMarketplaceOrders();
-      fetchAvailableMarketplaceOrders();
-      fetchDeliveredMarketplaceOrders();
-    }
+    const isCourier = user?.specialization === 'courier';
+    Promise.all([
+      fetchRequests(),
+      fetchPendingReschedules(),
+      // Only fetch marketplace orders for couriers
+      ...(isCourier ? [fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders(), fetchDeliveredMarketplaceOrders()] : []),
+    ]);
     const interval = setInterval(() => {
-      fetchPendingReschedules();
-      if (user?.specialization === 'courier') {
-        fetchMarketplaceOrders();
-        fetchAvailableMarketplaceOrders();
-        fetchDeliveredMarketplaceOrders();
-      }
+      Promise.all([
+        fetchPendingReschedules(),
+        ...(isCourier ? [fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders(), fetchDeliveredMarketplaceOrders()] : []),
+      ]);
     }, 30000);
     return () => clearInterval(interval);
   }, [fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, fetchDeliveredMarketplaceOrders, user?.specialization]);

@@ -15,7 +15,7 @@ export function ProgressIndicator({
   if (!isCreating && !isDeleting && !progressMessage) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-50 glass-card p-4 max-w-sm shadow-xl animate-fade-in">
+    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-[150] glass-card p-4 max-w-sm shadow-xl animate-fade-in">
       <div className="flex items-center gap-3">
         {(isCreating || isDeleting) && (
           <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -55,7 +55,7 @@ export function CreatedAccountsNotification({
   if (createdAccounts.length === 0 || progressMessage) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 glass-card p-4 max-w-sm shadow-xl animate-fade-in">
+    <div className="fixed bottom-4 right-4 z-[150] glass-card p-4 max-w-sm shadow-xl animate-fade-in">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
           <CheckCircle className="w-5 h-5 text-green-600" />

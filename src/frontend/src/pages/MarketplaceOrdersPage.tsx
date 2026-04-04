@@ -338,7 +338,7 @@ export function MarketplaceOrdersPage() {
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
@@ -526,7 +526,7 @@ export function MarketplaceOrdersPage() {
 
       {/* Assign Executor Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80dvh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">

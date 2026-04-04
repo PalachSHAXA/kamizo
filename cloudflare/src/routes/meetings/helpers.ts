@@ -30,11 +30,20 @@ export async function getMeetingWithDetails(env: Env, meetingId: string, tenantI
     'SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ORDER BY order_index ASC'
   ).bind(meetingId).all();
 
+  // Load ALL votes for this meeting in one query, then group by agenda_item_id
+  const { results: allVotes } = await env.DB.prepare(
+    'SELECT * FROM meeting_vote_records WHERE meeting_id = ?'
+  ).bind(meetingId).all();
+
+  const votesByAgendaItem = new Map<string, any[]>();
+  for (const vote of (allVotes || []) as any[]) {
+    const key = vote.agenda_item_id as string;
+    if (!votesByAgendaItem.has(key)) votesByAgendaItem.set(key, []);
+    votesByAgendaItem.get(key)!.push(vote);
+  }
+
   for (const item of (agendaItems || []) as any[]) {
-    const { results: votes } = await env.DB.prepare(
-      'SELECT * FROM meeting_vote_records WHERE meeting_id = ? AND agenda_item_id = ?'
-    ).bind(meetingId, item.id).all();
-    item.votes = votes || [];
+    item.votes = votesByAgendaItem.get(item.id) || [];
 
     if (item.attachments && typeof item.attachments === 'string') {
       try { item.attachments = JSON.parse(item.attachments); } catch { item.attachments = []; }

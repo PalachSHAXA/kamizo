@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -6,7 +6,7 @@ import {
   Plus, QrCode, MessageSquare, BarChart3, ClipboardList
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { useDataStore, useRequestStore, useExecutorStore, useNotificationStore } from '../../stores/dataStore';
+import { useRequestStore, useExecutorStore, useNotificationStore, useVehicleStore, useAnnouncementStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { SPECIALIZATION_LABELS, SPECIALIZATION_LABELS_UZ } from '../../types';
 import type { ExecutorSpecialization } from '../../types';
@@ -140,7 +140,14 @@ const PAGE_TITLES: Record<string, Record<string, string>> = {
 
 export function Header() {
   const { user } = useAuthStore();
-  const { notifications, requests, vehicles, getUnreadCount, markNotificationAsRead, markAllNotificationsAsRead, getAnnouncementsForResidents, getAnnouncementsForEmployees } = useDataStore();
+  const notifications = useNotificationStore(s => s.notifications);
+  const getUnreadCount = useNotificationStore(s => s.getUnreadCount);
+  const markNotificationAsRead = useNotificationStore(s => s.markNotificationAsRead);
+  const markAllNotificationsAsRead = useNotificationStore(s => s.markAllNotificationsAsRead);
+  const requests = useRequestStore(s => s.requests);
+  const vehicles = useVehicleStore(s => s.vehicles);
+  const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
+  const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
   const { meetings } = useMeetingStore();
   const { language } = useLanguageStore();
   const navigate = useNavigate();
@@ -160,21 +167,21 @@ export function Header() {
   const isResident = user?.role?.toLowerCase() === 'resident' || user?.role?.toLowerCase() === 'tenant';
   // Check if user is tenant or commercial_owner (rental users - don't have access to requests)
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
-  const pendingOnboardingTasks = isResident
+  const pendingOnboardingTasks = useMemo(() => isResident
     ? ONBOARDING_TASKS
         .filter(task => !(isRentalUser && (task.id === 'sign_contract' || task.id === 'add_vehicle')))
         .filter(task => !task.checkComplete(user, vehicles))
-    : [];
+    : [], [isResident, isRentalUser, user, vehicles]);
 
   // Super admin doesn't receive tenant notifications
   const isSuperAdmin = user?.role === 'super_admin';
 
   // Get unread announcements count
   const isAdvertiserRole = user?.role === 'advertiser';
-  const userAnnouncements = isSuperAdmin ? [] : (isResident
+  const userAnnouncements = useMemo(() => isSuperAdmin ? [] : (isResident
     ? getAnnouncementsForResidents(user?.login || '', user?.buildingId || '', user?.entrance || '', user?.floor || '', user?.branch || '')
-    : getAnnouncementsForEmployees());
-  const unreadAnnouncementsCount = userAnnouncements.filter(a => !a.viewedBy.includes(user?.id || '')).length;
+    : getAnnouncementsForEmployees()), [isSuperAdmin, isResident, getAnnouncementsForResidents, getAnnouncementsForEmployees, user]);
+  const unreadAnnouncementsCount = useMemo(() => userAnnouncements.filter(a => !a.viewedBy.includes(user?.id || '')).length, [userAnnouncements, user?.id]);
 
   // Get upcoming meetings count (meetings in next 7 days that user hasn't seen)
   // Tenant/commercial_owner don't participate in meetings
@@ -182,13 +189,16 @@ export function Header() {
   // Super admin doesn't participate in tenant meetings
   const isExecutor = user?.role === 'executor' || user?.role === 'security';
   const showMeetings = !isRentalUser && !isAdvertiserRole && !isSuperAdmin && !isExecutor;
-  const nowDate = new Date();
-  const weekFromNow = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const upcomingMeetings = showMeetings ? meetings.filter(m => {
-    if (!m.confirmedDateTime) return false;
-    const meetingDate = new Date(m.confirmedDateTime);
-    return meetingDate >= nowDate && meetingDate <= weekFromNow && m.status !== 'cancelled';
-  }) : [];
+  const upcomingMeetings = useMemo(() => {
+    if (!showMeetings) return [];
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return meetings.filter(m => {
+      if (!m.confirmedDateTime) return false;
+      const meetingDate = new Date(m.confirmedDateTime);
+      return meetingDate >= now && meetingDate <= weekFromNow && m.status !== 'cancelled';
+    });
+  }, [showMeetings, meetings]);
   const unreadMeetingsCount = upcomingMeetings.length;
 
   const handleTaskClick = (task: OnboardingTask) => {
@@ -291,7 +301,7 @@ export function Header() {
 
   const unreadCount = user ? getUnreadCount(user.id) : 0;
   const totalBadgeCount = unreadCount + pendingOnboardingTasks.length + unreadAnnouncementsCount + unreadMeetingsCount;
-  const userNotifications = notifications.filter(n => n.userId === user?.id).slice(0, 10);
+  const userNotifications = useMemo(() => notifications.filter(n => n.userId === user?.id).slice(0, 10), [notifications, user?.id]);
 
   // Format current time
   const formatCurrentTime = () => {
@@ -376,7 +386,7 @@ export function Header() {
   };
 
   // Search functionality
-  const searchResults = searchQuery.trim()
+  const searchResults = useMemo(() => searchQuery.trim()
     ? requests.filter(r =>
         r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -384,7 +394,7 @@ export function Header() {
         r.residentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.address.toLowerCase().includes(searchQuery.toLowerCase())
       ).slice(0, 5)
-    : [];
+    : [], [searchQuery, requests]);
 
   // Handle clock click - navigate based on user role
   const handleClockClick = () => {

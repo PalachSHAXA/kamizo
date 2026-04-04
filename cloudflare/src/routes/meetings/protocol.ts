@@ -39,16 +39,44 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
 
     const thresholdLabels: Record<string, string> = { simple_majority: 'Простое большинство (>50%)', qualified_majority: 'Квалифицированное большинство (>60%)', two_thirds: '2/3 голосов (>66.67%)', three_quarters: '3/4 голосов (>75%)', unanimous: 'Единогласно (100%)' };
 
+    // Batch: load ALL vote aggregates and ALL comments for this meeting in 2 queries
+    const agendaItemIds = protocolAgendaItems.map((i: any) => i.id);
+    const agendaPlaceholders = agendaItemIds.map(() => '?').join(',');
+
+    let allVoteAggs: any[] = [];
+    let allComments: any[] = [];
+    if (agendaItemIds.length > 0) {
+      const [voteAggResult, commentsResult] = await Promise.all([
+        env.DB.prepare(`SELECT v.agenda_item_id, v.choice, COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id IN (${agendaPlaceholders}) AND v.is_revote = 0 GROUP BY v.agenda_item_id, v.choice`).bind(...agendaItemIds).all(),
+        env.DB.prepare(`SELECT * FROM meeting_agenda_comments WHERE agenda_item_id IN (${agendaPlaceholders}) ORDER BY created_at`).bind(...agendaItemIds).all(),
+      ]);
+      allVoteAggs = voteAggResult.results || [];
+      allComments = commentsResult.results || [];
+    }
+
+    // Build lookup maps
+    const voteAggMap = new Map<string, Record<string, { count: number; weight: number }>>();
+    for (const row of allVoteAggs) {
+      const key = row.agenda_item_id as string;
+      if (!voteAggMap.has(key)) voteAggMap.set(key, {});
+      voteAggMap.get(key)![row.choice as string] = { count: row.count, weight: row.weight };
+    }
+
+    const commentsMap = new Map<string, any[]>();
+    for (const c of allComments) {
+      const key = c.agenda_item_id as string;
+      if (!commentsMap.has(key)) commentsMap.set(key, []);
+      commentsMap.get(key)!.push(c);
+    }
+
     for (const item of protocolAgendaItems) {
       const i = item as any;
-      const [votesFor, votesAgainst, votesAbstain, comments] = await Promise.all([
-        env.DB.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'for' AND v.is_revote = 0`).bind(i.id).first(),
-        env.DB.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'against' AND v.is_revote = 0`).bind(i.id).first(),
-        env.DB.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id = ? AND v.choice = 'abstain' AND v.is_revote = 0`).bind(i.id).first(),
-        env.DB.prepare("SELECT * FROM meeting_agenda_comments WHERE agenda_item_id = ? ORDER BY created_at").bind(i.id).all()
-      ]) as any[];
+      const agg = voteAggMap.get(i.id) || {};
+      const forData = agg['for'] || { count: 0, weight: 0 };
+      const againstData = agg['against'] || { count: 0, weight: 0 };
+      const abstainData = agg['abstain'] || { count: 0, weight: 0 };
 
-      const forWeight = votesFor?.weight || 0, againstWeight = votesAgainst?.weight || 0, abstainWeight = votesAbstain?.weight || 0;
+      const forWeight = forData.weight || 0, againstWeight = againstData.weight || 0, abstainWeight = abstainData.weight || 0;
       const totalWeight = forWeight + againstWeight + abstainWeight;
       const pFor = totalWeight > 0 ? (forWeight / totalWeight) * 100 : 0;
       const pAgainst = totalWeight > 0 ? (againstWeight / totalWeight) * 100 : 0;
@@ -57,13 +85,14 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
       content += `### ${i.item_order}. ${i.title}\n\n`;
       if (i.description) content += `${i.description}\n\n`;
       content += `**Порог принятия:** ${thresholdLabels[i.threshold] || 'Простое большинство'}\n\n**Результаты голосования:**\n`;
-      content += `- За: ${votesFor?.count || 0} голосов (${forWeight.toFixed(2)} кв.м, ${pFor.toFixed(1)}%)\n`;
-      content += `- Против: ${votesAgainst?.count || 0} голосов (${againstWeight.toFixed(2)} кв.м, ${pAgainst.toFixed(1)}%)\n`;
-      content += `- Воздержались: ${votesAbstain?.count || 0} голосов (${abstainWeight.toFixed(2)} кв.м, ${pAbstain.toFixed(1)}%)\n\n`;
+      content += `- За: ${forData.count || 0} голосов (${forWeight.toFixed(2)} кв.м, ${pFor.toFixed(1)}%)\n`;
+      content += `- Против: ${againstData.count || 0} голосов (${againstWeight.toFixed(2)} кв.м, ${pAgainst.toFixed(1)}%)\n`;
+      content += `- Воздержались: ${abstainData.count || 0} голосов (${abstainWeight.toFixed(2)} кв.м, ${pAbstain.toFixed(1)}%)\n\n`;
 
-      if (comments.results && comments.results.length > 0) {
-        const objections = (comments.results as any[]).filter(c => c.comment_type === 'objection');
-        const regularComments = (comments.results as any[]).filter(c => c.comment_type !== 'objection');
+      const itemComments = commentsMap.get(i.id) || [];
+      if (itemComments.length > 0) {
+        const objections = itemComments.filter((c: any) => c.comment_type === 'objection');
+        const regularComments = itemComments.filter((c: any) => c.comment_type !== 'objection');
         if (objections.length > 0) {
           content += `**Возражения участников (голосовали ПРОТИВ):**\n\n`;
           for (const c of objections) { content += `> ⚠️ "${c.content}"\n> — ${c.resident_name || 'Участник'}${c.apartment_number ? `, кв. ${c.apartment_number}` : ''}\n\n`; if (c.counter_proposal) content += `> 💡 **Альтернативное предложение:** ${c.counter_proposal}\n\n`; }
@@ -143,10 +172,14 @@ route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, para
 
   const { results: voteRecords } = await env.DB.prepare(`SELECT v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, MIN(v.voted_at) as voted_at FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.meeting_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) GROUP BY v.voter_id ORDER BY v.voter_name`).bind(params.meetingId).all();
 
+  // Load ALL item votes for the meeting in one query, then group by agenda_item_id
+  const { results: allItemVotes } = await env.DB.prepare(`SELECT v.agenda_item_id, v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, v.choice, v.voted_at, c.comment as comment FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id LEFT JOIN meeting_agenda_comments c ON c.agenda_item_id = v.agenda_item_id AND c.user_id = v.voter_id WHERE v.meeting_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) ORDER BY v.voter_name`).bind(params.meetingId).all();
+
   const votesByItem: Record<string, any[]> = {};
-  for (const item of agendaItems) {
-    const { results: itemVotes } = await env.DB.prepare(`SELECT v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, v.choice, v.voted_at, c.comment as comment FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id LEFT JOIN meeting_agenda_comments c ON c.agenda_item_id = v.agenda_item_id AND c.user_id = v.voter_id WHERE v.agenda_item_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) ORDER BY v.voter_name`).bind((item as any).id).all();
-    votesByItem[(item as any).id] = itemVotes;
+  for (const vote of (allItemVotes || []) as any[]) {
+    const key = vote.agenda_item_id as string;
+    if (!votesByItem[key]) votesByItem[key] = [];
+    votesByItem[key].push(vote);
   }
 
   const actualVotedArea = voteRecords.reduce((sum: number, r: any) => sum + (Number(r.vote_weight) || 0), 0);

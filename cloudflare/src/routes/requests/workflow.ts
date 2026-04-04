@@ -6,6 +6,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../../index';
+import { notifyManagers } from '../../utils/notifications';
 
 export function registerWorkflowRoutes() {
 
@@ -78,19 +79,15 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
       .bind(generateId(), requestData.resident_id, '⚠️ Исполнитель освободил заявку', declineBodyRes, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
 
-  const { results: managers } = await env.DB.prepare(
-    `SELECT id FROM users WHERE role IN ('manager', 'admin', 'director', 'department_head') AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(...(tenantId ? [tenantId] : [])).all();
-
   const declineBodyMgr = `${user.name} отказался от заявки #${requestData.request_number}. Причина: ${reason}`;
-  for (const manager of (managers || []) as any[]) {
-    sendPushNotification(env, manager.id, {
-      title: '⚠️ Исполнитель отказался от заявки', body: declineBodyMgr, type: 'request_declined',
-      tag: `request-declined-manager-${params.id}`, data: { requestId: params.id, reason, url: '/requests' }, requireInteraction: true
-    }).catch(() => {});
-    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_declined', ?, ?, ?, 0, datetime('now'), ?)`)
-      .bind(generateId(), manager.id, '⚠️ Исполнитель отказался', declineBodyMgr, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
-  }
+  notifyManagers(env, tenantId, {
+    title: '⚠️ Исполнитель отказался от заявки',
+    body: declineBodyMgr,
+    type: 'request_declined',
+    tag: `request-declined-manager-${params.id}`,
+    data: { request_id: params.id, requestId: params.id, reason, url: '/requests' },
+    requireInteraction: true,
+  }).catch(() => {});
   return json({ success: true });
 });
 

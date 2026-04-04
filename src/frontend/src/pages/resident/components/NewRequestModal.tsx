@@ -102,7 +102,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[200] flex items-end md:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 z-[110] flex items-end md:items-center justify-center" onClick={onClose}>
       <div
         className="w-full md:max-w-lg md:mx-4 bg-white rounded-t-[20px] md:rounded-[20px] flex flex-col overflow-hidden max-h-[88dvh] md:max-h-[90dvh]"
         onClick={e => e.stopPropagation()}

@@ -24,7 +24,7 @@ export function EntranceEditModal({ entrance, existingApartmentCount, onClose, o
   const tooFew = newAptCount < existingApartmentCount;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110]" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <div>

@@ -21,7 +21,7 @@ export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveM
 
   if (showReject) {
     return (
-      <div className="fixed inset-0 bg-black/50 z-[200] flex items-end md:items-center md:justify-center">
+      <div className="fixed inset-0 bg-black/50 z-[110] flex items-end md:items-center md:justify-center">
         <div className="w-full md:max-w-md md:mx-4 bg-white rounded-t-[20px] md:rounded-[20px] flex flex-col overflow-hidden max-h-[92dvh] md:max-h-[90dvh]">
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <h2 className="text-[18px] font-bold text-red-600">{language === 'ru' ? 'Отклонить работу' : 'Ishni rad etish'}</h2>
@@ -69,7 +69,7 @@ export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveM
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[200] flex items-end md:items-center md:justify-center">
+    <div className="fixed inset-0 bg-black/50 z-[110] flex items-end md:items-center md:justify-center">
       <div className="w-full md:max-w-md md:mx-4 bg-white rounded-t-[20px] md:rounded-[20px] flex flex-col overflow-hidden max-h-[92dvh] md:max-h-[90dvh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">

@@ -47,13 +47,29 @@ route('GET', '/api/marketplace/admin/orders', async (request, env) => {
     ${whereClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?
   `).bind(...params).all();
 
-  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
-    const { results: items } = await env.DB.prepare(`
-      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
-      FROM marketplace_order_items WHERE order_id = ?
-    `).bind(order.id).all();
-    return { ...order, items: items || [] };
-  }));
+  // Fetch all items for returned orders in one query (avoid N+1)
+  const orders = results || [];
+  let ordersWithItems: any[] = [];
+  if (orders.length > 0) {
+    const orderIds = orders.map((o: any) => o.id);
+    const placeholders = orderIds.map(() => '?').join(',');
+    const { results: allItems } = await env.DB.prepare(`
+      SELECT id, order_id, product_id, product_name, product_image, quantity, unit_price, total_price
+      FROM marketplace_order_items WHERE order_id IN (${placeholders})
+    `).bind(...orderIds).all();
+
+    const itemsByOrder = new Map<string, any[]>();
+    for (const item of (allItems || []) as any[]) {
+      const list = itemsByOrder.get(item.order_id) || [];
+      list.push(item);
+      itemsByOrder.set(item.order_id, list);
+    }
+
+    ordersWithItems = orders.map((order: any) => ({
+      ...order,
+      items: itemsByOrder.get(order.id) || [],
+    }));
+  }
 
   return json({ orders: ordersWithItems, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
 });

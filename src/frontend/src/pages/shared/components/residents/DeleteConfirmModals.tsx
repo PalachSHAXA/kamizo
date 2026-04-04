@@ -16,7 +16,7 @@ export function DeleteConfirmModal({
   language,
 }: DeleteConfirmModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
       <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
         <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
           <AlertCircle className="w-7 h-7 text-red-600" />
@@ -77,7 +77,7 @@ export function DeleteAllConfirmModal({
   language,
 }: DeleteAllConfirmModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
       <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
         <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 mx-auto mb-4">
           <Trash2 className="w-7 h-7 text-red-600" />

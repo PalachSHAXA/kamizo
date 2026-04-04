@@ -168,7 +168,7 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
   const statusLabel = GUEST_ACCESS_STATUS_LABELS[code.status];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
@@ -360,7 +360,7 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
@@ -895,7 +895,7 @@ export function ResidentGuestAccessPage() {
 
       {/* Revoke confirmation */}
       {showRevokeConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-6">
             <div className="text-center mb-4">
               <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">

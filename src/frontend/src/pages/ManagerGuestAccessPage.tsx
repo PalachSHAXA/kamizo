@@ -445,7 +445,7 @@ export function ManagerGuestAccessPage() {
 
       {/* Detail modal */}
       {selectedCode && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold">
@@ -605,7 +605,7 @@ export function ManagerGuestAccessPage() {
 
       {/* Revoke modal */}
       {showRevokeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6">
             <div className="text-center mb-4">
               <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">

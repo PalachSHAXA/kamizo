@@ -193,7 +193,7 @@ export function ResidentMeetingsPage() {
     <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
       {/* New Request Popup Alert */}
       {newRequestAlert && (
-        <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-50 animate-in slide-in-from-top-2 duration-300">
+        <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-[150] animate-in slide-in-from-top-2 duration-300">
           <div className="rounded-2xl p-4 border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 shadow-xl shadow-amber-100/50">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 shadow-lg shadow-amber-200/50">
@@ -487,7 +487,7 @@ export function ResidentMeetingsPage() {
 
       {/* Loading Modal when meeting not found yet */}
       {showVotingModal && !selectedMeeting && selectedMeetingId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110]">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary-500" />
             <p className="text-gray-600">
@@ -724,7 +724,7 @@ function MeetingVotingModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[200] flex items-end md:items-center justify-center">
+    <div className="fixed inset-0 bg-black/50 z-[110] flex items-end md:items-center justify-center">
       <div className="max-h-[85dvh] md:max-h-[90dvh] w-full md:max-w-lg md:mx-4 bg-white rounded-t-2xl md:rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 duration-200">
         {/* Header - more compact */}
         <div className="flex items-center justify-between p-3 border-b border-gray-100 bg-white sticky top-0 z-10">

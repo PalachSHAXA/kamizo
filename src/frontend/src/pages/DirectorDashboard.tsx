@@ -47,13 +47,15 @@ export function DirectorDashboard() {
     }
   };
 
-  // Load data on mount
+  // Load data on mount — fetch all in parallel for faster initial load
   useEffect(() => {
-    fetchRequests();
-    fetchExecutors();
-    fetchBuildings();
-    fetchMeetings();
-    loadTeamData();
+    Promise.all([
+      fetchRequests(),
+      fetchExecutors(),
+      fetchBuildings(),
+      fetchMeetings(),
+      loadTeamData(),
+    ]);
   }, [fetchRequests, fetchExecutors, fetchBuildings, fetchMeetings]);
 
   // Load marketplace report when tab changes or dates change

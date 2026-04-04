@@ -578,7 +578,7 @@ function WorkOrderDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[200]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[110]" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-2xl max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
@@ -785,7 +785,7 @@ function WorkOrderFormModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[200]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[110]" onClick={onClose}>
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-xl max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">

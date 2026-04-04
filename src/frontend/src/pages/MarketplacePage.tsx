@@ -268,7 +268,7 @@ export function MarketplacePage() {
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
       {orderSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] bg-green-500 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[150] bg-green-500 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
           <CheckCircle className="w-4 h-4" />{language === 'ru' ? 'Заказ создан!' : 'Buyurtma yaratildi!'}
         </div>
       )}
@@ -707,7 +707,7 @@ export function MarketplacePage() {
       {/* PRODUCT DETAIL */}
       {/* TODO: Refactor to use <Modal> component */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center" onClick={() => setSelectedProduct(null)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center" onClick={() => setSelectedProduct(null)}>
           <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[85dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="relative">
@@ -730,7 +730,7 @@ export function MarketplacePage() {
 
       {/* ORDER MODAL */}
       {showOrderModal && (
-        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center" onClick={() => setShowOrderModal(false)}>
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => setShowOrderModal(false)}>
           <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px]" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-4">
@@ -751,7 +751,7 @@ export function MarketplacePage() {
         const items = selectedOrder.items || [];
         const totalQty = items.reduce((s, i) => s + i.quantity, 0);
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center" onClick={() => setSelectedOrder(null)}>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center" onClick={() => setSelectedOrder(null)}>
             <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
 
@@ -873,7 +873,7 @@ export function MarketplacePage() {
 
       {/* RATING MODAL */}
       {showDeliveryRatingModal && ratingOrderId && (
-        <div className="fixed inset-0 bg-black/50 z-[200] flex items-end sm:items-center justify-center" onClick={() => { setShowDeliveryRatingModal(false); setRatingOrderId(null); }}>
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => { setShowDeliveryRatingModal(false); setRatingOrderId(null); }}>
           <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px]" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-5">

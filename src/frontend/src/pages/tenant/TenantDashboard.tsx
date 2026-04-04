@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Key, Calendar, ChevronLeft, ChevronRight, Users, Home, Banknote, TrendingUp, Clock, MapPin, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
@@ -128,6 +128,38 @@ export function TenantDashboard() {
     return new Date(r.checkInDate) <= now && new Date(r.checkOutDate) >= now;
   });
 
+  // Pre-compute records by date for O(n) calendar rendering instead of O(n*31)
+  const { recordsByDate, checkInDates, checkOutDates } = useMemo(() => {
+    const filteredRecords = selectedApartment
+      ? allMyRecords.filter(r => r.apartmentId === selectedApartment)
+      : allMyRecords;
+
+    const map = new Map<string, typeof filteredRecords>();
+    const checkIns = new Set<string>();
+    const checkOuts = new Set<string>();
+
+    for (const record of filteredRecords) {
+      const checkIn = new Date(record.checkInDate);
+      const checkOut = new Date(record.checkOutDate);
+      checkIns.add(checkIn.toDateString());
+      checkOuts.add(checkOut.toDateString());
+
+      // Add record to each date it spans within the current month
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      const start = checkIn < monthStart ? monthStart : checkIn;
+      const end = checkOut > monthEnd ? monthEnd : checkOut;
+
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const key = d.toDateString();
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(record);
+      }
+    }
+
+    return { recordsByDate: map, checkInDates: checkIns, checkOutDates: checkOuts };
+  }, [allMyRecords, selectedApartment, year, month]);
+
   const renderCalendar = () => {
     const days = [];
     const dayNames = language === 'ru'
@@ -140,17 +172,12 @@ export function TenantDashboard() {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
-      const records = getRecordsForDate(date);
-      const isToday = date.toDateString() === new Date().toDateString();
-      const isSelected = selectedDate?.toDateString() === date.toDateString();
-      const hasCheckIn = (selectedApartment
-        ? allMyRecords.filter(r => r.apartmentId === selectedApartment)
-        : allMyRecords
-      ).some(r => new Date(r.checkInDate).toDateString() === date.toDateString());
-      const hasCheckOut = (selectedApartment
-        ? allMyRecords.filter(r => r.apartmentId === selectedApartment)
-        : allMyRecords
-      ).some(r => new Date(r.checkOutDate).toDateString() === date.toDateString());
+      const dateKey = date.toDateString();
+      const records = recordsByDate.get(dateKey) || [];
+      const isToday = dateKey === new Date().toDateString();
+      const isSelected = selectedDate?.toDateString() === dateKey;
+      const hasCheckIn = checkInDates.has(dateKey);
+      const hasCheckOut = checkOutDates.has(dateKey);
 
       days.push(
         <button

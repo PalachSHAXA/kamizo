@@ -339,7 +339,7 @@ export function MarketplaceManagerDashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Delete confirmation modal */}
       {pendingDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
             <h3 className="text-lg font-bold mb-2">{language === 'ru' ? 'Удалить товар?' : 'Mahsulotni o\'chirmoqchimisiz?'}</h3>
             <p className="text-sm text-gray-500 mb-4">{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni qaytarib bo\'lmaydi'}</p>
@@ -670,7 +670,7 @@ export function MarketplaceManagerDashboard() {
 
       {/* Product Modal */}
       {showProductModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
               <h2 className="font-bold text-lg">
@@ -950,7 +950,7 @@ export function MarketplaceManagerDashboard() {
 
       {/* Stock Update Modal */}
       {showStockModal && stockProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="font-bold text-lg">

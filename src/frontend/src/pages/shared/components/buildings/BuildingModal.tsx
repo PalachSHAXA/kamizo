@@ -20,7 +20,7 @@ export function BuildingModal({ building, onClose, onSave, language }: BuildingM
   });
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110]" onClick={onClose}>
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{building ? t('Редактировать дом', 'Uyni tahrirlash') : t('Новый дом', 'Yangi uy')}</h2>

@@ -672,7 +672,7 @@ export function ExecutorsPage() {
 
       {/* Credentials Modal - shows after creating new executor */}
       {showCredentialsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
-import { useDataStore } from '../../stores/dataStore';
+import { useRequestStore, useAnnouncementStore, useExecutorStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { AppLogo } from '../common/AppLogo';
@@ -29,7 +29,11 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuthStore();
   const { t, language } = useLanguageStore();
-  const { requests, announcements, executors, getAnnouncementsForEmployees, getAnnouncementsForResidents } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const announcements = useAnnouncementStore(s => s.announcements);
+  const executors = useExecutorStore(s => s.executors);
+  const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
+  const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
   const { meetings } = useMeetingStore();
   const { hasFeature, config } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';

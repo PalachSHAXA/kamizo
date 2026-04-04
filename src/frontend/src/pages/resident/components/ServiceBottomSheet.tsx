@@ -99,7 +99,7 @@ export function ServiceBottomSheet({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[200]">
+    <div className="fixed inset-0 z-[110]">
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/50 animate-[fadeIn_0.3s_ease-out]" onClick={onClose} />
 
@@ -107,7 +107,7 @@ export function ServiceBottomSheet({
       <div
         ref={sheetRef}
         className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[28px] flex flex-col animate-[slide-up_0.44s_cubic-bezier(.32,.72,0,1)]"
-        style={{ maxHeight: '90vh', boxShadow: '0 -4px 40px rgba(0,0,0,0.15)' }}
+        style={{ maxHeight: '92dvh', boxShadow: '0 -4px 40px rgba(0,0,0,0.15)' }}
         onClick={e => e.stopPropagation()}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -269,7 +269,7 @@ export function ServiceBottomSheet({
         </div>
 
         {/* CTA Footer */}
-        <div className="flex-shrink-0 border-t border-gray-100 bg-white rounded-b-none px-4 pt-2.5" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
+        <div className="flex-shrink-0 border-t border-gray-100 bg-white rounded-b-none px-4 pt-2.5" style={{ paddingBottom: 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 16px))' }}>
           {/* Selected tag */}
           <div className="flex items-center gap-2 min-h-[30px] mb-2.5 flex-wrap">
             {selectedCat && selectedColors ? (

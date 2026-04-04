@@ -302,33 +302,39 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
   const [year, month] = period.split('-').map(Number);
   const dueDate = new Date(year, month, 0).toISOString().split('T')[0]; // last day of month
 
-  let generated = 0;
+  // Pre-fetch existing charges in one query to avoid N+1 duplicate checks
+  const { results: existingCharges } = await env.DB.prepare(
+    `SELECT apartment_id FROM finance_charges WHERE period = ? AND estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(period, estimate_id, ...(tenantId ? [tenantId] : [])).all();
+  const existingAptIds = new Set((existingCharges || []).map((c: any) => c.apartment_id));
+
+  // Build all INSERT statements, skipping duplicates
+  const totalEstimate = estimate.total_amount as number;
+  const chargeStmts: ReturnType<D1Database['prepare']>[] = [];
+
   for (const apt of apartments) {
     const a = apt as Record<string, unknown>;
     const area = Number(a.total_area) || 0;
     if (area <= 0) continue;
+    if (existingAptIds.has(a.id as string)) continue; // skip duplicates
 
     // Determine rate based on apartment type
     let rate: number;
     let propertyType: string;
 
     if (a.is_commercial) {
-      // Commercial premise — uses commercial_rate if set, otherwise non_commercial rate
       rate = commercialRate > 0 ? commercialRate : nonResidentialRate;
       propertyType = 'commercial';
     } else if (a.property_type === 'non_commercial' || a.property_type === 'basement') {
       rate = basementRate > 0 ? basementRate : nonResidentialRate;
       propertyType = 'non_commercial';
     } else {
-      // Regular residential
       rate = residentialRate;
       propertyType = 'residential';
     }
 
     const baseAmount = Math.round(area * rate * 100) / 100;
 
-    // Build detailed breakdown
-    const totalEstimate = estimate.total_amount as number;
     const itemBreakdown = items.map((item: Record<string, unknown>) => ({
       name: item.name,
       share: totalEstimate > 0 ? Math.round((item.amount as number) / totalEstimate * baseAmount * 100) / 100 : 0,
@@ -341,28 +347,26 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
       items: itemBreakdown,
     };
 
-    const amount = baseAmount;
-
-    // Map property_type to DB CHECK constraint values:
-    // 'residential' → 'commercial' (existing schema naming), others → 'non_commercial'
     const dbPropertyType = propertyType === 'non_commercial' ? 'non_commercial' : 'commercial';
 
-    // Check if charge already exists for this apartment+period
-    const existingCharge = await env.DB.prepare(
-      `SELECT id FROM finance_charges WHERE apartment_id = ? AND period = ? AND estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-    ).bind(a.id as string, period, estimate_id, ...(tenantId ? [tenantId] : [])).first();
-    if (existingCharge) continue; // skip duplicates
-
-    await env.DB.prepare(
-      `INSERT INTO finance_charges (id, apartment_id, estimate_id, period, amount, amount_breakdown, property_type, area_sqm, rate_per_sqm, status, due_date, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
-    ).bind(
-      generateId(), a.id as string, estimate_id, period, amount,
-      JSON.stringify(breakdown), dbPropertyType,
-      area, rate, dueDate, tenantId || ''
-    ).run();
-    generated++;
+    chargeStmts.push(
+      env.DB.prepare(
+        `INSERT INTO finance_charges (id, apartment_id, estimate_id, period, amount, amount_breakdown, property_type, area_sqm, rate_per_sqm, status, due_date, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+      ).bind(
+        generateId(), a.id as string, estimate_id, period, baseAmount,
+        JSON.stringify(breakdown), dbPropertyType,
+        area, rate, dueDate, tenantId || ''
+      )
+    );
   }
+
+  // Batch insert up to 100 statements per call
+  const CHARGE_BATCH = 100;
+  for (let i = 0; i < chargeStmts.length; i += CHARGE_BATCH) {
+    await env.DB.batch(chargeStmts.slice(i, i + CHARGE_BATCH));
+  }
+  const generated = chargeStmts.length;
 
   // P10: Auto-record UK income from enterprise profit in estimate
   const enterpriseProfit = Number(estimate.enterprise_profit) || 0;

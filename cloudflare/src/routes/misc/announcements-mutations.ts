@@ -91,11 +91,37 @@ route('POST', '/api/announcements', async (request, env) => {
     targetUsers = [...targetUsers, ...(results as any[])];
   }
 
-  // Send push to all target users (in parallel batches)
-  const BATCH_SIZE = 10;
+  log.info('Announcement created', { announcementId: id, notifiedUsers: targetUsers.length });
+
+  // Create in-app notifications for target users — batch DB inserts (up to 100 per call)
+  const notificationId = generateId();
+  const notificationTitle = `${icon} ${body.title}`;
+  const notificationBody = body.content.substring(0, 200) + (body.content.length > 200 ? '...' : '');
+  const notifDataJson = JSON.stringify({ announcementId: id, url: '/announcements' });
+  const tenantIdNotif = getTenantId(request);
+
+  const BATCH_SIZE = 100;
   for (let i = 0; i < targetUsers.length; i += BATCH_SIZE) {
     const batch = targetUsers.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(targetUser =>
+    const stmts = batch.map(targetUser =>
+      env.DB.prepare(`
+        INSERT INTO notifications (id, user_id, title, body, type, data, tenant_id)
+        VALUES (?, ?, ?, ?, 'announcement', ?, ?)
+      `).bind(
+        `${notificationId}-${targetUser.id}`,
+        targetUser.id,
+        notificationTitle,
+        notificationBody,
+        notifDataJson,
+        tenantIdNotif
+      )
+    );
+    await env.DB.batch(stmts);
+  }
+
+  // Send push notifications in parallel (non-blocking, don't await each batch sequentially)
+  Promise.allSettled(
+    targetUsers.map(targetUser =>
       sendPushNotification(env, targetUser.id, {
         title: `${icon} ${body.title}`,
         body: body.content.substring(0, 200) + (body.content.length > 200 ? '...' : ''),
@@ -110,33 +136,8 @@ route('POST', '/api/announcements', async (request, env) => {
         requireInteraction: isUrgent,
         skipInApp: true
       }).catch(err => createRequestLogger(request).error('Push failed for user', err, { userId: targetUser.id }))
-    ));
-  }
-
-  log.info('Announcement created', { announcementId: id, notifiedUsers: targetUsers.length });
-
-  // Create in-app notifications for target users
-  const notificationId = generateId();
-  const notificationTitle = `${icon} ${body.title}`;
-  const notificationBody = body.content.substring(0, 200) + (body.content.length > 200 ? '...' : '');
-
-  for (const targetUser of targetUsers) {
-    try {
-      await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, title, body, type, data, tenant_id)
-        VALUES (?, ?, ?, ?, 'announcement', ?, ?)
-      `).bind(
-        `${notificationId}-${targetUser.id}`,
-        targetUser.id,
-        notificationTitle,
-        notificationBody,
-        JSON.stringify({ announcementId: id, url: '/announcements' }),
-        getTenantId(request)
-      ).run();
-    } catch (err) {
-      createRequestLogger(request).error('Failed to create notification for user', err, { userId: targetUser.id });
-    }
-  }
+    )
+  ).catch(() => {});
 
   // Invalidate cache and broadcast WebSocket update
   invalidateCache('announcements:');

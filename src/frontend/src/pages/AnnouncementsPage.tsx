@@ -564,7 +564,7 @@ export function AnnouncementsPage() {
       {/* Add Announcement Modal */}
       {/* TODO: Refactor to use <Modal> component */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-base sm:text-lg md:text-xl font-bold">{t('announcements.add')}</h2>
@@ -975,7 +975,7 @@ export function AnnouncementsPage() {
 
       {/* Edit Announcement Modal */}
       {showEditModal && editingAnnouncement && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-base sm:text-lg md:text-xl font-bold">{language === 'ru' ? 'Редактировать объявление' : 'E\'lonni tahrirlash'}</h2>
@@ -1249,7 +1249,7 @@ function AnnouncementCard({
 
       {/* Viewers Modal with Statistics */}
       {showViewers && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[200] p-0 sm:p-4" onClick={() => setShowViewers(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4" onClick={() => setShowViewers(false)}>
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80dvh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2">

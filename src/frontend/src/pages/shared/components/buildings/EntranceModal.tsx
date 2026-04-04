@@ -15,7 +15,7 @@ export function EntranceModal({ onClose, onSave, existingEntrances, language }: 
   const [form, setForm] = useState({ number: nextNum, floors_from: 1, floors_to: 9, apartments_from: 1, apartments_to: 36 });
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110]" onClick={onClose}>
       <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-white/60 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{t('Новый подъезд', 'Yangi podyezd')}</h2>

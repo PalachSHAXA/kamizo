@@ -38,20 +38,44 @@ route('GET', '/api/buildings', async (request, env) => {
     : await countStmt.first() as any;
 
   const offset = ((pagination.page || 1) - 1) * (pagination.limit || 50);
-  const dataQuery = `
-    SELECT b.*,
-      br.code as branch_code_from_branch, br.name as branch_name,
-      (SELECT COUNT(*) FROM users WHERE building_id = b.id AND role = 'resident' ${tenantId ? 'AND tenant_id = ?' : ''}) as residents_count,
-      (SELECT COUNT(*) FROM entrances WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) as entrances_actual,
-      (SELECT COUNT(*) FROM apartments WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) as apartments_actual,
-      (SELECT COUNT(*) FROM requests WHERE resident_id IN (SELECT id FROM users WHERE building_id = b.id ${tenantId ? 'AND tenant_id = ?' : ''}) AND status NOT IN ('completed', 'cancelled', 'closed') ${tenantId ? 'AND tenant_id = ?' : ''}) as active_requests_count
-    FROM buildings b
-    LEFT JOIN branches br ON b.branch_id = br.id
-    ${whereClause}
-    ORDER BY b.name LIMIT ? OFFSET ?
-  `;
-  const subqueryTenantIds = tenantId ? [tenantId, tenantId, tenantId, tenantId, tenantId] : [];
-  const { results } = await env.DB.prepare(dataQuery).bind(...subqueryTenantIds, ...bindValues, pagination.limit, offset).all();
+
+  // First: get paginated building IDs
+  const idsQuery = `SELECT b.id FROM buildings b ${whereClause} ORDER BY b.name LIMIT ? OFFSET ?`;
+  const { results: idRows } = await env.DB.prepare(idsQuery).bind(...bindValues, pagination.limit, offset).all();
+  const buildingIds = (idRows || []).map((r: any) => r.id);
+
+  if (buildingIds.length === 0) {
+    const response = createPaginatedResponse([], total || 0, pagination);
+    return json({ buildings: response.data, pagination: response.pagination });
+  }
+
+  const placeholders = buildingIds.map(() => '?').join(',');
+  const tenantFilter = tenantId ? ' AND tenant_id = ?' : '';
+  const tenantBinds = tenantId ? [tenantId] : [];
+
+  // Batch COUNT queries using GROUP BY instead of per-row subqueries
+  const [residentsAgg, entrancesAgg, apartmentsAgg, activeReqAgg, buildingsData] = await Promise.all([
+    env.DB.prepare(`SELECT building_id, COUNT(*) as cnt FROM users WHERE building_id IN (${placeholders}) AND role = 'resident'${tenantFilter} GROUP BY building_id`).bind(...buildingIds, ...tenantBinds).all(),
+    env.DB.prepare(`SELECT building_id, COUNT(*) as cnt FROM entrances WHERE building_id IN (${placeholders})${tenantFilter} GROUP BY building_id`).bind(...buildingIds, ...tenantBinds).all(),
+    env.DB.prepare(`SELECT building_id, COUNT(*) as cnt FROM apartments WHERE building_id IN (${placeholders})${tenantFilter} GROUP BY building_id`).bind(...buildingIds, ...tenantBinds).all(),
+    env.DB.prepare(`SELECT u.building_id, COUNT(*) as cnt FROM requests r JOIN users u ON u.id = r.resident_id WHERE u.building_id IN (${placeholders}) AND r.status NOT IN ('completed','cancelled','closed')${tenantFilter ? ' AND r.tenant_id = ?' : ''} GROUP BY u.building_id`).bind(...buildingIds, ...tenantBinds).all(),
+    env.DB.prepare(`SELECT b.*, br.code as branch_code_from_branch, br.name as branch_name FROM buildings b LEFT JOIN branches br ON b.branch_id = br.id WHERE b.id IN (${placeholders}) ORDER BY b.name`).bind(...buildingIds).all(),
+  ]);
+
+  // Build lookup maps
+  const toMap = (rows: any[]) => { const m = new Map<string, number>(); for (const r of rows) m.set(r.building_id, r.cnt); return m; };
+  const residentsMap = toMap(residentsAgg.results || []);
+  const entrancesMap = toMap(entrancesAgg.results || []);
+  const apartmentsMap = toMap(apartmentsAgg.results || []);
+  const activeReqMap = toMap(activeReqAgg.results || []);
+
+  const results = ((buildingsData.results || []) as any[]).map((b: any) => ({
+    ...b,
+    residents_count: residentsMap.get(b.id) || 0,
+    entrances_actual: entrancesMap.get(b.id) || 0,
+    apartments_actual: apartmentsMap.get(b.id) || 0,
+    active_requests_count: activeReqMap.get(b.id) || 0,
+  }));
 
   const response = createPaginatedResponse(results, total || 0, pagination);
   return json({ buildings: response.data, pagination: response.pagination });

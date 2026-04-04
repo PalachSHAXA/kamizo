@@ -6,6 +6,7 @@ import { json, error, generateId, getPaginationParams, createPaginatedResponse }
 import { sendPushNotification, isExecutorRole } from '../../index';
 import { validateBody } from '../../validation/validate';
 import { createRequestSchema } from '../../validation/schemas';
+import { notifyManagers } from '../../utils/notifications';
 
 export function registerRequestCrudRoutes() {
 // Requests: List
@@ -149,19 +150,15 @@ route('POST', '/api/requests', async (request, env) => {
   const categoryLabel = categoryLabels[body.category_id] || body.category_id;
 
   const tenantIdForNotify = getTenantId(request);
-  const { results: managers } = await env.DB.prepare(
-    `SELECT id FROM users WHERE role IN ('manager', 'admin', 'department_head') AND is_active = 1 ${tenantIdForNotify ? 'AND tenant_id = ?' : ''}`
-  ).bind(...(tenantIdForNotify ? [tenantIdForNotify] : [])).all();
-
   const reqNotifBody = `#${requestNumber} - ${body.title}. ${categoryLabel}. От: ${created?.resident_name || 'Житель'}`;
-  for (const manager of (managers || []) as any[]) {
-    sendPushNotification(env, manager.id, {
-      title: '📝 Новая заявка', body: reqNotifBody, type: 'request_created',
-      tag: `request-new-${id}`, data: { requestId: id, url: '/requests' }, requireInteraction: false
-    }).catch(() => {});
-    env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_created', ?, ?, ?, 0, datetime('now'), ?)`)
-      .bind(generateId(), manager.id, '📝 Новая заявка', reqNotifBody, JSON.stringify({ request_id: id }), tenantIdForNotify).run().catch(() => {});
-  }
+  notifyManagers(env, tenantIdForNotify, {
+    title: '📝 Новая заявка',
+    body: reqNotifBody,
+    type: 'request_created',
+    tag: `request-new-${id}`,
+    data: { request_id: id, requestId: id, url: '/requests' },
+    requireInteraction: false,
+  }).catch(() => {});
 
   return json({ request: created }, 201);
 });

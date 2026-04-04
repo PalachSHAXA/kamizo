@@ -1136,7 +1136,7 @@ export function ResidentVehiclesPage() {
 
       {/* Add/Edit Modal - Mobile full-screen, centered on desktop */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-[200] md:flex md:items-center md:justify-center">
+        <div className="fixed inset-0 bg-black/50 z-[110] md:flex md:items-center md:justify-center">
           <div className="h-full md:h-auto w-full md:max-w-2xl md:mx-4 bg-white md:rounded-2xl overflow-hidden md:max-h-[85dvh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
               <h2 className="text-lg font-bold">
@@ -1358,7 +1358,7 @@ export function ResidentVehiclesPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
               <AlertTriangle className="w-6 h-6 text-red-500" />

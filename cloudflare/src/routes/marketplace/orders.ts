@@ -6,6 +6,7 @@ import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
+import { notifyManagers } from '../../utils/notifications';
 
 export function registerOrderRoutes() {
 
@@ -89,21 +90,16 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
 
     await env.DB.batch(statements);
 
-    // Notify managers
-    const managers = await env.DB.prepare(
-      `SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'marketplace_manager') ${tenantId ? 'AND tenant_id = ?' : ''}`
-    ).bind(...(tenantId ? [tenantId] : [])).all() as { results: any[] };
+    // Notify managers (batched DB inserts + parallel push)
     const notifBody = `Заказ ${orderNumber} на сумму ${finalAmount.toLocaleString()} сум`;
-    for (const mgr of (managers.results || [])) {
-      await env.DB.prepare(`
-        INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
-        VALUES (?, ?, 'marketplace_order', 'Новый заказ', ?, ?, 0, datetime('now'), ?)
-      `).bind(generateId(), mgr.id, notifBody, JSON.stringify({ order_id: orderId }), tenantId).run();
-      sendPushNotification(env, mgr.id, {
-        title: '🛒 Новый заказ', body: notifBody, type: 'marketplace_order',
-        tag: `order-new-${orderId}`, data: { orderId, url: '/marketplace' }, requireInteraction: true
-      }).catch(() => {});
-    }
+    notifyManagers(env, tenantId, {
+      title: '🛒 Новый заказ',
+      body: notifBody,
+      type: 'marketplace_order',
+      tag: `order-new-${orderId}`,
+      data: { order_id: orderId, orderId, url: '/marketplace' },
+      requireInteraction: true,
+    }).catch(() => {});
 
     log.info('Order created', { orderNumber });
     return json({ order: { id: orderId, order_number: orderNumber, final_amount: finalAmount } }, 201);
@@ -135,13 +131,30 @@ route('GET', '/api/marketplace/orders', async (request, env) => {
     FROM marketplace_orders o ${whereClause} ORDER BY o.created_at DESC LIMIT 500
   `).bind(...params).all();
 
-  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
-    const { results: items } = await env.DB.prepare(`
-      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
-      FROM marketplace_order_items WHERE order_id = ?
-    `).bind(order.id).all();
-    return { ...order, items: items || [] };
-  }));
+  // Fetch all items for returned orders in one query (avoid N+1)
+  const orders = results || [];
+  let ordersWithItems: any[] = [];
+  if (orders.length > 0) {
+    const orderIds = orders.map((o: any) => o.id);
+    const placeholders = orderIds.map(() => '?').join(',');
+    const { results: allItems } = await env.DB.prepare(`
+      SELECT id, order_id, product_id, product_name, product_image, quantity, unit_price, total_price
+      FROM marketplace_order_items WHERE order_id IN (${placeholders})
+    `).bind(...orderIds).all();
+
+    // Group items by order_id
+    const itemsByOrder = new Map<string, any[]>();
+    for (const item of (allItems || []) as any[]) {
+      const list = itemsByOrder.get(item.order_id) || [];
+      list.push(item);
+      itemsByOrder.set(item.order_id, list);
+    }
+
+    ordersWithItems = orders.map((order: any) => ({
+      ...order,
+      items: itemsByOrder.get(order.id) || [],
+    }));
+  }
 
   return json({ orders: ordersWithItems });
 });

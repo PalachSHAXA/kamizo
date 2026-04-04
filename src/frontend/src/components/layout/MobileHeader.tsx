@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, Menu, Megaphone, Users, Key, Phone, FileText, Car, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { useDataStore } from '../../stores/dataStore';
+import { useNotificationStore, useAnnouncementStore, useVehicleStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { AppLogo } from '../common/AppLogo';
 import { useTenantStore } from '../../stores/tenantStore';
@@ -19,7 +19,12 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
   const [showNotifications, setShowNotifications] = useState(false);
-  const { notifications, markNotificationAsRead, markAllNotificationsAsRead, getAnnouncementsForResidents, getAnnouncementsForEmployees, vehicles } = useDataStore();
+  const notifications = useNotificationStore(s => s.notifications);
+  const markNotificationAsRead = useNotificationStore(s => s.markNotificationAsRead);
+  const markAllNotificationsAsRead = useNotificationStore(s => s.markAllNotificationsAsRead);
+  const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
+  const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
+  const vehicles = useVehicleStore(s => s.vehicles);
   const { meetings } = useMeetingStore();
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
 
