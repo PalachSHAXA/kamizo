@@ -19,7 +19,10 @@ route('GET', '/api/reports/debts', async (request, env) => {
   const district = url.searchParams.get('district');
   const search = url.searchParams.get('search')?.trim().toLowerCase();
   const debtorsOnly = url.searchParams.get('debtors_only') === 'true';
-  const sortBy = url.searchParams.get('sort_by') || 'debt';
+  // Whitelist-validate sort parameters to prevent SQL injection
+  const ALLOWED_SORT_FIELDS = ['debt', 'name', 'apartment'] as const;
+  const rawSortBy = url.searchParams.get('sort_by') || 'debt';
+  const sortBy = ALLOWED_SORT_FIELDS.includes(rawSortBy as any) ? rawSortBy : 'debt';
   const sortDir = url.searchParams.get('sort_dir') === 'asc' ? 'ASC' : 'DESC';
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '1000'), 2000);
   const offset = parseInt(url.searchParams.get('offset') || '0');
@@ -37,7 +40,7 @@ route('GET', '/api/reports/debts', async (request, env) => {
     name: `u.name ${sortDir}`,
     apartment: `u.apartment ${sortDir}`,
   };
-  const orderBy = orderMap[sortBy] || orderMap['debt'];
+  const orderBy = orderMap[sortBy];
   const paJoinTenant = tenantId ? 'AND pa.tenant_id = ?' : '';
 
   const query = `

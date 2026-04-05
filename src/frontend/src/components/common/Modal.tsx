@@ -113,7 +113,7 @@ export function Modal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">{children}</div>
+        <div className="flex-1 min-h-[200px] overflow-y-auto px-6 py-4">{children}</div>
       </div>
     </div>
   );

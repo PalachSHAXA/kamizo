@@ -2,6 +2,7 @@
 
 import { route } from '../../router';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
+import { getCached, setCache } from '../../middleware/cache-local';
 import { json, error } from '../../utils/helpers';
 
 export function registerProductRoutes() {
@@ -12,11 +13,18 @@ route('GET', '/api/marketplace/categories', async (request, env) => {
   if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
+
+  const cacheKey = `marketplace-categories:${tenantId || 'global'}`;
+  const cached = getCached<any>(cacheKey);
+  if (cached) return json(cached);
+
   const { results } = await env.DB.prepare(`
     SELECT * FROM marketplace_categories WHERE is_active = 1 ${tenantId ? "AND (tenant_id = ? OR tenant_id IS NULL OR tenant_id = '')" : ''}
     ORDER BY sort_order LIMIT 500
   `).bind(...(tenantId ? [tenantId] : [])).all();
-  return json({ categories: results });
+  const result = { categories: results };
+  setCache(cacheKey, result, 300000); // 5 min cache
+  return json(result);
 });
 
 // Marketplace: Get products with filtering (PUBLIC)

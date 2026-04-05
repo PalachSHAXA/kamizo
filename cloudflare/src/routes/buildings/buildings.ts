@@ -3,6 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { cachedQueryWithArgs, invalidateOnChange, CacheTTL, CachePrefix } from '../../cache';
+import { getCached, setCache } from '../../middleware/cache-local';
 import { json, error, generateId, isManagement, getPaginationParams, createPaginatedResponse } from '../../utils/helpers';
 import { validateBody } from '../../validation/validate';
 import { createBuildingSchema } from '../../validation/schemas';
@@ -19,6 +20,11 @@ route('GET', '/api/buildings', async (request, env) => {
   const search = url.searchParams.get('search')?.toLowerCase();
   const pagination = getPaginationParams(url);
   const tenantId = getTenantId(request);
+
+  // Local cache for frequently-hit buildings list
+  const cacheKey = `buildings:${tenantId}:${branchCode || ''}:${search || ''}:${pagination.page}:${pagination.limit}`;
+  const cached = getCached<any>(cacheKey);
+  if (cached) return json(cached);
 
   let whereClause = 'WHERE 1=1';
   const bindValues: any[] = [];
@@ -78,7 +84,9 @@ route('GET', '/api/buildings', async (request, env) => {
   }));
 
   const response = createPaginatedResponse(results, total || 0, pagination);
-  return json({ buildings: response.data, pagination: response.pagination });
+  const result = { buildings: response.data, pagination: response.pagination };
+  setCache(cacheKey, result, 300000); // 5 min cache
+  return json(result);
 });
 
 // Buildings: Get single with full details

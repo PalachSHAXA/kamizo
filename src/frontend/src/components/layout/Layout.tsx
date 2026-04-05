@@ -11,6 +11,7 @@ import { MobileHeader } from './MobileHeader';
 import { PopupManager } from '../PopupNotification';
 import { PerformanceMonitor } from '../PerformanceMonitor';
 import { BottomBar } from '../BottomBar';
+import { OfflineIndicator } from '../OfflineIndicator';
 import { ProtectedRoute } from '../ProtectedRoute';
 import { OnboardingWizard } from '../OnboardingWizard';
 import { OnboardingTooltips } from '../OnboardingTooltips';
@@ -269,6 +270,9 @@ export function Layout() {
       className="layout-root"
       style={impersonation ? { '--impersonation-h': '42px' } as React.CSSProperties : undefined}
     >
+      {/* Offline detection banner */}
+      <OfflineIndicator />
+
       {/* Skip navigation link for accessibility */}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:text-indigo-600">
         {language === 'ru' ? 'Перейти к содержимому' : 'Kontentga o\'tish'}
