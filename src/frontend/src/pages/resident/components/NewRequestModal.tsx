@@ -190,23 +190,27 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
                 </label>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дата' : 'Sana'} <span className="text-red-500">*</span></label>
+                    <label htmlFor="trash-date" className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Дата' : 'Sana'} <span className="text-red-500">*</span></label>
                     <input
+                      id="trash-date"
                       type="date"
                       value={trashDate}
                       onChange={(e) => setTrashDate(e.target.value)}
                       min={getMinDate()}
                       max={getMaxDate()}
                       className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-sm"
+                      aria-label={language === 'ru' ? 'Дата вывоза мусора' : 'Chiqindi olib ketish sanasi'}
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Время' : 'Vaqt'} <span className="text-red-500">*</span></label>
+                    <label htmlFor="trash-time" className="block text-xs text-gray-500 mb-1">{language === 'ru' ? 'Время' : 'Vaqt'} <span className="text-red-500">*</span></label>
                     <select
+                      id="trash-time"
                       value={trashTime}
                       onChange={(e) => setTrashTime(e.target.value)}
                       className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-sm"
+                      aria-label={language === 'ru' ? 'Время вывоза мусора' : 'Chiqindi olib ketish vaqti'}
                       required
                     >
                       <option value="">{language === 'ru' ? 'Выберите время' : 'Vaqtni tanlang'}</option>
@@ -222,42 +226,48 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
 
               {/* Additional Details */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="trash-details" className="block text-sm font-medium text-gray-700 mb-2">
                   {language === 'ru' ? 'Дополнительная информация' : 'Qo\'shimcha ma\'lumot'}
                 </label>
                 <textarea
+                  id="trash-details"
                   value={trashDetails}
                   onChange={(e) => setTrashDetails(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[80px] text-base resize-none"
                   placeholder={language === 'ru' ? 'Укажите детали: этаж, место складирования, особые условия...' : 'Tafsilotlarni ko\'rsating: qavat, saqlash joyi...'}
+                  aria-label={language === 'ru' ? 'Дополнительная информация' : 'Qo\'shimcha ma\'lumot'}
                 />
               </div>
             </>
           ) : (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="request-title" className="block text-sm font-medium text-gray-700 mb-2">
                   {language === 'ru' ? 'Заголовок' : 'Sarlavha'} *
                 </label>
                 <input
+                  id="request-title"
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                   placeholder={language === 'ru' ? 'Кратко опишите проблему' : 'Muammoni qisqacha tavsiflang'}
+                  aria-label={language === 'ru' ? 'Заголовок заявки' : 'Ariza sarlavhasi'}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="request-description" className="block text-sm font-medium text-gray-700 mb-2">
                   {language === 'ru' ? 'Описание' : 'Tavsif'} *
                 </label>
                 <textarea
+                  id="request-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[90px] text-sm resize-none"
                   placeholder={language === 'ru' ? 'Подробно опишите проблему' : 'Muammoni batafsil tavsiflang'}
+                  aria-label={language === 'ru' ? 'Описание проблемы' : 'Muammo tavsifi'}
                   required
                 />
               </div>

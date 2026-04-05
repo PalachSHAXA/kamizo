@@ -138,7 +138,7 @@ export function RequestDetailsModal({
                 {language === 'ru' ? '\u0416\u0435\u043b\u0430\u0435\u043c\u043e\u0435 \u0432\u0440\u0435\u043c\u044f \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f' : 'Bajarish uchun kerakli vaqt'}
               </h3>
               <div className="flex items-center gap-4 text-primary-700">
-                <span>{new Date(request.scheduledDate).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                <span>{new Date(request.scheduledDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
                 {request.scheduledTime && (
                   <span className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />

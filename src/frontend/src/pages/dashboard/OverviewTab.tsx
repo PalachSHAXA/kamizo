@@ -457,7 +457,7 @@ export function OverviewTab({
                   </div>
                   <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
                     <Clock className="w-3 h-3" />
-                    {new Date(req.createdAt).toLocaleDateString()}
+                    {new Date(req.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </div>
                 </div>
                 <span className={`text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full ${getStatusColor(req.status)}`}>

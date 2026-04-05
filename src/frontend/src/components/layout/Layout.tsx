@@ -11,7 +11,7 @@ import { MobileHeader } from './MobileHeader';
 import { PopupManager } from '../PopupNotification';
 import { PerformanceMonitor } from '../PerformanceMonitor';
 import { BottomBar } from '../BottomBar';
-import { ProtectedRoute } from './ProtectedRoute';
+import { ProtectedRoute } from '../ProtectedRoute';
 import { OnboardingWizard } from '../OnboardingWizard';
 import { OnboardingTooltips } from '../OnboardingTooltips';
 import { settingsApi } from '../../services/api/settings';

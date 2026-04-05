@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { Activity, Star } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore } from '../stores/requestStore';
+import { useExecutorStore } from '../stores/executorStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { ukRatingsApi } from '../services/api';
 import { SPECIALIZATION_LABELS } from '../types';
@@ -27,10 +28,15 @@ export { ReportsSection } from './manager/components';
 export function ManagerDashboard() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
-  const {
-    executors, requests, getStats, getChartData,
-    addExecutor, deleteExecutor, updateExecutor, assignRequest, rescheduleRequests
-  } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
+  const addExecutor = useExecutorStore(s => s.addExecutor);
+  const deleteExecutor = useExecutorStore(s => s.deleteExecutor);
+  const updateExecutor = useExecutorStore(s => s.updateExecutor);
+  const requests = useRequestStore(s => s.requests);
+  const getStats = useRequestStore(s => s.getStats);
+  const getChartData = useRequestStore(s => s.getChartData);
+  const assignRequest = useRequestStore(s => s.assignRequest);
+  const rescheduleRequests = useRequestStore(s => s.rescheduleRequests);
   // Data is now fetched automatically by useWebSocketSync hook in Layout
 
   const stats = getStats();

@@ -213,20 +213,14 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 z-10"
-      style={{ bottom: 0 }}
+      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white border-t border-gray-200/40"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
     >
-      {/* Frosted glass background — extends past bottom-0 into home indicator zone */}
       <div
-        className="absolute left-0 right-0 top-0 bg-white backdrop-blur-2xl border-t border-gray-200/40"
-        style={{ bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))' }}
-      />
-
-      <div
-        className="relative flex items-end justify-around px-1"
-        style={{ paddingTop: '4px', paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))' }}
+        className="flex items-end justify-around px-1"
+        style={{ paddingTop: '4px', paddingBottom: '4px' }}
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;

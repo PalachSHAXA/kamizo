@@ -52,37 +52,31 @@ body {
    the fixed bars to jump. .has-mobile-header padding-top offsets the header.
    ───────────────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  html, body {
-    /* Use fixed positioning approach: html/body just fill viewport */
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+  html {
+    height: 100%;
+    background: white;
+  }
+
+  body {
+    height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    background: white;
   }
 
   #root {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    height: 100%;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
 
-  /* Layout root wrapper fills #root.
-     overflow:hidden is SAFE here — both MobileHeader and BottomBar use
-     position:fixed (viewport-relative) so they are never clipped. */
   .layout-root {
     height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: white; /* prevent brand-bg body gradient from showing through gaps */
+    background: white;
   }
 
   /* Scrollable content area — only this scrolls on mobile */
@@ -102,17 +96,18 @@ body {
     padding-bottom: calc(var(--bottom-bar-h) + 16px) !important;
   }
 
-  /* Chat page full-height container: fills area between header and screen bottom.
-     Bottom bar is hidden on /chat. Use 100% of parent instead of dvh to avoid gaps. */
+  /* Chat fills remaining space via flex */
   .resident-chat-container {
-    height: 100%;
+    flex: 1;
+    min-height: 0;
   }
 
-  /* Chat page — remove padding, fill entire viewport below header */
+  /* Chat page — zero padding, fill parent */
   #main-content.chat-active {
     padding: 0 !important;
-    height: calc(100dvh - var(--mobile-header-h));
-    height: calc(-webkit-fill-available - var(--mobile-header-h));
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 
@@ -132,12 +127,7 @@ body {
 @media (display-mode: standalone) {
   html, body, #root {
     height: 100%;
-    height: 100dvh;
-    height: 100svh;
-    height: -webkit-fill-available;
-    min-height: 100svh;
   }
-  /* Sidebar in PWA must also fill viewport */
   .sidebar {
     bottom: 0 !important;
   }

@@ -216,7 +216,7 @@ route('POST', '/api/auth/register', async (request, env) => {
     }
   }
 
-  return json({ user: { id, login, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, password } }, 201);
+  return json({ user: { id, login, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building } }, 201);
 });
 
 } // end registerAuthRoutes

@@ -204,26 +204,32 @@ export function LoginPage() {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.login')}</label>
+            <label htmlFor="login-field" className="block text-xs font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.login')}</label>
             <input
+              id="login-field"
               type="text"
               value={loginValue}
               onChange={(e) => setLoginValue(e.target.value)}
               placeholder={language === 'ru' ? 'Введите логин' : 'Login kiriting'}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+              aria-label={language === 'ru' ? 'Логин' : 'Login'}
+              autoComplete="username"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.password')}</label>
+            <label htmlFor="password-field" className="block text-xs font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.password')}</label>
             <div className="relative">
               <input
+                id="password-field"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={language === 'ru' ? 'Введите пароль' : 'Parol kiriting'}
                 className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+                aria-label={language === 'ru' ? 'Пароль' : 'Parol'}
+                autoComplete="current-password"
                 required
               />
               <button

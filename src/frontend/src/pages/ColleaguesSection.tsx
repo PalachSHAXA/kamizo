@@ -369,7 +369,7 @@ function EmployeeProfile({ employee, onBack, thanks }: {
                 </div>
                 <p className="text-sm text-gray-700">{thank.reason}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {new Date(thank.createdAt).toLocaleDateString()}
+                  {new Date(thank.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
               </div>
             ))}
@@ -395,7 +395,7 @@ function NewsFeed({ news }: { news: NewsItem[] }) {
             <div className="flex-1 min-w-0">
               <p className="text-sm break-words">{item.text}</p>
               <p className="text-xs text-gray-400 mt-1">
-                {new Date(item.createdAt).toLocaleDateString()}
+                {new Date(item.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short', year: 'numeric' })}
               </p>
             </div>
           </div>

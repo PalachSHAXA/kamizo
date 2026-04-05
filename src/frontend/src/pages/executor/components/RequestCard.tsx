@@ -141,7 +141,7 @@ export function RequestCard({
           {request.scheduledDate && (
             <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs">
               <CalendarDays className="w-3.5 h-3.5" />
-              <span>{new Date(request.scheduledDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
+              <span>{new Date(request.scheduledDate).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' })}</span>
               {request.scheduledTime && <span>{request.scheduledTime}</span>}
             </div>
           )}

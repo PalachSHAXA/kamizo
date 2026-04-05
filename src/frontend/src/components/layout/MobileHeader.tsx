@@ -111,10 +111,10 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
 
-    if (diffMins < 1) return 'только что';
-    if (diffMins < 60) return `${diffMins} мин`;
-    if (diffHours < 24) return `${diffHours} ч`;
-    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+    if (diffMins < 1) return language === 'ru' ? 'только что' : 'hozirgina';
+    if (diffMins < 60) return language === 'ru' ? `${diffMins} мин` : `${diffMins} daq`;
+    if (diffHours < 24) return language === 'ru' ? `${diffHours} ч` : `${diffHours} s`;
+    return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: '2-digit', month: '2-digit' });
   };
 
   const getNotificationIcon = (type: string) => {
@@ -278,8 +278,8 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                         <p className="text-sm font-medium truncate">Собрание дома</p>
                         <p className="text-xs text-gray-500">
                           {meeting.confirmedDateTime
-                            ? new Date(meeting.confirmedDateTime).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                            : 'Дата уточняется'}
+                            ? new Date(meeting.confirmedDateTime).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                            : (language === 'ru' ? 'Дата уточняется' : 'Sana aniqlanmoqda')}
                         </p>
                       </div>
                       <span className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0" />

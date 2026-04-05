@@ -349,42 +349,50 @@ export function SettingsPage() {
               <div className="flex-1 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Имя' : 'Ism'}</label>
+                    <label htmlFor="profile-name" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Имя' : 'Ism'}</label>
                     <input
+                      id="profile-name"
                       type="text"
                       value={profileName}
                       onChange={(e) => setProfileName(e.target.value)}
                       className="input-field text-base"
                       placeholder={language === 'ru' ? 'Введите имя' : 'Ismni kiriting'}
+                      aria-label={language === 'ru' ? 'Имя пользователя' : 'Foydalanuvchi ismi'}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
+                    <label htmlFor="profile-login" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
                     <input
+                      id="profile-login"
                       type="text"
                       value={user?.login || ''}
                       disabled
                       className="input-field text-base bg-gray-100 cursor-not-allowed"
+                      aria-label={language === 'ru' ? 'Логин' : 'Login'}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label htmlFor="profile-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                     <input
+                      id="profile-email"
                       type="email"
                       value={profileEmail}
                       onChange={(e) => setProfileEmail(e.target.value)}
                       className="input-field text-base"
                       placeholder="email@example.com"
+                      aria-label="Email"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
+                    <label htmlFor="profile-phone" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                     <input
+                      id="profile-phone"
                       type="tel"
                       value={profilePhone}
                       onChange={(e) => setProfilePhone(e.target.value)}
                       className="input-field text-base"
                       placeholder="+998 90 123 45 67"
+                      aria-label={language === 'ru' ? 'Номер телефона' : 'Telefon raqami'}
                     />
                   </div>
                 </div>
@@ -471,14 +479,17 @@ export function SettingsPage() {
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish'}</h2>
             <div className="space-y-4 max-w-md">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Текущий пароль' : 'Joriy parol'}</label>
+                <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Текущий пароль' : 'Joriy parol'}</label>
                 <div className="relative">
                   <input
+                    id="current-password"
                     type={showCurrentPassword ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     className="input-field text-base pr-10"
                     placeholder="••••••••"
+                    aria-label={language === 'ru' ? 'Текущий пароль' : 'Joriy parol'}
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
@@ -490,14 +501,17 @@ export function SettingsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Новый пароль' : 'Yangi parol'}</label>
+                <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Новый пароль' : 'Yangi parol'}</label>
                 <div className="relative">
                   <input
+                    id="new-password"
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="input-field text-base pr-10"
                     placeholder="••••••••"
+                    aria-label={language === 'ru' ? 'Новый пароль' : 'Yangi parol'}
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"

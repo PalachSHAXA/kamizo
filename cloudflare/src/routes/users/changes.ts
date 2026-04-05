@@ -62,9 +62,6 @@ route('POST', '/api/users/:id/change-with-reason', async (request, env, params) 
     const hashed = await hashPassword(passwordChange.value);
     updates.push('password_hash = ?');
     values.push(hashed);
-    updates.push('password_plain = ?');
-    values.push(passwordChange.value);
-
     await env.DB.prepare(
       `INSERT INTO resident_changes_log (id, tenant_id, resident_id, changed_by, change_type, field_name, old_value, new_value, reason, document_number, document_date, comment)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`

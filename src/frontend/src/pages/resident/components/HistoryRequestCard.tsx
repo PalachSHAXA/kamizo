@@ -4,10 +4,11 @@ import type { HistoryRequestCardProps } from './types';
 
 export function HistoryRequestCard({ request, onClick }: HistoryRequestCardProps) {
   const { language } = useLanguageStore();
+  const locale = language === 'ru' ? 'ru-RU' : 'uz-UZ';
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
-    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-      ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+      ' ' + d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   };
 
   const isCancelled = request.status === 'cancelled';

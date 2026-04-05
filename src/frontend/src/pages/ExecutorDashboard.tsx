@@ -5,7 +5,8 @@ import {
   Play, ShoppingBag,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore } from '../stores/requestStore';
+import { useExecutorStore } from '../stores/executorStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { executorsApi } from '../services/api';
@@ -28,7 +29,20 @@ import type { ExecutorStats } from './executor/components';
 
 export function ExecutorDashboard() {
   const { user } = useAuthStore();
-  const { requests, executors, acceptRequest, startWork, pauseWork, resumeWork, completeWork, assignRequest, declineRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, fetchRequests, fetchPendingReschedules } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const executors = useExecutorStore(s => s.executors);
+  const acceptRequest = useRequestStore(s => s.acceptRequest);
+  const startWork = useRequestStore(s => s.startWork);
+  const pauseWork = useRequestStore(s => s.pauseWork);
+  const resumeWork = useRequestStore(s => s.resumeWork);
+  const completeWork = useRequestStore(s => s.completeWork);
+  const assignRequest = useRequestStore(s => s.assignRequest);
+  const declineRequest = useRequestStore(s => s.declineRequest);
+  const createRescheduleRequest = useRequestStore(s => s.createRescheduleRequest);
+  const respondToRescheduleRequest = useRequestStore(s => s.respondToRescheduleRequest);
+  const getPendingRescheduleForUser = useRequestStore(s => s.getPendingRescheduleForUser);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
+  const fetchPendingReschedules = useRequestStore(s => s.fetchPendingReschedules);
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   // For couriers, default tab is 'marketplace', for others - 'available'

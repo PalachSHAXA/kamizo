@@ -97,9 +97,8 @@ route('POST', '/api/requests', async (request, env) => {
   }
 
   let branchCode = 'UK';
-  const userForBranch = residentData || await env.DB.prepare(
-    'SELECT branch, building_id, address FROM users WHERE id = ?'
-  ).bind(residentId).first() as any;
+  // Reuse already-fetched user object to avoid redundant DB query (N+1 fix)
+  const userForBranch = residentData || user as any;
 
   if (userForBranch?.branch) {
     branchCode = userForBranch.branch.toUpperCase();

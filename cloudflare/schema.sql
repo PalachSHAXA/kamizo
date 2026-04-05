@@ -887,6 +887,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   is_active INTEGER DEFAULT 1,
   expires_at TEXT,
   attachments TEXT, -- JSON array of {name, url, type, size}
+  personalized_data TEXT DEFAULT NULL,
   created_by TEXT REFERENCES users(id),
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
@@ -2014,3 +2015,10 @@ CREATE INDEX IF NOT EXISTS idx_announcements_tenant_active ON announcements(tena
 CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_date ON chat_messages(channel_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_votes_meeting_agenda ON meeting_vote_records(meeting_id, agenda_item_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read, created_at);
+
+-- Additional composite indexes (migration 045)
+CREATE INDEX IF NOT EXISTS idx_users_building_tenant_role ON users(building_id, tenant_id, role);
+CREATE INDEX IF NOT EXISTS idx_requests_tenant_status_resident ON requests(tenant_id, status, resident_id);
+CREATE INDEX IF NOT EXISTS idx_vote_records_meeting_revote ON meeting_vote_records(meeting_id, is_revote);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_sender ON chat_messages(channel_id, sender_id);
+CREATE INDEX IF NOT EXISTS idx_personal_accounts_building ON personal_accounts(building_id, tenant_id);

@@ -363,11 +363,11 @@ export function Header() {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'только что';
-    if (diffMins < 60) return `${diffMins} мин назад`;
-    if (diffHours < 24) return `${diffHours} ч назад`;
-    if (diffDays < 7) return `${diffDays} дн назад`;
-    return date.toLocaleDateString('ru-RU');
+    if (diffMins < 1) return language === 'ru' ? 'только что' : 'hozirgina';
+    if (diffMins < 60) return language === 'ru' ? `${diffMins} мин назад` : `${diffMins} daq oldin`;
+    if (diffHours < 24) return language === 'ru' ? `${diffHours} ч назад` : `${diffHours} s oldin`;
+    if (diffDays < 7) return language === 'ru' ? `${diffDays} дн назад` : `${diffDays} kun oldin`;
+    return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ');
   };
 
   const getNotificationIcon = (type: string) => {
@@ -724,7 +724,7 @@ export function Header() {
                           Собрание дома {meeting.buildingAddress}
                         </h4>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {meeting.confirmedDateTime ? new Date(meeting.confirmedDateTime).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Дата уточняется'}
+                          {meeting.confirmedDateTime ? new Date(meeting.confirmedDateTime).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : (language === 'ru' ? 'Дата уточняется' : 'Sana aniqlanmoqda')}
                         </p>
                       </div>
                       <span className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0" />

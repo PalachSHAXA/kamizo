@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react';
 import { Clock, User, MapPin, Calendar, AlertCircle } from 'lucide-react';
 import type { Request } from '../types';
 import { STATUS_LABELS, PRIORITY_LABELS, SPECIALIZATION_LABELS } from '../types';
+import { useLanguageStore } from '../stores/languageStore';
 
 interface RequestCardProps {
   request: Request;
@@ -43,6 +44,9 @@ const statusColors = {
  */
 export const RequestCard = memo<RequestCardProps>(
   ({ request, onAssign, onView, showActions = false, className = '' }) => {
+    const { language } = useLanguageStore();
+    const locale = language === 'ru' ? 'ru-RU' : 'uz-UZ';
+
     // Мемоизированные обработчики
     const handleAssign = useCallback(() => {
       onAssign?.(request);
@@ -54,8 +58,8 @@ export const RequestCard = memo<RequestCardProps>(
 
     const formatDate = (dateString: string) => {
       const d = new Date(dateString.endsWith?.('Z') ? dateString : dateString + 'Z');
-      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-        ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+        ' ' + d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
     };
 
     return (
@@ -116,7 +120,7 @@ export const RequestCard = memo<RequestCardProps>(
             {request.scheduledDate && (
               <div className="mt-2 flex items-center gap-1 text-xs text-blue-600">
                 <Calendar className="w-3.5 h-3.5" />
-                <span>Запланировано: {new Date(request.scheduledDate).toLocaleDateString('ru-RU')}</span>
+                <span>{language === 'ru' ? 'Запланировано' : 'Rejalashtirilgan'}: {new Date(request.scheduledDate).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 {request.scheduledTime && <span>{request.scheduledTime}</span>}
               </div>
             )}

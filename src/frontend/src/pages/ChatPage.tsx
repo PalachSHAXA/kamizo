@@ -1108,6 +1108,7 @@ function ChatView({
             type="file"
             accept="image/*,application/pdf,.doc,.docx"
             className="hidden"
+            aria-label={language === 'ru' ? 'Прикрепить файл' : 'Fayl biriktirish'}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) {
