@@ -48,6 +48,7 @@ interface ChatMessage {
   content: string;
   created_at: string;
   read_by?: string[];
+  status?: 'sending' | 'sent' | 'failed';
 }
 
 // ─── Role Badge ──────────────────────────────────────────────────────────
@@ -101,6 +102,19 @@ function getAvatarColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
+}
+
+function formatRelativeTime(dateStr: string, lang: string): string {
+  const diff = Date.now() - new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z').getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return lang === 'ru' ? 'сейчас' : 'hozir';
+  if (mins < 60) return `${mins} ${lang === 'ru' ? 'мин' : 'min'}`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} ${lang === 'ru' ? 'ч' : 'soat'}`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days} ${lang === 'ru' ? 'д' : 'kun'}`;
+  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
 }
 
 function formatTime(dateStr: string, lang: string): string {
@@ -506,7 +520,7 @@ function AdminChannelList({
                     </span>
                     {channel.last_message_at && (
                       <span className={`text-xs flex-shrink-0 ${hasUnread ? 'text-orange-500 font-semibold' : 'text-gray-400'}`}>
-                        {formatTime(channel.last_message_at, language)}
+                        {formatRelativeTime(channel.last_message_at, language)}
                       </span>
                     )}
                   </div>
@@ -586,9 +600,30 @@ function ChatView({
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── visualViewport keyboard handling — keep input visible above keyboard ──
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const onResize = () => {
+      // Difference between layout viewport and visual viewport = keyboard height
+      const offset = window.innerHeight - vv.height;
+      setKeyboardOffset(offset > 50 ? offset : 0);
+      // Scroll messages to bottom when keyboard opens
+      if (offset > 50) {
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      }
+    };
+
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
 
   // Search state
   const [showSearch, setShowSearch] = useState(false);
@@ -722,20 +757,62 @@ function ChatView({
     setNewMessage('');
     setIsSending(true);
 
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      channel_id: channelId,
+      sender_id: user.id,
+      sender_name: user.name || '',
+      sender_role: user.role as UserRole,
+      content: messageToSend,
+      created_at: new Date().toISOString(),
+      status: 'sending',
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+
     try {
       const response = await chatApi.sendMessage(channelId, messageToSend);
       if (response.message) {
-        setMessages(prev => {
-          const exists = prev.some(m => m.id === response.message.id);
-          if (exists) return prev;
-          return [...prev, response.message];
-        });
+        setMessages(prev =>
+          prev.map(m => m.id === tempId ? { ...response.message, status: 'sent' as const } : m)
+        );
+      } else {
+        setMessages(prev =>
+          prev.map(m => m.id === tempId ? { ...m, status: 'sent' as const } : m)
+        );
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      setNewMessage(messageToSend);
+      setMessages(prev =>
+        prev.map(m => m.id === tempId ? { ...m, status: 'failed' as const } : m)
+      );
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const retrySend = async (failedMsg: ChatMessage) => {
+    setMessages(prev =>
+      prev.map(m => m.id === failedMsg.id ? { ...m, status: 'sending' as const } : m)
+    );
+
+    try {
+      const response = await chatApi.sendMessage(channelId, failedMsg.content);
+      if (response.message) {
+        setMessages(prev =>
+          prev.map(m => m.id === failedMsg.id ? { ...response.message, status: 'sent' as const } : m)
+        );
+      } else {
+        setMessages(prev =>
+          prev.map(m => m.id === failedMsg.id ? { ...m, status: 'sent' as const } : m)
+        );
+      }
+    } catch (error) {
+      console.error('Retry failed:', error);
+      setMessages(prev =>
+        prev.map(m => m.id === failedMsg.id ? { ...m, status: 'failed' as const } : m)
+      );
     }
   };
 
@@ -771,7 +848,11 @@ function ChatView({
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#f8f7f4]">
+    <div
+      ref={chatContainerRef}
+      className="h-full flex flex-col bg-[#f8f7f4]"
+      style={keyboardOffset > 0 ? { height: `calc(100% - ${keyboardOffset}px)` } : undefined}
+    >
       {/* ── Header ── */}
       <div className="bg-white border-b shadow-sm">
         <div className="flex items-center gap-3 px-4 py-3">
@@ -960,19 +1041,27 @@ function ChatView({
                         isOwn
                           ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-[18px] rounded-br-[6px] shadow-sm shadow-orange-200'
                           : 'bg-white text-gray-900 rounded-[18px] rounded-bl-[6px] shadow-sm'
-                      }`}>
+                      } ${message.status === 'sending' ? 'opacity-60' : ''}`}>
                         <p className="text-[14px] whitespace-pre-wrap leading-relaxed">{message.content}</p>
                         <div className={`flex items-center justify-end gap-1 mt-1 ${
                           isOwn ? 'text-white/60' : 'text-gray-400'
                         }`}>
                           <span className="text-xs">{formatMessageTime(message.created_at, language)}</span>
-                          {isOwn && (
+                          {isOwn && message.status === 'sending' && (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          )}
+                          {isOwn && message.status !== 'sending' && message.status !== 'failed' && (
                             message.read_by && message.read_by.length > 1
                               ? <CheckCheck className="w-3 h-3" />
                               : <Check className="w-3 h-3" />
                           )}
                         </div>
                       </div>
+                      {message.status === 'failed' && (
+                        <button onClick={() => retrySend(message)} className="text-red-500 text-xs flex items-center gap-1 mt-1 px-1">
+                          <AlertCircle className="w-3 h-3" /> {language === 'ru' ? 'Не отправлено. Повторить?' : 'Yuborilmadi. Qayta yuborishmi?'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -984,7 +1073,7 @@ function ChatView({
       </div>
 
       {/* ── Input ── */}
-      <div className="bg-white border-t" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="bg-white border-t flex-shrink-0" style={{ paddingBottom: keyboardOffset > 0 ? '0px' : 'env(safe-area-inset-bottom, 0px)' }}>
         {/* Emoji picker */}
         {showEmojiPicker && (
           <div className="px-3 pt-2 pb-1">
@@ -1091,10 +1180,11 @@ export function ChatPage() {
   useEffect(() => {
     const main = document.getElementById('main-content');
     if (!main) return;
-    const prev = main.style.cssText;
+    main.classList.add('chat-active');
     main.style.setProperty('padding', '0', 'important');
     return () => {
-      main.style.cssText = prev;
+      main.classList.remove('chat-active');
+      main.style.removeProperty('padding');
     };
   }, []);
   const [channels, setChannels] = useState<ChatChannel[]>([]);
@@ -1224,7 +1314,7 @@ export function ChatPage() {
 
   // ── Admin/Manager View ──
   return (
-    <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 h-[calc(100dvh-112px)] md:h-[calc(100dvh-140px)] bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden">
+    <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden" style={{ height: 'calc(100dvh - var(--mobile-header-h, 68px))', maxHeight: 'calc(100dvh - 68px)' }}>
       <div className="h-full flex">
         <div className={`${
           selectedChannelId ? 'hidden md:flex md:flex-col' : 'flex flex-col'

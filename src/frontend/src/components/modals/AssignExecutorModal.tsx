@@ -34,7 +34,7 @@ export function AssignExecutorModal({ isOpen, onClose, request, executors, onAss
     <button
       onClick={() => onAssign(request.id, executor.id)}
       className={`w-full p-3 md:p-4 rounded-xl text-left transition-colors touch-manipulation ${
-        recommended ? 'bg-green-50 hover:bg-green-100 border-2 border-green-200' : 'bg-white/30 hover:bg-white/50'
+        recommended ? 'bg-green-50 hover:bg-green-100 border-2 border-green-200 ring-2 ring-green-400' : 'bg-white/30 hover:bg-white/50'
       }`}
     >
       <div className="flex items-center justify-between gap-2">

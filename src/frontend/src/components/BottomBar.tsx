@@ -38,6 +38,9 @@ export function BottomBar() {
   // Don't show on desktop or for super_admin
   if (role === 'super_admin') return null;
 
+  // Hide bottom bar on chat page — chat has its own input area
+  if (location.pathname === '/chat') return null;
+
   // Calculate badges
   const activeRequestsCount = requests.filter(r =>
     r.residentId === user.id && !['completed', 'closed', 'cancelled'].includes(r.status)
@@ -217,13 +220,13 @@ export function BottomBar() {
     >
       {/* Frosted glass background — extends past bottom-0 into home indicator zone */}
       <div
-        className="absolute left-0 right-0 top-0 bg-white/92 backdrop-blur-2xl border-t border-gray-200/40"
+        className="absolute left-0 right-0 top-0 bg-white backdrop-blur-2xl border-t border-gray-200/40"
         style={{ bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))' }}
       />
 
       <div
-        className="relative flex items-end justify-around px-1 pt-[6px]"
-        style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}
+        className="relative flex items-end justify-around px-1"
+        style={{ paddingTop: '4px', paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))' }}
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -243,10 +246,10 @@ export function BottomBar() {
                   aria-label={tab.id === 'qr' ? (language === 'ru' ? 'QR сканер' : 'QR skaner') : (language === 'ru' ? 'Новая заявка' : 'Yangi ariza')}
                 >
                   <div
-                    className={`w-[54px] h-[54px] rounded-full flex items-center justify-center shadow-[0_4px_24px_rgba(var(--brand-rgb),0.45)] transition-all duration-200 border-[3px] border-white ${
+                    className={`rounded-full flex items-center justify-center shadow-[0_4px_24px_rgba(var(--brand-rgb),0.45)] transition-all duration-200 border-[3px] border-white ${
                       fabPressed && !isQrFab ? 'scale-[0.82] rotate-[135deg]' : fabPressed ? 'scale-[0.88]' : 'scale-100 rotate-0 active:scale-[0.88]'
                     } ${qrActive ? 'ring-2 ring-offset-2 ring-primary-400' : ''}`}
-                    style={{ background: `linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.85))` }}
+                    style={{ width: '48px', height: '48px', background: `linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.85))` }}
                   >
                     <FabIcon className="w-[24px] h-[24px] text-white" strokeWidth={2.5} />
                   </div>
@@ -261,8 +264,8 @@ export function BottomBar() {
             <button
               key={tab.id}
               onClick={() => handleTap(tab)}
-              className={`relative flex-1 flex flex-col items-center gap-[2px] touch-manipulation py-2.5 min-h-[48px] overflow-hidden ${locked ? 'opacity-40' : ''}`}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              className={`relative flex-1 flex flex-col items-center gap-[1px] touch-manipulation overflow-hidden ${locked ? 'opacity-40' : ''}`}
+              style={{ WebkitTapHighlightColor: 'transparent', minHeight: '44px', paddingTop: '4px', paddingBottom: '2px', minWidth: '0' }}
               aria-current={isActive(tab) ? 'page' : undefined}
               aria-label={tab.label}
             >
@@ -280,12 +283,13 @@ export function BottomBar() {
                 }`}
               >
                 {locked ? (
-                  <Lock className="w-[22px] h-[22px] text-gray-300" strokeWidth={1.8} />
+                  <Lock className="text-gray-300" style={{ width: '20px', height: '20px' }} strokeWidth={1.8} />
                 ) : (
                   <Icon
-                    className={`w-[22px] h-[22px] transition-colors duration-200 ${
+                    className={`transition-colors duration-200 ${
                       active ? 'text-primary-600' : 'text-gray-400'
                     }`}
+                    style={{ width: '20px', height: '20px' }}
                     fill={active && tab.fillOnActive ? 'currentColor' : 'none'}
                     strokeWidth={active ? 2.2 : 1.8}
                   />
@@ -294,9 +298,10 @@ export function BottomBar() {
 
               {/* Label */}
               <span
-                className={`relative z-10 text-xs leading-tight transition-all duration-200 ${
+                className={`relative z-10 leading-tight transition-all duration-200 ${
                   locked ? 'font-medium text-gray-300' : active ? 'font-bold text-primary-600' : 'font-medium text-gray-400'
                 }`}
+                style={{ fontSize: '10px' }}
               >
                 {tab.label}
               </span>

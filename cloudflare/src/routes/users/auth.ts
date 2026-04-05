@@ -47,8 +47,8 @@ route('POST', '/api/auth/login', async (request, env) => {
   const tenantId = getTenantId(request);
   let userWithHash = await env.DB.prepare(
     tenantId
-      ? `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
-      : `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? LIMIT 1`
+      ? `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? AND is_active = 1 AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
+      : `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? AND is_active = 1 ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1`
   ).bind(...(tenantId ? [login.trim(), tenantId] : [login.trim()])).first() as any;
 
   if (!userWithHash) {
@@ -66,7 +66,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   const parts = userWithHash.password_hash.split(':');
   const needsRehash = !userWithHash.password_hash.includes(':') || // legacy SHA-256
     (parts.length === 2) || // old PBKDF2-100k without iteration prefix
-    (parts.length === 3 && parseInt(parts[0], 10) !== 10000); // different iteration count
+    (parts.length === 3 && parseInt(parts[0], 10) !== 50000); // different iteration count
   if (needsRehash) {
     const newHash = await hashPassword(password);
     await env.DB.prepare('UPDATE users SET password_hash = ?, last_login_at = datetime(\'now\') WHERE id = ?')

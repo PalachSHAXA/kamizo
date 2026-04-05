@@ -178,7 +178,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
           />
           <div
             className="fixed left-3 right-3 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-            style={{ zIndex: 110, maxHeight: '70vh', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
+            style={{ zIndex: 110, maxHeight: '70dvh', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
             role="region"
             aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >
@@ -193,7 +193,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                 </button>
               )}
             </div>
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(70vh - 90px)' }}>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(70dvh - 90px)' }}>
               {/* Onboarding Tasks Section - for residents */}
               {isResident && pendingTasks.length > 0 && (
                 <div className="border-b border-gray-200">

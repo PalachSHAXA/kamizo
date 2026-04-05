@@ -773,22 +773,27 @@ function MeetingVotingModal({
             </div>
           )}
 
-          {/* Quorum Info - compact */}
-          <div className="flex items-center justify-between bg-gray-50 rounded-xl p-2.5">
-            <div className="flex items-center gap-2 text-sm">
-              <User className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-600">{language === 'ru' ? 'Участие:' : 'Ishtirok:'}</span>
-              <span className="font-medium">{quorum.participated}/{quorum.total}</span>
-              <span className="text-gray-400">({quorum.percent.toFixed(0)}%)</span>
+          {/* Quorum Indicator */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-amber-600" />
+                <span className="text-sm font-medium text-amber-800">
+                  {language === 'ru' ? 'Кворум' : 'Kvorum'}: {quorum.percent.toFixed(0)}%
+                </span>
+                <span className="text-xs text-amber-600">
+                  ({quorum.participated}/{quorum.total})
+                </span>
+              </div>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                quorum.quorumReached ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                {quorum.quorumReached
+                  ? (language === 'ru' ? 'Достигнут' : 'Yetildi')
+                  : (language === 'ru' ? 'Не достигнут' : 'Yetilmadi')
+                }
+              </span>
             </div>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-              quorum.quorumReached ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-            }`}>
-              {quorum.quorumReached
-                ? (language === 'ru' ? 'Кворум есть' : 'Kvorum bor')
-                : (language === 'ru' ? 'Нет кворума' : 'Kvorum yo\'q')
-              }
-            </span>
           </div>
 
           {/* Schedule Poll */}

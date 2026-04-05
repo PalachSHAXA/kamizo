@@ -277,6 +277,9 @@ export function ResidentDashboard() {
                   <div className="text-xs text-gray-500">
                     {language === 'ru' ? 'Предложено:' : 'Taklif:'} {reschedule.proposedDate} {reschedule.proposedTime}
                   </div>
+                  {reschedule.reasonText && (
+                    <p className="text-xs text-gray-500 mt-0.5">{reschedule.reasonText}</p>
+                  )}
                 </div>
                 <ChevronRight className="w-4 h-4 text-amber-500" />
               </button>

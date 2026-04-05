@@ -10,10 +10,9 @@
   --brand-dark: #EA580C;
   --brand-rgb: 249, 115, 22;
   --brand-bg: #fff7ed;
-  /* Fixed nav heights (used for content padding offsets) */
-  --mobile-header-h: calc(68px + env(safe-area-inset-top, 0px));
-  /* BottomBar itself handles safe-area internally, so height var = bar chrome only */
-  --bottom-bar-h: calc(58px + env(safe-area-inset-bottom, 0px));
+  /* Fixed nav heights (used for content padding offsets) — clamp keeps total chrome <= ~120px */
+  --mobile-header-h: calc(52px + env(safe-area-inset-top, constant(safe-area-inset-top, 0px)));
+  --bottom-bar-h: calc(52px + env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px)));
 }
 
 * {
@@ -33,6 +32,7 @@ body {
   background: linear-gradient(135deg, #fefefe 0%, var(--brand-bg) 50%, var(--brand-bg) 100%);
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: 100svh;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -42,6 +42,7 @@ body {
 #root {
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: 100svh;
   width: 100%;
 }
 
@@ -52,16 +53,22 @@ body {
    ───────────────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   html, body {
-    height: 100dvh;
-    height: -webkit-fill-available; /* fallback for older Safari */
-    overflow-x: hidden;
-    overflow-y: hidden;
+    /* Use fixed positioning approach: html/body just fill viewport */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
     overscroll-behavior: none;
   }
 
   #root {
-    height: 100dvh;
-    height: -webkit-fill-available;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -75,6 +82,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: white; /* prevent brand-bg body gradient from showing through gaps */
   }
 
   /* Scrollable content area — only this scrolls on mobile */
@@ -88,14 +96,24 @@ body {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* BottomBar is position:fixed — pad content so it's not hidden behind the bar */
-  #main-content {
+  /* BottomBar is position:fixed — pad content so it's not hidden behind the bar.
+     Chat page hides BottomBar, so no padding needed there. */
+  #main-content:not(.chat-active) {
     padding-bottom: calc(var(--bottom-bar-h) + 16px) !important;
   }
 
-  /* Chat page full-height container: exactly fills the area between fixed header and fixed bottom bar */
+  /* Chat page full-height container: fills area between header and screen bottom.
+     Bottom bar is hidden on /chat. Use 100% of parent instead of dvh to avoid gaps. */
   .resident-chat-container {
-    height: calc(100dvh - var(--mobile-header-h) - var(--bottom-bar-h));
+    height: 100%;
+  }
+
+  /* Chat page — remove padding, fill entire viewport below header */
+  #main-content.chat-active {
+    padding: 0 !important;
+    height: calc(100dvh - var(--mobile-header-h));
+    height: calc(-webkit-fill-available - var(--mobile-header-h));
+    overflow: hidden;
   }
 
   /* Minimum touch target size — all interactive elements */
@@ -107,6 +125,32 @@ body {
   /* Base font size on mobile — never below 14px */
   body {
     font-size: 14px;
+  }
+}
+
+/* ── Standalone PWA mode — fill available space ── */
+@media (display-mode: standalone) {
+  html, body, #root {
+    height: 100%;
+    height: 100dvh;
+    height: 100svh;
+    height: -webkit-fill-available;
+    min-height: 100svh;
+  }
+  /* Sidebar in PWA must also fill viewport */
+  .sidebar {
+    bottom: 0 !important;
+  }
+}
+
+/* ── Keyboard visible — hide bottom nav, shrink content ── */
+@media (max-width: 768px) and (max-height: 500px) {
+  .bottom-nav,
+  [role="navigation"] {
+    display: none !important;
+  }
+  #main-content {
+    padding-bottom: 0 !important;
   }
 }
 
@@ -201,8 +245,7 @@ body {
   position: fixed;
   left: 0;
   top: 0;
-  height: 100vh;
-  height: 100dvh;
+  bottom: 0; /* use top+bottom instead of height — guaranteed to fill viewport for fixed elements */
   width: 272px;
   background: linear-gradient(180deg, #faf8f6 0%, #ffffff 40%);
   border-right: 1px solid #f0f0f0;
@@ -314,7 +357,7 @@ body {
 }
 
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px));
 }
 
 .badge {
@@ -382,6 +425,15 @@ body {
     border-radius: 20px 20px 0 0;
     max-height: 95vh;
     max-height: 95dvh;
+  }
+}
+
+/* Very small screens (<375px): modals go full-width bottom sheet */
+@media (max-width: 374px) {
+  .modal-content {
+    border-radius: 20px 20px 0 0;
+    max-width: 100%;
+    margin: 0;
   }
 }
 
@@ -505,8 +557,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
-    padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+    padding: 6px 12px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 6px);
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -580,6 +632,11 @@ body {
 
   select {
     font-size: 16px;
+  }
+
+  /* Prevent iOS Safari zoom on input focus — minimum 16px */
+  input, select, textarea {
+    font-size: max(16px, 1em) !important;
   }
 }
 
@@ -936,11 +993,11 @@ a.btn-secondary:active,
 
 /* Safe area padding utilities */
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px));
 }
 
 .safe-area-top {
-  padding-top: env(safe-area-inset-top, 0);
+  padding-top: env(safe-area-inset-top, constant(safe-area-inset-top, 0));
 }
 
 /* Larger touch targets for mobile */
@@ -1262,7 +1319,7 @@ a.btn-secondary:active,
 
   .glass-card {
     padding: 10px;
-    border-radius: 10px;
+    border-radius: 12px;
   }
 
   .modal-content {
@@ -1279,10 +1336,28 @@ a.btn-secondary:active,
   }
 }
 
+/* iPhone 11/12/13/14 (390px) */
+@media (min-width: 376px) and (max-width: 413px) {
+  .page-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+/* iPhone 14 Pro Max, Samsung S24 Ultra (414-430px) */
+@media (min-width: 414px) and (max-width: 430px) {
+  .page-content {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
 /* ── PWA Standalone mode fix ───────────────────────────────────────────── */
 @media (display-mode: standalone) {
   html, body, #root {
     height: 100dvh;
+    height: 100svh;
     height: -webkit-fill-available;
+    min-height: 100svh;
   }
 }

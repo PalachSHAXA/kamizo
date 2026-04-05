@@ -24,7 +24,7 @@ export function HomeTab({
   const navigate = useNavigate();
 
   return (
-    <div className="space-y-3 px-2.5 md:px-0">
+    <div className="space-y-2 px-2.5 md:px-0">
 
       {/* Active Requests - using RequestStatusTrackerCompact */}
       {activeRequests.length > 0 && (
@@ -57,15 +57,15 @@ export function HomeTab({
       {/* Hero card */}
       <button
         onClick={() => setShowAllServices(true)}
-        className="w-full bg-white rounded-[22px] p-[17px_18px] flex items-center gap-[14px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-all touch-manipulation relative overflow-hidden"
+        className="w-full bg-white rounded-[18px] p-[12px_14px] flex items-center gap-[12px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.97] transition-all touch-manipulation relative overflow-hidden"
       >
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.05) 0%, transparent 55%)' }} />
-        <div className="w-[52px] h-[52px] shrink-0 rounded-[16px] flex items-center justify-center bg-primary-50">
-          <Wrench className="w-[26px] h-[26px] text-primary-500" strokeWidth={1.8} />
+        <div className="w-[44px] h-[44px] shrink-0 rounded-[14px] flex items-center justify-center bg-primary-50">
+          <Wrench className="w-[22px] h-[22px] text-primary-500" strokeWidth={1.8} />
         </div>
         <div className="flex-1 text-left relative z-10">
-          <div className="text-[17px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Вызвать мастера' : 'Usta chaqirish'}</div>
-          <div className="text-[12px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Заявка на ремонт · Быстро' : 'Ta\'mirlash arizasi · Tez'}</div>
+          <div className="text-[15px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Вызвать мастера' : 'Usta chaqirish'}</div>
+          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Заявка на ремонт · Быстро' : 'Ta\'mirlash arizasi · Tez'}</div>
         </div>
         <div className="w-8 h-8 rounded-[10px] bg-primary-50 flex items-center justify-center shrink-0">
           <ArrowRight className="w-[15px] h-[15px] text-primary-500" />
@@ -73,35 +73,35 @@ export function HomeTab({
       </button>
 
       {/* 2-col: Chat + Guests */}
-      <div className="grid grid-cols-2 gap-[10px]">
+      <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => navigate('/chat')}
-          className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.94] transition-transform touch-manipulation"
+          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
         >
-          <div className="w-[42px] h-[42px] rounded-[13px] bg-primary-50 flex items-center justify-center mb-[11px]">
-            <MessageCircle className="w-[21px] h-[21px] text-primary-500" strokeWidth={1.8} />
+          <div className="w-[36px] h-[36px] rounded-[11px] bg-primary-50 flex items-center justify-center mb-2">
+            <MessageCircle className="w-[18px] h-[18px] text-primary-500" strokeWidth={1.8} />
           </div>
-          <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Чат' : 'Chat'}</div>
-          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Написать в УК' : 'UK ga yozish'}</div>
+          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Чат' : 'Chat'}</div>
+          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Написать в УК' : 'UK ga yozish'}</div>
         </button>
         <button
           onClick={() => navigate('/guest-access')}
-          className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.94] transition-transform touch-manipulation"
+          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
         >
-          <div className="w-[42px] h-[42px] rounded-[13px] bg-green-50 flex items-center justify-center mb-[11px]">
-            <QrCode className="w-[21px] h-[21px] text-green-500" strokeWidth={1.8} />
+          <div className="w-[36px] h-[36px] rounded-[11px] bg-green-50 flex items-center justify-center mb-2">
+            <QrCode className="w-[18px] h-[18px] text-green-500" strokeWidth={1.8} />
           </div>
-          <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Гости' : 'Mehmonlar'}</div>
-          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'QR-пропуск' : 'QR-ruxsatnoma'}</div>
+          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Гости' : 'Mehmonlar'}</div>
+          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'QR-пропуск' : 'QR-ruxsatnoma'}</div>
         </button>
       </div>
 
       {/* Wide card: Marketplace */}
       <button
         onClick={() => navigate('/marketplace')}
-        className="w-full bg-white rounded-[18px] p-[14px_16px] flex items-center gap-[13px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform touch-manipulation"
+        className="w-full bg-white rounded-[16px] p-[10px_14px] flex items-center gap-[10px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.98] transition-transform touch-manipulation"
       >
-        <div className="w-[42px] h-[42px] rounded-[13px] bg-purple-50 flex items-center justify-center shrink-0">
+        <div className="w-[36px] h-[36px] rounded-[11px] bg-purple-50 flex items-center justify-center shrink-0">
           <ShoppingBag className="w-[21px] h-[21px] text-purple-500" strokeWidth={1.8} />
         </div>
         <div className="flex-1">
@@ -112,41 +112,41 @@ export function HomeTab({
       </button>
 
       {/* 2-col: Auto + Contacts */}
-      <div className="grid grid-cols-2 gap-[10px]">
+      <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => navigate('/vehicles')}
-          className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.94] transition-transform touch-manipulation"
+          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
         >
-          <div className="w-[42px] h-[42px] rounded-[13px] bg-amber-50 flex items-center justify-center mb-[11px]">
-            <Car className="w-[21px] h-[21px] text-amber-500" strokeWidth={1.8} />
+          <div className="w-[36px] h-[36px] rounded-[11px] bg-amber-50 flex items-center justify-center mb-2">
+            <Car className="w-[18px] h-[18px] text-amber-500" strokeWidth={1.8} />
           </div>
-          <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Мои авто' : 'Avtomobillarim'}</div>
-          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Реестр авто' : 'Avto ro\'yxati'}</div>
+          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Мои авто' : 'Avtomobillarim'}</div>
+          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Реестр авто' : 'Avto ro\'yxati'}</div>
         </button>
         <button
           onClick={() => navigate('/useful-contacts')}
-          className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.94] transition-transform touch-manipulation"
+          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
         >
-          <div className="w-[42px] h-[42px] rounded-[13px] bg-primary-50 flex items-center justify-center mb-[11px]">
-            <Users className="w-[21px] h-[21px] text-primary-500" strokeWidth={1.8} />
+          <div className="w-[36px] h-[36px] rounded-[11px] bg-primary-50 flex items-center justify-center mb-2">
+            <Users className="w-[18px] h-[18px] text-primary-500" strokeWidth={1.8} />
           </div>
-          <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Контакты' : 'Kontaktlar'}</div>
-          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Полезные' : 'Foydali'}</div>
+          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Контакты' : 'Kontaktlar'}</div>
+          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Полезные' : 'Foydali'}</div>
         </button>
       </div>
 
       {/* Communal Payments Card */}
       <button
-        className="w-full bg-white rounded-[22px] p-[17px_18px] flex items-center gap-[14px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-all touch-manipulation relative overflow-hidden"
+        className="w-full bg-white rounded-[18px] p-[12px_14px] flex items-center gap-[12px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.97] transition-all touch-manipulation relative overflow-hidden"
       >
-        <div className="w-[52px] h-[52px] shrink-0 rounded-[16px] flex items-center justify-center bg-emerald-50">
-          <Wallet className="w-[26px] h-[26px] text-emerald-500" strokeWidth={1.8} />
+        <div className="w-[44px] h-[44px] shrink-0 rounded-[14px] flex items-center justify-center bg-emerald-50">
+          <Wallet className="w-[22px] h-[22px] text-emerald-500" strokeWidth={1.8} />
         </div>
         <div className="flex-1 text-left">
-          <div className="text-[17px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Ком. услуги' : 'Kommunal xizmatlar'}</div>
-          <div className="text-[12px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Оплата · Квитанции · Счета' : 'To\'lov · Kvitansiyalar · Hisoblar'}</div>
+          <div className="text-[15px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Ком. услуги' : 'Kommunal xizmatlar'}</div>
+          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Оплата · Квитанции · Счета' : 'To\'lov · Kvitansiyalar · Hisoblar'}</div>
         </div>
-        <span className="px-2.5 py-1 rounded-[8px] bg-emerald-50 text-xs font-bold text-emerald-600 uppercase tracking-wide shrink-0">
+        <span className="px-2 py-0.5 rounded-[6px] bg-emerald-50 text-[10px] font-bold text-emerald-600 uppercase tracking-wide shrink-0">
           {language === 'ru' ? 'Скоро' : 'Tez kunda'}
         </span>
       </button>

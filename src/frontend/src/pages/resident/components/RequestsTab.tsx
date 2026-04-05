@@ -132,12 +132,16 @@ export function RequestsTab({
       {!isLoadingRequests && requestsSubTab === 'active' && (
         <div className="space-y-3">
           {activeRequests.length === 0 ? (
-            <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <FileText className="w-7 h-7 text-gray-300" />
+            <div className="text-center py-12 px-4">
+              <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <FileText className="w-8 h-8 text-primary-400" />
               </div>
-              <h3 className="text-[15px] font-semibold text-gray-500">{language === 'ru' ? 'Больше заявок нет' : 'Boshqa arizalar yo\'q'}</h3>
-              <p className="text-[13px] text-gray-400 mt-1">{language === 'ru' ? 'Создайте заявку на главной' : 'Bosh sahifada ariza yarating'}</p>
+              <h3 className="text-base font-semibold text-gray-800 mb-1">
+                {language === 'ru' ? 'Нет заявок' : 'Arizalar yo\'q'}
+              </h3>
+              <p className="text-sm text-gray-500">
+                {language === 'ru' ? 'Нажмите + чтобы создать заявку' : 'Ariza yaratish uchun + bosing'}
+              </p>
               <button
                 onClick={() => switchTab('home')}
                 className="mt-4 px-5 py-2.5 bg-primary-500 text-white rounded-[12px] text-[14px] font-semibold active:scale-[0.98] transition-transform touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)] inline-flex items-center gap-1.5"

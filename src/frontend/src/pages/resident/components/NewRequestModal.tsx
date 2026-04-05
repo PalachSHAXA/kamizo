@@ -344,7 +344,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
         </form>
 
         {/* Fixed footer button */}
-        <div className="px-5 py-4 border-t border-gray-100 bg-white safe-area-bottom">
+        <div className="px-5 py-4 border-t border-gray-100 bg-white" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
           <button
             type="submit"
             onClick={handleSubmit}

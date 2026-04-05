@@ -413,7 +413,14 @@ export function AnnouncementsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm(language === 'ru' ? 'Удалить объявление?' : 'E\'lonni o\'chirishni tasdiqlaysizmi?')) {
+    const announcement = announcements.find(a => a.id === id);
+    const title = announcement?.title || '';
+    const confirmed = confirm(
+      language === 'ru'
+        ? `Удалить объявление "${title}"?`
+        : `"${title}" e'lonini o'chirishni xohlaysizmi?`
+    );
+    if (confirmed) {
       await deleteAnnouncement(id);
     }
   };
@@ -534,11 +541,20 @@ export function AnnouncementsPage() {
       {/* Announcements List */}
       <div className="space-y-4">
         {currentAnnouncements.length === 0 ? (
-          <EmptyState
-            icon={<Megaphone className="w-12 h-12" />}
-            title={language === 'ru' ? 'Нет объявлений' : 'E\'lonlar yo\'q'}
-            description={language === 'ru' ? 'Добавьте первое объявление' : 'Birinchi e\'lonni qo\'shing'}
-          />
+          <div>
+            <EmptyState
+              icon={<Megaphone className="w-12 h-12" />}
+              title={language === 'ru' ? 'Нет объявлений' : 'E\'lonlar yo\'q'}
+              description={language === 'ru' ? 'Добавьте первое объявление' : 'Birinchi e\'lonni qo\'shing'}
+            />
+            {canManageAnnouncements && (
+              <div className="text-center mt-3">
+                <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-primary-500 text-white rounded-xl text-sm font-medium">
+                  {language === 'ru' ? 'Создать объявление' : 'E\'lon yaratish'}
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
           currentAnnouncements.map((announcement) => (
             <AnnouncementCard

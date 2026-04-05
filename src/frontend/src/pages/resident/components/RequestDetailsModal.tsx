@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CheckCircle, Star, RefreshCw } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../../../types';
@@ -13,6 +14,8 @@ export function RequestDetailsModal({
   hasActiveReschedule
 }: RequestDetailsModalProps) {
   const { language } = useLanguageStore();
+  const [descExpanded, setDescExpanded] = useState(false);
+  const isLongDesc = (request.description?.length || 0) > 100;
   // Reschedule is available for assigned/accepted/in_progress/pending_approval requests with an executor
   const canReschedule = ['assigned', 'accepted', 'in_progress', 'pending_approval'].includes(request.status) && request.executorId && !hasActiveReschedule;
 
@@ -35,7 +38,14 @@ export function RequestDetailsModal({
             <h3 className="text-sm font-medium text-gray-500 mb-1">
               {language === 'ru' ? 'Описание' : 'Tavsif'}
             </h3>
-            <p className="text-gray-900">{request.description}</p>
+            <p className="text-sm text-gray-600">
+              {isLongDesc && !descExpanded ? request.description.slice(0, 100) + '...' : request.description}
+              {isLongDesc && (
+                <button onClick={() => setDescExpanded(!descExpanded)} className="text-primary-500 text-xs ml-1">
+                  {descExpanded ? (language === 'ru' ? 'Свернуть' : 'Yopish') : (language === 'ru' ? 'Ещё' : 'Ko\'proq')}
+                </button>
+              )}
+            </p>
           </div>
 
           {/* Priority */}
