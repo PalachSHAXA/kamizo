@@ -117,7 +117,7 @@ export function QRSignatureModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90dvh] overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -142,7 +142,7 @@ export function QRSignatureModal({
         </div>
 
         {/* Content */}
-        <div className="p-4">
+        <div className="p-4 overflow-y-auto flex-1">
           {description && (
             <p className="text-sm text-gray-600 mb-4 text-center">{description}</p>
           )}

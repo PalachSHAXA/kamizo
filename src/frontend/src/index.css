@@ -29,14 +29,20 @@ html {
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: linear-gradient(135deg, #fefefe 0%, var(--brand-bg) 50%, var(--brand-bg) 100%);
+  background: #ffffff;
   min-height: 100vh;
   min-height: 100dvh;
-  min-height: 100svh;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+}
+
+/* Desktop only: brand gradient background */
+@media (min-width: 769px) {
+  body {
+    background: linear-gradient(135deg, #fefefe 0%, var(--brand-bg) 50%, var(--brand-bg) 100%);
+  }
 }
 
 #root {

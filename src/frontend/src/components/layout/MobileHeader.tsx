@@ -178,7 +178,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
           />
           <div
             className="fixed left-3 right-3 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-            style={{ zIndex: 110, maxHeight: '70dvh', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
+            style={{ zIndex: 110, maxHeight: 'min(70dvh, 500px)', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
             role="region"
             aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >

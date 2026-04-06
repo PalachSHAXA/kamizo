@@ -163,7 +163,7 @@ export function EntrancesView({
                                   >
                                     {apt.number}
                                     {hasResidents && !isSelected && (
-                                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full bg-green-500 border-2 border-white text-white text-[8px] font-bold flex items-center justify-center px-0.5">
+                                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full bg-green-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center px-0.5">
                                         {apt.resident_count}
                                       </span>
                                     )}

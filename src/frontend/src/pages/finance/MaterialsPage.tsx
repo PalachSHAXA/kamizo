@@ -269,7 +269,7 @@ export default function MaterialsPage() {
           {batchItems.length > 0 && (
             <div className="border-b border-gray-100 pb-3 mb-3">
               <p className="text-xs font-medium text-gray-500 mb-2">{t('Добавленные материалы', 'Qo\'shilgan materiallar')} ({batchItems.length})</p>
-              <div className="max-h-[200px] overflow-y-auto border border-gray-100 rounded-lg">
+              <div className="max-h-[200px] overflow-y-auto overflow-x-auto border border-gray-100 rounded-lg">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-gray-50">
                     <tr className="text-xs text-gray-500">

@@ -11,11 +11,15 @@ export function registerAnnouncementListRoutes() {
 
 // Announcements: List
 route('GET', '/api/announcements', async (request, env) => {
-  const fc = await requireFeature('announcements', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+
+  // Feature gate only for management (creating/managing announcements)
+  // Residents always see announcements even if feature is "off" for admin panel
+  if (isManagement(user)) {
+    const fc = await requireFeature('announcements', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
+  }
 
   const url = new URL(request.url);
   const type = url.searchParams.get('type');

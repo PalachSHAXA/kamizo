@@ -36,7 +36,8 @@
       "Bash(/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node.exe node_modules/.bin/vite build)",
       "Bash(/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node.exe /c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64/node_modules/npm/bin/npm-cli.js install --prefer-offline)",
       "Bash(export PATH=\"/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64:$PATH\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Edit(/.claude/skills/kamizo-adapter/**)"
     ]
   }
 }
