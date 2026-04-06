@@ -175,7 +175,7 @@ export function ServiceBottomSheet({
           </div>
 
           {/* Services grid */}
-          <div className="grid grid-cols-3 gap-2.5 mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-3">
             {mainGrid.map(category => {
               const colors = SERVICE_CAT_COLORS[category.id] || { color: '#8E8E93', bg: '#F2F2F7' };
               const isSelected = selectedServiceId === category.id;
@@ -269,7 +269,7 @@ export function ServiceBottomSheet({
         </div>
 
         {/* CTA Footer */}
-        <div className="flex-shrink-0 border-t border-gray-100 bg-white rounded-b-none px-4 pt-2.5" style={{ paddingBottom: 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 16px))' }}>
+        <div className="sticky bottom-0 flex-shrink-0 border-t border-gray-100 bg-white rounded-b-none px-4 pt-2.5" style={{ paddingBottom: 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 16px))' }}>
           {/* Selected tag */}
           <div className="flex items-center gap-2 min-h-[30px] mb-2.5 flex-wrap">
             {selectedCat && selectedColors ? (

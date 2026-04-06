@@ -125,7 +125,7 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-primary-50 via-white to-blue-50 z-[300] flex items-start sm:items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 my-4">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 my-4 max-h-[90dvh] overflow-y-auto flex flex-col">
         {/* Progress */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
@@ -202,14 +202,16 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
                 />
               </div>
             </div>
-            <button
-              onClick={handleStep1}
-              disabled={!companyName.trim() || loading}
-              className="mt-5 w-full py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.97] transition-all touch-manipulation"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
-              {t('Далее', 'Keyingisi')}
-            </button>
+            <div className="sticky bottom-0 bg-white pt-3 -mx-6 px-6 -mb-6 pb-6">
+              <button
+                onClick={handleStep1}
+                disabled={!companyName.trim() || loading}
+                className="w-full py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.97] transition-all touch-manipulation whitespace-nowrap"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
+                {t('Далее', 'Keyingisi')}
+              </button>
+            </div>
           </div>
         )}
 
@@ -262,21 +264,23 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
                 />
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setStep(3)}
-                className="flex-1 py-3.5 bg-gray-100 text-gray-600 font-semibold rounded-[14px] active:scale-[0.97] transition-all touch-manipulation"
-              >
-                {t('Пропустить', 'O\'tkazib yuborish')}
-              </button>
-              <button
-                onClick={handleStep2}
-                disabled={!buildingName.trim() || !buildingAddress.trim() || loading}
-                className="flex-1 py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.97] transition-all touch-manipulation"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
-                {t('Далее', 'Keyingisi')}
-              </button>
+            <div className="sticky bottom-0 bg-white pt-3 -mx-6 px-6 -mb-6 pb-6">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(3)}
+                  className="flex-1 py-3.5 bg-gray-100 text-gray-600 font-semibold rounded-[14px] active:scale-[0.97] transition-all touch-manipulation whitespace-nowrap truncate"
+                >
+                  {t('Пропустить', 'O\'tkazib yuborish')}
+                </button>
+                <button
+                  onClick={handleStep2}
+                  disabled={!buildingName.trim() || !buildingAddress.trim() || loading}
+                  className="flex-1 py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.97] transition-all touch-manipulation whitespace-nowrap"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
+                  {t('Далее', 'Keyingisi')}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -343,14 +347,16 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
                 />
               </div>
             </div>
-            <button
-              onClick={handleStep3}
-              disabled={!managerName.trim() || !managerLogin.trim() || !managerPassword.trim() || loading}
-              className="mt-5 w-full py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.97] transition-all touch-manipulation"
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {t('Создать и завершить', 'Yaratish va tugatish')}
-            </button>
+            <div className="sticky bottom-0 bg-white pt-3 -mx-6 px-6 -mb-6 pb-6">
+              <button
+                onClick={handleStep3}
+                disabled={!managerName.trim() || !managerLogin.trim() || !managerPassword.trim() || loading}
+                className="w-full py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.97] transition-all touch-manipulation whitespace-nowrap"
+              >
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {t('Создать и завершить', 'Yaratish va tugatish')}
+              </button>
+            </div>
           </div>
         )}
 

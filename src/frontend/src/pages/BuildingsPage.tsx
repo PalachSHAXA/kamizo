@@ -192,7 +192,7 @@ export function BuildingsPage() {
 
       {/* Entrance edit toast */}
       {s.entranceEditToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl">
+        <div className="fixed left-1/2 -translate-x-1/2 z-[150] flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl" style={{ bottom: 'calc(var(--bottom-bar-h, 64px) + 12px)' }}>
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
           {s.entranceEditToast}
         </div>

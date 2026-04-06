@@ -1043,7 +1043,7 @@ function ChatView({
                           ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-[18px] rounded-br-[6px] shadow-sm shadow-orange-200'
                           : 'bg-white text-gray-900 rounded-[18px] rounded-bl-[6px] shadow-sm'
                       } ${message.status === 'sending' ? 'opacity-60' : ''}`}>
-                        <p className="text-[14px] whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                        <p className="text-[14px] whitespace-pre-wrap leading-relaxed" style={{ wordBreak: 'break-word' }}>{message.content}</p>
                         <div className={`flex items-center justify-end gap-1 mt-1 ${
                           isOwn ? 'text-white/60' : 'text-gray-400'
                         }`}>
@@ -1323,7 +1323,7 @@ export function ChatPage() {
       <div className="h-full flex">
         <div className={`${
           selectedChannelId ? 'hidden md:flex md:flex-col' : 'flex flex-col'
-        } w-full md:w-[340px] lg:w-[380px] border-r`}>
+        } w-full md:w-[280px] lg:w-[340px] border-r`}>
           <AdminChannelList
             channels={channels}
             onSelectChannel={handleSelectChannel}

@@ -420,6 +420,7 @@ export function MarketplacePage() {
               )}
               {/* Horizontal scroll of smaller featured */}
               {featured.length > 1 && (
+                <div className="relative">
                 <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
                   {featured.slice(1, 7).map(p => (
                     <div key={p.id} className="w-[140px] shrink-0 bg-white rounded-[16px] overflow-hidden shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
@@ -438,6 +439,8 @@ export function MarketplacePage() {
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none" />
                 </div>
               )}
             </div>
@@ -696,7 +699,7 @@ export function MarketplacePage() {
 
       {/* FLOATING CART */}
       {activeTab === 'shop' && cartCount > 0 && (
-        <div className="fixed bottom-[76px] left-4 right-4 z-40 md:hidden">
+        <div className="fixed left-4 right-4 z-40 md:hidden" style={{ bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}>
           <button onClick={() => setActiveTab('cart')} className="w-full bg-primary-500 text-white rounded-[16px] p-3.5 flex items-center justify-between shadow-[0_4px_20px_rgba(var(--brand-rgb),0.35)] active:scale-[0.98] transition-transform touch-manipulation">
             <div className="flex items-center gap-2.5"><div className="w-8 h-8 bg-white/20 rounded-[10px] flex items-center justify-center"><ShoppingCart className="w-[18px] h-[18px]" /></div><span className="font-semibold text-[14px]">{cartCount} {language === 'ru' ? 'товаров' : 'mahsulot'}</span></div>
             <span className="font-bold text-[15px]">{fmt(cartTotal)}</span>
