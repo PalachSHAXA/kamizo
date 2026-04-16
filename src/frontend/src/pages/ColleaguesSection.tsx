@@ -112,6 +112,66 @@ const getAvatarUrl = (name: string, id: string): string => {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${seed}&backgroundColor=f59e0b,eab308,84cc16,22c55e,14b8a6,06b6d4,0ea5e9,3b82f6,6366f1,8b5cf6,a855f7,d946ef,ec4899,f43f5e&backgroundType=gradientLinear`;
 };
 
+// Deterministic gradient (0-9) based on name+id, so fallback avatar keeps the
+// same colour across renders.
+const AVATAR_GRADIENTS = [
+  'from-amber-400 to-orange-500',
+  'from-lime-400 to-green-500',
+  'from-teal-400 to-cyan-500',
+  'from-sky-400 to-blue-500',
+  'from-indigo-400 to-purple-500',
+  'from-fuchsia-400 to-pink-500',
+  'from-rose-400 to-red-500',
+  'from-emerald-400 to-teal-500',
+  'from-violet-400 to-indigo-500',
+  'from-yellow-400 to-amber-500',
+];
+function hashSeed(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h) % AVATAR_GRADIENTS.length;
+}
+function initialsOf(name: string): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Avatar with initials fallback. Previously the raw <img> showed alt-text
+// (e.g. "📷 Bobur Toshmat") whenever DiceBear failed to respond — which is
+// apparently common enough to warrant a local fallback.
+function Avatar({ name, src, className, onClick }: {
+  name: string;
+  src: string;
+  className?: string;
+  onClick?: () => void;
+}) {
+  const [broken, setBroken] = useState(false);
+  if (broken || !src) {
+    const gradient = AVATAR_GRADIENTS[hashSeed(name)];
+    return (
+      <div
+        onClick={onClick}
+        className={`bg-gradient-to-br ${gradient} text-white font-bold flex items-center justify-center select-none ${className || ''}`}
+        aria-label={name}
+      >
+        {initialsOf(name)}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={name}
+      onClick={onClick}
+      onError={() => setBroken(true)}
+      className={className}
+    />
+  );
+}
+
 // Функция для генерации бейджей на основе рейтинга
 const generateBadges = (rating: number, completedCount: number): string[] => {
   const badges: string[] = [];
@@ -312,10 +372,10 @@ function EmployeeProfile({ employee, onBack, thanks }: {
 
       <div className="glass-card p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
-          <img
+          <Avatar
+            name={employee.name}
             src={employee.photo}
-            alt={employee.name}
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover flex-shrink-0"
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover flex-shrink-0 text-2xl"
           />
           <div className="flex-1 text-center sm:text-left min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold truncate">{employee.name}</h1>
@@ -458,10 +518,10 @@ function TopColleagues({ employees }: { employees: Employee[] }) {
               <span className="text-xl flex-shrink-0">
                 {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
               </span>
-              <img
+              <Avatar
+                name={emp.name}
                 src={emp.photo}
-                alt={emp.name}
-                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 text-sm"
               />
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-sm truncate">{emp.name}</h3>
@@ -802,10 +862,10 @@ function ColleaguesSectionInner() {
                         key={emp.id}
                         className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-primary-50/50 border border-primary-200 rounded-xl hover:bg-primary-50 hover:shadow-md transition-all"
                       >
-                        <img
+                        <Avatar
+                          name={emp.name}
                           src={emp.photo}
-                          alt={emp.name}
-                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0"
+                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0 text-lg"
                           onClick={() => setSelectedEmployee(emp)}
                         />
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEmployee(emp)}>
@@ -861,10 +921,10 @@ function ColleaguesSectionInner() {
                           key={emp.id}
                           className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-white/60 border border-gray-200 rounded-xl hover:bg-white/80 hover:shadow-md transition-all"
                         >
-                          <img
+                          <Avatar
+                            name={emp.name}
                             src={emp.photo}
-                            alt={emp.name}
-                            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0"
+                            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0 text-lg"
                             onClick={() => setSelectedEmployee(emp)}
                           />
                           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEmployee(emp)}>
@@ -916,10 +976,10 @@ function ColleaguesSectionInner() {
                         key={emp.id}
                         className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-white/60 border border-gray-200 rounded-xl hover:bg-white/80 hover:shadow-md transition-all"
                       >
-                        <img
+                        <Avatar
+                          name={emp.name}
                           src={emp.photo}
-                          alt={emp.name}
-                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0"
+                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0 text-lg"
                           onClick={() => setSelectedEmployee(emp)}
                         />
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEmployee(emp)}>

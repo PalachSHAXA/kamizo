@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
 import { generateReconciliationDoc } from '../../../utils/generateFinanceDocs';
+import { useTenantStore } from '../../../stores/tenantStore';
 import type { HomeTabProps } from './types';
 
 export function HomeTab({
@@ -22,6 +23,8 @@ export function HomeTab({
   generateReconciliation,
 }: HomeTabProps) {
   const navigate = useNavigate();
+  const hasFeature = useTenantStore(s => s.hasFeature);
+  const marketplaceEnabled = hasFeature('marketplace');
 
   return (
     <div className="space-y-2 px-2.5 md:px-0">
@@ -98,20 +101,25 @@ export function HomeTab({
         </button>
       </div>
 
-      {/* Wide card: Marketplace */}
-      <button
-        onClick={() => navigate('/marketplace')}
-        className="w-full bg-white rounded-[16px] p-[10px_14px] flex items-center gap-[10px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.98] transition-transform touch-manipulation"
-      >
-        <div className="w-[36px] h-[36px] rounded-[11px] bg-purple-50 flex items-center justify-center shrink-0">
-          <ShoppingBag className="w-[21px] h-[21px] text-purple-500" strokeWidth={1.8} />
-        </div>
-        <div className="flex-1">
-          <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Магазин' : 'Do\'kon'}</div>
-          <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Товары для дома · Быстрая доставка' : 'Uy uchun mahsulotlar'}</div>
-        </div>
-        <ChevronRight className="w-[15px] h-[15px] text-gray-300" />
-      </button>
+      {/* Wide card: Marketplace — hidden when tenant has marketplace feature
+          disabled, matching the drawer lock state. Previously the tile
+          navigated to /marketplace even when the drawer showed the feature
+          as locked, which was inconsistent. */}
+      {marketplaceEnabled && (
+        <button
+          onClick={() => navigate('/marketplace')}
+          className="w-full bg-white rounded-[16px] p-[10px_14px] flex items-center gap-[10px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.98] transition-transform touch-manipulation"
+        >
+          <div className="w-[36px] h-[36px] rounded-[11px] bg-purple-50 flex items-center justify-center shrink-0">
+            <ShoppingBag className="w-[21px] h-[21px] text-purple-500" strokeWidth={1.8} />
+          </div>
+          <div className="flex-1">
+            <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Магазин' : 'Do\'kon'}</div>
+            <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Товары для дома · Быстрая доставка' : 'Uy uchun mahsulotlar'}</div>
+          </div>
+          <ChevronRight className="w-[15px] h-[15px] text-gray-300" />
+        </button>
+      )}
 
       {/* 2-col: Auto + Contacts */}
       <div className="grid grid-cols-2 gap-2">

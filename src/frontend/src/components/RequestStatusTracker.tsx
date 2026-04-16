@@ -189,7 +189,10 @@ export function RequestStatusTracker({
               {language === 'ru' ? categoryInfo.name : categoryInfo.nameUz}
             </div>
             <div className="text-sm text-gray-700 opacity-80">
-              #{request.id.slice(-6).toUpperCase()}
+              {/* Prefer the human-friendly `request.number` (e.g. UK-S-1002)
+                  so that dashboard card and detail view match. Fall back to
+                  UUID slice only for legacy rows without a number. */}
+              #{request.number || request.id.slice(-6).toUpperCase()}
             </div>
           </div>
         </div>

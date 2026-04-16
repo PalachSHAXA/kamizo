@@ -12,6 +12,17 @@ import {
   type GuestAccessCode, type VisitorType, type GuestAccessStatus
 } from '../types';
 
+// Defensive lookups — legacy data may contain out-of-enum values that would
+// otherwise crash ErrorBoundary for the whole manager view.
+const FALLBACK_VISITOR = VISITOR_TYPE_LABELS.other;
+const FALLBACK_STATUS = GUEST_ACCESS_STATUS_LABELS.expired;
+function safeVisitorLabel(type: unknown) {
+  return (type && VISITOR_TYPE_LABELS[type as keyof typeof VISITOR_TYPE_LABELS]) || FALLBACK_VISITOR;
+}
+function safeStatusLabel(status: unknown) {
+  return (status && GUEST_ACCESS_STATUS_LABELS[status as keyof typeof GUEST_ACCESS_STATUS_LABELS]) || FALLBACK_STATUS;
+}
+
 export function ManagerGuestAccessPage() {
   const { user } = useAuthStore();
   const { getAllGuestAccessCodes, revokeGuestAccessCode, getGuestAccessStats, getGuestAccessLogs, fetchGuestCodes, isLoadingGuestCodes } = useDataStore();
@@ -297,8 +308,8 @@ export function ManagerGuestAccessPage() {
         ) : (
           <div className="divide-y max-h-[600px] overflow-y-auto">
             {filteredCodes.map((code) => {
-              const visitorLabel = VISITOR_TYPE_LABELS[code.visitorType];
-              const statusLabel = GUEST_ACCESS_STATUS_LABELS[code.status];
+              const visitorLabel = safeVisitorLabel(code.visitorType);
+              const statusLabel = safeStatusLabel(code.status);
               const isActive = code.status === 'active';
 
               return (
@@ -435,7 +446,7 @@ export function ManagerGuestAccessPage() {
                       {new Date(log.timestamp).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
                     </div>
                   </div>
-                  <span className="text-lg">{VISITOR_TYPE_LABELS[log.visitorType].icon}</span>
+                  <span className="text-lg">{safeVisitorLabel(log.visitorType).icon}</span>
                 </div>
               );
             })}
@@ -476,8 +487,8 @@ export function ManagerGuestAccessPage() {
                   <div>
                     <div className="font-bold">
                       {language === 'ru'
-                        ? VISITOR_TYPE_LABELS[selectedCode.visitorType].label
-                        : VISITOR_TYPE_LABELS[selectedCode.visitorType].labelUz}
+                        ? safeVisitorLabel(selectedCode.visitorType).label
+                        : safeVisitorLabel(selectedCode.visitorType).labelUz}
                     </div>
                     <div className={`text-sm ${
                       selectedCode.status === 'active' ? 'text-green-600' :
@@ -486,8 +497,8 @@ export function ManagerGuestAccessPage() {
                       'text-gray-600'
                     }`}>
                       {language === 'ru'
-                        ? GUEST_ACCESS_STATUS_LABELS[selectedCode.status].label
-                        : GUEST_ACCESS_STATUS_LABELS[selectedCode.status].labelUz}
+                        ? safeStatusLabel(selectedCode.status).label
+                        : safeStatusLabel(selectedCode.status).labelUz}
                     </div>
                   </div>
                 </div>

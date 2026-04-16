@@ -176,9 +176,13 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
             style={{ zIndex: 100 }}
             onClick={() => setShowNotifications(false)}
           />
+          {/* Dropdown anchored to the top, below the mobile header — users
+              click the bell at the top, so the popup appearing at the top
+              matches their expectation. Previously it opened at the bottom
+              near the nav bar, which made click feel unresponsive. */}
           <div
-            className="fixed left-3 right-3 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-            style={{ zIndex: 110, maxHeight: 'min(70dvh, 500px)', bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}
+            className="fixed left-3 right-3 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
+            style={{ zIndex: 110, maxHeight: 'min(75dvh, 600px)', top: 'calc(var(--mobile-header-h, 52px) + 8px)' }}
             role="region"
             aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >

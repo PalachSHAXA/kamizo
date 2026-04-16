@@ -38,11 +38,11 @@ export function BottomBar() {
   // Don't show on desktop or for super_admin
   if (role === 'super_admin') return null;
 
-  // Hide bottom bar on chat page ONLY for roles that land directly on a composer
-  // (resident, tenant, commercial_owner go straight into the UK thread).
-  // Management roles see a thread-list at /chat and need navigation.
-  const isDirectChatRole = role === 'resident' || role === 'tenant' || role === 'commercial_owner';
-  if (location.pathname === '/chat' && isDirectChatRole) return null;
+  // Previously we hid the bottom bar on /chat for resident/tenant/commercial_owner
+  // to mimic a full-screen messenger. That left users without a way back to
+  // other tabs, since the in-page back arrow at the top of the thread was easy
+  // to miss. Keep the bar visible on /chat for all mobile roles instead — the
+  // cost of a slightly less immersive chat beats the cost of users feeling stuck.
 
   // Calculate badges
   const activeRequestsCount = requests.filter(r =>

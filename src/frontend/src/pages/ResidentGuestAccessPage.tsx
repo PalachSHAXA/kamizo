@@ -24,6 +24,25 @@ function toneFor(status: string): StatusTone {
   return 'expired';
 }
 
+// Defensive label lookups. Historical data may contain visitor/access/status
+// values not in the current enum (e.g. legacy 'unknown', null from early
+// schema, typos). Crashing the whole page over one bad row — as happened
+// for Farhod — is unacceptable, so we fall back to the 'other'/'custom'
+// entries for rendering.
+const FALLBACK_VISITOR = VISITOR_TYPE_LABELS.other;
+const FALLBACK_ACCESS = ACCESS_TYPE_LABELS.custom;
+const FALLBACK_STATUS = GUEST_ACCESS_STATUS_LABELS.expired;
+
+function safeVisitorLabel(type: unknown) {
+  return (type && VISITOR_TYPE_LABELS[type as keyof typeof VISITOR_TYPE_LABELS]) || FALLBACK_VISITOR;
+}
+function safeAccessLabel(type: unknown) {
+  return (type && ACCESS_TYPE_LABELS[type as keyof typeof ACCESS_TYPE_LABELS]) || FALLBACK_ACCESS;
+}
+function safeStatusLabel(status: unknown) {
+  return (status && GUEST_ACCESS_STATUS_LABELS[status as keyof typeof GUEST_ACCESS_STATUS_LABELS]) || FALLBACK_STATUS;
+}
+
 // QR Code display component
 function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => void }) {
   const { language } = useLanguageStore();
@@ -172,9 +191,9 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
     }
   };
 
-  const visitorLabel = VISITOR_TYPE_LABELS[code.visitorType];
-  const accessLabel = ACCESS_TYPE_LABELS[code.accessType];
-  const statusLabel = GUEST_ACCESS_STATUS_LABELS[code.status];
+  const visitorLabel = safeVisitorLabel(code.visitorType);
+  const accessLabel = safeAccessLabel(code.accessType);
+  const statusLabel = safeStatusLabel(code.status);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
@@ -801,8 +820,8 @@ export function ResidentGuestAccessPage() {
       ) : (
         <div className="space-y-3">
           {filteredCodes.map((code) => {
-            const visitorLabel = VISITOR_TYPE_LABELS[code.visitorType];
-            const statusLabel = GUEST_ACCESS_STATUS_LABELS[code.status];
+            const visitorLabel = safeVisitorLabel(code.visitorType);
+            const statusLabel = safeStatusLabel(code.status);
             const isExpired = code.status === 'expired';
             const isRevoked = code.status === 'revoked';
             const isUsed = code.status === 'used';
