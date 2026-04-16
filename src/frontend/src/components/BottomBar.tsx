@@ -213,13 +213,12 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white border-t border-gray-200/40"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white border-t border-gray-200/40 safe-area-bottom"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
     >
       <div
-        className="flex items-end justify-around px-1"
+        className="flex items-end justify-around px-2"
         style={{ paddingTop: '4px', paddingBottom: '4px' }}
       >
         {tabs.map((tab) => {
@@ -238,6 +237,7 @@ export function BottomBar() {
                   className="touch-manipulation"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                   aria-label={tab.id === 'qr' ? (language === 'ru' ? 'QR сканер' : 'QR skaner') : (language === 'ru' ? 'Новая заявка' : 'Yangi ariza')}
+                  data-tour={`bottombar-${tab.id}`}
                 >
                   <div
                     className={`rounded-full flex items-center justify-center shadow-[0_4px_24px_rgba(var(--brand-rgb),0.45)] transition-all duration-200 border-[3px] border-white ${
@@ -262,6 +262,7 @@ export function BottomBar() {
               style={{ WebkitTapHighlightColor: 'transparent', minHeight: '44px', paddingTop: '4px', paddingBottom: '2px', minWidth: '0' }}
               aria-current={isActive(tab) ? 'page' : undefined}
               aria-label={tab.label}
+              data-tour={`bottombar-${tab.id}`}
             >
               {/* Active pill background */}
               <div
@@ -295,7 +296,7 @@ export function BottomBar() {
                 className={`relative z-10 leading-tight transition-all duration-200 ${
                   locked ? 'font-medium text-gray-300' : active ? 'font-bold text-primary-600' : 'font-medium text-gray-400'
                 }`}
-                style={{ fontSize: '10px' }}
+                style={{ fontSize: '11px' }}
               >
                 {tab.label}
               </span>
@@ -303,7 +304,7 @@ export function BottomBar() {
               {/* Badge */}
               {tab.badge > 0 && !locked && (
                 <span
-                  className="absolute top-0 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
+                  className="absolute top-0 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-[11px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
                   style={{ right: `calc(50% - 18px)` }}
                 >
                   {tab.badge > 9 ? '9+' : tab.badge}

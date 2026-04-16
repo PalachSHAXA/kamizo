@@ -57,6 +57,7 @@ export function HomeTab({
       {/* Hero card */}
       <button
         onClick={() => setShowAllServices(true)}
+        data-tour="home-call-master"
         className="w-full bg-white rounded-[18px] p-[12px_14px] flex items-center gap-[12px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.97] transition-all touch-manipulation relative overflow-hidden"
       >
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.05) 0%, transparent 55%)' }} />
@@ -86,6 +87,7 @@ export function HomeTab({
         </button>
         <button
           onClick={() => navigate('/guest-access')}
+          data-tour="home-guests"
           className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
         >
           <div className="w-[36px] h-[36px] rounded-[11px] bg-green-50 flex items-center justify-center mb-2">

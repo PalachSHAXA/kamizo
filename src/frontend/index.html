@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192x192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -25,7 +25,14 @@
     <title>kamizo - Управление жильём</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh;background:#ffffff;">
+        <img src="/icons/favicon-64x64.png" alt="" style="width:48px;height:48px;animation:kamizo-pulse 1.5s ease-in-out infinite" />
+      </div>
+    </div>
+    <style>
+      @keyframes kamizo-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    </style>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       // Register Service Worker

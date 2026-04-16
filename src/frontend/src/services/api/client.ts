@@ -2,8 +2,14 @@
 
 export const API_URL = '';
 
-// Flag to prevent multiple 401 reload loops (resets after 5s so subsequent 401s aren't permanently ignored)
+// Track 401 responses: require multiple 401s before forcing logout.
+// A single 401 can happen from transient issues (race condition, stale cache).
+// Only force logout after 2+ consecutive 401s within 10s.
 let isHandling401 = false;
+let consecutive401Count = 0;
+let first401Timestamp = 0;
+const LOGOUT_THRESHOLD = 2; // require 2 consecutive 401s
+const WINDOW_MS = 10_000; // within 10 seconds
 
 // Get auth token from localStorage
 export const getToken = () => localStorage.getItem('auth_token');
@@ -101,23 +107,40 @@ export async function apiRequest<T>(
 
     if (!response.ok) {
       // Auto-logout on 401 (stale token, tenant mismatch, etc.)
+      // Require multiple consecutive 401s before forcing logout to avoid
+      // kicking users out on transient errors (stale cache, race conditions).
       if (response.status === 401 && endpoint !== '/api/auth/login' && !isHandling401) {
-        isHandling401 = true;
-        // Reset flag after 5s so future 401s aren't permanently ignored
-        setTimeout(() => { isHandling401 = false; }, 5000);
-        localStorage.removeItem('auth_token');
-        // Clear zustand persisted auth state
-        try {
-          const authState = JSON.parse(localStorage.getItem('uk-auth-storage') || '{}');
-          if (authState?.state) {
-            authState.state.user = null;
-            authState.state.token = null;
-            localStorage.setItem('uk-auth-storage', JSON.stringify(authState));
-          }
-        } catch {}
-        // Reload page to show login (delayed to allow state cleanup)
-        setTimeout(() => window.location.reload(), 100);
-        throw new Error('Session expired');
+        const now = Date.now();
+        if (now - first401Timestamp > WINDOW_MS) {
+          // Reset counter if too much time passed since first 401
+          consecutive401Count = 0;
+        }
+        if (consecutive401Count === 0) {
+          first401Timestamp = now;
+        }
+        consecutive401Count++;
+
+        if (consecutive401Count >= LOGOUT_THRESHOLD) {
+          isHandling401 = true;
+          consecutive401Count = 0;
+          // Reset flag after 10s so future 401s aren't permanently ignored
+          setTimeout(() => { isHandling401 = false; }, 10_000);
+          localStorage.removeItem('auth_token');
+          // Clear zustand persisted auth state
+          try {
+            const authState = JSON.parse(localStorage.getItem('uk-auth-storage') || '{}');
+            if (authState?.state) {
+              authState.state.user = null;
+              authState.state.token = null;
+              localStorage.setItem('uk-auth-storage', JSON.stringify(authState));
+            }
+          } catch {}
+          // Reload page to show login (delayed to allow state cleanup)
+          setTimeout(() => window.location.reload(), 100);
+          throw new Error('Session expired');
+        }
+        // First 401: just throw, don't wipe session — might be transient
+        throw new Error(data.error || 'API Error');
       }
       throw new Error(data.error || 'API Error');
     }

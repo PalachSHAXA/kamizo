@@ -116,7 +116,7 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
   if (body.phone) { updates.push('phone = ?'); values.push(body.phone); }
   if (body.login) { updates.push('login = ?'); values.push(body.login); }
   if (body.password) {
-    const hashedPassword = await hashPassword(body.password);
+    const hashedPassword = await hashPassword(body.password.trim());
     updates.push('password_hash = ?');
     values.push(hashedPassword);
   }

@@ -40,40 +40,73 @@ route('POST', '/api/auth/login', async (request, env) => {
   if (validationErrors) return error(validationErrors, 400);
   const { login, password } = body;
 
+  // Trim password to match frontend behavior (prevents whitespace mismatch)
+  const trimmedPassword = password.trim();
+
   // Fetch user with password hash
   // On subdomain: find users of that specific tenant (or super_admin)
-  // On main domain (workers.dev has no subdomains): search all users by login —
-  //   tenant context is derived post-login from user.tenant_id (see below)
+  // On main domain: search ALL matching users and verify password against each —
+  //   this prevents multi-tenant login collision where LIMIT 1 picks the wrong user
   const tenantId = getTenantId(request);
-  let userWithHash = await env.DB.prepare(
-    tenantId
-      ? `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? AND is_active = 1 AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
-      : `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE login = ? AND is_active = 1 ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 1`
-  ).bind(...(tenantId ? [login.trim(), tenantId] : [login.trim()])).first() as any;
+  const userFields = 'id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id';
 
-  if (!userWithHash) {
-    return error('Invalid credentials', 401);
+  let userWithHash: any = null;
+
+  if (tenantId) {
+    // Subdomain: single-tenant lookup (fast path)
+    userWithHash = await env.DB.prepare(
+      `SELECT ${userFields} FROM users WHERE login = ? AND is_active = 1 AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
+    ).bind(login.trim(), tenantId).first() as any;
+
+    if (!userWithHash) {
+      return error('Invalid credentials', 401);
+    }
+    const isValid = await verifyPassword(trimmedPassword, userWithHash.password_hash);
+    if (!isValid) {
+      return error('Invalid credentials', 401);
+    }
+  } else {
+    // Main domain (no subdomain): fetch ALL users with this login and try password against each.
+    // This fixes the multi-tenant collision where LIMIT 1 could pick the wrong tenant's user.
+    const { results: candidates } = await env.DB.prepare(
+      `SELECT ${userFields} FROM users WHERE login = ? AND is_active = 1 ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 10`
+    ).bind(login.trim()).all();
+
+    if (!candidates || candidates.length === 0) {
+      return error('Invalid credentials', 401);
+    }
+
+    // Try password against each candidate until one matches
+    for (const candidate of candidates) {
+      const isValid = await verifyPassword(trimmedPassword, (candidate as any).password_hash);
+      if (isValid) {
+        userWithHash = candidate;
+        break;
+      }
+    }
+
+    if (!userWithHash) {
+      return error('Invalid credentials', 401);
+    }
   }
 
-  // Verify password using new secure method (supports both legacy SHA-256 and new PBKDF2)
-  const isValidPassword = await verifyPassword(password, userWithHash.password_hash);
-
-  if (!isValidPassword) {
-    return error('Invalid credentials', 401);
-  }
-
-  // Auto-migrate legacy or old-format password hashes to new 10k-iteration format on successful login
+  // Auto-migrate legacy or old-format password hashes to current iteration count
   const parts = userWithHash.password_hash.split(':');
   const needsRehash = !userWithHash.password_hash.includes(':') || // legacy SHA-256
-    (parts.length === 2) || // old PBKDF2-100k without iteration prefix
+    (parts.length === 2) || // old PBKDF2 without iteration prefix
     (parts.length === 3 && parseInt(parts[0], 10) !== 50000); // different iteration count
-  if (needsRehash) {
-    const newHash = await hashPassword(password);
-    await env.DB.prepare('UPDATE users SET password_hash = ?, last_login_at = datetime(\'now\') WHERE id = ?')
-      .bind(newHash, userWithHash.id).run();
-  } else {
-    await env.DB.prepare('UPDATE users SET last_login_at = datetime(\'now\') WHERE id = ?')
-      .bind(userWithHash.id).run();
+  try {
+    if (needsRehash) {
+      const newHash = await hashPassword(trimmedPassword);
+      await env.DB.prepare('UPDATE users SET password_hash = ?, last_login_at = datetime(\'now\') WHERE id = ?')
+        .bind(newHash, userWithHash.id).run();
+    } else {
+      await env.DB.prepare('UPDATE users SET last_login_at = datetime(\'now\') WHERE id = ?')
+        .bind(userWithHash.id).run();
+    }
+  } catch {
+    // Non-critical: last_login_at update may fail if column doesn't exist yet (migration 029).
+    // Don't block login for this.
   }
 
   // Remove password_hash from response
@@ -136,7 +169,8 @@ route('POST', '/api/auth/register', async (request, env) => {
   }
 
   const body = await request.json() as any;
-  const { login, password, name, role = 'resident', phone, address, apartment, building_id, entrance, floor, specialization, branch, building } = body;
+  const { login, password: rawPassword, name, role = 'resident', phone, address, apartment, building_id, entrance, floor, specialization, branch, building } = body;
+  const password = rawPassword?.trim();
 
   if (!login || !password || !name) {
     return error('Login, password, and name required');

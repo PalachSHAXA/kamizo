@@ -125,10 +125,12 @@ export async function decryptPassword(stored: string | null, keyString: string):
 const PBKDF2_ITERATIONS = 50_000;
 
 export async function hashPassword(password: string): Promise<string> {
+  // Always trim to prevent whitespace mismatch (mobile keyboards often add trailing spaces)
+  const trimmed = (password || '').trim();
   const encoder = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey(
-    'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+    'raw', encoder.encode(trimmed), 'PBKDF2', false, ['deriveBits']
   );
   const hash = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
@@ -139,7 +141,9 @@ export async function hashPassword(password: string): Promise<string> {
   return `${PBKDF2_ITERATIONS}:${saltB64}:${hashB64}`;
 }
 
-export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+export async function verifyPassword(rawPassword: string, storedHash: string): Promise<boolean> {
+  // Always trim to match hashPassword behavior
+  const password = (rawPassword || '').trim();
   const encoder = new TextEncoder();
 
   if (!storedHash.includes(':')) {
