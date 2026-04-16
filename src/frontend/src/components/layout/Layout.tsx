@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -16,23 +16,86 @@ import { ProtectedRoute } from '../ProtectedRoute';
 import { OnboardingWizard } from '../OnboardingWizard';
 import { OnboardingTooltips } from '../OnboardingTooltips';
 import { settingsApi } from '../../services/api/settings';
-import { Loader2, ArrowLeft, ShieldAlert, Home } from 'lucide-react';
+import { Loader2, ArrowLeft, ShieldAlert, Home, MapPinOff } from 'lucide-react';
 
-// Simple 404 page
+// 404 / no-access page.
+// - Separates two distinct situations: truly missing route vs role has no access.
+// - Gives a sensible "home" destination per role (security → scanner, others → /).
+// - Back + home both available.
 const NotFoundPage = () => {
   const { language } = useLanguageStore();
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Routes a user COULD legitimately want but doesn't have access to
+  // (RBAC-protected). If their role is not in the allowedRoles of that
+  // route, ProtectedRoute redirects to / which then ends up here via our
+  // /* catch-all. Detect that case to show "no access" instead of "not
+  // found", since the page exists, just not for this user.
+  const restrictedPaths = [
+    '/finance', '/executors', '/residents', '/team', '/reports',
+    '/buildings', '/rentals', '/work-orders', '/vehicle-search',
+    '/settings', '/payments', '/my-stats', '/schedule',
+  ];
+  const isRestricted = restrictedPaths.some(p => location.pathname.startsWith(p));
+
+  const homePath =
+    user?.role === 'security' ? '/qr-scanner'
+    : '/';
+
+  const title = isRestricted
+    ? (language === 'ru' ? 'Нет доступа' : "Ruxsat yo'q")
+    : (language === 'ru' ? 'Страница не найдена' : 'Sahifa topilmadi');
+
+  const description = isRestricted
+    ? (language === 'ru'
+        ? 'Эта страница существует, но недоступна для вашей роли. Если вам нужен доступ — обратитесь к администратору.'
+        : 'Bu sahifa mavjud, lekin sizning rolingiz uchun cheklangan. Kirish kerak bo\'lsa, administrator bilan bog\'laning.')
+    : (language === 'ru'
+        ? 'Проверьте адрес или вернитесь на главную.'
+        : 'Manzilni tekshiring yoki bosh sahifaga qayting.');
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 gap-4">
-      <div className="text-[72px] font-black text-gray-100 leading-none select-none">404</div>
-      <div className="text-[20px] font-bold text-gray-700">{language === 'ru' ? 'Страница не найдена' : 'Sahifa topilmadi'}</div>
-      <div className="text-[14px] text-gray-400 max-w-xs">{language === 'ru' ? 'Такой страницы не существует или у вас нет доступа' : 'Bunday sahifa mavjud emas yoki sizda ruxsat yo\'q'}</div>
-      <Link
-        to="/"
-        className="mt-2 flex items-center gap-2 px-5 py-3 rounded-[14px] bg-primary-500 text-white font-semibold text-[14px] active:scale-95 transition-transform touch-manipulation"
-      >
-        <Home className="w-4 h-4" />
-        {language === 'ru' ? 'На главную' : 'Bosh sahifaga'}
-      </Link>
+    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-6 gap-4">
+      {isRestricted ? (
+        <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center">
+          <ShieldAlert className="w-10 h-10 text-amber-500" />
+        </div>
+      ) : (
+        <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center">
+          <MapPinOff className="w-10 h-10 text-gray-400" />
+        </div>
+      )}
+
+      {!isRestricted && (
+        <div className="text-[56px] font-black text-gray-100 leading-none select-none">404</div>
+      )}
+
+      <div className="text-[20px] font-bold text-gray-800">{title}</div>
+      <div className="text-[14px] text-gray-500 max-w-sm leading-relaxed">{description}</div>
+
+      {/* Show the path so power users + support can debug quickly */}
+      <code className="text-[11px] text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded max-w-full truncate">
+        {location.pathname}
+      </code>
+
+      <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full max-w-xs">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-[14px] bg-white border border-gray-200 hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold text-[14px] active:scale-95 transition-transform touch-manipulation min-h-[48px]"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {language === 'ru' ? 'Назад' : 'Ortga'}
+        </button>
+        <Link
+          to={homePath}
+          className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-[14px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-semibold text-[14px] active:scale-95 transition-transform touch-manipulation min-h-[48px]"
+        >
+          <Home className="w-4 h-4" />
+          {language === 'ru' ? 'На главную' : 'Bosh sahifa'}
+        </Link>
+      </div>
     </div>
   );
 };

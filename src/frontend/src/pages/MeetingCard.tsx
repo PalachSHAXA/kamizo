@@ -5,6 +5,31 @@ import {
 import type { Meeting, MeetingStatus } from '../types';
 import { MEETING_STATUS_LABELS } from '../types';
 import { plural } from '../utils/plural';
+import { StatusBadge } from '../components/common';
+import type { StatusTone } from '../theme';
+
+// Map meeting status colors (from MEETING_STATUS_LABELS.color strings) to
+// design-system StatusTone so we use a single palette instead of 10
+// per-color className combos.
+const meetingToneFromColor = (color: string): StatusTone => {
+  switch (color) {
+    case 'green':
+    case 'emerald':
+    case 'teal':
+      return 'active';
+    case 'yellow':
+    case 'orange':
+    case 'indigo':
+      return 'pending';
+    case 'blue':
+    case 'purple':
+      return 'info';
+    case 'red':
+      return 'critical';
+    default:
+      return 'expired';
+  }
+};
 
 export interface MeetingCardProps {
   meeting: Meeting;
@@ -47,19 +72,7 @@ export function MeetingCard({
 }: MeetingCardProps) {
   const quorum = calculateQuorum();
 
-  const statusColor = getStatusColor(meeting.status);
-  const colorClasses: Record<string, string> = {
-    gray: 'bg-gray-100 text-gray-700',
-    yellow: 'bg-yellow-100 text-orange-700',
-    blue: 'bg-blue-100 text-blue-700',
-    indigo: 'bg-indigo-100 text-indigo-700',
-    green: 'bg-green-100 text-green-700',
-    orange: 'bg-orange-100 text-orange-700',
-    purple: 'bg-purple-100 text-purple-700',
-    teal: 'bg-teal-100 text-teal-700',
-    emerald: 'bg-emerald-100 text-emerald-700',
-    red: 'bg-red-100 text-red-700',
-  };
+  const statusTone = meetingToneFromColor(getStatusColor(meeting.status));
 
   return (
     <div className="glass-card p-5 hover:shadow-lg transition-shadow">
@@ -67,9 +80,9 @@ export function MeetingCard({
         <div className="flex-1 min-w-0">
           {/* Header */}
           <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <span className={`px-3 py-1 rounded-lg text-sm font-medium ${colorClasses[statusColor] || colorClasses.gray}`}>
+            <StatusBadge status={statusTone} size="md">
               {getStatusLabel(meeting.status)}
-            </span>
+            </StatusBadge>
             <span className="text-sm text-gray-500">
               #{meeting.number}
             </span>
