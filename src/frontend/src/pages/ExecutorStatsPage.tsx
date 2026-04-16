@@ -1,24 +1,58 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   BarChart3, Star, CheckCircle, Timer, TrendingUp, Award, Target, FileText
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { executorsApi } from '../services/api';
+
+interface LiveStats {
+  totalRequests?: number;
+  completedCount?: number;
+  rating?: number;
+  avgCompletionTime?: number;
+  thisWeek?: number;
+  thisMonth?: number;
+}
 
 export function ExecutorStatsPage() {
   const { user } = useAuthStore();
   const { requests, executors, getExecutorStats } = useDataStore();
   const { language } = useLanguageStore();
 
-  // Find current executor
-  const currentExecutor = executors.find(e => e.login === user?.login);
+  // Find current executor — check BOTH login and id (same pattern as ExecutorDashboard).
+  // Previously only login was checked, so rating could fall back to 5.0 if the
+  // executors store was keyed by id.
+  const currentExecutor = executors.find(e => e.login === user?.login || e.id === user?.id);
 
-  // Get executor stats
-  const stats = currentExecutor ? getExecutorStats(currentExecutor.id) : null;
+  // Fetch canonical stats from server — same source as ExecutorDashboard so numbers align.
+  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    executorsApi.getStats(user.id)
+      .then((r) => setLiveStats(r.stats))
+      .catch(() => {});
+  }, [user?.id]);
+
+  // Local stats as fallback (chart + week/month goals)
+  const localStats = currentExecutor ? getExecutorStats(currentExecutor.id) : null;
+
+  // Single source of truth for each metric: server > local > 0.
+  // This ensures dashboard KPIs and /my-stats KPIs match exactly.
+  const stats = {
+    totalRequests: liveStats?.totalRequests ?? localStats?.totalRequests ?? 0,
+    completedRequests: liveStats?.completedCount ?? localStats?.completedRequests ?? 0,
+    avgRating: liveStats?.rating ?? currentExecutor?.rating ?? localStats?.avgRating ?? 0,
+    avgTime: liveStats?.avgCompletionTime ?? currentExecutor?.avgCompletionTime ?? localStats?.avgTime ?? 0,
+    thisWeek: liveStats?.thisWeek ?? localStats?.thisWeek ?? 0,
+    thisMonth: liveStats?.thisMonth ?? localStats?.thisMonth ?? 0,
+  };
 
   // Filter requests for this executor
   const myRequests = requests.filter(r => r.executorId === currentExecutor?.id);
+  // "Выполненные" view includes pending_approval — executor has completed their
+  // part, waiting for resident approval. Matches ExecutorDashboard badge logic.
   const completedRequests = myRequests.filter(r => r.status === 'completed' || r.status === 'pending_approval');
 
   // Calculate executor-specific weekly performance
@@ -69,7 +103,7 @@ export function ExecutorStatsPage() {
               <FileText className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Всего заявок' : 'Jami arizalar'}</span>
             </div>
-            <div className="text-3xl sm:text-4xl font-bold">{stats?.totalRequests || 0}</div>
+            <div className="text-3xl sm:text-4xl font-bold">{stats.totalRequests}</div>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div className="h-full bg-primary-500 rounded-full" style={{ width: '100%' }} />
@@ -85,16 +119,16 @@ export function ExecutorStatsPage() {
               <CheckCircle className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</span>
             </div>
-            <div className="text-3xl sm:text-4xl font-bold">{stats?.completedRequests || 0}</div>
+            <div className="text-3xl sm:text-4xl font-bold">{stats.completedRequests}</div>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-green-500 rounded-full transition-all"
-                  style={{ width: `${((stats?.completedRequests || 0) / Math.max(stats?.totalRequests || 1, 1)) * 100}%` }}
+                  style={{ width: `${(stats.completedRequests / Math.max(stats.totalRequests, 1)) * 100}%` }}
                 />
               </div>
               <span className="text-xs text-gray-500">
-                {Math.round(((stats?.completedRequests || 0) / Math.max(stats?.totalRequests || 1, 1)) * 100)}%
+                {Math.round((stats.completedRequests / Math.max(stats.totalRequests, 1)) * 100)}%
               </span>
             </div>
           </div>
@@ -107,12 +141,12 @@ export function ExecutorStatsPage() {
               <Star className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Средний рейтинг' : 'O\'rtacha reyting'}</span>
             </div>
-            <div className="text-3xl sm:text-4xl font-bold">{(currentExecutor?.rating || 5.0).toFixed(1)}</div>
+            <div className="text-3xl sm:text-4xl font-bold">{stats.avgRating.toFixed(1)}</div>
             <div className="mt-2 flex items-center gap-1">
               {[1, 2, 3, 4, 5].map(star => (
                 <Star
                   key={star}
-                  className={`w-4 h-4 ${star <= Math.round(currentExecutor?.rating || 5) ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
+                  className={`w-4 h-4 ${star <= Math.round(stats.avgRating) ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
                 />
               ))}
             </div>
@@ -126,7 +160,7 @@ export function ExecutorStatsPage() {
               <Timer className="w-5 h-5" />
               <span className="text-sm font-medium">{language === 'ru' ? 'Сред. время' : 'O\'rtacha vaqt'}</span>
             </div>
-            <div className="text-3xl sm:text-4xl font-bold">{currentExecutor?.avgCompletionTime || 0}<span className="text-lg text-gray-400 ml-1">{language === 'ru' ? 'мин' : 'min'}</span></div>
+            <div className="text-3xl sm:text-4xl font-bold">{stats.avgTime}<span className="text-lg text-gray-400 ml-1">{language === 'ru' ? 'мин' : 'min'}</span></div>
             <div className="mt-2 text-xs text-gray-500">
               {language === 'ru' ? 'На выполнение заявки' : 'Arizani bajarish uchun'}
             </div>
@@ -188,12 +222,12 @@ export function ExecutorStatsPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-600">{language === 'ru' ? 'Недельная цель' : 'Haftalik maqsad'}</span>
-                <span className="text-sm font-bold text-primary-600">{stats?.thisWeek || 0}/10 {language === 'ru' ? 'заявок' : 'ariza'}</span>
+                <span className="text-sm font-bold text-primary-600">{stats.thisWeek}/10 {language === 'ru' ? 'заявок' : 'ariza'}</span>
               </div>
               <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-primary-500 to-primary-400 rounded-full transition-all duration-500 relative"
-                  style={{ width: `${Math.min(((stats?.thisWeek || 0) / 10) * 100, 100)}%` }}
+                  style={{ width: `${Math.min(((stats.thisWeek) / 10) * 100, 100)}%` }}
                 >
                   <div className="absolute inset-0 bg-white/20 animate-pulse" />
                 </div>
@@ -204,12 +238,12 @@ export function ExecutorStatsPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-600">{language === 'ru' ? 'Месячный прогресс' : 'Oylik natija'}</span>
-                <span className="text-sm font-bold text-green-600">{stats?.thisMonth || 0}/30 {language === 'ru' ? 'заявок' : 'ariza'}</span>
+                <span className="text-sm font-bold text-green-600">{stats.thisMonth}/30 {language === 'ru' ? 'заявок' : 'ariza'}</span>
               </div>
               <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(((stats?.thisMonth || 0) / 30) * 100, 100)}%` }}
+                  style={{ width: `${Math.min(((stats.thisMonth) / 30) * 100, 100)}%` }}
                 />
               </div>
             </div>
@@ -218,12 +252,12 @@ export function ExecutorStatsPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-600">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</span>
-                <span className="text-sm font-bold text-amber-600">{(currentExecutor?.rating || 5.0).toFixed(1)}/5.0</span>
+                <span className="text-sm font-bold text-amber-600">{stats.avgRating.toFixed(1)}/5.0</span>
               </div>
               <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-primary-500 to-primary-400 rounded-full transition-all duration-500"
-                  style={{ width: `${((currentExecutor?.rating || 5) / 5) * 100}%` }}
+                  style={{ width: `${(stats.avgRating / 5) * 100}%` }}
                 />
               </div>
             </div>
@@ -232,27 +266,27 @@ export function ExecutorStatsPage() {
             <div className="pt-4 border-t border-gray-200">
               <div className="text-sm font-medium text-gray-600 mb-3">{language === 'ru' ? 'Достижения' : 'Yutuqlar'}</div>
               <div className="flex flex-wrap gap-2">
-                {(currentExecutor?.completedCount || 0) >= 10 && (
+                {stats.completedRequests >= 10 && (
                   <span className="px-3 py-1.5 bg-primary-100 text-primary-700 rounded-full text-xs font-medium flex items-center gap-1">
                     <Award className="w-3 h-3" /> 10+ {language === 'ru' ? 'заявок' : 'ariza'}
                   </span>
                 )}
-                {(currentExecutor?.rating || 0) >= 4.5 && (
+                {stats.avgRating >= 4.5 && (
                   <span className="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium flex items-center gap-1">
                     <Star className="w-3 h-3" /> {language === 'ru' ? 'Высокий рейтинг' : 'Yuqori reyting'}
                   </span>
                 )}
-                {(currentExecutor?.avgCompletionTime || 0) < 60 && (currentExecutor?.avgCompletionTime || 0) > 0 && (
+                {stats.avgTime < 60 && stats.avgTime > 0 && (
                   <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1">
                     <Timer className="w-3 h-3" /> {language === 'ru' ? 'Быстрый исполнитель' : 'Tez ijrochi'}
                   </span>
                 )}
-                {(currentExecutor?.completedCount || 0) >= 50 && (
+                {stats.completedRequests >= 50 && (
                   <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium flex items-center gap-1">
                     <TrendingUp className="w-3 h-3" /> {language === 'ru' ? 'Эксперт' : 'Ekspert'}
                   </span>
                 )}
-                {(currentExecutor?.completedCount || 0) === 0 && (
+                {stats.completedRequests === 0 && (
                   <span className="text-gray-400 text-sm">
                     {language === 'ru' ? 'Выполняйте заявки чтобы получить достижения' : 'Yutuqlarni olish uchun arizalarni bajaring'}
                   </span>

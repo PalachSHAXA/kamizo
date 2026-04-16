@@ -25,22 +25,31 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Run all 6 independent stats queries in parallel
-  const [totalCompleted, weekCompleted, monthCompleted, avgRating, avgTime, statusCounts] = await Promise.all([
-    // Total completed
+  // Run all 7 independent stats queries in parallel.
+  // NOTE: "completed" for executor purposes = executor has finished their part.
+  // pending_approval means the work is done, we're just waiting for the resident
+  // to confirm — the executor has already "completed" it. Including this status
+  // aligns the server KPI with the frontend "Выполненные" tab badge.
+  const [totalRequests, totalCompleted, weekCompleted, monthCompleted, avgRating, avgTime, statusCounts] = await Promise.all([
+    // Total requests ever assigned to this executor
     env.DB.prepare(`
       SELECT COUNT(*) as count FROM requests
-      WHERE executor_id = ? AND status IN ('completed', 'closed') ${tenantId ? 'AND tenant_id = ?' : ''}
+      WHERE executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as Promise<{ count: number }>,
+    // Total completed (executor's POV)
+    env.DB.prepare(`
+      SELECT COUNT(*) as count FROM requests
+      WHERE executor_id = ? AND status IN ('completed', 'closed', 'pending_approval') ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as Promise<{ count: number }>,
     // This week completed
     env.DB.prepare(`
       SELECT COUNT(*) as count FROM requests
-      WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
+      WHERE executor_id = ? AND status IN ('completed', 'closed', 'pending_approval') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(params.id, weekAgo, ...(tenantId ? [tenantId] : [])).first() as Promise<{ count: number }>,
     // This month completed
     env.DB.prepare(`
       SELECT COUNT(*) as count FROM requests
-      WHERE executor_id = ? AND status IN ('completed', 'closed') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
+      WHERE executor_id = ? AND status IN ('completed', 'closed', 'pending_approval') AND completed_at >= ? ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(params.id, monthAgo, ...(tenantId ? [tenantId] : [])).first() as Promise<{ count: number }>,
     // Average rating from requests
     env.DB.prepare(`
@@ -92,15 +101,21 @@ route('GET', '/api/executors/:id/stats', async (request, env, params) => {
     };
   }
 
-  // For couriers, use delivery rating; for others, use request rating
+  // For couriers, use delivery rating; for others, use request rating.
+  // No rating yet → return 0 (not the fake-good 5.0) so frontend can decide
+  // to show "Нет оценок" or similar without pretending the executor is perfect.
   const isCourier = (executor as any).specialization === 'courier';
+  const hasRequestRating = avgRating?.avg != null;
   const finalRating = isCourier && deliveryStats.deliveryRating !== null
     ? Math.round(deliveryStats.deliveryRating * 10) / 10
-    : (avgRating?.avg ? Math.round(avgRating.avg * 10) / 10 : 5.0);
+    : (hasRequestRating ? Math.round((avgRating!.avg as number) * 10) / 10 : 0);
 
   return json({
     stats: {
+      totalRequests: totalRequests?.count || 0,
       totalCompleted: totalCompleted?.count || 0,
+      // Alias for frontend fields that use `completedCount`
+      completedCount: totalCompleted?.count || 0,
       thisWeek: weekCompleted?.count || 0,
       thisMonth: monthCompleted?.count || 0,
       rating: finalRating,
