@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Megaphone, Users, Briefcase, X, AlertTriangle, AlertCircle, Info, Trash2, Eye, Clock, Building2, Upload, FileSpreadsheet, Target, Filter, Paperclip, File, Image, FileText, Download } from 'lucide-react';
-import { EmptyState } from '../components/common';
+import { EmptyState, StatusBadge } from '../components/common';
 import { plural } from '../utils/plural';
+import type { StatusTone } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -437,6 +438,8 @@ export function AnnouncementsPage() {
     }
   };
 
+  // Priority badge as className — still needed for the form-builder selector
+  // (when the selected priority chip needs a thicker border).
   const getPriorityBadge = (priority: AnnouncementPriority) => {
     switch (priority) {
       case 'urgent':
@@ -445,6 +448,15 @@ export function AnnouncementsPage() {
         return 'bg-amber-100 text-amber-700 border-amber-200';
       default:
         return 'bg-blue-100 text-blue-700 border-blue-200';
+    }
+  };
+
+  // Priority as semantic StatusTone for the announcement list/card rendering
+  const getPriorityTone = (priority: AnnouncementPriority): StatusTone => {
+    switch (priority) {
+      case 'urgent': return 'critical';
+      case 'important': return 'pending';
+      default: return 'info';
     }
   };
 
@@ -569,6 +581,7 @@ export function AnnouncementsPage() {
               formatDate={formatDate}
               getPriorityIcon={getPriorityIcon}
               getPriorityBadge={getPriorityBadge}
+              getPriorityTone={getPriorityTone}
               t={t}
               canDelete={canManageAnnouncements && (user?.id === announcement.authorId || user?.role === 'admin')}
               canEdit={canManageAnnouncements}
@@ -1099,6 +1112,7 @@ function AnnouncementCard({
   formatDate,
   getPriorityIcon,
   getPriorityBadge,
+  getPriorityTone,
   t,
   canDelete,
   canEdit,
@@ -1110,6 +1124,7 @@ function AnnouncementCard({
   formatDate: (date: string) => string;
   getPriorityIcon: (priority: AnnouncementPriority) => React.ReactNode;
   getPriorityBadge: (priority: AnnouncementPriority) => string;
+  getPriorityTone: (priority: AnnouncementPriority) => StatusTone;
   t: (key: string) => string;
   canDelete: boolean;
   canEdit?: boolean;
@@ -1151,10 +1166,10 @@ function AnnouncementCard({
           <div className="flex-1 min-w-0">
             {/* Header */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border ${getPriorityBadge(announcement.priority)}`}>
+              <StatusBadge status={getPriorityTone(announcement.priority)} size="sm" className="gap-1">
                 {getPriorityIcon(announcement.priority)}
                 {t(`announcements.priority${announcement.priority.charAt(0).toUpperCase() + announcement.priority.slice(1)}`)}
-              </span>
+              </StatusBadge>
               <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
                 announcement.type === 'residents'
                   ? 'bg-green-100 text-green-700'

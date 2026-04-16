@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Key, User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, Banknote, Home } from 'lucide-react';
-import { EmptyState } from '../../components/common';
+import { EmptyState, StatusBadge } from '../../components/common';
 import { pluralWithCount } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
@@ -473,7 +473,7 @@ export function RentalsPage() {
                               </div>
                               <div className="text-right">
                                 <div className="font-semibold text-green-600">{formatAmount(record.amount, record.currency)}</div>
-                                {isActive && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{language === 'ru' ? 'Активно' : 'Faol'}</span>}
+                                {isActive && <StatusBadge status="active" size="sm">{language === 'ru' ? 'Активно' : 'Faol'}</StatusBadge>}
                               </div>
                             </div>
                             <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
