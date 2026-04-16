@@ -20,8 +20,14 @@ route('GET', '/api/meetings', async (request, env) => {
   const tenantId = getTenantId(request);
 
   const authUser = await getUser(request, env);
-  if (authUser?.role === 'resident' && authUser.building_id) {
+  // Resident-like roles (resident, tenant, commercial_owner) see meetings only for
+  // their own building — prevents cross-building data leaks.
+  const isResidentLike = authUser?.role === 'resident' || authUser?.role === 'tenant' || authUser?.role === 'commercial_owner';
+  if (isResidentLike && authUser?.building_id) {
     buildingId = authUser.building_id;
+  } else if (isResidentLike && !authUser?.building_id) {
+    // Tenant without building assigned — return empty rather than all buildings
+    return json({ meetings: [] });
   }
 
   const cacheKey = `meetings:${buildingId || 'all'}:${status || 'all'}:${organizerId || 'all'}:${onlyActive ? 'active' : 'all'}:${tenantId || 'no-tenant'}`;

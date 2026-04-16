@@ -29,11 +29,15 @@ route('GET', '/api/announcements', async (request, env) => {
   let whereClause: string;
   let params: any[] = [];
 
+  // tenants/commercial_owners see resident-style announcements (their building/apartment),
+  // NOT the employee/staff feed.
+  const isResidentLike = user.role === 'resident' || user.role === 'tenant' || user.role === 'commercial_owner';
+
   if (isManagement(user)) {
     // Admins/directors/managers see all
     whereClause = `WHERE 1=1 ${tenantId ? 'AND tenant_id = ?' : ''}`;
     if (tenantId) params.push(tenantId);
-  } else if (user.role === 'resident') {
+  } else if (isResidentLike) {
     // Residents see announcements targeted to them
     const hasBuilding = user.building_id !== null && user.building_id !== undefined;
     const userEntrance = user.entrance || null;

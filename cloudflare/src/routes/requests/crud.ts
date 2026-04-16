@@ -30,16 +30,31 @@ route('GET', '/api/requests', async (request, env) => {
     params.push(tenantId);
   }
 
-  if (user.role === 'resident') {
+  // Role-based row filter. Whitelist roles that can see all requests in tenant;
+  // any other role defaults to "see only your own" to prevent data leaks.
+  const MANAGEMENT_ROLES = ['admin', 'director', 'manager', 'dispatcher', 'super_admin'];
+  const OWN_REQUESTS_ROLES = ['resident', 'tenant', 'commercial_owner'];
+
+  if (OWN_REQUESTS_ROLES.includes(user.role)) {
     whereClause += ' AND r.resident_id = ?';
     params.push(user.id);
   } else if (isExecutorRole(user.role)) {
     whereClause += ` AND (r.executor_id = ? OR (r.status = 'new' AND r.category_id IN (SELECT id FROM categories WHERE specialization = ?)))`;
     params.push(user.id);
     params.push(user.specialization || 'security');
-  } else if (user.role === 'department_head' && user.specialization) {
-    whereClause += ` AND r.category_id IN (SELECT id FROM categories WHERE specialization = ?)`;
-    params.push(user.specialization);
+  } else if (user.role === 'department_head') {
+    // department_head MUST have specialization — otherwise deny (prevents cross-department leak)
+    if (!user.specialization) {
+      whereClause += ' AND 1=0';
+    } else {
+      whereClause += ` AND r.category_id IN (SELECT id FROM categories WHERE specialization = ?)`;
+      params.push(user.specialization);
+    }
+  } else if (!MANAGEMENT_ROLES.includes(user.role)) {
+    // Unknown or non-management role (e.g., advertiser, marketplace_manager):
+    // safest default is "see only own requests"
+    whereClause += ' AND r.resident_id = ?';
+    params.push(user.id);
   }
 
   if (status && status !== 'all') {
