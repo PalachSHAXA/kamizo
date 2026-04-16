@@ -72,8 +72,13 @@ export default function ChargesPage() {
   const [loadError, setLoadError] = useState(false);
 
   /* local filter state — committed on Apply */
+  // Default to current month when store filter is empty (prevents "--------- ---- г." rendering)
+  const getCurrentPeriod = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
   const [localBuilding, setLocalBuilding] = useState(filters.buildingId);
-  const [localPeriod, setLocalPeriod] = useState(filters.period);
+  const [localPeriod, setLocalPeriod] = useState(filters.period || getCurrentPeriod());
   const [localStatus, setLocalStatus] = useState(filters.status);
 
   /* detail modal */

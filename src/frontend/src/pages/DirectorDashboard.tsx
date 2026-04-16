@@ -5,8 +5,9 @@ import { useDataStore } from '../stores/dataStore';
 import { useCRMStore } from '../stores/crmStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { SPECIALIZATION_LABELS } from '../types';
-import { teamApi, apiRequest, ukRatingsApi } from '../services/api';
+import { teamApi, apiRequest, ukRatingsApi, statsApi } from '../services/api';
 import { OverviewTab, MarketplaceTab, RatingsTab, createTranslator } from './dashboard';
 import type { TeamData, MarketplaceReport, TabType, CompanyStats, BuildingStat, DepartmentStat, ChartData } from './dashboard';
 
@@ -16,12 +17,28 @@ export function DirectorDashboard() {
   const { buildings, residents, fetchBuildings } = useCRMStore();
   const { meetings, fetchMeetings } = useMeetingStore();
   const { language } = useLanguageStore();
+  const { hasFeature, config } = useTenantStore();
+
+  // When a module is disabled in tenant settings, its tab must hide.
+  const hasMarketplace = !config?.tenant || hasFeature('marketplace');
 
   const t = useMemo(() => createTranslator(language), [language]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [teamData, setTeamData] = useState<TeamData | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [dashboardStats, setDashboardStats] = useState<{ total_residents?: number; total_executors?: number } | null>(null);
+
+  useEffect(() => {
+    // Director dashboard doesn't preload all residents client-side (huge payload).
+    // Use the /api/stats aggregation endpoint for the headline counters instead.
+    statsApi.getDashboard().then(setDashboardStats).catch(() => {});
+  }, []);
+
+  // If marketplace tab was selected but the module got disabled, bounce to overview
+  useEffect(() => {
+    if (!hasMarketplace && activeTab === 'marketplace') setActiveTab('overview');
+  }, [hasMarketplace, activeTab]);
   const [marketplaceReport, setMarketplaceReport] = useState<MarketplaceReport | null>(null);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   const [reportStartDate, setReportStartDate] = useState(() => {
@@ -128,11 +145,14 @@ export function DirectorDashboard() {
       totalRequests, newRequests, inProgress, completedTotal, completedThisWeek,
       completedThisMonth, pendingApproval, completionRate, totalStaff, totalManagers,
       totalDepartmentHeads, totalExecutors: totalExecutorsFromTeam, onlineExecutors,
-      avgRating, totalBuildings: buildings.length, totalResidents: residents.length,
+      avgRating, totalBuildings: buildings.length,
+      // Prefer server-side aggregated count (residents store is not pre-loaded
+      // globally — it's fetched per-apartment on demand).
+      totalResidents: dashboardStats?.total_residents ?? residents.length,
       activeMeetings: meetings.filter(m => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).length,
       activeAnnouncements: announcements.filter(a => a.isActive).length,
     };
-  }, [requests, executors, buildings, residents, meetings, announcements, teamData]);
+  }, [requests, executors, buildings, residents, meetings, announcements, teamData, dashboardStats]);
 
   // Recent requests for modal
   const recentRequests = useMemo(() => {
@@ -286,17 +306,19 @@ export function DirectorDashboard() {
           <Activity className="w-4 h-4 inline mr-2" />
           {t('director.overview')}
         </button>
-        <button
-          onClick={() => setActiveTab('marketplace')}
-          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
-            activeTab === 'marketplace'
-              ? 'border-primary-500 text-primary-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4 inline mr-2" />
-          {t('director.marketplace')}
-        </button>
+        {hasMarketplace && (
+          <button
+            onClick={() => setActiveTab('marketplace')}
+            className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
+              activeTab === 'marketplace'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 inline mr-2" />
+            {t('director.marketplace')}
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('ratings')}
           className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${

@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Megaphone, Users, Briefcase, X, AlertTriangle, AlertCircle, Info, Trash2, Eye, Clock, Building2, Upload, FileSpreadsheet, Target, Filter, Paperclip, File, Image, FileText, Download } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { plural } from '../utils/plural';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -1230,7 +1231,12 @@ function AnnouncementCard({
                 disabled={viewCount === 0}
               >
                 <Eye className="w-4 h-4" />
-                {viewCount} {t('announcements.views')}
+                {viewCount} {plural(
+                  language === 'ru' ? 'ru' : 'uz',
+                  viewCount,
+                  { one: 'просмотр', few: 'просмотра', many: 'просмотров' },
+                  { one: "ko'rish", other: "ko'rish" }
+                )}
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import type { Meeting, MeetingStatus } from '../types';
 import { MEETING_STATUS_LABELS } from '../types';
+import { plural } from '../utils/plural';
 
 export interface MeetingCardProps {
   meeting: Meeting;
@@ -112,7 +113,13 @@ export function MeetingCard({
           <div className="flex items-center gap-2 text-sm">
             <FileText className="w-4 h-4 text-gray-400" />
             <span className="text-gray-600">
-              {meeting.agendaItems.length} {language === 'ru' ? 'вопросов в повестке' : 'savol kun tartibida'}
+              {meeting.agendaItems.length}{' '}
+              {plural(
+                language === 'ru' ? 'ru' : 'uz',
+                meeting.agendaItems.length,
+                { one: 'вопрос в повестке', few: 'вопроса в повестке', many: 'вопросов в повестке' },
+                { one: 'savol kun tartibida', other: 'savol kun tartibida' }
+              )}
             </span>
           </div>
 

@@ -13,6 +13,8 @@ import {
   Paperclip
 } from 'lucide-react';
 import { EmptyState, MessageContent } from '../components/common';
+import { plural } from '../utils/plural';
+import { formatName } from '../utils/formatName';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -321,7 +323,7 @@ function AdminChannelList({
           </h2>
           {totalUnread > 0 && (
             <span className="px-2 py-0.5 bg-orange-500 text-white text-xs font-bold rounded-full">
-              {totalUnread > 99 ? '99+' : totalUnread} {language === 'ru' ? 'новых' : 'yangi'}
+              {totalUnread > 99 ? '99+' : totalUnread} {language === 'ru' ? 'непрочитанных' : "o'qilmagan"}
             </span>
           )}
         </div>
@@ -459,7 +461,13 @@ function AdminChannelList({
       {/* Section label */}
       <div className="px-4 py-1.5 border-t bg-gray-50/60">
         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-          {filteredChannels.length} {language === 'ru' ? 'диалогов' : 'dialog'}
+          {filteredChannels.length}{' '}
+          {plural(
+            language === 'ru' ? 'ru' : 'uz',
+            filteredChannels.length,
+            { one: 'диалог', few: 'диалога', many: 'диалогов' },
+            { one: 'dialog', other: 'dialog' }
+          )}
         </span>
       </div>
 
@@ -516,7 +524,7 @@ function AdminChannelList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className={`text-sm truncate ${hasUnread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
-                      {channel.name}
+                      {formatName(channel.name)}
                     </span>
                     {channel.last_message_at && (
                       <span className={`text-xs flex-shrink-0 ${hasUnread ? 'text-orange-500 font-semibold' : 'text-gray-400'}`}>

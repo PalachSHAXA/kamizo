@@ -460,10 +460,17 @@ export function TeamPage() {
       return;
     }
 
-    if (!confirm(language === 'ru'
-      ? `Сбросить пароли для ${staffWithoutPassword.length} сотрудников без паролей?\n\nЭто сгенерирует новые пароли для всех сотрудников, у которых не отображается пароль.`
-      : `Parolsiz ${staffWithoutPassword.length} xodimlarning parollarini tiklash?\n\nBu paroli ko'rinmaydigan barcha xodimlar uchun yangi parollar yaratadi.`
-    )) {
+    // Require typed confirmation — plain OK click too easy to trigger accidentally
+    // on mobile with an icon-only button.
+    const confirmWord = language === 'ru' ? 'СБРОСИТЬ' : 'TIKLASH';
+    const typed = prompt(language === 'ru'
+      ? `Сбросить пароли для ${staffWithoutPassword.length} сотрудников?\n\nЭто сгенерирует новые пароли для всех сотрудников, у которых не отображается пароль.\n\nВведите "${confirmWord}" для подтверждения:`
+      : `${staffWithoutPassword.length} ta xodim uchun parollarni tiklash?\n\nBu paroli ko'rinmaydigan xodimlar uchun yangi parollar yaratadi.\n\nTasdiqlash uchun "${confirmWord}" ni kiriting:`
+    );
+    if (typed?.trim().toUpperCase() !== confirmWord) {
+      if (typed !== null) {
+        addToast('info', language === 'ru' ? 'Сброс отменён' : 'Bekor qilindi');
+      }
       return;
     }
 
@@ -726,6 +733,7 @@ export function TeamPage() {
                 onClick={handleResetAllPasswords}
                 className="btn-secondary flex items-center gap-2 text-orange-600 hover:bg-orange-50"
                 title={language === 'ru' ? 'Сбросить пароли для сотрудников без паролей' : 'Parolsiz xodimlarning parollarini tiklash'}
+                aria-label={language === 'ru' ? 'Массовый сброс паролей сотрудников' : 'Xodimlar parollarini ommaviy tiklash'}
               >
                 <Key className="w-5 h-5" />
                 <span className="hidden sm:inline">{language === 'ru' ? 'Сбросить пароли' : 'Parollarni tiklash'}</span>

@@ -72,7 +72,7 @@ export function ReportsPage() {
   const debtBuildings = useMemo(() => {
     const seen = new Map<string, string>();
     debtRecords.forEach(r => { if (r.building_id && r.building_name) seen.set(r.building_id, r.building_name); });
-    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }));
   }, [debtRecords]);
 
   const handleDebtSort = (col: 'debt' | 'name' | 'apartment') => {
@@ -220,7 +220,10 @@ export function ReportsPage() {
     });
   };
 
-  const branchStats = getBuildingStats();
+  // Numeric-aware sort so "Дом 22" < "Дом 112" (not string compare which puts "Дом 112" first)
+  const branchStats = getBuildingStats().sort((a: any, b: any) =>
+    String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true })
+  );
 
   // Export branch report to CSV
   const handleExportBranchCSV = (branch?: string) => {

@@ -27,8 +27,16 @@ export function PaymentsPage() {
 
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
 
+  // Default period filter to current month so <input type="month"> shows a real value
+  // instead of the empty "--------- ---- г." placeholder on first render
   useEffect(() => {
+    if (!filters.period) {
+      const d = new Date();
+      const currentPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      setFilters({ ...filters, period: currentPeriod });
+    }
     fetchPayments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFilterChange = (key: string, value: string) => {
