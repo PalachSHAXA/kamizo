@@ -567,6 +567,7 @@ export function TeamPage() {
         }}
         className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
         title={language === 'ru' ? 'Удалить сотрудника' : 'Xodimni o\'chirish'}
+        aria-label={language === 'ru' ? 'Удалить сотрудника' : 'Xodimni o\'chirish'}
       >
         <Trash2 className="w-4 h-4" />
       </button>
@@ -873,7 +874,7 @@ export function TeamPage() {
           <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4 sm:mb-6">
               <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}</h2>
-              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1337,7 +1338,7 @@ export function TeamPage() {
                 <h3 className="text-[18px] font-extrabold">{language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}</h3>
                 <p className="text-[13px] text-gray-400 mt-0.5">{language === 'ru' ? 'Загрузите .json файл с данными сотрудников' : 'Xodimlar ma\'lumotlari bilan .json faylni yuklang'}</p>
               </div>
-              <button onClick={() => setShowImportModal(false)} className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-gray-100">
+              <button onClick={() => setShowImportModal(false)} className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
                 <X className="w-4 h-4" />
               </button>
             </div>

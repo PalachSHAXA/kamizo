@@ -220,6 +220,7 @@ export function MeetingCard({
                 onClick={onApprove}
                 className="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
                 title={language === 'ru' ? 'Одобрить' : 'Tasdiqlash'}
+                aria-label={language === 'ru' ? 'Одобрить собрание' : 'Yig\'ilishni tasdiqlash'}
               >
                 <Check className="w-5 h-5" />
               </button>
@@ -227,6 +228,7 @@ export function MeetingCard({
                 onClick={() => onReject(language === 'ru' ? 'Отклонено модератором' : 'Moderator tomonidan rad etildi')}
                 className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                 title={language === 'ru' ? 'Отклонить' : 'Rad etish'}
+                aria-label={language === 'ru' ? 'Отклонить собрание' : 'Yig\'ilishni rad etish'}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -239,6 +241,7 @@ export function MeetingCard({
               onClick={onDelete}
               className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
+              aria-label={language === 'ru' ? 'Удалить собрание' : 'Yig\'ilishni o\'chirish'}
             >
               <Trash2 className="w-5 h-5" />
             </button>

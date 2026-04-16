@@ -1264,6 +1264,7 @@ function AnnouncementCard({
                   onClick={(e) => { e.stopPropagation(); onEdit(); }}
                   className="p-2 text-primary-500 hover:bg-primary-50 rounded-xl transition-colors"
                   title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
+                  aria-label={language === 'ru' ? 'Редактировать объявление' : 'E\'lonni tahrirlash'}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1275,6 +1276,7 @@ function AnnouncementCard({
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                   title={language === 'ru' ? 'Удалить' : 'O\'chirish'}
+                  aria-label={language === 'ru' ? 'Удалить объявление' : 'E\'lonni o\'chirish'}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
