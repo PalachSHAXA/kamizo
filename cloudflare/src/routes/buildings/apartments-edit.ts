@@ -54,8 +54,12 @@ route('POST', '/api/buildings/:buildingId/apartments', async (request, env, para
   if (existing) {
     const newEntranceId = body.entrance_id || body.entranceId || null;
     if (newEntranceId && existing.entrance_id !== newEntranceId) {
-      await env.DB.prepare('UPDATE apartments SET entrance_id = ? WHERE id = ?').bind(newEntranceId, existing.id).run();
-      const updated = await env.DB.prepare('SELECT * FROM apartments WHERE id = ?').bind(existing.id).first();
+      await env.DB.prepare(
+        `UPDATE apartments SET entrance_id = ? WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+      ).bind(newEntranceId, existing.id, ...(tenantId ? [tenantId] : [])).run();
+      const updated = await env.DB.prepare(
+        `SELECT * FROM apartments WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+      ).bind(existing.id, ...(tenantId ? [tenantId] : [])).first();
       return json({ apartment: updated, updated: true });
     }
     return error(`Квартира №${body.number} уже существует в этом доме`, 409);
@@ -84,7 +88,9 @@ route('POST', '/api/buildings/:buildingId/apartments', async (request, env, para
     body.personal_account_id || body.personalAccountId || null, getTenantId(request)
   ).run();
 
-  const created = await env.DB.prepare('SELECT * FROM apartments WHERE id = ?').bind(id).first();
+  const created = await env.DB.prepare(
+    `SELECT * FROM apartments WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(id, ...(tenantId ? [tenantId] : [])).first();
   return json({ apartment: created }, 201);
 });
 
@@ -129,7 +135,9 @@ route('PATCH', '/api/apartments/:id', async (request, env, params) => {
   await env.DB.prepare(
     `UPDATE apartments SET ${updates.join(', ')} WHERE id = ? ${tenantIdUpd ? 'AND tenant_id = ?' : ''}`
   ).bind(...values, ...(tenantIdUpd ? [tenantIdUpd] : [])).run();
-  const updated = await env.DB.prepare('SELECT * FROM apartments WHERE id = ?').bind(params.id).first();
+  const updated = await env.DB.prepare(
+    `SELECT * FROM apartments WHERE id = ? ${tenantIdUpd ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantIdUpd ? [tenantIdUpd] : [])).first();
   return json({ apartment: updated });
 });
 

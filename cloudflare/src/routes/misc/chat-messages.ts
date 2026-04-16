@@ -60,7 +60,12 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
   // Mark as read (exclude own messages)
   // For management users: mark as read for ALL management users (shared read status)
   if (isManagement(user)) {
-    const channel = await env.DB.prepare('SELECT type FROM chat_channels WHERE id = ?').bind(channelId).first() as { type: string } | null;
+    // Tenant-guard the channel lookup — otherwise a manager of tenant A
+    // could pass a channel id from tenant B and mark its messages read
+    // under tenant A's management identities.
+    const channel = await env.DB.prepare(
+      `SELECT type FROM chat_channels WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(channelId, ...(tenantId ? [tenantId] : [])).first() as { type: string } | null;
 
     if (channel?.type === 'private_support') {
       await env.DB.prepare(`

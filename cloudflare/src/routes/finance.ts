@@ -1117,10 +1117,17 @@ route('POST', '/api/finance/expenses', async (request, env) => {
 
   if (!amount || !expense_date) return error('Amount and date required');
 
-  // Resolve item name from ID if provided
+  // Resolve item name from ID if provided. finance_estimate_items has no
+  // tenant_id column of its own, so tenant scope is inherited from its
+  // parent finance_estimates row — JOIN enforces that scope here so a
+  // manager of tenant A cannot probe item names from tenant B by id guess.
   let resolvedItemName = estimate_item_name || null;
   if (estimate_item_id && !resolvedItemName) {
-    const item = await env.DB.prepare('SELECT name FROM finance_estimate_items WHERE id = ?').bind(estimate_item_id).first<{ name: string }>();
+    const item = await env.DB.prepare(
+      `SELECT i.name FROM finance_estimate_items i
+       JOIN finance_estimates e ON e.id = i.estimate_id
+       WHERE i.id = ? ${tenantId ? 'AND e.tenant_id = ?' : ''}`
+    ).bind(estimate_item_id, ...(tenantId ? [tenantId] : [])).first<{ name: string }>();
     if (item) resolvedItemName = item.name;
   }
 
