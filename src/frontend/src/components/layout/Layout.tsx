@@ -401,7 +401,7 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/rentals" element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']}>
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']} requiredFeature="rentals">
                   <RentalsPage />
                 </ProtectedRoute>
               } />
@@ -415,8 +415,12 @@ export function Layout() {
                   <WorkOrdersPage />
                 </ProtectedRoute>
               } />
-              <Route path="/meetings" element={getMeetingsPage()} />
-              <Route path="/announcements" element={getAnnouncementsPage()} />
+              <Route path="/meetings" element={
+                <ProtectedRoute requiredFeature="meetings">{getMeetingsPage()}</ProtectedRoute>
+              } />
+              <Route path="/announcements" element={
+                <ProtectedRoute requiredFeature="announcements">{getAnnouncementsPage()}</ProtectedRoute>
+              } />
               <Route path="/schedule" element={
                 <ProtectedRoute allowedRoles={['executor']}>
                   <ExecutorSchedulePage />
@@ -433,22 +437,26 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/vehicles" element={
-                <ProtectedRoute allowedRoles={['resident']}>
+                <ProtectedRoute allowedRoles={['resident']} requiredFeature="vehicles">
                   <ResidentVehiclesPage />
                 </ProtectedRoute>
               } />
               <Route path="/vehicle-search" element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'security', 'executor']}>
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'security', 'executor']} requiredFeature="vehicles">
                   <VehicleSearchPage />
                 </ProtectedRoute>
               } />
-              <Route path="/guest-access" element={getGuestAccessPage()} />
+              <Route path="/guest-access" element={
+                <ProtectedRoute requiredFeature="qr">{getGuestAccessPage()}</ProtectedRoute>
+              } />
               <Route path="/qr-scanner" element={
-                <ProtectedRoute allowedRoles={['security']}>
+                <ProtectedRoute allowedRoles={['security']} requiredFeature="qr">
                   <GuardQRScannerPage />
                 </ProtectedRoute>
               } />
-              <Route path="/chat" element={<ChatPage />} />
+              <Route path="/chat" element={
+                <ProtectedRoute requiredFeature="chat"><ChatPage /></ProtectedRoute>
+              } />
               <Route path="/profile" element={
                 ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
                   ? <ResidentProfilePage />
@@ -457,10 +465,18 @@ export function Layout() {
                     : <StaffProfilePage />
               } />
               <Route path="/contract" element={<ResidentContractPage />} />
-              <Route path="/useful-contacts" element={<ResidentUsefulContactsPage />} />
-              <Route path="/colleagues" element={<ColleaguesSection />} />
-              <Route path="/notepad" element={<NotepadPage />} />
-              <Route path="/trainings" element={<TrainingsPage />} />
+              <Route path="/useful-contacts" element={
+                <ProtectedRoute requiredFeature="useful-contacts"><ResidentUsefulContactsPage /></ProtectedRoute>
+              } />
+              <Route path="/colleagues" element={
+                <ProtectedRoute requiredFeature="colleagues"><ColleaguesSection /></ProtectedRoute>
+              } />
+              <Route path="/notepad" element={
+                <ProtectedRoute requiredFeature="notepad"><NotepadPage /></ProtectedRoute>
+              } />
+              <Route path="/trainings" element={
+                <ProtectedRoute requiredFeature="trainings"><TrainingsPage /></ProtectedRoute>
+              } />
               <Route path="/team" element={
                 <ProtectedRoute allowedRoles={['admin', 'director']}>
                   <TeamPage />
@@ -477,43 +493,43 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/payments" element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']}>
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']} requiredFeature="communal">
                   <PaymentsPage />
                 </ProtectedRoute>
               } />
               {/* Finance module */}
               <Route path="/finance/estimates" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']} requiredFeature="communal">
                   <FinanceEstimatesPage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/charges" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant']}>
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant']} requiredFeature="communal">
                   <FinanceChargesPage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/debtors" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']} requiredFeature="communal">
                   <FinanceDebtorsPage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/income" element={
-                <ProtectedRoute allowedRoles={['admin', 'director']}>
+                <ProtectedRoute allowedRoles={['admin', 'director']} requiredFeature="communal">
                   <FinanceIncomePage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/expenses" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant']}>
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant']} requiredFeature="communal">
                   <FinanceExpensesPage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/materials" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'executor', 'plumber', 'electrician']}>
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'executor', 'plumber', 'electrician']} requiredFeature="communal">
                   <FinanceMaterialsPage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/settings" element={
-                <ProtectedRoute allowedRoles={['admin', 'director']}>
+                <ProtectedRoute allowedRoles={['admin', 'director']} requiredFeature="communal">
                   <FinanceSettingsPage />
                 </ProtectedRoute>
               } />
@@ -522,9 +538,21 @@ export function Layout() {
                   <MonitoringPage />
                 </ProtectedRoute>
               } />
-              <Route path="/marketplace" element={<MarketplacePage />} />
-              <Route path="/marketplace-orders" element={<MarketplaceOrdersPage />} />
-              <Route path="/marketplace-products" element={<MarketplaceManagerDashboard />} />
+              <Route path="/marketplace" element={
+                <ProtectedRoute requiredFeature="marketplace">
+                  <MarketplacePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/marketplace-orders" element={
+                <ProtectedRoute requiredFeature="marketplace">
+                  <MarketplaceOrdersPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/marketplace-products" element={
+                <ProtectedRoute requiredFeature="marketplace">
+                  <MarketplaceManagerDashboard />
+                </ProtectedRoute>
+              } />
               {user?.role === 'super_admin' && (
                 <Route path="/super-admin" element={<SuperAdminDashboard />} />
               )}
