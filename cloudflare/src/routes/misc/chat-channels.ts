@@ -91,9 +91,11 @@ route('POST', '/api/chat/channels/support', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  // Only residents can create support channels
-  if (user.role !== 'resident') {
-    return error('Only residents can create support channels', 403);
+  // Residents, tenants, and commercial_owners can all have a private support channel
+  // with the management company. Was previously only 'resident', causing tenants to
+  // see "Ошибка загрузки" on /chat.
+  if (!['resident', 'tenant', 'commercial_owner'].includes(user.role)) {
+    return error('Only residents/tenants can create support channels', 403);
   }
 
   const tenantId = getTenantId(request);

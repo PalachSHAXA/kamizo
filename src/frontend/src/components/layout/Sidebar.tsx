@@ -323,8 +323,17 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       ];
     }
     if (user?.role === 'tenant' || user?.role === 'commercial_owner') {
+      // Tenant's drawer previously had only "Мои квартиры" — rendering all the
+      // working routes (announcements, chat, guest-access, marketplace) invisible
+      // unless the user guessed URLs. Now expose them like resident drawer, but
+      // keep grouping flat since the feature set is smaller.
       return [
         { path: '/', icon: Key, label: t('nav.myApartments') },
+        { path: '/requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar' },
+        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат с УК' : 'UK bilan chat' },
+        { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
+        { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
+        { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Магазин' : 'Do\'kon' },
       ];
     }
     if (user?.role === 'super_admin') {

@@ -307,8 +307,21 @@ export function TenantDashboard() {
         </div>
         <div className="glass-card p-8 text-center">
           <Key className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">{language === 'ru' ? 'Нет назначенных квартир' : 'Belgilangan kvartiralar yo\'q'}</h3>
-          <p className="text-gray-500">{language === 'ru' ? 'Обратитесь к менеджеру для добавления квартиры' : 'Kvartira qo\'shish uchun menejerga murojaat qiling'}</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            {language === 'ru' ? 'У вас нет квартир для сдачи в аренду' : 'Ijaraga beriladigan kvartiralar yo\'q'}
+          </h3>
+          <p className="text-gray-500 text-sm leading-relaxed max-w-md mx-auto">
+            {language === 'ru'
+              ? 'Здесь будут отображаться квартиры, которые вы сдаёте в аренду. Обратитесь к администратору УК, чтобы добавить квартиру.'
+              : 'Bu yerda siz ijaraga berayotgan kvartiralar ko\'rsatiladi. Kvartira qo\'shish uchun UK ma\'muriyatiga murojaat qiling.'}
+          </p>
+          {user?.address && (
+            <p className="text-xs text-gray-400 mt-4">
+              {language === 'ru'
+                ? `Ваш адрес проживания: ${user.address}${user.apartment ? `, кв. ${user.apartment}` : ''}`
+                : `Yashash manzilingiz: ${user.address}${user.apartment ? `, kv. ${user.apartment}` : ''}`}
+            </p>
+          )}
         </div>
       </div>
     );

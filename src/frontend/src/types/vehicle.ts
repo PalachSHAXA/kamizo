@@ -2,7 +2,7 @@
 // VEHICLES MODULE - Автомобили жителей
 // ============================================
 
-export type VehicleType = 'car' | 'motorcycle' | 'truck' | 'other';
+export type VehicleType = 'car' | 'suv' | 'motorcycle' | 'truck' | 'other';
 export type VehicleOwnerType = 'individual' | 'legal_entity' | 'service' | 'resident';
 
 export interface Vehicle {
@@ -28,6 +28,7 @@ export interface Vehicle {
 
 export const VEHICLE_TYPE_LABELS: Record<VehicleType, { label: string; labelUz: string }> = {
   car: { label: 'Легковой автомобиль', labelUz: 'Yengil avtomobil' },
+  suv: { label: 'Внедорожник', labelUz: 'Krossover' },
   motorcycle: { label: 'Мотоцикл', labelUz: 'Mototsikl' },
   truck: { label: 'Грузовик', labelUz: 'Yuk mashinasi' },
   other: { label: 'Другое', labelUz: 'Boshqa' },

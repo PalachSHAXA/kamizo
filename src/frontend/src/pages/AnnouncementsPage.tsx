@@ -515,6 +515,10 @@ export function AnnouncementsPage() {
               </span>
             )}
           </button>
+          {/* "Для сотрудников" tab hidden from residents/tenants — this feed is
+              internal to staff/management. Previously it was visible to tenants,
+              violating role segregation. */}
+          {user?.role !== 'resident' && user?.role !== 'tenant' && user?.role !== 'commercial_owner' && (
           <button
             onClick={() => setActiveTab('employees')}
             className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-[12px] text-[13px] font-semibold transition-all active:scale-[0.96] touch-manipulation ${
@@ -533,6 +537,7 @@ export function AnnouncementsPage() {
               </span>
             )}
           </button>
+          )}
         </div>
 
         {/* Date Filter */}
