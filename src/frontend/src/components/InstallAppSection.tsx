@@ -112,7 +112,7 @@ export function InstallAppSection({ language, roleContext }: { language: string;
   if (isInstalled) return null;
 
   return (
-    <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
+    <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden mt-4 md:mt-6">
       <div className="px-4 pt-4 pb-2">
         <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
           <Smartphone className="w-4 h-4 text-primary-500" />
