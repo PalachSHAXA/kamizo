@@ -408,9 +408,9 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar' },
         { path: '/executors', icon: Wrench, label: language === 'ru' ? 'Сотрудники' : 'Xodimlar' },
         { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat' },
-        // Прочее
-        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish', section: language === 'ru' ? 'Прочее' : 'Boshqa' },
-        { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
+        // Прочее — /vehicle-search removed: dept_head doesn't have access (was silently
+        // redirecting to /), so clicking the drawer link felt like a broken app.
+        { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Прочее' : 'Boshqa' },
         { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
         { path: '/colleagues', icon: Users, label: language === 'ru' ? 'Коллеги' : 'Hamkasblar' },
         { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Блокнот' : 'Bloknot' },

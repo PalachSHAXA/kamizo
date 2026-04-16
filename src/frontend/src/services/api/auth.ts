@@ -1,6 +1,6 @@
 // Auth API
 
-import { apiRequest, transformUser } from './client';
+import { apiRequest, transformUser, markLoggedIn } from './client';
 
 export const authApi = {
   login: async (login: string, password: string) => {
@@ -9,6 +9,7 @@ export const authApi = {
       body: JSON.stringify({ login, password }),
     });
     localStorage.setItem('auth_token', data.token);
+    markLoggedIn(); // 10s grace period before 401s can force logout
     // Transform user fields from snake_case to camelCase
     return { ...data, user: transformUser(data.user) };
   },

@@ -4,12 +4,21 @@ export const API_URL = '';
 
 // Track 401 responses: require multiple 401s before forcing logout.
 // A single 401 can happen from transient issues (race condition, stale cache).
-// Only force logout after 2+ consecutive 401s within 10s.
+// Only force logout after 3+ consecutive 401s within 15s, AND never within
+// the first 10s after a successful login (grace period for initial data load —
+// some roles fan out to many endpoints, a couple of them may briefly return
+// 401 while the auth middleware warms up).
 let isHandling401 = false;
 let consecutive401Count = 0;
 let first401Timestamp = 0;
-const LOGOUT_THRESHOLD = 2; // require 2 consecutive 401s
-const WINDOW_MS = 10_000; // within 10 seconds
+const LOGOUT_THRESHOLD = 3;
+const WINDOW_MS = 15_000;
+let loginGraceUntil = 0;
+export function markLoggedIn() {
+  loginGraceUntil = Date.now() + 10_000;
+  consecutive401Count = 0;
+  first401Timestamp = 0;
+}
 
 // Get auth token from localStorage
 export const getToken = () => localStorage.getItem('auth_token');
@@ -111,6 +120,12 @@ export async function apiRequest<T>(
       // kicking users out on transient errors (stale cache, race conditions).
       if (response.status === 401 && endpoint !== '/api/auth/login' && !isHandling401) {
         const now = Date.now();
+        // During the post-login grace period, just throw without counting —
+        // some endpoints legitimately 401 while the auth middleware's tenant
+        // resolution catches up for this role.
+        if (now < loginGraceUntil) {
+          throw new Error(data.error || 'API Error');
+        }
         if (now - first401Timestamp > WINDOW_MS) {
           // Reset counter if too much time passed since first 401
           consecutive401Count = 0;

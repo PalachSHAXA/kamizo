@@ -83,7 +83,7 @@ export function OverviewTab({
             </div>
             <div className="min-w-0">
               <div className="text-2xl md:text-3xl font-bold">{stats.completedWeek}</div>
-              <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'За неделю' : 'Hafta davomida'}</div>
+              <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Выполнено за неделю' : 'Hafta davomida bajarildi'}</div>
             </div>
           </div>
         </div>

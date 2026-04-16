@@ -333,7 +333,7 @@ export function Layout() {
                 <Route path="/residents" element={<ResidentsPage />} />
               )}
               <Route path="/executors" element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'department_head']}>
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'department_head', 'dispatcher']}>
                   <ExecutorsPage />
                 </ProtectedRoute>
               } />

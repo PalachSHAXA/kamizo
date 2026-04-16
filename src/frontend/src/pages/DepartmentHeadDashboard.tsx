@@ -149,8 +149,12 @@ export function DepartmentHeadDashboard() {
                   <Users className="w-5 h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-2xl md:text-3xl font-bold">{stats.executorsOnline}/{stats.executorsTotal}</div>
-                  <div className="text-xs md:text-sm text-gray-500 truncate">{language === 'ru' ? 'Сотрудники' : 'Xodimlar'}</div>
+                  <div className="text-2xl md:text-3xl font-bold" title={language === 'ru' ? `${stats.executorsOnline} онлайн из ${stats.executorsTotal} всего` : `${stats.executorsOnline} / ${stats.executorsTotal}`}>
+                    {stats.executorsOnline}<span className="text-gray-400 text-lg"> / {stats.executorsTotal}</span>
+                  </div>
+                  <div className="text-xs md:text-sm text-gray-500 truncate">
+                    {language === 'ru' ? 'Онлайн / Всего' : 'Onlayn / Jami'}
+                  </div>
                 </div>
               </div>
             </Link>
