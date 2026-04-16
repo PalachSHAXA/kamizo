@@ -4,7 +4,8 @@ import {
   Share2, Download, Copy, ChevronRight, ArrowLeft, Calendar,
   AlertTriangle, Trash2
 } from 'lucide-react';
-import { EmptyState } from '../components/common';
+import { EmptyState, StatusBadge, StatusStat } from '../components/common';
+import type { StatusTone } from '../theme';
 import { generateQRCodeCanvas } from '../components/LazyQRCode';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
@@ -14,6 +15,14 @@ import {
   VISITOR_TYPE_LABELS, ACCESS_TYPE_LABELS, GUEST_ACCESS_STATUS_LABELS,
   type GuestAccessCode, type VisitorType, type AccessType
 } from '../types';
+
+// Map guest-access status to semantic StatusTone for StatusBadge
+function toneFor(status: string): StatusTone {
+  if (status === 'active') return 'active';
+  if (status === 'used') return 'info';
+  if (status === 'revoked') return 'critical';
+  return 'expired';
+}
 
 // QR Code display component
 function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => void }) {
@@ -186,14 +195,11 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
             <canvas ref={canvasRef} />
           </div>
 
-          {/* Status badge */}
-          <div className={`mt-4 px-4 py-2 rounded-full text-sm font-medium ${
-            code.status === 'active' ? 'bg-green-100 text-green-700' :
-            code.status === 'used' ? 'bg-blue-100 text-blue-700' :
-            code.status === 'expired' ? 'bg-gray-100 text-gray-700' :
-            'bg-red-100 text-red-700'
-          }`}>
-            {language === 'ru' ? statusLabel.label : statusLabel.labelUz}
+          {/* Status badge — unified via StatusBadge */}
+          <div className="mt-4">
+            <StatusBadge status={toneFor(code.status)}>
+              {language === 'ru' ? statusLabel.label : statusLabel.labelUz}
+            </StatusBadge>
           </div>
 
           {/* Info */}
@@ -635,7 +641,7 @@ export function ResidentGuestAccessPage() {
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedCode, setSelectedCode] = useState<GuestAccessCode | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired' | 'archive'>('all');
   const [showRevokeConfirm, setShowRevokeConfirm] = useState<GuestAccessCode | null>(null);
 
   // Fetch codes on mount
@@ -654,9 +660,23 @@ export function ResidentGuestAccessPage() {
     return c;
   });
 
-  const filteredCodes = filter === 'all'
-    ? codes
-    : codes.filter(c => c.status === filter);
+  // Archive cutoff: 30 days. Expired/used codes older than this go to "Архив" tab,
+  // not cluttering "Все".
+  const ARCHIVE_CUTOFF_MS = 30 * 24 * 60 * 60 * 1000;
+  const archiveCutoffDate = new Date(now.getTime() - ARCHIVE_CUTOFF_MS);
+
+  function isArchived(c: typeof codes[number]): boolean {
+    if (c.status === 'active') return false;
+    const until = new Date(c.validUntil);
+    return until < archiveCutoffDate;
+  }
+
+  const filteredCodes =
+    filter === 'all'
+      ? codes.filter(c => !isArchived(c))
+      : filter === 'archive'
+        ? codes.filter(isArchived)
+        : codes.filter(c => c.status === filter && !isArchived(c));
 
   const activeCodes = codes.filter(c => c.status === 'active');
 
@@ -700,28 +720,28 @@ export function ResidentGuestAccessPage() {
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats — unified via StatusStat, no more arbitrary colors per card */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3">
-        <div className="glass-card p-3 sm:p-4">
-          <div className="text-2xl font-bold text-green-600">{activeCodes.length}</div>
-          <div className="text-sm text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
-        </div>
-        <div className="glass-card p-4">
-          <div className="text-2xl font-bold text-blue-600">
-            {codes.filter(c => c.status === 'used').length}
-          </div>
-          <div className="text-sm text-gray-500">{language === 'ru' ? 'Использовано' : 'Ishlatilgan'}</div>
-        </div>
-        <div className="glass-card p-4">
-          <div className="text-2xl font-bold text-gray-600">
-            {codes.filter(c => c.status === 'expired').length}
-          </div>
-          <div className="text-sm text-gray-500">{language === 'ru' ? 'Истекло' : 'Muddati tugagan'}</div>
-        </div>
-        <div className="glass-card p-4">
-          <div className="text-2xl font-bold text-purple-600">{codes.length}</div>
-          <div className="text-sm text-gray-500">{language === 'ru' ? 'Всего' : 'Jami'}</div>
-        </div>
+        <StatusStat
+          status="active"
+          value={activeCodes.length}
+          label={language === 'ru' ? 'Активных' : 'Faol'}
+        />
+        <StatusStat
+          status="info"
+          value={codes.filter(c => c.status === 'used').length}
+          label={language === 'ru' ? 'Использовано' : 'Ishlatilgan'}
+        />
+        <StatusStat
+          status="expired"
+          value={codes.filter(c => c.status === 'expired').length}
+          label={language === 'ru' ? 'Истекло' : 'Muddati tugagan'}
+        />
+        <StatusStat
+          status="pending"
+          value={codes.length}
+          label={language === 'ru' ? 'Всего' : 'Jami'}
+        />
       </div>
 
       {/* Filter tabs */}
@@ -730,7 +750,8 @@ export function ResidentGuestAccessPage() {
           { id: 'all' as const, label: language === 'ru' ? 'Все' : 'Barchasi' },
           { id: 'active' as const, label: language === 'ru' ? 'Активные' : 'Faol' },
           { id: 'used' as const, label: language === 'ru' ? 'Использованные' : 'Ishlatilgan' },
-          { id: 'expired' as const, label: language === 'ru' ? 'Истекшие' : 'Muddati tugagan' },
+          { id: 'expired' as const, label: language === 'ru' ? 'Истёкшие' : 'Muddati tugagan' },
+          { id: 'archive' as const, label: language === 'ru' ? 'Архив' : 'Arxiv' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -800,19 +821,14 @@ export function ResidentGuestAccessPage() {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-lg">{visitorLabel.icon}</span>
                       <span className="font-medium">
                         {language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}
                       </span>
-                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                        code.status === 'active' ? 'bg-green-100 text-green-700' :
-                        isUsed ? 'bg-blue-100 text-blue-700' :
-                        isRevoked ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
+                      <StatusBadge status={toneFor(code.status)} size="sm">
                         {language === 'ru' ? statusLabel.label : statusLabel.labelUz}
-                      </span>
+                      </StatusBadge>
                     </div>
 
                     {code.visitorName && (

@@ -5,6 +5,7 @@ import {
   MessageSquare, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { plural, pluralWithCount } from '../utils/plural';
 import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -234,7 +235,13 @@ export function ResidentMeetingsPage() {
         </h1>
         {votableMeetings.length > 0 && (
           <p className="text-sm text-gray-500 mt-1">
-            {votableMeetings.length} {language === 'ru' ? 'ждут вашего голоса' : 'ovozingizni kutmoqda'}
+            {votableMeetings.length}{' '}
+            {plural(
+              language === 'ru' ? 'ru' : 'uz',
+              votableMeetings.length,
+              { one: 'ждёт вашего голоса', few: 'ждут вашего голоса', many: 'ждут вашего голоса' },
+              { one: 'ovozingizni kutmoqda', other: 'ovozingizni kutmoqda' }
+            )}
           </p>
         )}
       </div>
@@ -310,9 +317,11 @@ export function ResidentMeetingsPage() {
           {activeMeetings.map((meeting) => {
             const statusLabel = MEETING_STATUS_LABELS[meeting.status];
             const quorum = calculateMeetingQuorum(meeting.id);
+            // Guard against NaN when total=0: percent may be NaN/Infinity
+            const safePercent = Number.isFinite(quorum.percent) ? quorum.percent : 0;
             const hasVoted = user?.id && meeting.participatedVoters?.includes(user.id);
             const scheduleVote: string | null = null;
-            const quorumPercent = Math.min(quorum.percent, 100);
+            const quorumPercent = Math.max(0, Math.min(safePercent, 100));
 
             return (
               <div
@@ -350,7 +359,14 @@ export function ResidentMeetingsPage() {
                   <div className="flex items-center gap-4 mb-3">
                     <div className="flex items-center gap-1.5 text-sm text-gray-500">
                       <FileText className="w-4 h-4" />
-                      <span>{meeting.agendaItems.length} {language === 'ru' ? 'вопросов' : 'savol'}</span>
+                      <span>
+                        {pluralWithCount(
+                          language === 'ru' ? 'ru' : 'uz',
+                          meeting.agendaItems.length,
+                          { one: 'вопрос', few: 'вопроса', many: 'вопросов' },
+                          { one: 'savol', other: 'savol' }
+                        )}
+                      </span>
                     </div>
                     {meeting.confirmedDateTime && meeting.status !== 'schedule_poll_open' && (
                       <div className="flex items-center gap-1.5 text-sm text-gray-500">
@@ -382,35 +398,44 @@ export function ResidentMeetingsPage() {
                     </div>
                   )}
 
-                  {/* Quorum progress bar */}
+                  {/* Quorum progress bar — hidden when total=0 to avoid "0/0 (0%)" and 100%-filled false bar */}
                   {['voting_open', 'results_published', 'protocol_approved'].includes(meeting.status) && (
                     <div className="mb-3">
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="text-gray-500 flex items-center gap-1">
+                      {quorum.total === 0 ? (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
                           <Users className="w-3.5 h-3.5" />
-                          {language === 'ru' ? 'Кворум' : 'Kvorum'}
-                        </span>
-                        <span className={`font-semibold ${quorum.quorumReached ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          {quorum.participated}/{quorum.total} ({quorum.percent.toFixed(0)}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ${
-                            quorum.quorumReached
-                              ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                              : 'bg-gradient-to-r from-amber-400 to-orange-400'
-                          }`}
-                          style={{ width: `${quorumPercent}%` }}
-                        />
-                      </div>
-                      {quorum.quorumReached && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <CheckCircle className="w-3 h-3 text-emerald-500" />
-                          <span className="text-xs text-emerald-600 font-medium">
-                            {language === 'ru' ? 'Кворум достигнут' : 'Kvorum yig\'ildi'}
-                          </span>
+                          {language === 'ru' ? 'Голосование ещё не началось' : 'Ovoz berish boshlanmagan'}
                         </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between text-xs mb-1.5">
+                            <span className="text-gray-500 flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5" />
+                              {language === 'ru' ? 'Кворум' : 'Kvorum'}
+                            </span>
+                            <span className={`font-semibold ${quorum.quorumReached ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {quorum.participated}/{quorum.total} ({quorum.percent.toFixed(0)}%)
+                            </span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${
+                                quorum.quorumReached
+                                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                  : 'bg-gradient-to-r from-amber-400 to-orange-400'
+                              }`}
+                              style={{ width: `${quorumPercent}%` }}
+                            />
+                          </div>
+                          {quorum.quorumReached && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <CheckCircle className="w-3 h-3 text-emerald-500" />
+                              <span className="text-xs text-emerald-600 font-medium">
+                                {language === 'ru' ? 'Кворум достигнут' : 'Kvorum yig\'ildi'}
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

@@ -539,9 +539,13 @@ export function ResidentProfilePage() {
                       {t.yourQrCode}
                     </div>
                     <p className="text-xs text-gray-400 mt-1 leading-relaxed">{t.qrHint}</p>
-                    <div className="mt-1.5">
+                    <div className="mt-1.5" title={user.id}>
                       <span className="text-xs text-gray-400">ID:</span>
-                      <span className="font-mono text-xs font-bold text-gray-500 ml-1 select-all">{user.id}</span>
+                      <span className="font-mono text-xs font-bold text-gray-500 ml-1 select-all">
+                        {user.id.length > 16
+                          ? `${user.id.slice(0, 8)}…${user.id.slice(-4)}`
+                          : user.id}
+                      </span>
                     </div>
                   </div>
                 </div>

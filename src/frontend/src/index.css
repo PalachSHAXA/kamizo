@@ -5,12 +5,34 @@
 @tailwind utilities;
 
 :root {
+  /* ── Brand ─────────────────────────────────────────────── */
   --brand: #F97316;
   --brand-light: #fb923c;
   --brand-dark: #EA580C;
   --brand-rgb: 249, 115, 22;
   --brand-bg: #fff7ed;
-  /* Fixed nav heights (used for content padding offsets) — clamp keeps total chrome <= ~120px */
+
+  /* ── Semantic status palette — single source of truth ──
+     Use these for ALL status-like UI (badges, banners, counts, indicators).
+     Do NOT invent new colors per-screen. Extend here if a new status type appears. */
+  --status-active:   #10B981;  /* зелёный — активная заявка, активный пропуск */
+  --status-active-bg:    rgba(16, 185, 129, 0.1);
+  --status-pending:  #F59E0B;  /* amber — ожидание подтверждения/подписания */
+  --status-pending-bg:   rgba(245, 158, 11, 0.1);
+  --status-expired:  #6B7280;  /* серый — истекло, архив */
+  --status-expired-bg:   rgba(107, 114, 128, 0.1);
+  --status-critical: #EF4444;  /* красный — срочно, пожарная, ошибка */
+  --status-critical-bg:  rgba(239, 68, 68, 0.1);
+  --status-info:     #3B82F6;  /* синий — информационные плашки */
+  --status-info-bg:      rgba(59, 130, 246, 0.1);
+
+  /* ── Text hierarchy (for accessibility-compliant contrast) ── */
+  --text-primary:   #111827;   /* 16:1 contrast — основной текст */
+  --text-secondary: #6B7280;   /* 4.6:1 — подписи, метаданные */
+  --text-disabled:  #9CA3AF;   /* 2.85:1 — TOLKO для placeholder, не для текста */
+  --text-on-disabled: #374151; /* текст на disabled-кнопке — WCAG AA на #F3F4F6 */
+
+  /* ── Layout ──────────────────────────────────────────── */
   --mobile-header-h: calc(52px + env(safe-area-inset-top, constant(safe-area-inset-top, 0px)));
   --bottom-bar-h: calc(52px + env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px)));
 }

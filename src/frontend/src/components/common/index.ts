@@ -4,3 +4,4 @@ export { Modal } from './Modal';
 export { EmptyState } from './EmptyState';
 export { LoadingSpinner } from './LoadingSpinner';
 export { ErrorState } from './ErrorState';
+export { StatusBadge, StatusStat } from './StatusBadge';

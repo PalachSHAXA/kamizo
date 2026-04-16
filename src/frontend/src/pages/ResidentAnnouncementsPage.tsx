@@ -11,7 +11,11 @@ export function ResidentAnnouncementsPage() {
   const { getAnnouncementsForResidents, markAnnouncementAsViewed, fetchAnnouncements } = useDataStore();
   const { language } = useLanguageStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread'>('unread');
+  // Start with 'all' so first-time users don't see an empty "Unread (0)" tab.
+  // Switch to 'unread' automatically only if data loads with real unread items
+  // and the user hasn't manually picked a tab yet.
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [userPickedFilter, setUserPickedFilter] = useState(false);
 
   // Fetch announcements on component mount
   useEffect(() => {
@@ -33,6 +37,15 @@ export function ResidentAnnouncementsPage() {
     : announcements;
 
   const unreadCount = announcements.filter(a => !a.viewedBy?.includes(user?.id || '')).length;
+
+  // Auto-switch to 'unread' once when data first arrives with unread items.
+  // Never override user's explicit choice.
+  useEffect(() => {
+    if (!userPickedFilter && unreadCount > 0 && filter === 'all') {
+      setFilter('unread');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadCount]);
 
   const handleExpand = (announcement: Announcement) => {
     if (expandedId === announcement.id) {
@@ -102,7 +115,7 @@ export function ResidentAnnouncementsPage() {
       {/* Filter */}
       <div className="flex gap-2">
         <button
-          onClick={() => setFilter('all')}
+          onClick={() => { setFilter('all'); setUserPickedFilter(true); }}
           className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-sm transition-colors touch-manipulation ${
             filter === 'all'
               ? 'bg-primary-500 text-gray-900'
@@ -112,7 +125,7 @@ export function ResidentAnnouncementsPage() {
           {language === 'ru' ? 'Все' : 'Hammasi'} ({announcements.length})
         </button>
         <button
-          onClick={() => setFilter('unread')}
+          onClick={() => { setFilter('unread'); setUserPickedFilter(true); }}
           className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-sm transition-colors touch-manipulation ${
             filter === 'unread'
               ? 'bg-primary-500 text-gray-900'

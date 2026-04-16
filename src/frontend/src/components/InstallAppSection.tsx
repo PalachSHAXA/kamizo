@@ -35,9 +35,13 @@ export function InstallAppSection({ language, roleContext }: { language: string;
   const [notifPermission, setNotifPermission] = useState<string>('default');
 
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotifPermission(Notification.permission);
-    }
+    if (!('Notification' in window)) return;
+    const read = () => setNotifPermission(Notification.permission);
+    read();
+    // Re-check when tab becomes visible (user may have changed permission in browser settings)
+    const onVisibility = () => { if (document.visibilityState === 'visible') read(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   const handleEnableNotifications = async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import {
   Phone, MapPin, Clock, Search, ArrowLeft,
   Ticket, CheckCircle, Loader2, Flame, Sparkles,
@@ -101,6 +101,23 @@ export default function ResidentUsefulContactsPage() {
   const [loadingCoupon, setLoadingCoupon] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [banners, setBanners] = useState<any[]>([]);
+
+  // Show "листайте ›" only when emergency row actually overflows
+  const emergencyScrollRef = useRef<HTMLDivElement>(null);
+  const [emergencyOverflows, setEmergencyOverflows] = useState(false);
+  useLayoutEffect(() => {
+    const el = emergencyScrollRef.current;
+    if (!el) return;
+    const check = () => setEmergencyOverflows(el.scrollWidth > el.clientWidth + 4);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    window.addEventListener('orientationchange', check);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('orientationchange', check);
+    };
+  }, []);
 
   // Intercept browser/hardware back when a detail view is open
   useBackGuard(!!selectedAd, () => { setSelectedAd(null); setUserCoupon(null); });
@@ -505,11 +522,13 @@ export default function ResidentUsefulContactsPage() {
               {language === 'ru' ? 'Экстренные службы' : 'Tez yordam xizmatlari'}
             </h2>
           </div>
-          <span className="text-xs text-gray-400 flex items-center gap-1">
-            {language === 'ru' ? 'листайте' : 'suring'} <ChevronRight className="w-3 h-3" />
-          </span>
+          {emergencyOverflows && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              {language === 'ru' ? 'листайте' : 'suring'} <ChevronRight className="w-3 h-3" />
+            </span>
+          )}
         </div>
-        <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+        <div ref={emergencyScrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
           {[
             { name: language === 'ru' ? 'Пожарная' : 'O\'t o\'chirish', number: '101', icon: Flame, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' },
             { name: language === 'ru' ? 'Милиция' : 'Militsiya', number: '102', icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },
