@@ -340,7 +340,7 @@ export function WorkOrdersPage() {
             onChange={(e) => setFilterPriority(e.target.value)}
             className="px-4 py-2 min-h-[44px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="all">{language === 'ru' ? 'Все приоритеты' : 'Barcha ustuvorliklar'}</option>
+            <option value="all">{language === 'ru' ? 'Приоритет: все' : 'Ustuvorlik: barchasi'}</option>
             <option value="low">{language === 'ru' ? 'Низкий' : 'Past'}</option>
             <option value="medium">{language === 'ru' ? 'Средний' : 'O\'rta'}</option>
             <option value="high">{language === 'ru' ? 'Высокий' : 'Yuqori'}</option>

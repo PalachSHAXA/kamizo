@@ -38,8 +38,11 @@ export function BottomBar() {
   // Don't show on desktop or for super_admin
   if (role === 'super_admin') return null;
 
-  // Hide bottom bar on chat page — chat has its own input area
-  if (location.pathname === '/chat') return null;
+  // Hide bottom bar on chat page ONLY for roles that land directly on a composer
+  // (resident, tenant, commercial_owner go straight into the UK thread).
+  // Management roles see a thread-list at /chat and need navigation.
+  const isDirectChatRole = role === 'resident' || role === 'tenant' || role === 'commercial_owner';
+  if (location.pathname === '/chat' && isDirectChatRole) return null;
 
   // Calculate badges
   const activeRequestsCount = requests.filter(r =>

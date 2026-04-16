@@ -292,10 +292,15 @@ export function ExecutorsPage() {
               {getStatusBadge(executor.status)}
             </div>
             <div className="space-y-2 text-sm text-gray-600 mb-3">
-              <div className="flex items-center gap-2">
+              <a
+                href={`tel:${executor.phone}`}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+                aria-label={language === 'ru' ? `Позвонить: ${executor.phone}` : `Qo'ng'iroq: ${executor.phone}`}
+              >
                 <Phone className="w-4 h-4" />
                 {executor.phone}
-              </div>
+              </a>
               <div className="flex items-center gap-2">
                 <Star className="w-4 h-4 text-amber-400" />
                 {executor.rating} • {executor.completedCount} {language === 'ru' ? 'выполнено' : 'bajarildi'}
@@ -557,40 +562,51 @@ export function ExecutorsPage() {
                       <Phone className="w-4 h-4" />
                       <span className="text-sm">{language === 'ru' ? 'Телефон' : 'Telefon'}</span>
                     </div>
-                    <span className="font-medium">{selectedExecutor.phone}</span>
+                    <a
+                      href={`tel:${selectedExecutor.phone}`}
+                      className="font-medium hover:text-primary-600 active:text-primary-700 underline decoration-dotted underline-offset-2"
+                    >
+                      {selectedExecutor.phone}
+                    </a>
                   </div>
                 </div>
 
-                {/* Credentials */}
-                <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-                  <div className="text-sm font-medium text-blue-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
+                {/* Credentials — shown ONLY when there's a fresh password in session
+                    (i.e., executor was just created or password reset in this session).
+                    For existing executors, credentials stay hidden to prevent accidental
+                    leakage of login names to everyone with manager access. */}
+                {(() => {
+                  const freshPassword = selectedExecutor.password || createdPasswords[selectedExecutor.id];
+                  if (!freshPassword) return null;
+                  return (
+                    <div className="bg-blue-50 rounded-xl p-4 space-y-3">
+                      <div className="text-sm font-medium text-blue-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
+                      <div className="text-xs text-blue-600 mb-2">
+                        {language === 'ru'
+                          ? 'Скопируйте и передайте сотруднику. После закрытия карточки пароль будет недоступен.'
+                          : 'Nusxalang va xodimga bering. Kartochkani yopgandan keyin parol ko\'rinmaydi.'}
+                      </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
-                    <div className="flex items-center gap-2">
-                      <code className="bg-white px-2 py-1 rounded text-sm font-mono">{selectedExecutor.login}</code>
-                      <button
-                        onClick={() => handleCopy(selectedExecutor.login, 'login')}
-                        className="p-1 hover:bg-blue-100 rounded"
-                        title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
-                      >
-                        {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                      </button>
-                    </div>
-                  </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
+                        <div className="flex items-center gap-2">
+                          <code className="bg-white px-2 py-1 rounded text-sm font-mono">{selectedExecutor.login}</code>
+                          <button
+                            onClick={() => handleCopy(selectedExecutor.login, 'login')}
+                            className="p-1 hover:bg-blue-100 rounded"
+                            title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
+                            aria-label={language === 'ru' ? 'Копировать логин' : 'Loginni nusxalash'}
+                          >
+                            {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
-                    <div className="flex items-center gap-2">
-                      {isLoadingDetails ? (
-                        <span className="flex items-center gap-2 text-sm text-gray-400">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
-                        </span>
-                      ) : (selectedExecutor.password || createdPasswords[selectedExecutor.id]) ? (
-                        <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
+                        <div className="flex items-center gap-2">
                           <code className="bg-white px-2 py-1 rounded text-sm font-mono">
-                            {showPassword ? (selectedExecutor.password || createdPasswords[selectedExecutor.id]) : '••••••••'}
+                            {showPassword ? freshPassword : '••••••••'}
                           </code>
                           <button
                             type="button"
@@ -601,25 +617,23 @@ export function ExecutorsPage() {
                             }}
                             className="p-2 hover:bg-blue-100 active:bg-blue-200 rounded touch-manipulation z-10"
                             title={showPassword ? (language === 'ru' ? 'Скрыть' : 'Yashirish') : (language === 'ru' ? 'Показать' : 'Ko\'rsatish')}
+                            aria-label={showPassword ? (language === 'ru' ? 'Скрыть пароль' : 'Parolni yashirish') : (language === 'ru' ? 'Показать пароль' : 'Parolni ko\'rsatish')}
                           >
                             {showPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
                           </button>
                           <button
-                            onClick={() => handleCopy(selectedExecutor.password || createdPasswords[selectedExecutor.id] || '', 'password')}
+                            onClick={() => handleCopy(freshPassword, 'password')}
                             className="p-1 hover:bg-blue-100 rounded"
                             title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
+                            aria-label={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
                           >
                             {copiedField === 'password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                           </button>
-                        </>
-                      ) : (
-                        <span className="text-sm text-gray-400 italic">
-                          {language === 'ru' ? 'Сбросить через "Редактировать"' : '"Tahrirlash" orqali tiklash'}
-                        </span>
-                      )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Created date */}
                 <div className="text-sm text-gray-500 text-center">

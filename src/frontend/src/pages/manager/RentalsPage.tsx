@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Key, User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, Banknote, Home } from 'lucide-react';
 import { EmptyState } from '../../components/common';
+import { pluralWithCount } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -379,7 +380,12 @@ export function RentalsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
-                    {records.length} {language === 'ru' ? 'записей' : 'yozuvlar'}
+                    {pluralWithCount(
+                      language === 'ru' ? 'ru' : 'uz',
+                      records.length,
+                      { one: 'запись', few: 'записи', many: 'записей' },
+                      { one: 'yozuv', other: 'yozuv' }
+                    )}
                   </div>
                 </div>
                 {activeRecord && (

@@ -71,8 +71,9 @@ interface NewsItem {
 }
 
 // Функция для получения названия отдела по специализации
-const getDepartmentName = (specialization: ExecutorSpecialization): string => {
-  const departments: Record<ExecutorSpecialization, string> = {
+const getDepartmentName = (specialization: ExecutorSpecialization | undefined | null | string): string => {
+  if (!specialization) return 'Общий отдел';
+  const departments: Record<string, string> = {
     plumber: 'Сантехнический отдел',
     electrician: 'Электротехнический отдел',
     elevator: 'Лифтовая служба',
@@ -86,7 +87,22 @@ const getDepartmentName = (specialization: ExecutorSpecialization): string => {
     gardener: 'Садово-парковая служба',
     other: 'Общий отдел',
   };
-  return departments[specialization] || 'Общий отдел';
+  return departments[specialization as string] || 'Общий отдел';
+};
+
+// Safe numeric formatter — returns "0.0" for non-finite values instead of crashing
+const safeFixed = (n: number | undefined | null, digits = 1): string => {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return (0).toFixed(digits);
+  return n.toFixed(digits);
+};
+
+// Compute average safely — returns 0 if ratings object missing/invalid
+const safeAvgRating = (ratings: Employee['ratings'] | undefined): number => {
+  if (!ratings) return 0;
+  const values = Object.values(ratings).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (values.length === 0) return 0;
+  const sum = values.reduce((a, b) => a + b, 0);
+  return sum / values.length;
 };
 
 // Функция для генерации аватара на основе имени
@@ -282,7 +298,7 @@ function EmployeeProfile({ employee, onBack, thanks }: {
   thanks: Thank[];
 }) {
   const { language } = useLanguageStore();
-  const avgRating = (Object.values(employee.ratings).reduce((a, b) => a + b, 0) / 10).toFixed(1);
+  const avgRating = safeFixed(safeAvgRating(employee.ratings));
   const employeeThanks = thanks.filter(t => t.toId === employee.id);
 
   return (
@@ -343,9 +359,9 @@ function EmployeeProfile({ employee, onBack, thanks }: {
             <div key={key} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
               <span className="text-sm truncate">{label}</span>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <StarRating rating={employee.ratings[key as keyof typeof employee.ratings]} size="sm" />
+                <StarRating rating={employee.ratings?.[key as keyof typeof employee.ratings] ?? 0} size="sm" />
                 <span className="text-sm font-medium w-8 text-right">
-                  {employee.ratings[key as keyof typeof employee.ratings].toFixed(1)}
+                  {safeFixed(employee.ratings?.[key as keyof typeof employee.ratings])}
                 </span>
               </div>
             </div>
@@ -407,16 +423,12 @@ function NewsFeed({ news }: { news: NewsItem[] }) {
 
 // Топ коллег
 function TopColleagues({ employees }: { employees: Employee[] }) {
-  const sortedByRating = [...employees].sort((a, b) => {
-    const avgA = Object.values(a.ratings).reduce((sum, r) => sum + r, 0) / 10;
-    const avgB = Object.values(b.ratings).reduce((sum, r) => sum + r, 0) / 10;
-    return avgB - avgA;
-  });
+  const sortedByRating = [...employees].sort((a, b) => safeAvgRating(b.ratings) - safeAvgRating(a.ratings));
 
   const topThree = sortedByRating.slice(0, 3);
 
   const getBestByCategory = (category: keyof Employee['ratings']) => {
-    return [...employees].sort((a, b) => b.ratings[category] - a.ratings[category])[0];
+    return [...employees].sort((a, b) => (b.ratings?.[category] ?? 0) - (a.ratings?.[category] ?? 0))[0];
   };
 
   if (employees.length === 0) {
@@ -432,7 +444,7 @@ function TopColleagues({ employees }: { employees: Employee[] }) {
 
       <div className="space-y-3 mb-6">
         {topThree.map((emp, i) => {
-          const avgRating = (Object.values(emp.ratings).reduce((a, b) => a + b, 0) / 10).toFixed(1);
+          const avgRating = safeFixed(safeAvgRating(emp.ratings));
           return (
             <div
               key={emp.id}
@@ -480,7 +492,7 @@ function TopColleagues({ employees }: { employees: Employee[] }) {
                   <span className="flex-shrink-0">{icon}</span>
                   <span className="text-xs text-gray-500 flex-shrink-0 w-24">{label}</span>
                   <span className="text-xs font-medium flex-1 min-w-0 truncate">{best.name}</span>
-                  <span className="text-xs font-bold flex-shrink-0 bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded">{best.ratings[key].toFixed(1)}</span>
+                  <span className="text-xs font-bold flex-shrink-0 bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded">{safeFixed(best.ratings?.[key])}</span>
                 </div>
               );
             })}
@@ -741,7 +753,7 @@ export function ColleaguesSection() {
                 <div className="space-y-3">
                   {myTeamEmployees.map((emp) => {
                     const isRated = ratedThisMonth.has(emp.id);
-                    const avgRating = (Object.values(emp.ratings).reduce((a, b) => a + b, 0) / 10).toFixed(1);
+                    const avgRating = safeFixed(safeAvgRating(emp.ratings));
 
                     return (
                       <div
@@ -800,7 +812,7 @@ export function ColleaguesSection() {
                   <div className="space-y-3">
                     {departmentGroups[deptName].map((emp) => {
                       const isRated = ratedThisMonth.has(emp.id);
-                      const avgRating = (Object.values(emp.ratings).reduce((a, b) => a + b, 0) / 10).toFixed(1);
+                      const avgRating = safeFixed(safeAvgRating(emp.ratings));
 
                       return (
                         <div
@@ -855,7 +867,7 @@ export function ColleaguesSection() {
                 <div className="space-y-3">
                   {otherEmployees.map((emp) => {
                     const isRated = ratedThisMonth.has(emp.id);
-                    const avgRating = (Object.values(emp.ratings).reduce((a, b) => a + b, 0) / 10).toFixed(1);
+                    const avgRating = safeFixed(safeAvgRating(emp.ratings));
 
                     return (
                       <div

@@ -9,6 +9,7 @@ import { useLanguageStore } from '../../stores/languageStore';
 import { SPECIALIZATION_LABELS, PAUSE_REASON_LABELS } from '../../types';
 import { branchesApi, buildingsApi, usersApi } from '../../services/api';
 import { formatAddress } from '../../utils/formatAddress';
+import { formatName } from '../../utils/formatName';
 import type { ExecutorSpecialization, RequestPriority } from '../../types';
 
 export function RequestsPage() {
@@ -193,7 +194,7 @@ export function RequestsPage() {
                     {getStatusBadge(req)}
                   </div>
                   <div className="text-sm text-gray-600 mt-1">
-                    <span className="font-medium">{SPECIALIZATION_LABELS[req.category]}</span> • {req.residentName}
+                    <span className="font-medium">{SPECIALIZATION_LABELS[req.category]}</span> • {formatName(req.residentName)}
                   </div>
                   {/* Show trash type and volume badges */}
                   {req.category === 'trash' && (
