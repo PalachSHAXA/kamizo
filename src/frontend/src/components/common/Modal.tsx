@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useLanguageStore } from '../../stores/languageStore';
 
 interface ModalProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ export function Modal({
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const { language } = useLanguageStore();
+  const closeLabel = language === 'ru' ? 'Закрыть' : 'Yopish';
 
   const sizeClasses = {
     sm: 'max-w-sm',
@@ -59,7 +62,7 @@ export function Modal({
 
     // Set focus to modal for accessibility
     setTimeout(() => {
-      const closeButton = modalRef.current?.querySelector('button[aria-label="Close modal"]');
+      const closeButton = modalRef.current?.querySelector<HTMLButtonElement>('button[data-modal-close]');
       if (closeButton instanceof HTMLButtonElement) {
         closeButton.focus();
       }
@@ -104,7 +107,8 @@ export function Modal({
           {showClose && (
             <button
               onClick={onClose}
-              aria-label="Close modal"
+              aria-label={closeLabel}
+              data-modal-close
               className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation"
             >
               <X className="w-5 h-5 text-gray-600" />

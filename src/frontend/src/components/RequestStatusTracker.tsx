@@ -481,10 +481,10 @@ export function RequestStatusTrackerCompact({
                 #{request.number || request.id.slice(-6).toUpperCase()}
               </span>
             </div>
-            <div className="text-[14px] text-gray-800 mt-1 font-semibold">
+            <div className="text-[14px] text-gray-800 mt-1 font-semibold line-clamp-2" title={statusMessage.title}>
               {statusMessage.title}
             </div>
-            <div className="text-[12px] text-gray-400 mt-0.5 font-medium">
+            <div className="text-[12px] text-gray-400 mt-0.5 font-medium line-clamp-2" title={statusMessage.subtitle}>
               {statusMessage.subtitle}
             </div>
           </div>

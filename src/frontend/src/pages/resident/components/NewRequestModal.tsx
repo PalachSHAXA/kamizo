@@ -123,6 +123,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
           <button
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors touch-manipulation"
+            aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
           >
             <X className="w-[18px] h-[18px] text-gray-400" />
           </button>

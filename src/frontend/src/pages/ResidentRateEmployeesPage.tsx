@@ -8,6 +8,7 @@ import { apiRequest } from '../services/api/client';
 import type { Executor } from '../types';
 import { SPECIALIZATION_LABELS } from '../types';
 import { Modal } from '../components/common';
+import { pluralWithCount } from '../utils/plural';
 
 interface Rating {
   quality: number;
@@ -152,9 +153,6 @@ export function ResidentRateEmployeesPage() {
     return a.name.localeCompare(b.name);
   });
 
-  const unratedExecutors = allExecutors.filter(e => !ratedExecutorIds.includes(e.id));
-  const ratedExecutors = allExecutors.filter(e => ratedExecutorIds.includes(e.id));
-
   // Get completed requests count for an executor
   const getExecutorRequestsCount = (executorId: string): number => {
     return requests.filter(r =>
@@ -163,6 +161,13 @@ export function ResidentRateEmployeesPage() {
       r.status === 'completed'
     ).length;
   };
+
+  // Only show executors in "Rate" list if they actually completed >=1 request for this resident.
+  // "0 выполненных заявок" cards are confusing — resident has nothing to rate.
+  const unratedExecutors = allExecutors.filter(e =>
+    !ratedExecutorIds.includes(e.id) && getExecutorRequestsCount(e.id) > 0
+  );
+  const ratedExecutors = allExecutors.filter(e => ratedExecutorIds.includes(e.id));
 
   const handleOpenRating = (executor: Executor) => {
     setSelectedExecutor(executor);
@@ -410,9 +415,12 @@ export function ResidentRateEmployeesPage() {
                           </span>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {language === 'ru'
-                            ? `${getExecutorRequestsCount(executor.id)} выполненных заявок`
-                            : `${getExecutorRequestsCount(executor.id)} ta bajarilgan ariza`}
+                          {pluralWithCount(
+                            language === 'ru' ? 'ru' : 'uz',
+                            getExecutorRequestsCount(executor.id),
+                            { one: 'выполненная заявка', few: 'выполненные заявки', many: 'выполненных заявок' },
+                            { one: 'ta bajarilgan ariza', other: 'ta bajarilgan ariza' }
+                          )}
                         </div>
                       </div>
                     </div>
@@ -504,9 +512,12 @@ export function ResidentRateEmployeesPage() {
                   {SPECIALIZATION_LABELS[selectedExecutor.specialization] || selectedExecutor.specialization}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  {language === 'ru'
-                    ? `${getExecutorRequestsCount(selectedExecutor.id)} выполненных заявок`
-                    : `${getExecutorRequestsCount(selectedExecutor.id)} ta bajarilgan ariza`}
+                  {pluralWithCount(
+                    language === 'ru' ? 'ru' : 'uz',
+                    getExecutorRequestsCount(selectedExecutor.id),
+                    { one: 'выполненная заявка', few: 'выполненные заявки', many: 'выполненных заявок' },
+                    { one: 'ta bajarilgan ariza', other: 'ta bajarilgan ariza' }
+                  )}
                 </p>
               </div>
 

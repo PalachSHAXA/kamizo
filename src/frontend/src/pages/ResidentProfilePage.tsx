@@ -3,8 +3,9 @@ import {
   Key, MapPin, Home, Phone, Save, Eye, EyeOff, Edit3,
   AlertCircle, Shield, Loader2, X, FileText, CheckCircle,
   Building2, Ruler, QrCode, Globe,
-  Download, User as UserIcon, Sparkles, ChevronRight
+  Download, User as UserIcon, Sparkles, ChevronRight, LogOut
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
@@ -14,9 +15,18 @@ import { ContractPreview } from '../components/ContractPreview';
 import { InstallAppSection } from '../components/InstallAppSection';
 
 export function ResidentProfilePage() {
-  const { user, changePassword, updateProfile, markContractSigned } = useAuthStore();
+  const { user, changePassword, updateProfile, markContractSigned, logout } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    const msg = language === 'ru' ? 'Выйти из аккаунта?' : 'Akkauntdan chiqmoqchimisiz?';
+    if (confirm(msg)) {
+      logout();
+      navigate('/login', { replace: true });
+    }
+  };
 
   // Check if user is a rental user (tenant/commercial_owner) - they have simplified profile
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
@@ -729,6 +739,15 @@ export function ResidentProfilePage() {
             <p className="text-primary-600">{t.loginInfo}</p>
           </div>
         )}
+
+        {/* Logout button — residents expect to find it at the bottom of profile */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 py-3 min-h-[48px] bg-white hover:bg-red-50 active:bg-red-100 border border-gray-200 rounded-[14px] text-red-600 font-semibold text-[14px] transition-colors touch-manipulation"
+        >
+          <LogOut className="w-4 h-4" />
+          {language === 'ru' ? 'Выйти из аккаунта' : 'Akkauntdan chiqish'}
+        </button>
       </div>
     </div>
   );

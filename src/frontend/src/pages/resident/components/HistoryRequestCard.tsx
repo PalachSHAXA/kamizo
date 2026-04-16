@@ -44,7 +44,7 @@ export function HistoryRequestCard({ request, onClick }: HistoryRequestCardProps
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm text-gray-500">#{request.number}</span>
-            <h3 className={`font-semibold ${isCancelled ? 'text-gray-500' : ''}`}>{request.title}</h3>
+            <h3 className={`font-semibold ${isCancelled ? 'text-gray-500' : ''}`} title={request.title}>{request.title}</h3>
             {isCancelled ? (
               <span className="badge bg-red-100 text-red-700 flex items-center gap-1">
                 <Ban className="w-3 h-3" />
