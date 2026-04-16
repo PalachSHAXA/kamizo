@@ -876,6 +876,7 @@ export function ResidentGuestAccessPage() {
                         onClick={() => setShowRevokeConfirm(code)}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         title={language === 'ru' ? 'Отменить' : 'Bekor qilish'}
+                        aria-label={language === 'ru' ? 'Отменить пропуск' : 'Ruxsatnomani bekor qilish'}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -883,6 +884,7 @@ export function ResidentGuestAccessPage() {
                     <button
                       onClick={() => setSelectedCode(code)}
                       className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                      aria-label={language === 'ru' ? 'Открыть QR-код' : 'QR-kodni ochish'}
                     >
                       <ChevronRight className="w-5 h-5" />
                     </button>

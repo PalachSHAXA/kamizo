@@ -251,6 +251,7 @@ export function ResidentVehiclesPage() {
         <button
           onClick={() => handleOpenModal()}
           className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation"
+          aria-label={language === 'ru' ? 'Добавить автомобиль' : 'Avtomobil qo\'shish'}
         >
           <Plus className="w-5 h-5" />
           <span className="hidden sm:inline">
@@ -340,12 +341,14 @@ export function ResidentVehiclesPage() {
                       <button
                         onClick={() => handleOpenModal(vehicle)}
                         className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation"
+                        aria-label={language === 'ru' ? 'Редактировать автомобиль' : 'Avtomobilni tahrirlash'}
                       >
                         <Edit2 className="w-4 h-4 text-gray-500" />
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(vehicle.id)}
                         className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors touch-manipulation"
+                        aria-label={language === 'ru' ? 'Удалить автомобиль' : 'Avtomobilni o\'chirish'}
                       >
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </button>

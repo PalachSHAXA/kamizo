@@ -45,7 +45,7 @@ export function ResidentProfilePage() {
       // Compact format with Cyrillic - no decorative symbols
       const residentData = [
         `ФИО: ${user.name}`,
-        `Л/С: ${user.login}`,
+        `Логин: ${user.login}`,
         user.address ? `Адрес: ${user.address}` : null,
         user.apartment ? `Кв: ${user.apartment}` : null,
         user.phone ? `Тел: ${user.phone}` : null,
@@ -78,7 +78,7 @@ export function ResidentProfilePage() {
     resident: language === 'ru' ? 'Житель' : 'Aholi',
     tenant: language === 'ru' ? 'Арендатор' : 'Ijarachi',
     commercialOwner: language === 'ru' ? 'Владелец' : 'Egasi',
-    personalAccount: language === 'ru' ? 'Лицевой счёт' : 'Shaxsiy hisob',
+    personalAccount: language === 'ru' ? 'Логин для входа' : 'Tizimga kirish logini',
     loginHint: language === 'ru' ? 'Логин для входа' : 'Kirish logini',
     cannotChange: language === 'ru' ? 'Нельзя изменить' : 'O\'zgartirib bo\'lmaydi',
     address: language === 'ru' ? 'Адрес' : 'Manzil',
@@ -132,8 +132,8 @@ export function ResidentProfilePage() {
 
     // Info
     loginInfo: language === 'ru'
-      ? 'Используйте ваш Л/С (лицевой счёт) как логин для входа в систему.'
-      : 'Tizimga kirish uchun L/H (shaxsiy hisob) dan foydalaning.',
+      ? 'Это ваш логин для входа в систему. Храните его в надёжном месте.'
+      : 'Bu sizning tizimga kirish loginingiz. Uni xavfsiz joyda saqlang.',
     loginInfoTitle: language === 'ru' ? 'Данные для входа:' : 'Kirish ma\'lumotlari:',
 
     // Language switcher

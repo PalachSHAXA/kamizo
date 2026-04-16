@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Navigate } from 'react-router-dom';
 import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock, ClipboardList } from 'lucide-react';
 import { EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
@@ -16,6 +16,13 @@ export function RequestsPage() {
   const { language } = useLanguageStore();
   const { requests, executors, assignRequest, addRequest, fetchRequests, fetchExecutors, isLoadingRequests } = useDataStore();
   const [searchParams] = useSearchParams();
+
+  // Resident-like roles (resident, tenant, commercial_owner) get the richer
+  // ResidentDashboard "requests" tab with tappable cards and a detail modal.
+  // Redirect them here so /requests deep-links still work for them.
+  if (user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner') {
+    return <Navigate to="/?tab=requests" replace />;
+  }
   const statusFilter = searchParams.get('status') || 'all';
   const [filter, setFilter] = useState(statusFilter);
   const [searchQuery, setSearchQuery] = useState('');

@@ -12,7 +12,7 @@ import {
   Smile,
   Paperclip
 } from 'lucide-react';
-import { EmptyState } from '../components/common';
+import { EmptyState, MessageContent } from '../components/common';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -1043,7 +1043,7 @@ function ChatView({
                           ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-[18px] rounded-br-[6px] shadow-sm shadow-orange-200'
                           : 'bg-white text-gray-900 rounded-[18px] rounded-bl-[6px] shadow-sm'
                       } ${message.status === 'sending' ? 'opacity-60' : ''}`}>
-                        <p className="text-[14px] whitespace-pre-wrap leading-relaxed" style={{ wordBreak: 'break-word' }}>{message.content}</p>
+                        <MessageContent content={message.content} isOwn={isOwn} language={language === 'ru' ? 'ru' : 'uz'} />
                         <div className={`flex items-center justify-end gap-1 mt-1 ${
                           isOwn ? 'text-white/60' : 'text-gray-400'
                         }`}>
@@ -1095,12 +1095,15 @@ function ChatView({
           <button
             onClick={() => setShowEmojiPicker(p => !p)}
             className={`p-2 rounded-[12px] transition-colors flex-shrink-0 touch-manipulation ${showEmojiPicker ? 'bg-orange-100 text-orange-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+            aria-label={language === 'ru' ? 'Эмодзи' : 'Emoji'}
+            aria-pressed={showEmojiPicker}
           >
             <Smile className="w-5 h-5" />
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="p-2 rounded-[12px] text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0 touch-manipulation"
+            aria-label={language === 'ru' ? 'Прикрепить файл' : 'Fayl biriktirish'}
           >
             <Paperclip className="w-5 h-5" />
           </button>
@@ -1143,6 +1146,7 @@ function ChatView({
             onClick={handleSend}
             disabled={!newMessage.trim() || isSending}
             className="p-2.5 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-300 disabled:to-gray-300 text-white rounded-[14px] transition-all touch-manipulation flex-shrink-0 shadow-sm shadow-orange-200 disabled:shadow-none active:scale-95"
+            aria-label={language === 'ru' ? 'Отправить сообщение' : 'Xabar yuborish'}
           >
             {isSending ? (
               <Loader2 className="w-5 h-5 animate-spin" />
