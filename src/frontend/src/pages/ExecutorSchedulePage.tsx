@@ -4,6 +4,7 @@ import {
   User, Phone, Check, FileText
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { formatName } from '../utils/formatName';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -477,7 +478,7 @@ export function ExecutorSchedulePage() {
                   </div>
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 text-sm text-gray-500">
                     <User className="w-3.5 h-3.5" />
-                    <span>{request.residentName}</span>
+                    <span>{formatName(request.residentName)}</span>
                     <span className="text-gray-300">•</span>
                     <Phone className="w-3.5 h-3.5" />
                     <a href={`tel:${request.residentPhone}`} className="text-primary-600 hover:underline" onClick={e => e.stopPropagation()}>
@@ -553,7 +554,7 @@ export function ExecutorSchedulePage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-400" />
-                    <span>{selectedRequest.residentName}</span>
+                    <span>{formatName(selectedRequest.residentName)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-gray-400" />

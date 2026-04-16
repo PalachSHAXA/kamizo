@@ -202,9 +202,13 @@ export function ApartmentSidePanel({
                       </div>
                       <div className="space-y-1 pl-0.5">
                         {r.phone && (
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <a
+                            href={`tel:${r.phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-2 text-xs text-gray-500 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+                          >
                             <Phone className="w-3 h-3 text-gray-300" /> {r.phone}
-                          </div>
+                          </a>
                         )}
                         {r.login && (
                           <div className="flex items-center gap-2 text-xs text-gray-500">

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { EmptyState } from '../components/common';
+import { formatName } from '../utils/formatName';
 import { PageSkeleton } from '../components/PageSkeleton';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -245,7 +246,7 @@ export function DepartmentHeadDashboard() {
                           )}
                         </div>
                       )}
-                      <div className="text-sm text-gray-500 truncate">{request.residentName}</div>
+                      <div className="text-sm text-gray-500 truncate">{formatName(request.residentName)}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

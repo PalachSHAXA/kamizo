@@ -1,6 +1,8 @@
 import { Phone, MapPin, Home } from 'lucide-react';
 import { useDataStore } from '../../../stores/dataStore';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { pluralWithCount } from '../../../utils/plural';
+import { formatName } from '../../../utils/formatName';
 
 // Residents Section - used in ResidentsPage
 export function ResidentsSection() {
@@ -35,7 +37,14 @@ export function ResidentsSection() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h2>
-            <p className="text-xs md:text-sm text-gray-500">{residents.length} {language === 'ru' ? 'жителей в системе' : 'tizimda yashovchilar'}</p>
+            <p className="text-xs md:text-sm text-gray-500">
+              {pluralWithCount(
+                language === 'ru' ? 'ru' : 'uz',
+                residents.length,
+                { one: 'житель в системе', few: 'жителя в системе', many: 'жителей в системе' },
+                { one: 'tizimda yashovchi', other: 'tizimda yashovchi' }
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -58,12 +67,18 @@ export function ResidentsSection() {
                       {resident.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold text-sm md:text-base truncate">{resident.name}</div>
+                      <div className="font-semibold text-sm md:text-base truncate" title={resident.name}>{formatName(resident.name)}</div>
                       <div className="text-xs md:text-sm text-gray-500 flex flex-wrap items-center gap-2 md:gap-3">
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {resident.phone}
-                        </span>
+                        {resident.phone && (
+                          <a
+                            href={`tel:${resident.phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+                          >
+                            <Phone className="w-3 h-3" />
+                            {resident.phone}
+                          </a>
+                        )}
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3" />
                           <span className="truncate max-w-[100px] md:max-w-none">{language === 'ru' ? 'кв.' : 'kv.'} {resident.apartment}</span>

@@ -136,6 +136,7 @@ export function RequestsPage() {
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation active:scale-95"
+            aria-label={language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
           >
             <Plus className="w-5 h-5" />
             <span className="hidden sm:inline">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</span>

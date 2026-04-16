@@ -3,6 +3,7 @@ import { useLanguageStore } from '../../../stores/languageStore';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../../../types';
 import type { RequestStatus, RequestPriority } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
+import { formatName } from '../../../utils/formatName';
 import { formatRequestNumber } from './types';
 import type { RequestCardProps } from './types';
 
@@ -54,7 +55,7 @@ export function RequestCard({
           {getStatusBadge(request.status)}
         </div>
         <div className="flex items-center gap-2 md:gap-3 justify-between sm:justify-end">
-          <span className="text-xs md:text-sm text-gray-500 truncate">{request.residentName}</span>
+          <span className="text-xs md:text-sm text-gray-500 truncate" title={request.residentName}>{formatName(request.residentName)}</span>
           {request.status === 'new' && (
             <button onClick={onAssign} className="btn-secondary text-xs md:text-sm min-h-[44px] py-2 px-3 md:px-4 touch-manipulation active:scale-[0.98] flex-shrink-0">
               {language === 'ru' ? 'Назначить' : 'Tayinlash'}
@@ -92,14 +93,21 @@ export function RequestCard({
             </div>
           )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-gray-500">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1" title={request.residentName}>
               <User className="w-3 h-3 md:w-4 md:h-4" />
-              {request.residentName}
+              {formatName(request.residentName)}
             </span>
-            <span className="flex items-center gap-1">
-              <Phone className="w-3 h-3 md:w-4 md:h-4" />
-              {request.residentPhone}
-            </span>
+            {request.residentPhone && (
+              <a
+                href={`tel:${request.residentPhone}`}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+                aria-label={language === 'ru' ? `Позвонить ${request.residentPhone}` : `Qo'ng'iroq ${request.residentPhone}`}
+              >
+                <Phone className="w-3 h-3 md:w-4 md:h-4" />
+                {request.residentPhone}
+              </a>
+            )}
             <span className="flex items-center gap-1">
               <MapPin className="w-3 h-3 md:w-4 md:h-4" />
               <span className="truncate max-w-[120px] md:max-w-none">{formatAddress(request.address, request.apartment)}</span>

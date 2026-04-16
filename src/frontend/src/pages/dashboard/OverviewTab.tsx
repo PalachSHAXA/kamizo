@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { InstallAppSection } from '../../components/InstallAppSection';
 import { Modal, EmptyState } from '../../components/common';
 import { formatAddress } from '../../utils/formatAddress';
+import { formatName } from '../../utils/formatName';
 import { SPECIALIZATION_LABELS } from '../../types';
 import type { CompanyStats, TeamData, BuildingStat, DepartmentStat, ChartData } from './types';
 import { getStatusColor, getRequestStatusLabels } from './translations';
@@ -407,7 +408,7 @@ export function OverviewTab({
                 {index + 1}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">{executor.name}</div>
+                <div className="font-medium text-sm truncate" title={executor.name}>{formatName(executor.name)}</div>
                 <div className="flex items-center gap-1 text-xs text-yellow-600">
                   <Star className="w-3 h-3" />
                   {(executor.rating || 0).toFixed(1)}

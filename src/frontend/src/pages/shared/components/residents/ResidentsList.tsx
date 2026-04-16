@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { EmptyState } from '../../../../components/common';
 import { financeApi } from '../../../../services/api';
+import { formatName } from '../../../../utils/formatName';
+import { plural } from '../../../../utils/plural';
 import type { MappedResident } from './types';
 
 interface ResidentsListProps {
@@ -53,7 +55,13 @@ export function ResidentsList({
       {/* Residents count and actions */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-gray-500">
-          {t('Найдено', 'Topildi')}: <strong>{filteredResidents.length}</strong> {t('жителей', 'yashovchi')}
+          {t('Найдено', 'Topildi')}: <strong>{filteredResidents.length}</strong>{' '}
+          {plural(
+            language === 'ru' ? 'ru' : 'uz',
+            filteredResidents.length,
+            { one: 'житель', few: 'жителя', many: 'жителей' },
+            { one: 'yashovchi', other: 'yashovchi' }
+          )}
         </div>
         {filteredResidents.length > 0 && (
           <button
@@ -88,9 +96,9 @@ export function ResidentsList({
           const completedTasks = [hasContract, hasVehicle, hasPhone, hasChangedPassword, hasLoggedIn].filter(Boolean).length;
           const totalTasks = 5;
 
-          // Display name — ФИО first, fallback to "Не указано"
+          // Display name — ФИО first (normalize ALL CAPS → Title Case), fallback to "Не указано"
           const displayName = resident.name && resident.name.trim() && !/^\d+$/.test(resident.name.trim())
-            ? resident.name.trim()
+            ? formatName(resident.name.trim())
             : null;
 
           return (

@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { EmptyState } from '../../components/common';
 import { teamApi, apiRequest } from '../../services/api';
+import { formatName } from '../../utils/formatName';
+import { pluralWithCount } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -575,7 +577,7 @@ export function TeamPage() {
             }
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm sm:text-base truncate">{member.name}</h3>
+            <h3 className="font-semibold text-sm sm:text-base truncate" title={member.name}>{formatName(member.name)}</h3>
             {member.specialization && (
               <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
                 {getSpecLabel(member.specialization)}
@@ -592,10 +594,17 @@ export function TeamPage() {
       </div>
 
       <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-600">
-        <div className="flex items-center gap-2">
-          <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-          {member.phone}
-        </div>
+        {member.phone && (
+          <a
+            href={`tel:${member.phone}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-2 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+            aria-label={language === 'ru' ? `Позвонить ${member.phone}` : `Qo'ng'iroq ${member.phone}`}
+          >
+            <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+            {member.phone}
+          </a>
+        )}
         {(member.role === 'executor' || member.role === 'department_head') && (
           <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
             <div className="flex items-center gap-1">
@@ -687,7 +696,13 @@ export function TeamPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Персонал' : 'Xodimlar'}</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {language === 'ru' ? 'Всего' : 'Jami'}: {(isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length} {language === 'ru' ? 'сотрудников' : 'xodimlar'}
+            {language === 'ru' ? 'Всего' : 'Jami'}:{' '}
+            {pluralWithCount(
+              language === 'ru' ? 'ru' : 'uz',
+              (isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length,
+              { one: 'сотрудник', few: 'сотрудника', many: 'сотрудников' },
+              { one: 'xodim', other: 'xodim' }
+            )}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
