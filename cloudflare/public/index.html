@@ -23,12 +23,19 @@
     <meta name="msapplication-TileColor" content="#F97316" />
     <meta name="msapplication-TileImage" content="/icons/favicon-128x128.png" />
     <title>kamizo - Управление жильём</title>
-    <script type="module" crossorigin src="/assets/index-9jtKGmYQ.js"></script>
+    <script type="module" crossorigin src="/assets/index-CBdCXCtI.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/charts-cLddKv9G.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-D39P_1Bm.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-hxx3ImP1.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh;background:#ffffff;">
+        <img src="/icons/favicon-64x64.png" alt="" style="width:48px;height:48px;animation:kamizo-pulse 1.5s ease-in-out infinite" />
+      </div>
+    </div>
+    <style>
+      @keyframes kamizo-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    </style>
     <script>
       // Register Service Worker
       if ('serviceWorker' in navigator) {

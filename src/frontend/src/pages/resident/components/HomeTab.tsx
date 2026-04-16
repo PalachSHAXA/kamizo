@@ -137,22 +137,6 @@ export function HomeTab({
         </button>
       </div>
 
-      {/* Communal Payments Card */}
-      <button
-        className="w-full bg-white rounded-[18px] p-[12px_14px] flex items-center gap-[12px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.97] transition-all touch-manipulation relative overflow-hidden"
-      >
-        <div className="w-[44px] h-[44px] shrink-0 rounded-[14px] flex items-center justify-center bg-emerald-50">
-          <Wallet className="w-[22px] h-[22px] text-emerald-500" strokeWidth={1.8} />
-        </div>
-        <div className="flex-1 text-left">
-          <div className="text-[15px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Ком. услуги' : 'Kommunal xizmatlar'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Оплата · Квитанции · Счета' : 'To\'lov · Kvitansiyalar · Hisoblar'}</div>
-        </div>
-        <span className="px-2 py-0.5 rounded-[6px] bg-emerald-50 text-[10px] font-bold text-emerald-600 uppercase tracking-wide shrink-0">
-          {language === 'ru' ? 'Скоро' : 'Tez kunda'}
-        </span>
-      </button>
-
       {/* News - Announcements & Meetings */}
       {(latestAnnouncements.length > 0 || activeMeetings.length > 0) && (
         <div className="space-y-2.5">
