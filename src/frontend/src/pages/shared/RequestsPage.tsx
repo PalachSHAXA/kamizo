@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Navigate } from 'react-router-dom';
 import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock, ClipboardList } from 'lucide-react';
-import { EmptyState } from '../../components/common';
+import { EmptyState, StatusBadge } from '../../components/common';
+import type { StatusTone } from '../../theme';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -73,29 +74,52 @@ export function RequestsPage() {
     }
   }, [showAssignModal, fetchExecutors]);
 
+  // Map request status to semantic StatusTone so all colors come from design tokens
+  const requestStatusTone = (status: string): StatusTone => {
+    switch (status) {
+      case 'new': return 'info';
+      case 'assigned':
+      case 'accepted':
+      case 'in_progress':
+      case 'pending_approval':
+        return 'pending';
+      case 'completed': return 'active';
+      case 'cancelled': return 'critical';
+      default: return 'expired';
+    }
+  };
+
+  const requestStatusLabel = (status: string): string => {
+    const labels: Record<string, { ru: string; uz: string }> = {
+      new: { ru: 'Новая', uz: 'Yangi' },
+      assigned: { ru: 'Назначена', uz: 'Tayinlandi' },
+      accepted: { ru: 'Принята', uz: 'Qabul qilindi' },
+      in_progress: { ru: 'В работе', uz: 'Jarayonda' },
+      pending_approval: { ru: 'Ожидает подтверждения', uz: 'Tasdiqlash kutilmoqda' },
+      completed: { ru: 'Выполнена', uz: 'Bajarildi' },
+      cancelled: { ru: 'Отменена', uz: 'Bekor qilindi' },
+    };
+    const l = labels[status];
+    return l ? (language === 'ru' ? l.ru : l.uz) : status;
+  };
+
   const getStatusBadge = (req: { status: string; isPaused?: boolean; pauseReason?: string }) => {
-    // Show paused badge if request is paused (regardless of underlying status)
     if (req.isPaused) {
       const reasonLabel = req.pauseReason && PAUSE_REASON_LABELS[req.pauseReason]
         ? PAUSE_REASON_LABELS[req.pauseReason].label
         : req.pauseReason || (language === 'ru' ? 'На паузе' : 'Pauzada');
       return (
-        <span className="badge bg-gray-200 text-gray-700 flex items-center gap-1" title={reasonLabel}>
+        <StatusBadge status="expired" size="sm" className="gap-1">
           <Pause className="w-3 h-3" />
-          {language === 'ru' ? 'На паузе' : 'Pauzada'}
-        </span>
+          <span title={reasonLabel}>{language === 'ru' ? 'На паузе' : 'Pauzada'}</span>
+        </StatusBadge>
       );
     }
-    switch (req.status) {
-      case 'new': return <span className="badge badge-new">{language === 'ru' ? 'Новая' : 'Yangi'}</span>;
-      case 'assigned': return <span className="badge bg-orange-100 text-orange-700">{language === 'ru' ? 'Назначена' : 'Tayinlandi'}</span>;
-      case 'accepted': return <span className="badge bg-cyan-100 text-cyan-700">{language === 'ru' ? 'Принята' : 'Qabul qilindi'}</span>;
-      case 'in_progress': return <span className="badge badge-progress">{language === 'ru' ? 'В работе' : 'Jarayonda'}</span>;
-      case 'pending_approval': return <span className="badge bg-purple-100 text-purple-700">{language === 'ru' ? 'Ожидает подтверждения' : 'Tasdiqlash kutilmoqda'}</span>;
-      case 'completed': return <span className="badge badge-done">{language === 'ru' ? 'Выполнена' : 'Bajarildi'}</span>;
-      case 'cancelled': return <span className="badge bg-red-100 text-red-700">{language === 'ru' ? 'Отменена' : 'Bekor qilindi'}</span>;
-      default: return <span className="badge">{req.status}</span>;
-    }
+    return (
+      <StatusBadge status={requestStatusTone(req.status)} size="sm">
+        {requestStatusLabel(req.status)}
+      </StatusBadge>
+    );
   };
 
   // Filter by status and search query

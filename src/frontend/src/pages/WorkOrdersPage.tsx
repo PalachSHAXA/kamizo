@@ -4,7 +4,8 @@ import {
   AlertTriangle, CheckCircle, User, Building2,
   FileText, Play, Pause, Check, Loader2
 } from 'lucide-react';
-import { EmptyState } from '../components/common';
+import { EmptyState, StatusBadge } from '../components/common';
+import type { StatusTone } from '../theme';
 import { useCRMStore } from '../stores/crmStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -136,13 +137,13 @@ export function WorkOrdersPage() {
     urgent: workOrders.filter(o => o.priority === 'urgent' && o.status !== 'completed').length,
   };
 
-  const getStatusColor = (status: WorkOrderStatus) => {
+  const getStatusTone = (status: WorkOrderStatus): StatusTone => {
     switch (status) {
-      case 'pending': return 'bg-gray-100 text-gray-700';
-      case 'scheduled': return 'bg-blue-100 text-blue-700';
-      case 'in_progress': return 'bg-yellow-100 text-yellow-700';
-      case 'completed': return 'bg-green-100 text-green-700';
-      case 'cancelled': return 'bg-red-100 text-red-700';
+      case 'pending': return 'expired';
+      case 'scheduled': return 'info';
+      case 'in_progress': return 'pending';
+      case 'completed': return 'active';
+      case 'cancelled': return 'critical';
     }
   };
 
@@ -390,9 +391,9 @@ export function WorkOrdersPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-mono text-sm text-gray-500">{order.number}</span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(order.status)}`}>
+                      <StatusBadge status={getStatusTone(order.status)} size="sm">
                         {getStatusLabel(order.status)}
-                      </span>
+                      </StatusBadge>
                       <span className={`text-xs font-medium ${getPriorityColor(order.priority)}`}>
                         {getPriorityLabel(order.priority)}
                       </span>
@@ -543,13 +544,13 @@ function WorkOrderDetailModal({
   const apartment = apartments.find(a => a.id === order.apartmentId);
   const executor = executors.find(e => e.id === order.assignedTo);
 
-  const getStatusColor = (status: WorkOrderStatus) => {
+  const getStatusTone = (status: WorkOrderStatus): StatusTone => {
     switch (status) {
-      case 'pending': return 'bg-gray-100 text-gray-700';
-      case 'scheduled': return 'bg-blue-100 text-blue-700';
-      case 'in_progress': return 'bg-yellow-100 text-yellow-700';
-      case 'completed': return 'bg-green-100 text-green-700';
-      case 'cancelled': return 'bg-red-100 text-red-700';
+      case 'pending': return 'expired';
+      case 'scheduled': return 'info';
+      case 'in_progress': return 'pending';
+      case 'completed': return 'active';
+      case 'cancelled': return 'critical';
     }
   };
 
@@ -585,9 +586,9 @@ function WorkOrderDetailModal({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-mono text-gray-500">{order.number}</span>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(order.status)}`}>
+                <StatusBadge status={getStatusTone(order.status)} size="sm">
                   {getStatusLabel(order.status)}
-                </span>
+                </StatusBadge>
               </div>
               <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">{order.title}</h2>
             </div>

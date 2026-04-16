@@ -9,6 +9,8 @@ import { formatAddress } from '../../../utils/formatAddress';
 import { formatName } from '../../../utils/formatName';
 import { SPECIALIZATION_LABELS } from '../../../types';
 import type { Request } from '../../../types';
+import { StatusBadge } from '../../../components/common';
+import type { StatusTone } from '../../../theme';
 
 interface ManagementRequestModalProps {
   request: Request;
@@ -50,14 +52,11 @@ export function ManagementRequestModal({
     });
   };
 
-  const priorityStyle =
-    request.priority === 'urgent'
-      ? 'bg-red-100 text-red-700'
-      : request.priority === 'high'
-        ? 'bg-orange-100 text-orange-700'
-        : request.priority === 'medium'
-          ? 'bg-amber-100 text-amber-700'
-          : 'bg-gray-100 text-gray-700';
+  const priorityTone: StatusTone =
+    request.priority === 'urgent' ? 'critical'
+    : request.priority === 'high' ? 'pending'
+    : request.priority === 'medium' ? 'info'
+    : 'expired';
 
   const priorityLabel =
     request.priority === 'urgent' ? t('Срочно', 'Shoshilinch')
@@ -107,17 +106,17 @@ export function ManagementRequestModal({
         <div className="p-5 space-y-4">
           {/* Priority + Category chips */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${priorityStyle}`}>
+            <StatusBadge status={priorityTone} size="sm">
               {priorityLabel}
-            </span>
+            </StatusBadge>
             <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
               {SPECIALIZATION_LABELS[request.category]}
             </span>
             {request.isPaused && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700 inline-flex items-center gap-1">
+              <StatusBadge status="expired" size="sm" className="gap-1">
                 <Pause className="w-3 h-3" />
                 {t('На паузе', 'Pauzada')}
-              </span>
+              </StatusBadge>
             )}
           </div>
 

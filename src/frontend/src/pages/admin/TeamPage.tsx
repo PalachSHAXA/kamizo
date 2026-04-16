@@ -8,7 +8,8 @@ import {
   Download, Upload, CheckCircle, AlertCircle,
   UserPlus
 } from 'lucide-react';
-import { EmptyState } from '../../components/common';
+import { EmptyState, StatusBadge } from '../../components/common';
+import type { StatusTone } from '../../theme';
 import { teamApi, apiRequest } from '../../services/api';
 import { formatName } from '../../utils/formatName';
 import { pluralWithCount } from '../../utils/plural';
@@ -534,12 +535,18 @@ export function TeamPage() {
   const filteredExecutors = filterMembers(executors);
 
   const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'available': return <span className="badge badge-done text-xs">{language === 'ru' ? 'Доступен' : 'Mavjud'}</span>;
-      case 'busy': return <span className="badge badge-progress text-xs">{language === 'ru' ? 'Занят' : 'Band'}</span>;
-      case 'offline': return <span className="badge bg-gray-100 text-gray-600 text-xs">{language === 'ru' ? 'Не в сети' : 'Oflayn'}</span>;
-      default: return null;
-    }
+    const tone: StatusTone | null =
+      status === 'available' ? 'active'
+      : status === 'busy' ? 'pending'
+      : status === 'offline' ? 'expired'
+      : null;
+    const label =
+      status === 'available' ? (language === 'ru' ? 'Доступен' : 'Mavjud')
+      : status === 'busy' ? (language === 'ru' ? 'Занят' : 'Band')
+      : status === 'offline' ? (language === 'ru' ? 'Не в сети' : 'Oflayn')
+      : null;
+    if (!tone || !label) return null;
+    return <StatusBadge status={tone} size="sm">{label}</StatusBadge>;
   };
 
   const getSpecLabel = (spec: ExecutorSpecialization) => {
