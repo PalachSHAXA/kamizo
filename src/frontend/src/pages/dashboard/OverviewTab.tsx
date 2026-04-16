@@ -9,7 +9,7 @@ import {
   Clock, MapPin, Megaphone, Vote, Shield, UserCheck, Wrench
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { InstallAppSection } from '../../components/InstallAppSection';
+import { InstallAppBanner } from '../../components/InstallAppSection';
 import { Modal, EmptyState } from '../../components/common';
 import { formatAddress } from '../../utils/formatAddress';
 import { formatName } from '../../utils/formatName';
@@ -438,7 +438,7 @@ export function OverviewTab({
       )}
 
       {/* Install App / Notifications */}
-      <InstallAppSection language={language} roleContext="director" />
+      <InstallAppBanner language={language} />
 
       {/* Requests Modal */}
       <DetailModal

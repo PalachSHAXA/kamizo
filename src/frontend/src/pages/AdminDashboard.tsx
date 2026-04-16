@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { EmptyState } from '../components/common';
 import { plural, pluralWithCount } from '../utils/plural';
-import { InstallAppSection } from '../components/InstallAppSection';
+import { InstallAppBanner } from '../components/InstallAppSection';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -1237,7 +1237,7 @@ export function AdminDashboard() {
       )}
 
       {/* Install App / Notifications */}
-      <InstallAppSection language={language} roleContext="admin" />
+      <InstallAppBanner language={language} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { InstallAppSection } from '../components/InstallAppSection';
+import { InstallAppBanner } from '../components/InstallAppSection';
 import {
   FileText, Clock, CheckCircle,
   Play, ShoppingBag,
@@ -426,7 +426,7 @@ export function ExecutorDashboard() {
           />
 
       {/* Install App / Notifications */}
-      <InstallAppSection language={language} roleContext={user?.specialization === 'courier' ? 'executor' : 'executor'} />
+      <InstallAppBanner language={language} />
 
       {/* Request Details Modal */}
       {selectedRequest && !showDeclineModal && (

@@ -859,7 +859,7 @@ function ChatView({
   return (
     <div
       ref={chatContainerRef}
-      className="h-full flex flex-col bg-[#f8f7f4]"
+      className="h-full flex flex-col bg-white"
       style={keyboardOffset > 0 ? { height: `calc(100% - ${keyboardOffset}px)` } : undefined}
     >
       {/* ── Header ── */}
@@ -1046,14 +1046,18 @@ function ChatView({
                         </div>
                       )}
 
+                      {/* Chat bubble contrast:
+                          Mine — #E67E22 (dark orange) with white text, 4.6:1 ratio.
+                          UK   — #F3F4F6 (light gray) with gray-900 text, clearly
+                                 distinct from the white chat background. */}
                       <div className={`px-3.5 py-2.5 ${
                         isOwn
-                          ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-[18px] rounded-br-[6px] shadow-sm shadow-orange-200'
-                          : 'bg-white text-gray-900 rounded-[18px] rounded-bl-[6px] shadow-sm'
+                          ? 'bg-[#E67E22] text-white rounded-[18px] rounded-br-[6px] shadow-sm'
+                          : 'bg-[#F3F4F6] text-gray-900 rounded-[18px] rounded-bl-[6px]'
                       } ${message.status === 'sending' ? 'opacity-60' : ''}`}>
                         <MessageContent content={message.content} isOwn={isOwn} language={language === 'ru' ? 'ru' : 'uz'} />
                         <div className={`flex items-center justify-end gap-1 mt-1 ${
-                          isOwn ? 'text-white/60' : 'text-gray-400'
+                          isOwn ? 'text-white/75' : 'text-gray-500'
                         }`}>
                           <span className="text-xs">{formatMessageTime(message.created_at, language)}</span>
                           {isOwn && message.status === 'sending' && (
@@ -1282,7 +1286,7 @@ export function ChatPage() {
     if (isLoading) {
       return (
         <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto overflow-hidden">
-          <div className="resident-chat-container bg-[#f8f7f4] md:rounded-[22px] md:shadow-sm md:border overflow-hidden flex items-center justify-center">
+          <div className="resident-chat-container bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-8 h-8 animate-spin text-orange-400 mx-auto mb-3" />
               <p className="text-sm text-gray-400">{language === 'ru' ? 'Загрузка чата...' : 'Chat yuklanmoqda...'}</p>
@@ -1355,7 +1359,7 @@ export function ChatPage() {
               onMarkRead={handleMarkRead}
             />
           ) : (
-            <div className="h-full flex items-center justify-center bg-[#f8f7f4]">
+            <div className="h-full flex items-center justify-center bg-white">
               <div className="text-center">
                 <div className="w-20 h-20 mx-auto mb-4 bg-orange-50 rounded-[24px] flex items-center justify-center">
                   <MessageCircle className="w-10 h-10 text-orange-300" />

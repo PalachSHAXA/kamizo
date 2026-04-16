@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronRight, Wrench, ArrowRight, MessageCircle, QrCode,
+  ChevronRight, Wrench, MessageCircle, QrCode,
   ShoppingBag, Car, Users, Wallet, Vote, Star, ScrollText,
-  FileText, Megaphone
+  Megaphone
 } from 'lucide-react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
 import { generateReconciliationDoc } from '../../../utils/generateFinanceDocs';
@@ -52,97 +52,80 @@ export function HomeTab({
         </div>
       )}
 
-      {/* Actions Section */}
+      {/* Two primary JTBD buttons — the "Вызвать мастера" hero used to sit
+          above a 2-col grid of Chat/Guests + a marketplace row + a second
+          2-col grid, duplicating the + FAB and adding five tiles the user
+          rarely needed on every visit. The two core resident jobs are:
+          (1) create a request, (2) issue a guest pass — everything else
+          moves into the horizontal "Мои сервисы" strip below. */}
       <div className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px] px-1">
-        {language === 'ru' ? 'Действия' : 'Amallar'}
+        {language === 'ru' ? 'Быстрые действия' : 'Tez amallar'}
       </div>
-
-      {/* Hero card */}
-      <button
-        onClick={() => setShowAllServices(true)}
-        data-tour="home-call-master"
-        className="w-full bg-white rounded-[18px] p-[12px_14px] flex items-center gap-[12px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.97] transition-all touch-manipulation relative overflow-hidden"
-      >
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.05) 0%, transparent 55%)' }} />
-        <div className="w-[44px] h-[44px] shrink-0 rounded-[14px] flex items-center justify-center bg-primary-50">
-          <Wrench className="w-[22px] h-[22px] text-primary-500" strokeWidth={1.8} />
-        </div>
-        <div className="flex-1 text-left relative z-10">
-          <div className="text-[15px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Вызвать мастера' : 'Usta chaqirish'}</div>
-          <div className="text-[11px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Заявка на ремонт · Быстро' : 'Ta\'mirlash arizasi · Tez'}</div>
-        </div>
-        <div className="w-8 h-8 rounded-[10px] bg-primary-50 flex items-center justify-center shrink-0">
-          <ArrowRight className="w-[15px] h-[15px] text-primary-500" />
-        </div>
-      </button>
-
-      {/* 2-col: Chat + Guests */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2.5">
         <button
-          onClick={() => navigate('/chat')}
-          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
+          onClick={() => setShowAllServices(true)}
+          data-tour="home-call-master"
+          className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-transform touch-manipulation"
         >
-          <div className="w-[36px] h-[36px] rounded-[11px] bg-primary-50 flex items-center justify-center mb-2">
-            <MessageCircle className="w-[18px] h-[18px] text-primary-500" strokeWidth={1.8} />
+          <div className="w-11 h-11 rounded-[14px] bg-primary-50 flex items-center justify-center mb-2.5">
+            <Wrench className="w-[22px] h-[22px] text-primary-500" strokeWidth={1.8} />
           </div>
-          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Чат' : 'Chat'}</div>
-          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Написать в УК' : 'UK ga yozish'}</div>
+          <div className="text-[14px] font-extrabold text-gray-900 leading-tight">
+            {language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
+          </div>
+          <div className="text-[11px] text-gray-500 font-medium mt-1">
+            {language === 'ru' ? 'Сантехник · Электрик · Уборка' : 'Santexnik · Elektrik · Tozalash'}
+          </div>
         </button>
         <button
           onClick={() => navigate('/guest-access')}
           data-tour="home-guests"
-          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
+          className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-transform touch-manipulation"
         >
-          <div className="w-[36px] h-[36px] rounded-[11px] bg-green-50 flex items-center justify-center mb-2">
-            <QrCode className="w-[18px] h-[18px] text-green-500" strokeWidth={1.8} />
+          <div className="w-11 h-11 rounded-[14px] bg-green-50 flex items-center justify-center mb-2.5">
+            <QrCode className="w-[22px] h-[22px] text-green-500" strokeWidth={1.8} />
           </div>
-          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Гости' : 'Mehmonlar'}</div>
-          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'QR-пропуск' : 'QR-ruxsatnoma'}</div>
+          <div className="text-[14px] font-extrabold text-gray-900 leading-tight">
+            {language === 'ru' ? 'Гостевой пропуск' : 'Mehmon ruxsatnomasi'}
+          </div>
+          <div className="text-[11px] text-gray-500 font-medium mt-1">
+            {language === 'ru' ? 'QR для гостей и курьеров' : 'Mehmon va kuryer uchun QR'}
+          </div>
         </button>
       </div>
 
-      {/* Wide card: Marketplace — hidden when tenant has marketplace feature
-          disabled, matching the drawer lock state. Previously the tile
-          navigated to /marketplace even when the drawer showed the feature
-          as locked, which was inconsistent. */}
-      {marketplaceEnabled && (
-        <button
-          onClick={() => navigate('/marketplace')}
-          className="w-full bg-white rounded-[16px] p-[10px_14px] flex items-center gap-[10px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.98] transition-transform touch-manipulation"
-        >
-          <div className="w-[36px] h-[36px] rounded-[11px] bg-purple-50 flex items-center justify-center shrink-0">
-            <ShoppingBag className="w-[21px] h-[21px] text-purple-500" strokeWidth={1.8} />
-          </div>
-          <div className="flex-1">
-            <div className="text-[14px] font-bold text-gray-900">{language === 'ru' ? 'Магазин' : 'Do\'kon'}</div>
-            <div className="text-xs text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Товары для дома · Быстрая доставка' : 'Uy uchun mahsulotlar'}</div>
-          </div>
-          <ChevronRight className="w-[15px] h-[15px] text-gray-300" />
-        </button>
-      )}
-
-      {/* 2-col: Auto + Contacts */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => navigate('/vehicles')}
-          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
-        >
-          <div className="w-[36px] h-[36px] rounded-[11px] bg-amber-50 flex items-center justify-center mb-2">
-            <Car className="w-[18px] h-[18px] text-amber-500" strokeWidth={1.8} />
-          </div>
-          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Мои авто' : 'Avtomobillarim'}</div>
-          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Реестр авто' : 'Avto ro\'yxati'}</div>
-        </button>
-        <button
-          onClick={() => navigate('/useful-contacts')}
-          className="bg-white rounded-[16px] p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.94] transition-transform touch-manipulation"
-        >
-          <div className="w-[36px] h-[36px] rounded-[11px] bg-primary-50 flex items-center justify-center mb-2">
-            <Users className="w-[18px] h-[18px] text-primary-500" strokeWidth={1.8} />
-          </div>
-          <div className="text-[13px] font-bold text-gray-900">{language === 'ru' ? 'Контакты' : 'Kontaktlar'}</div>
-          <div className="text-[10px] text-gray-500 font-medium mt-0.5">{language === 'ru' ? 'Полезные' : 'Foydali'}</div>
-        </button>
+      {/* Horizontal services strip — everything beyond the two primary JTBDs
+          collapses into a scrollable row so the dashboard stops growing
+          vertically every time we add a tile. */}
+      <div className="space-y-2">
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px] px-1">
+          {language === 'ru' ? 'Мои сервисы' : 'Mening xizmatlarim'}
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-2.5 px-2.5 md:mx-0 md:px-0">
+          {[
+            { onClick: () => navigate('/chat'), icon: MessageCircle, iconBg: 'bg-primary-50', iconColor: 'text-primary-500', label: language === 'ru' ? 'Чат с УК' : 'UK chat' },
+            { onClick: () => navigate('/announcements'), icon: Megaphone, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', label: language === 'ru' ? 'Объявления' : 'E\'lonlar' },
+            { onClick: () => navigate('/contract'), icon: ScrollText, iconBg: 'bg-gray-100', iconColor: 'text-gray-600', label: language === 'ru' ? 'Договор' : 'Shartnoma' },
+            { onClick: () => navigate('/vehicles'), icon: Car, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', label: language === 'ru' ? 'Мои авто' : 'Avto' },
+            { onClick: () => navigate('/useful-contacts'), icon: Users, iconBg: 'bg-primary-50', iconColor: 'text-primary-500', label: language === 'ru' ? 'Контакты' : 'Kontaktlar' },
+            { onClick: () => navigate('/rate-employees'), icon: Star, iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: language === 'ru' ? 'Оценить' : 'Baholash' },
+            ...(marketplaceEnabled ? [{ onClick: () => navigate('/marketplace'), icon: ShoppingBag, iconBg: 'bg-purple-50', iconColor: 'text-purple-500', label: language === 'ru' ? 'Магазин' : 'Do\'kon' }] : []),
+          ].map((svc, i) => {
+            const Icon = svc.icon;
+            return (
+              <button
+                key={i}
+                onClick={svc.onClick}
+                className="flex-shrink-0 bg-white rounded-[14px] p-2.5 min-w-[92px] flex flex-col items-center gap-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.96] transition-transform touch-manipulation"
+              >
+                <div className={`w-10 h-10 rounded-[11px] ${svc.iconBg} flex items-center justify-center`}>
+                  <Icon className={`w-[18px] h-[18px] ${svc.iconColor}`} strokeWidth={1.8} />
+                </div>
+                <span className="text-[11px] font-semibold text-gray-900 text-center leading-tight line-clamp-2">{svc.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* News - Announcements & Meetings */}
@@ -251,41 +234,11 @@ export function HomeTab({
         </div>
       )}
 
-      {/* More Services - small grid */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px]">
-            {language === 'ru' ? 'Ещё' : 'Yana'}
-          </span>
-        </div>
-        <div className="grid grid-cols-4 gap-[10px]">
-          {[
-            { icon: Vote, label: language === 'ru' ? 'Собрания' : 'Yig\'ilish', color: '#F59E0B', bg: 'bg-amber-50', action: () => navigate('/meetings'), badge: activeMeetings.length > 0 ? activeMeetings.length : undefined },
-            { icon: Star, label: language === 'ru' ? 'Оценить' : 'Baholash', color: '#EAB308', bg: 'bg-yellow-50', action: () => navigate('/rate-employees') },
-            { icon: ScrollText, label: language === 'ru' ? 'Договор' : 'Shartnoma', color: '#6B7280', bg: 'bg-gray-100', action: () => navigate('/contract') },
-            { icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar', color: '#3B82F6', bg: 'bg-primary-50', action: () => switchTab('requests') },
-          ].map((item, idx) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={idx}
-                onClick={item.action}
-                className="bg-white rounded-[18px] p-3.5 flex flex-col items-center gap-[11px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.94] transition-transform touch-manipulation"
-              >
-                <div className={`w-[42px] h-[42px] rounded-[13px] ${item.bg} flex items-center justify-center`}>
-                  <Icon className="w-[21px] h-[21px]" style={{ color: item.color }} strokeWidth={1.8} />
-                </div>
-                {item.badge && (
-                  <span className="absolute top-2 right-2 min-w-[16px] h-4 flex items-center justify-center px-1 text-xs font-bold text-white bg-red-500 rounded-full">
-                    {item.badge}
-                  </span>
-                )}
-                <span className="text-xs font-bold text-gray-900 text-center leading-tight">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* "Ещё" grid removed — those entries (Собрания, Оценить, Договор,
+          Заявки) now live in the horizontal "Мои сервисы" strip above,
+          or are already reachable via bottom-nav / drawer. Removing the
+          4-col grid eliminates the duplicate tiles and cuts ~150px of
+          vertical noise. */}
     </div>
   );
 }

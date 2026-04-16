@@ -1,5 +1,5 @@
 import { useState, useEffect, Component } from 'react';
-import { Star, X, Users, Award, TrendingUp, Heart, MessageCircle, Loader2 } from 'lucide-react';
+import { Star, X, Users, Award, TrendingUp, Heart, MessageCircle, Loader2, CheckCircle } from 'lucide-react';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -181,6 +181,81 @@ const generateBadges = (rating: number, completedCount: number): string[] => {
   if (completedCount >= 50) badges.push('Мастер');
   return badges.slice(0, 2); // Максимум 2 бейджа
 };
+
+// Compact horizontal row for an employee card — previously each card was
+// ~200px tall (avatar + name + full-width buttons stacked vertically). Now
+// one row ≈ 72px: avatar, name+position+rating inline, two icon buttons on
+// the right. Rating modal opens via the row itself or the star icon.
+function EmployeeRow({
+  emp,
+  avgRating,
+  isRated,
+  onOpen,
+  onRate,
+  onThank,
+  accent = 'default',
+}: {
+  emp: Employee;
+  avgRating: string;
+  isRated: boolean;
+  onOpen: () => void;
+  onRate: () => void;
+  onThank: () => void;
+  accent?: 'default' | 'team';
+}) {
+  const bg = accent === 'team'
+    ? 'bg-primary-50/50 border-primary-200 hover:bg-primary-50'
+    : 'bg-white/60 border-gray-200 hover:bg-white/80';
+  return (
+    <div
+      className={`flex items-center gap-3 p-3 border rounded-xl transition-all hover:shadow-md ${bg}`}
+    >
+      <button onClick={onOpen} className="flex-shrink-0 touch-manipulation" aria-label={emp.name}>
+        <Avatar
+          name={emp.name}
+          src={emp.photo}
+          className="w-12 h-12 rounded-xl object-cover text-sm"
+        />
+      </button>
+      <button
+        onClick={onOpen}
+        className="flex-1 min-w-0 text-left touch-manipulation"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="font-bold text-sm truncate">{emp.name}</h3>
+          <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-600 flex-shrink-0">
+            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+            {avgRating}
+          </span>
+        </div>
+        <p className="text-xs text-gray-500 truncate">{emp.position}</p>
+      </button>
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button
+          onClick={onRate}
+          disabled={isRated}
+          title={isRated ? 'Уже оценено' : 'Оценить'}
+          aria-label={isRated ? 'Уже оценено' : 'Оценить'}
+          className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors touch-manipulation ${
+            isRated
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-gray-900'
+          }`}
+        >
+          {isRated ? <CheckCircle className="w-4 h-4" /> : <Star className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={onThank}
+          title="Спасибо"
+          aria-label="Сказать спасибо"
+          className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-600 transition-colors touch-manipulation"
+        >
+          <Heart className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const getLabels = (language: 'ru' | 'uz') => ({
   criteriaLabels: {
@@ -852,52 +927,19 @@ function ColleaguesSectionInner() {
                     ? (isDepartmentHead ? `Мои сотрудники (${myTeamEmployees.length})` : `Мой отдел: ${getDepartmentName(mySpecialization as ExecutorSpecialization)} (${myTeamEmployees.length})`)
                     : (isDepartmentHead ? `Mening xodimlarim (${myTeamEmployees.length})` : `Mening bo'limim (${myTeamEmployees.length})`)}
                 </h2>
-                <div className="space-y-3">
-                  {myTeamEmployees.map((emp) => {
-                    const isRated = ratedThisMonth.has(emp.id);
-                    const avgRating = safeFixed(safeAvgRating(emp.ratings));
-
-                    return (
-                      <div
-                        key={emp.id}
-                        className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-primary-50/50 border border-primary-200 rounded-xl hover:bg-primary-50 hover:shadow-md transition-all"
-                      >
-                        <Avatar
-                          name={emp.name}
-                          src={emp.photo}
-                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0 text-lg"
-                          onClick={() => setSelectedEmployee(emp)}
-                        />
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEmployee(emp)}>
-                          <h3 className="font-bold truncate">{emp.name}</h3>
-                          <p className="text-sm text-gray-600 truncate">{emp.position}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <StarRating rating={parseFloat(avgRating)} size="sm" />
-                            <span className="text-sm font-medium">{avgRating}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
-                          <button
-                            onClick={() => !isRated && setShowRatingModal(emp)}
-                            disabled={isRated}
-                            className={`flex-1 sm:flex-none px-3 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
-                              isRated
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-primary-500 hover:bg-primary-600 text-gray-900'
-                            }`}
-                          >
-                            {isRated ? '✓ Оценено' : 'Оценить'}
-                          </button>
-                          <button
-                            onClick={() => setShowThankModal(emp)}
-                            className="flex-1 sm:flex-none px-3 py-2 rounded-lg font-medium text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors whitespace-nowrap"
-                          >
-                            ❤️ Спасибо
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="space-y-2">
+                  {myTeamEmployees.map((emp) => (
+                    <EmployeeRow
+                      key={emp.id}
+                      emp={emp}
+                      avgRating={safeFixed(safeAvgRating(emp.ratings))}
+                      isRated={ratedThisMonth.has(emp.id)}
+                      onOpen={() => setSelectedEmployee(emp)}
+                      onRate={() => !ratedThisMonth.has(emp.id) && setShowRatingModal(emp)}
+                      onThank={() => setShowThankModal(emp)}
+                      accent="team"
+                    />
+                  ))}
                 </div>
               </div>
             )}
@@ -911,52 +953,18 @@ function ColleaguesSectionInner() {
                     <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
                     {deptName} ({departmentGroups[deptName].length})
                   </h2>
-                  <div className="space-y-3">
-                    {departmentGroups[deptName].map((emp) => {
-                      const isRated = ratedThisMonth.has(emp.id);
-                      const avgRating = safeFixed(safeAvgRating(emp.ratings));
-
-                      return (
-                        <div
-                          key={emp.id}
-                          className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-white/60 border border-gray-200 rounded-xl hover:bg-white/80 hover:shadow-md transition-all"
-                        >
-                          <Avatar
-                            name={emp.name}
-                            src={emp.photo}
-                            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0 text-lg"
-                            onClick={() => setSelectedEmployee(emp)}
-                          />
-                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEmployee(emp)}>
-                            <h3 className="font-bold truncate">{emp.name}</h3>
-                            <p className="text-sm text-gray-600 truncate">{emp.position}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <StarRating rating={parseFloat(avgRating)} size="sm" />
-                              <span className="text-sm font-medium">{avgRating}</span>
-                            </div>
-                          </div>
-                          <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
-                            <button
-                              onClick={() => !isRated && setShowRatingModal(emp)}
-                              disabled={isRated}
-                              className={`flex-1 sm:flex-none px-3 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
-                                isRated
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-primary-500 hover:bg-primary-600 text-gray-900'
-                              }`}
-                            >
-                              {isRated ? '✓ Оценено' : 'Оценить'}
-                            </button>
-                            <button
-                              onClick={() => setShowThankModal(emp)}
-                              className="flex-1 sm:flex-none px-3 py-2 rounded-lg font-medium text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors whitespace-nowrap"
-                            >
-                              ❤️ Спасибо
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="space-y-2">
+                    {departmentGroups[deptName].map((emp) => (
+                      <EmployeeRow
+                        key={emp.id}
+                        emp={emp}
+                        avgRating={safeFixed(safeAvgRating(emp.ratings))}
+                        isRated={ratedThisMonth.has(emp.id)}
+                        onOpen={() => setSelectedEmployee(emp)}
+                        onRate={() => !ratedThisMonth.has(emp.id) && setShowRatingModal(emp)}
+                        onThank={() => setShowThankModal(emp)}
+                      />
+                    ))}
                   </div>
                 </div>
               ))
@@ -966,52 +974,18 @@ function ColleaguesSectionInner() {
                 <h2 className="text-lg font-bold mb-4">
                   {language === 'ru' ? `Все сотрудники (${otherEmployees.length})` : `Barcha xodimlar (${otherEmployees.length})`}
                 </h2>
-                <div className="space-y-3">
-                  {otherEmployees.map((emp) => {
-                    const isRated = ratedThisMonth.has(emp.id);
-                    const avgRating = safeFixed(safeAvgRating(emp.ratings));
-
-                    return (
-                      <div
-                        key={emp.id}
-                        className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 bg-white/60 border border-gray-200 rounded-xl hover:bg-white/80 hover:shadow-md transition-all"
-                      >
-                        <Avatar
-                          name={emp.name}
-                          src={emp.photo}
-                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover cursor-pointer flex-shrink-0 text-lg"
-                          onClick={() => setSelectedEmployee(emp)}
-                        />
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedEmployee(emp)}>
-                          <h3 className="font-bold truncate">{emp.name}</h3>
-                          <p className="text-sm text-gray-600 truncate">{emp.position}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <StarRating rating={parseFloat(avgRating)} size="sm" />
-                            <span className="text-sm font-medium">{avgRating}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
-                          <button
-                            onClick={() => !isRated && setShowRatingModal(emp)}
-                            disabled={isRated}
-                            className={`flex-1 sm:flex-none px-3 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
-                              isRated
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-primary-500 hover:bg-primary-600 text-gray-900'
-                            }`}
-                          >
-                            {isRated ? '✓ Оценено' : 'Оценить'}
-                          </button>
-                          <button
-                            onClick={() => setShowThankModal(emp)}
-                            className="flex-1 sm:flex-none px-3 py-2 rounded-lg font-medium text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors whitespace-nowrap"
-                          >
-                            ❤️ Спасибо
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="space-y-2">
+                  {otherEmployees.map((emp) => (
+                    <EmployeeRow
+                      key={emp.id}
+                      emp={emp}
+                      avgRating={safeFixed(safeAvgRating(emp.ratings))}
+                      isRated={ratedThisMonth.has(emp.id)}
+                      onOpen={() => setSelectedEmployee(emp)}
+                      onRate={() => !ratedThisMonth.has(emp.id) && setShowRatingModal(emp)}
+                      onThank={() => setShowThankModal(emp)}
+                    />
+                  ))}
                 </div>
               </div>
             )}

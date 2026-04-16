@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Smartphone, Share, Plus, MoreVertical, Bell, BellRing,
-  CheckCircle, Sparkles
+  CheckCircle, Sparkles, X, ChevronRight, EyeOff
 } from 'lucide-react';
 
 // Detect platform
@@ -16,6 +17,18 @@ function isStandaloneMode(): boolean {
   return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
 }
 
+// Shared dismissal state — once "hide forever" is clicked on the profile page,
+// both the banner and the full guide disappear on every page. Per-session
+// dismiss (X on the banner) only silences the banner until the tab is closed.
+const FOREVER_KEY = 'kamizo.pwa-install.hide-forever';
+const SESSION_KEY = 'kamizo.pwa-install.dismissed-session';
+function isHiddenForever(): boolean {
+  try { return localStorage.getItem(FOREVER_KEY) === '1'; } catch { return false; }
+}
+function isDismissedThisSession(): boolean {
+  try { return sessionStorage.getItem(SESSION_KEY) === '1'; } catch { return false; }
+}
+
 // Role-specific benefit1 text
 const ROLE_BENEFIT1: Record<string, { ru: string; uz: string }> = {
   executor:  { ru: 'Мгновенные уведомления о новых заявках прямо в поле', uz: 'Yangi arizalar haqida darhol bildirishnomalar' },
@@ -28,11 +41,12 @@ const ROLE_BENEFIT1: Record<string, { ru: string; uz: string }> = {
   resident:  { ru: 'Статус заявок и объявления в реальном времени',       uz: 'Arizalar holati va e\'lonlar real vaqtda' },
 };
 
-export function InstallAppSection({ language, roleContext }: { language: string; roleContext?: string }) {
+export function InstallAppSection({ language, roleContext, onHideForever }: { language: string; roleContext?: string; onHideForever?: () => void }) {
   const platform = getDevicePlatform();
   const isInstalled = isStandaloneMode();
   const [activeTab, setActiveTab] = useState<'ios' | 'android'>(platform === 'ios' ? 'ios' : 'android');
   const [notifPermission, setNotifPermission] = useState<string>('default');
+  const [hiddenForever, setHiddenForever] = useState(isHiddenForever());
 
   useEffect(() => {
     if (!('Notification' in window)) return;
@@ -109,7 +123,13 @@ export function InstallAppSection({ language, roleContext }: { language: string;
     notifNote: 'Сначала установите приложение',
   };
 
-  if (isInstalled) return null;
+  if (isInstalled || hiddenForever) return null;
+
+  const handleHideForever = () => {
+    try { localStorage.setItem(FOREVER_KEY, '1'); } catch {}
+    setHiddenForever(true);
+    onHideForever?.();
+  };
 
   return (
     <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden mt-4 md:mt-6">
@@ -212,7 +232,75 @@ export function InstallAppSection({ language, roleContext }: { language: string;
             )}
           </div>
         </div>
+
+        {/* Hide-forever — only rendered when the parent opted in (profile page).
+            Dashboards don't show this button; their banner has its own dismiss. */}
+        {onHideForever && (
+          <button
+            onClick={handleHideForever}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 text-[12px] text-gray-400 hover:text-gray-600 py-2 min-h-[36px] touch-manipulation"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+            {language === 'ru' ? 'Больше не показывать' : 'Boshqa ko\'rsatma'}
+          </button>
+        )}
       </div>
     </div>
+  );
+}
+
+// Compact banner for dashboards — replaces the full guide so we don't repeat
+// 350px of instructions on every page. Tap → goes to /profile where the full
+// guide lives. X dismisses for the session. Respects the shared "hide forever"
+// flag set from the profile page.
+export function InstallAppBanner({ language }: { language: string }) {
+  const navigate = useNavigate();
+  const isInstalled = isStandaloneMode();
+  const [dismissed, setDismissed] = useState(isDismissedThisSession());
+
+  if (isInstalled || isHiddenForever() || dismissed) return null;
+
+  const t = language === 'uz' ? {
+    title: 'Ilovani o\'rnating',
+    subtitle: 'Tezroq ochiladi, push-bildirishnomalar',
+    cta: 'Batafsil',
+  } : {
+    title: 'Установите приложение',
+    subtitle: 'Быстрее открывается, push-уведомления',
+    cta: 'Подробнее',
+  };
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch {}
+    setDismissed(true);
+  };
+
+  return (
+    <button
+      onClick={() => navigate('/profile')}
+      className="w-full bg-white rounded-[14px] shadow-[0_2px_8px_rgba(0,0,0,0.05)] border border-gray-100 mt-4 md:mt-6 p-3 flex items-center gap-3 text-left active:scale-[0.99] transition-transform touch-manipulation"
+    >
+      <div
+        className="w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0"
+        style={{ background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.15), rgba(var(--brand-rgb), 0.05))' }}
+      >
+        <Smartphone className="w-4.5 h-4.5 text-primary-500" strokeWidth={1.8} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-bold text-gray-900 leading-tight">{t.title}</div>
+        <div className="text-[11px] text-gray-500 mt-0.5 truncate">{t.subtitle}</div>
+      </div>
+      <span className="text-[12px] font-semibold text-primary-600 hidden sm:inline">{t.cta}</span>
+      <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+      <span
+        role="button"
+        aria-label={language === 'ru' ? 'Скрыть' : 'Yashirish'}
+        onClick={handleDismiss}
+        className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 touch-manipulation"
+      >
+        <X className="w-4 h-4" />
+      </span>
+    </button>
   );
 }

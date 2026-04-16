@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { InstallAppSection } from '../components/InstallAppSection';
+import { InstallAppBanner } from '../components/InstallAppSection';
 import {
   ChevronRight, MapPin
 } from 'lucide-react';
@@ -344,6 +344,7 @@ export function ResidentDashboard() {
           switchTab={switchTab}
           setSelectedRequest={setSelectedRequest}
           handleApproveClick={handleApproveClick}
+          openNewRequest={() => setShowAllServices(true)}
         />
       )}
 
@@ -475,9 +476,9 @@ export function ResidentDashboard() {
         />
       )}
 
-      {/* Install App / Notifications */}
+      {/* Install App — compact banner, full guide lives on /profile. */}
       <div className="px-3 md:px-0 pb-2">
-        <InstallAppSection language={language} roleContext="resident" />
+        <InstallAppBanner language={language} />
       </div>
 
       {/* Bottom bar is now rendered globally by Layout via BottomBar component */}

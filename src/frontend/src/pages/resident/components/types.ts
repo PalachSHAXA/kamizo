@@ -38,6 +38,9 @@ export interface RequestsTabProps {
   switchTab: (tab: ActiveTab) => void;
   setSelectedRequest: (request: Request) => void;
   handleApproveClick: (request: Request) => void;
+  // Opens the service picker directly so the CTA on the requests tab can
+  // create a new request without bouncing through the home tab.
+  openNewRequest?: () => void;
 }
 
 export interface ServiceBottomSheetProps {

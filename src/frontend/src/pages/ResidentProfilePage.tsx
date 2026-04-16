@@ -730,7 +730,7 @@ export function ResidentProfilePage() {
         </div>
 
         {/* Install App Section */}
-        <InstallAppSection language={language} />
+        <InstallAppSection language={language} onHideForever={() => {}} />
 
         {/* Info Note - only for residents */}
         {!isRentalUser && (

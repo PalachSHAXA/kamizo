@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { InstallAppSection } from '../components/InstallAppSection';
+import { InstallAppBanner } from '../components/InstallAppSection';
 import { Activity, Star } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore } from '../stores/requestStore';
@@ -143,7 +143,7 @@ export function ManagerDashboard() {
       )}
 
       {/* Install App / Notifications */}
-      <InstallAppSection language={language} roleContext="manager" />
+      <InstallAppBanner language={language} />
 
       {/* Modals */}
       {showAddExecutorModal && (

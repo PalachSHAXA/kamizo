@@ -739,60 +739,53 @@ export function ResidentGuestAccessPage() {
         </button>
       </div>
 
-      {/* Stats — unified via StatusStat.
-          Active + Used + Expired + Revoked must equal Total, otherwise the math
-          looks broken to the user (was: 0+1+5=6 but Total=7 because revoked
-          passes were silently omitted). */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatusStat
-          status="active"
-          value={activeCodes.length}
-          label={language === 'ru' ? 'Активных' : 'Faol'}
-        />
-        <StatusStat
-          status="info"
-          value={codes.filter(c => c.status === 'used').length}
-          label={language === 'ru' ? 'Использовано' : 'Ishlatilgan'}
-        />
-        <StatusStat
-          status="expired"
-          value={codes.filter(c => c.status === 'expired').length}
-          label={language === 'ru' ? 'Истекло' : 'Muddati tugagan'}
-        />
-        <StatusStat
-          status="critical"
-          value={codes.filter(c => c.status === 'revoked').length}
-          label={language === 'ru' ? 'Отменено' : 'Bekor qilingan'}
-        />
-        <StatusStat
-          status="pending"
-          value={codes.length}
-          label={language === 'ru' ? 'Всего' : 'Jami'}
-        />
-      </div>
-
-      {/* Filter tabs */}
+      {/* Filter tabs with inline counts.
+          Previously we had a 5-cell StatusStat grid AND a separate filter bar —
+          the grid left "Всего" dangling alone in the 2-column mobile layout,
+          and the same numbers appeared twice. Collapsed into a single segmented
+          control: the count is now part of the tab, so tapping a tab both
+          filters the list and confirms the count. No more dangling cell. */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-        {[
-          { id: 'all' as const, label: language === 'ru' ? 'Все' : 'Barchasi' },
-          { id: 'active' as const, label: language === 'ru' ? 'Активные' : 'Faol' },
-          { id: 'used' as const, label: language === 'ru' ? 'Использованные' : 'Ishlatilgan' },
-          { id: 'expired' as const, label: language === 'ru' ? 'Истёкшие' : 'Muddati tugagan' },
-          { id: 'revoked' as const, label: language === 'ru' ? 'Отменённые' : 'Bekor qilingan' },
-          { id: 'archive' as const, label: language === 'ru' ? 'Архив' : 'Arxiv' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setFilter(tab.id)}
-            className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium whitespace-nowrap transition-colors touch-manipulation ${
-              filter === tab.id
-                ? 'bg-primary-500 text-gray-900'
-                : 'bg-white/50 text-gray-600 hover:bg-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {(() => {
+          const allCount = codes.filter(c => !isArchived(c)).length;
+          const activeCount = activeCodes.length;
+          const usedCount = codes.filter(c => c.status === 'used' && !isArchived(c)).length;
+          const expiredCount = codes.filter(c => c.status === 'expired' && !isArchived(c)).length;
+          const revokedCount = codes.filter(c => c.status === 'revoked' && !isArchived(c)).length;
+          const archiveCount = codes.filter(isArchived).length;
+          const tabs = [
+            { id: 'all' as const, label: language === 'ru' ? 'Все' : 'Barchasi', count: allCount },
+            { id: 'active' as const, label: language === 'ru' ? 'Активные' : 'Faol', count: activeCount },
+            { id: 'used' as const, label: language === 'ru' ? 'Использованные' : 'Ishlatilgan', count: usedCount },
+            { id: 'expired' as const, label: language === 'ru' ? 'Истёкшие' : 'Muddati tugagan', count: expiredCount },
+            { id: 'revoked' as const, label: language === 'ru' ? 'Отменённые' : 'Bekor qilingan', count: revokedCount },
+            { id: 'archive' as const, label: language === 'ru' ? 'Архив' : 'Arxiv', count: archiveCount },
+          ];
+          return tabs.map((tab) => {
+            const isActive = filter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setFilter(tab.id)}
+                className={`px-3.5 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium whitespace-nowrap transition-colors touch-manipulation flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-primary-500 text-gray-900'
+                    : 'bg-white/50 text-gray-600 hover:bg-white'
+                }`}
+                aria-pressed={isActive}
+              >
+                <span>{tab.label}</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold tabular-nums ${
+                  isActive
+                    ? 'bg-gray-900/10 text-gray-900'
+                    : 'bg-gray-200 text-gray-500'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          });
+        })()}
       </div>
 
       {/* Codes list */}

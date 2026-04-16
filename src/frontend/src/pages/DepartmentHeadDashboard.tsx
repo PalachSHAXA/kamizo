@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { InstallAppSection } from '../components/InstallAppSection';
+import { InstallAppBanner } from '../components/InstallAppSection';
 import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
 import { PageSkeleton } from '../components/PageSkeleton';
@@ -336,7 +336,7 @@ export function DepartmentHeadDashboard() {
       )}
 
       {/* Install App / Notifications */}
-      <InstallAppSection language={language} roleContext="department_head" />
+      <InstallAppBanner language={language} />
     </div>
   );
 }

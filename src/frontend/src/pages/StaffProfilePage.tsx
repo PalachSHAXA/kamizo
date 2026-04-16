@@ -373,7 +373,7 @@ export function StaffProfilePage() {
         )}
 
         {/* Install App Section */}
-        <InstallAppSection language={language} roleContext={user.role} />
+        <InstallAppSection language={language} roleContext={user.role} onHideForever={() => {}} />
       </div>
     </div>
   );

@@ -31,7 +31,15 @@ export function RequestsTab({
   switchTab,
   setSelectedRequest,
   handleApproveClick,
+  openNewRequest,
 }: RequestsTabProps) {
+  const handleCreateNew = () => {
+    if (openNewRequest) {
+      openNewRequest();
+    } else {
+      switchTab('home');
+    }
+  };
   return (
     <div className="space-y-4 px-3 md:px-0">
       {/* Header */}
@@ -137,29 +145,43 @@ export function RequestsTab({
                 <FileText className="w-8 h-8 text-primary-400" />
               </div>
               <h3 className="text-base font-semibold text-gray-800 mb-1">
-                {language === 'ru' ? 'Нет заявок' : 'Arizalar yo\'q'}
+                {language === 'ru' ? 'Пока ни одной заявки' : 'Hali birorta ariza yo\'q'}
               </h3>
-              <p className="text-sm text-gray-500">
-                {language === 'ru' ? 'Нажмите + чтобы создать заявку' : 'Ariza yaratish uchun + bosing'}
+              <p className="text-sm text-gray-500 max-w-[260px] mx-auto">
+                {language === 'ru'
+                  ? 'Создайте заявку — сантехник, электрик, уборка, охрана или любая другая услуга'
+                  : 'Ariza yarating — santexnik, elektrik, tozalash, qo\'riqchi yoki boshqa xizmat'}
               </p>
               <button
-                onClick={() => switchTab('home')}
-                className="mt-4 px-5 py-2.5 bg-primary-500 text-white rounded-[12px] text-[14px] font-semibold active:scale-[0.98] transition-transform touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)] inline-flex items-center gap-1.5"
+                onClick={handleCreateNew}
+                className="mt-5 px-5 py-3 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-gray-900 rounded-[12px] text-[14px] font-semibold active:scale-[0.98] transition-transform touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)] inline-flex items-center gap-1.5"
               >
                 <Plus className="w-4 h-4" />
                 {language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
               </button>
             </div>
           ) : (
-            activeRequests.map((request) => (
-              <RequestStatusTrackerCompact
-                key={request.id}
-                request={request}
-                executorName={request.executorName}
-                language={language}
-                onClick={() => setSelectedRequest(request)}
-              />
-            ))
+            <>
+              {activeRequests.map((request) => (
+                <RequestStatusTrackerCompact
+                  key={request.id}
+                  request={request}
+                  executorName={request.executorName}
+                  language={language}
+                  onClick={() => setSelectedRequest(request)}
+                />
+              ))}
+              {/* Secondary CTA after the last active card — stops the tab from
+                  feeling empty below the list and gives a one-tap path to
+                  create another request. */}
+              <button
+                onClick={handleCreateNew}
+                className="w-full py-3.5 min-h-[44px] bg-white border-2 border-dashed border-primary-200 hover:border-primary-400 hover:bg-primary-50/50 active:bg-primary-50 rounded-[14px] text-[14px] font-semibold text-primary-600 transition-colors touch-manipulation inline-flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                {language === 'ru' ? 'Создать новую заявку' : 'Yangi ariza yaratish'}
+              </button>
+            </>
           )}
         </div>
       )}
