@@ -641,7 +641,7 @@ export function ResidentGuestAccessPage() {
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedCode, setSelectedCode] = useState<GuestAccessCode | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired' | 'archive'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired' | 'revoked' | 'archive'>('all');
   const [showRevokeConfirm, setShowRevokeConfirm] = useState<GuestAccessCode | null>(null);
 
   // Fetch codes on mount
@@ -720,8 +720,11 @@ export function ResidentGuestAccessPage() {
         </button>
       </div>
 
-      {/* Stats — unified via StatusStat, no more arbitrary colors per card */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3">
+      {/* Stats — unified via StatusStat.
+          Active + Used + Expired + Revoked must equal Total, otherwise the math
+          looks broken to the user (was: 0+1+5=6 but Total=7 because revoked
+          passes were silently omitted). */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatusStat
           status="active"
           value={activeCodes.length}
@@ -738,6 +741,11 @@ export function ResidentGuestAccessPage() {
           label={language === 'ru' ? 'Истекло' : 'Muddati tugagan'}
         />
         <StatusStat
+          status="critical"
+          value={codes.filter(c => c.status === 'revoked').length}
+          label={language === 'ru' ? 'Отменено' : 'Bekor qilingan'}
+        />
+        <StatusStat
           status="pending"
           value={codes.length}
           label={language === 'ru' ? 'Всего' : 'Jami'}
@@ -751,6 +759,7 @@ export function ResidentGuestAccessPage() {
           { id: 'active' as const, label: language === 'ru' ? 'Активные' : 'Faol' },
           { id: 'used' as const, label: language === 'ru' ? 'Использованные' : 'Ishlatilgan' },
           { id: 'expired' as const, label: language === 'ru' ? 'Истёкшие' : 'Muddati tugagan' },
+          { id: 'revoked' as const, label: language === 'ru' ? 'Отменённые' : 'Bekor qilingan' },
           { id: 'archive' as const, label: language === 'ru' ? 'Архив' : 'Arxiv' },
         ].map((tab) => (
           <button
