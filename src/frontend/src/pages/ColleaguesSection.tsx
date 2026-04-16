@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component } from 'react';
 import { Star, X, Users, Award, TrendingUp, Heart, MessageCircle, Loader2 } from 'lucide-react';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
@@ -507,7 +507,37 @@ function TopColleagues({ employees }: { employees: Employee[] }) {
 // ==================== MAIN COMPONENT ====================
 
 // Основной компонент
+// Local error boundary — if inner render throws due to unexpected executor data
+// shape, show a friendly empty state instead of the full-page React Error Boundary.
+class ColleaguesErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err: Error) { console.error('[ColleaguesSection] render failed:', err); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6">
+          <EmptyState
+            icon={<Users className="w-12 h-12" />}
+            title="Мои коллеги"
+            description="Данные временно недоступны. Попробуйте позже."
+          />
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function ColleaguesSection() {
+  return (
+    <ColleaguesErrorBoundary>
+      <ColleaguesSectionInner />
+    </ColleaguesErrorBoundary>
+  );
+}
+
+function ColleaguesSectionInner() {
   const { language } = useLanguageStore();
   const { executors, fetchExecutors, isLoadingExecutors } = useDataStore();
   const { user } = useAuthStore();
@@ -528,9 +558,10 @@ export function ColleaguesSection() {
   // Конвертируем исполнителей в Employee формат
   useEffect(() => {
     if (executors.length > 0) {
-      // Defensive mapping: any missing/malformed executor field falls back to safe default
-      // instead of throwing. Previously a garbage specialization or null name could
-      // trigger a render crash caught by the outer Error Boundary.
+      // Defensive mapping wrapped in try/catch — if a specific executor row is
+      // malformed (unexpected specialization type, non-serializable fields),
+      // we skip it rather than crash the entire page via Error Boundary.
+      try {
       const mappedEmployees: Employee[] = executors
         .filter((e) => e && e.id) // skip totally broken rows
         .map((executor) => {
@@ -587,6 +618,10 @@ export function ColleaguesSection() {
           },
         ];
         setNews(initialNews);
+      }
+      } catch (err) {
+        console.error('[ColleaguesSection] Failed to map executors to employees:', err);
+        setEmployees([]);
       }
     }
   }, [executors]);

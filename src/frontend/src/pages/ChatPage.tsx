@@ -460,7 +460,7 @@ function AdminChannelList({
 
       {/* Section label */}
       <div className="px-4 py-1.5 border-t bg-gray-50/60">
-        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+        <span className="text-xs font-medium text-gray-500">
           {filteredChannels.length}{' '}
           {plural(
             language === 'ru' ? 'ru' : 'uz',

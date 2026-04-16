@@ -360,7 +360,7 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/my-stats" element={
-                <ProtectedRoute allowedRoles={['executor']}>
+                <ProtectedRoute allowedRoles={['executor', 'security']}>
                   <ExecutorStatsPage />
                 </ProtectedRoute>
               } />

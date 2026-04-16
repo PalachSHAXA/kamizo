@@ -79,8 +79,11 @@ export function BottomBar() {
     if (role === 'executor' || role === 'security') {
       const isSecurity = role === 'security' || user.specialization === 'security';
       if (isSecurity) {
+        // Security lands directly at /qr-scanner (see Layout:223). Button labeled
+        // "Задачи" was misleading because it navigated to the scanner, not a task list.
+        // Renamed to "Пропуска" → /guest-access (their actual dashboard).
         return [
-          { id: 'home', icon: FileText, label: language === 'ru' ? 'Задачи' : 'Vazifalar', path: '/', badge: executorRequestBadge },
+          { id: 'home', icon: FileText, label: language === 'ru' ? 'Пропуска' : 'Ruxsatnomalar', path: '/guest-access', badge: 0 },
           { id: 'vehicle', icon: Car, label: language === 'ru' ? 'Машины' : 'Mashinalar', path: '/vehicle-search', badge: 0 },
           { id: 'qr', icon: QrCode, label: '', path: '/qr-scanner', badge: 0, isFab: true },
           { id: 'stats', icon: BarChart3, label: language === 'ru' ? 'Стат.' : 'Stat.', path: '/my-stats', badge: 0 },
