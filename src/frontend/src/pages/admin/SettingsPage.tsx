@@ -1125,10 +1125,26 @@ export function SettingsPage() {
                 <thead>
                   <tr className="text-left border-b border-gray-200">
                     <th className="pb-2 md:pb-3 font-medium">{language === 'ru' ? 'Право' : 'Huquq'}</th>
-                    <th className="pb-2 md:pb-3 font-medium text-center px-1">А</th>
-                    <th className="pb-2 md:pb-3 font-medium text-center px-1">М</th>
-                    <th className="pb-2 md:pb-3 font-medium text-center px-1">И</th>
-                    <th className="pb-2 md:pb-3 font-medium text-center px-1">Ж</th>
+                    <th
+                      className="pb-2 md:pb-3 font-medium text-center px-1 cursor-help"
+                      title={language === 'ru' ? 'Администратор' : 'Administrator'}
+                      aria-label={language === 'ru' ? 'Администратор' : 'Administrator'}
+                    >А</th>
+                    <th
+                      className="pb-2 md:pb-3 font-medium text-center px-1 cursor-help"
+                      title={language === 'ru' ? 'Менеджер' : 'Menejer'}
+                      aria-label={language === 'ru' ? 'Менеджер' : 'Menejer'}
+                    >М</th>
+                    <th
+                      className="pb-2 md:pb-3 font-medium text-center px-1 cursor-help"
+                      title={language === 'ru' ? 'Исполнитель' : 'Ijrochi'}
+                      aria-label={language === 'ru' ? 'Исполнитель' : 'Ijrochi'}
+                    >И</th>
+                    <th
+                      className="pb-2 md:pb-3 font-medium text-center px-1 cursor-help"
+                      title={language === 'ru' ? 'Житель' : 'Aholik'}
+                      aria-label={language === 'ru' ? 'Житель' : 'Aholik'}
+                    >Ж</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

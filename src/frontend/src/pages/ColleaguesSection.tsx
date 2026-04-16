@@ -398,11 +398,12 @@ function EmployeeProfile({ employee, onBack, thanks }: {
 
 // Лента новостей
 function NewsFeed({ news }: { news: NewsItem[] }) {
+  const { language } = useLanguageStore();
   return (
     <div className="glass-card p-4 sm:p-6">
       <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
         <TrendingUp className="w-5 h-5 text-primary-500 flex-shrink-0" />
-        <span className="truncate">Последние события</span>
+        <span className="truncate">{language === 'ru' ? 'Последние события' : "So'nggi voqealar"}</span>
       </h2>
       <div className="space-y-3">
         {news.slice(0, 5).map((item) => (
@@ -527,39 +528,45 @@ export function ColleaguesSection() {
   // Конвертируем исполнителей в Employee формат
   useEffect(() => {
     if (executors.length > 0) {
-      const mappedEmployees: Employee[] = executors.map((executor) => {
-        // Генерируем рейтинги на основе общего рейтинга исполнителя
-        const baseRating = executor.rating || 4.5;
-        const variance = 0.3; // Небольшой разброс
-
-        const generateRating = () => {
-          const val = baseRating + (Math.random() - 0.5) * variance * 2;
-          return Math.min(5, Math.max(3.5, parseFloat(val.toFixed(1))));
-        };
-
-        return {
-          id: executor.id,
-          name: executor.name,
-          position: SPECIALIZATION_LABELS[executor.specialization] || 'Специалист',
-          department: getDepartmentName(executor.specialization),
-          photo: getAvatarUrl(executor.name, executor.id),
-          ratings: {
-            professionalKnowledge: generateRating(),
-            legislationKnowledge: generateRating(),
-            analyticalSkills: generateRating(),
-            qualityOfWork: generateRating(),
-            execution: generateRating(),
-            reliability: generateRating(),
-            teamwork: generateRating(),
-            communication: generateRating(),
-            initiative: generateRating(),
-            humanity: generateRating(),
-          },
-          totalRatings: executor.completedCount || Math.floor(Math.random() * 50) + 10,
-          monthlyRatings: Math.floor(Math.random() * 10) + 1,
-          badges: generateBadges(executor.rating || 4.5, executor.completedCount || 0),
-        };
-      });
+      // Defensive mapping: any missing/malformed executor field falls back to safe default
+      // instead of throwing. Previously a garbage specialization or null name could
+      // trigger a render crash caught by the outer Error Boundary.
+      const mappedEmployees: Employee[] = executors
+        .filter((e) => e && e.id) // skip totally broken rows
+        .map((executor) => {
+          const baseRating = (typeof executor.rating === 'number' && Number.isFinite(executor.rating)) ? executor.rating : 4.5;
+          const variance = 0.3;
+          const generateRating = () => {
+            const val = baseRating + (Math.random() - 0.5) * variance * 2;
+            return Math.min(5, Math.max(3.5, parseFloat(val.toFixed(1))));
+          };
+          const name = (executor.name && String(executor.name).trim()) || 'Сотрудник';
+          const spec = executor.specialization as any;
+          return {
+            id: executor.id,
+            name,
+            position: (spec && SPECIALIZATION_LABELS[spec as keyof typeof SPECIALIZATION_LABELS]) || 'Специалист',
+            department: getDepartmentName(spec),
+            photo: getAvatarUrl(name, executor.id),
+            ratings: {
+              professionalKnowledge: generateRating(),
+              legislationKnowledge: generateRating(),
+              analyticalSkills: generateRating(),
+              qualityOfWork: generateRating(),
+              execution: generateRating(),
+              reliability: generateRating(),
+              teamwork: generateRating(),
+              communication: generateRating(),
+              initiative: generateRating(),
+              humanity: generateRating(),
+            },
+            totalRatings: (typeof executor.completedCount === 'number' && executor.completedCount >= 0)
+              ? executor.completedCount
+              : Math.floor(Math.random() * 50) + 10,
+            monthlyRatings: Math.floor(Math.random() * 10) + 1,
+            badges: generateBadges(baseRating, executor.completedCount || 0),
+          };
+        });
 
       setEmployees(mappedEmployees);
 

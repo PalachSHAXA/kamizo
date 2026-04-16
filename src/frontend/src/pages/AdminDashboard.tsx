@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { EmptyState } from '../components/common';
+import { plural } from '../utils/plural';
 import { InstallAppSection } from '../components/InstallAppSection';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -17,6 +18,7 @@ import { SPECIALIZATION_LABELS } from '../types';
 import { apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
+import { useTenantStore } from '../stores/tenantStore';
 // ExcelJS loaded dynamically in exportMarketplaceReport to reduce initial bundle
 import type { Style } from 'exceljs';
 
@@ -75,11 +77,18 @@ export function AdminDashboard() {
   const { user } = useAuthStore();
   const { requests, executors, getStats } = useDataStore();
   const { language } = useLanguageStore();
+  const { hasFeature, config } = useTenantStore();
+  const hasMarketplace = !config?.tenant || hasFeature('marketplace');
   const addToast = useToastStore(s => s.addToast);
 
   const stats = getStats();
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+  // Bounce back to overview if marketplace got disabled mid-session
+  useEffect(() => {
+    if (!hasMarketplace && activeTab === 'marketplace') setActiveTab('overview');
+  }, [hasMarketplace, activeTab]);
   const [marketplaceReport, setMarketplaceReport] = useState<MarketplaceReport | null>(null);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
   const [reportStartDate, setReportStartDate] = useState(() => {
@@ -501,17 +510,19 @@ export function AdminDashboard() {
           <Activity className="w-4 h-4 inline mr-2" />
           {language === 'ru' ? 'Обзор' : 'Umumiy ko\'rinish'}
         </button>
-        <button
-          onClick={() => setActiveTab('marketplace')}
-          className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
-            activeTab === 'marketplace'
-              ? 'border-primary-500 text-primary-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4 inline mr-2" />
-          {language === 'ru' ? 'Маркетплейс' : 'Marketplace'}
-        </button>
+        {hasMarketplace && (
+          <button
+            onClick={() => setActiveTab('marketplace')}
+            className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
+              activeTab === 'marketplace'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 inline mr-2" />
+            {language === 'ru' ? 'Маркетплейс' : 'Marketplace'}
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('platform_ads')}
           className={`px-4 py-2 min-h-[44px] font-medium text-sm border-b-2 transition-colors touch-manipulation active:bg-gray-100 ${
@@ -536,7 +547,13 @@ export function AdminDashboard() {
                     <AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-red-800 text-sm md:text-base">
-                        {staleApprovals.length} {language === 'ru' ? 'заявок >24ч' : 'ariza >24s'}
+                        {staleApprovals.length}{' '}
+                        {plural(
+                          language === 'ru' ? 'ru' : 'uz',
+                          staleApprovals.length,
+                          { one: 'заявка >24ч', few: 'заявки >24ч', many: 'заявок >24ч' },
+                          { one: 'ariza >24s', other: 'ariza >24s' }
+                        )}
                       </div>
                       <div className="text-xs md:text-sm text-red-600 hidden sm:block">
                         {language === 'ru' ? 'Ожидают подтверждения' : 'Tasdiqlash kutilmoqda'}
@@ -624,7 +641,9 @@ export function AdminDashboard() {
                 <span className="text-sm text-gray-500">{executors.length} {language === 'ru' ? 'всего' : 'jami'}</span>
               </div>
               <div className="space-y-2 md:space-y-3">
-                {executors.slice(0, 6).map((executor) => (
+                {[...executors]
+                  .sort((a, b) => (b.rating || 0) - (a.rating || 0) || (b.completedCount || 0) - (a.completedCount || 0))
+                  .slice(0, 6).map((executor) => (
                   <div key={executor.id} className="flex items-center justify-between p-2 md:p-3 bg-white/30 rounded-lg">
                     <div className="flex items-center gap-2 md:gap-3 min-w-0">
                       <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${
@@ -742,12 +761,14 @@ export function AdminDashboard() {
                   <div className="font-bold text-xl md:text-2xl xl:text-3xl">{executors.length}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
-                  <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
-                  <div className="font-bold text-xl md:text-2xl xl:text-3xl text-green-600">{stats.completedWeek}</div>
+                  <div className="text-gray-500 text-xs md:text-sm">
+                    {language === 'ru' ? 'Выполнено за неделю' : 'Hafta davomida'}
+                  </div>
+                  <div className="font-bold text-xl md:text-2xl xl:text-3xl text-green-600">{stats.completedWeek ?? 0}</div>
                 </div>
                 <div className="bg-white/30 rounded-lg p-3">
                   <div className="text-gray-500 text-xs md:text-sm">{language === 'ru' ? 'Активных' : 'Faol'}</div>
-                  <div className="font-bold text-xl md:text-2xl xl:text-3xl text-amber-600">{stats.inProgress}</div>
+                  <div className="font-bold text-xl md:text-2xl xl:text-3xl text-amber-600">{stats.inProgress ?? 0}</div>
                 </div>
               </div>
             </div>
