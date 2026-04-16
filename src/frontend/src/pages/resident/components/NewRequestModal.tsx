@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, Calendar, MapPin, Send } from 'lucide-react';
+import { Calendar, MapPin, Send } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { SERVICE_CATEGORIES, PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../../../types';
 import type { RequestPriority } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
+import { Sheet } from '../../../components/common';
 import type { NewRequestModalProps } from './types';
 
 // Time slots for scheduling
@@ -101,36 +102,37 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
     });
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/40 z-[110] flex items-end md:items-center justify-center" onClick={onClose}>
-      <div
-        className="w-full md:max-w-lg md:mx-4 bg-white rounded-t-[20px] md:rounded-[20px] flex flex-col overflow-hidden max-h-[88dvh] md:max-h-[90dvh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Drag handle on mobile */}
-        <div className="flex justify-center pt-2.5 pb-1 md:hidden">
-          <div className="w-9 h-1 rounded-full bg-gray-300" />
-        </div>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">{categoryInfo?.icon}</span>
-            <div>
-              <h2 className="text-[17px] font-bold text-gray-900">{language === 'ru' ? 'Новая заявка' : 'Yangi ariza'}</h2>
-              <p className="text-[13px] text-gray-500 font-medium">{language === 'ru' ? categoryInfo?.name : categoryInfo?.nameUz}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors touch-manipulation"
-            aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
-          >
-            <X className="w-[18px] h-[18px] text-gray-400" />
-          </button>
-        </div>
+  const title_ = language === 'ru' ? 'Новая заявка' : 'Yangi ariza';
+  const subtitle_ = language === 'ru' ? categoryInfo?.name : categoryInfo?.nameUz;
+  const isTrashFlow = category === 'trash';
+  const canSubmit = isTrashFlow
+    ? !!(trashType && trashVolume && trashDate && trashTime)
+    : !!(title.trim() && description.trim());
 
-        {/* Scrollable form content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+  return (
+    <Sheet
+      isOpen
+      onClose={onClose}
+      title={title_}
+      subtitle={subtitle_ ? `${categoryInfo?.icon ?? ''} ${subtitle_}` : undefined}
+      size="lg"
+      footer={
+        <button
+          type="submit"
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className={`w-full py-3.5 rounded-2xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-all touch-manipulation min-h-[48px] ${
+            canSubmit
+              ? 'bg-primary-500 text-white active:scale-[0.98] shadow-lg shadow-primary-500/25'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          <Send className="w-[18px] h-[18px]" />
+          {language === 'ru' ? 'Отправить заявку' : 'Arizani yuborish'}
+        </button>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           {category === 'trash' ? (
             <>
               {/* Trash Type Selection */}
@@ -352,25 +354,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
               <div className="font-medium text-sm">{formatAddress(user?.address, user?.apartment)}</div>
             </div>
           </div>
-        </form>
-
-        {/* Fixed footer button */}
-        <div className="px-5 py-4 border-t border-gray-100 bg-white" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={category === 'trash' ? (!trashType || !trashVolume || !trashDate || !trashTime) : (!title.trim() || !description.trim())}
-            className={`w-full py-3.5 rounded-2xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-all touch-manipulation ${
-              (category === 'trash' ? (!trashType || !trashVolume || !trashDate || !trashTime) : (!title.trim() || !description.trim()))
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-primary-500 text-white active:scale-[0.98] shadow-lg shadow-primary-500/25'
-            }`}
-          >
-            <Send className="w-[18px] h-[18px]" />
-            {language === 'ru' ? 'Отправить заявку' : 'Arizani yuborish'}
-          </button>
-        </div>
-      </div>
-    </div>
+      </form>
+    </Sheet>
   );
 }
