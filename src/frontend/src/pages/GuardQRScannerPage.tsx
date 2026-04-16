@@ -10,6 +10,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { guestCodesApi, apiRequest } from '../services/api';
 import { type GuestAccessCode } from '../types';
 import { Modal } from '../components/common';
+import { formatName } from '../utils/formatName';
 
 interface ScanLog {
   id: string;
@@ -333,7 +334,7 @@ export function GuardQRScannerPage() {
                     {getInitials(log.resident_name)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-bold text-gray-900 truncate">{log.resident_name}</div>
+                    <div className="text-[13px] font-bold text-gray-900 truncate" title={log.resident_name}>{formatName(log.resident_name)}</div>
                     <div className="text-xs text-gray-400 font-medium">
                       {isAllowed ? (language === 'ru' ? 'Пропущен' : 'O\'tkazildi') : (language === 'ru' ? 'Отказано' : 'Rad etildi')} · {formatTime(log.scanned_at)}
                     </div>
@@ -456,7 +457,7 @@ export function GuardQRScannerPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-blue-400 font-bold uppercase tracking-wide">{language === 'ru' ? 'К жителю' : 'Yashovchiga'}</div>
-                    <div className="text-[15px] font-bold text-gray-900 truncate">{scanResult.code.residentName}</div>
+                    <div className="text-[15px] font-bold text-gray-900 truncate" title={scanResult.code.residentName}>{formatName(scanResult.code.residentName)}</div>
                     <div className="text-[12px] text-gray-500 mt-0.5 font-medium flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
                       {scanResult.code.residentAddress ? `${scanResult.code.residentAddress}, ` : ''}{language === 'ru' ? 'кв.' : 'xona'} {scanResult.code.residentApartment}

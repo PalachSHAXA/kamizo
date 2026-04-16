@@ -6,8 +6,11 @@ import {
 } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { formatAddress } from '../../../utils/formatAddress';
+import { formatName } from '../../../utils/formatName';
 import { SPECIALIZATION_LABELS, STATUS_LABELS } from '../../../types';
 import type { Request, RequestStatus } from '../../../types';
+import { StatusBadge } from '../../../components/common';
+import type { StatusTone } from '../../../theme';
 
 interface RequestCardProps {
   request: Request;
@@ -53,17 +56,26 @@ export function RequestCard({
     }
   };
 
+  // Semantic mapping: pending_approval (ожидает подтверждения от жителя) → info
+  // (работа сделана, но отличается от "Выполнена"). "completed" → active (зелёный).
+  // Это позволяет в табе "Выполненные" визуально отличать 2 подстатуса.
   const getStatusBadge = (status: RequestStatus) => {
-    const baseClass = "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-medium";
-    switch (status) {
-      case 'new': return <span className={`${baseClass} bg-purple-100 text-purple-700`}>{language === 'ru' ? 'Новая' : 'Yangi'}</span>;
-      case 'assigned': return <span className={`${baseClass} bg-blue-100 text-blue-700`}>{language === 'ru' ? 'Назначена' : 'Tayinlangan'}</span>;
-      case 'accepted': return <span className={`${baseClass} bg-cyan-100 text-cyan-700`}>{language === 'ru' ? 'Принята' : 'Qabul qilingan'}</span>;
-      case 'in_progress': return <span className={`${baseClass} bg-amber-100 text-amber-700`}>{language === 'ru' ? 'В работе' : 'Ishda'}</span>;
-      case 'pending_approval': return <span className={`${baseClass} bg-purple-100 text-purple-700`}>{language === 'ru' ? 'Ожидает' : 'Kutilmoqda'}</span>;
-      case 'completed': return <span className={`${baseClass} bg-green-100 text-green-700`}>{language === 'ru' ? 'Выполнена' : 'Bajarilgan'}</span>;
-      default: return <span className={baseClass}>{STATUS_LABELS[status]}</span>;
-    }
+    const label =
+      status === 'new' ? (language === 'ru' ? 'Новая' : 'Yangi')
+      : status === 'assigned' ? (language === 'ru' ? 'Назначена' : 'Tayinlangan')
+      : status === 'accepted' ? (language === 'ru' ? 'Принята' : 'Qabul qilingan')
+      : status === 'in_progress' ? (language === 'ru' ? 'В работе' : 'Ishda')
+      : status === 'pending_approval' ? (language === 'ru' ? 'Ждёт подтверждения' : 'Tasdiq kutilmoqda')
+      : status === 'completed' ? (language === 'ru' ? 'Выполнена' : 'Bajarilgan')
+      : STATUS_LABELS[status];
+    const tone: StatusTone =
+      status === 'new' ? 'info'
+      : status === 'assigned' || status === 'accepted' ? 'info'
+      : status === 'in_progress' ? 'pending'
+      : status === 'pending_approval' ? 'info'
+      : status === 'completed' ? 'active'
+      : 'expired';
+    return <StatusBadge status={tone} size="sm">{label}</StatusBadge>;
   };
 
   return (
@@ -106,7 +118,7 @@ export function RequestCard({
           <div className="flex flex-wrap items-center gap-2 mt-3 text-xs md:text-sm text-gray-500">
             <span className="flex items-center gap-1">
               <User className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[100px]">{request.residentName}</span>
+              <span className="truncate max-w-[100px]" title={request.residentName}>{formatName(request.residentName)}</span>
             </span>
             <a
               href={`tel:${request.residentPhone}`}

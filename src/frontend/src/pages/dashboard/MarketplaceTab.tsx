@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { MarketplaceReport } from './types';
 import type { Style } from 'exceljs';
+import { pluralWithCount } from '../../utils/plural';
 
 interface MarketplaceTabProps {
   language: string;
@@ -382,7 +383,12 @@ export function MarketplaceTab({
               </div>
               <div className="text-sm text-gray-500">{t('director.sold')} ({language === 'ru' ? 'шт' : 'dona'})</div>
               <div className="mt-2 text-xs text-gray-600">
-                {marketplaceReport.top_products.length} {language === 'ru' ? 'товаров' : 'mahsulot'}
+                {pluralWithCount(
+                  language === 'ru' ? 'ru' : 'uz',
+                  marketplaceReport.top_products.length,
+                  { one: 'товар', few: 'товара', many: 'товаров' },
+                  { one: 'mahsulot', other: 'mahsulot' }
+                )}
               </div>
             </div>
           </div>

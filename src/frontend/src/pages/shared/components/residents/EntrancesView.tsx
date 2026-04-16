@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import type { Branch, Entrance, BuildingFull, MappedResident } from './types';
 import { ResidentsList } from './ResidentsList';
+import { pluralWithCount } from '../../../../utils/plural';
 
 interface EntrancesViewProps {
   selectedBranch: Branch | null;
@@ -139,7 +140,14 @@ export function EntrancesView({
                   )}
                   <div className="flex items-center gap-1">
                     <Users className="w-4 h-4 text-gray-400" />
-                    <span>{entranceResidents.length} {language === 'ru' ? 'жителей' : 'yashovchi'}</span>
+                    <span>
+                      {pluralWithCount(
+                        language === 'ru' ? 'ru' : 'uz',
+                        entranceResidents.length,
+                        { one: 'житель', few: 'жителя', many: 'жителей' },
+                        { one: 'yashovchi', other: 'yashovchi' }
+                      )}
+                    </span>
                   </div>
                 </div>
               </button>
@@ -173,7 +181,14 @@ export function EntrancesView({
                 <div className="mt-4 flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-1">
                     <Users className="w-4 h-4 text-gray-400" />
-                    <span>{unassignedResidents.length} {language === 'ru' ? 'жителей' : 'yashovchi'}</span>
+                    <span>
+                      {pluralWithCount(
+                        language === 'ru' ? 'ru' : 'uz',
+                        unassignedResidents.length,
+                        { one: 'житель', few: 'жителя', many: 'жителей' },
+                        { one: 'yashovchi', other: 'yashovchi' }
+                      )}
+                    </span>
                   </div>
                 </div>
               </button>

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
+import { pluralWithCount } from '../utils/plural';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -100,7 +101,12 @@ export function ExecutorSchedulePage() {
         <div className="flex items-center gap-2">
           {activeRequests.length > 0 && (
             <span className="px-3 py-1 rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
-              {activeRequests.length} {language === 'ru' ? 'активных' : 'faol'}
+              {pluralWithCount(
+                language === 'ru' ? 'ru' : 'uz',
+                activeRequests.length,
+                { one: 'активная', few: 'активные', many: 'активных' },
+                { one: 'faol', other: 'faol' }
+              )}
             </span>
           )}
         </div>

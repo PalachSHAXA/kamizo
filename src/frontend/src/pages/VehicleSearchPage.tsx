@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, AlertTriangle, QrCode, Loader2 } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { formatName } from '../utils/formatName';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -454,7 +455,7 @@ export function VehicleSearchPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-600">{g.residentName}</p>
+                  <p className="text-sm font-medium text-gray-600" title={g.residentName}>{formatName(g.residentName)}</p>
                   {g.residentApartment && (
                     <p className="text-xs text-gray-400">
                       {language === 'ru' ? 'Кв.' : 'Kv.'} {g.residentApartment}
@@ -842,10 +843,18 @@ export function VehicleSearchPage() {
                               >
                                 <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
                                 <div className="min-w-0 flex-1">
-                                  <div className="font-medium text-gray-900 truncate">{r.name || (language === 'ru' ? 'Без имени' : 'Ismsiz')}</div>
+                                  <div className="font-medium text-gray-900 truncate" title={r.name}>{r.name ? formatName(r.name) : (language === 'ru' ? 'Без имени' : 'Ismsiz')}</div>
                                   <div className="text-xs text-gray-500">
                                     {r.apartment && <span>{language === 'ru' ? 'кв.' : 'xon.'} {r.apartment}</span>}
-                                    {r.phone && <span className="ml-2">{r.phone}</span>}
+                                    {r.phone && (
+                                      <a
+                                        href={`tel:${r.phone}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="ml-2 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+                                      >
+                                        {r.phone}
+                                      </a>
+                                    )}
                                   </div>
                                 </div>
                               </button>

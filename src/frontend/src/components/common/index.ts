@@ -6,3 +6,4 @@ export { LoadingSpinner } from './LoadingSpinner';
 export { ErrorState } from './ErrorState';
 export { StatusBadge, StatusStat } from './StatusBadge';
 export { MessageContent } from './MessageContent';
+export { Sheet, SheetErrorBoundary } from './Sheet';

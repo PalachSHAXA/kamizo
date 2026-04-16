@@ -5,6 +5,7 @@ import {
   Percent, Timer, Award, CreditCard, Search, ChevronUp, ChevronDown, Loader2
 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
+import { pluralWithCount } from '../../utils/plural';
 import { useCRMStore } from '../../stores/crmStore';
 import { useAuthStore } from '../../stores/authStore';
 import { SPECIALIZATION_LABELS } from '../../types';
@@ -547,7 +548,14 @@ export function ReportsPage() {
                     </div>
                     <div>
                       <div className="font-semibold">{language === 'ru' ? 'Все объекты' : 'Barcha obyektlar'}</div>
-                      <div className="text-xs text-gray-500">{branchStats.length} {language === 'ru' ? 'объектов' : 'obyekt'}</div>
+                      <div className="text-xs text-gray-500">
+                        {pluralWithCount(
+                          language === 'ru' ? 'ru' : 'uz',
+                          branchStats.length,
+                          { one: 'объект', few: 'объекта', many: 'объектов' },
+                          { one: 'obyekt', other: 'obyekt' }
+                        )}
+                      </div>
                     </div>
                   </div>
                 </button>

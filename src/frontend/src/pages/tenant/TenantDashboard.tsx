@@ -3,6 +3,7 @@ import { Key, Calendar, ChevronLeft, ChevronRight, Users, Home, Banknote, Trendi
 import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { pluralWithCount } from '../../utils/plural';
 
 // USD to UZS fallback rate — update this constant or move to tenant config when dynamic rates are needed
 const USD_TO_UZS_RATE = 12500;
@@ -576,7 +577,14 @@ export function TenantDashboard() {
                       </div>
                     )}
                     <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-                      <span>{records.length} {language === 'ru' ? 'бронирований' : 'bandlov'}</span>
+                      <span>
+                        {pluralWithCount(
+                          language === 'ru' ? 'ru' : 'uz',
+                          records.length,
+                          { one: 'бронирование', few: 'бронирования', many: 'бронирований' },
+                          { one: 'bandlov', other: 'bandlov' }
+                        )}
+                      </span>
                       <span>•</span>
                       <span>{records.reduce((s, r) => s + r.guestNames.split(',').length, 0)} {language === 'ru' ? 'гостей' : 'mehmon'}</span>
                     </div>

@@ -3,6 +3,7 @@ import {
   ShoppingCart, Search, ChevronRight, X, CheckCircle, Package, Phone, MapPin, UserPlus, User, Star, ShoppingBag
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { formatName } from '../utils/formatName';
 import { useLanguageStore } from '../stores/languageStore';
 import { useDataStore } from '../stores/dataStore';
 import { apiRequest } from '../services/api';
@@ -290,7 +291,7 @@ export function MarketplaceOrdersPage() {
                 {order.executor_name && (
                   <div className="flex items-center gap-2 text-sm text-indigo-600 mt-2">
                     <User className="w-4 h-4" />
-                    <span>{language === 'ru' ? 'Исполнитель:' : 'Ijrochi:'} {order.executor_name}</span>
+                    <span>{language === 'ru' ? 'Исполнитель:' : 'Ijrochi:'} {formatName(order.executor_name)}</span>
                   </div>
                 )}
 
@@ -416,7 +417,7 @@ export function MarketplaceOrdersPage() {
                   <h4 className="text-xs font-medium text-indigo-600 uppercase mb-2">
                     {language === 'ru' ? 'Исполнитель' : 'Ijrochi'}
                   </h4>
-                  <h3 className="font-medium text-gray-900 mb-1">{selectedOrder.executor_name}</h3>
+                  <h3 className="font-medium text-gray-900 mb-1" title={selectedOrder.executor_name}>{formatName(selectedOrder.executor_name)}</h3>
                   {selectedOrder.executor_phone && (
                     <a href={`tel:${selectedOrder.executor_phone}`} className="flex items-center gap-2 text-sm text-blue-600">
                       <Phone className="w-4 h-4" />
@@ -559,7 +560,15 @@ export function MarketplaceOrdersPage() {
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{executor.name}</p>
-                      <p className="text-sm text-gray-500">{executor.phone}</p>
+                      {executor.phone && (
+                        <a
+                          href={`tel:${executor.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm text-gray-500 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+                        >
+                          {executor.phone}
+                        </a>
+                      )}
                     </div>
                     <div className={`px-2 py-1 rounded-lg text-xs ${executor.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                       {executor.status === 'available' ? (language === 'ru' ? 'Доступен' : 'Bo\'sh') : (language === 'ru' ? 'Занят' : 'Band')}

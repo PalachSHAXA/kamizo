@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { EmptyState } from '../components/common';
-import { plural } from '../utils/plural';
+import { plural, pluralWithCount } from '../utils/plural';
 import { InstallAppSection } from '../components/InstallAppSection';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -569,7 +569,13 @@ export function AdminDashboard() {
                     <Clock className="w-5 h-5 md:w-6 md:h-6 text-purple-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-purple-800 text-sm md:text-base">
-                        {pendingApprovalRequests.length} {language === 'ru' ? 'ожидают подтверждения' : 'tasdiqlash kutilmoqda'}
+                        {pendingApprovalRequests.length}{' '}
+                        {plural(
+                          language === 'ru' ? 'ru' : 'uz',
+                          pendingApprovalRequests.length,
+                          { one: 'ожидает подтверждения', few: 'ожидают подтверждения', many: 'ожидают подтверждения' },
+                          { one: 'tasdiqlash kutilmoqda', other: 'tasdiqlash kutilmoqda' }
+                        )}
                       </div>
                     </div>
                   </div>
@@ -865,7 +871,12 @@ export function AdminDashboard() {
                   </div>
                   <div className="text-sm text-gray-500">{language === 'ru' ? 'Продано (шт)' : 'Sotilgan (dona)'}</div>
                   <div className="mt-2 text-xs text-gray-600">
-                    {marketplaceReport.top_products.length} {language === 'ru' ? 'товаров' : 'tovar'}
+                    {pluralWithCount(
+                      language === 'ru' ? 'ru' : 'uz',
+                      marketplaceReport.top_products.length,
+                      { one: 'товар', few: 'товара', many: 'товаров' },
+                      { one: 'tovar', other: 'tovar' }
+                    )}
                   </div>
                 </div>
               </div>
