@@ -10,12 +10,13 @@ import { SPECIALIZATION_LABELS, PAUSE_REASON_LABELS } from '../../types';
 import { branchesApi, buildingsApi, usersApi } from '../../services/api';
 import { formatAddress } from '../../utils/formatAddress';
 import { formatName } from '../../utils/formatName';
+import { ManagementRequestModal } from './components/ManagementRequestModal';
 import type { ExecutorSpecialization, RequestPriority } from '../../types';
 
 export function RequestsPage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
-  const { requests, executors, assignRequest, addRequest, fetchRequests, fetchExecutors, isLoadingRequests } = useDataStore();
+  const { requests, executors, assignRequest, addRequest, fetchRequests, fetchExecutors, isLoadingRequests, cancelRequest } = useDataStore();
   const [searchParams] = useSearchParams();
 
   // Resident-like roles (resident, tenant, commercial_owner) get the richer
@@ -29,6 +30,7 @@ export function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAssignModal, setShowAssignModal] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [detailsRequestId, setDetailsRequestId] = useState<string | null>(null);
 
   // Check if user can create requests (manager, admin, director)
   const canCreateRequest = ['manager', 'admin', 'director'].includes(user?.role || '');
@@ -184,7 +186,20 @@ export function RequestsPage() {
       ) : (
       <div className="space-y-3">
         {filteredRequests.map((req) => (
-          <div key={req.id} className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl">
+          <div
+            key={req.id}
+            onClick={() => setDetailsRequestId(req.id)}
+            className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-md active:scale-[0.995] transition-all touch-manipulation"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setDetailsRequestId(req.id);
+              }
+            }}
+            aria-label={language === 'ru' ? `Открыть заявку ${req.number}` : `Ariza ochish ${req.number}`}
+          >
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div className="flex gap-3 sm:gap-4 min-w-0">
                 <div className={`w-3 h-3 mt-1.5 rounded-full flex-shrink-0 ${req.priority === 'urgent' ? 'bg-red-500' : req.priority === 'high' ? 'bg-orange-500' : req.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`}></div>
@@ -251,7 +266,7 @@ export function RequestsPage() {
               {req.status === 'new' && (
                 <div className="flex sm:flex-shrink-0">
                   <button
-                    onClick={() => setShowAssignModal(req.id)}
+                    onClick={(e) => { e.stopPropagation(); setShowAssignModal(req.id); }}
                     className="btn-primary text-sm py-2 px-4 min-h-[44px] touch-manipulation active:scale-95 w-full sm:w-auto"
                   >
                     {language === 'ru' ? 'Назначить' : 'Tayinlash'}
@@ -310,6 +325,22 @@ export function RequestsPage() {
           }}
         />
       )}
+
+      {/* Request Details Modal — click on any card opens this for management roles */}
+      {detailsRequestId && (() => {
+        const detailsRequest = filteredRequests.find(r => r.id === detailsRequestId);
+        if (!detailsRequest) return null;
+        return (
+          <ManagementRequestModal
+            request={detailsRequest}
+            onClose={() => setDetailsRequestId(null)}
+            onAssignClick={() => setShowAssignModal(detailsRequest.id)}
+            onCancel={async (reason) => {
+              await cancelRequest(detailsRequest.id, 'manager', reason);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
