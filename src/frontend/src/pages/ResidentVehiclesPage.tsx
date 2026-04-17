@@ -224,6 +224,10 @@ export function ResidentVehiclesPage() {
     }
   };
 
+  // Search tab is only useful when the resident owns enough cars to actually
+  // need search. With 1-2 vehicles a plate-search UI is overkill — the list
+  // already fits on-screen. Expose search only at 3+.
+  const showSearchTab = vehicles.length >= 3;
   const tabs = [
     {
       id: 'my_vehicles' as const,
@@ -231,11 +235,11 @@ export function ResidentVehiclesPage() {
       icon: Car,
       count: vehicles.length
     },
-    {
+    ...(showSearchTab ? [{
       id: 'search' as const,
       label: language === 'ru' ? 'Поиск' : 'Qidirish',
-      icon: Search
-    },
+      icon: Search,
+    }] : []),
   ];
 
   const ownerTypes: VehicleOwnerType[] = ['individual', 'legal_entity'];
@@ -924,8 +928,13 @@ export function ResidentVehiclesPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
+      {/* Delete Confirmation Modal — names the specific vehicle so the
+          user double-checks they're deleting the right one. */}
+      {deleteConfirm && (() => {
+        const target = myVehicles.find(v => v.id === deleteConfirm);
+        const plate = target?.plateNumber || '';
+        const model = target ? `${target.brand || ''} ${target.model || ''}`.trim() : '';
+        return (
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
@@ -934,6 +943,12 @@ export function ResidentVehiclesPage() {
             <h3 className="text-lg font-bold text-center mb-2">
               {language === 'ru' ? 'Удалить автомобиль?' : 'Avtomobilni o\'chirish?'}
             </h3>
+            {(model || plate) && (
+              <div className="text-center mb-2">
+                {model && <div className="text-[15px] font-semibold text-gray-900">{model}</div>}
+                {plate && <div className="text-sm font-mono tracking-wider text-gray-600 mt-0.5">{plate}</div>}
+              </div>
+            )}
             <p className="text-gray-500 text-center text-sm mb-6">
               {language === 'ru'
                 ? 'Это действие нельзя отменить'
@@ -955,7 +970,8 @@ export function ResidentVehiclesPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

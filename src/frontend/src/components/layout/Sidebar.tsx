@@ -26,6 +26,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
   const { user } = useAuthStore();
   const { t, language } = useLanguageStore();
@@ -679,7 +680,11 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
               <span>{language === 'ru' ? 'Мой профиль' : 'Mening profilim'}</span>
             </Link>
           )}
-          <button onClick={onLogout} className="sidebar-item min-h-[46px] touch-manipulation w-full text-primary-500 hover:text-primary-600 hover:bg-primary-50" aria-label={language === 'ru' ? 'Выйти из аккаунта' : 'Akkauntdan chiqish'}>
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="sidebar-item min-h-[46px] touch-manipulation w-full text-primary-500 hover:text-primary-600 hover:bg-primary-50"
+            aria-label={language === 'ru' ? 'Выйти из аккаунта' : 'Akkauntdan chiqish'}
+          >
             <LogOut className="w-[20px] h-[20px] shrink-0" />
             <span className="font-medium">{language === 'ru' ? 'Выйти' : 'Chiqish'}</span>
           </button>
@@ -692,6 +697,40 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         featureName={lockedFeatureName || undefined}
         featureKey={lockedFeatureKey || undefined}
       />
+
+      {/* Logout confirm — previously the button fired logout immediately,
+          which was too easy to mistap on mobile. */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary-50 mx-auto mb-4">
+              <LogOut className="w-6 h-6 text-primary-500" />
+            </div>
+            <h3 className="text-lg font-bold text-center mb-2">
+              {language === 'ru' ? 'Выйти из аккаунта?' : 'Akkauntdan chiqasizmi?'}
+            </h3>
+            <p className="text-gray-500 text-center text-sm mb-6">
+              {language === 'ru'
+                ? 'Вам потребуется снова ввести логин и пароль при следующем входе'
+                : 'Keyingi safar login va parol qayta kiritish kerak bo\'ladi'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 px-4 min-h-[44px] rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
+              >
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+              </button>
+              <button
+                onClick={() => { setShowLogoutConfirm(false); onLogout(); }}
+                className="flex-1 py-3 px-4 min-h-[44px] rounded-xl font-semibold text-white bg-primary-500 hover:bg-primary-600 active:bg-primary-700 transition-colors touch-manipulation"
+              >
+                {language === 'ru' ? 'Выйти' : 'Chiqish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>,
     document.body
   );

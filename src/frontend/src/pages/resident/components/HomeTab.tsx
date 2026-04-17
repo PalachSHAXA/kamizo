@@ -94,14 +94,14 @@ export function HomeTab({
         </button>
       </div>
 
-      {/* Horizontal services strip — everything beyond the two primary JTBDs
-          collapses into a scrollable row so the dashboard stops growing
-          vertically every time we add a tile. */}
+      {/* Services — fixed 3-col grid on mobile so every tile is visible
+          without horizontal scrolling (scroll felt like a web strip, not
+          a native grid). At sm+ we widen to 4-6 columns to fill the row. */}
       <div className="space-y-2">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-[0.8px] px-1">
           {language === 'ru' ? 'Мои сервисы' : 'Mening xizmatlarim'}
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-2.5 px-2.5 md:mx-0 md:px-0">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
           {[
             { onClick: () => navigate('/chat'), icon: MessageCircle, iconBg: 'bg-primary-50', iconColor: 'text-primary-500', label: language === 'ru' ? 'Чат с УК' : 'UK chat' },
             { onClick: () => navigate('/announcements'), icon: Megaphone, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', label: language === 'ru' ? 'Объявления' : 'E\'lonlar' },
@@ -116,7 +116,7 @@ export function HomeTab({
               <button
                 key={i}
                 onClick={svc.onClick}
-                className="flex-shrink-0 bg-white rounded-[14px] p-2.5 min-w-[92px] flex flex-col items-center gap-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.96] transition-transform touch-manipulation"
+                className="bg-white rounded-[14px] p-2.5 min-h-[88px] flex flex-col items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-[0.96] transition-transform touch-manipulation"
               >
                 <div className={`w-10 h-10 rounded-[11px] ${svc.iconBg} flex items-center justify-center`}>
                   <Icon className={`w-[18px] h-[18px] ${svc.iconColor}`} strokeWidth={1.8} />

@@ -415,16 +415,18 @@ export function VehicleSearchPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  {/* ФИО владельца квартиры скрыто от security/executor ради
-                      приватности жителей — им достаточно номера квартиры,
-                      чтобы связаться с управляющей. */}
-                  {isManager && (
-                    <p className="text-sm font-medium text-gray-600">{vehicle.ownerName}</p>
-                  )}
+                  {/* Владельца показываем только в виде квартиры/адреса —
+                      ФИО жильца не рендерится даже для менеджмента на этом
+                      экране, чтобы данные собственников не утекали при
+                      поиске по номеру. Полные данные собственника доступны
+                      на странице квартир/жителей. */}
                   {vehicle.apartment && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-sm font-medium text-gray-700">
                       {language === 'ru' ? 'Кв.' : 'Kv.'} {vehicle.apartment}
                     </p>
+                  )}
+                  {vehicle.address && (
+                    <p className="text-xs text-gray-400 truncate max-w-[180px]">{vehicle.address}</p>
                   )}
                 </div>
               </div>
@@ -578,28 +580,19 @@ export function VehicleSearchPage() {
                 </h4>
 
                 <div className="space-y-3">
-                  {/* Owner Name — hidden from security/executor for privacy.
-                      Non-management see "Собственник квартиры" label instead
-                      of the actual FIO. */}
-                  {isManager ? (
-                    <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-xs text-gray-500">{language === 'ru' ? 'Владелец' : 'Egasi'}</p>
-                        <p className="font-medium text-lg">{searchResult.ownerName || (language === 'ru' ? 'Не указано' : 'Ko\'rsatilmagan')}</p>
-                      </div>
+                  {/* Owner Name — hidden on this screen for all roles so FIO
+                      doesn't leak via plate lookup. Management can still see
+                      full owner info on /residents or /apartments, which
+                      already gate that data properly. */}
+                  <div className="flex items-center gap-3">
+                    <User className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">{language === 'ru' ? 'Владелец' : 'Egasi'}</p>
+                      <p className="font-medium text-sm text-gray-400">
+                        {language === 'ru' ? 'Скрыто — смотрите в профиле квартиры' : 'Yashirilgan — kvartira profilida'}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-xs text-gray-500">{language === 'ru' ? 'Владелец' : 'Egasi'}</p>
-                        <p className="font-medium text-sm text-gray-400">
-                          {language === 'ru' ? 'Скрыто' : 'Yashirilgan'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  </div>
 
                   {/* Company Name - show if exists */}
                   {searchResult.companyName && (
@@ -722,7 +715,7 @@ export function VehicleSearchPage() {
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
-                        {vehicle.brand} {vehicle.model} • {vehicle.ownerName}
+                        {vehicle.brand} {vehicle.model}{vehicle.color ? ` • ${vehicle.color}` : ''}
                       </p>
                     </div>
                   </div>

@@ -654,7 +654,7 @@ class ColleaguesErrorBoundary extends Component<{ children: React.ReactNode }, {
         <div className="p-6">
           <EmptyState
             icon={<Users className="w-12 h-12" />}
-            title="Мои коллеги"
+            title="Сотрудники"
             description="Данные временно недоступны. Попробуйте позже."
           />
         </div>
@@ -899,13 +899,21 @@ function ColleaguesSectionInner() {
     return a.localeCompare(b);
   });
 
+  // Title swaps based on viewer role. A resident viewing this page sees
+  // "Мастера" — plumbers and electricians aren't their colleagues, they're
+  // service staff. Staff members see "Мои коллеги".
+  const isResidentView = user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner';
+  const pageTitle = isResidentView
+    ? (language === 'ru' ? 'Мастера УК' : 'UK ustalari')
+    : (language === 'ru' ? 'Мои коллеги' : 'Mening hamkasblarim');
+
   return (
     <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
           <Users className="w-8 h-8 text-primary-500 flex-shrink-0" />
-          <span>{language === 'ru' ? 'Мои коллеги' : 'Mening hamkasblarim'}</span>
+          <span>{pageTitle}</span>
         </h1>
       </div>
 

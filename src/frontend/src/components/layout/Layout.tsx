@@ -468,6 +468,9 @@ export function Layout() {
               <Route path="/useful-contacts" element={
                 <ProtectedRoute requiredFeature="useful-contacts"><ResidentUsefulContactsPage /></ProtectedRoute>
               } />
+              {/* /contacts — legacy alias that some UI copies still point at.
+                  Redirect so the user doesn't hit the generic 404 screen. */}
+              <Route path="/contacts" element={<Navigate to="/useful-contacts" replace />} />
               <Route path="/colleagues" element={
                 <ProtectedRoute requiredFeature="colleagues"><ColleaguesSection /></ProtectedRoute>
               } />

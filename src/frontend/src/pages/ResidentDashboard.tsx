@@ -212,10 +212,13 @@ export function ResidentDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[12px] font-semibold text-gray-400 tracking-wide">
-                {language === 'ru' ? 'Добро пожаловать 👋' : 'Xush kelibsiz 👋'}
+                {language === 'ru' ? (<>Добро пожаловать <span aria-hidden="true">👋</span></>) : (<>Xush kelibsiz <span aria-hidden="true">👋</span></>)}
               </div>
+              {/* Greeting uses first name; profile page shows full name. This
+                  matches standard mobile-app conventions — the greeting is
+                  friendly, the profile is the authoritative view. */}
               <div className="text-[22px] font-extrabold text-gray-900 tracking-tight leading-tight">
-                {user?.name?.split(' ')[0]}
+                {user?.name?.split(' ')[0] || user?.name}
               </div>
             </div>
           </div>
