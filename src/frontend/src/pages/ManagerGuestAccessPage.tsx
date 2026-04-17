@@ -3,7 +3,7 @@ import {
   QrCode, Search, Filter, X, Clock, CheckCircle, Ban, Package, Users, Car, User,
   AlertTriangle, Calendar, Phone, MapPin, Eye, History, UserPlus, Loader2
 } from 'lucide-react';
-import { EmptyState } from '../components/common';
+import { EmptyState, ConfirmDialog } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -11,17 +11,10 @@ import {
   VISITOR_TYPE_LABELS, GUEST_ACCESS_STATUS_LABELS,
   type GuestAccessCode, type VisitorType, type GuestAccessStatus
 } from '../types';
+import { safeLabel } from '../utils/safeLabel';
 
-// Defensive lookups — legacy data may contain out-of-enum values that would
-// otherwise crash ErrorBoundary for the whole manager view.
-const FALLBACK_VISITOR = VISITOR_TYPE_LABELS.other;
-const FALLBACK_STATUS = GUEST_ACCESS_STATUS_LABELS.expired;
-function safeVisitorLabel(type: unknown) {
-  return (type && VISITOR_TYPE_LABELS[type as keyof typeof VISITOR_TYPE_LABELS]) || FALLBACK_VISITOR;
-}
-function safeStatusLabel(status: unknown) {
-  return (status && GUEST_ACCESS_STATUS_LABELS[status as keyof typeof GUEST_ACCESS_STATUS_LABELS]) || FALLBACK_STATUS;
-}
+const safeVisitorLabel = (t: unknown) => safeLabel(VISITOR_TYPE_LABELS, t, VISITOR_TYPE_LABELS.other);
+const safeStatusLabel = (s: unknown) => safeLabel(GUEST_ACCESS_STATUS_LABELS, s, GUEST_ACCESS_STATUS_LABELS.expired);
 
 export function ManagerGuestAccessPage() {
   const { user } = useAuthStore();
@@ -614,58 +607,32 @@ export function ManagerGuestAccessPage() {
         </div>
       )}
 
-      {/* Revoke modal */}
-      {showRevokeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full p-4 sm:p-6">
-            <div className="text-center mb-4">
-              <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertTriangle className="w-8 h-8 text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold mb-2">
-                {language === 'ru' ? 'Отменить пропуск?' : 'Ruxsatnomani bekor qilasizmi?'}
-              </h3>
-              <p className="text-gray-600 text-sm mb-4">
-                {language === 'ru'
-                  ? `Пропуск для ${showRevokeModal.residentName} (кв. ${showRevokeModal.residentApartment})`
-                  : `${showRevokeModal.residentName} (${showRevokeModal.residentApartment}-xona) uchun ruxsatnoma`}
-              </p>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {language === 'ru' ? 'Причина отмены *' : 'Bekor qilish sababi *'}
-              </label>
-              <textarea
-                value={revokeReason}
-                onChange={(e) => setRevokeReason(e.target.value)}
-                placeholder={language === 'ru' ? 'Укажите причину...' : 'Sababni kiriting...'}
-                rows={3}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-0 resize-none"
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowRevokeModal(null);
-                  setRevokeReason('');
-                }}
-                className="flex-1 py-3 border-2 border-gray-200 rounded-xl font-medium hover:bg-gray-50"
-              >
-                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
-              </button>
-              <button
-                onClick={handleRevoke}
-                disabled={!revokeReason.trim()}
-                className="flex-1 py-3 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white rounded-xl font-bold"
-              >
-                {language === 'ru' ? 'Отменить пропуск' : 'Bekor qilish'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={!!showRevokeModal}
+        tone="danger"
+        title={language === 'ru' ? 'Отменить пропуск?' : 'Ruxsatnomani bekor qilasizmi?'}
+        description={showRevokeModal
+          ? (language === 'ru'
+              ? `Пропуск для ${showRevokeModal.residentName} (кв. ${showRevokeModal.residentApartment})`
+              : `${showRevokeModal.residentName} (${showRevokeModal.residentApartment}-xona) uchun ruxsatnoma`)
+          : undefined}
+        confirmLabel={language === 'ru' ? 'Отменить пропуск' : 'Bekor qilish'}
+        cancelLabel={language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+        confirmDisabled={!revokeReason.trim()}
+        onClose={() => { setShowRevokeModal(null); setRevokeReason(''); }}
+        onConfirm={handleRevoke}
+      >
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {language === 'ru' ? 'Причина отмены *' : 'Bekor qilish sababi *'}
+        </label>
+        <textarea
+          value={revokeReason}
+          onChange={(e) => setRevokeReason(e.target.value)}
+          placeholder={language === 'ru' ? 'Укажите причину...' : 'Sababni kiriting...'}
+          rows={3}
+          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-0 resize-none"
+        />
+      </ConfirmDialog>
     </div>
   );
 }

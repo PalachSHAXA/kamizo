@@ -7,3 +7,4 @@ export { ErrorState } from './ErrorState';
 export { StatusBadge, StatusStat } from './StatusBadge';
 export { MessageContent } from './MessageContent';
 export { Sheet, SheetErrorBoundary } from './Sheet';
+export { ConfirmDialog } from './ConfirmDialog';

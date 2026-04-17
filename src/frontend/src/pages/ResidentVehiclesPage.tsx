@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Car, Plus, X, Edit2, Trash2, AlertTriangle, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home } from 'lucide-react';
+import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home } from 'lucide-react';
+import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore, useVehicleStore } from '../stores/dataStore';
@@ -527,16 +528,19 @@ export function ResidentVehiclesPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-3">
-                    {/* Owner info */}
-                    {searchResult.ownerName && (
+                    {/* Владельца рендерим как "Вы" для собственных авто,
+                        иначе прячем — чтобы даже при реверсированном поиске
+                        (маловероятно, но возможно при багах API) не
+                        засветить ФИО другого собственника. */}
+                    {searchResult.ownerId === user?.id ? (
                       <div className="flex items-center gap-3">
                         <User className="w-5 h-5 text-gray-400" />
                         <div>
                           <p className="text-xs text-gray-500">{language === 'ru' ? 'Владелец' : 'Egasi'}</p>
-                          <p className="font-medium">{searchResult.ownerName}</p>
+                          <p className="font-medium">{language === 'ru' ? 'Вы' : 'Siz'}</p>
                         </div>
                       </div>
-                    )}
+                    ) : null}
                     {/* Phone */}
                     <div className="flex items-center gap-3">
                       <Phone className="w-5 h-5 text-gray-400" />
@@ -928,48 +932,31 @@ export function ResidentVehiclesPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal — names the specific vehicle so the
-          user double-checks they're deleting the right one. */}
-      {deleteConfirm && (() => {
-        const target = myVehicles.find(v => v.id === deleteConfirm);
+      {(() => {
+        const target = deleteConfirm ? vehicles.find(v => v.id === deleteConfirm) : null;
         const plate = target?.plateNumber || '';
         const model = target ? `${target.brand || ''} ${target.model || ''}`.trim() : '';
         return (
-        <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
-            </div>
-            <h3 className="text-lg font-bold text-center mb-2">
-              {language === 'ru' ? 'Удалить автомобиль?' : 'Avtomobilni o\'chirish?'}
-            </h3>
-            {(model || plate) && (
-              <div className="text-center mb-2">
-                {model && <div className="text-[15px] font-semibold text-gray-900">{model}</div>}
-                {plate && <div className="text-sm font-mono tracking-wider text-gray-600 mt-0.5">{plate}</div>}
-              </div>
-            )}
-            <p className="text-gray-500 text-center text-sm mb-6">
-              {language === 'ru'
-                ? 'Это действие нельзя отменить'
-                : 'Bu amalni bekor qilib bo\'lmaydi'}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
-              >
-                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 active:bg-red-700 transition-colors touch-manipulation"
-              >
-                {language === 'ru' ? 'Удалить' : 'O\'chirish'}
-              </button>
-            </div>
-          </div>
-        </div>
+          <ConfirmDialog
+            isOpen={!!deleteConfirm}
+            tone="danger"
+            title={language === 'ru' ? 'Удалить автомобиль?' : 'Avtomobilni o\'chirish?'}
+            description={
+              <>
+                {(model || plate) && (
+                  <div className="mb-2">
+                    {model && <div className="text-[15px] font-semibold text-gray-900">{model}</div>}
+                    {plate && <div className="text-sm font-mono tracking-wider text-gray-600 mt-0.5">{plate}</div>}
+                  </div>
+                )}
+                <p>{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni bekor qilib bo\'lmaydi'}</p>
+              </>
+            }
+            confirmLabel={language === 'ru' ? 'Удалить' : 'O\'chirish'}
+            cancelLabel={language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+            onClose={() => setDeleteConfirm(null)}
+            onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+          />
         );
       })()}
     </div>

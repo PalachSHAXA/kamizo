@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import {
   QrCode, Plus, X, Clock, Package, Users, Car, User,
   Share2, Download, Copy, ChevronRight, ArrowLeft, Calendar,
-  AlertTriangle, Trash2
+  Trash2
 } from 'lucide-react';
-import { EmptyState, StatusBadge, StatusStat } from '../components/common';
+import { EmptyState, StatusBadge, ConfirmDialog } from '../components/common';
 import type { StatusTone } from '../theme';
 import { generateQRCodeCanvas } from '../components/LazyQRCode';
 import { useAuthStore } from '../stores/authStore';
@@ -15,6 +15,7 @@ import {
   VISITOR_TYPE_LABELS, ACCESS_TYPE_LABELS, GUEST_ACCESS_STATUS_LABELS,
   type GuestAccessCode, type VisitorType, type AccessType
 } from '../types';
+import { safeLabel } from '../utils/safeLabel';
 
 // Map guest-access status to semantic StatusTone for StatusBadge
 function toneFor(status: string): StatusTone {
@@ -24,24 +25,9 @@ function toneFor(status: string): StatusTone {
   return 'expired';
 }
 
-// Defensive label lookups. Historical data may contain visitor/access/status
-// values not in the current enum (e.g. legacy 'unknown', null from early
-// schema, typos). Crashing the whole page over one bad row — as happened
-// for Farhod — is unacceptable, so we fall back to the 'other'/'custom'
-// entries for rendering.
-const FALLBACK_VISITOR = VISITOR_TYPE_LABELS.other;
-const FALLBACK_ACCESS = ACCESS_TYPE_LABELS.custom;
-const FALLBACK_STATUS = GUEST_ACCESS_STATUS_LABELS.expired;
-
-function safeVisitorLabel(type: unknown) {
-  return (type && VISITOR_TYPE_LABELS[type as keyof typeof VISITOR_TYPE_LABELS]) || FALLBACK_VISITOR;
-}
-function safeAccessLabel(type: unknown) {
-  return (type && ACCESS_TYPE_LABELS[type as keyof typeof ACCESS_TYPE_LABELS]) || FALLBACK_ACCESS;
-}
-function safeStatusLabel(status: unknown) {
-  return (status && GUEST_ACCESS_STATUS_LABELS[status as keyof typeof GUEST_ACCESS_STATUS_LABELS]) || FALLBACK_STATUS;
-}
+const safeVisitorLabel = (t: unknown) => safeLabel(VISITOR_TYPE_LABELS, t, VISITOR_TYPE_LABELS.other);
+const safeAccessLabel = (t: unknown) => safeLabel(ACCESS_TYPE_LABELS, t, ACCESS_TYPE_LABELS.custom);
+const safeStatusLabel = (s: unknown) => safeLabel(GUEST_ACCESS_STATUS_LABELS, s, GUEST_ACCESS_STATUS_LABELS.expired);
 
 // QR Code display component
 function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => void }) {
@@ -932,40 +918,18 @@ export function ResidentGuestAccessPage() {
         />
       )}
 
-      {/* Revoke confirmation */}
-      {showRevokeConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-6">
-            <div className="text-center mb-4">
-              <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertTriangle className="w-8 h-8 text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold mb-2">
-                {language === 'ru' ? 'Отменить пропуск?' : 'Ruxsatnomani bekor qilasizmi?'}
-              </h3>
-              <p className="text-gray-600 text-sm">
-                {language === 'ru'
-                  ? 'Пропуск будет деактивирован и не сможет быть использован'
-                  : 'Ruxsatnoma o\'chiriladi va ishlatib bo\'lmaydi'}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowRevokeConfirm(null)}
-                className="flex-1 py-3 min-h-[44px] border-2 border-gray-200 rounded-lg sm:rounded-xl font-medium hover:bg-gray-50 active:bg-gray-100 touch-manipulation"
-              >
-                {language === 'ru' ? 'Нет' : 'Yo\'q'}
-              </button>
-              <button
-                onClick={handleRevoke}
-                className="flex-1 py-3 min-h-[44px] bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-lg sm:rounded-xl font-medium touch-manipulation"
-              >
-                {language === 'ru' ? 'Да, отменить' : 'Ha, bekor qilish'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={!!showRevokeConfirm}
+        tone="danger"
+        title={language === 'ru' ? 'Отменить пропуск?' : 'Ruxsatnomani bekor qilasizmi?'}
+        description={language === 'ru'
+          ? 'Пропуск будет деактивирован и не сможет быть использован'
+          : 'Ruxsatnoma o\'chiriladi va ishlatib bo\'lmaydi'}
+        confirmLabel={language === 'ru' ? 'Да, отменить' : 'Ha, bekor qilish'}
+        cancelLabel={language === 'ru' ? 'Нет' : 'Yo\'q'}
+        onClose={() => setShowRevokeConfirm(null)}
+        onConfirm={handleRevoke}
+      />
     </div>
   );
 }

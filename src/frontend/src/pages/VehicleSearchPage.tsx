@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, AlertTriangle, QrCode, Loader2 } from 'lucide-react';
+import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, QrCode, Loader2 } from 'lucide-react';
+import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
 import { useDataStore } from '../stores/dataStore';
@@ -1001,37 +1002,33 @@ export function VehicleSearchPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {/* TODO: migrate to <Modal> component */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-6 max-w-sm w-full">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
-            </div>
-            <h3 className="text-base sm:text-lg font-bold text-center mb-2">
-              {language === 'ru' ? 'Удалить автомобиль?' : 'Avtomobilni o\'chirish?'}
-            </h3>
-            <p className="text-gray-500 text-center text-sm mb-6">
-              {language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni bekor qilib bo\'lmaydi'}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
-              >
-                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-3 px-4 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 active:bg-red-700 transition-colors touch-manipulation"
-              >
-                {language === 'ru' ? 'Удалить' : 'O\'chirish'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {(() => {
+        const target = deleteConfirm ? vehicles.find(v => v.id === deleteConfirm) : null;
+        const plate = target?.plateNumber || '';
+        const model = target ? `${target.brand || ''} ${target.model || ''}`.trim() : '';
+        return (
+          <ConfirmDialog
+            isOpen={!!deleteConfirm}
+            tone="danger"
+            title={language === 'ru' ? 'Удалить автомобиль?' : 'Avtomobilni o\'chirish?'}
+            description={
+              <>
+                {(model || plate) && (
+                  <div className="mb-2">
+                    {model && <div className="text-[15px] font-semibold text-gray-900">{model}</div>}
+                    {plate && <div className="text-sm font-mono tracking-wider text-gray-600 mt-0.5">{plate}</div>}
+                  </div>
+                )}
+                <p>{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni bekor qilib bo\'lmaydi'}</p>
+              </>
+            }
+            confirmLabel={language === 'ru' ? 'Удалить' : 'O\'chirish'}
+            cancelLabel={language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+            onClose={() => setDeleteConfirm(null)}
+            onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+          />
+        );
+      })()}
     </div>
   );
 }
