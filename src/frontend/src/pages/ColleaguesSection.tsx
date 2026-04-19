@@ -304,10 +304,17 @@ function StarRating({ rating, maxStars = 5, size = 'md', onChange }: {
 }
 
 // Модальное окно оценки
-function RatingModal({ employee, onClose, onSubmit }: {
+//
+// Жителю не нужно оценивать мастера по 10 HR-критериям вроде
+// "аналитические способности" — это пугает и не релевантно. Для resident
+// показываем 3 простых критерия (качество, вежливость, скорость), а
+// остальные автоматически заполняем тем же средним, чтобы backend-логика
+// агрегации и ранга в "Лучших мастеров" не ломалась.
+function RatingModal({ employee, onClose, onSubmit, isResidentView }: {
   employee: Employee;
   onClose: () => void;
   onSubmit: (ratings: Rating['ratings']) => void;
+  isResidentView: boolean;
 }) {
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
@@ -326,7 +333,41 @@ function RatingModal({ employee, onClose, onSubmit }: {
   });
   const [comment, setComment] = useState('');
 
+  // Resident view sees only 3 criteria; they map to the backend's three
+  // most resident-relevant dimensions.
+  const residentCriteria: { key: keyof Rating['ratings']; label: { ru: string; uz: string } }[] = [
+    { key: 'qualityOfWork', label: { ru: 'Качество работы', uz: 'Ish sifati' } },
+    { key: 'humanity', label: { ru: 'Вежливость', uz: 'Xushmuomalalik' } },
+    { key: 'execution', label: { ru: 'Скорость', uz: 'Tezlik' } },
+  ];
+  const visibleCriteria = isResidentView
+    ? residentCriteria.map(c => [c.key, language === 'ru' ? c.label.ru : c.label.uz] as const)
+    : (Object.entries(labels.criteriaLabels) as [keyof Rating['ratings'], string][]);
+
   const handleSubmit = () => {
+    if (isResidentView) {
+      // Require all 3 visible criteria to have a rating.
+      const missing = residentCriteria.some(c => !ratings[c.key]);
+      if (missing) {
+        addToast('warning', language === 'ru' ? 'Пожалуйста, оцените все критерии' : 'Iltimos, barcha mezonlarni baholang');
+        return;
+      }
+      // Auto-fill the rest with the average of the 3 given ratings.
+      const avg = (ratings.qualityOfWork + ratings.humanity + ratings.execution) / 3;
+      onSubmit({
+        ...ratings,
+        professionalKnowledge: avg,
+        legislationKnowledge: avg,
+        analyticalSkills: avg,
+        reliability: avg,
+        teamwork: avg,
+        communication: avg,
+        initiative: avg,
+      });
+      onClose();
+      return;
+    }
+
     const allRated = Object.values(ratings).every(r => r > 0);
     if (!allRated) {
       addToast('warning', language === 'ru' ? 'Пожалуйста, оцените все критерии' : 'Iltimos, barcha mezonlarni baholang');
@@ -344,7 +385,7 @@ function RatingModal({ employee, onClose, onSubmit }: {
         </div>
 
         <div className="space-y-4">
-          {Object.entries(labels.criteriaLabels).map(([key, label]) => (
+          {visibleCriteria.map(([key, label]) => (
             <div key={key} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
               <span className="text-sm font-medium">{label}</span>
               <StarRating
@@ -558,7 +599,7 @@ function NewsFeed({ news }: { news: NewsItem[] }) {
 }
 
 // Топ коллег
-function TopColleagues({ employees }: { employees: Employee[] }) {
+function TopColleagues({ employees, isResidentView }: { employees: Employee[]; isResidentView: boolean }) {
   const sortedByRating = [...employees].sort((a, b) => safeAvgRating(b.ratings) - safeAvgRating(a.ratings));
 
   const topThree = sortedByRating.slice(0, 3);
@@ -571,11 +612,14 @@ function TopColleagues({ employees }: { employees: Employee[] }) {
     return null;
   }
 
+  // Residents don't have "colleagues" here — they're rating building staff.
+  const heading = isResidentView ? 'Лучшие мастера месяца' : 'Лучшие коллеги месяца';
+
   return (
     <div className="glass-card p-4 sm:p-6 mb-6 overflow-hidden">
       <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
         <Award className="w-5 h-5 text-primary-500 flex-shrink-0" />
-        <span className="truncate">Лучшие коллеги месяца</span>
+        <span className="truncate">{heading}</span>
       </h2>
 
       <div className="space-y-3 mb-6">
@@ -1000,7 +1044,7 @@ function ColleaguesSectionInner() {
           </div>
 
           <div>
-            <TopColleagues employees={employees} />
+            <TopColleagues employees={employees} isResidentView={isResidentView} />
             <NewsFeed news={news} />
           </div>
         </div>
@@ -1009,6 +1053,7 @@ function ColleaguesSectionInner() {
       {showRatingModal && (
         <RatingModal
           employee={showRatingModal}
+          isResidentView={isResidentView}
           onClose={() => setShowRatingModal(null)}
           onSubmit={(ratings) => {
             handleSubmitRating(showRatingModal.id, ratings);

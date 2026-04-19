@@ -20,8 +20,13 @@ export function RequestDetailsModal({
   const canReschedule = ['assigned', 'accepted', 'in_progress', 'pending_approval'].includes(request.status) && request.executorId && !hasActiveReschedule;
 
   return (
-    <div className="modal-backdrop">
-      <div className="w-full max-w-lg mx-4 max-h-[90dvh] overflow-y-auto">
+    <div className="modal-backdrop" onClick={onClose}>
+      {/* stopPropagation so clicks inside the sheet don't dismiss it;
+          tapping the backdrop around the sheet does. */}
+      <div
+        className="w-full max-w-lg mx-4 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Status Tracker */}
         <RequestStatusTracker
           request={request}

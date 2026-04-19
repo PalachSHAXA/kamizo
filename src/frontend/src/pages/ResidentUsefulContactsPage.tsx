@@ -540,10 +540,11 @@ export default function ResidentUsefulContactsPage() {
             <a
               key={service.number}
               href={`tel:${service.number}`}
-              className={`flex flex-col items-center justify-center min-w-[90px] ${service.bg} border ${service.border} rounded-2xl p-3 active:scale-95 transition-transform flex-shrink-0`}
+              aria-label={`${service.name} ${service.number}`}
+              className={`flex flex-col items-center justify-center min-w-[104px] ${service.bg} border ${service.border} rounded-2xl p-3 active:scale-95 transition-transform flex-shrink-0 touch-manipulation`}
             >
               <service.icon className={`w-5 h-5 ${service.color} mb-1.5`} />
-              <div className="text-xs text-gray-500 font-medium truncate max-w-[80px] text-center">{service.name}</div>
+              <div className="text-xs text-gray-500 font-medium text-center whitespace-nowrap">{service.name}</div>
               <div className="text-[15px] font-black text-gray-900">{service.number}</div>
             </a>
           ))}

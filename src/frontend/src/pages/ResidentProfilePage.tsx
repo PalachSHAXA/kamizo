@@ -11,6 +11,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { generateQRCode } from '../components/LazyQRCode';
 import { generateContractDocx } from '../utils/contractGenerator';
+import { formatPhone } from '../utils/formatPhone';
 import { ContractPreview } from '../components/ContractPreview';
 import { InstallAppSection } from '../components/InstallAppSection';
 
@@ -392,8 +393,8 @@ export function ResidentProfilePage() {
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-gray-400 font-medium">{t.phone}</div>
                 {!editingPhone ? (
-                  <div className="font-medium text-[14px] text-gray-900">
-                    {user.phone || t.notSpecified}
+                  <div className="font-medium text-[14px] text-gray-900 font-mono tabular-nums">
+                    {user.phone ? formatPhone(user.phone) : t.notSpecified}
                   </div>
                 ) : (
                   <input

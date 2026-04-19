@@ -479,10 +479,14 @@ export function ResidentDashboard() {
         />
       )}
 
-      {/* Install App — compact banner, full guide lives on /profile. */}
-      <div className="px-3 md:px-0 pb-2">
-        <InstallAppBanner language={language} />
-      </div>
+      {/* Install App — compact banner, full guide lives on /profile.
+          Render only on the home tab: on the requests tab it crowded the
+          list and the audit flagged it as a PWA-duplicate regression. */}
+      {activeTab === 'home' && (
+        <div className="px-3 md:px-0 pb-2">
+          <InstallAppBanner language={language} />
+        </div>
+      )}
 
       {/* Bottom bar is now rendered globally by Layout via BottomBar component */}
     </div>

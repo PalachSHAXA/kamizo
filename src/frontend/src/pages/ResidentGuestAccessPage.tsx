@@ -131,50 +131,68 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
   };
 
   const handleShare = async () => {
-    // Create combined image with QR code and info
+    // Share cascade:
+    //  1) Web Share with file — mobile default.
+    //  2) Web Share with text only — when canShare(files) is false
+    //     (Chrome on Android sometimes rejects PNG files).
+    //  3) Clipboard write (image) — desktop.
+    //  4) Clipboard write (text) — when image clipboard is blocked.
+    //  5) Download — absolute fallback.
+    // Previously the button silently no-op'd if steps 1-3 all failed
+    // without surfacing any feedback.
     const combinedBlob = await createImageWithCaption();
+    const passText = language === 'ru'
+      ? `Пропуск для гостя\n${code.residentAddress}, кв. ${code.residentApartment}\nОт: ${code.residentName}\nКод: ${code.qrToken}`
+      : `Mehmon uchun ruxsatnoma\n${code.residentAddress}, ${code.residentApartment}-xona\nKimdan: ${code.residentName}\nKod: ${code.qrToken}`;
 
-    if (!combinedBlob) {
-      handleDownload();
-      return;
-    }
-
-    const file = new File([combinedBlob], `guest-pass-${code.id}.png`, { type: 'image/png' });
-
-    // Check if Web Share API is available and supports files
-    if (navigator.share) {
+    if (combinedBlob && navigator.share) {
+      const file = new File([combinedBlob], `guest-pass-${code.id}.png`, { type: 'image/png' });
       try {
-        const shareData = { files: [file] };
-
-        // Check if we can share files
-        if (navigator.canShare && navigator.canShare(shareData)) {
-          await navigator.share(shareData);
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: language === 'ru' ? 'Пропуск' : 'Ruxsatnoma', text: passText });
           return;
         }
       } catch (err) {
-        // If user cancelled, don't fallback
-        if ((err as Error).name === 'AbortError') {
-          return;
-        }
-        }
+        if ((err as Error).name === 'AbortError') return;
+      }
+      // Try share without files (text-only)
+      try {
+        await navigator.share({ title: language === 'ru' ? 'Пропуск' : 'Ruxsatnoma', text: passText });
+        return;
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+      }
     }
 
-    // Desktop fallback: copy image to clipboard
+    // Desktop: copy image to clipboard
+    if (combinedBlob) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': combinedBlob })]);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        addToast('info', language === 'ru'
+          ? 'QR-код скопирован в буфер обмена. Вставьте его в чат (Ctrl+V)'
+          : 'QR-kod buferga nusxalandi. Chatga qo\'ying (Ctrl+V)');
+        return;
+      } catch { /* fall through */ }
+    }
+
+    // Text clipboard fallback — image clipboard is blocked on some browsers
     try {
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': combinedBlob })
-      ]);
+      await navigator.clipboard.writeText(passText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      addToast('success', language === 'ru'
+        ? 'Данные пропуска скопированы. Отправьте их гостю.'
+        : 'Ruxsatnoma ma\'lumotlari nusxalandi.');
+      return;
+    } catch { /* fall through */ }
 
-      // Show alert that image was copied
-      addToast('info', language === 'ru'
-        ? 'QR-код скопирован в буфер обмена. Вставьте его в чат (Ctrl+V)'
-        : 'QR-kod buferga nusxalandi. Chatga qo\'ying (Ctrl+V)');
-    } catch (clipErr) {
-      // Final fallback: download the image
-      handleDownload();
-    }
+    // Final fallback — download the image so the user has something tangible
+    handleDownload();
+    addToast('info', language === 'ru'
+      ? 'QR-код сохранён в Загрузки — отправьте файл гостю'
+      : 'QR-kod Yuklamalarga saqlandi');
   };
 
   const visitorLabel = safeVisitorLabel(code.visitorType);
@@ -309,8 +327,26 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
 
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Name is required for person-type visitors — without it the guard has
+  // nothing to match against at the gate. Couriers/taxis are identified by
+  // package/plate so name stays optional.
+  const needsVisitorName = visitorType === 'guest' || visitorType === 'other';
+  const canSubmit =
+    !!visitorType &&
+    !!accessType &&
+    !isCreating &&
+    (!needsVisitorName || visitorName.trim().length >= 2) &&
+    (accessType !== 'custom' || !!customDate);
+
   const handleCreate = async () => {
     if (!visitorType || !accessType || !user || isCreating) {
+      return;
+    }
+
+    if (needsVisitorName && visitorName.trim().length < 2) {
+      setCreateError(language === 'ru'
+        ? 'Укажите имя гостя — охраннику нужно кого-то ждать на входе'
+        : 'Mehmon ismini kiriting — qo\'riqchi kimni kutishini bilishi kerak');
       return;
     }
 
@@ -530,6 +566,7 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {language === 'ru' ? 'Имя гостя' : 'Mehmon ismi'}
+                      {needsVisitorName && <span className="text-red-500 ml-0.5">*</span>}
                     </label>
                     <input
                       type="text"
@@ -623,7 +660,7 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
 
               <button
                 onClick={handleCreate}
-                disabled={(accessType === 'custom' && !customDate) || isCreating}
+                disabled={!canSubmit}
                 className="w-full py-4 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-300 text-gray-900 font-bold rounded-lg sm:rounded-xl transition-colors touch-manipulation"
               >
                 {isCreating
@@ -731,7 +768,7 @@ export function ResidentGuestAccessPage() {
           and the same numbers appeared twice. Collapsed into a single segmented
           control: the count is now part of the tab, so tapping a tab both
           filters the list and confirms the count. No more dangling cell. */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
         {(() => {
           const allCount = codes.filter(c => !isArchived(c)).length;
           const activeCount = activeCodes.length;
@@ -753,10 +790,10 @@ export function ResidentGuestAccessPage() {
               <button
                 key={tab.id}
                 onClick={() => setFilter(tab.id)}
-                className={`px-3.5 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium whitespace-nowrap transition-colors touch-manipulation flex items-center gap-1.5 ${
+                className={`flex-shrink-0 px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium whitespace-nowrap transition-colors touch-manipulation flex items-center gap-2 ${
                   isActive
                     ? 'bg-primary-500 text-gray-900'
-                    : 'bg-white/50 text-gray-600 hover:bg-white'
+                    : 'bg-white/70 text-gray-600 hover:bg-white'
                 }`}
                 aria-pressed={isActive}
               >
