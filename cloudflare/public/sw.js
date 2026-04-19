@@ -1,10 +1,15 @@
 // Kamizo PWA Service Worker
-// Version: 2.1.0
+// Version: 2.2.0 — cache suffix bumped to v4 so the activate handler
+// deletes every v3 cache on the next SW lifecycle update. This forces
+// every tenant's PWA users to re-fetch HTML + assets after a backend
+// deploy instead of serving stale UI from the old SW cache. Bump this
+// suffix any time a release needs to propagate urgently to existing
+// installs.
 
-const SW_VERSION = '2.1.0';
-const STATIC_CACHE = 'kamizo-static-v3';
-const ASSET_CACHE = 'kamizo-assets-v3';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v3';
+const SW_VERSION = '2.2.0';
+const STATIC_CACHE = 'kamizo-static-v4';
+const ASSET_CACHE = 'kamizo-assets-v4';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v4';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
