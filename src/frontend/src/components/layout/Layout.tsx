@@ -323,10 +323,13 @@ export function Layout() {
 
   const isSuperAdmin = user?.role === 'super_admin';
 
-  // Whether the MobileHeader is rendered (same condition as below)
+  // Whether the MobileHeader is rendered (same condition as below).
+  // Chat is a dedicated full-screen surface with its own header (back arrow +
+  // channel info + actions), so we drop the generic mobile header there.
   const showMobileHeader = !isSuperAdmin
     && location.pathname !== '/marketplace'
-    && location.pathname !== '/profile';
+    && location.pathname !== '/profile'
+    && location.pathname !== '/chat';
 
   return (
     <div

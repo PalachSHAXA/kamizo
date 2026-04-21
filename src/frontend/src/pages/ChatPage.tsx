@@ -610,10 +610,41 @@ function ChatView({
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
+  const [attachedFile, setAttachedFile] = useState<{ name: string; size: number; dataUrl?: string; isImage: boolean } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Resident-side quick replies — the 3 most common openings. Shown only
+  // when message input is empty so they don't overlap typing.
+  const RESIDENT_QUICK_REPLIES = language === 'ru'
+    ? ['Вызвать мастера', 'Статус заявки', 'Показания счётчиков']
+    : ['Usta chaqirish', 'Ariza holati', 'Hisoblagichlar'];
+
+  // Human-readable file size for attachment chip.
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleFilePick = (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    // Cap inline images at 800 KB — anything bigger would bloat the message
+    // payload. Larger files arrive as a filename reference only until proper
+    // object storage is wired up.
+    const INLINE_IMAGE_LIMIT = 800 * 1024;
+    if (isImage && file.size <= INLINE_IMAGE_LIMIT) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachedFile({ name: file.name, size: file.size, dataUrl: String(reader.result), isImage: true });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setAttachedFile({ name: file.name, size: file.size, isImage });
+    }
+  };
 
   // ── visualViewport keyboard handling — keep input visible above keyboard ──
   useEffect(() => {
@@ -761,9 +792,30 @@ function ChatView({
   }, [showSearch]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !user || isSending) return;
-    const messageToSend = newMessage.trim();
+    const textPart = newMessage.trim();
+    const hasAttachment = !!attachedFile;
+    if (!textPart && !hasAttachment) return;
+    if (!user || isSending) return;
+
+    // Build the outgoing payload. Inline images get embedded as a data-URL
+    // inside the message content so they render inline via MessageContent
+    // without needing a separate uploads endpoint. Non-image files surface
+    // as a "[📎 filename (size)]" reference so the recipient at least
+    // sees what was meant to be shared.
+    let messageToSend = textPart;
+    if (hasAttachment) {
+      if (attachedFile!.isImage && attachedFile!.dataUrl) {
+        messageToSend = textPart
+          ? `${textPart}\n\n![${attachedFile!.name}](${attachedFile!.dataUrl})`
+          : `![${attachedFile!.name}](${attachedFile!.dataUrl})`;
+      } else {
+        const ref = `[📎 ${attachedFile!.name} · ${formatFileSize(attachedFile!.size)}]`;
+        messageToSend = textPart ? `${textPart}\n${ref}` : ref;
+      }
+    }
+
     setNewMessage('');
+    setAttachedFile(null);
     setIsSending(true);
 
     const tempId = `temp-${Date.now()}`;
@@ -859,48 +911,69 @@ function ChatView({
   return (
     <div
       ref={chatContainerRef}
-      className="h-full flex flex-col bg-white"
+      className="h-full flex flex-col bg-[#FEFAF6]"
       style={keyboardOffset > 0 ? { height: `calc(100% - ${keyboardOffset}px)` } : undefined}
     >
-      {/* ── Header ── */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="flex items-center gap-3 px-4 py-3">
+      {/* ── Header — redesigned: compact, avatar with online dot, minimal actions.
+            Uses sticky safe-area padding so it stays clear of the notch/status bar. ── */}
+      <div className="bg-white border-b border-gray-100 flex-shrink-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="flex items-center gap-2.5 px-3 py-2.5">
           <button
             onClick={onBack}
-            className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${hideBackOnDesktop ? 'md:hidden' : ''}`}
-            aria-label="Назад"
+            className={`w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${hideBackOnDesktop ? 'md:hidden' : ''}`}
+            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
 
-          <div className={`w-10 h-10 rounded-[13px] flex items-center justify-center flex-shrink-0 ${
-            isPrivateSupport
-              ? `bg-gradient-to-br ${getAvatarColor(channel?.name || '')} text-white font-semibold text-sm`
-              : channel?.type === 'uk_general' ? 'bg-purple-100 text-lg' : 'bg-emerald-100 text-lg'
-          }`}>
-            {isPrivateSupport
-              ? getInitials(isResident ? (language === 'ru' ? 'Администрация' : 'Administratsiya') : (channel?.name || ''))
-              : (channel?.type === 'uk_general' ? '🏢' : '🏠')
-            }
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-gray-900 truncate">{getTitle()}</h3>
-            <p className="text-xs text-gray-500 truncate">{getSubtitle()}</p>
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <div className="relative flex-shrink-0">
+              <div className={`w-10 h-10 rounded-[13px] flex items-center justify-center ${
+                isPrivateSupport
+                  ? `bg-gradient-to-br ${getAvatarColor(channel?.name || '')} text-white font-bold text-[12px]`
+                  : channel?.type === 'uk_general' ? 'bg-purple-100 text-lg' : 'bg-emerald-100 text-lg'
+              }`}>
+                {isPrivateSupport
+                  ? (isResident ? 'УК' : getInitials(channel?.name || ''))
+                  : (channel?.type === 'uk_general' ? '🏢' : '🏠')}
+              </div>
+              {/* Online indicator — green dot on the avatar when УК is online.
+                  For residents we assume УК is always online during business
+                  hours; management-facing views don't show this. */}
+              {isPrivateSupport && isResident && (
+                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#10B981] border-2 border-white" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-[15px] font-bold text-gray-900 truncate leading-tight">{getTitle()}</h3>
+              <p className={`text-[11px] truncate leading-tight mt-0.5 font-medium ${
+                isPrivateSupport && isResident ? 'text-[#10B981]' : 'text-gray-500'
+              }`}>
+                {isPrivateSupport && isResident
+                  ? (language === 'ru' ? 'Онлайн' : 'Onlayn')
+                  : getSubtitle()}
+              </p>
+            </div>
           </div>
 
           <button
             onClick={() => { setShowSearch(s => !s); setShowInfo(false); }}
-            className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${showSearch ? 'bg-gray-100' : ''}`}
+            className={`w-10 h-10 flex items-center justify-center rounded-[12px] transition-colors touch-manipulation ${
+              showSearch ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+            }`}
+            aria-label={language === 'ru' ? 'Поиск' : 'Qidiruv'}
           >
-            <Search className="w-5 h-5 text-gray-600" />
+            <Search className="w-5 h-5" />
           </button>
           <div className="relative">
             <button
-              onClick={() => { setShowInfo(s => !s); setShowSearch(false); }}
-              className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${showInfo ? 'bg-gray-100' : ''}`}
+              onClick={() => { setShowInfo(s => !s); setShowSearch(false); setShowEmojiPicker(false); }}
+              className={`w-10 h-10 flex items-center justify-center rounded-[12px] transition-colors touch-manipulation ${
+                showInfo ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+              }`}
+              aria-label={language === 'ru' ? 'Меню' : 'Menyu'}
             >
-              <MoreVertical className="w-5 h-5 text-gray-600" />
+              <MoreVertical className="w-5 h-5" />
             </button>
             {showInfo && (
               <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-[14px] shadow-lg border border-gray-100 z-50 p-4">
@@ -998,8 +1071,17 @@ function ChatView({
         />
       )}
 
-      {/* ── Messages ── */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3" style={{ overscrollBehaviorY: 'contain' }}>
+      {/* ── Messages ── Subtle warm gradient so bubbles sit on a textured
+            background, not pure white. The gradient also implicitly scrolls
+            with the messages container (no parallax hacks). */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-3 py-3"
+        style={{
+          overscrollBehaviorY: 'contain',
+          background: 'linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%)',
+        }}
+      >
         {isLoading ? (
           <div className="h-full flex items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
@@ -1017,11 +1099,12 @@ function ChatView({
             </p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {messages.map((message, index) => {
               const isOwn = message.sender_id === user?.id;
               const prevMsg = index > 0 ? messages[index - 1] : null;
-              const showSender = !isOwn && (!prevMsg || prevMsg.sender_id !== message.sender_id);
+              const sameAuthorAsPrev = prevMsg && prevMsg.sender_id === message.sender_id;
+              const showSender = !isOwn && !sameAuthorAsPrev;
               const showDateSeparator = !prevMsg || getDateKey(prevMsg.created_at) !== getDateKey(message.created_at);
 
               const isSearchMatch = searchResults.includes(index);
@@ -1031,35 +1114,47 @@ function ChatView({
                 <div key={message.id} id={`msg-${index}`}>
                   {showDateSeparator && (
                     <div className="flex items-center justify-center py-3">
-                      <span className="px-3 py-1 bg-white/80 backdrop-blur-sm rounded-[10px] text-xs text-gray-400 font-medium shadow-sm">
+                      <span className="px-3 py-1 bg-black/[0.04] rounded-[10px] text-[11px] text-gray-500 font-medium">
                         {formatDateSeparator(message.created_at, language)}
                       </span>
                     </div>
                   )}
 
-                  <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${showSender ? 'mt-3' : 'mt-0.5'}`}>
-                    <div className={`max-w-[75%] ${isCurrentMatch ? 'ring-2 ring-orange-400 rounded-[20px]' : isSearchMatch ? 'ring-1 ring-orange-200 rounded-[20px]' : ''}`}>
+                  <div className={`flex items-end gap-2 px-1 ${isOwn ? 'justify-end' : 'justify-start'} ${showSender ? 'mt-2.5' : 'mt-0.5'}`}>
+                    {/* Admin side avatar — only on the first message of an author's
+                        block; kept invisible but width-stable on subsequent
+                        messages so bubbles align vertically. */}
+                    {!isOwn && (
+                      <div
+                        className={`w-[30px] h-[30px] rounded-[10px] flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold bg-gradient-to-br from-[#E8621A] to-[#F59E0B]`}
+                        style={{ visibility: showSender ? 'visible' : 'hidden' }}
+                      >
+                        УК
+                      </div>
+                    )}
+
+                    <div className={`max-w-[75%] flex flex-col ${isOwn ? 'items-end' : 'items-start'} ${isCurrentMatch ? 'ring-2 ring-orange-400 rounded-[20px]' : isSearchMatch ? 'ring-1 ring-orange-200 rounded-[20px]' : ''}`}>
                       {showSender && (
-                        <div className="flex items-center gap-2 mb-1 px-1">
-                          <span className="text-xs font-semibold text-gray-700">{message.sender_name}</span>
+                        <div className="flex items-center gap-1.5 mb-1 px-1">
+                          <span className="text-[11px] font-semibold text-gray-600">{formatName(message.sender_name)}</span>
                           <RoleBadge role={message.sender_role} language={language} />
                         </div>
                       )}
 
-                      {/* Chat bubble contrast:
-                          Mine — #E67E22 (dark orange) with white text, 4.6:1 ratio.
-                          UK   — #F3F4F6 (light gray) with gray-900 text, clearly
-                                 distinct from the white chat background. */}
-                      <div className={`px-3.5 py-2.5 ${
+                      <div className={`px-3.5 py-2 ${
                         isOwn
-                          ? 'bg-[#E67E22] text-white rounded-[18px] rounded-br-[6px] shadow-sm'
-                          : 'bg-[#F3F4F6] text-gray-900 rounded-[18px] rounded-bl-[6px]'
-                      } ${message.status === 'sending' ? 'opacity-60' : ''}`}>
+                          ? 'text-white rounded-[18px] rounded-br-[6px] shadow-[0_3px_12px_rgba(232,98,26,0.18)]'
+                          : 'bg-white text-gray-900 rounded-[18px] rounded-bl-[6px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-black/[0.04]'
+                      } ${message.status === 'sending' ? 'opacity-60' : ''}`}
+                      style={isOwn
+                        ? { background: 'linear-gradient(135deg, #E8621A 0%, #F59E0B 100%)' }
+                        : undefined}
+                      >
                         <MessageContent content={message.content} isOwn={isOwn} language={language === 'ru' ? 'ru' : 'uz'} />
                         <div className={`flex items-center justify-end gap-1 mt-1 ${
-                          isOwn ? 'text-white/75' : 'text-gray-500'
+                          isOwn ? 'text-white/75' : 'text-gray-400'
                         }`}>
-                          <span className="text-xs">{formatMessageTime(message.created_at, language)}</span>
+                          <span className="text-[10px] font-medium">{formatMessageTime(message.created_at, language)}</span>
                           {isOwn && message.status === 'sending' && (
                             <Loader2 className="w-3 h-3 animate-spin" />
                           )}
@@ -1071,7 +1166,7 @@ function ChatView({
                         </div>
                       </div>
                       {message.status === 'failed' && (
-                        <button onClick={() => retrySend(message)} className="text-red-500 text-xs flex items-center gap-1 mt-1 px-1">
+                        <button onClick={() => retrySend(message)} className="text-red-500 text-[11px] flex items-center gap-1 mt-1 px-1">
                           <AlertCircle className="w-3 h-3" /> {language === 'ru' ? 'Не отправлено. Повторить?' : 'Yuborilmadi. Qayta yuborishmi?'}
                         </button>
                       )}
@@ -1085,8 +1180,68 @@ function ChatView({
         )}
       </div>
 
+      {/* ── Resident quick replies — shown only when the composer is empty so
+            they don't fight with ongoing typing. Hidden for staff (who have
+            their own preset responses via QuickReplies above). ── */}
+      {isResident && isPrivateSupport && !newMessage.trim() && !attachedFile && !isLoading && (
+        <div
+          className="flex gap-2 px-3 py-2 overflow-x-auto border-t border-black/[0.03] bg-white scrollbar-none flex-shrink-0"
+          aria-label={language === 'ru' ? 'Быстрые ответы' : 'Tez javoblar'}
+        >
+          {RESIDENT_QUICK_REPLIES.map((text, i) => (
+            <button
+              key={i}
+              onClick={() => setNewMessage(text)}
+              className="flex-shrink-0 px-3.5 py-1.5 rounded-[20px] text-[12px] font-semibold whitespace-nowrap transition-colors active:scale-95 touch-manipulation"
+              style={{
+                color: '#E8621A',
+                background: 'rgba(232, 98, 26, 0.06)',
+                border: '1px solid rgba(232, 98, 26, 0.22)',
+              }}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Input ── */}
-      <div className="bg-white border-t flex-shrink-0" style={{ paddingBottom: keyboardOffset > 0 ? '0px' : 'env(safe-area-inset-bottom, 0px)' }}>
+      <div
+        className="bg-white border-t border-gray-100 flex-shrink-0"
+        style={{ paddingBottom: keyboardOffset > 0 ? '0px' : 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+      >
+        {/* Attached file preview — dismissible chip above the input so the
+            user sees what they are about to send and can remove it before
+            tapping send. */}
+        {attachedFile && (
+          <div className="px-3 pt-2">
+            <div className="flex items-center gap-2.5 p-2 bg-orange-50 border border-orange-100 rounded-[14px]">
+              {attachedFile.dataUrl ? (
+                <img
+                  src={attachedFile.dataUrl}
+                  alt={attachedFile.name}
+                  className="w-10 h-10 rounded-[10px] object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-[10px] bg-white flex items-center justify-center flex-shrink-0 border border-orange-100">
+                  <Paperclip className="w-4 h-4 text-orange-500" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-gray-900 truncate">{attachedFile.name}</div>
+                <div className="text-[11px] text-gray-500">{formatFileSize(attachedFile.size)}</div>
+              </div>
+              <button
+                onClick={() => setAttachedFile(null)}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors touch-manipulation"
+                aria-label={language === 'ru' ? 'Убрать файл' : 'Faylni olib tashlash'}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Emoji picker */}
         {showEmojiPicker && (
           <div className="px-3 pt-2 pb-1">
@@ -1103,10 +1258,13 @@ function ChatView({
             </div>
           </div>
         )}
-        <div className="flex items-end gap-2 px-3 py-3">
+
+        <div className="flex items-end gap-2 px-3 py-2">
           <button
             onClick={() => setShowEmojiPicker(p => !p)}
-            className={`p-2 rounded-[12px] transition-colors flex-shrink-0 touch-manipulation ${showEmojiPicker ? 'bg-orange-100 text-orange-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+            className={`w-10 h-10 flex items-center justify-center rounded-[13px] transition-colors flex-shrink-0 touch-manipulation ${
+              showEmojiPicker ? 'bg-orange-100 text-orange-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+            }`}
             aria-label={language === 'ru' ? 'Эмодзи' : 'Emoji'}
             aria-pressed={showEmojiPicker}
           >
@@ -1114,7 +1272,7 @@ function ChatView({
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-[12px] text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0 touch-manipulation"
+            className="w-10 h-10 flex items-center justify-center rounded-[13px] text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0 touch-manipulation"
             aria-label={language === 'ru' ? 'Прикрепить файл' : 'Fayl biriktirish'}
           >
             <Paperclip className="w-5 h-5" />
@@ -1127,9 +1285,7 @@ function ChatView({
             aria-label={language === 'ru' ? 'Прикрепить файл' : 'Fayl biriktirish'}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) {
-                setNewMessage(prev => prev + (prev ? ' ' : '') + `[${file.name}]`);
-              }
+              if (file) handleFilePick(file);
               e.target.value = '';
             }}
           />
@@ -1147,8 +1303,8 @@ function ChatView({
                   handleSend();
                 }
               }}
-              placeholder={language === 'ru' ? 'Написать сообщение...' : 'Xabar yozing...'}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-[14px] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+              placeholder={language === 'ru' ? 'Сообщение...' : 'Xabar...'}
+              className="w-full px-4 py-2.5 bg-gray-50 rounded-[20px] text-[14px] border border-black/[0.04] focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition-all placeholder:text-gray-400"
               disabled={isSending}
               aria-label={language === 'ru' ? 'Написать сообщение' : 'Xabar yozing'}
             />
@@ -1156,8 +1312,15 @@ function ChatView({
 
           <button
             onClick={handleSend}
-            disabled={!newMessage.trim() || isSending}
-            className="p-2.5 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-300 disabled:to-gray-300 text-white rounded-[14px] transition-all touch-manipulation flex-shrink-0 shadow-sm shadow-orange-200 disabled:shadow-none active:scale-95"
+            disabled={(!newMessage.trim() && !attachedFile) || isSending}
+            className="w-10 h-10 flex items-center justify-center rounded-[13px] transition-all touch-manipulation flex-shrink-0 active:scale-95 disabled:bg-gray-100 disabled:text-gray-300 disabled:shadow-none"
+            style={(!newMessage.trim() && !attachedFile) || isSending
+              ? undefined
+              : {
+                  background: 'linear-gradient(135deg, #E8621A 0%, #F59E0B 100%)',
+                  color: 'white',
+                  boxShadow: '0 4px 12px rgba(232, 98, 26, 0.3)',
+                }}
             aria-label={language === 'ru' ? 'Отправить сообщение' : 'Xabar yuborish'}
           >
             {isSending ? (

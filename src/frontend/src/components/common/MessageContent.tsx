@@ -7,6 +7,11 @@ interface MessageContentProps {
 }
 
 const ATTACHMENT_RE = /\[([^\[\]]+?\.(?:png|jpg|jpeg|gif|webp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|mp3|mp4|mov))\]/gi;
+// Markdown-ish `![alt](data:image/png;base64,...)` inline image embed, used
+// when a resident attaches a small image from the chat composer. We accept
+// either a data: URL or an https:// URL so external image attachments render
+// too when/if object storage is wired up later.
+const IMAGE_EMBED_RE = /!\[([^\]]*)\]\(((?:data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+)|(?:https?:\/\/[^\s)]+))\)/g;
 
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp|svg)$/i;
 const PDF_EXT = /\.pdf$/i;
@@ -45,10 +50,21 @@ function AttachmentCard({ name, isOwn, language }: { name: string; isOwn: boolea
   );
 }
 
+type Part =
+  | { type: 'text'; value: string }
+  | { type: 'attachment'; name: string }
+  | { type: 'image'; alt: string; src: string };
+
 export function MessageContent({ content, isOwn, language }: MessageContentProps) {
-  // Fast path: no attachment pattern → just render text
-  if (!content.includes('[') || !ATTACHMENT_RE.test(content)) {
-    ATTACHMENT_RE.lastIndex = 0;
+  IMAGE_EMBED_RE.lastIndex = 0;
+  ATTACHMENT_RE.lastIndex = 0;
+  const hasImageEmbed = IMAGE_EMBED_RE.test(content);
+  IMAGE_EMBED_RE.lastIndex = 0;
+  const hasAttachment = ATTACHMENT_RE.test(content);
+  ATTACHMENT_RE.lastIndex = 0;
+
+  // Fast path: plain text
+  if (!hasImageEmbed && !hasAttachment) {
     return (
       <p className="text-[14px] whitespace-pre-wrap leading-relaxed" style={{ wordBreak: 'break-word' }}>
         {content}
@@ -56,25 +72,50 @@ export function MessageContent({ content, isOwn, language }: MessageContentProps
     );
   }
 
-  ATTACHMENT_RE.lastIndex = 0;
-  const parts: Array<{ type: 'text'; value: string } | { type: 'attachment'; name: string }> = [];
+  // First split out image embeds so we can render them as <img>. Then run
+  // the attachment-card parser on each remaining text fragment.
+  const imageParts: Array<{ type: 'text'; value: string } | { type: 'image'; alt: string; src: string }> = [];
   let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = ATTACHMENT_RE.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ type: 'text', value: content.slice(lastIndex, match.index) });
-    }
-    parts.push({ type: 'attachment', name: match[1] });
-    lastIndex = match.index + match[0].length;
+  let m: RegExpExecArray | null;
+  while ((m = IMAGE_EMBED_RE.exec(content)) !== null) {
+    if (m.index > lastIndex) imageParts.push({ type: 'text', value: content.slice(lastIndex, m.index) });
+    imageParts.push({ type: 'image', alt: m[1] || 'image', src: m[2] });
+    lastIndex = m.index + m[0].length;
   }
-  if (lastIndex < content.length) {
-    parts.push({ type: 'text', value: content.slice(lastIndex) });
+  if (lastIndex < content.length) imageParts.push({ type: 'text', value: content.slice(lastIndex) });
+
+  const finalParts: Part[] = [];
+  for (const ip of imageParts) {
+    if (ip.type === 'image') {
+      finalParts.push(ip);
+      continue;
+    }
+    // Re-run attachment regex against this text chunk
+    ATTACHMENT_RE.lastIndex = 0;
+    let inner = 0;
+    let am: RegExpExecArray | null;
+    while ((am = ATTACHMENT_RE.exec(ip.value)) !== null) {
+      if (am.index > inner) finalParts.push({ type: 'text', value: ip.value.slice(inner, am.index) });
+      finalParts.push({ type: 'attachment', name: am[1] });
+      inner = am.index + am[0].length;
+    }
+    if (inner < ip.value.length) finalParts.push({ type: 'text', value: ip.value.slice(inner) });
   }
 
   return (
     <div className="text-[14px] leading-relaxed" style={{ wordBreak: 'break-word' }}>
-      {parts.map((p, i) => {
+      {finalParts.map((p, i) => {
+        if (p.type === 'image') {
+          return (
+            <img
+              key={i}
+              src={p.src}
+              alt={p.alt}
+              loading="lazy"
+              className="my-1 rounded-[12px] max-w-full max-h-[320px] object-contain bg-black/5"
+            />
+          );
+        }
         if (p.type === 'attachment') {
           return <AttachmentCard key={i} name={p.name} isOwn={isOwn} language={language} />;
         }
