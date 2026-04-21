@@ -59,9 +59,23 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   // Query DB by userId
   // On subdomain: filter by tenant_id for isolation
   // On main domain: find user across ALL tenants (mobile app uses main domain)
-  const result = await env.DB.prepare(
+  let result = await env.DB.prepare(
     `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE id = ? ${authTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
   ).bind(...[userId, ...(authTenantId ? [authTenantId] : [])]).first();
+
+  // Super admin fallback: super admins have no tenant_id, so the tenanted
+  // query above misses them when they visit a tenant subdomain (e.g. the
+  // "Super Admin Panel" on kamizo.uz or an impersonation subdomain). Retry
+  // the lookup without the tenant filter and accept the row only if the
+  // user's role is super_admin — other roles must stay tenant-scoped.
+  if (!result && authTenantId) {
+    const fallback = await env.DB.prepare(
+      `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id FROM users WHERE id = ? AND is_active = 1 LIMIT 1`
+    ).bind(userId).first() as any;
+    if (fallback && fallback.role === 'super_admin') {
+      result = fallback;
+    }
+  }
 
   if (result) {
     const user = result as any;
