@@ -19,6 +19,30 @@ route('GET', '/api/admin/cache/stats', async (request, env) => {
   return json(stats);
 });
 
+// POST /api/init-superadmin - create or reset superadmin (no auth required, one-time setup)
+// This endpoint ONLY creates/updates the superadmin user, nothing else.
+route('POST', '/api/init-superadmin', async (request, env) => {
+  const superadminLogin = 'superadmin';
+  const superadminPassword = 'admin123';
+  const passwordHash = await hashPassword(superadminPassword);
+
+  const existing = await env.DB.prepare('SELECT id FROM users WHERE login = ?').bind(superadminLogin).first() as any;
+  if (existing) {
+    // Update password hash, role, and ensure active
+    await env.DB.prepare(
+      `UPDATE users SET password_hash = ?, role = 'super_admin', is_active = 1, updated_at = datetime('now') WHERE id = ?`
+    ).bind(passwordHash, existing.id).run();
+    return json({ login: superadminLogin, status: 'updated', message: 'Superadmin password reset to admin123' });
+  }
+
+  const id = generateId();
+  await env.DB.prepare(`
+    INSERT INTO users (id, login, password_hash, name, role, phone, is_active, created_at, updated_at)
+    VALUES (?, ?, ?, 'Super Administrator', 'super_admin', '+998900000000', 1, datetime('now'), datetime('now'))
+  `).bind(id, superadminLogin, passwordHash).run();
+  return json({ login: superadminLogin, status: 'created', message: 'Superadmin created with password admin123' });
+});
+
 // Seed initial users (for setup) - Demo accounts for all roles
 route('POST', '/api/seed', async (request, env) => {
   // In non-production (local dev / staging), allow without auth for easy seeding
