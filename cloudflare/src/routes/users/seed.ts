@@ -28,6 +28,8 @@ route('POST', '/api/seed', async (request, env) => {
   }
 
   const initialUsers = [
+    // Super admin account (password: admin123)
+    { login: 'superadmin', password: 'admin123', name: 'Super Administrator', role: 'super_admin', phone: '+998900000000' },
     // Demo accounts (password: kamizo) - matching LoginPage demo buttons
     { login: 'admin', password: 'palach27', name: 'Администратор', role: 'admin', phone: '+998901234567' },
     { login: 'director', password: 'kamizo', name: 'Директор Демо', role: 'director', phone: '+998901000000' },
