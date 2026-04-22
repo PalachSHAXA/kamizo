@@ -45,15 +45,20 @@ route('POST', '/api/seed', async (request, env) => {
   const results = [];
 
   for (const u of initialUsers) {
+    const passwordHash = await hashPassword(u.password);
+
     // Check if exists
-    const existing = await env.DB.prepare('SELECT id FROM users WHERE login = ?').bind(u.login).first();
+    const existing = await env.DB.prepare('SELECT id, password_hash FROM users WHERE login = ?').bind(u.login).first() as any;
     if (existing) {
-      results.push({ login: u.login, status: 'exists' });
+      // Update password hash and role (fixes bcrypt -> PBKDF2 migration)
+      await env.DB.prepare(
+        `UPDATE users SET password_hash = ?, role = ?, name = ?, updated_at = datetime('now') WHERE id = ?`
+      ).bind(passwordHash, u.role, u.name, existing.id).run();
+      results.push({ login: u.login, status: 'updated' });
       continue;
     }
 
     const id = generateId();
-    const passwordHash = await hashPassword(u.password);
 
     await env.DB.prepare(`
       INSERT INTO users (id, login, password_hash, name, role, phone, specialization, address, apartment)
