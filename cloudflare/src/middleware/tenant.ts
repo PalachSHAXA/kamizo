@@ -87,7 +87,12 @@ export function clearFeatureCache(tenantId: string): void {
 
 // Extract tenant slug from hostname
 export function getTenantSlug(hostname: string): string | null {
-  // Pattern: {slug}.kamizo.uz or {slug}.kamizo.shaxzod.workers.dev
+  // Main domains (not tenant subdomains) — return null
+  // kamizo.shaxzod.workers.dev is the main workers domain
+  if (hostname === 'kamizo.shaxzod.workers.dev') return null;
+  if (hostname === 'kamizo.uz') return null;
+
+  // Pattern: {slug}.kamizo.uz
   const kamizoMatch = hostname.match(/^([a-z0-9-]+)\.kamizo\.uz$/);
   if (kamizoMatch) {
     const slug = kamizoMatch[1];
@@ -96,6 +101,7 @@ export function getTenantSlug(hostname: string): string | null {
     return slug;
   }
 
+  // Pattern: {slug}.kamizo.shaxzod.workers.dev (tenant subdomains on workers)
   const workersMatch = hostname.match(/^([a-z0-9-]+)\.kamizo\.shaxzod\.workers\.dev$/);
   if (workersMatch) {
     return workersMatch[1];

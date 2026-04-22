@@ -50,9 +50,9 @@ route('POST', '/api/seed', async (request, env) => {
     // Check if exists
     const existing = await env.DB.prepare('SELECT id, password_hash FROM users WHERE login = ?').bind(u.login).first() as any;
     if (existing) {
-      // Update password hash and role (fixes bcrypt -> PBKDF2 migration)
+      // Update password hash, role, and ensure active (fixes bcrypt -> PBKDF2 migration)
       await env.DB.prepare(
-        `UPDATE users SET password_hash = ?, role = ?, name = ?, updated_at = datetime('now') WHERE id = ?`
+        `UPDATE users SET password_hash = ?, role = ?, name = ?, is_active = 1, updated_at = datetime('now') WHERE id = ?`
       ).bind(passwordHash, u.role, u.name, existing.id).run();
       results.push({ login: u.login, status: 'updated' });
       continue;
@@ -61,8 +61,8 @@ route('POST', '/api/seed', async (request, env) => {
     const id = generateId();
 
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, name, role, phone, specialization, address, apartment)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, login, password_hash, name, role, phone, specialization, address, apartment, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `).bind(
       id, u.login, passwordHash, u.name, u.role, u.phone,
       (u as any).specialization || null,
