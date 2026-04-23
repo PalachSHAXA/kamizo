@@ -3,6 +3,7 @@
 import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
+import { getTenantId } from '../../middleware/tenant';
 import { json, error, isManagement } from '../../utils/helpers';
 
 export function registerSettingsRoutes() {
@@ -14,7 +15,10 @@ route('GET', '/api/settings', async (request, env) => {
     return error('Manager access required', 403);
   }
 
-  const { results } = await env.DB.prepare('SELECT key, value, updated_at FROM settings').all();
+  const tenantId = getTenantId(request);
+  const { results } = await env.DB.prepare(
+    `SELECT key, value, updated_at FROM settings WHERE ${tenantId ? 'tenant_id = ?' : "(tenant_id IS NULL OR tenant_id = '')"}`
+  ).bind(...(tenantId ? [tenantId] : [])).all();
 
   // Convert to key-value object
   const settings: Record<string, any> = {};
@@ -32,7 +36,10 @@ route('GET', '/api/settings', async (request, env) => {
 // Get single setting
 // PUBLIC: no auth required
 route('GET', '/api/settings/:key', async (request, env, params) => {
-  const setting = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind(params.key).first();
+  const tenantId = getTenantId(request);
+  const setting = await env.DB.prepare(
+    `SELECT value FROM settings WHERE key = ? AND ${tenantId ? 'tenant_id = ?' : "(tenant_id IS NULL OR tenant_id = '')"}`
+  ).bind(...[params.key, ...(tenantId ? [tenantId] : [])]).first();
 
   if (!setting) {
     return json({ value: null });
@@ -54,12 +61,13 @@ route('PUT', '/api/settings/:key', async (request, env, params) => {
 
   const body = await request.json() as any;
   const value = typeof body.value === 'string' ? body.value : JSON.stringify(body.value);
+  const tenantId = getTenantId(request);
 
   await env.DB.prepare(`
-    INSERT INTO settings (key, value, updated_at)
-    VALUES (?, ?, datetime('now'))
+    INSERT INTO settings (key, value, tenant_id, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
     ON CONFLICT (key) DO UPDATE SET value = ?, updated_at = datetime('now')
-  `).bind(params.key, value, value).run();
+  `).bind(params.key, value, tenantId, value).run();
 
   return json({ success: true, key: params.key });
 });
@@ -72,14 +80,15 @@ route('POST', '/api/settings', async (request, env) => {
   }
 
   const body = await request.json() as Record<string, any>;
+  const tenantId = getTenantId(request);
 
   const statements = Object.entries(body).map(([key, val]) => {
     const value = typeof val === 'string' ? val : JSON.stringify(val);
     return env.DB.prepare(`
-      INSERT INTO settings (key, value, updated_at)
-      VALUES (?, ?, datetime('now'))
+      INSERT INTO settings (key, value, tenant_id, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
       ON CONFLICT (key) DO UPDATE SET value = ?, updated_at = datetime('now')
-    `).bind(key, value, value);
+    `).bind(key, value, tenantId, value);
   });
 
   if (statements.length > 0) {

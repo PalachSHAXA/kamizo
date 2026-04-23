@@ -3,7 +3,7 @@
 import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantForRequest } from '../../middleware/tenant';
+import { getTenantForRequest, getTenantId } from '../../middleware/tenant';
 import { getCacheStats } from '../../cache';
 import { invalidateOnChange } from '../../cache';
 import { metricsAggregator, healthCheck, AlertManager, logAnalyticsEvent } from '../../monitoring';
@@ -126,19 +126,23 @@ route('POST', '/api/admin/requests/reset', async (request, env) => {
   }
 
   try {
+    const tenantId = getTenantId(request);
+    const tenantFilter = tenantId ? ' WHERE tenant_id = ?' : '';
+    const tenantBinds = tenantId ? [tenantId] : [];
+
     // Delete request history first (FK constraint)
-    await env.DB.prepare('DELETE FROM request_history').run();
+    await env.DB.prepare(`DELETE FROM request_history${tenantFilter}`).bind(...tenantBinds).run();
 
     // Delete messages related to requests
-    await env.DB.prepare('DELETE FROM messages').run();
+    await env.DB.prepare(`DELETE FROM messages${tenantFilter}`).bind(...tenantBinds).run();
 
     // Delete all requests
-    await env.DB.prepare('DELETE FROM requests').run();
+    await env.DB.prepare(`DELETE FROM requests${tenantFilter}`).bind(...tenantBinds).run();
 
     // Reset request number sequence
     await env.DB.prepare(`
-      UPDATE settings SET value = '0' WHERE key = 'last_request_number'
-    `).run();
+      UPDATE settings SET value = '0' WHERE key = 'last_request_number'${tenantId ? ' AND tenant_id = ?' : ''}
+    `).bind(...tenantBinds).run();
 
     // Invalidate caches
     await invalidateOnChange('requests', env.RATE_LIMITER);
