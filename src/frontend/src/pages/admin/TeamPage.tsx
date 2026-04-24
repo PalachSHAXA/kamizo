@@ -900,8 +900,8 @@ export function TeamPage() {
                 </select>
               </div>
 
-              {/* 2. Специализация — только для исполнителя */}
-              {addForm.role === 'executor' && (
+              {/* 2. Специализация — для исполнителя и главы отдела */}
+              {(addForm.role === 'executor' || addForm.role === 'department_head') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'} *</label>
                   <select
