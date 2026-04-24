@@ -1,9 +1,46 @@
-import { FileText, Image as ImageIcon, FileIcon } from 'lucide-react';
+import { useState } from 'react';
+import { FileText, Image as ImageIcon, FileIcon, X, Download } from 'lucide-react';
 
 interface MessageContentProps {
   content: string;
   isOwn: boolean;
   language: 'ru' | 'uz';
+}
+
+// Fullscreen image lightbox
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = alt || 'image';
+    a.click();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-10"
+      >
+        <X className="w-6 h-6" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+        className="absolute top-4 right-16 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-10"
+      >
+        <Download className="w-6 h-6" />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className="max-w-full max-h-full object-contain rounded-lg"
+      />
+    </div>
+  );
 }
 
 const ATTACHMENT_RE = /\[([^\[\]]+?\.(?:png|jpg|jpeg|gif|webp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|mp3|mp4|mov))\]/gi;
@@ -56,6 +93,7 @@ type Part =
   | { type: 'image'; alt: string; src: string };
 
 export function MessageContent({ content, isOwn, language }: MessageContentProps) {
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
   IMAGE_EMBED_RE.lastIndex = 0;
   ATTACHMENT_RE.lastIndex = 0;
   const hasImageEmbed = IMAGE_EMBED_RE.test(content);
@@ -104,6 +142,9 @@ export function MessageContent({ content, isOwn, language }: MessageContentProps
 
   return (
     <div className="text-[14px] leading-relaxed" style={{ wordBreak: 'break-word' }}>
+      {lightboxImage && (
+        <ImageLightbox src={lightboxImage.src} alt={lightboxImage.alt} onClose={() => setLightboxImage(null)} />
+      )}
       {finalParts.map((p, i) => {
         if (p.type === 'image') {
           return (
@@ -112,7 +153,8 @@ export function MessageContent({ content, isOwn, language }: MessageContentProps
               src={p.src}
               alt={p.alt}
               loading="lazy"
-              className="my-1 rounded-[12px] max-w-full max-h-[320px] object-contain bg-black/5"
+              onClick={() => setLightboxImage({ src: p.src, alt: p.alt })}
+              className="my-1 rounded-[12px] max-w-full max-h-[320px] object-contain bg-black/5 cursor-pointer hover:opacity-90 active:scale-[0.98] transition-all"
             />
           );
         }
