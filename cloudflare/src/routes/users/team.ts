@@ -42,7 +42,7 @@ route('GET', '/api/team', async (request, env) => {
   const { results: staff } = await env.DB.prepare(`
     SELECT
       u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at,
-      ${canSeePasswords ? 'u.password_plain,' : ''}
+      u.password_plain,
       COALESCE(stats.completed_count, 0) as completed_count,
       COALESCE(stats.active_count, 0) as active_count,
       COALESCE(stats.avg_rating, 0) as avg_rating
@@ -70,16 +70,14 @@ route('GET', '/api/team', async (request, env) => {
     LIMIT 500
   `).bind(...(tenantId ? [tenantId] : []), ...params).all();
 
-  // Decrypt passwords for admin/director
-  if (canSeePasswords && env.ENCRYPTION_KEY) {
-    for (const s of staff as any[]) {
-      if (s.password_plain) {
-        try {
-          s.password = await decryptPassword(s.password_plain, env.ENCRYPTION_KEY);
-        } catch { s.password = null; }
-      }
-      delete s.password_plain;
+  // Decrypt passwords for admin/director, strip for others
+  for (const s of staff as any[]) {
+    if (canSeePasswords && s.password_plain && env.ENCRYPTION_KEY) {
+      try {
+        s.password = await decryptPassword(s.password_plain, env.ENCRYPTION_KEY);
+      } catch { s.password = null; }
     }
+    delete s.password_plain;
   }
 
   const admins = staff.filter((s: any) => s.role === 'admin');
@@ -105,7 +103,7 @@ route('GET', '/api/team/:id', async (request, env, params) => {
   const tenantId = getTenantId(request);
   const canSeePasswords = user.role === 'admin' || user.role === 'director';
   const staff = await env.DB.prepare(`
-    SELECT id, login, name, phone, role, specialization, status, created_at${canSeePasswords ? ', password_plain' : ''}
+    SELECT id, login, name, phone, role, specialization, status, created_at, password_plain
     FROM users
     WHERE id = ? AND role IN ('admin', 'manager', 'department_head', 'executor', 'director', 'advertiser')
       ${tenantId ? 'AND tenant_id = ?' : ''}
