@@ -39,14 +39,8 @@ route('GET', '/api/team', async (request, env) => {
 
   const canSeePasswords = user.role === 'admin' || user.role === 'director';
 
-  const { results: staff } = await env.DB.prepare(`
-    SELECT
-      u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at,
-      u.password_plain,
-      COALESCE(stats.completed_count, 0) as completed_count,
-      COALESCE(stats.active_count, 0) as active_count,
-      COALESCE(stats.avg_rating, 0) as avg_rating
-    FROM users u
+  const baseSelect = `u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at`;
+  const statsJoin = `
     LEFT JOIN (
       SELECT
         executor_id,
@@ -56,22 +50,40 @@ route('GET', '/api/team', async (request, env) => {
       FROM requests
       ${tenantId ? 'WHERE tenant_id = ?' : ''}
       GROUP BY executor_id
-    ) stats ON stats.executor_id = u.id
-    ${whereClause}
+    ) stats ON stats.executor_id = u.id`;
+  const orderBy = `
     ORDER BY
       CASE u.role
-        WHEN 'admin' THEN 0
-        WHEN 'manager' THEN 1
-        WHEN 'advertiser' THEN 1
-        WHEN 'department_head' THEN 2
-        WHEN 'executor' THEN 3
-      END,
-      u.name
-    LIMIT 500
-  `).bind(...(tenantId ? [tenantId] : []), ...params).all();
+        WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 WHEN 'advertiser' THEN 1
+        WHEN 'department_head' THEN 2 WHEN 'executor' THEN 3
+      END, u.name LIMIT 500`;
+  const bindings = [...(tenantId ? [tenantId] : []), ...params];
+
+  let staff: any[];
+  try {
+    // Try with password_plain column
+    const res = await env.DB.prepare(`
+      SELECT ${baseSelect}, u.password_plain,
+        COALESCE(stats.completed_count, 0) as completed_count,
+        COALESCE(stats.active_count, 0) as active_count,
+        COALESCE(stats.avg_rating, 0) as avg_rating
+      FROM users u ${statsJoin} ${whereClause} ${orderBy}
+    `).bind(...bindings).all();
+    staff = res.results as any[];
+  } catch {
+    // Fallback: password_plain column doesn't exist yet
+    const res = await env.DB.prepare(`
+      SELECT ${baseSelect},
+        COALESCE(stats.completed_count, 0) as completed_count,
+        COALESCE(stats.active_count, 0) as active_count,
+        COALESCE(stats.avg_rating, 0) as avg_rating
+      FROM users u ${statsJoin} ${whereClause} ${orderBy}
+    `).bind(...bindings).all();
+    staff = res.results as any[];
+  }
 
   // Decrypt passwords for admin/director, strip for others
-  for (const s of staff as any[]) {
+  for (const s of staff) {
     if (canSeePasswords && s.password_plain && env.ENCRYPTION_KEY) {
       try {
         s.password = await decryptPassword(s.password_plain, env.ENCRYPTION_KEY);
@@ -102,12 +114,20 @@ route('GET', '/api/team/:id', async (request, env, params) => {
 
   const tenantId = getTenantId(request);
   const canSeePasswords = user.role === 'admin' || user.role === 'director';
-  const staff = await env.DB.prepare(`
-    SELECT id, login, name, phone, role, specialization, status, created_at, password_plain
-    FROM users
-    WHERE id = ? AND role IN ('admin', 'manager', 'department_head', 'executor', 'director', 'advertiser')
-      ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  const roleFilter = "AND role IN ('admin', 'manager', 'department_head', 'executor', 'director', 'advertiser')";
+  const tenantFilter = tenantId ? 'AND tenant_id = ?' : '';
+  const idBinds = [params.id, ...(tenantId ? [tenantId] : [])];
+
+  let staff: any;
+  try {
+    staff = await env.DB.prepare(
+      `SELECT id, login, name, phone, role, specialization, status, created_at, password_plain FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
+    ).bind(...idBinds).first();
+  } catch {
+    staff = await env.DB.prepare(
+      `SELECT id, login, name, phone, role, specialization, status, created_at FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
+    ).bind(...idBinds).first();
+  }
 
   if (!staff) {
     return error('Staff member not found', 404);

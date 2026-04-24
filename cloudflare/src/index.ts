@@ -177,6 +177,18 @@ async function runMigrations(env: Env) {
       console.error('Migration error (users login unique):', e);
     }
 
+    // Migration: Add password_plain column to users table (encrypted passwords for admin visibility)
+    try {
+      const usersInfo = await env.DB.prepare(`PRAGMA table_info(users)`).all();
+      const usersCols = (usersInfo.results || []).map((col: any) => col.name);
+      if (!usersCols.includes('password_plain')) {
+        await env.DB.prepare(`ALTER TABLE users ADD COLUMN password_plain TEXT`).run();
+        console.log('Migration: Added password_plain column to users');
+      }
+    } catch (e) {
+      // Column might already exist
+    }
+
     // Migration 2: Add pause-related columns to requests table
     try {
       const tableInfo = await env.DB.prepare(`PRAGMA table_info(requests)`).all();
