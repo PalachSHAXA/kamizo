@@ -1159,7 +1159,7 @@ function ChatView({
                             <Loader2 className="w-3 h-3 animate-spin" />
                           )}
                           {isOwn && message.status !== 'sending' && message.status !== 'failed' && (
-                            message.read_by && message.read_by.length > 1
+                            message.read_by && message.read_by.length > 0
                               ? <CheckCheck className="w-3 h-3" />
                               : <Check className="w-3 h-3" />
                           )}

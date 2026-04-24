@@ -60,7 +60,9 @@ route('GET', '/api/chat/channels', async (request, env) => {
       SELECT c.*,
         COALESCE(stats.message_count, 0) as message_count,
         lm.content as last_message,
-        lm.created_at as last_message_at
+        lm.created_at as last_message_at,
+        lm.sender_id as last_sender_id,
+        COALESCE(unread.cnt, 0) as unread_count
       FROM chat_channels c
       LEFT JOIN (
         SELECT channel_id, COUNT(*) as message_count FROM chat_messages GROUP BY channel_id
@@ -71,6 +73,11 @@ route('GET', '/api/chat/channels', async (request, env) => {
           SELECT channel_id, MAX(created_at) as max_date FROM chat_messages GROUP BY channel_id
         ) m2 ON m1.channel_id = m2.channel_id AND m1.created_at = m2.max_date
       ) lm ON lm.channel_id = c.id
+      LEFT JOIN (
+        SELECT channel_id, COUNT(*) as cnt FROM chat_messages
+        WHERE sender_id != ? AND id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
+        GROUP BY channel_id
+      ) unread ON unread.channel_id = c.id
       WHERE (c.type = 'uk_general'
         OR c.resident_id = ?
         OR c.building_id = ?
@@ -79,7 +86,7 @@ route('GET', '/api/chat/channels', async (request, env) => {
       ORDER BY lm.created_at DESC NULLS LAST
       LIMIT 50
     `;
-    params = [user.id, user.building_id, user.id, ...(tenantId ? [tenantId] : [])];
+    params = [user.id, user.id, user.id, user.building_id, user.id, ...(tenantId ? [tenantId] : [])];
   }
 
   const { results } = await env.DB.prepare(query).bind(...params).all();
