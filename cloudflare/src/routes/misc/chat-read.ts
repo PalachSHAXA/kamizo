@@ -20,11 +20,25 @@ route('POST', '/api/chat/channels/:id/read', async (request, env, params) => {
   // Get the channel to check if it's private_support (with tenant filter)
   const channel = await env.DB.prepare(`SELECT type FROM chat_channels WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(channelId, ...(tenantId ? [tenantId] : [])).first() as { type: string } | null;
 
+  // Mark channel as read for the current user
+  await env.DB.prepare(`
+    INSERT INTO chat_channel_reads (channel_id, user_id, last_read_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(channel_id, user_id) DO UPDATE SET last_read_at = datetime('now')
+  `).bind(channelId, user.id).run();
+
+  // Mark all messages from others as read by current user
+  await env.DB.prepare(`
+    INSERT OR IGNORE INTO chat_message_reads (message_id, user_id)
+    SELECT id, ? FROM chat_messages WHERE channel_id = ? AND sender_id != ?
+  `).bind(user.id, channelId, user.id).run();
+
+  // For management reading private_support: also mark as read for other managers
   if (isManagement(user) && channel?.type === 'private_support') {
-    // For management users reading private_support: mark as read for ALL management users
+    const mgmtRoles = "('admin', 'director', 'manager', 'super_admin')";
     await env.DB.prepare(`
       INSERT INTO chat_channel_reads (channel_id, user_id, last_read_at)
-      SELECT ?, id, datetime('now') FROM users WHERE role IN ('admin', 'director', 'manager') ${tenantId ? 'AND tenant_id = ?' : ''}
+      SELECT ?, id, datetime('now') FROM users WHERE role IN ${mgmtRoles} ${tenantId ? 'AND tenant_id = ?' : ''}
       ON CONFLICT(channel_id, user_id) DO UPDATE SET last_read_at = datetime('now')
     `).bind(channelId, ...(tenantId ? [tenantId] : [])).run();
 
@@ -34,22 +48,10 @@ route('POST', '/api/chat/channels/:id/read', async (request, env, params) => {
       FROM chat_messages m
       CROSS JOIN users u
       WHERE m.channel_id = ?
-        AND u.role IN ('admin', 'director', 'manager')
+        AND u.role IN ${mgmtRoles}
         ${tenantId ? 'AND u.tenant_id = ?' : ''}
-        AND m.sender_id NOT IN (SELECT id FROM users WHERE role IN ('admin', 'director', 'manager'))
+        AND m.sender_id != u.id
     `).bind(channelId, ...(tenantId ? [tenantId] : [])).run();
-  } else {
-    // Regular user or non-support channel: mark only for themselves
-    await env.DB.prepare(`
-      INSERT INTO chat_channel_reads (channel_id, user_id, last_read_at)
-      VALUES (?, ?, datetime('now'))
-      ON CONFLICT(channel_id, user_id) DO UPDATE SET last_read_at = datetime('now')
-    `).bind(channelId, user.id).run();
-
-    await env.DB.prepare(`
-      INSERT OR IGNORE INTO chat_message_reads (message_id, user_id)
-      SELECT id, ? FROM chat_messages WHERE channel_id = ? AND sender_id != ?
-    `).bind(user.id, channelId, user.id).run();
   }
 
   // Send read receipt via WebSocket
@@ -87,25 +89,26 @@ route('GET', '/api/chat/unread-count', async (request, env) => {
   let count = 0;
 
   if (isManagement(user)) {
-    // Count unread messages across ALL channels (private_support + building + general)
+    // Count unread in private_support channels (management sees resident support requests)
     const result = await env.DB.prepare(`
       SELECT COUNT(*) as count FROM chat_messages m
       JOIN chat_channels c ON m.channel_id = c.id
-      WHERE m.sender_id != ?
+      WHERE c.type = 'private_support'
+        AND m.sender_id != ?
         AND m.id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
         ${tenantId ? 'AND c.tenant_id = ?' : ''}
     `).bind(user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
     count = (result as any)?.count || 0;
   } else if (user.role === 'resident' || user.role === 'tenant') {
-    // Count unread in resident's own support channel + building channels
     const result = await env.DB.prepare(`
       SELECT COUNT(*) as count FROM chat_messages m
       JOIN chat_channels c ON m.channel_id = c.id
-      WHERE (c.resident_id = ? OR c.building_id = ? OR c.type = 'uk_general')
+      WHERE c.type = 'private_support'
+        AND c.resident_id = ?
         AND m.sender_id != ?
         AND m.id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
         ${tenantId ? 'AND c.tenant_id = ?' : ''}
-    `).bind(user.id, user.building_id || '', user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
+    `).bind(user.id, user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
     count = (result as any)?.count || 0;
   }
 
