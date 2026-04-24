@@ -740,13 +740,15 @@ function ChatView({
   }, [fetchMessages, channelId, markAsRead]);
 
   // Polling fallback when WebSocket is disabled — fetch new messages every 10s
+  // Also re-mark as read so server stays in sync and unread badges don't flicker
   useEffect(() => {
     if (!channelId || channelId === 'undefined') return;
     const interval = setInterval(() => {
       fetchMessages();
+      markAsRead();
     }, 10000);
     return () => clearInterval(interval);
-  }, [fetchMessages, channelId]);
+  }, [fetchMessages, channelId, markAsRead]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -1398,9 +1400,9 @@ export function ChatPage() {
         // Preserve unread_count: 0 for the currently open channel (user is reading it)
         setChannels(prev => {
           const merged = newChannels.map((ch: ChatChannel) => {
-            const existing = prev.find(e => e.id === ch.id);
-            // If user has this channel open (unread was cleared locally), keep it at 0
-            if (existing && existing.unread_count === 0 && (ch.unread_count || 0) > 0 && selectedChannelIdRef.current === ch.id) {
+            // If this channel is currently open, always force unread to 0
+            // (the user is actively reading it — markAsRead runs on polling)
+            if (selectedChannelIdRef.current === ch.id) {
               return { ...ch, unread_count: 0 };
             }
             return ch;
