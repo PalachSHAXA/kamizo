@@ -101,7 +101,9 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
 
   const { content } = await request.json() as { content: string };
   if (!content) return error('Content required');
-  if (content.length > 5000) return error('Message too long (max 5000 characters)');
+  // Allow larger messages when they contain inline images (data:image base64)
+  const maxLen = content.includes('data:image/') ? 2_000_000 : 5000;
+  if (content.length > maxLen) return error(`Message too long (max ${maxLen} characters)`);
 
   const tenantId = getTenantId(request);
   const id = generateId();
