@@ -87,25 +87,25 @@ route('GET', '/api/chat/unread-count', async (request, env) => {
   let count = 0;
 
   if (isManagement(user)) {
+    // Count unread messages across ALL channels (private_support + building + general)
     const result = await env.DB.prepare(`
       SELECT COUNT(*) as count FROM chat_messages m
       JOIN chat_channels c ON m.channel_id = c.id
-      WHERE c.type = 'private_support'
-        AND m.sender_id != ?
+      WHERE m.sender_id != ?
         AND m.id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
         ${tenantId ? 'AND c.tenant_id = ?' : ''}
     `).bind(user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
     count = (result as any)?.count || 0;
-  } else if (user.role === 'resident') {
+  } else if (user.role === 'resident' || user.role === 'tenant') {
+    // Count unread in resident's own support channel + building channels
     const result = await env.DB.prepare(`
       SELECT COUNT(*) as count FROM chat_messages m
       JOIN chat_channels c ON m.channel_id = c.id
-      WHERE c.type = 'private_support'
-        AND c.resident_id = ?
+      WHERE (c.resident_id = ? OR c.building_id = ? OR c.type = 'uk_general')
         AND m.sender_id != ?
         AND m.id NOT IN (SELECT message_id FROM chat_message_reads WHERE user_id = ?)
         ${tenantId ? 'AND c.tenant_id = ?' : ''}
-    `).bind(user.id, user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
+    `).bind(user.id, user.building_id || '', user.id, user.id, ...(tenantId ? [tenantId] : [])).first();
     count = (result as any)?.count || 0;
   }
 

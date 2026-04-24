@@ -122,7 +122,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const fetchChatUnreadCount = useCallback(async () => {
     if (!user) return;
     // Only fetch for users who have chat access
-    if (!['admin', 'manager', 'director', 'department_head', 'executor', 'security', 'resident'].includes(user.role)) return;
+    if (!['super_admin', 'admin', 'manager', 'director', 'department_head', 'executor', 'security', 'resident'].includes(user.role)) return;
 
     try {
       const response = await chatApi.getUnreadCount();

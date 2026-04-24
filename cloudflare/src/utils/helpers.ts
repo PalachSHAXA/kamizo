@@ -59,7 +59,7 @@ export function createPaginatedResponse<T>(data: T[], total: number, params: Pag
 export function isManagement(user: { role: string } | null | undefined): boolean {
   if (!user) return false;
   const role = (user.role || '').trim().toLowerCase();
-  return role === 'admin' || role === 'director' || role === 'manager';
+  return role === 'admin' || role === 'director' || role === 'manager' || role === 'super_admin';
 }
 
 export function isAdminLevel(user: { role: string } | null | undefined): boolean {
