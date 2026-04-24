@@ -5,7 +5,7 @@ import { getTenantId, setTenantForRequest } from '../../middleware/tenant';
 import { checkRateLimit, getClientIdentifier } from '../../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../../middleware/cors';
 import { json, error, generateId, isAdminLevel } from '../../utils/helpers';
-import { hashPassword, verifyPassword, createJWT } from '../../utils/crypto';
+import { hashPassword, verifyPassword, createJWT, encryptPassword } from '../../utils/crypto';
 import { isExecutorRole, isSuperAdmin } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 import { validateBody } from '../../validation/validate';
@@ -211,11 +211,12 @@ route('POST', '/api/auth/register', async (request, env) => {
 
   const id = generateId();
   const passwordHash = await hashPassword(password);
+  const passwordPlain = env.ENCRYPTION_KEY ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
 
   await env.DB.prepare(`
-    INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, login.trim(), passwordHash, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId).run();
+    INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, login.trim(), passwordHash, passwordPlain, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId).run();
 
   // Auto-create apartment record if resident has building_id + apartment number
   if (building_id && apartment && (role === 'resident' || role === 'tenant')) {

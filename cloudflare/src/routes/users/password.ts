@@ -4,7 +4,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
 import { json, error, isManagement, isAdminLevel } from '../../utils/helpers';
-import { hashPassword, verifyPassword } from '../../utils/crypto';
+import { hashPassword, verifyPassword, encryptPassword } from '../../utils/crypto';
 
 export function registerPasswordRoutes() {
 
@@ -29,8 +29,9 @@ route('POST', '/api/users/me/password', async (request, env) => {
   }
 
   const newHash = await hashPassword(new_password);
-  await env.DB.prepare('UPDATE users SET password_hash = ?, password_changed_at = datetime("now"), updated_at = datetime("now") WHERE id = ?')
-    .bind(newHash, user.id).run();
+  const newPlain = env.ENCRYPTION_KEY ? await encryptPassword(new_password, env.ENCRYPTION_KEY) : null;
+  await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ?, password_changed_at = datetime("now"), updated_at = datetime("now") WHERE id = ?')
+    .bind(newHash, newPlain, user.id).run();
 
   return json({ success: true, password_changed_at: new Date().toISOString() });
 });
@@ -44,9 +45,10 @@ route('POST', '/api/users/:id/password', async (request, env, params) => {
 
   const { new_password } = await request.json() as any;
   const newHash = await hashPassword(new_password);
+  const newPlain = env.ENCRYPTION_KEY ? await encryptPassword(new_password, env.ENCRYPTION_KEY) : null;
 
   const tenantIdPwd = getTenantId(request);
-  await env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = datetime("now") WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
+  await env.DB.prepare(`UPDATE users SET password_hash = ?, password_plain = ?, updated_at = datetime("now") WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, newPlain, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
 
   return json({ success: true });
 });
@@ -74,9 +76,10 @@ route('POST', '/api/admin/reset-password', async (request, env) => {
   }
 
   const hashedPassword = await hashPassword(password);
+  const encryptedPlain = env.ENCRYPTION_KEY ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
   await env.DB.prepare(`
-    UPDATE users SET password_hash = ? WHERE id = ? ${tenantIdReset ? 'AND tenant_id = ?' : ''}
-  `).bind(hashedPassword, targetUser.id, ...(tenantIdReset ? [tenantIdReset] : [])).run();
+    UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ? ${tenantIdReset ? 'AND tenant_id = ?' : ''}
+  `).bind(hashedPassword, encryptedPlain, targetUser.id, ...(tenantIdReset ? [tenantIdReset] : [])).run();
 
   await invalidateOnChange('users', env.RATE_LIMITER);
 
@@ -104,9 +107,10 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   const tempPassword = `${targetUser.login}_${randomSuffix}`;
 
   const passwordHash = await hashPassword(tempPassword);
+  const encryptedPlain = env.ENCRYPTION_KEY ? await encryptPassword(tempPassword, env.ENCRYPTION_KEY) : null;
   await env.DB.prepare(
-    `UPDATE users SET password_hash = ? WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(passwordHash, targetUser.id, ...(tenantId ? [tenantId] : [])).run();
+    `UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(passwordHash, encryptedPlain, targetUser.id, ...(tenantId ? [tenantId] : [])).run();
 
   await invalidateOnChange('users', env.RATE_LIMITER);
 
