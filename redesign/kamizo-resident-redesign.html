@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kamizo · Резидент · Редизайн</title>
+<style>
+  /* ========== TOKENS ========== */
+  :root {
+    --brand-50:  #FFF7ED;
+    --brand-100: #FFEDD5;
+    --brand-200: #FED7AA;
+    --brand-300: #FDBA74;
+    --brand-400: #FB923C;
+    --brand-500: #F59E0B;
+    --brand-600: #EA580C;
+    --brand-700: #C2410C;
+
+    --ink-900: #0B1220;
+    --ink-700: #1F2937;
+    --ink-500: #475569;
+    --ink-400: #64748B;
+    --ink-300: #94A3B8;
+    --ink-200: #CBD5E1;
+    --ink-100: #E2E8F0;
+    --ink-50:  #F1F5F9;
+    --ink-25:  #F8FAFC;
+
+    --ok: #10B981;
+    --ok-50: #ECFDF5;
+    --warn: #F59E0B;
+    --danger: #EF4444;
+    --danger-50: #FEF2F2;
+    --info: #3B82F6;
+    --info-50: #EFF6FF;
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 22px;
+
+    --shadow-card: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.04);
+    --shadow-pop:  0 8px 32px rgba(15,23,42,.12);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    background: var(--ink-25);
+    color: var(--ink-900);
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(245,158,11,0.06), transparent 50%),
+      radial-gradient(at 100% 100%, rgba(251,146,60,0.04), transparent 40%);
+  }
+  button { font-family: inherit; cursor: pointer; border: 0; background: transparent; padding: 0; color: inherit; }
+
+  /* ========== LAYOUT ========== */
+  .page-header {
+    border-bottom: 1px solid var(--ink-100);
+    background: rgba(255,255,255,.7);
+    backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .container { max-width: 1480px; margin: 0 auto; padding: 0 24px; }
+  .ph-bar { display:flex; align-items:center; justify-content:space-between; padding: 16px 0; }
+  .logo {
+    width: 36px; height: 36px; border-radius: var(--radius-md);
+    background: var(--brand-500); display: grid; place-items: center;
+    color: #fff; font-weight: 700;
+  }
+  .row { display: flex; align-items: center; gap: 12px; }
+
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+  h2 { font-size: 24px; font-weight: 700; margin: 0; }
+  .muted { color: var(--ink-500); }
+  .small { font-size: 13px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; line-height: 1;
+  }
+  .pill-brand    { background: var(--brand-50); color: var(--brand-700); }
+  .pill-ok       { background: var(--ok-50); color: #047857; }
+  .pill-info     { background: var(--info-50); color: var(--info); }
+  .pill-danger   { background: var(--danger-50); color: var(--danger); }
+  .pill-ink      { background: var(--ink-50); color: var(--ink-500); }
+  .pill-dark     { background: var(--ink-900); color: #fff; }
+
+  /* OVERVIEW CARDS */
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr; } }
+  .ov-card {
+    background: #fff; border: 1px solid var(--ink-100);
+    border-radius: var(--radius-lg); padding: 20px;
+    box-shadow: var(--shadow-card);
+  }
+  .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--brand-600); font-weight: 600; }
+
+  /* ========== DEVICE FRAMES ========== */
+  .phones {
+    display: flex; flex-wrap: wrap; gap: 40px;
+    justify-content: center; align-items: flex-start;
+  }
+  .phone-col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .phone-col .caption { font-size: 12px; color: var(--ink-400); max-width: 320px; text-align: center; line-height: 1.5; }
+
+  .device {
+    border-radius: 44px;
+    border: 10px solid var(--ink-900);
+    box-shadow: 0 30px 60px -20px rgba(15,23,42,.25);
+    overflow: hidden;
+    background: #fff;
+    position: relative;
+  }
+  .notch {
+    width: 110px; height: 28px; background: var(--ink-900);
+    border-radius: 0 0 18px 18px; margin: 0 auto;
+  }
+  .device-screen {
+    width: 390px; height: 844px;
+    overflow-y: auto; background: var(--ink-25);
+    position: relative;
+  }
+  .device-screen::-webkit-scrollbar { width: 4px; }
+  .device-screen::-webkit-scrollbar-thumb { background: var(--ink-200); border-radius: 4px; }
+
+  /* ========== APP HEADER (inside phone) ========== */
+  .app-head {
+    background: #fff; padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--ink-100);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .app-head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .app-title { font-size: 20px; font-weight: 700; line-height: 1.2; margin: 2px 0 0; }
+  .app-sub { font-size: 12px; color: var(--ink-400); }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: var(--radius-md);
+    background: var(--ink-50); display: grid; place-items: center;
+    color: var(--ink-700); position: relative;
+  }
+  .badge-dot {
+    position: absolute; top: -4px; right: -4px;
+    background: var(--brand-500); color: #fff;
+    font-size: 10px; font-weight: 700;
+    width: 20px; height: 20px; border-radius: 999px;
+    display: grid; place-items: center;
+  }
+
+  .app-body { padding: 16px 20px 100px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ========== BALANCE HERO CARD ========== */
+  .balance-hero {
+    background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+    color: #fff; border-radius: var(--radius-lg); padding: 20px;
+    box-shadow: var(--shadow-card);
+  }
+  .bh-row { display:flex; justify-content: space-between; align-items: center; font-size: 13px; opacity: .9; }
+  .pill-on-hero { background: rgba(255,255,255,.2); color: #fff; }
+  .bh-amount { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; }
+  .bh-num { font-size: 30px; font-weight: 700; line-height: 1; }
+  .bh-cur { font-size: 16px; font-weight: 500; opacity: .9; }
+  .bh-due { display: flex; align-items: center; gap: 6px; font-size: 13px; opacity: .9; margin-top: 8px; }
+  .bh-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-light {
+    flex: 1; background: #fff; color: var(--brand-700);
+    font-weight: 600; border-radius: var(--radius-md);
+    padding: 12px; font-size: 13px;
+  }
+  .btn-ghost-on-hero {
+    padding: 12px 16px; background: rgba(255,255,255,.15);
+    color: #fff; border-radius: var(--radius-md);
+    font-size: 13px; font-weight: 500;
+  }
+
+  /* ========== CARDS ========== */
+  .card {
+    background: #fff; border: 1px solid var(--ink-100);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  }
+  .card-pad { padding: 16px; }
+  .card-pad-lg { padding: 20px; }
+
+  /* MEETING CARD */
+  .meeting-card {
+    background: #fff; border: 2px solid rgba(59,130,246,.3);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+    padding: 16px; position: relative; overflow: hidden;
+  }
+  .ribbon {
+    position: absolute; top: 0; right: 0;
+    background: var(--info); color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 4px 8px; border-radius: 0 0 0 8px;
+  }
+  .icon-tile {
+    width: 40px; height: 40px; border-radius: var(--radius-md);
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .icon-tile.info { background: rgba(59,130,246,.1); color: var(--info); }
+  .icon-tile.brand { background: var(--brand-50); color: var(--brand-600); }
+  .icon-tile.ok { background: var(--ok-50); color: #059669; }
+  .icon-tile.warn { background: rgba(245,158,11,.1); color: var(--warn); }
+  .icon-tile.danger { background: var(--danger-50); color: var(--danger); }
+  .stack { display:flex; gap: 12px; align-items: flex-start; }
+
+  .label-info { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--info); font-weight: 600; }
+  .label-brand { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-400); font-weight: 600; }
+  .ttl { font-size: 14px; font-weight: 600; color: var(--ink-900); margin-top: 2px; }
+
+  .progress-bar {
+    height: 6px; background: var(--ink-100); border-radius: 999px;
+    overflow: hidden; margin-top: 6px;
+  }
+  .progress-fill { height: 100%; background: var(--info); }
+  .progress-fill.brand { background: var(--brand-500); }
+  .progress-fill.ok { background: var(--ok); }
+
+  .btn-primary {
+    width: 100%; background: var(--brand-500); color: #fff;
+    font-weight: 600; border-radius: var(--radius-md);
+    padding: 12px; font-size: 13px; margin-top: 12px;
+  }
+  .btn-primary:hover { background: var(--brand-600); }
+  .btn-info-full {
+    width: 100%; background: var(--info); color: #fff;
+    font-weight: 600; border-radius: 10px;
+    padding: 10px; font-size: 13px; margin-top: 12px;
+  }
+
+  /* REQUEST CARD */
+  .req-progress { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; margin-top: 16px; }
+  .req-step .bar { height: 4px; border-radius: 999px; background: var(--ink-100); }
+  .req-step .bar.done { background: var(--ok); }
+  .req-step .bar.now { background: var(--brand-500); }
+  .req-step .lbl { font-size: 10px; color: var(--ink-300); margin-top: 4px; }
+  .req-step .lbl.done { color: var(--ink-400); }
+  .req-step .lbl.now { color: var(--brand-700); font-weight: 600; }
+
+  .executor-row {
+    margin-top: 16px; background: var(--ink-50);
+    border-radius: var(--radius-md); padding: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 999px;
+    background: var(--brand-100); color: var(--brand-700);
+    display: grid; place-items: center;
+    font-weight: 600; font-size: 12px;
+  }
+  .ex-name { font-size: 14px; font-weight: 500; }
+  .ex-meta { font-size: 11px; color: var(--ink-400); display: flex; align-items: center; gap: 4px; }
+  .star { color: var(--warn); }
+  .call-btn {
+    width: 36px; height: 36px; border-radius: 999px;
+    background: var(--ok); color: #fff;
+    display: grid; place-items: center;
+  }
+
+  /* METER CARD */
+  .meter-card {
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: var(--radius-lg); padding: 16px;
+  }
+  .meter-row { display: flex; align-items: center; justify-content: space-between; }
+  .meter-label { font-size: 14px; font-weight: 600; }
+  .meter-sub { font-size: 12px; color: #B45309; }
+  .meter-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .meter-tile {
+    background: #fff; border-radius: 10px; padding: 8px; text-align: center;
+  }
+  .meter-tile-lbl { font-size: 10px; text-transform: uppercase; color: var(--ink-400); }
+  .meter-tile-val { font-size: 14px; font-weight: 700; color: var(--ink-900); }
+
+  /* QUICK ACTIONS */
+  .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .qa-card {
+    background: #fff; border: 1px solid var(--ink-100);
+    border-radius: var(--radius-lg); padding: 16px; text-align: left;
+  }
+  .qa-title { font-size: 14px; font-weight: 600; margin-top: 12px; color: var(--ink-900); }
+  .qa-sub { font-size: 11px; color: var(--ink-400); margin-top: 2px; }
+
+  .section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-400); font-weight: 600;
+    margin-bottom: 8px; padding-left: 4px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .section-label a { color: var(--brand-600); font-weight: 600; }
+
+  /* ANNOUNCEMENTS */
+  .ann-list {
+    background: #fff; border: 1px solid var(--ink-100);
+    border-radius: var(--radius-lg); overflow: hidden;
+  }
+  .ann-item {
+    padding: 14px;
+    display: flex; gap: 12px; align-items: flex-start;
+    border-bottom: 1px solid var(--ink-100);
+  }
+  .ann-item:last-child { border-bottom: 0; }
+  .ann-text { flex: 1; min-width: 0; }
+  .ann-title-l { font-size: 13px; font-weight: 500; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ann-meta { font-size: 11px; color: var(--ink-400); margin-top: 2px; }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    position: sticky; bottom: 12px;
+    margin: -72px 12px 12px;
+    background: #fff;
+    border: 1px solid var(--ink-100);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-pop);
+    display: grid; grid-template-columns: repeat(4,1fr);
+    padding: 10px 8px;
+  }
+  .bn-item { display: flex; flex-direction: column; align-items: center; color: var(--ink-400); position: relative; }
+  .bn-item.active { color: var(--brand-600); }
+  .bn-lbl { font-size: 10px; margin-top: 2px; }
+  .bn-lbl.active { font-weight: 600; }
+  .bn-badge {
+    position: absolute; top: 4px; right: 28px;
+    background: var(--brand-500); color: #fff;
+    font-size: 9px; font-weight: 700;
+    width: 16px; height: 16px; border-radius: 999px;
+    display: grid; place-items: center;
+    border: 2px solid #fff;
+    box-sizing: content-box;
+  }
+
+  /* VOTING SCREEN */
+  .vote-hero {
+    background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+    color: #fff; border-radius: var(--radius-lg); padding: 16px;
+  }
+  .vote-hero-eyebrow { font-size: 11px; text-transform: uppercase; opacity: .8; font-weight: 600; }
+  .vote-hero-row { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+  .vote-hero-num { font-size: 26px; font-weight: 700; }
+  .vote-hero-sub { font-size: 13px; opacity: .9; }
+  .vote-hero-note { font-size: 12px; opacity: .85; margin-top: 8px; line-height: 1.5; }
+
+  .quorum-card { background: #fff; border: 1px solid var(--ink-100); border-radius: var(--radius-lg); padding: 16px; }
+  .qrm-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .qrm-title { font-size: 14px; font-weight: 600; }
+  .qrm-stat { font-size: 12px; font-weight: 600; color: var(--ok); }
+  .qrm-bar {
+    height: 8px; background: var(--ink-100); border-radius: 999px;
+    overflow: hidden; display: flex;
+  }
+  .qrm-bar .a { background: var(--ok); height: 100%; }
+  .qrm-bar .b { background: #6EE7B7; height: 100%; }
+  .qrm-meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--ink-400); }
+
+  .agenda {
+    background: #fff;
+    border: 2px solid var(--brand-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+  }
+  .agenda-head { padding: 16px 16px 12px; }
+  .agenda-meta { display: flex; justify-content: space-between; align-items: center; }
+  .agenda-title { font-size: 15px; font-weight: 600; line-height: 1.3; margin-top: 8px; color: var(--ink-900); }
+  .agenda-desc { font-size: 12px; color: var(--ink-500); margin-top: 6px; line-height: 1.5; }
+
+  .results { background: rgba(241,245,249,.5); border-top: 1px solid var(--ink-100); padding: 12px 16px; }
+  .results-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-400); font-weight: 600; margin-bottom: 8px; }
+  .res-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 6px; }
+  .res-row:last-child { margin-bottom: 0; }
+  .res-label { width: 60px; font-weight: 600; }
+  .res-bar-wrap { flex: 1; height: 8px; background: var(--ink-100); border-radius: 999px; overflow: hidden; }
+  .res-bar { height: 100%; }
+  .res-num { width: 38px; text-align: right; font-weight: 600; color: var(--ink-900); }
+
+  .vote-buttons {
+    padding: 12px; border-top: 1px solid var(--ink-100);
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  }
+  .vote-btn {
+    background: var(--ink-50); border-radius: var(--radius-md);
+    padding: 12px 8px; display: flex; flex-direction: column; align-items: center;
+  }
+  .vote-btn.selected {
+    background: var(--ok-50);
+    box-shadow: 0 0 0 2px var(--ok), 0 0 0 4px #fff;
+  }
+  .vote-btn-label { font-size: 11px; font-weight: 600; margin-top: 4px; }
+  .vote-btn-label.ok { color: var(--ok); }
+  .vote-btn-label.danger { color: var(--danger); }
+  .vote-btn-label.ink { color: var(--ink-500); }
+
+  .agenda-mini {
+    background: #fff; border: 1px solid var(--ink-100);
+    border-radius: var(--radius-lg); padding: 16px;
+  }
+  .agenda-mini-head { display: flex; justify-content: space-between; align-items: center; }
+  .agenda-mini-title { font-size: 14px; font-weight: 600; margin-top: 8px; color: var(--ink-900); }
+  .agenda-mini-sub { font-size: 12px; color: var(--ink-500); margin-top: 4px; }
+
+  .otp-card {
+    background: var(--ink-900); color: #fff;
+    border-radius: var(--radius-lg); padding: 16px;
+  }
+  .otp-eyebrow { font-size: 11px; text-transform: uppercase; opacity: .7; font-weight: 600; }
+  .otp-title { font-weight: 600; margin-top: 4px; }
+  .otp-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 6px; margin-top: 12px; }
+  .otp-cell {
+    background: rgba(255,255,255,.1);
+    border-radius: 10px; height: 40px;
+    display: grid; place-items: center;
+    font-weight: 700;
+  }
+  .otp-cell.empty { background: rgba(255,255,255,.05); }
+  .otp-note { font-size: 10px; opacity: .6; margin-top: 8px; text-align: center; }
+
+  /* FINANCE SCREEN */
+  .fin-hero { background: #fff; border: 1px solid var(--ink-100); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-card); }
+  .fin-hero-head { display: flex; justify-content: space-between; align-items: center; }
+  .fin-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-400); font-weight: 600; }
+  .fin-amount { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+  .fin-num { font-size: 30px; font-weight: 700; color: var(--ink-900); }
+  .fin-cur { font-size: 16px; color: var(--ink-500); }
+  .fin-meta { font-size: 12px; color: var(--ink-500); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+  .fin-pay-btn {
+    margin-top: 16px; width: 100%; background: var(--brand-500); color: #fff;
+    font-weight: 600; border-radius: var(--radius-md); padding: 14px;
+    font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .fin-secondary-row { margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .fin-secondary-btn {
+    font-size: 12px; color: var(--ink-500);
+    background: var(--ink-50); border-radius: 10px; padding: 10px;
+    font-weight: 500;
+  }
+
+  .breakdown-list { display: flex; flex-direction: column; gap: 10px; }
+  .br-row-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-700); }
+  .br-row-left { display: flex; align-items: center; gap: 8px; }
+  .br-dot { width: 8px; height: 8px; border-radius: 999px; }
+  .br-bar { height: 6px; background: var(--ink-100); border-radius: 999px; margin-top: 4px; overflow: hidden; }
+  .br-fill { height: 100%; }
+
+  .chart-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 6px; height: 96px; }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .chart-bar { width: 100%; background: var(--brand-100); border-radius: 4px 4px 0 0; }
+  .chart-bar.now { background: var(--brand-500); }
+  .chart-lbl { font-size: 9px; color: var(--ink-400); }
+  .chart-lbl.now { color: var(--brand-700); font-weight: 600; }
+
+  .pay-list { background: #fff; border: 1px solid var(--ink-100); border-radius: var(--radius-lg); overflow: hidden; }
+  .pay-head { padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .pay-row { padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--ink-100); }
+  .pay-name { font-size: 14px; font-weight: 500; color: var(--ink-900); }
+  .pay-meta { font-size: 11px; color: var(--ink-400); margin-top: 2px; }
+  .pay-amount { font-size: 14px; font-weight: 600; color: var(--ink-900); }
+  .check-circle {
+    width: 24px; height: 24px; border-radius: 999px;
+    background: var(--ok-50); color: var(--ok);
+    display: grid; place-items: center;
+  }
+
+  .reconcile-btn {
+    width: 100%; background: #fff; border: 1px solid var(--ink-100);
+    border-radius: var(--radius-lg); padding: 16px;
+    display: flex; align-items: center; gap: 12px; text-align: left;
+  }
+
+  /* DESIGN TOKENS PANEL */
+  .tokens {
+    background: #fff; border: 1px solid var(--ink-100);
+    border-radius: 24px; padding: 32px;
+    box-shadow: var(--shadow-card);
+  }
+  .tokens-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 24px; }
+  @media (max-width: 900px) { .tokens-grid { grid-template-columns: 1fr 1fr; } }
+  .swatch-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sw { width: 44px; height: 44px; border-radius: 10px; }
+  .sw.ring { box-shadow: 0 0 0 2px var(--brand-700); }
+  .token-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-400); font-weight: 600; margin-bottom: 8px; }
+  .token-note { font-size: 11px; color: var(--ink-400); margin-top: 8px; line-height: 1.5; }
+  .radius-sample { background: var(--ink-50); padding: 8px 12px; font-size: 11px; color: var(--ink-500); display: grid; place-items: center; margin-bottom: 6px; }
+
+  /* IMPLEMENTATION PANEL */
+  .impl {
+    background: var(--ink-900); color: #fff;
+    border-radius: 24px; padding: 32px;
+  }
+  .impl-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 24px; }
+  @media (max-width: 900px) { .impl-grid { grid-template-columns: 1fr; } }
+  .impl h2, .impl h3 { color: #fff; }
+  .impl p { color: rgba(255,255,255,.7); font-size: 13px; line-height: 1.6; margin: 6px 0 0; }
+  .impl-title { font-weight: 600; margin-top: 8px; }
+  .impl-foot { color: rgba(255,255,255,.5); font-size: 11px; margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,.1); }
+
+  .section-spaced > * + * { margin-top: 48px; }
+
+  /* Helpers */
+  .gap-2 { gap: 8px; }
+  .mt-2 { margin-top: 8px; }
+  .mt-3 { margin-top: 12px; }
+  .mt-4 { margin-top: 16px; }
+  .center { text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <div class="container ph-bar">
+    <div class="row">
+      <div class="logo">K</div>
+      <div>
+        <div style="font-weight:600">Kamizo · редизайн резидента</div>
+        <div style="font-size:12px;color:var(--ink-400);margin-top:2px">3 ключевых экрана · сохранена фирменная палитра</div>
+      </div>
+    </div>
+    <div class="row" style="gap:8px">
+      <span class="pill pill-brand">3 экрана</span>
+      <span class="pill pill-ok">Mobile-first</span>
+    </div>
+  </div>
+</header>
+
+<main class="container section-spaced" style="padding-top:40px;padding-bottom:40px">
+
+  <section>
+    <h1>Редизайн интерфейса жильца</h1>
+    <p class="muted" style="margin-top:8px;max-width:760px;line-height:1.6">Сохранил фирменный янтарный (#F59E0B) и общую лёгкость текущего дизайна. Усилил информационную плотность: жилец, который заходит каждый день, должен видеть долг, активную заявку, голосование и ближайшие задачи без скроллов.</p>
+
+    <div class="grid-3" style="margin-top:24px">
+      <div class="ov-card">
+        <div class="eyebrow">Что чиню</div>
+        <div style="font-weight:600;margin-top:4px">Главная без главного</div>
+        <p class="small muted" style="margin:8px 0 0">Активная заявка и ближайшее собрание выходят на первый план. Sidebar больше не дублируется.</p>
+      </div>
+      <div class="ov-card">
+        <div class="eyebrow">Что чиню</div>
+        <div style="font-weight:600;margin-top:4px">Собрания — пустой экран</div>
+        <p class="small muted" style="margin:8px 0 0">Голосование с весом по площади (фишка по закону РУз) визуально не показано. Кворум, OTP, контрпредложение спрятаны.</p>
+      </div>
+      <div class="ov-card">
+        <div class="eyebrow">Что чиню</div>
+        <div style="font-weight:600;margin-top:4px">Создание заявки — слабый флоу</div>
+        <p class="small muted" style="margin:8px 0 0">Главное действие жильца. Делаю быстрый wizard с категориями, фото, временем — чтобы заявка создавалась за 30 секунд.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Мобильные мокапы</h2>
+    <p class="muted small" style="margin:4px 0 24px">iPhone 14 / 390×844 — основной кейс жильца.</p>
+
+    <div class="phones">
+
+      <!-- ============ PHONE 1: HOME ============ -->
+      <div class="phone-col">
+        <span class="pill pill-dark">1 · Главная</span>
+        <div class="device">
+          <div class="notch"></div>
+          <div class="device-screen">
+            <div class="app-head">
+              <div class="app-head-row">
+                <div>
+                  <div class="app-sub">ЖК Mirzo Ulug'bek · Дом 25</div>
+                  <div class="app-title">Добрый вечер, Aziza</div>
+                </div>
+                <div class="icon-btn">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                  <span class="badge-dot">5</span>
+                </div>
+              </div>
+              <div style="margin-top:12px">
+                <span class="pill pill-brand">📍 ул. Навои, 25 · кв. 12 · 78 м²</span>
+              </div>
+            </div>
+
+            <div class="app-body">
+              <!-- ACTIVE MEETING (now hero) -->
+              <div class="meeting-card">
+                <div class="ribbon">ВАЖНО</div>
+                <div class="stack">
+                  <div class="icon-tile info">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div class="label-info">Голосование открыто</div>
+                    <div class="ttl">Изменение тарифа на охрану</div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+                      <span style="font-size:11px;font-weight:600;color:var(--info);background:rgba(59,130,246,.08);padding:3px 8px;border-radius:999px">Ваш голос · 78 м²</span>
+                      <span style="font-size:11px;color:var(--ink-400)">2.4% площади дома</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-500);margin-top:8px">
+                      <span>Кворум 62% · собран ✓</span>
+                      <span>осталось 2д 14ч</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" style="width:62%"></div></div>
+                    <button class="btn-info-full">Проголосовать →</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ACTIVE REQUEST -->
+              <div class="card card-pad">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div class="stack">
+                    <div class="icon-tile brand">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div>
+                      <div class="label-brand">Заявка #UK-O-1002</div>
+                      <div class="ttl">Охрана · подмена дежурного</div>
+                    </div>
+                  </div>
+                  <span class="pill pill-brand">В работе</span>
+                </div>
+
+                <div class="req-progress">
+                  <div class="req-step"><div class="bar done"></div><div class="lbl done">Создана</div></div>
+                  <div class="req-step"><div class="bar done"></div><div class="lbl done">Назначена</div></div>
+                  <div class="req-step"><div class="bar now"></div><div class="lbl now">В работе</div></div>
+                  <div class="req-step"><div class="bar"></div><div class="lbl">Завершена</div></div>
+                </div>
+
+                <div class="executor-row">
+                  <div style="display:flex;gap:10px;align-items:center">
+                    <div class="avatar">BT</div>
+                    <div>
+                      <div class="ex-name">Bobur Toshmatov · <span class="star">★ 4.8</span></div>
+                      <div class="ex-meta" style="color:var(--brand-700);font-weight:500">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        Придёт сегодня к 16:00
+                      </div>
+                    </div>
+                  </div>
+                  <div class="call-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </div>
+                </div>
+              </div>
+
+              <!-- COMING SOON: PAYMENTS + METERS -->
+              <div style="background:#fff;border:1px dashed var(--ink-200);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-400);font-weight:600">Уже скоро</div>
+                  <span class="pill" style="background:var(--ink-50);color:var(--ink-500)">в разработке</span>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                  <div style="width:36px;height:36px;border-radius:10px;background:var(--ink-50);display:grid;place-items:center;color:var(--ink-400);flex-shrink:0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                  </div>
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600;color:var(--ink-700)">Онлайн-оплата · Click и Payme</div>
+                    <div style="font-size:11px;color:var(--ink-400);margin-top:2px">Лицевой счёт, квитанции, история — подключаем</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                  <div style="width:36px;height:36px;border-radius:10px;background:var(--ink-50);display:grid;place-items:center;color:var(--ink-400);flex-shrink:0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                  </div>
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600;color:var(--ink-700)">Передача показаний счётчиков</div>
+                    <div style="font-size:11px;color:var(--ink-400);margin-top:2px">Холодная, горячая вода и электричество — на этапе интеграции</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- QUICK ACTIONS -->
+              <div>
+                <div class="section-label">Быстрые действия</div>
+                <div class="qa-grid">
+                  <button class="qa-card">
+                    <div class="icon-tile brand">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    </div>
+                    <div class="qa-title">Создать заявку</div>
+                    <div class="qa-sub">Сантехник, электрик…</div>
+                  </button>
+                  <button class="qa-card">
+                    <div class="icon-tile ok">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+                    </div>
+                    <div class="qa-title">QR гостю</div>
+                    <div class="qa-sub">за 30 секунд</div>
+                  </button>
+                  <button class="qa-card">
+                    <div class="icon-tile info">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <div class="qa-title">Чат с УК</div>
+                    <div class="qa-sub">2 непрочитанных</div>
+                  </button>
+                  <button class="qa-card">
+                    <div class="icon-tile warn">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <div class="qa-title">Оценить УК</div>
+                    <div class="qa-sub">апрель ещё не оценён</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- ANNOUNCEMENTS -->
+              <div>
+                <div class="section-label">
+                  <span>Свежие объявления</span>
+                  <a>Все →</a>
+                </div>
+                <div class="ann-list">
+                  <div class="ann-item">
+                    <span class="pill pill-danger">Срочно</span>
+                    <div class="ann-text">
+                      <div class="ann-title-l">Отключение воды 28 апреля 9:00–14:00</div>
+                      <div class="ann-meta">2 часа назад · УК</div>
+                    </div>
+                  </div>
+                  <div class="ann-item">
+                    <span class="pill pill-info">Инфо</span>
+                    <div class="ann-text">
+                      <div class="ann-title-l">График весенней уборки территории</div>
+                      <div class="ann-meta">вчера · УК</div>
+                    </div>
+                  </div>
+                  <div class="ann-item">
+                    <span class="pill pill-brand">Жильцы</span>
+                    <div class="ann-text">
+                      <div class="ann-title-l">Ищу мастера по натяжным потолкам</div>
+                      <div class="ann-meta">3 дня назад · кв. 47</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- BOTTOM NAV -->
+            <div class="bottom-nav">
+              <button class="bn-item active">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                <span class="bn-lbl active">Главная</span>
+              </button>
+              <button class="bn-item">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-4"/><path d="M15 8L12 5 9 8"/><path d="M12 5v12"/></svg>
+                <span class="bn-lbl">Заявки</span>
+              </button>
+              <button class="bn-item">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span class="bn-badge">2</span>
+                <span class="bn-lbl">Чат</span>
+              </button>
+              <button class="bn-item">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
+                <span class="bn-lbl">Профиль</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="caption">Главная: активное голосование и текущая заявка — герои экрана. Карточка «уже скоро» аккуратно держит онлайн-оплату и счётчики на радаре, не претендуя на основную сцену. Bottom-nav с 4 разделами и счётчиком чата.</div>
+      </div>
+
+      <!-- ============ PHONE 2: VOTING ============ -->
+      <div class="phone-col">
+        <span class="pill pill-dark">2 · Голосование</span>
+        <div class="device">
+          <div class="notch"></div>
+          <div class="device-screen">
+            <div class="app-head">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <div class="icon-btn" style="width:36px;height:36px">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div class="app-sub">Собрание собственников · апрель</div>
+                  <div class="app-title">Голосование открыто</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <span class="pill pill-info">⏱ 2д 14ч до закрытия</span>
+                <span class="pill pill-ok">✓ Кворум 62%</span>
+              </div>
+            </div>
+
+            <div class="app-body">
+              <div class="vote-hero">
+                <div class="vote-hero-eyebrow">Ваш голос</div>
+                <div class="vote-hero-row">
+                  <div class="vote-hero-num">78 м²</div>
+                  <div class="vote-hero-sub">= 2.4% площади дома</div>
+                </div>
+                <div class="vote-hero-note">По закону РУз вес голоса = площадь квартиры. Это юридически валидное собрание, протокол подписывается автоматически.</div>
+              </div>
+
+              <div class="quorum-card">
+                <div class="qrm-head">
+                  <div class="qrm-title">Кворум собран</div>
+                  <div class="qrm-stat">62% · цель 50%</div>
+                </div>
+                <div class="qrm-bar">
+                  <div class="a" style="width:50%"></div>
+                  <div class="b" style="width:12%"></div>
+                </div>
+                <div class="qrm-meta">
+                  <span>Проголосовало: 1 856 м²</span>
+                  <span>Всего: 3 000 м²</span>
+                </div>
+              </div>
+
+              <div class="agenda">
+                <div class="agenda-head">
+                  <div class="agenda-meta">
+                    <span class="pill pill-brand">Пункт 1 из 3</span>
+                    <span class="pill pill-ink">📎 Смета.pdf</span>
+                  </div>
+                  <div class="agenda-title">Изменение тарифа на охрану с 1 июня 2026</div>
+                  <div class="agenda-desc">Текущий тариф 8 000 сум/мес · предлагается 12 000 сум/мес. Обоснование: ФОТ охраны вырос на 38% с 2024.</div>
+                </div>
+                <div class="results">
+                  <div class="results-eyebrow">Промежуточные результаты</div>
+                  <div class="res-row">
+                    <span class="res-label" style="color:var(--ok)">За</span>
+                    <div class="res-bar-wrap"><div class="res-bar" style="background:var(--ok);width:72%"></div></div>
+                    <span class="res-num">72%</span>
+                  </div>
+                  <div class="res-row">
+                    <span class="res-label" style="color:var(--danger)">Против</span>
+                    <div class="res-bar-wrap"><div class="res-bar" style="background:var(--danger);width:19%"></div></div>
+                    <span class="res-num">19%</span>
+                  </div>
+                  <div class="res-row">
+                    <span class="res-label" style="color:var(--ink-400)">Возд.</span>
+                    <div class="res-bar-wrap"><div class="res-bar" style="background:var(--ink-300);width:9%"></div></div>
+                    <span class="res-num">9%</span>
+                  </div>
+                </div>
+                <div class="vote-buttons">
+                  <button class="vote-btn selected">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><path d="M7 10v12"/><path d="M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7"/></svg>
+                    <span class="vote-btn-label ok">За</span>
+                  </button>
+                  <button class="vote-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.5"><path d="M17 14V2"/><path d="M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17"/></svg>
+                    <span class="vote-btn-label danger">Против</span>
+                  </button>
+                  <button class="vote-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>
+                    <span class="vote-btn-label ink">Воздерж.</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="agenda-mini">
+                <div class="agenda-mini-head">
+                  <span class="pill pill-ink">Пункт 2 из 3</span>
+                  <span class="pill pill-ink">не голосовали</span>
+                </div>
+                <div class="agenda-mini-title">Назначение нового подрядчика на уборку</div>
+                <div class="agenda-mini-sub">3 кандидата на выбор · средняя оценка соседей</div>
+              </div>
+
+              <div class="agenda-mini">
+                <div class="agenda-mini-head">
+                  <span class="pill pill-ink">Пункт 3 из 3</span>
+                  <span class="pill pill-ink">не голосовали</span>
+                </div>
+                <div class="agenda-mini-title">Установка домофонов нового образца</div>
+                <div class="agenda-mini-sub">Сумма из общедомовых расходов · 8.4 млн сум</div>
+              </div>
+
+              <div class="otp-card">
+                <div class="otp-eyebrow">Подтверждение голоса</div>
+                <div class="otp-title">Код из SMS на +998 90 ••• 12 34</div>
+                <div class="otp-grid">
+                  <div class="otp-cell">3</div>
+                  <div class="otp-cell">8</div>
+                  <div class="otp-cell">1</div>
+                  <div class="otp-cell">_</div>
+                  <div class="otp-cell empty"></div>
+                  <div class="otp-cell empty"></div>
+                </div>
+                <button class="btn-primary" style="background:var(--brand-500);margin-top:12px">Отдать голос</button>
+                <div class="otp-note">Голос подписывается через OTP. Изменить можно до закрытия голосования.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="caption">Голосование: вес голоса = площадь, прогресс кворума, форма возражения при «против», OTP-подпись. Это та фича, которую жилец нигде кроме Kamizo не получит.</div>
+      </div>
+
+      <!-- ============ PHONE 3: CREATE REQUEST ============ -->
+      <div class="phone-col">
+        <span class="pill pill-dark">3 · Создать заявку</span>
+        <div class="device">
+          <div class="notch"></div>
+          <div class="device-screen">
+            <div class="app-head">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="icon-btn" style="width:36px;height:36px">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div class="app-sub">Шаг 2 из 3 · описание</div>
+                  <div class="app-title">Новая заявка</div>
+                </div>
+                <button style="font-size:13px;color:var(--ink-400);font-weight:500">Отмена</button>
+              </div>
+              <!-- Step progress -->
+              <div style="display:flex;gap:4px;margin-top:14px">
+                <div style="flex:1;height:3px;background:var(--brand-500);border-radius:999px"></div>
+                <div style="flex:1;height:3px;background:var(--brand-500);border-radius:999px"></div>
+                <div style="flex:1;height:3px;background:var(--ink-100);border-radius:999px"></div>
+              </div>
+            </div>
+
+            <div class="app-body" style="padding-bottom:120px">
+              <!-- Selected category recap -->
+              <div style="background:var(--brand-50);border:1px solid var(--brand-200);border-radius:var(--radius-lg);padding:14px;display:flex;align-items:center;gap:12px">
+                <div style="width:40px;height:40px;border-radius:10px;background:#fff;display:grid;place-items:center;color:var(--brand-600)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:11px;text-transform:uppercase;color:var(--brand-700);font-weight:600;letter-spacing:.06em">Выбрано</div>
+                  <div style="font-size:14px;font-weight:600;color:var(--ink-900);margin-top:2px">Сантехник · Протекает кран</div>
+                </div>
+                <button style="font-size:12px;color:var(--brand-600);font-weight:600">Изменить</button>
+              </div>
+
+              <!-- Description -->
+              <div>
+                <div class="section-label" style="margin-bottom:6px">
+                  <span>Опишите проблему</span>
+                  <span style="color:var(--ink-300);font-weight:500;text-transform:none">обязательно</span>
+                </div>
+                <div style="background:#fff;border:1px solid var(--ink-100);border-radius:var(--radius-lg);padding:14px">
+                  <textarea rows="3" style="width:100%;border:0;font-family:inherit;font-size:14px;color:var(--ink-900);resize:none;outline:none" placeholder="Например: «Капает кран на кухне, под ним лужа уже сутки»">Капает кран на кухне, под ним лужа со вчерашнего вечера. Подкрутить не получилось.</textarea>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--ink-50)">
+                    <button style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink-500);font-weight:500">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 11a7 7 0 0 1-7 7 7 7 0 0 1-7-7"/><path d="M12 18v3"/><rect x="9" y="2" width="6" height="13" rx="3"/></svg>
+                      Голосовая запись
+                    </button>
+                    <span style="font-size:11px;color:var(--ink-300)">62/500</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Photo attachments -->
+              <div>
+                <div class="section-label">
+                  <span>Фото · до 5 штук</span>
+                  <span style="color:var(--ink-300);font-weight:500;text-transform:none">по желанию</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                  <div style="aspect-ratio:1;border-radius:12px;background:linear-gradient(135deg,#94A3B8,#64748B);position:relative">
+                    <button style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:999px;background:rgba(0,0,0,.5);color:#fff;display:grid;place-items:center">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <div style="aspect-ratio:1;border-radius:12px;background:linear-gradient(135deg,#FDBA74,#FB923C);position:relative">
+                    <button style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:999px;background:rgba(0,0,0,.5);color:#fff;display:grid;place-items:center">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <button style="aspect-ratio:1;border-radius:12px;background:var(--ink-50);border:2px dashed var(--ink-200);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ink-400)">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+                    <span style="font-size:11px;font-weight:500">Добавить</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Time selection -->
+              <div>
+                <div class="section-label">
+                  <span>Когда удобно</span>
+                  <span style="color:var(--ink-300);font-weight:500;text-transform:none">мастер согласует</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <button style="background:#fff;border:2px solid var(--brand-500);border-radius:var(--radius-md);padding:12px;text-align:left;position:relative">
+                    <div style="position:absolute;top:8px;right:8px;width:18px;height:18px;border-radius:999px;background:var(--brand-500);color:#fff;display:grid;place-items:center">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+                    </div>
+                    <div style="font-size:11px;text-transform:uppercase;color:var(--brand-700);font-weight:600;letter-spacing:.04em">Сегодня</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--ink-900);margin-top:4px">До 21:00</div>
+                    <div style="font-size:11px;color:var(--ink-400);margin-top:2px">срочно · без доплаты</div>
+                  </button>
+                  <button style="background:#fff;border:1px solid var(--ink-100);border-radius:var(--radius-md);padding:12px;text-align:left">
+                    <div style="font-size:11px;text-transform:uppercase;color:var(--ink-400);font-weight:600;letter-spacing:.04em">Завтра</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--ink-900);margin-top:4px">10:00–14:00</div>
+                    <div style="font-size:11px;color:var(--ink-400);margin-top:2px">бесплатно</div>
+                  </button>
+                  <button style="background:#fff;border:1px solid var(--ink-100);border-radius:var(--radius-md);padding:12px;text-align:left">
+                    <div style="font-size:11px;text-transform:uppercase;color:var(--ink-400);font-weight:600;letter-spacing:.04em">Завтра</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--ink-900);margin-top:4px">14:00–18:00</div>
+                    <div style="font-size:11px;color:var(--ink-400);margin-top:2px">бесплатно</div>
+                  </button>
+                  <button style="background:#fff;border:1px solid var(--ink-100);border-radius:var(--radius-md);padding:12px;text-align:left">
+                    <div style="font-size:11px;text-transform:uppercase;color:var(--ink-400);font-weight:600;letter-spacing:.04em">Выбрать</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--ink-900);margin-top:4px">Дата и час</div>
+                    <div style="font-size:11px;color:var(--ink-400);margin-top:2px">в календаре</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Access -->
+              <div style="background:#fff;border:1px solid var(--ink-100);border-radius:var(--radius-lg);padding:14px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:600;color:var(--ink-900)">Доступ в квартиру</div>
+                    <div style="font-size:12px;color:var(--ink-500);margin-top:4px">Кто-то будет дома · мастер позвонит за 30 минут</div>
+                  </div>
+                  <!-- Toggle -->
+                  <div style="width:42px;height:24px;background:var(--brand-500);border-radius:999px;position:relative;flex-shrink:0;margin-top:2px">
+                    <div style="position:absolute;top:2px;right:2px;width:20px;height:20px;background:#fff;border-radius:999px;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Estimated -->
+              <div style="background:var(--ok-50);border:1px solid #A7F3D0;border-radius:var(--radius-lg);padding:14px;display:flex;gap:12px;align-items:flex-start">
+                <div style="width:36px;height:36px;border-radius:10px;background:#fff;display:grid;place-items:center;color:#059669;flex-shrink:0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;color:#065F46">Среднее время выполнения</div>
+                  <div style="font-size:12px;color:#047857;margin-top:2px">Сантехник в этом ЖК закрывает заявки за 2.5 часа · 4.7★ от 142 жильцов</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sticky bottom CTA -->
+            <div style="position:sticky;bottom:0;background:#fff;border-top:1px solid var(--ink-100);padding:12px 20px 16px;margin-top:-100px">
+              <button style="width:100%;background:var(--brand-500);color:#fff;font-weight:600;border-radius:var(--radius-md);padding:14px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px">
+                Далее · подтверждение
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+
+          </div>
+        </div>
+        <div class="caption">Создание заявки: 3-шаговый wizard. Категория → описание (с фото и голосом) → подтверждение. Слот «сегодня до 21:00» как primary, среднее время по дому из реальных данных.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== TOKENS ===== -->
+  <section class="tokens">
+    <h2>Дизайн-токены</h2>
+    <p class="muted small" style="margin:4px 0 0">Сохранил твою фирменную палитру (янтарный) и расширил семантические цвета — теперь статусы системны, а не ad-hoc.</p>
+
+    <div class="tokens-grid">
+      <div>
+        <div class="token-eyebrow">Brand (текущая)</div>
+        <div class="swatch-row">
+          <div class="sw" style="background:var(--brand-50)"></div>
+          <div class="sw" style="background:var(--brand-200)"></div>
+          <div class="sw" style="background:var(--brand-400)"></div>
+          <div class="sw ring" style="background:var(--brand-500)"></div>
+          <div class="sw" style="background:var(--brand-600)"></div>
+          <div class="sw" style="background:var(--brand-700)"></div>
+        </div>
+        <div class="token-note">Primary остаётся #F59E0B. Только дополнил оттенки 50/200/400 для фонов и hover, и 700 для контраста.</div>
+      </div>
+      <div>
+        <div class="token-eyebrow">Ink · нейтрали</div>
+        <div class="swatch-row">
+          <div class="sw" style="background:var(--ink-50)"></div>
+          <div class="sw" style="background:var(--ink-100)"></div>
+          <div class="sw" style="background:var(--ink-200)"></div>
+          <div class="sw" style="background:var(--ink-300)"></div>
+          <div class="sw" style="background:var(--ink-500)"></div>
+          <div class="sw" style="background:var(--ink-700)"></div>
+          <div class="sw" style="background:var(--ink-900)"></div>
+        </div>
+        <div class="token-note">Чёткая лестница серых вместо «чёрный + один-два серых». Чинит читаемость подписей, плейсхолдеров, рамок.</div>
+      </div>
+      <div>
+        <div class="token-eyebrow">Семантика</div>
+        <div class="swatch-row">
+          <div class="sw" style="background:var(--ok)" title="success"></div>
+          <div class="sw" style="background:var(--warn)" title="warning"></div>
+          <div class="sw" style="background:var(--danger)" title="danger"></div>
+          <div class="sw" style="background:var(--info)" title="info"></div>
+        </div>
+        <div class="token-note">success / warning / danger / info — для статусов заявок, голосования, долгов, объявлений.</div>
+      </div>
+      <div>
+        <div class="token-eyebrow">Радиусы и тени</div>
+        <div class="radius-sample" style="border-radius:8px">rounded · 8</div>
+        <div class="radius-sample" style="border-radius:12px">rounded · 12</div>
+        <div class="radius-sample" style="border-radius:16px">rounded · 16 ← карточки</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== IMPLEMENTATION ===== -->
+  <section class="impl">
+    <h2>Что из этого реально внедрить и в какой последовательности</h2>
+    <div class="impl-grid">
+      <div>
+        <span class="pill" style="background:var(--brand-500);color:#fff">P0 · 1 неделя</span>
+        <div class="impl-title">Главная резидента</div>
+        <p>Активная заявка и ближайшее собрание становятся героями экрана. Карточка «уже скоро» аккуратно обозначает онлайн-оплату и счётчики — без лишнего шума, но жилец понимает, что они в работе.</p>
+      </div>
+      <div>
+        <span class="pill" style="background:var(--info);color:#fff">P0 · 1 неделя</span>
+        <div class="impl-title">Создать заявку (wizard)</div>
+        <p>Главное действие жильца. Категория → описание с фото и голосом → выбор слота. Слот «сегодня до 21:00» как primary CTA. Среднее время по дому показано из реальных данных — это снимает тревогу «когда придёт мастер».</p>
+      </div>
+      <div>
+        <span class="pill" style="background:var(--ok);color:#fff">P1 · 1–2 недели</span>
+        <div class="impl-title">Голосование</div>
+        <p>Главная фишка против конкурентов — юридически валидное собрание с весом по площади. Сейчас экран пустой; после редизайна жилец увидит вес своего голоса, кворум и проголосует с OTP-подписью за 30 секунд.</p>
+      </div>
+    </div>
+    <div class="impl-foot">Палитра остаётся твоей янтарной. Платёжные системы и приборы учёта — отдельные интеграционные проекты; в макете они присутствуют как «уже скоро», чтобы жилец видел дорожную карту, но не путал с рабочим функционалом.</div>
+  </section>
+
+</main>
+
+</body>
+</html>
