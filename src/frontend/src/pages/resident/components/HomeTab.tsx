@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Wrench, MessageCircle, QrCode,
-  Vote, Star,
+  Wallet, Vote, Star,
   Megaphone, Clock, CreditCard, Gauge,
   CheckCircle2, Phone, Key, FileText as FileTextIcon, X as CloseIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
+import { generateReconciliationDoc } from '../../../utils/generateFinanceDocs';
 import { useTenantStore } from '../../../stores/tenantStore';
 import { HomeHighlights } from './HomeHighlights';
 import type { HomeTabProps } from './types';
