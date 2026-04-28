@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   QrCode, Plus, X, Clock, Package, Users, Car, User,
   Share2, Download, Copy, ChevronRight, ArrowLeft, Calendar,
-  Trash2
+  Trash2, History, CheckCircle2, XCircle
 } from 'lucide-react';
 import { EmptyState, StatusBadge, ConfirmDialog } from '../components/common';
 import type { StatusTone } from '../theme';
@@ -11,11 +11,28 @@ import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
+import { apiRequest } from '../services/api';
 import {
   VISITOR_TYPE_LABELS, ACCESS_TYPE_LABELS, GUEST_ACCESS_STATUS_LABELS,
   type GuestAccessCode, type VisitorType, type AccessType
 } from '../types';
 import { safeLabel } from '../utils/safeLabel';
+
+// Server log shape — matches /api/guest-codes/scan-history.
+// Mirrors the same interface used in GuardQRScannerPage but lives here too
+// so we don't cross-import a guard-only file.
+interface VisitLog {
+  id: string;
+  code_id: string;
+  scanned_by_id: string;
+  scanned_by_name: string;
+  scanned_by_role: string;
+  action: string;
+  visitor_type: string;
+  resident_name: string;
+  resident_apartment: string;
+  scanned_at: string;
+}
 
 // Map guest-access status to semantic StatusTone for StatusBadge
 function toneFor(status: string): StatusTone {
@@ -686,10 +703,35 @@ export function ResidentGuestAccessPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired' | 'revoked' | 'archive'>('all');
   const [showRevokeConfirm, setShowRevokeConfirm] = useState<GuestAccessCode | null>(null);
 
+  // Visit history — list of scans from guards/security on this resident's
+  // own QR codes. The backend endpoint returns ALL tenant logs, we filter
+  // client-side by code_id ∈ user's codes. Useful answer to "приходил ли
+  // курьер?" without having to call the УК.
+  const [visitLogs, setVisitLogs] = useState<VisitLog[]>([]);
+  const [logsLoaded, setLogsLoaded] = useState(false);
+
   // Fetch codes on mount
   useEffect(() => {
     fetchGuestCodes();
   }, [fetchGuestCodes]);
+
+  // Fetch the scan-history once codes are loaded so we know which IDs are ours.
+  // Re-fetched whenever the codes list changes (new code created → maybe new
+  // logs available too).
+  useEffect(() => {
+    if (!user?.id) return;
+    apiRequest<{ logs: VisitLog[] }>('/api/guest-codes/scan-history')
+      .then(res => setVisitLogs(res.logs || []))
+      .catch(() => setVisitLogs([]))
+      .finally(() => setLogsLoaded(true));
+  }, [user?.id, guestAccessCodes.length]);
+
+  // Filter logs to those tied to THIS resident's codes (last 30 entries).
+  const myCodeIds = useMemo(() => new Set(guestAccessCodes.map(c => c.id)), [guestAccessCodes]);
+  const myVisitLogs = useMemo(
+    () => visitLogs.filter(log => myCodeIds.has(log.code_id)).slice(0, 30),
+    [visitLogs, myCodeIds]
+  );
 
   const allCodes = guestAccessCodes;
 
@@ -937,6 +979,75 @@ export function ResidentGuestAccessPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Visit history — answers 'кто и когда заходил по моему QR'.
+          Hidden until the resident has at least one code in the system,
+          otherwise the section is just an empty cup. */}
+      {logsLoaded && guestAccessCodes.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-gray-400" />
+              <span className="text-[13px] font-bold text-gray-700">
+                {language === 'ru' ? 'История посещений' : 'Tashriflar tarixi'}
+              </span>
+              {myVisitLogs.length > 0 && (
+                <span className="text-[11px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {myVisitLogs.length}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {myVisitLogs.length === 0 ? (
+            <div className="bg-white rounded-[14px] p-4 text-center text-[12px] text-gray-400">
+              {language === 'ru'
+                ? 'Здесь появятся записи когда кто-то зайдёт по вашему QR'
+                : 'Sizning QR orqali kim kirsa, bu yerda paydo bo\'ladi'}
+            </div>
+          ) : (
+            <div className="bg-white rounded-[14px] divide-y divide-gray-100 overflow-hidden">
+              {myVisitLogs.map(log => {
+                const isAllowed = log.action === 'entry_allowed';
+                const visitor = safeVisitorLabel(log.visitor_type);
+                const ts = new Date(log.scanned_at);
+                const timeStr = ts.toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
+                  day: '2-digit', month: '2-digit',
+                  hour: '2-digit', minute: '2-digit',
+                });
+                return (
+                  <div key={log.id} className="p-3 flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      isAllowed ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                    }`}>
+                      {isAllowed
+                        ? <CheckCircle2 className="w-4 h-4" />
+                        : <XCircle className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-medium text-gray-900 truncate">
+                        {visitor.icon} {language === 'ru' ? visitor.label : visitor.labelUz}
+                        {' · '}
+                        <span className={isAllowed ? 'text-green-600' : 'text-red-600'}>
+                          {isAllowed
+                            ? (language === 'ru' ? 'пропущен' : 'kirgan')
+                            : (language === 'ru' ? 'отказ' : 'rad etilgan')}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-gray-400">
+                        {timeStr}
+                        {log.scanned_by_name && (
+                          <>{' · '}{language === 'ru' ? 'охрана' : 'qo\'riqchi'}: {log.scanned_by_name}</>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

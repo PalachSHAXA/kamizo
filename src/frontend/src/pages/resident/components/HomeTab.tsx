@@ -267,7 +267,7 @@ export function HomeTab({
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-bold text-gray-700">
-                {language === 'ru' ? 'Онлайн-оплата · Click и Payme' : 'Onlayn to\'lov · Click va Payme'}
+                {language === 'ru' ? 'Онлайн-оплата ЖКУ' : 'Onlayn to\'lov'}
               </div>
               <div className="text-[11px] text-gray-400 mt-0.5">
                 {language === 'ru' ? 'Лицевой счёт, квитанции, история — подключаем' : 'Shaxsiy hisob, kvitansiya — ulanmoqda'}

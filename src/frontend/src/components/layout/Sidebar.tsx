@@ -317,10 +317,18 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         // 🚗 Доступ и имущество
         { path: '/vehicles', icon: Car, label: language === 'ru' ? 'Мои авто' : 'Mening avtomobillarim', section: language === 'ru' ? 'Доступ и имущество' : 'Kirish va mulk' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевой доступ' : 'Mehmon kirishi' },
+        // /contract used to live only on the home tab — exposing it in the
+        // drawer too because the contract is a primary document, residents
+        // open it routinely (download QR for sign-up, share with relatives).
+        { path: '/contract', icon: ScrollText, label: language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma' },
         // ℹ️ Информация
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar', section: language === 'ru' ? 'Информация' : 'Ma\'lumot' },
         { path: '/marketplace', icon: Headphones, label: language === 'ru' ? 'Маркет для дома' : 'Uy uchun market' },
         { path: '/rate-employees', icon: Star, label: language === 'ru' ? 'Оценить УК' : 'UK ni baholash' },
+        // /trainings is gated by a tenant feature flag, but residents who
+        // CAN see it (per ProtectedRoute) couldn't reach it from the
+        // drawer — the link was only in the executor sidebar.
+        { path: '/trainings', icon: GraduationCap, label: language === 'ru' ? 'Тренинги' : 'Treninglar' },
       ];
     }
     if (user?.role === 'tenant' || user?.role === 'commercial_owner') {
