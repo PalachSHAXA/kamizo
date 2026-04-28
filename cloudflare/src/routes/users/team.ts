@@ -18,7 +18,7 @@ route('GET', '/api/team', async (request, env) => {
   const roleFilter = url.searchParams.get('role');
   const search = url.searchParams.get('search');
 
-  let whereClause = "WHERE u.role IN ('admin', 'manager', 'department_head', 'executor', 'advertiser')";
+  let whereClause = "WHERE u.role IN ('director', 'admin', 'manager', 'department_head', 'executor', 'advertiser', 'security')";
   const params: any[] = [];
 
   const tenantId = getTenantId(request);
@@ -54,8 +54,9 @@ route('GET', '/api/team', async (request, env) => {
   const orderBy = `
     ORDER BY
       CASE u.role
-        WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 WHEN 'advertiser' THEN 1
-        WHEN 'department_head' THEN 2 WHEN 'executor' THEN 3
+        WHEN 'director' THEN 0 WHEN 'admin' THEN 1
+        WHEN 'manager' THEN 2 WHEN 'advertiser' THEN 2
+        WHEN 'department_head' THEN 3 WHEN 'executor' THEN 4 WHEN 'security' THEN 5
       END, u.name LIMIT 500`;
   const bindings = [...(tenantId ? [tenantId] : []), ...params];
 
@@ -92,12 +93,14 @@ route('GET', '/api/team', async (request, env) => {
     delete s.password_plain;
   }
 
+  const directors = staff.filter((s: any) => s.role === 'director');
   const admins = staff.filter((s: any) => s.role === 'admin');
   const managers = staff.filter((s: any) => ['manager', 'advertiser'].includes(s.role));
   const departmentHeads = staff.filter((s: any) => s.role === 'department_head');
-  const executors = staff.filter((s: any) => s.role === 'executor');
+  const executors = staff.filter((s: any) => ['executor', 'security'].includes(s.role));
 
   return json({
+    directors,
     admins,
     managers,
     departmentHeads,

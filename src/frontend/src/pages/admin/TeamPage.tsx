@@ -112,6 +112,7 @@ export function TeamPage() {
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const isDirector = currentUser?.role === 'director';
+  const [directors, setDirectors] = useState<StaffMember[]>([]);
   const [admins, setAdmins] = useState<StaffMember[]>([]);
   const [managers, setManagers] = useState<StaffMember[]>([]);
   const [departmentHeads, setDepartmentHeads] = useState<StaffMember[]>([]);
@@ -128,6 +129,7 @@ export function TeamPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [specializationFilter, setSpecializationFilter] = useState<ExecutorSpecialization | 'all'>('all');
   const [expandedSections, setExpandedSections] = useState({
+    directors: true,
     admins: true,
     managers: true,
     departmentHeads: true,
@@ -173,7 +175,8 @@ export function TeamPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await teamApi.getAll();
+      const data = await teamApi.getAll() as any;
+      setDirectors(data.directors || []);
       setAdmins(data.admins || []);
       setManagers(data.managers || []);
       setDepartmentHeads(data.departmentHeads || []);
@@ -529,6 +532,7 @@ export function TeamPage() {
     ...executors.map(m => m.specialization).filter(Boolean),
   ])] as ExecutorSpecialization[];
 
+  const filteredDirectors = filterMembers(directors);
   const filteredAdmins = filterMembers(admins);
   const filteredManagers = filterMembers(managers);
   const filteredDepartmentHeads = filterMembers(departmentHeads);
@@ -707,7 +711,7 @@ export function TeamPage() {
             {language === 'ru' ? 'Всего' : 'Jami'}:{' '}
             {pluralWithCount(
               language === 'ru' ? 'ru' : 'uz',
-              (isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length,
+              directors.length + (isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length,
               { one: 'сотрудник', few: 'сотрудника', many: 'сотрудников' },
               { one: 'xodim', other: 'xodim' }
             )}
@@ -791,7 +795,20 @@ export function TeamPage() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
+        {directors.length > 0 && (
+          <div className="glass-card p-3 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xl sm:text-2xl font-bold">{directors.length}</div>
+                <div className="text-xs sm:text-sm text-gray-500 truncate">{language === 'ru' ? 'Директоров' : 'Direktorlar'}</div>
+              </div>
+            </div>
+          </div>
+        )}
         {!isDirector && admins.length > 0 && (
           <div className="glass-card p-3 sm:p-5">
             <div className="flex items-center gap-2 sm:gap-3">
@@ -842,6 +859,12 @@ export function TeamPage() {
 
       {/* Sections */}
       <div className="space-y-3 sm:space-y-4">
+        {filteredDirectors.length > 0 && renderSection(
+          language === 'ru' ? 'Директора' : 'Direktorlar',
+          <Shield className="w-5 h-5 text-amber-500" />,
+          filteredDirectors,
+          'directors'
+        )}
         {!isDirector && filteredAdmins.length > 0 && renderSection(
           language === 'ru' ? 'Администраторы' : 'Administratorlar',
           <Shield className="w-5 h-5 text-red-500" />,
