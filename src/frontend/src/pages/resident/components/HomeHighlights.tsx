@@ -4,7 +4,7 @@ import {
   Vote, AlertTriangle, CheckCircle2, ChevronRight, Sparkles, Megaphone, Star,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
-import { useDataStore } from '../../../stores/dataStore';
+import { useAnnouncementStore } from '../../../stores/announcementStore';
 import { useMeetingStore } from '../../../stores/meetingStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { ukRatingsApi } from '../../../services/api';
@@ -31,8 +31,12 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
-  const { meetings } = useMeetingStore();
-  const announcements = useDataStore(s => s.announcements);
+  // Pull meetings/announcements directly from their focused Zustand stores.
+  // The barrel `useDataStore()` returns the merged object and does NOT
+  // accept a selector — passing one silently returned the whole store
+  // object, which then crashed when we called .find() on it.
+  const meetings = useMeetingStore(s => s.meetings);
+  const announcements = useAnnouncementStore(s => s.announcements);
 
   const [activeIdx, setActiveIdx] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
