@@ -7,6 +7,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { InstallAppSection } from '../components/InstallAppSection';
+import { formatName } from '../utils/formatName';
 
 const ROLE_CONFIG: Record<string, { labelRu: string; labelUz: string; icon: any; color: string; bgColor: string }> = {
   executor: { labelRu: 'Исполнитель', labelUz: 'Ijrochi', icon: Wrench, color: 'text-amber-600', bgColor: 'bg-amber-50' },
@@ -142,7 +143,7 @@ export function StaffProfilePage() {
               <RoleIcon className="w-7 h-7 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{user.name}</h1>
+              <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{formatName(user.name)}</h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={`px-2.5 py-0.5 ${roleConfig.bgColor} ${roleConfig.color} rounded-full text-xs font-semibold`}>
                   {language === 'ru' ? roleConfig.labelRu : roleConfig.labelUz}

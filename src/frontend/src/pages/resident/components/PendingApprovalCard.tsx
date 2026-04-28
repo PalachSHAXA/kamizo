@@ -1,5 +1,6 @@
 import { CheckCircle, User, Clock } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { formatName } from '../../../utils/formatName';
 import type { PendingApprovalCardProps } from './types';
 
 export function PendingApprovalCard({ request, onApprove }: PendingApprovalCardProps) {
@@ -34,7 +35,7 @@ export function PendingApprovalCard({ request, onApprove }: PendingApprovalCardP
           <div className="text-xs text-gray-500 mb-0.5">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</div>
           <div className="font-medium text-sm flex items-center gap-1">
             <User className="w-3.5 h-3.5 text-gray-400" />
-            <span className="truncate">{request.executorName}</span>
+            <span className="truncate">{formatName(request.executorName)}</span>
           </div>
         </div>
         <div className="bg-white/60 rounded-lg p-3">

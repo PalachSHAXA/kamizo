@@ -4,6 +4,7 @@ import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { formatName } from '../utils/formatName';
 import type { Announcement, AnnouncementPriority } from '../types';
 
 export function ResidentAnnouncementsPage() {
@@ -238,7 +239,7 @@ export function ResidentAnnouncementsPage() {
                     {/* Meta */}
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
                       <span>{formatDate(announcement.createdAt)}</span>
-                      <span>{announcement.authorName}</span>
+                      <span>{formatName(announcement.authorName)}</span>
                       {!isUnread && (
                         <span className="flex items-center gap-1 text-green-600">
                           <Check className="w-3 h-3" />

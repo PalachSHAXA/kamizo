@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Star, CheckCircle, User, Clock, ChevronDown } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { formatName } from '../../../utils/formatName';
 import type { ApproveModalProps } from './types';
 
 export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveModalProps) {
@@ -91,7 +92,7 @@ export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveM
             <div className="flex flex-wrap gap-2 mt-2.5">
               <span className="flex items-center gap-1.5 text-[12px] text-gray-600 bg-white px-2.5 py-1.5 rounded-[10px]">
                 <User className="w-3.5 h-3.5 text-gray-400" />
-                {request.executorName}
+                {formatName(request.executorName)}
               </span>
               <span className="flex items-center gap-1.5 text-[12px] text-gray-600 bg-white px-2.5 py-1.5 rounded-[10px]">
                 <Clock className="w-3.5 h-3.5 text-gray-400" />

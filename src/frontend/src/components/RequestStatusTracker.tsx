@@ -1,6 +1,7 @@
 import { CheckCircle, Clock, Wrench, User, Star, XCircle, Phone, MessageCircle, RefreshCw } from 'lucide-react';
 import type { Request, RequestStatus } from '../types';
 import { SERVICE_CATEGORIES, SPECIALIZATION_LABELS, SPECIALIZATION_LABELS_UZ } from '../types';
+import { formatName } from '../utils/formatName';
 
 // Helper to get category info
 function getCategoryInfo(category: string) {
@@ -328,7 +329,7 @@ export function RequestStatusTracker({
                 <User className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-900 truncate">{executorName}</div>
+                <div className="font-semibold text-gray-900 truncate">{formatName(executorName)}</div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">
                     {language === 'ru' ? 'Ваш мастер' : 'Sizning ustangiz'}
@@ -541,7 +542,7 @@ export function RequestStatusTrackerCompact({
                   <User className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm text-gray-900">{executorName}</div>
+                  <div className="font-medium text-sm text-gray-900">{formatName(executorName)}</div>
                   {request.executorRating && (
                     <div className="flex items-center gap-1">
                       <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />

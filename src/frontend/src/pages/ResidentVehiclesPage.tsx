@@ -225,10 +225,13 @@ export function ResidentVehiclesPage() {
     }
   };
 
-  // Search tab is only useful when the resident owns enough cars to actually
-  // need search. With 1-2 vehicles a plate-search UI is overkill — the list
-  // already fits on-screen. Expose search only at 3+.
-  const showSearchTab = vehicles.length >= 3;
+  // Plate search is always available to residents — it queries vehicles
+  // across the whole building/tenant (via searchVehiclesByPlate), not just
+  // the resident's own cars. Typical use case: a car is blocking the
+  // driveway, the resident enters its plate to find the owner and call
+  // them, or to verify a guest's vehicle. Earlier versions hid this tab
+  // when the resident had <3 own cars, which mistakenly assumed search was
+  // for browsing the user's own list.
   const tabs = [
     {
       id: 'my_vehicles' as const,
@@ -236,11 +239,11 @@ export function ResidentVehiclesPage() {
       icon: Car,
       count: vehicles.length
     },
-    ...(showSearchTab ? [{
+    {
       id: 'search' as const,
-      label: language === 'ru' ? 'Поиск' : 'Qidirish',
+      label: language === 'ru' ? 'Найти авто' : 'Avto qidirish',
       icon: Search,
-    }] : []),
+    },
   ];
 
   const ownerTypes: VehicleOwnerType[] = ['individual', 'legal_entity'];

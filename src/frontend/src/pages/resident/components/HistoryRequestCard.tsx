@@ -1,5 +1,6 @@
 import { Calendar, User, Star, Ban } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { formatName } from '../../../utils/formatName';
 import type { HistoryRequestCardProps } from './types';
 
 export function HistoryRequestCard({ request, onClick }: HistoryRequestCardProps) {
@@ -78,7 +79,7 @@ export function HistoryRequestCard({ request, onClick }: HistoryRequestCardProps
                 {request.executorName && (
                   <span className="flex items-center gap-1">
                     <User className="w-4 h-4" />
-                    {request.executorName}
+                    {formatName(request.executorName)}
                   </span>
                 )}
               </div>

@@ -9,6 +9,7 @@ import type { Executor } from '../types';
 import { SPECIALIZATION_LABELS } from '../types';
 import { Modal } from '../components/common';
 import { pluralWithCount } from '../utils/plural';
+import { formatName } from '../utils/formatName';
 
 interface Rating {
   quality: number;
@@ -407,7 +408,7 @@ export function ResidentRateEmployeesPage() {
                         <User className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{executor.name}</h3>
+                        <h3 className="font-semibold text-gray-900 truncate">{formatName(executor.name)}</h3>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Briefcase className="w-3.5 h-3.5" />
                           <span className="truncate">
@@ -460,7 +461,7 @@ export function ResidentRateEmployeesPage() {
                         <User className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{executor.name}</h3>
+                        <h3 className="font-semibold text-gray-900 truncate">{formatName(executor.name)}</h3>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Briefcase className="w-3.5 h-3.5" />
                           <span className="truncate">
@@ -507,7 +508,7 @@ export function ResidentRateEmployeesPage() {
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center mx-auto mb-3">
                   <User className="w-10 h-10 text-white" />
                 </div>
-                <h2 className="text-xl font-bold">{selectedExecutor.name}</h2>
+                <h2 className="text-xl font-bold">{formatName(selectedExecutor.name)}</h2>
                 <p className="text-gray-600">
                   {SPECIALIZATION_LABELS[selectedExecutor.specialization] || selectedExecutor.specialization}
                 </p>
@@ -613,7 +614,7 @@ export function ResidentRateEmployeesPage() {
                   <User className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <p className="font-semibold text-lg">{selectedExecutor.name}</p>
+                  <p className="font-semibold text-lg">{formatName(selectedExecutor.name)}</p>
                   <p className="text-sm text-gray-600">
                     {SPECIALIZATION_LABELS[selectedExecutor.specialization] || selectedExecutor.specialization}
                   </p>

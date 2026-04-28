@@ -137,31 +137,42 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
   return (
     <>
+      {/* Mobile header — redesigned to be compact and modern.
+          Previously each icon button was a 44×44 white card with a shadow,
+          which made the header feel chunky and cluttered. The new layout
+          left-aligns logo + tenant name (matches platform-style products
+          like Telegram, Revolut), keeps the buttons as flat round icons
+          with a soft hover bg, and shrinks vertical padding for more
+          screen real-estate to the actual content. */}
       <header className="mobile-header" role="banner">
-        <button onClick={onMenuClick} className="min-w-[44px] min-h-[44px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation" aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'} aria-expanded={false}>
-          <Menu className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
-          {/* Badge on menu button for pending tasks */}
-          {totalMenuBadge > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-xs font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
-              {totalMenuBadge > 9 ? '9+' : totalMenuBadge}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <button
+            onClick={onMenuClick}
+            className="w-9 h-9 rounded-[10px] flex items-center justify-center relative active:bg-gray-100 transition-colors touch-manipulation -ml-1"
+            aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'}
+            aria-expanded={false}
+          >
+            <Menu className="w-[20px] h-[20px] text-gray-700" strokeWidth={2.2} />
+            {totalMenuBadge > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full pointer-events-none" />
+            )}
+          </button>
 
-        <div className="flex items-center gap-2">
-          <AppLogo size="sm" />
-          <span className="font-bold text-gray-900 text-sm">{tenantName}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <AppLogo size="sm" />
+            <span className="font-bold text-gray-900 text-[15px] truncate">{tenantName}</span>
+          </div>
         </div>
 
         <button
           onClick={() => setShowNotifications(!showNotifications)}
-          className="min-w-[44px] min-h-[44px] bg-white rounded-[13px] flex items-center justify-center shadow-[0_2px_10px_rgba(0,0,0,0.06)] relative active:scale-[0.88] transition-transform touch-manipulation"
+          className="w-9 h-9 rounded-[10px] flex items-center justify-center relative active:bg-gray-100 transition-colors touch-manipulation -mr-1"
           aria-label={language === 'ru' ? `Уведомления, ${totalNotificationsBadge} новых` : `Bildirishnomalar, ${totalNotificationsBadge} yangi`}
           aria-pressed={showNotifications}
         >
-          <Bell className="w-[18px] h-[18px] text-gray-700" strokeWidth={2} />
+          <Bell className="w-[20px] h-[20px] text-gray-700" strokeWidth={2.2} />
           {totalNotificationsBadge > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-extrabold text-white flex items-center justify-center border-2 border-white pointer-events-none">
+            <span className="absolute top-0.5 right-0.5 min-w-[16px] h-[16px] bg-primary-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white pointer-events-none">
               {totalNotificationsBadge > 9 ? '9+' : totalNotificationsBadge}
             </span>
           )}

@@ -12,6 +12,7 @@ import { useToastStore } from '../stores/toastStore';
 import { generateQRCode } from '../components/LazyQRCode';
 import { generateContractDocx } from '../utils/contractGenerator';
 import { formatPhone } from '../utils/formatPhone';
+import { formatName } from '../utils/formatName';
 import { ContractPreview } from '../components/ContractPreview';
 import { InstallAppSection } from '../components/InstallAppSection';
 
@@ -275,7 +276,7 @@ export function ResidentProfilePage() {
               <UserIcon className="w-7 h-7 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{user.name}</h1>
+              <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{formatName(user.name)}</h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="px-2.5 py-0.5 bg-primary-50 text-primary-600 rounded-full text-xs font-semibold">
                   {roleLabel}

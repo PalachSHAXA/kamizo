@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { ContractQRCode } from '../components/ContractQRCode';
 import { StatusBadge } from '../components/common';
+import { formatName } from '../utils/formatName';
 
 export function ResidentContractPage() {
   const { user } = useAuthStore();
@@ -105,7 +106,7 @@ export function ResidentContractPage() {
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-500">{language === 'ru' ? 'ФИО' : 'F.I.O'}</span>
-            <span className="font-medium text-gray-900">{user.name}</span>
+            <span className="font-medium text-gray-900">{formatName(user.name)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">{language === 'ru' ? 'Логин' : 'Login'}</span>

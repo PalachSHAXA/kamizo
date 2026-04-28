@@ -12,6 +12,7 @@ import { useTenantStore } from '../stores/tenantStore';
 import { useFinanceStore } from '../stores/financeStore';
 import type { Request, ExecutorSpecialization, RescheduleRequest } from '../types';
 import { formatAddress } from '../utils/formatAddress';
+import { formatName } from '../utils/formatName';
 import RescheduleModal from '../components/modals/RescheduleModal';
 import RescheduleResponseModal from '../components/modals/RescheduleResponseModal';
 import { CancelRequestModal } from '../components/modals/CancelRequestModal';
@@ -206,24 +207,43 @@ export function ResidentDashboard() {
 
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0">
-      {/* Greeting - only on home tab */}
-      {activeTab === 'home' && (
-        <div className="px-5 pt-2 pb-1.5 md:px-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[12px] font-semibold text-gray-400 tracking-wide">
-                {language === 'ru' ? (<>Добро пожаловать <span aria-hidden="true">👋</span></>) : (<>Xush kelibsiz <span aria-hidden="true">👋</span></>)}
-              </div>
-              {/* Greeting uses first name; profile page shows full name. This
-                  matches standard mobile-app conventions — the greeting is
-                  friendly, the profile is the authoritative view. */}
-              <div className="text-[22px] font-extrabold text-gray-900 tracking-tight leading-tight">
-                {user?.name?.split(' ')[0] || user?.name}
+      {/* Greeting - only on home tab. Time-of-day phrasing (Доброе утро /
+          Добрый день / Добрый вечер / Доброй ночи) makes the welcome feel
+          context-aware vs the generic "Welcome" we had before.
+          Names are normalized through formatName() because legacy DB
+          imports often store full caps (ABDURAXMANOV → Abduraxmanov). */}
+      {activeTab === 'home' && (() => {
+        const h = new Date().getHours();
+        const greetingRu =
+          h < 6  ? 'Доброй ночи'
+          : h < 12 ? 'Доброе утро'
+          : h < 18 ? 'Добрый день'
+          : 'Добрый вечер';
+        const greetingUz =
+          h < 6  ? 'Hayrli tun'
+          : h < 12 ? 'Hayrli tong'
+          : h < 18 ? 'Hayrli kun'
+          : 'Hayrli kech';
+        const fullName = formatName(user?.name);
+        const firstName = fullName.split(' ')[0] || fullName;
+        return (
+          <div className="px-5 pt-2 pb-1.5 md:px-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[12px] font-semibold text-gray-400 tracking-wide">
+                  {language === 'ru' ? greetingRu : greetingUz} <span aria-hidden="true">👋</span>
+                </div>
+                {/* Greeting uses first name; profile page shows full name. This
+                    matches standard mobile-app conventions — the greeting is
+                    friendly, the profile is the authoritative view. */}
+                <div className="text-[22px] font-extrabold text-gray-900 tracking-tight leading-tight">
+                  {firstName}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Address pill - only on home tab */}
       {activeTab === 'home' && (

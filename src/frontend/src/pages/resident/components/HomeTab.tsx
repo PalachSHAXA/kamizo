@@ -1,23 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Wrench, MessageCircle, QrCode,
-  Wallet, Vote, Star, MapPin,
+  Wallet, Vote, Star,
   Megaphone, Clock, CreditCard, Gauge,
 } from 'lucide-react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
 import { generateReconciliationDoc } from '../../../utils/generateFinanceDocs';
 import { useTenantStore } from '../../../stores/tenantStore';
 import type { HomeTabProps } from './types';
-
-// Greeting that adapts to time of day. Kept inline (not a util) because it's
-// trivial and only used here.
-function getGreeting(language: string): string {
-  const h = new Date().getHours();
-  if (h < 6) return language === 'ru' ? 'Доброй ночи' : 'Hayrli tun';
-  if (h < 12) return language === 'ru' ? 'Доброе утро' : 'Hayrli tong';
-  if (h < 18) return language === 'ru' ? 'Добрый день' : 'Hayrli kun';
-  return language === 'ru' ? 'Добрый вечер' : 'Hayrli kech';
-}
 
 // Format ETA from request scheduledDate/scheduledTime into a friendly hint.
 // Returns null if there is no ETA to show.
@@ -69,24 +59,9 @@ export function HomeTab({
   return (
     <div className="space-y-3 px-2.5 md:px-0">
 
-      {/* ===== Greeting header — replaces nothing visible above; the parent
-          screen still renders its own top bar but this gives the home tab its
-          own contextual welcome with address. ===== */}
-      <div className="px-1 pt-2 pb-1">
-        <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.06em]">
-          {tenantName}{user?.building ? ` · ${language === 'ru' ? 'Дом' : 'Uy'} ${user.building}` : ''}
-        </div>
-        <h1 className="text-[22px] font-extrabold text-gray-900 leading-tight mt-0.5">
-          {getGreeting(language)}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
-        </h1>
-        {(user?.apartment || user?.totalArea) && (
-          <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-primary-50 text-primary-700 text-[11px] font-semibold">
-            <MapPin className="w-3 h-3" strokeWidth={2.2} />
-            {user?.apartment && (language === 'ru' ? `кв. ${user.apartment}` : `xon. ${user.apartment}`)}
-            {user?.totalArea && ` · ${user.totalArea} ${language === 'ru' ? 'м²' : 'm²'}`}
-          </div>
-        )}
-      </div>
+      {/* Greeting and address pill are rendered by the parent
+          ResidentDashboard above this component — keeping it here would
+          duplicate the welcome. */}
 
       {/* ===== HERO: Active meeting / voting card. The killer feature of
           Kamizo (legally valid собрание per RU law) deserves the top of the

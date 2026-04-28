@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { apiRequest } from '../services/api';
+import { formatName } from '../utils/formatName';
 import type { PopupType } from '../components/PopupNotification';
 
 // Interface for marketplace orders
@@ -139,7 +140,7 @@ export function usePopupNotifications() {
         id: `request-completed-${r.id}`,
         type: 'request_completed' as PopupType,
         title: 'Работа завершена!',
-        message: `Заявка ${r.number}: ${r.executorName || 'Исполнитель'} завершил работу. Пожалуйста, подтвердите выполнение и оцените работу.`,
+        message: `Заявка ${r.number}: ${formatName(r.executorName) || 'Исполнитель'} завершил работу. Пожалуйста, подтвердите выполнение и оцените работу.`,
         actionLabel: 'Оценить работу',
         onAction: () => {
           // Store request ID to open rating modal directly

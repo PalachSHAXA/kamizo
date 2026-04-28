@@ -3,6 +3,7 @@ import { Clock, User, MapPin, Calendar, AlertCircle } from 'lucide-react';
 import type { Request } from '../types';
 import { STATUS_LABELS, PRIORITY_LABELS, SPECIALIZATION_LABELS } from '../types';
 import { useLanguageStore } from '../stores/languageStore';
+import { formatName } from '../utils/formatName';
 
 interface RequestCardProps {
   request: Request;
@@ -89,7 +90,7 @@ export const RequestCard = memo<RequestCardProps>(
             <div className="flex flex-wrap gap-3 text-xs text-gray-500">
               <div className="flex items-center gap-1">
                 <User className="w-3.5 h-3.5" />
-                <span>{request.residentName}</span>
+                <span>{formatName(request.residentName)}</span>
               </div>
               {request.apartment && (
                 <div className="flex items-center gap-1">
@@ -112,7 +113,7 @@ export const RequestCard = memo<RequestCardProps>(
             {/* Executor info */}
             {request.executorName && (
               <div className="mt-2 text-xs text-gray-600">
-                Исполнитель: <span className="font-medium">{request.executorName}</span>
+                Исполнитель: <span className="font-medium">{formatName(request.executorName)}</span>
               </div>
             )}
 

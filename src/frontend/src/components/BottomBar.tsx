@@ -221,13 +221,22 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white border-t border-gray-200/40 safe-area-bottom"
+      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white/95 backdrop-blur border-t border-gray-100 safe-area-bottom"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
     >
+      {/* Bottom bar redesign:
+          - The active tab is now signaled by a 3px brand-colored top
+            indicator + colored icon/label, instead of a chunky pill
+            background. Cleaner and matches modern iOS/Android conventions.
+          - The FAB is still elevated but reduced from 48→44 with a tighter
+            elevation (-14px instead of -20px) and a softer shadow, so it
+            reads as part of the bar rather than a separate floating button.
+          - Removed the "active dot" + scale wobble animation that made the
+            bar feel busy. Active state is just color + indicator. */}
       <div
-        className="flex items-end justify-around px-2"
-        style={{ paddingTop: '4px', paddingBottom: '4px' }}
+        className="flex items-stretch justify-around px-1"
+        style={{ paddingBottom: '4px' }}
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -239,21 +248,26 @@ export function BottomBar() {
             const isQrFab = tab.id === 'qr';
             const qrActive = isQrFab && currentPath === '/qr-scanner';
             return (
-              <div key={tab.id} className="flex-1 flex justify-center -mt-5 relative z-20">
+              <div key={tab.id} className="flex-1 flex justify-center items-start pt-2 relative z-20">
                 <button
                   onClick={() => handleTap(tab)}
-                  className="touch-manipulation"
+                  className="touch-manipulation -mt-3.5"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                   aria-label={tab.id === 'qr' ? (language === 'ru' ? 'QR сканер' : 'QR skaner') : (language === 'ru' ? 'Новая заявка' : 'Yangi ariza')}
                   data-tour={`bottombar-${tab.id}`}
                 >
                   <div
-                    className={`rounded-full flex items-center justify-center shadow-[0_4px_24px_rgba(var(--brand-rgb),0.45)] transition-all duration-200 border-[3px] border-white ${
-                      fabPressed && !isQrFab ? 'scale-[0.82] rotate-[135deg]' : fabPressed ? 'scale-[0.88]' : 'scale-100 rotate-0 active:scale-[0.88]'
-                    } ${qrActive ? 'ring-2 ring-offset-2 ring-primary-400' : ''}`}
-                    style={{ width: '48px', height: '48px', background: `linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.85))` }}
+                    className={`rounded-full flex items-center justify-center transition-all duration-200 border-[3px] border-white ${
+                      fabPressed && !isQrFab ? 'scale-[0.82] rotate-[135deg]' : fabPressed ? 'scale-[0.88]' : 'scale-100 rotate-0 active:scale-[0.92]'
+                    } ${qrActive ? 'ring-2 ring-offset-1 ring-primary-400' : ''}`}
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      background: `linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.88))`,
+                      boxShadow: '0 4px 14px rgba(var(--brand-rgb), 0.35), 0 1px 2px rgba(15,23,42,0.08)',
+                    }}
                   >
-                    <FabIcon className="w-[24px] h-[24px] text-white" strokeWidth={2.5} />
+                    <FabIcon className="w-[22px] h-[22px] text-white" strokeWidth={2.5} />
                   </div>
                 </button>
               </div>
@@ -266,45 +280,40 @@ export function BottomBar() {
             <button
               key={tab.id}
               onClick={() => handleTap(tab)}
-              className={`relative flex-1 flex flex-col items-center gap-[1px] touch-manipulation overflow-hidden ${locked ? 'opacity-40' : ''}`}
-              style={{ WebkitTapHighlightColor: 'transparent', minHeight: '44px', paddingTop: '4px', paddingBottom: '2px', minWidth: '0' }}
+              className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 touch-manipulation ${locked ? 'opacity-40' : ''}`}
+              style={{ WebkitTapHighlightColor: 'transparent', minHeight: '52px', paddingTop: '6px', paddingBottom: '4px', minWidth: '0' }}
               aria-current={isActive(tab) ? 'page' : undefined}
               aria-label={tab.label}
               data-tour={`bottombar-${tab.id}`}
             >
-              {/* Active pill background */}
+              {/* Top indicator — brand-colored 3px line that slides in for
+                  the active tab. iOS-style. */}
               <div
-                className={`absolute inset-x-2 top-0 bottom-1 rounded-[14px] transition-all duration-300 ease-out ${
-                  active && !locked ? 'bg-primary-50 scale-100 opacity-100' : 'scale-75 opacity-0'
+                className={`absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-b-full transition-all duration-300 ${
+                  active && !locked ? 'w-7 bg-primary-500 opacity-100' : 'w-0 opacity-0'
                 }`}
               />
 
-              {/* Icon container with bounce */}
-              <div
-                className={`relative z-10 transition-all duration-300 ${
-                  active && !locked ? 'scale-110 -translate-y-[2px]' : 'scale-100'
-                }`}
-              >
-                {locked ? (
-                  <Lock className="text-gray-300" style={{ width: '20px', height: '20px' }} strokeWidth={1.8} />
-                ) : (
-                  <Icon
-                    className={`transition-colors duration-200 ${
-                      active ? 'text-primary-600' : 'text-gray-400'
-                    }`}
-                    style={{ width: '20px', height: '20px' }}
-                    fill={active && tab.fillOnActive ? 'currentColor' : 'none'}
-                    strokeWidth={active ? 2.2 : 1.8}
-                  />
-                )}
-              </div>
+              {/* Icon */}
+              {locked ? (
+                <Lock className="text-gray-300" style={{ width: '22px', height: '22px' }} strokeWidth={1.8} />
+              ) : (
+                <Icon
+                  className={`transition-colors duration-200 ${
+                    active ? 'text-primary-600' : 'text-gray-400'
+                  }`}
+                  style={{ width: '22px', height: '22px' }}
+                  fill={active && tab.fillOnActive ? 'currentColor' : 'none'}
+                  strokeWidth={active ? 2.2 : 1.8}
+                />
+              )}
 
               {/* Label */}
               <span
-                className={`relative z-10 leading-tight transition-all duration-200 ${
-                  locked ? 'font-medium text-gray-300' : active ? 'font-bold text-primary-600' : 'font-medium text-gray-400'
+                className={`leading-none transition-all duration-200 ${
+                  locked ? 'font-medium text-gray-300' : active ? 'font-bold text-primary-600' : 'font-medium text-gray-500'
                 }`}
-                style={{ fontSize: '11px' }}
+                style={{ fontSize: '10.5px' }}
               >
                 {tab.label}
               </span>
@@ -312,19 +321,12 @@ export function BottomBar() {
               {/* Badge */}
               {tab.badge > 0 && !locked && (
                 <span
-                  className="absolute top-0 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-[11px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
-                  style={{ right: `calc(50% - 18px)` }}
+                  className="absolute top-1 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
+                  style={{ right: `calc(50% - 20px)` }}
                 >
                   {tab.badge > 9 ? '9+' : tab.badge}
                 </span>
               )}
-
-              {/* Active indicator dot */}
-              <div
-                className={`relative z-10 w-[4px] h-[4px] rounded-full transition-all duration-300 ${
-                  active && !locked ? 'bg-primary-500 scale-100' : 'bg-transparent scale-0'
-                }`}
-              />
             </button>
           );
         })}

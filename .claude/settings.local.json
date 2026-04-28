@@ -38,7 +38,14 @@
       "Bash(export PATH=\"/c/Users/shahz/AppData/Local/Temp/node20/node-v20.19.0-win-x64:$PATH\")",
       "Bash(npm install:*)",
       "Edit(/.claude/skills/kamizo-adapter/**)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(rm -f /Users/shaxzodisamahamadov/kamizo/.git/index.lock /Users/shaxzodisamahamadov/kamizo/.git/HEAD.lock)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ],
+    "additionalDirectories": [
+      "/Users/shaxzodisamahamadov/kamizo/.git"
     ]
   }
 }
