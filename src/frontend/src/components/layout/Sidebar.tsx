@@ -317,7 +317,6 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         // 🚗 Доступ и имущество
         { path: '/vehicles', icon: Car, label: language === 'ru' ? 'Мои авто' : 'Mening avtomobillarim', section: language === 'ru' ? 'Доступ и имущество' : 'Kirish va mulk' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевой доступ' : 'Mehmon kirishi' },
-        { path: '/contract', icon: ScrollText, label: language === 'ru' ? 'Договор' : 'Shartnoma' },
         // ℹ️ Информация
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar', section: language === 'ru' ? 'Информация' : 'Ma\'lumot' },
         { path: '/marketplace', icon: Headphones, label: language === 'ru' ? 'Маркет для дома' : 'Uy uchun market' },
@@ -339,7 +338,6 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат с УК' : 'UK bilan chat' },
         { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
-        { path: '/contract', icon: ScrollText, label: language === 'ru' ? 'Договор аренды' : 'Ijara shartnomasi' },
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar' },
         { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Магазин' : 'Do\'kon' },
       ];

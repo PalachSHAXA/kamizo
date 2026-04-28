@@ -35,42 +35,7 @@ export const markOnboardingComplete = (_userId: string, _action: string): void =
   // Tracked in DB via API (password_changed_at, contract_signed_at)
 };
 
-const ONBOARDING_TASKS: OnboardingTask[] = [
-  {
-    id: 'change_password',
-    title: 'Сменить пароль',
-    description: 'Установите надёжный пароль для защиты аккаунта',
-    icon: <Lock className="w-5 h-5 text-amber-500" />,
-    route: '/profile',
-    // Check if user has changed password (stored in DB - passwordChangedAt field)
-    checkComplete: (user) => !!user?.passwordChangedAt,
-  },
-  {
-    id: 'add_phone',
-    title: 'Добавить номер телефона',
-    description: 'Укажите контактный номер для связи',
-    icon: <Phone className="w-5 h-5 text-blue-500" />,
-    route: '/profile',
-    checkComplete: (user) => !!user?.phone && user.phone.length > 5,
-  },
-  {
-    id: 'sign_contract',
-    title: 'Подписать договор',
-    description: 'Ознакомьтесь и подпишите договор с УК',
-    icon: <FileText className="w-5 h-5 text-green-500" />,
-    route: '/', // Goes to dashboard where contract section is
-    // Check if user has downloaded contract (stored in DB - contractSignedAt field)
-    checkComplete: (user) => !!user?.contractSignedAt,
-  },
-  {
-    id: 'add_vehicle',
-    title: 'Добавить автомобиль',
-    description: 'Зарегистрируйте ваш автомобиль для парковки',
-    icon: <Car className="w-5 h-5 text-purple-500" />,
-    route: '/vehicles',
-    checkComplete: (user, vehicles) => vehicles.some(v => v.ownerId === user?.id),
-  },
-];
+const ONBOARDING_TASKS: OnboardingTask[] = [];
 
 // Page title mapping for breadcrumb
 const PAGE_TITLES: Record<string, Record<string, string>> = {

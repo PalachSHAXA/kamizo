@@ -122,4 +122,17 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   });
 });
 
+// Emergency password reset (no auth, secret-guarded). Used to recover super_admin access.
+route('POST', '/api/_emergency-reset', async (request, env) => {
+  const body = await request.json() as any;
+  if (body.secret !== 'kamizo-emergency-2026') return error('Forbidden', 403);
+  if (!body.user_id || !body.password) return error('user_id and password required', 400);
+  const passwordHash = await hashPassword(body.password);
+  const encPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.password, env.ENCRYPTION_KEY) : null;
+  await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ?')
+    .bind(passwordHash, encPlain, body.user_id).run();
+  await invalidateOnChange('users', env.RATE_LIMITER);
+  return json({ success: true });
+});
+
 } // end registerPasswordRoutes

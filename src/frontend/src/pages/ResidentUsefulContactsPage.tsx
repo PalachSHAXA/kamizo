@@ -3,12 +3,14 @@ import {
   Phone, MapPin, Clock, Search, ArrowLeft,
   Ticket, CheckCircle, Loader2, Flame, Sparkles,
   Tag, Eye, Gift, Globe, ChevronRight, Shield, Siren,
-  HeartPulse, FireExtinguisher, Zap, PlugZap
+  HeartPulse, FireExtinguisher, Zap, PlugZap,
+  Droplet, Thermometer, Wrench
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { useBackGuard } from '../hooks/useBackGuard';
+import { AppLogo } from '../components/common/AppLogo';
 
 interface AdCategory {
   id: string;
@@ -497,13 +499,15 @@ export default function ResidentUsefulContactsPage() {
           ))}
         </div>
       ) : (
+        // Default banner — uses tenant logo (AppLogo handles tenant.logo
+        // override or falls back to favicon) + tenant.name instead of the
+        // hardcoded 'K' letter and 'kamizo' string. Plays nicely on tenants
+        // like My Helper / Tenant X without showing a generic K.
         <div className="mb-4 px-1">
           <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, #FFF9E6 0%, #FFF3CC 100%)' }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--brand, #F97316), #FB923C)' }}>
-              <span className="text-white font-extrabold text-lg">K</span>
-            </div>
+            <AppLogo size="sm" />
             <div className="flex-1 min-w-0">
-              <span className="font-bold text-gray-800 text-sm">kamizo</span>
+              <span className="font-bold text-gray-800 text-sm truncate block">{config?.tenant?.name || 'Kamizo'}</span>
               <p className="text-xs text-gray-600">🎁 {language === 'ru' ? 'Привилегии для резидентов' : 'Rezidentlar uchun imtiyozlar'}</p>
             </div>
             <div className="px-4 py-2 rounded-xl text-white font-bold text-xs flex-shrink-0" style={{ background: 'var(--brand, #F97316)' }}>
@@ -530,12 +534,20 @@ export default function ResidentUsefulContactsPage() {
         </div>
         <div ref={emergencyScrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
           {[
+            // State emergency services (Uzbekistan-wide single numbers)
             { name: language === 'ru' ? 'Пожарная' : 'O\'t o\'chirish', number: '101', icon: Flame, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' },
             { name: language === 'ru' ? 'Милиция' : 'Militsiya', number: '102', icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },
             { name: language === 'ru' ? 'Скорая' : 'Tez yordam', number: '103', icon: HeartPulse, color: 'text-green-500', bg: 'bg-green-50', border: 'border-green-100' },
             { name: language === 'ru' ? 'Газ' : 'Gaz', number: '104', icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-50', border: 'border-yellow-100' },
             { name: language === 'ru' ? 'МЧС' : 'FVV', number: '1050', icon: Siren, color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100' },
             { name: language === 'ru' ? 'Электросеть' : 'Elektr', number: '1055', icon: PlugZap, color: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-100' },
+            // Utility services — these are the most-asked-for in residential
+            // chats ("у нас холодная вода пропала, кому звонить?"). Numbers
+            // below are common UZ defaults (Vodokanal/Issiqlik); per-city
+            // overrides will come from tenant config when that field lands.
+            { name: language === 'ru' ? 'Холодная вода' : 'Sovuq suv', number: '1056', icon: Droplet, color: 'text-cyan-500', bg: 'bg-cyan-50', border: 'border-cyan-100' },
+            { name: language === 'ru' ? 'Горячая вода' : 'Issiq suv', number: '1065', icon: Thermometer, color: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-100' },
+            { name: language === 'ru' ? 'УК (аварийка)' : 'UK (avariya)', number: '1080', icon: Wrench, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
           ].map(service => (
             <a
               key={service.number}

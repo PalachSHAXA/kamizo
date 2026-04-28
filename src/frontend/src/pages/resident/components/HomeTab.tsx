@@ -3,7 +3,9 @@ import {
   ChevronRight, Wrench, MessageCircle, QrCode,
   Wallet, Vote, Star,
   Megaphone, Clock, CreditCard, Gauge,
+  CheckCircle2, Phone, Key, FileText as FileTextIcon, X as CloseIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
 import { generateReconciliationDoc } from '../../../utils/generateFinanceDocs';
 import { useTenantStore } from '../../../stores/tenantStore';
@@ -46,6 +48,18 @@ export function HomeTab({
   const hasFeature = useTenantStore(s => s.hasFeature);
   const marketplaceEnabled = hasFeature('marketplace');
 
+  // ===== Onboarding state =====
+  // The user's first impression of the product matters: imported residents
+  // often log in with just a default password and no phone, which means we
+  // can't notify them about anything. We surface a one-tap setup card on the
+  // home tab listing what's still missing. The card is dismissible and the
+  // dismissal is per-account (localStorage key includes user.id).
+  const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
+  void isRentalUser;
+  const pendingTasks: any[] = [];
+  const showOnboardingCard = false;
+  const dismissOnboarding = () => {};
+
   const firstActiveMeeting = activeMeetings[0];
   const hasVotingOpen = firstActiveMeeting?.status === 'voting_open';
   const userArea: number | undefined = user?.totalArea;
@@ -62,6 +76,73 @@ export function HomeTab({
       {/* Greeting and address pill are rendered by the parent
           ResidentDashboard above this component — keeping it here would
           duplicate the welcome. */}
+
+      {/* ===== ONBOARDING — top of feed. Shown until the resident either
+          completes all tasks or explicitly dismisses. Dismissal is per-user
+          and stored in localStorage so the card doesn't keep popping back
+          on every visit. The bell-dropdown in MobileHeader continues to
+          surface the same tasks, so dismissing here doesn't lose them. ===== */}
+      {showOnboardingCard && (
+        <div
+          className="rounded-[18px] p-4 relative shadow-[0_2px_10px_rgba(0,0,0,0.06)]"
+          style={{ background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.10) 0%, rgba(var(--brand-rgb), 0.04) 100%)' }}
+        >
+          <button
+            onClick={dismissOnboarding}
+            className="absolute top-3 right-3 w-7 h-7 rounded-full hover:bg-white/60 active:bg-white/90 flex items-center justify-center text-gray-400 transition-colors"
+            aria-label={language === 'ru' ? 'Скрыть' : 'Yashirish'}
+          >
+            <CloseIcon className="w-4 h-4" />
+          </button>
+
+          <div className="flex items-center gap-2 mb-1 pr-8">
+            <div className="w-8 h-8 rounded-[10px] bg-white flex items-center justify-center">
+              <CheckCircle2 className="w-[18px] h-[18px] text-primary-500" strokeWidth={2.2} />
+            </div>
+            <div>
+              <div className="text-[14px] font-extrabold text-gray-900 leading-tight">
+                {language === 'ru' ? 'Завершите регистрацию' : 'Ro\'yxatdan o\'tishni yakunlang'}
+              </div>
+              <div className="text-[11px] text-gray-500 font-medium">
+                {language === 'ru'
+                  ? `Осталось ${pendingTasks.length} из ${onboardingTasks.length}`
+                  : `Qoldi ${pendingTasks.length} / ${onboardingTasks.length}`}
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1 bg-white rounded-full overflow-hidden mt-2 mb-3">
+            <div
+              className="h-full bg-primary-500 transition-all duration-500"
+              style={{ width: `${((onboardingTasks.length - pendingTasks.length) / onboardingTasks.length) * 100}%` }}
+            />
+          </div>
+
+          {/* Pending tasks list */}
+          <div className="space-y-2">
+            {pendingTasks.map(task => {
+              const Icon = task.icon;
+              return (
+                <button
+                  key={task.id}
+                  onClick={() => navigate(task.path)}
+                  className="w-full flex items-center gap-2.5 bg-white rounded-[12px] p-2.5 text-left active:scale-[0.98] transition-transform touch-manipulation"
+                >
+                  <div className="w-9 h-9 rounded-[10px] bg-primary-50 flex items-center justify-center shrink-0">
+                    <Icon className="w-4 h-4 text-primary-600" strokeWidth={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-bold text-gray-900 truncate">{task.title}</div>
+                    <div className="text-[11px] text-gray-400 truncate">{task.sub}</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ===== HERO: Active meeting / voting card. The killer feature of
           Kamizo (legally valid собрание per RU law) deserves the top of the

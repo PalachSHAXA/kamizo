@@ -57,47 +57,8 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
     });
   }, [meetings, isRentalUser]);
 
-  // Calculate pending onboarding tasks with details
-  const pendingTasks = useMemo(() => {
-    if (!isResident || !user) return [];
-    const tasks: { id: string; title: string; description: string; icon: typeof Key; path: string; completed: boolean }[] = [
-      {
-        id: 'password',
-        title: 'Сменить пароль',
-        description: 'Установите надёжный пароль',
-        icon: Key,
-        path: '/profile',
-        completed: !!user.passwordChangedAt
-      },
-      {
-        id: 'phone',
-        title: 'Указать телефон',
-        description: 'Для связи и уведомлений',
-        icon: Phone,
-        path: '/profile',
-        completed: !!(user.phone && user.phone.length >= 5)
-      },
-      ...(!isRentalUser ? [{
-        id: 'contract',
-        title: 'Подписать договор',
-        description: 'Договор с управляющей компанией',
-        icon: FileText,
-        path: '/contract',
-        completed: !!user.contractSignedAt
-      },
-      {
-        id: 'vehicle',
-        title: 'Добавить транспорт',
-        description: 'Зарегистрируйте ваш автомобиль',
-        icon: Car,
-        path: '/vehicles',
-        completed: vehicles.some(v => v.ownerId === user.id)
-      }] : [])
-    ];
-    return tasks;
-  }, [isResident, isRentalUser, user, vehicles]);
-
-  const pendingTasksCount = pendingTasks.filter(t => !t.completed).length;
+  const pendingTasks: any[] = [];
+  const pendingTasksCount = 0;
 
   // Menu badge - only sidebar tab notifications (announcements, meetings), NOT onboarding tasks
   const totalMenuBadge = unreadAnnouncementsCount + upcomingMeetings.length;
