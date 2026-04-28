@@ -147,20 +147,33 @@ route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `).bind(generateId(), params.id, user.id, 'cancelled', requestData.status, 'cancelled', `Отменена (${cancelledBy}): ${reason}`).run();
 
+  // Notify executor + resident when manager/admin cancels.
+  // Previously we only inserted into the notifications table — pushes were
+  // missing, so the resident only saw the cancellation on the next sync.
+  // Audit P1 fix: also send a push so they see it immediately.
+  const cancelTitle = 'Заявка отменена';
+  const cancelBody = `Заявка #${requestData.request_number || requestData.number} была отменена. Причина: ${reason}`;
+
   if (requestData.executor_id && !isResident) {
     await env.DB.prepare(`
       INSERT INTO notifications (id, user_id, type, title, body, created_at, tenant_id)
       VALUES (?, ?, 'request_cancelled', ?, ?, datetime('now'), ?)
-    `).bind(generateId(), requestData.executor_id, 'Заявка отменена',
-      `Заявка #${requestData.request_number || requestData.number} была отменена. Причина: ${reason}`, getTenantId(request)).run();
+    `).bind(generateId(), requestData.executor_id, cancelTitle, cancelBody, getTenantId(request)).run();
+    sendPushNotification(env, requestData.executor_id as string, {
+      title: cancelTitle, body: cancelBody, type: 'request_cancelled',
+      tag: `request-cancelled-${params.id}`, data: { requestId: params.id },
+    }).catch(() => {});
   }
 
   if (!isResident && requestData.resident_id) {
     await env.DB.prepare(`
       INSERT INTO notifications (id, user_id, type, title, body, created_at, tenant_id)
       VALUES (?, ?, 'request_cancelled', ?, ?, datetime('now'), ?)
-    `).bind(generateId(), requestData.resident_id, 'Заявка отменена',
-      `Заявка #${requestData.request_number || requestData.number} была отменена. Причина: ${reason}`, getTenantId(request)).run();
+    `).bind(generateId(), requestData.resident_id, cancelTitle, cancelBody, getTenantId(request)).run();
+    sendPushNotification(env, requestData.resident_id as string, {
+      title: cancelTitle, body: cancelBody, type: 'request_cancelled',
+      tag: `request-cancelled-${params.id}`, data: { requestId: params.id },
+    }).catch(() => {});
   }
 
   invalidateCache('requests');

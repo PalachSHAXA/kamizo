@@ -1134,10 +1134,13 @@ export const useRequestStore = create<RequestState>()(
                   : r
               ),
             }));
-
-            // Refresh requests to get updated data from server
-            get().fetchRequests();
           }
+
+          // Refresh requests after EITHER accept or reject. Audit P2 fix:
+          // previously we only re-fetched on accept; rejecting left the
+          // resident's UI showing the original request state with a stale
+          // pending-reschedule banner until the next manual sync.
+          get().fetchRequests();
         }
       } catch (error) {
         useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');

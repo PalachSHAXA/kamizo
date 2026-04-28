@@ -329,12 +329,18 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       // working routes (announcements, chat, guest-access, marketplace) invisible
       // unless the user guessed URLs. Now expose them like resident drawer, but
       // keep grouping flat since the feature set is smaller.
+      // Audit P1 fix: surface /contract and /useful-contacts for tenants too —
+      // they have a rental contract and need the same emergency numbers as
+      // owners. The routes themselves were already accessible (no guard in
+      // Layout.tsx), the drawer just hid them.
       return [
         { path: '/', icon: Key, label: t('nav.myApartments') },
         { path: '/requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar' },
         { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат с УК' : 'UK bilan chat' },
         { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
+        { path: '/contract', icon: ScrollText, label: language === 'ru' ? 'Договор аренды' : 'Ijara shartnomasi' },
+        { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar' },
         { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Магазин' : 'Do\'kon' },
       ];
     }

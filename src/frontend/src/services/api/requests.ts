@@ -167,12 +167,19 @@ export const rescheduleApi = {
     return apiRequest<{ reschedules: any[] }>('/api/reschedule-requests');
   },
 
-  // Respond to reschedule request
+  // Respond to reschedule request.
+  // Invalidates both the reschedule list and the requests cache because
+  // accepted reschedules mutate the request's scheduled_at — leaving the
+  // requests cache stale would show the old time for up to ~10s after
+  // the resident accepts/rejects (audit P0 fix).
   respond: async (rescheduleId: string, accepted: boolean, responseNote?: string) => {
-    return apiRequest<{ reschedule: any }>(`/api/reschedule-requests/${rescheduleId}/respond`, {
+    const result = await apiRequest<{ reschedule: any }>(`/api/reschedule-requests/${rescheduleId}/respond`, {
       method: 'POST',
       body: JSON.stringify({ accepted, response_note: responseNote }),
     });
+    invalidateCache('/api/reschedule-requests');
+    invalidateCache('/api/requests');
+    return result;
   },
 };
 
