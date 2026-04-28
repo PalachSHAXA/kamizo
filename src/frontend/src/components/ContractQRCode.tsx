@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Download, FileText, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { FileText, Eye, EyeOff } from 'lucide-react';
 import { generateQRCode } from './LazyQRCode';
-import { generateContractDocx } from '../utils/contractGenerator';
 import { useAuthStore } from '../stores/authStore';
-import { useToastStore } from '../stores/toastStore';
 import { ContractPreview } from './ContractPreview';
+import { formatName } from '../utils/formatName';
 
 interface ContractQRCodeProps {
   language: 'ru' | 'uz';
@@ -12,11 +11,9 @@ interface ContractQRCodeProps {
 
 export function ContractQRCode({ language }: ContractQRCodeProps) {
   // Use user from store directly to get updates when contract is signed
-  const { user, markContractSigned } = useAuthStore();
-  const addToast = useToastStore(s => s.addToast);
+  const { user } = useAuthStore();
   const [showContract, setShowContract] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
-  const [isDownloading, setIsDownloading] = useState(false);
 
   // Check if contract is already signed - using store user for reactivity
   const isContractSigned = !!user?.contractSignedAt;
@@ -46,26 +43,6 @@ export function ContractQRCode({ language }: ContractQRCodeProps) {
 
     generateQR();
   }, [user]);
-
-  const handleDownloadContract = async () => {
-    if (!user || !qrCodeUrl || isDownloading) return;
-
-    setIsDownloading(true);
-    try {
-      await generateContractDocx(user, qrCodeUrl, language);
-      // Mark contract as signed in database (persists across devices) - only if not already signed
-      if (!isContractSigned) {
-        await markContractSigned();
-      }
-    } catch (error) {
-      console.error('Error generating contract:', error);
-      addToast('error', language === 'ru'
-        ? 'Ошибка при генерации договора'
-        : 'Shartnoma yaratishda xatolik');
-    } finally {
-      setIsDownloading(false);
-    }
-  };
 
   if (!user) return null;
 
@@ -108,7 +85,7 @@ export function ContractQRCode({ language }: ContractQRCodeProps) {
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div>
             <span className="text-gray-500">{language === 'ru' ? 'Житель:' : 'Aholi:'}</span>
-            <p className="font-medium text-gray-900">{user.name || '—'}</p>
+            <p className="font-medium text-gray-900">{formatName(user.name) || '—'}</p>
           </div>
           <div>
             <span className="text-gray-500">{language === 'ru' ? 'Адрес:' : 'Manzil:'}</span>
@@ -123,36 +100,23 @@ export function ContractQRCode({ language }: ContractQRCodeProps) {
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setShowContract(!showContract)}
-          className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-colors touch-manipulation"
-        >
-          {showContract ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          {showContract
-            ? (language === 'ru' ? 'Скрыть' : 'Yashirish')
-            : (language === 'ru' ? 'Посмотреть' : 'Ko\'rish')
-          }
-        </button>
-        <button
-          onClick={handleDownloadContract}
-          disabled={isDownloading || !qrCodeUrl}
-          className={`flex items-center justify-center gap-2 px-4 py-3 ${isContractSigned ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-400 hover:bg-orange-500'} disabled:bg-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium text-gray-900 transition-colors touch-manipulation`}
-        >
-          {isDownloading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Download className="w-4 h-4" />
-          )}
-          {isDownloading
-            ? (language === 'ru' ? 'Подготовка...' : 'Tayyorlanmoqda...')
-            : isContractSigned
-              ? (language === 'ru' ? 'Скачать договор' : 'Shartnomani yuklash')
-              : (language === 'ru' ? 'Подписать и скачать' : 'Imzolash va yuklash')
-          }
-        </button>
-      </div>
+      {/* Single full-width preview button. The 'Подписать и скачать' /
+          'Скачать договор' action used to live next to it, but contract
+          signing isn't ready as a self-serve flow yet — it should run
+          through the УК. Until that lands, the resident only previews
+          the contract here. Download / sign-by-QR can come back once
+          the legal flow is approved. */}
+      <button
+        onClick={() => setShowContract(!showContract)}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-xl text-sm font-semibold text-gray-700 transition-colors touch-manipulation"
+        aria-expanded={showContract}
+      >
+        {showContract ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        {showContract
+          ? (language === 'ru' ? 'Скрыть превью' : 'Yashirish')
+          : (language === 'ru' ? 'Посмотреть договор' : 'Shartnomani ko\'rish')
+        }
+      </button>
 
       {/* Full Contract Preview */}
       {showContract && (

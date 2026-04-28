@@ -1,14 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Wrench, MessageCircle, QrCode,
-  Wallet, Vote, Star,
+  Vote, Star,
   Megaphone, Clock, CreditCard, Gauge,
   CheckCircle2, Phone, Key, FileText as FileTextIcon, X as CloseIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
-import { generateReconciliationDoc } from '../../../utils/generateFinanceDocs';
 import { useTenantStore } from '../../../stores/tenantStore';
+import { HomeHighlights } from './HomeHighlights';
 import type { HomeTabProps } from './types';
 
 // Format ETA from request scheduledDate/scheduledTime into a friendly hint.
@@ -76,6 +76,14 @@ export function HomeTab({
       {/* Greeting and address pill are rendered by the parent
           ResidentDashboard above this component — keeping it here would
           duplicate the welcome. */}
+
+      {/* ===== HIGHLIGHTS — swipeable stories at the top of the feed.
+          Shows what needs attention right now: voting, urgent
+          announcements, pending approvals, monthly UK rating. Hidden if
+          nothing is pending; falls back to an "everything's calm" tile.
+          Onboarding stays as a separate inline card below because it has
+          a multi-step checklist that doesn't fit the headline format. ===== */}
+      <HomeHighlights activeRequests={activeRequests} />
 
       {/* ===== ONBOARDING — top of feed. Shown until the resident either
           completes all tasks or explicitly dismisses. Dismissal is per-user
