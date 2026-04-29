@@ -624,9 +624,13 @@ body {
     justify-content: space-between;
     padding: 10px 16px 10px 16px;
     /* Safe-area-inset-top + 12px guarantees icons aren't clipped at the
-       top on devices without a notch (where env() reports 0). */
+       top on devices without a notch (where env() reports 0). The bg-color
+       intentionally extends INTO the notch zone here — blur+translucent
+       reads correctly there because Safari's status-bar text sits on top.
+       (The bottom-bar uses the opposite trick because the home-indicator
+       region looks bad if bg-painted.) */
     padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(247, 248, 250, 0.92);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid rgba(0, 0, 0, 0.04);

@@ -221,9 +221,15 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white/95 backdrop-blur border-t border-gray-100 safe-area-bottom"
+      className="md:hidden fixed left-0 right-0 bottom-0 z-10"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
+      // The OUTER wrapper has zero background and only carries the bottom
+      // safe-area padding. This pushes the visible bar UP off the home-indicator
+      // zone WITHOUT painting over it. Without this, a 'bg-white' wrapper
+      // showed a flat white strip at the bottom of iPhone screens — exactly
+      // the bug we're fixing here.
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {/* Bottom bar redesign:
           - The active tab is now signaled by a 3px brand-colored top
@@ -235,7 +241,7 @@ export function BottomBar() {
           - Removed the "active dot" + scale wobble animation that made the
             bar feel busy. Active state is just color + indicator. */}
       <div
-        className="flex items-stretch justify-around px-1"
+        className="flex items-stretch justify-around px-1 bg-white/95 backdrop-blur border-t border-gray-100"
         style={{ paddingBottom: '4px' }}
       >
         {tabs.map((tab) => {
