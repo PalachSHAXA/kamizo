@@ -221,14 +221,16 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 bottom-0 z-10"
+      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white/95 backdrop-blur"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
-      // The OUTER wrapper has zero background and only carries the bottom
-      // safe-area padding. This pushes the visible bar UP off the home-indicator
-      // zone WITHOUT painting over it. Without this, a 'bg-white' wrapper
-      // showed a flat white strip at the bottom of iPhone screens — exactly
-      // the bug we're fixing here.
+      // The OUTER wrapper carries both the bg-white/95 + backdrop-blur AND the
+      // bottom safe-area padding. The inner wrapper keeps the same bg so border-t
+      // sits on a non-translucent surface. An earlier approach left the outer
+      // bg-transparent (relying on html bg to fill the home-indicator zone), but
+      // --app-bg (#F7F8FA) ≠ white, which produced a visible ~34px band at the
+      // bottom on iOS PWA — confirmed via Web Inspector (outer rgba(0,0,0,0),
+      // inner ends at y=860, outer ends at y=894 = visible body bg in between).
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {/* Bottom bar redesign:
