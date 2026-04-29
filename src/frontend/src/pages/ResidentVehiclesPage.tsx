@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home } from 'lucide-react';
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
@@ -14,6 +15,7 @@ export function ResidentVehiclesPage() {
   const { user } = useAuthStore();
   const { addVehicle, updateVehicle, deleteVehicle, fetchVehicles, searchVehiclesByPlate } = useDataStore();
   const { language } = useLanguageStore();
+  const [searchParams] = useSearchParams();
 
   // Fetch vehicles from D1 database on mount (run once using ref to prevent duplicates)
   // Only fetch when user is authenticated to prevent 401 errors
@@ -25,7 +27,11 @@ export function ResidentVehiclesPage() {
     }
   }, [fetchVehicles, user]);
 
-  const [activeTab, setActiveTab] = useState<'my_vehicles' | 'search'>('my_vehicles');
+  // Honour ?tab=search URL param so links from the home tab carousel
+  // (Найти авто card) land directly on the search tab. Default is
+  // 'my_vehicles' for the regular drawer link.
+  const initialTab = searchParams.get('tab') === 'search' ? 'search' : 'my_vehicles';
+  const [activeTab, setActiveTab] = useState<'my_vehicles' | 'search'>(initialTab);
   const [showModal, setShowModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);

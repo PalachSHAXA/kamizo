@@ -34,7 +34,11 @@
 
   /* ── Layout ──────────────────────────────────────────── */
   --mobile-header-h: calc(64px + env(safe-area-inset-top, constant(safe-area-inset-top, 0px)));
-  --bottom-bar-h: calc(52px + env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px)));
+  /* 64px = bar content (52px tabs + 8px top padding for the elevated FAB
+     + 4px bottom padding). Safe-area-inset-bottom adds the iOS home
+     indicator strip so .main-content padding-bottom never undershoots
+     and clips widgets on devices with a notch. */
+  --bottom-bar-h: calc(64px + env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px)));
 }
 
 * {

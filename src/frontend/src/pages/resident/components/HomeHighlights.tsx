@@ -40,16 +40,25 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
   const meetings = useMeetingStore(s => s.meetings);
   const announcements = useAnnouncementStore(s => s.announcements);
 
-  // Onboarding pending
+  // Onboarding pending — list of items the resident still needs to do.
+  // Stored as a list (not just a count) so the carousel card can spell
+  // out exactly WHAT is missing, not just "осталось N шагов".
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
-  const onboardingPending = useMemo(() => {
-    if (!user) return 0;
-    let n = 0;
-    if (!(user.phone && user.phone.length >= 5)) n++;
-    if (!user.passwordChangedAt) n++;
-    if (!isRentalUser && !user.contractSignedAt) n++;
-    return n;
-  }, [user, isRentalUser]);
+  const onboardingItems = useMemo(() => {
+    if (!user) return [] as string[];
+    const items: string[] = [];
+    if (!(user.phone && user.phone.length >= 5)) {
+      items.push(language === 'ru' ? 'телефон' : 'telefon');
+    }
+    if (!user.passwordChangedAt) {
+      items.push(language === 'ru' ? 'пароль' : 'parol');
+    }
+    if (!isRentalUser && !user.contractSignedAt) {
+      items.push(language === 'ru' ? 'договор' : 'shartnoma');
+    }
+    return items;
+  }, [user, isRentalUser, language]);
+  const onboardingPending = onboardingItems.length;
 
   const activeVoting = meetings.find(m => m.status === 'voting_open');
   const pendingApproval = activeRequests.find(r => r.status === 'pending_approval');
@@ -61,19 +70,21 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
   const cards: CardStyle[] = useMemo(() => {
     const list: CardStyle[] = [];
 
-    // 1. Onboarding (if pending) — brand color
+    // 1. Onboarding (if pending) — distinct teal color so it doesn't
+    // blend with the orange service cards. Sub spells out the missing
+    // items by name (телефон, пароль, договор) so the resident knows
+    // exactly what to fill before tapping into /profile.
     if (onboardingPending > 0) {
+      const itemsList = onboardingItems.join(' · ');
       list.push({
         id: 'onboarding',
         Icon: CheckCircle2,
         title: language === 'ru' ? 'Завершите регистрацию' : 'Ro\'yxatdan o\'tishni yakunlang',
-        sub: language === 'ru'
-          ? `Осталось ${onboardingPending} ${onboardingPending === 1 ? 'шаг' : 'шагов'}`
-          : `Qoldi ${onboardingPending} ta qadam`,
+        sub: language === 'ru' ? `Не заполнено: ${itemsList}` : `To'ldirilmagan: ${itemsList}`,
         badge: language === 'ru' ? 'важно' : 'muhim',
         cta: language === 'ru' ? 'Заполнить →' : 'To\'ldirish →',
-        gradient: 'linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.78))',
-        shadowColor: 'rgba(var(--brand-rgb), 0.35)',
+        gradient: 'linear-gradient(135deg, #06B6D4, #67E8F9)',
+        shadowColor: 'rgba(6,182,212,0.35)',
         onClick: () => navigate('/profile'),
       });
     }
@@ -174,12 +185,14 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
       {
         id: 'svc-car',
         Icon: Car,
-        title: language === 'ru' ? 'Мои автомобили' : 'Mening avtomobillarim',
-        sub: language === 'ru' ? 'Регистрация и поиск авто' : 'Ro\'yxat va qidirish',
-        cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
+        title: language === 'ru' ? 'Найти авто' : 'Avto qidirish',
+        sub: language === 'ru' ? 'Поиск владельца по госномеру' : 'Davlat raqami orqali egasini topish',
+        cta: language === 'ru' ? 'Найти →' : 'Topish →',
         gradient: 'linear-gradient(135deg, #14B8A6, #2DD4BF)',
         shadowColor: 'rgba(20,184,166,0.35)',
-        onClick: () => navigate('/vehicles'),
+        // Direct link to the search tab — that's the intent of this card.
+        // Resident can switch to "Мои авто" tab from inside if they want.
+        onClick: () => navigate('/vehicles?tab=search'),
       },
       {
         id: 'svc-contacts',
