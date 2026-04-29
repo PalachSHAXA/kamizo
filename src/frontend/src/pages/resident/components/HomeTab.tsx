@@ -1,15 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Wrench, MessageCircle, QrCode,
-  Wallet, Vote, Star,
-  Megaphone, Clock, CreditCard, Gauge,
+  Vote, Star, Clock,
   CheckCircle2, Phone, Key, FileText as FileTextIcon, X as CloseIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
-import { generateReconciliationDoc } from '../../../utils/generateFinanceDocs';
 import { useTenantStore } from '../../../stores/tenantStore';
 import { HomeHighlights } from './HomeHighlights';
+import {
+  PaymentWidgetSoon, MetersWidgetSoon, AutoWidget,
+  MastersWidget, NewsWidget, PrivilegesWidget,
+} from './widgets';
 import type { HomeTabProps } from './types';
 
 // Format ETA from request scheduledDate/scheduledTime into a friendly hint.
@@ -257,47 +259,17 @@ export function HomeTab({
         </div>
       )}
 
-      {/* ===== "Уже скоро" — gentle teaser for online payments and meter
-          readings. NOT integrations yet, so no CTAs. Dashed border keeps
-          this visually subordinate to working features above. ===== */}
-      <div className="bg-white border border-dashed border-gray-300 rounded-[18px] p-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.06em]">
-            {language === 'ru' ? 'Уже скоро' : 'Tez orada'}
-          </span>
-          <span className="text-[10px] font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-            {language === 'ru' ? 'в разработке' : 'ishlab chiqilmoqda'}
-          </span>
-        </div>
-        <div className="space-y-2.5">
-          <div className="flex items-start gap-2.5">
-            <div className="w-9 h-9 rounded-[10px] bg-gray-50 flex items-center justify-center text-gray-400 shrink-0">
-              <CreditCard className="w-[18px] h-[18px]" strokeWidth={1.8} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-bold text-gray-700">
-                {language === 'ru' ? 'Онлайн-оплата ЖКУ' : 'Onlayn to\'lov'}
-              </div>
-              <div className="text-[11px] text-gray-400 mt-0.5">
-                {language === 'ru' ? 'Лицевой счёт, квитанции, история — подключаем' : 'Shaxsiy hisob, kvitansiya — ulanmoqda'}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <div className="w-9 h-9 rounded-[10px] bg-gray-50 flex items-center justify-center text-gray-400 shrink-0">
-              <Gauge className="w-[18px] h-[18px]" strokeWidth={1.8} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-bold text-gray-700">
-                {language === 'ru' ? 'Передача показаний счётчиков' : 'Hisoblagich ko\'rsatkichlari'}
-              </div>
-              <div className="text-[11px] text-gray-400 mt-0.5">
-                {language === 'ru' ? 'Холодная, горячая вода и электричество — на этапе интеграции' : 'Suv va elektr — integratsiya bosqichida'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* ===== Payment + Meters — full visual structure of the future
+          live widgets, but every interactive element is disabled and
+          marked 'УЖЕ СКОРО'. Lets the resident see what's coming without
+          being misled by fake numbers. Replace with live PaymentWidget
+          and MetersWidget once Click/Payme + meter integrations land. ===== */}
+      <PaymentWidgetSoon />
+      <MetersWidgetSoon />
+
+      {/* ===== AutoWidget — primary car + quick "Найти" + parking info.
+          Hidden when the resident has no registered vehicles. ===== */}
+      <AutoWidget />
 
       {/* ===== Quick actions 2×2. Replaces the previous "two big buttons +
           horizontal services strip" duplication. The four most-used resident
@@ -390,105 +362,30 @@ export function HomeTab({
         )}
       </div>
 
-      {/* ===== Finance widget (kept, working feature: balance + reconciliation
-          act). NOT a hero anymore — sits below quick actions, keeps the same
-          functionality but visually subordinate to the meeting/request cards
-          above. No "оплатить" button because payment integration is a
-          separate roadmap item — see "Уже скоро" card. ===== */}
-      {financeBalance && (
-        <div className="space-y-2">
-          <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.06em] px-1">
-            {language === 'ru' ? 'Лицевой счёт' : 'Shaxsiy hisob'}
-          </div>
-          <div className="bg-white rounded-[18px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2.5">
-                <div className={`w-10 h-10 rounded-[12px] flex items-center justify-center ${(financeBalance.debt as number) > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-                  <Wallet className="w-5 h-5" style={{ color: (financeBalance.debt as number) > 0 ? '#EF4444' : '#22C55E' }} />
-                </div>
-                <div>
-                  <div className="text-[11px] text-gray-400 font-semibold">
-                    {(financeBalance.debt as number) > 0
-                      ? (language === 'ru' ? 'К оплате' : 'To\'lash kerak')
-                      : (language === 'ru' ? 'Переплата' : 'Ortiqcha to\'langan')}
-                  </div>
-                  <div className={`text-[18px] font-extrabold ${(financeBalance.debt as number) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {(financeBalance.debt as number) > 0
-                      ? `${((financeBalance.debt as number) || 0).toLocaleString()} ${language === 'ru' ? 'сум' : "so'm"}`
-                      : `${((financeBalance.overpaid as number) || 0).toLocaleString()} ${language === 'ru' ? 'сум' : "so'm"}`}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => navigate('/finance/charges')}
-                className="flex-1 py-2 rounded-[10px] text-[12px] font-bold text-primary-600 bg-primary-50 active:scale-[0.96] transition-transform"
-              >
-                {language === 'ru' ? 'Все начисления' : 'Hisoblar'}
-              </button>
-              <button
-                onClick={async () => {
-                  const now = new Date();
-                  const periodTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                  const from = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-                  const periodFrom = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}`;
-                  if (user?.id) {
-                    const result = await generateReconciliation({ apartment_id: user.id, period_from: periodFrom, period_to: periodTo });
-                    if (result) {
-                      generateReconciliationDoc(result as Parameters<typeof generateReconciliationDoc>[0], tenantName);
-                    }
-                  }
-                }}
-                className="flex-1 py-2 rounded-[10px] text-[12px] font-bold text-gray-600 bg-gray-100 active:scale-[0.96] transition-transform"
-              >
-                {language === 'ru' ? 'Акт сверки' : 'Solishtirma'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Finance widget intentionally NOT shown here. The previous live
+          balance widget contradicted the 'Уже скоро · онлайн-оплата'
+          message above — without payment integration the numbers were
+          UK manual entries, misleading the resident about real status.
+          When Click/Payme integration ships, restore as a real hero. */}
 
-      {/* ===== Latest announcements. Kept similar to before but with category
-          dot instead of generic Megaphone for every row. ===== */}
-      {latestAnnouncements.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.06em]">
-              {language === 'ru' ? 'Свежие объявления' : 'So\'nggi e\'lonlar'}
-            </span>
-            <button
-              onClick={() => navigate('/announcements')}
-              className="text-[11px] font-bold text-primary-600"
-            >
-              {language === 'ru' ? 'Все →' : 'Hammasi →'}
-            </button>
-          </div>
-          <div className="bg-white rounded-[18px] divide-y divide-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
-            {latestAnnouncements.slice(0, 3).map(ann => {
-              const isUnread = !ann.viewedBy?.includes(user?.id || '');
-              return (
-                <button
-                  key={ann.id}
-                  onClick={() => navigate('/announcements')}
-                  className="w-full p-3.5 flex items-center gap-3 text-left active:bg-gray-50 transition-colors touch-manipulation"
-                >
-                  <div className="w-9 h-9 rounded-[11px] bg-amber-50 flex items-center justify-center shrink-0">
-                    <Megaphone className="w-4 h-4 text-amber-500" strokeWidth={2} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-bold text-gray-900 truncate">{ann.title}</div>
-                    <div className="text-[11px] text-gray-400 mt-0.5 truncate font-medium">{ann.content}</div>
-                  </div>
-                  {isUnread && (
-                    <div className="w-2 h-2 rounded-full bg-primary-500 shrink-0" aria-hidden />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* ===== MastersWidget — top-3 highest-rated executors. Builds
+          trust before the resident creates a request. Only renders when
+          there are rated executors in the tenant. ===== */}
+      <MastersWidget />
+
+      {/* ===== NewsWidget — Telegram-style swipeable stories of
+          announcements + active meetings. Replaces the previous static
+          announcements list because residents skim faster when news
+          comes one-card-at-a-time. ===== */}
+      <NewsWidget />
+
+      {/* ===== PrivilegesWidget — promo banner that points to
+          /useful-contacts where partner discounts live. Brand-gradient
+          banner, end of feed so it doesn't compete with action cards. ===== */}
+      <PrivilegesWidget />
+
+      {/* Old announcements list removed — NewsWidget above renders the
+          same data as swipeable Telegram-style stories. */}
 
     </div>
   );
