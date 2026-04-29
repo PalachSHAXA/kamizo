@@ -110,10 +110,28 @@ export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
     if (tips.length === 0) return;
     const key = `onboarding_seen_${role}_${userId}`;
     if (!localStorage.getItem(key)) {
-      const timer = setTimeout(() => setVisible(true), 900);
+      const timer = setTimeout(() => {
+        // Hotfix: claim global overlay slot so push-prompt and SW-update banner
+        // hold their messages until the tour finishes.
+        localStorage.setItem('overlay_active', 'tour');
+        setVisible(true);
+      }, 900);
       return () => clearTimeout(timer);
     }
   }, [role, userId, tips.length]);
+
+  // Release the overlay slot if the user reloads/closes the tab while the tour
+  // is open — otherwise the flag would stick and silently block push prompts
+  // until next dismissal.
+  useEffect(() => {
+    const release = () => {
+      if (localStorage.getItem('overlay_active') === 'tour') {
+        localStorage.removeItem('overlay_active');
+      }
+    };
+    window.addEventListener('beforeunload', release);
+    return () => window.removeEventListener('beforeunload', release);
+  }, []);
 
   // Measure the target element — re-runs on tip change, resize, and orientation change
   useLayoutEffect(() => {
@@ -155,6 +173,9 @@ export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
 
   const dismiss = () => {
     localStorage.setItem(`onboarding_seen_${role}_${userId}`, '1');
+    if (localStorage.getItem('overlay_active') === 'tour') {
+      localStorage.removeItem('overlay_active');
+    }
     setVisible(false);
   };
 

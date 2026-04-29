@@ -56,9 +56,20 @@ html {
      causing iOS Safari elastic bounce that makes position:fixed elements appear to move. */
 }
 
+/* App-wide neutral background. Single source of truth — html and body share
+   it, .layout-root and #main-content are transparent so the layer extends
+   below the BottomBar into the iOS home-indicator zone (no white strip). */
+:root {
+  --app-bg: #F7F8FA;
+}
+
+html {
+  background: var(--app-bg);
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #ffffff;
+  background: var(--app-bg);
   min-height: 100vh;
   min-height: 100dvh;
   color: #1a1a1a;
@@ -89,29 +100,42 @@ body {
 @media (max-width: 768px) {
   html {
     height: 100%;
-    background: white;
+    background: var(--app-bg);
   }
 
   body {
-    height: 100%;
+    /* 100svh = small viewport height — iOS Safari uses the smallest possible
+       viewport (URL bar visible state). This means our background layer is
+       guaranteed to extend BEYOND the visible viewport into the home-indicator
+       zone, so when bounce-scroll happens nothing white shows through.
+       Fallback chain: 100vh → 100dvh → 100svh. */
+    height: 100vh;
+    height: 100dvh;
+    height: 100svh;
     overflow: hidden;
     overscroll-behavior: none;
-    background: white;
+    background: var(--app-bg);
   }
 
   #root {
-    height: 100%;
+    height: 100vh;
+    height: 100dvh;
+    height: 100svh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
 
   .layout-root {
-    height: 100%;
+    height: 100vh;
+    height: 100dvh;
+    height: 100svh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: white;
+    /* Transparent — html/body bg shows through, including under the BottomBar
+       and into the iOS bottom safe-area. */
+    background: transparent;
   }
 
   /* Scrollable content area — only this scrolls on mobile */
@@ -123,6 +147,9 @@ body {
     overflow-x: hidden;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    /* Transparent on mobile so the page bg from html/body shows through under
+       the semi-transparent BottomBar (bg-white/95) into the safe-area. */
+    background: transparent;
   }
 
   /* BottomBar is position:fixed — pad content so it's not hidden behind the bar.

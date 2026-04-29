@@ -36,12 +36,31 @@ export function PushNotificationPrompt() {
     const shouldShow = !alreadyShownThisSession && (!wasDismissed || daysSinceDismissed > 7);
     if (!shouldShow) return;
 
-    // iOS in browser (not PWA) - show "Add to Home Screen" prompt
+    // Hotfix: poll the overlay_active flag — the tour and SW-update banner
+    // claim it. Retry every 3s up to 10 times (~30s) so we don't pile prompts
+    // on top of the onboarding tour spotlight.
+    let attempts = 0;
+    const MAX_ATTEMPTS = 10;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tryShow = (showFn: () => void) => {
+      const isOccupied = localStorage.getItem('overlay_active');
+      if (isOccupied) {
+        if (++attempts >= MAX_ATTEMPTS) return; // give up silently
+        timer = setTimeout(() => tryShow(showFn), 3000);
+        return;
+      }
+      showFn();
+      sessionStorage.setItem(sessionKey, '1');
+    };
+
+    // iOS in browser (not PWA): show "Add to Home Screen" only when web push
+    // is genuinely unsupported (Safari < 16.4). Older logic showed it
+    // unconditionally — duplicating the system-level A2HS sheet.
     if (isIOS() && !isStandalone()) {
-      const timer = setTimeout(() => {
-        setShowIOSPrompt(true);
-        sessionStorage.setItem(sessionKey, '1');
-      }, 3000);
+      const webPushSupported = pushNotifications.isBrowserNotificationsSupported();
+      if (webPushSupported) return;
+      timer = setTimeout(() => tryShow(() => setShowIOSPrompt(true)), 3000);
       return () => clearTimeout(timer);
     }
 
@@ -50,10 +69,7 @@ export function PushNotificationPrompt() {
 
     const permission = pushNotifications.getPermission();
     if (permission === 'default') {
-      const timer = setTimeout(() => {
-        setShow(true);
-        sessionStorage.setItem(sessionKey, '1');
-      }, 3000);
+      timer = setTimeout(() => tryShow(() => setShow(true)), 3000);
       return () => clearTimeout(timer);
     }
   }, [user?.id]);

@@ -7,14 +7,34 @@ export function SWUpdateBanner() {
   const { language } = useLanguageStore();
 
   useEffect(() => {
+    let pollTimer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 10;
+
+    // Hotfix: queue behind the onboarding tour so a brand-new resident's first
+    // session isn't interrupted by an "update available" toast on top of the
+    // spotlight. Service workers update infrequently; a few seconds of delay
+    // is acceptable. Real priority handling lives in the Phase 2 store.
+    const showRespectingOverlay = () => {
+      const occupied = localStorage.getItem('overlay_active');
+      if (occupied && ++attempts < MAX_ATTEMPTS) {
+        pollTimer = setTimeout(showRespectingOverlay, 3000);
+        return;
+      }
+      setShowBanner(true);
+    };
+
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'SW_UPDATED') {
-        setShowBanner(true);
+        showRespectingOverlay();
       }
     };
 
     navigator.serviceWorker?.addEventListener('message', handler);
-    return () => navigator.serviceWorker?.removeEventListener('message', handler);
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handler);
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, []);
 
   if (!showBanner) return null;
