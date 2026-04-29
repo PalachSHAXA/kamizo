@@ -1415,6 +1415,9 @@ a.btn-secondary:active,
 
 /* ── PWA Standalone mode fix ───────────────────────────────────────────── */
 @media (display-mode: standalone) {
+  html {
+    background: #FFFFFF;
+  }
   html, body, #root, .layout-root {
     height: 100dvh;
     height: 100svh;
