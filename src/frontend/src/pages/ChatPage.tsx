@@ -1184,10 +1184,13 @@ function ChatView({
 
       {/* ── Resident quick replies — shown only when the composer is empty so
             they don't fight with ongoing typing. Hidden for staff (who have
-            their own preset responses via QuickReplies above). ── */}
+            their own preset responses via QuickReplies above).
+            Horizontally scrollable so on narrow phones the third option
+            isn't visually clipped — user can drag-scroll to reveal it. ── */}
       {isResident && isPrivateSupport && !newMessage.trim() && !attachedFile && !isLoading && (
         <div
-          className="flex gap-2 px-3 py-2 overflow-x-auto border-t border-black/[0.03] bg-white scrollbar-none flex-shrink-0"
+          className="flex gap-2 px-3 py-2 overflow-x-auto overflow-y-hidden border-t border-black/[0.03] bg-white scrollbar-none flex-shrink-0"
+          style={{ scrollbarWidth: 'none' }}
           aria-label={language === 'ru' ? 'Быстрые ответы' : 'Tez javoblar'}
         >
           {RESIDENT_QUICK_REPLIES.map((text, i) => (
@@ -1196,14 +1199,17 @@ function ChatView({
               onClick={() => setNewMessage(text)}
               className="flex-shrink-0 px-3.5 py-1.5 rounded-[20px] text-[12px] font-semibold whitespace-nowrap transition-colors active:scale-95 touch-manipulation"
               style={{
-                color: '#E8621A',
-                background: 'rgba(232, 98, 26, 0.06)',
-                border: '1px solid rgba(232, 98, 26, 0.22)',
+                color: 'rgb(var(--brand-rgb))',
+                background: 'rgba(var(--brand-rgb), 0.06)',
+                border: '1px solid rgba(var(--brand-rgb), 0.22)',
               }}
             >
               {text}
             </button>
           ))}
+          {/* Trailing spacer so the last chip clears the screen edge after
+              the user scrolls — iOS rubber-band feels cleaner with this. */}
+          <div className="w-2 flex-shrink-0" aria-hidden />
         </div>
       )}
 

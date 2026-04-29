@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect } from 'react';
 import { X, ChevronRight } from 'lucide-react';
 import { useLanguageStore } from '../stores/languageStore';
+import { useOverlayStore, useCanShowOverlay } from '../stores/overlayStore';
 
 interface Tip {
   textRu: string;
@@ -98,40 +99,39 @@ const CARD_MAX_WIDTH = 320;
 export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
   const { language } = useLanguageStore();
   const [currentTip, setCurrentTip] = useState(0);
-  const [visible, setVisible] = useState(false);
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const requestOverlay = useOverlayStore(s => s.requestOverlay);
+  const releaseOverlay = useOverlayStore(s => s.releaseOverlay);
+  const canShow = useCanShowOverlay('tour');
+  const [requested, setRequested] = useState(false);
 
   const tips = ROLE_TIPS[role] || [];
   const tip = tips[currentTip];
 
-  // Show on first visit only
+  // Show on first visit only — request the overlay slot from the store. The
+  // store decides whether 'tour' becomes the active overlay (yes if nothing
+  // higher is active, otherwise queued and shown when the slot frees up).
   useEffect(() => {
     if (tips.length === 0) return;
     const key = `onboarding_seen_${role}_${userId}`;
-    if (!localStorage.getItem(key)) {
-      const timer = setTimeout(() => {
-        // Hotfix: claim global overlay slot so push-prompt and SW-update banner
-        // hold their messages until the tour finishes.
-        localStorage.setItem('overlay_active', 'tour');
-        setVisible(true);
-      }, 900);
-      return () => clearTimeout(timer);
-    }
-  }, [role, userId, tips.length]);
+    if (localStorage.getItem(key)) return;
+    const timer = setTimeout(() => {
+      requestOverlay('tour');
+      setRequested(true);
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [role, userId, tips.length, requestOverlay]);
 
-  // Release the overlay slot if the user reloads/closes the tab while the tour
-  // is open — otherwise the flag would stick and silently block push prompts
-  // until next dismissal.
+  // Always release on unmount so a re-render or route change doesn't strand
+  // the slot.
   useEffect(() => {
-    const release = () => {
-      if (localStorage.getItem('overlay_active') === 'tour') {
-        localStorage.removeItem('overlay_active');
-      }
+    return () => {
+      if (requested) releaseOverlay('tour');
     };
-    window.addEventListener('beforeunload', release);
-    return () => window.removeEventListener('beforeunload', release);
-  }, []);
+  }, [requested, releaseOverlay]);
+
+  const visible = requested && canShow;
 
   // Measure the target element — re-runs on tip change, resize, and orientation change
   useLayoutEffect(() => {
@@ -173,10 +173,8 @@ export function OnboardingTooltips({ role, userId }: OnboardingTooltipsProps) {
 
   const dismiss = () => {
     localStorage.setItem(`onboarding_seen_${role}_${userId}`, '1');
-    if (localStorage.getItem('overlay_active') === 'tour') {
-      localStorage.removeItem('overlay_active');
-    }
-    setVisible(false);
+    releaseOverlay('tour');
+    setRequested(false);
   };
 
   const next = () => {

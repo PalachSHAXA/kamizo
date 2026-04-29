@@ -3,6 +3,7 @@ import { Bell, X, Loader2, Share, Plus } from 'lucide-react';
 import { pushNotifications } from '../services/pushNotifications';
 import { useAuthStore } from '../stores/authStore';
 import { useTenantStore } from '../stores/tenantStore';
+import { useOverlayStore, useCanShowOverlay } from '../stores/overlayStore';
 
 // Detect iOS (iPhone, iPad, iPod)
 function isIOS(): boolean {
@@ -17,12 +18,14 @@ function isStandalone(): boolean {
 }
 
 export function PushNotificationPrompt() {
-  const [show, setShow] = useState(false);
-  const [showIOSPrompt, setShowIOSPrompt] = useState(false);
+  const [requested, setRequested] = useState<'standard' | 'ios' | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const { user } = useAuthStore();
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
+  const requestOverlay = useOverlayStore(s => s.requestOverlay);
+  const releaseOverlay = useOverlayStore(s => s.releaseOverlay);
+  const canShow = useCanShowOverlay('push_prompt');
 
   useEffect(() => {
     const dismissedKey = `push_prompt_dismissed_${user?.id || 'anon'}`;
@@ -31,48 +34,43 @@ export function PushNotificationPrompt() {
     const lastDismissedTime = wasDismissed ? parseInt(wasDismissed) : 0;
     const daysSinceDismissed = (Date.now() - lastDismissedTime) / (1000 * 60 * 60 * 24);
 
-    // Don't show if dismissed within 7 days or already shown this session
     const alreadyShownThisSession = sessionStorage.getItem(sessionKey);
     const shouldShow = !alreadyShownThisSession && (!wasDismissed || daysSinceDismissed > 7);
     if (!shouldShow) return;
 
-    // Hotfix: poll the overlay_active flag — the tour and SW-update banner
-    // claim it. Retry every 3s up to 10 times (~30s) so we don't pile prompts
-    // on top of the onboarding tour spotlight.
-    let attempts = 0;
-    const MAX_ATTEMPTS = 10;
-    let timer: ReturnType<typeof setTimeout>;
-
-    const tryShow = (showFn: () => void) => {
-      const isOccupied = localStorage.getItem('overlay_active');
-      if (isOccupied) {
-        if (++attempts >= MAX_ATTEMPTS) return; // give up silently
-        timer = setTimeout(() => tryShow(showFn), 3000);
-        return;
-      }
-      showFn();
-      sessionStorage.setItem(sessionKey, '1');
-    };
-
-    // iOS in browser (not PWA): show "Add to Home Screen" only when web push
-    // is genuinely unsupported (Safari < 16.4). Older logic showed it
-    // unconditionally — duplicating the system-level A2HS sheet.
+    // iOS-in-Safari (not PWA): only fall back to A2HS prompt when web push is
+    // genuinely unsupported (Safari < 16.4). The previous logic showed this on
+    // every iOS browser, duplicating the OS-level Add-to-Home-Screen sheet.
     if (isIOS() && !isStandalone()) {
-      const webPushSupported = pushNotifications.isBrowserNotificationsSupported();
-      if (webPushSupported) return;
-      timer = setTimeout(() => tryShow(() => setShowIOSPrompt(true)), 3000);
+      if (pushNotifications.isBrowserNotificationsSupported()) return;
+      const timer = setTimeout(() => {
+        requestOverlay('push_prompt');
+        setRequested('ios');
+        sessionStorage.setItem(sessionKey, '1');
+      }, 3000);
       return () => clearTimeout(timer);
     }
 
-    // All other platforms - show standard push prompt
     if (!pushNotifications.isBrowserNotificationsSupported()) return;
+    if (pushNotifications.getPermission() !== 'default') return;
 
-    const permission = pushNotifications.getPermission();
-    if (permission === 'default') {
-      timer = setTimeout(() => tryShow(() => setShow(true)), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [user?.id]);
+    const timer = setTimeout(() => {
+      requestOverlay('push_prompt');
+      setRequested('standard');
+      sessionStorage.setItem(sessionKey, '1');
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [user?.id, requestOverlay]);
+
+  // Release overlay slot on unmount so the next-priority overlay can take it.
+  useEffect(() => {
+    return () => {
+      if (requested) releaseOverlay('push_prompt');
+    };
+  }, [requested, releaseOverlay]);
+
+  const showIOSPrompt = requested === 'ios' && canShow && !dismissed;
+  const show = requested === 'standard' && canShow && !dismissed;
 
   const handleAllow = async () => {
     setIsSubscribing(true);
@@ -115,7 +113,7 @@ export function PushNotificationPrompt() {
       console.error('Failed to subscribe to push notifications:', error);
     } finally {
       setIsSubscribing(false);
-      setShow(false);
+      releaseOverlay('push_prompt');
       setDismissed(true);
     }
   };
@@ -123,8 +121,7 @@ export function PushNotificationPrompt() {
   const handleDismiss = () => {
     const dismissedKey = `push_prompt_dismissed_${user?.id || 'anon'}`;
     localStorage.setItem(dismissedKey, Date.now().toString());
-    setShow(false);
-    setShowIOSPrompt(false);
+    releaseOverlay('push_prompt');
     setDismissed(true);
   };
 

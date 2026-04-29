@@ -1,42 +1,36 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { useLanguageStore } from '../stores/languageStore';
+import { useOverlayStore, useCanShowOverlay } from '../stores/overlayStore';
 
 export function SWUpdateBanner() {
-  const [showBanner, setShowBanner] = useState(false);
+  const [requested, setRequested] = useState(false);
+  const [closed, setClosed] = useState(false);
   const { language } = useLanguageStore();
+  const requestOverlay = useOverlayStore(s => s.requestOverlay);
+  const releaseOverlay = useOverlayStore(s => s.releaseOverlay);
+  const canShow = useCanShowOverlay('sw_update');
 
   useEffect(() => {
-    let pollTimer: ReturnType<typeof setTimeout>;
-    let attempts = 0;
-    const MAX_ATTEMPTS = 10;
-
-    // Hotfix: queue behind the onboarding tour so a brand-new resident's first
-    // session isn't interrupted by an "update available" toast on top of the
-    // spotlight. Service workers update infrequently; a few seconds of delay
-    // is acceptable. Real priority handling lives in the Phase 2 store.
-    const showRespectingOverlay = () => {
-      const occupied = localStorage.getItem('overlay_active');
-      if (occupied && ++attempts < MAX_ATTEMPTS) {
-        pollTimer = setTimeout(showRespectingOverlay, 3000);
-        return;
-      }
-      setShowBanner(true);
-    };
-
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'SW_UPDATED') {
-        showRespectingOverlay();
+        // sw_update has the highest priority — if the tour or push prompt is
+        // showing, the store preempts them and queues them behind us.
+        requestOverlay('sw_update');
+        setRequested(true);
       }
     };
-
     navigator.serviceWorker?.addEventListener('message', handler);
-    return () => {
-      navigator.serviceWorker?.removeEventListener('message', handler);
-      if (pollTimer) clearTimeout(pollTimer);
-    };
-  }, []);
+    return () => navigator.serviceWorker?.removeEventListener('message', handler);
+  }, [requestOverlay]);
 
+  useEffect(() => {
+    return () => {
+      if (requested) releaseOverlay('sw_update');
+    };
+  }, [requested, releaseOverlay]);
+
+  const showBanner = requested && canShow && !closed;
   if (!showBanner) return null;
 
   const handleRefresh = () => {
@@ -61,7 +55,7 @@ export function SWUpdateBanner() {
           </button>
         </div>
         <button
-          onClick={() => setShowBanner(false)}
+          onClick={() => { releaseOverlay('sw_update'); setClosed(true); }}
           className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-200"
         >
           <X className="h-4 w-4" />

@@ -14,6 +14,7 @@ import { BottomBar } from '../BottomBar';
 import { OfflineIndicator } from '../OfflineIndicator';
 import { ProtectedRoute } from '../ProtectedRoute';
 import { OnboardingWizard } from '../OnboardingWizard';
+import { useOverlayStore, useCanShowOverlay } from '../../stores/overlayStore';
 import { OnboardingTooltips } from '../OnboardingTooltips';
 import { settingsApi } from '../../services/api/settings';
 import { Loader2, ArrowLeft, ShieldAlert, Home, MapPinOff } from 'lucide-react';
@@ -169,20 +170,38 @@ export function Layout() {
   const { getUnreadCount, fetchAnnouncements } = useDataStore();
   const unreadCount = user ? getUnreadCount(user.id) : 0;
 
-  // Director onboarding wizard
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // Director onboarding wizard — go through the central overlay store so it
+  // doesn't compete with the resident tour or push prompt on screen.
+  const [shouldShow, setShouldShow] = useState(false);
+  const requestOverlay = useOverlayStore(s => s.requestOverlay);
+  const releaseOverlay = useOverlayStore(s => s.releaseOverlay);
+  const canShowDirectorWizard = useCanShowOverlay('director_wizard');
+
   useEffect(() => {
     if (user?.role !== 'director' || !user?.id) return;
-    // Fast check via localStorage first
     if (localStorage.getItem(`kamizo_ob_done_${user.id}`)) return;
-    // Async check via settings API
     settingsApi.get('onboarding_completed').then(res => {
-      if (!res.data?.value) setShowOnboarding(true);
+      if (!res.data?.value) setShouldShow(true);
     }).catch(() => {
-      // If API fails, show wizard (better to show than miss)
-      setShowOnboarding(true);
+      setShouldShow(true);
     });
   }, [user?.role, user?.id]);
+
+  useEffect(() => {
+    if (!shouldShow) return;
+    requestOverlay('director_wizard');
+    return () => releaseOverlay('director_wizard');
+  }, [shouldShow, requestOverlay, releaseOverlay]);
+
+  const showOnboarding = shouldShow && canShowDirectorWizard;
+  const setShowOnboarding = (v: boolean) => {
+    if (!v) {
+      releaseOverlay('director_wizard');
+      setShouldShow(false);
+    } else {
+      setShouldShow(true);
+    }
+  };
 
   // Impersonation banner — shown when super admin entered via "Войти в админку УК"
   const [impersonation, setImpersonation] = useState<{ origin_url: string; tenant_name: string } | null>(() => {
