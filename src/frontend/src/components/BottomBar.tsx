@@ -221,16 +221,20 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white/95 backdrop-blur"
+      className="md:hidden fixed left-0 right-0 bottom-0 z-10 bg-white"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
-      // The OUTER wrapper carries both the bg-white/95 + backdrop-blur AND the
-      // bottom safe-area padding. The inner wrapper keeps the same bg so border-t
-      // sits on a non-translucent surface. An earlier approach left the outer
-      // bg-transparent (relying on html bg to fill the home-indicator zone), but
-      // --app-bg (#F7F8FA) ≠ white, which produced a visible ~34px band at the
-      // bottom on iOS PWA — confirmed via Web Inspector (outer rgba(0,0,0,0),
-      // inner ends at y=860, outer ends at y=894 = visible body bg in between).
+      // The OUTER wrapper carries pure white bg + bottom safe-area padding.
+      // The 62px system zone below the viewport in iOS PWA (window.innerHeight
+      // 894 vs screen.height 956) is filled by manifest.background_color (#FFFFFF
+      // after commit 54e7d9d). The inner wrapper keeps bg-white/95 + backdrop-blur
+      // for the visual nav layer; layered over a pure-white outer it still
+      // renders pure white, but the safe-area zone (~34px env-padding) is now
+      // pure white and seamlessly joins the manifest-painted system zone below.
+      // Earlier we used bg-white/95 + backdrop-blur on the outer, which blurred
+      // through body (#F7F8FA) and produced rgb(~254,254,254) — a subtle but
+      // visible band against the pure-white system zone. Confirmed via Web
+      // Inspector on iOS 18.7 PWA.
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {/* Bottom bar redesign:
