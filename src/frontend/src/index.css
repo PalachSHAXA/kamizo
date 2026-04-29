@@ -185,16 +185,6 @@ body {
   }
 }
 
-/* ── Standalone PWA mode — fill available space ── */
-@media (display-mode: standalone) {
-  html, body, #root {
-    height: 100%;
-  }
-  .sidebar {
-    bottom: 0 !important;
-  }
-}
-
 /* ── Keyboard visible — hide bottom nav, shrink content ── */
 @media (max-width: 768px) and (max-height: 500px) {
   .bottom-nav,
@@ -1425,10 +1415,13 @@ a.btn-secondary:active,
 
 /* ── PWA Standalone mode fix ───────────────────────────────────────────── */
 @media (display-mode: standalone) {
-  html, body, #root {
+  html, body, #root, .layout-root {
     height: 100dvh;
     height: 100svh;
     height: -webkit-fill-available;
     min-height: 100svh;
+  }
+  .sidebar {
+    bottom: 0 !important;
   }
 }
