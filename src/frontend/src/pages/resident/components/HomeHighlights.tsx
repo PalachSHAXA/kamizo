@@ -1,271 +1,345 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Vote, AlertTriangle, CheckCircle2, ChevronRight, Sparkles, Megaphone, Star,
+  Wrench, QrCode, MessageCircle, Megaphone, FileText, Car, Phone, Star,
+  CheckCircle2, Vote,
 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/authStore';
 import { useAnnouncementStore } from '../../../stores/announcementStore';
 import { useMeetingStore } from '../../../stores/meetingStore';
 import { useLanguageStore } from '../../../stores/languageStore';
-import { ukRatingsApi } from '../../../services/api';
 import type { Request } from '../../../types';
 
 /**
- * HomeHighlights — horizontal scroll-snap carousel rendered at the top of the
- * resident home tab. Each card is a full-width "story" card answering ONE
- * question: "what needs my attention right now?".
+ * HomeHighlights — 3D card stack swipeable carousel at the top of the
+ * resident home tab. Inspired by the user's reference design — same 3D
+ * rotation/scale/translate effect, brand color via CSS variables instead
+ * of hardcoded hex.
  *
- * Cards are added in priority order, hidden when there's nothing to show, and
- * the whole carousel is hidden if no card qualifies. Order:
- *
- *   1. Onboarding (phone/password/contract incomplete)  — brand color
- *   2. Active voting (status='voting_open')             — blue
- *   3. Urgent announcement (priority='urgent', unread)  — red
- *   4. Pending approval (request waiting for resident)  — purple
- *   5. Monthly UK rating not yet given                  — yellow
- *
- * Swipe gestures use native `scroll-snap`. Dot indicator below tracks the
- * current snap-point. No external dependencies.
+ * Cards are dynamic: services + dynamic priority cards (active voting,
+ * pending approval, urgent announcement, onboarding). Sticky cards always
+ * present, dynamic cards inserted at the front when triggered.
  */
+
+type CardStyle = {
+  id: string;
+  Icon: typeof Wrench;
+  title: string;
+  sub: string;
+  badge?: string;
+  cta: string;
+  gradient: string;
+  shadowColor: string;
+  onClick: () => void;
+};
+
 export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }) {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
-  // Pull meetings/announcements directly from their focused Zustand stores.
-  // The barrel `useDataStore()` returns the merged object and does NOT
-  // accept a selector — passing one silently returned the whole store
-  // object, which then crashed when we called .find() on it.
   const meetings = useMeetingStore(s => s.meetings);
   const announcements = useAnnouncementStore(s => s.announcements);
 
-  const [activeIdx, setActiveIdx] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // ===== Data sources =====
+  // Onboarding pending
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
-
-  // 1. Onboarding pending count
   const onboardingPending = useMemo(() => {
     if (!user) return 0;
-    let count = 0;
-    if (!(user.phone && user.phone.length >= 5)) count++;
-    if (!user.passwordChangedAt) count++;
-    if (!isRentalUser && !user.contractSignedAt) count++;
-    return count;
+    let n = 0;
+    if (!(user.phone && user.phone.length >= 5)) n++;
+    if (!user.passwordChangedAt) n++;
+    if (!isRentalUser && !user.contractSignedAt) n++;
+    return n;
   }, [user, isRentalUser]);
 
-  // 2. Active voting
   const activeVoting = meetings.find(m => m.status === 'voting_open');
-
-  // 3. Urgent unread announcement
-  const urgentAnnouncement = announcements.find(a =>
+  const pendingApproval = activeRequests.find(r => r.status === 'pending_approval');
+  const urgentUnread = announcements.find(a =>
     a.priority === 'urgent' && !a.viewedBy?.includes(user?.id || '')
   );
 
-  // 4. Pending approval
-  const pendingApprovalRequest = activeRequests.find(r => r.status === 'pending_approval');
+  // Build cards. Order: dynamic alerts FIRST (so they show on top), then static services.
+  const cards: CardStyle[] = useMemo(() => {
+    const list: CardStyle[] = [];
 
-  // 5. Monthly UK rating not yet given (small async fetch)
-  const [hasMonthlyUkRating, setHasMonthlyUkRating] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!user) return;
-    ukRatingsApi.getMyRating()
-      .then(res => setHasMonthlyUkRating(!!res.rating))
-      .catch(() => setHasMonthlyUkRating(true)); // hide card on error
-  }, [user?.id]);
+    // 1. Onboarding (if pending) — brand color
+    if (onboardingPending > 0) {
+      list.push({
+        id: 'onboarding',
+        Icon: CheckCircle2,
+        title: language === 'ru' ? 'Завершите регистрацию' : 'Ro\'yxatdan o\'tishni yakunlang',
+        sub: language === 'ru'
+          ? `Осталось ${onboardingPending} ${onboardingPending === 1 ? 'шаг' : 'шагов'}`
+          : `Qoldi ${onboardingPending} ta qadam`,
+        badge: language === 'ru' ? 'важно' : 'muhim',
+        cta: language === 'ru' ? 'Заполнить →' : 'To\'ldirish →',
+        gradient: 'linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.78))',
+        shadowColor: 'rgba(var(--brand-rgb), 0.35)',
+        onClick: () => navigate('/profile'),
+      });
+    }
 
-  // ===== Build cards array =====
-  type Card = {
-    id: string;
-    color: string; // tailwind border / accent classes
-    bgGradient: string; // CSS gradient for card bg
-    icon: typeof Vote;
-    eyebrow: string;
-    title: string;
-    sub: string;
-    cta: string;
-    onClick: () => void;
-  };
+    // 2. Active voting — purple
+    if (activeVoting) {
+      const meetingTitle = activeVoting.agendaItems?.[0]?.title
+        ?? (language === 'ru' ? `Собрание #${activeVoting.number}` : `Yig'ilish #${activeVoting.number}`);
+      list.push({
+        id: 'voting',
+        Icon: Vote,
+        title: meetingTitle,
+        sub: language === 'ru'
+          ? `Ваш голос${user?.totalArea ? ` · ${user.totalArea} м²` : ''}`
+          : `Sizning ovozingiz${user?.totalArea ? ` · ${user.totalArea} m²` : ''}`,
+        badge: language === 'ru' ? 'голосование' : 'ovoz berish',
+        cta: language === 'ru' ? 'Проголосовать →' : 'Ovoz berish →',
+        gradient: 'linear-gradient(135deg, #8B5CF6, #A78BFA)',
+        shadowColor: 'rgba(139,92,246,0.35)',
+        onClick: () => navigate('/meetings'),
+      });
+    }
 
-  const cards: Card[] = [];
+    // 3. Pending approval — purple/violet
+    if (pendingApproval) {
+      list.push({
+        id: 'approve',
+        Icon: Star,
+        title: language === 'ru' ? 'Подтвердите работу' : 'Ishni tasdiqlang',
+        sub: language === 'ru'
+          ? `Заявка #${pendingApproval.number} ждёт оценки`
+          : `Ariza #${pendingApproval.number} baholashni kutmoqda`,
+        badge: language === 'ru' ? '1 новое' : '1 yangi',
+        cta: language === 'ru' ? 'Оценить →' : 'Baholash →',
+        gradient: 'linear-gradient(135deg, #6366F1, #818CF8)',
+        shadowColor: 'rgba(99,102,241,0.35)',
+        onClick: () => navigate('/?tab=requests'),
+      });
+    }
 
-  if (onboardingPending > 0) {
-    cards.push({
-      id: 'onboarding',
-      color: 'border-primary-200',
-      bgGradient: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.10) 0%, rgba(var(--brand-rgb), 0.04) 100%)',
-      icon: CheckCircle2,
-      eyebrow: language === 'ru' ? 'РЕГИСТРАЦИЯ' : 'RO\'YXATDAN O\'TISH',
-      title: language === 'ru' ? 'Завершите профиль' : 'Profilingizni yakunlang',
-      sub: language === 'ru'
-        ? `Осталось ${onboardingPending} ${onboardingPending === 1 ? 'шаг' : 'шагов'}`
-        : `Qoldi ${onboardingPending} ta qadam`,
-      cta: language === 'ru' ? 'Заполнить' : 'To\'ldirish',
-      onClick: () => navigate('/profile'),
-    });
-  }
+    // 4. Urgent announcement — red
+    if (urgentUnread) {
+      list.push({
+        id: 'urgent',
+        Icon: Megaphone,
+        title: urgentUnread.title,
+        sub: (urgentUnread.content || '').slice(0, 60),
+        badge: language === 'ru' ? 'срочно' : 'shoshilinch',
+        cta: language === 'ru' ? 'Подробнее →' : 'Batafsil →',
+        gradient: 'linear-gradient(135deg, #EF4444, #F87171)',
+        shadowColor: 'rgba(239,68,68,0.35)',
+        onClick: () => navigate('/announcements'),
+      });
+    }
 
-  if (activeVoting) {
-    const meetingTitle =
-      activeVoting.agendaItems?.[0]?.title
-      ?? (language === 'ru' ? `Собрание #${activeVoting.number}` : `Yig'ilish #${activeVoting.number}`);
-    const userArea = user?.totalArea;
-    const subText = userArea
-      ? (language === 'ru' ? `Ваш голос · ${userArea} м²` : `Ovozingiz · ${userArea} m²`)
-      : (language === 'ru' ? 'Голосование открыто' : 'Ovoz berish ochiq');
-    cards.push({
-      id: 'voting',
-      color: 'border-blue-200',
-      bgGradient: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
-      icon: Vote,
-      eyebrow: language === 'ru' ? 'ГОЛОСОВАНИЕ' : 'OVOZ BERISH',
-      title: meetingTitle,
-      sub: subText,
-      cta: language === 'ru' ? 'Проголосовать' : 'Ovoz berish',
-      onClick: () => navigate('/meetings'),
-    });
-  }
-
-  if (urgentAnnouncement) {
-    cards.push({
-      id: 'urgent',
-      color: 'border-red-200',
-      bgGradient: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)',
-      icon: AlertTriangle,
-      eyebrow: language === 'ru' ? 'СРОЧНО' : 'SHOSHILINCH',
-      title: urgentAnnouncement.title,
-      sub: urgentAnnouncement.content?.slice(0, 60) || '',
-      cta: language === 'ru' ? 'Подробнее' : 'Batafsil',
-      onClick: () => navigate('/announcements'),
-    });
-  }
-
-  if (pendingApprovalRequest) {
-    cards.push({
-      id: 'approve',
-      color: 'border-purple-200',
-      bgGradient: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)',
-      icon: Megaphone,
-      eyebrow: language === 'ru' ? 'ПОДТВЕРДИТЕ' : 'TASDIQLANG',
-      title: language === 'ru' ? 'Работа по заявке завершена' : 'Ariza bo\'yicha ish tugatildi',
-      sub: language === 'ru'
-        ? `Заявка #${pendingApprovalRequest.number} ждёт оценки`
-        : `Ariza #${pendingApprovalRequest.number} baholashni kutmoqda`,
-      cta: language === 'ru' ? 'Оценить' : 'Baholash',
-      onClick: () => navigate('/?tab=requests'),
-    });
-  }
-
-  if (hasMonthlyUkRating === false) {
-    const monthLabel = new Date().toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long' });
-    cards.push({
-      id: 'rating',
-      color: 'border-yellow-200',
-      bgGradient: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
-      icon: Star,
-      eyebrow: language === 'ru' ? 'ОЦЕНКА УК' : 'UK BAHOSI',
-      title: language === 'ru' ? `Оцените УК за ${monthLabel}` : `UKni baholang (${monthLabel})`,
-      sub: language === 'ru' ? 'Раз в месяц · 30 секунд' : 'Oyiga bir marta · 30 soniya',
-      cta: language === 'ru' ? 'Оценить' : 'Baholash',
-      onClick: () => navigate('/rate-employees'),
-    });
-  }
-
-  // Track active dot via scroll position
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const handleScroll = () => {
-      const cardWidth = el.clientWidth;
-      const idx = Math.round(el.scrollLeft / cardWidth);
-      setActiveIdx(idx);
-    };
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [cards.length]);
-
-  if (cards.length === 0) {
-    // Friendly all-clear state. Shown on the home tab so the area never
-    // becomes a blank gap when nothing is pending — gives the resident a
-    // small "everything's good" reward.
-    return (
-      <div className="px-2.5 md:px-0">
-        <div
-          className="rounded-[18px] p-4 flex items-center gap-3"
-          style={{ background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' }}
-        >
-          <div className="w-10 h-10 rounded-[12px] bg-white/70 flex items-center justify-center text-emerald-600 shrink-0">
-            <Sparkles className="w-5 h-5" strokeWidth={2.2} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[14px] font-bold text-emerald-900">
-              {language === 'ru' ? 'Всё спокойно' : 'Hammasi tinch'}
-            </div>
-            <div className="text-[12px] text-emerald-700 mt-0.5">
-              {language === 'ru' ? 'Срочных задач нет — отдохните' : 'Shoshilinch ishlar yo\'q — dam oling'}
-            </div>
-          </div>
-        </div>
-      </div>
+    // 5–11. Static services — same icons/colors as in the reference design
+    list.push(
+      {
+        id: 'svc-request',
+        Icon: Wrench,
+        title: language === 'ru' ? 'Создать заявку' : 'Ariza yaratish',
+        sub: language === 'ru' ? 'Сантехник · Электрик · Уборка' : 'Santexnik · Elektrik · Tozalash',
+        cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
+        gradient: 'linear-gradient(135deg, rgb(var(--brand-rgb)), #FB923C)',
+        shadowColor: 'rgba(var(--brand-rgb), 0.35)',
+        onClick: () => window.dispatchEvent(new Event('open-services')),
+      },
+      {
+        id: 'svc-guest',
+        Icon: QrCode,
+        title: language === 'ru' ? 'Гостевой пропуск' : 'Mehmon ruxsatnomasi',
+        sub: language === 'ru' ? 'QR-код для гостей и курьеров' : 'Mehmon va kuryer uchun QR',
+        cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
+        gradient: 'linear-gradient(135deg, #10B981, #34D399)',
+        shadowColor: 'rgba(16,185,129,0.35)',
+        onClick: () => navigate('/guest-access'),
+      },
+      {
+        id: 'svc-chat',
+        Icon: MessageCircle,
+        title: language === 'ru' ? 'Чат с УК' : 'UK bilan chat',
+        sub: language === 'ru' ? 'Администрация на связи' : 'Ma\'muriyat aloqada',
+        cta: language === 'ru' ? 'Написать →' : 'Yozish →',
+        gradient: 'linear-gradient(135deg, #3B82F6, #60A5FA)',
+        shadowColor: 'rgba(59,130,246,0.35)',
+        onClick: () => navigate('/chat'),
+      },
+      {
+        id: 'svc-contract',
+        Icon: FileText,
+        title: language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma',
+        sub: language === 'ru' ? 'Превью и QR-код' : 'Ko\'rish va QR-kod',
+        cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
+        gradient: 'linear-gradient(135deg, #8B5CF6, #A78BFA)',
+        shadowColor: 'rgba(139,92,246,0.35)',
+        onClick: () => navigate('/contract'),
+      },
+      {
+        id: 'svc-car',
+        Icon: Car,
+        title: language === 'ru' ? 'Мои автомобили' : 'Mening avtomobillarim',
+        sub: language === 'ru' ? 'Регистрация и поиск авто' : 'Ro\'yxat va qidirish',
+        cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
+        gradient: 'linear-gradient(135deg, #14B8A6, #2DD4BF)',
+        shadowColor: 'rgba(20,184,166,0.35)',
+        onClick: () => navigate('/vehicles'),
+      },
+      {
+        id: 'svc-contacts',
+        Icon: Phone,
+        title: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar',
+        sub: language === 'ru' ? 'Экстренные службы и партнёры' : 'Tez yordam va hamkorlar',
+        cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
+        gradient: 'linear-gradient(135deg, #EC4899, #F472B6)',
+        shadowColor: 'rgba(236,72,153,0.35)',
+        onClick: () => navigate('/useful-contacts'),
+      },
+      {
+        id: 'svc-rate',
+        Icon: Star,
+        title: language === 'ru' ? 'Оценить УК' : 'UKni baholash',
+        sub: language === 'ru' ? 'Раз в месяц · 30 секунд' : 'Oyiga bir marta · 30 soniya',
+        cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
+        gradient: 'linear-gradient(135deg, #6366F1, #818CF8)',
+        shadowColor: 'rgba(99,102,241,0.35)',
+        onClick: () => navigate('/rate-employees'),
+      },
     );
-  }
+
+    return list;
+  }, [onboardingPending, activeVoting, pendingApproval, urgentUnread, language, navigate, user?.totalArea]);
+
+  const [activeIdx, setActiveIdx] = useState(0);
+  // Reset active index if cards array shrinks
+  useEffect(() => {
+    if (activeIdx >= cards.length) setActiveIdx(0);
+  }, [cards.length, activeIdx]);
+
+  // Drag handling — touch + mouse for desktop testing
+  const startX = useRef(0);
+  const cur = useRef(0);
+  const [drag, setDrag] = useState(0);
+  const [dragging, setDragging] = useState(false);
+
+  const onStart = (e: React.TouchEvent | React.MouseEvent) => {
+    startX.current = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    setDragging(true);
+  };
+  const onMove = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!dragging) return;
+    const x = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    cur.current = x - startX.current;
+    setDrag(cur.current);
+  };
+  const onEnd = () => {
+    setDragging(false);
+    if (Math.abs(cur.current) > 50) {
+      if (cur.current < 0 && activeIdx < cards.length - 1) setActiveIdx(activeIdx + 1);
+      else if (cur.current > 0 && activeIdx > 0) setActiveIdx(activeIdx - 1);
+    }
+    setDrag(0);
+    cur.current = 0;
+  };
 
   return (
     <div className="px-2.5 md:px-0">
-      {/* Carousel — horizontal scroll-snap, one card per viewport.
-          Hidden scrollbar so it feels native. */}
       <div
-        ref={scrollRef}
-        className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-2.5 px-2.5 md:mx-0 md:px-0"
-        style={{ scrollbarWidth: 'none' }}
+        onTouchStart={onStart}
+        onTouchMove={onMove}
+        onTouchEnd={onEnd}
+        onMouseDown={onStart}
+        onMouseMove={onMove}
+        onMouseUp={onEnd}
+        onMouseLeave={() => { if (dragging) onEnd(); }}
+        className="relative cursor-grab select-none"
+        style={{ height: 195, perspective: 800, marginBottom: 12 }}
       >
-        {cards.map(card => {
-          const Icon = card.icon;
+        {cards.map((card, i) => {
+          const diff = i - activeIdx;
+          const absD = Math.abs(diff);
+          if (absD > 3) return null;
+          const d = i === activeIdx ? drag * 0.8 : 0;
+          const Icon = card.Icon;
           return (
             <button
               key={card.id}
-              onClick={card.onClick}
-              className={`snap-start shrink-0 w-[calc(100%-20px)] md:w-full text-left rounded-[18px] p-4 border-2 ${card.color} active:scale-[0.99] transition-transform touch-manipulation shadow-[0_2px_10px_rgba(0,0,0,0.04)]`}
-              style={{ background: card.bgGradient }}
+              onClick={() => {
+                if (i === activeIdx && Math.abs(cur.current) < 6) card.onClick();
+              }}
+              className="absolute text-left text-white"
+              style={{
+                left: 8,
+                right: 8,
+                height: 185,
+                borderRadius: 24,
+                background: card.gradient,
+                padding: 22,
+                transform: `translateX(${diff * 35 + d}px) translateZ(${-absD * 50}px) rotateY(${diff * -4 + (i === activeIdx ? drag * 0.04 : 0)}deg) scale(${1 - absD * 0.07})`,
+                opacity: absD > 2 ? 0 : 1 - absD * 0.25,
+                transition: dragging ? 'none' : 'all 0.5s cubic-bezier(0.34,1.56,0.64,1)',
+                zIndex: 10 - absD,
+                boxShadow: absD === 0 ? `0 15px 40px ${card.shadowColor}` : '0 8px 20px rgba(0,0,0,0.1)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                pointerEvents: absD === 0 ? 'auto' : 'none',
+              }}
             >
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-[12px] bg-white/80 flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5 text-gray-700" strokeWidth={2} />
+              {card.badge && (
+                <div
+                  className="absolute font-bold uppercase tracking-wider"
+                  style={{
+                    top: 14,
+                    right: 16,
+                    background: 'rgba(255,255,255,0.25)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '4px 12px',
+                    borderRadius: 12,
+                    fontSize: 10,
+                  }}
+                >
+                  {card.badge}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                    {card.eyebrow}
-                  </div>
-                  <div className="text-[14px] font-extrabold text-gray-900 mt-0.5 leading-tight line-clamp-2">
-                    {card.title}
-                  </div>
-                  <div className="text-[12px] text-gray-600 mt-1 line-clamp-1">
-                    {card.sub}
-                  </div>
-                  <div className="inline-flex items-center gap-1 text-[12px] font-bold text-primary-600 mt-2">
-                    {card.cta}
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </div>
-                </div>
+              )}
+              <div>
+                <Icon className="w-9 h-9 mb-2" strokeWidth={2} />
+                <div className="text-[19px] font-extrabold leading-tight">{card.title}</div>
+                <div className="text-[12px] opacity-80 mt-1 line-clamp-2">{card.sub}</div>
+              </div>
+              <div
+                className="inline-flex items-center gap-1.5 self-start font-semibold"
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: '8px 16px',
+                  borderRadius: 14,
+                  fontSize: 13,
+                  backdropFilter: 'blur(10px)',
+                }}
+              >
+                {card.cta}
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Dot indicator — only when more than one card */}
-      {cards.length > 1 && (
-        <div className="flex items-center justify-center gap-1.5 mt-2.5">
-          {cards.map((_, i) => (
-            <span
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-200 ${
-                i === activeIdx ? 'bg-primary-500 w-5' : 'bg-gray-300 w-1.5'
-              }`}
-            />
-          ))}
-        </div>
-      )}
+      {/* Dots indicator */}
+      <div className="flex justify-center gap-1.5 mb-2">
+        {cards.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setActiveIdx(i)}
+            aria-label={`card ${i + 1}`}
+            style={{
+              width: i === activeIdx ? 22 : 7,
+              height: 7,
+              borderRadius: 4,
+              background: i === activeIdx ? 'rgb(var(--brand-rgb))' : '#ddd',
+              transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+              cursor: 'pointer',
+              border: 0,
+              padding: 0,
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

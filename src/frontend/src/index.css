@@ -33,7 +33,7 @@
   --text-on-disabled: #374151; /* текст на disabled-кнопке — WCAG AA на #F3F4F6 */
 
   /* ── Layout ──────────────────────────────────────────── */
-  --mobile-header-h: calc(52px + env(safe-area-inset-top, constant(safe-area-inset-top, 0px)));
+  --mobile-header-h: calc(64px + env(safe-area-inset-top, constant(safe-area-inset-top, 0px)));
   --bottom-bar-h: calc(52px + env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px)));
 }
 
@@ -591,12 +591,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
-    padding-top: calc(env(safe-area-inset-top, 0px) + 6px);
+    padding: 10px 16px 10px 16px;
+    /* Safe-area-inset-top + 12px guarantees icons aren't clipped at the
+       top on devices without a notch (where env() reports 0). */
+    padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
     /* Fixed at top of viewport, offset below impersonation banner if present */
     position: fixed;
     top: var(--impersonation-h, 0px);

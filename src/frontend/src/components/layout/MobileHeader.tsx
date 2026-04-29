@@ -98,42 +98,49 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
   return (
     <>
-      {/* Mobile header — redesigned to be compact and modern.
-          Previously each icon button was a 44×44 white card with a shadow,
-          which made the header feel chunky and cluttered. The new layout
-          left-aligns logo + tenant name (matches platform-style products
-          like Telegram, Revolut), keeps the buttons as flat round icons
-          with a soft hover bg, and shrinks vertical padding for more
-          screen real-estate to the actual content. */}
+      {/* Mobile header — matches the reference design:
+          - 42×42 white cards on both ends (menu / bell), subtle shadow
+          - Custom 3-line hamburger with the middle line in brand color
+            (a small touch that signals tenant identity without a full logo)
+          - Greeting + tenant name between the icons (eyebrow + bold name)
+          - Generous safe-area-inset-top so icons never clip on iOS
+            notched devices; the .mobile-header CSS class adds the safe
+            area padding via env(safe-area-inset-top). */}
       <header className="mobile-header" role="banner">
-        <div className="flex items-center gap-2.5 flex-1 min-w-0">
-          <button
-            onClick={onMenuClick}
-            className="w-9 h-9 rounded-[10px] flex items-center justify-center relative active:bg-gray-100 transition-colors touch-manipulation -ml-1"
-            aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'}
-            aria-expanded={false}
-          >
-            <Menu className="w-[20px] h-[20px] text-gray-700" strokeWidth={2.2} />
-            {totalMenuBadge > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full pointer-events-none" />
-            )}
-          </button>
+        <button
+          onClick={onMenuClick}
+          className="w-[42px] h-[42px] rounded-[14px] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-[4px] active:scale-[0.92] transition-transform touch-manipulation relative shrink-0"
+          aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'}
+          aria-expanded={false}
+        >
+          <span className="w-[18px] h-[2px] rounded-[1px] bg-gray-900" />
+          <span className="w-[12px] h-[2px] rounded-[1px] bg-primary-500" />
+          <span className="w-[18px] h-[2px] rounded-[1px] bg-gray-900" />
+          {totalMenuBadge > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-amber-500 rounded-full text-[10px] font-extrabold text-white flex items-center justify-center px-[4px] border-2 border-white pointer-events-none">
+              {totalMenuBadge > 9 ? '9+' : totalMenuBadge}
+            </span>
+          )}
+        </button>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <AppLogo size="sm" />
-            <span className="font-bold text-gray-900 text-[15px] truncate">{tenantName}</span>
-          </div>
+        {/* Center: tenant name + AppLogo. Hidden when too narrow to keep
+            the layout clean; the icons are always present. */}
+        <div className="flex items-center gap-2 min-w-0 mx-2">
+          <AppLogo size="sm" />
+          <span className="font-bold text-gray-900 text-[14px] truncate hidden xs:inline">
+            {tenantName}
+          </span>
         </div>
 
         <button
           onClick={() => setShowNotifications(!showNotifications)}
-          className="w-9 h-9 rounded-[10px] flex items-center justify-center relative active:bg-gray-100 transition-colors touch-manipulation -mr-1"
+          className="w-[42px] h-[42px] rounded-[14px] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] flex items-center justify-center active:scale-[0.92] transition-transform touch-manipulation relative shrink-0"
           aria-label={language === 'ru' ? `Уведомления, ${totalNotificationsBadge} новых` : `Bildirishnomalar, ${totalNotificationsBadge} yangi`}
           aria-pressed={showNotifications}
         >
-          <Bell className="w-[20px] h-[20px] text-gray-700" strokeWidth={2.2} />
+          <Bell className="w-[20px] h-[20px] text-gray-700" strokeWidth={2} />
           {totalNotificationsBadge > 0 && (
-            <span className="absolute top-0.5 right-0.5 min-w-[16px] h-[16px] bg-primary-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white pointer-events-none">
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full text-[10px] font-extrabold text-white flex items-center justify-center px-[4px] border-2 border-white pointer-events-none">
               {totalNotificationsBadge > 9 ? '9+' : totalNotificationsBadge}
             </span>
           )}

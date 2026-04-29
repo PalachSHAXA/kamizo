@@ -4,8 +4,8 @@
   "description": "Приложение для управления многоквартирными домами. Заявки, чат с УК, объявления, собрания.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#FEFAF6",
+  "theme_color": "#F59E0B",
   "orientation": "portrait",
   "icons": [
     {
