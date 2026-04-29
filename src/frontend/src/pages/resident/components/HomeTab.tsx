@@ -1,12 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronRight, Wrench, MessageCircle, QrCode,
-  Vote, Star, Clock,
+  ChevronRight, Vote, Clock,
   CheckCircle2, Phone, Key, FileText as FileTextIcon, X as CloseIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
-import { useTenantStore } from '../../../stores/tenantStore';
 import { HomeHighlights } from './HomeHighlights';
 import {
   PaymentWidgetSoon, MetersWidgetSoon, AutoWidget,
@@ -48,8 +46,9 @@ export function HomeTab({
   generateReconciliation,
 }: HomeTabProps) {
   const navigate = useNavigate();
-  const hasFeature = useTenantStore(s => s.hasFeature);
-  const marketplaceEnabled = hasFeature('marketplace');
+  // Note: marketplaceEnabled / setShowAllServices used to gate the
+  // 'Быстрые действия' grid, but that grid was removed because all
+  // services are now in the swipeable HomeHighlights carousel.
 
   // ===== Onboarding state =====
   // The user's first impression of the product matters: imported residents
@@ -74,7 +73,7 @@ export function HomeTab({
   const quorumReached = !!firstActiveMeeting?.quorumReached;
 
   return (
-    <div className="space-y-3 px-2.5 md:px-0">
+    <div className="space-y-3 px-4 md:px-0">
 
       {/* Greeting and address pill are rendered by the parent
           ResidentDashboard above this component — keeping it here would
@@ -271,96 +270,10 @@ export function HomeTab({
           Hidden when the resident has no registered vehicles. ===== */}
       <AutoWidget />
 
-      {/* ===== Quick actions 2×2. Replaces the previous "two big buttons +
-          horizontal services strip" duplication. The four most-used resident
-          actions are surfaced as equal-weight cards. ===== */}
-      <div className="space-y-2">
-        <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.06em] px-1">
-          {language === 'ru' ? 'Быстрые действия' : 'Tez amallar'}
-        </div>
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            onClick={() => setShowAllServices(true)}
-            data-tour="home-call-master"
-            className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-transform touch-manipulation"
-          >
-            <div className="w-11 h-11 rounded-[14px] bg-primary-50 flex items-center justify-center mb-2.5">
-              <Wrench className="w-[22px] h-[22px] text-primary-500" strokeWidth={1.8} />
-            </div>
-            <div className="text-[14px] font-extrabold text-gray-900 leading-tight">
-              {language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
-            </div>
-            <div className="text-[11px] text-gray-500 font-medium mt-1">
-              {language === 'ru' ? 'Сантехник, электрик…' : 'Santexnik, elektrik…'}
-            </div>
-          </button>
-          <button
-            onClick={() => navigate('/guest-access')}
-            data-tour="home-guests"
-            className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-transform touch-manipulation"
-          >
-            <div className="w-11 h-11 rounded-[14px] bg-green-50 flex items-center justify-center mb-2.5">
-              <QrCode className="w-[22px] h-[22px] text-green-500" strokeWidth={1.8} />
-            </div>
-            <div className="text-[14px] font-extrabold text-gray-900 leading-tight">
-              {language === 'ru' ? 'QR гостю' : 'Mehmon QR'}
-            </div>
-            <div className="text-[11px] text-gray-500 font-medium mt-1">
-              {language === 'ru' ? 'За 30 секунд' : '30 soniyada'}
-            </div>
-          </button>
-          <button
-            onClick={() => navigate('/chat')}
-            className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-transform touch-manipulation"
-          >
-            <div className="w-11 h-11 rounded-[14px] bg-blue-50 flex items-center justify-center mb-2.5">
-              <MessageCircle className="w-[22px] h-[22px] text-blue-500" strokeWidth={1.8} />
-            </div>
-            <div className="text-[14px] font-extrabold text-gray-900 leading-tight">
-              {language === 'ru' ? 'Чат с УК' : 'UK chat'}
-            </div>
-            <div className="text-[11px] text-gray-500 font-medium mt-1">
-              {language === 'ru' ? 'Вопросы и заявки' : 'Savollar va arizalar'}
-            </div>
-          </button>
-          <button
-            onClick={() => navigate('/rate-employees')}
-            className="bg-white rounded-[18px] p-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.97] transition-transform touch-manipulation"
-          >
-            <div className="w-11 h-11 rounded-[14px] bg-yellow-50 flex items-center justify-center mb-2.5">
-              <Star className="w-[22px] h-[22px] text-yellow-500" strokeWidth={1.8} />
-            </div>
-            <div className="text-[14px] font-extrabold text-gray-900 leading-tight">
-              {language === 'ru' ? 'Оценить УК' : 'UKni baholash'}
-            </div>
-            <div className="text-[11px] text-gray-500 font-medium mt-1">
-              {language === 'ru' ? 'Раз в месяц' : 'Oyiga bir marta'}
-            </div>
-          </button>
-        </div>
-
-        {/* Marketplace — only when feature flag is on. Kept here so the
-            quick-actions area stays the single home for everything the
-            resident might tap. */}
-        {marketplaceEnabled && (
-          <button
-            onClick={() => navigate('/marketplace')}
-            className="w-full bg-white rounded-[18px] p-3.5 flex items-center gap-3 shadow-[0_2px_10px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform touch-manipulation"
-          >
-            <div className="w-10 h-10 rounded-[12px] bg-purple-50 flex items-center justify-center shrink-0">
-              <ChevronRight className="w-5 h-5 text-purple-500" strokeWidth={1.8} />
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <div className="text-[14px] font-bold text-gray-900">
-                {language === 'ru' ? 'Маркет для дома' : 'Uy uchun bozor'}
-              </div>
-              <div className="text-[11px] text-gray-400 font-medium">
-                {language === 'ru' ? 'Скидки от соседей и партнёров' : 'Qo\'shni va hamkorlardan chegirmalar'}
-              </div>
-            </div>
-          </button>
-        )}
-      </div>
+      {/* Quick actions removed — all 7 services are now in the swipeable
+          3D CardStack at the top, so a separate 2×2 grid was a duplicate.
+          Marketplace teaser also dropped because it's accessible via
+          /marketplace from the drawer. */}
 
       {/* Finance widget intentionally NOT shown here. The previous live
           balance widget contradicted the 'Уже скоро · онлайн-оплата'

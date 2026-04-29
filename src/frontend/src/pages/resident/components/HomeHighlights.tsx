@@ -239,7 +239,9 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
   };
 
   return (
-    <div className="px-2.5 md:px-0">
+    <div className="-mx-1 md:mx-0">{/* tiny negative margin so the 3D
+        side-shoulders peek at the screen edge without padding cropping
+        them — parent HomeTab already provides outer breathing room */}
       <div
         onTouchStart={onStart}
         onTouchMove={onMove}
@@ -320,24 +322,30 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
         })}
       </div>
 
-      {/* Dots indicator */}
-      <div className="flex justify-center gap-1.5 mb-2">
+      {/* Dots indicator. Wrapped in a tap-friendly button — but the dot
+          itself is a span so the global `button { min-height: 44px }` rule
+          doesn't blow it up to a chunky square. The button stays 16px tall
+          (good tap target) and the span renders the visible 7px dot. */}
+      <div className="flex justify-center items-center gap-1.5 mb-2 h-4">
         {cards.map((_, i) => (
           <button
             key={i}
             onClick={() => setActiveIdx(i)}
             aria-label={`card ${i + 1}`}
-            style={{
-              width: i === activeIdx ? 22 : 7,
-              height: 7,
-              borderRadius: 4,
-              background: i === activeIdx ? 'rgb(var(--brand-rgb))' : '#ddd',
-              transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
-              cursor: 'pointer',
-              border: 0,
-              padding: 0,
-            }}
-          />
+            className="flex items-center justify-center bg-transparent border-0 p-0 cursor-pointer"
+            style={{ width: 28, height: 16, minHeight: 0, minWidth: 0 }}
+          >
+            <span
+              style={{
+                display: 'block',
+                width: i === activeIdx ? 22 : 7,
+                height: 7,
+                borderRadius: 4,
+                background: i === activeIdx ? 'rgb(var(--brand-rgb))' : '#ddd',
+                transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+              }}
+            />
+          </button>
         ))}
       </div>
     </div>
