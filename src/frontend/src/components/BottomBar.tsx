@@ -225,6 +225,7 @@ export function BottomBar() {
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
       style={{
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         bottom: 'calc(-1 * var(--ios-pwa-gap, 0px))',
       }}
     >
