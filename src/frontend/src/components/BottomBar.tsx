@@ -221,21 +221,10 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 z-10 bg-white"
+      className="md:hidden fixed left-0 right-0 bg-white"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
-      // The wrapper drops below the viewport edge by env(safe-area-inset-bottom)
-      // so its bg-white paints the iOS home-indicator zone, then compensates
-      // with paddingBottom to keep tabs in the visible area. On devices without
-      // safe-area (Android, desktop, non-PWA Safari) env=0 and bottom=0, so the
-      // layout reduces to "fixed left-0 right-0 bottom-0" — no visual change.
-      style={{
-        bottom: 'calc(0px - env(safe-area-inset-bottom, 0px))',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        paddingTop: 0,
-        height: 'auto',
-        backgroundColor: '#fff',
-      }}
+      style={{ bottom: '15px', zIndex: 50 }}
     >
       {/* Bottom bar redesign:
           - The active tab is now signaled by a 3px brand-colored top

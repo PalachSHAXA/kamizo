@@ -67,15 +67,20 @@ html {
   background: var(--app-bg);
 }
 
+html, body {
+  height: 100vh;
+  background-color: #ffffff;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: var(--app-bg);
   min-height: 100vh;
   min-height: 100dvh;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  overflow: visible;
 }
 
 /* Desktop only: brand gradient background */
@@ -104,17 +109,13 @@ body {
   }
 
   body {
-    /* 100svh = small viewport height — iOS Safari uses the smallest possible
-       viewport (URL bar visible state). This means our background layer is
-       guaranteed to extend BEYOND the visible viewport into the home-indicator
-       zone, so when bounce-scroll happens nothing white shows through.
-       Fallback chain: 100vh → 100dvh → 100svh. */
+    /* iOS PWA: body must NOT lock overflow — that prevented env(safe-area-inset-bottom)
+       from being applied and left the BottomBar stranded above the home-indicator zone.
+       overflow:visible + height:100vh lets position:fixed elements anchor to the visual
+       viewport so `bottom:15px` sits just above the home indicator. */
     height: 100vh;
-    height: 100dvh;
-    height: 100svh;
-    overflow: hidden;
     overscroll-behavior: none;
-    background: var(--app-bg);
+    overflow: visible;
   }
 
   #root {
