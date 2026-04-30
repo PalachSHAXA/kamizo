@@ -221,10 +221,13 @@ export function BottomBar() {
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed left-0 right-0 bg-white"
+      className="md:hidden fixed bottom-0 left-0 right-0 bg-white"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
-      style={{ bottom: '15px', zIndex: 50 }}
+      style={{
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        zIndex: 50,
+      }}
     >
       {/* Bottom bar redesign:
           - The active tab is now signaled by a 3px brand-colored top

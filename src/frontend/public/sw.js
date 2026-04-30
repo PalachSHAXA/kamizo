@@ -1,14 +1,15 @@
 // Kamizo PWA Service Worker
-// Version: 2.6.0 — cache suffix bumped to v8 so the activate handler
-// deletes every v7 cache on the next SW lifecycle update. This forces
-// every tenant's PWA users to re-fetch HTML + assets after the iOS PWA
-// BottomBar positioning fix. Bump this suffix any time a release needs
-// to propagate urgently to existing installs.
+// Version: 2.7.0 — cache suffix bumped to v9 so the activate handler
+// deletes every v8 cache on the next SW lifecycle update. This forces
+// every tenant's PWA users to re-fetch HTML + manifest after switching
+// display:standalone → display:fullscreen so iOS releases the 62px
+// system reserve under the home-indicator. Bump this suffix any time a
+// release needs to propagate urgently to existing installs.
 
-const SW_VERSION = '2.6.0';
-const STATIC_CACHE = 'kamizo-static-v8';
-const ASSET_CACHE = 'kamizo-assets-v8';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v8';
+const SW_VERSION = '2.7.0';
+const STATIC_CACHE = 'kamizo-static-v9';
+const ASSET_CACHE = 'kamizo-assets-v9';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v9';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
