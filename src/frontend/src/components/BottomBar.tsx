@@ -234,6 +234,7 @@ export function BottomBar() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         paddingTop: 0,
         height: 'auto',
+        backgroundColor: '#fff',
       }}
     >
       {/* Bottom bar redesign:
