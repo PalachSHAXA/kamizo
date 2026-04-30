@@ -240,7 +240,7 @@ export function BottomBar() {
             bar feel busy. Active state is just color + indicator. */}
       <div
         className="flex items-end justify-around px-1 bg-white/95 backdrop-blur border-t border-gray-100"
-        style={{ paddingBottom: '4px' }}
+        style={{ paddingBottom: '14px' }}
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
