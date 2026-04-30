@@ -224,9 +224,16 @@ export function BottomBar() {
       className="md:hidden fixed left-0 right-0 z-10 bg-white"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
+      // The wrapper drops below the viewport edge by env(safe-area-inset-bottom)
+      // so its bg-white paints the iOS home-indicator zone, then compensates
+      // with paddingBottom to keep tabs in the visible area. On devices without
+      // safe-area (Android, desktop, non-PWA Safari) env=0 and bottom=0, so the
+      // layout reduces to "fixed left-0 right-0 bottom-0" — no visual change.
       style={{
+        bottom: 'calc(0px - env(safe-area-inset-bottom, 0px))',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        bottom: 'calc(-1 * var(--ios-pwa-gap, 0px))',
+        paddingTop: 0,
+        height: 'auto',
       }}
     >
       {/* Bottom bar redesign:
@@ -239,8 +246,12 @@ export function BottomBar() {
           - Removed the "active dot" + scale wobble animation that made the
             bar feel busy. Active state is just color + indicator. */}
       <div
-        className="flex items-end justify-around px-1 bg-white/95 backdrop-blur border-t border-gray-100"
-        style={{ paddingBottom: 'calc(6px + var(--ios-pwa-gap, 0px) * 0.55)' }}
+        className="flex items-end justify-around px-1 bg-white border-t border-gray-100"
+        style={{
+          paddingTop: 0,
+          paddingBottom: '15px',
+          marginBottom: 0,
+        }}
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
