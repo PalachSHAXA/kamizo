@@ -64,7 +64,7 @@ jobs:
       - name: Deployment summary
         run: |
           echo "✅ Production deployment successful!"
-          echo "🌐 Live at: https://app.myhelper.uz"
+          echo "🌐 Live at: https://kamizo.uz"
 
   deploy-staging:
     if: github.ref == 'refs/heads/develop'
