@@ -100,19 +100,30 @@ route('POST', '/api/meetings', async (request, env) => {
     invalidateCache('meetings:');
     const created = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(id, ...(tenantId ? [tenantId] : [])).first() as any;
 
-    if (body.building_id && body.status === 'schedule_poll_open') {
+    // Notify eligible residents that a meeting has been created and voting/poll is open.
+    // initialStatus drives whether voters are notified — schedule_poll_open or voting_open both qualify.
+    if (buildingId && (initialStatus === 'schedule_poll_open' || initialStatus === 'voting_open')) {
       try {
-        const { results: residents } = await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', body.building_id).all();
+        const { results: residents } = await env.DB.prepare(
+          `SELECT id FROM users WHERE role = ? AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+        ).bind('resident', buildingId, ...(tenantId ? [tenantId] : [])).all();
+
+        const meetingTitleRu = initialStatus === 'voting_open' ? '\u{1F5F3}\u{FE0F} Открыто голосование' : '\u{1F4E2} Новое собрание объявлено';
+        const meetingBodyRu = initialStatus === 'voting_open'
+          ? 'Новое собрание собственников. Проголосуйте.'
+          : `Назначено собрание жильцов дома ${body.building_address || body.buildingAddress || ''}. Примите участие в выборе даты!`;
+
         for (const resident of residents as any[]) {
           const notifId = generateId();
-          await env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at) VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'))`)
-            .bind(notifId, resident.id, '\u{1F4E2} Новое собрание объявлено', `Назначено собрание жильцов дома ${body.building_address || ''}. Примите участие в выборе даты!`, JSON.stringify({ meetingId: id, url: '/meetings' })).run();
+          env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'), ?)`)
+            .bind(notifId, resident.id, meetingTitleRu, meetingBodyRu, JSON.stringify({ meetingId: id, url: '/meetings' }), tenantId)
+            .run().catch((err) => { console.error('meeting notification insert failed:', err); });
           sendPushNotification(env, resident.id, {
-            title: '\u{1F4E2} Новое собрание объявлено',
-            body: `Назначено собрание жильцов дома ${body.building_address || ''}. Примите участие в выборе даты!`,
-            type: 'meeting', tag: `meeting-announced-${id}`,
+            title: meetingTitleRu,
+            body: meetingBodyRu,
+            type: 'meeting', tag: `meeting:${id}`,
             data: { meetingId: id, url: '/meetings' }, requireInteraction: true
-          }).catch(() => {});
+          }).catch((err) => { console.error('meeting push notification failed:', err); });
         }
         log.info('Meeting created', { meetingId: id, notifiedResidents: residents.length });
       } catch (e: any) { log.error('Error sending notifications', e); }

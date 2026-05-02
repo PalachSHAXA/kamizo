@@ -75,7 +75,7 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
     const { results: residents } = await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all();
     const quorumStatus = quorumReached ? 'Кворум достигнут!' : 'Кворум не достигнут.';
     for (const resident of (residents || []) as any[]) {
-      sendPushNotification(env, resident.id, { title: '\u{1F5F3}\u{FE0F} Голосование завершено', body: `Голосование по собранию жильцов завершено. ${quorumStatus} Участие: ${participationPercent.toFixed(1)}%`, type: 'meeting', tag: `meeting-closed-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch(() => {});
+      sendPushNotification(env, resident.id, { title: '\u{1F5F3}\u{FE0F} Голосование завершено', body: `Голосование по собранию жильцов завершено. ${quorumStatus} Участие: ${participationPercent.toFixed(1)}%`, type: 'meeting', tag: `meeting-closed-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });
@@ -99,7 +99,7 @@ route('POST', '/api/meetings/:id/publish-results', async (request, env, params) 
   if (meeting?.building_id) {
     const { results: residents } = await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all();
     for (const resident of (residents || []) as any[]) {
-      sendPushNotification(env, resident.id, { title: '\u{1F4CA} Результаты голосования опубликованы', body: `Результаты собрания жильцов ${meeting.building_address || ''} доступны для просмотра.`, type: 'meeting', tag: `meeting-results-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch(() => {});
+      sendPushNotification(env, resident.id, { title: '\u{1F4CA} Результаты голосования опубликованы', body: `Результаты собрания жильцов ${meeting.building_address || ''} доступны для просмотра.`, type: 'meeting', tag: `meeting-results-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });

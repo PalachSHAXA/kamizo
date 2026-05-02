@@ -39,7 +39,7 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
     sendPushNotification(env, requestData.executor_id, {
       title: '🎉 Работа подтверждена!', body: approveBody, type: 'request_approved',
       tag: `request-approved-${params.id}`, data: { requestId: params.id, rating, url: '/' }, requireInteraction: false
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_approved', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.executor_id, '🎉 Работа подтверждена!', approveBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 
@@ -54,7 +54,7 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
       sendPushNotification(env, head.id, {
         title: '✅ Заявка закрыта', body: approveBodyHead, type: 'request_approved',
         tag: `request-approved-head-${params.id}`, data: { requestId: params.id, rating, url: '/requests' }, requireInteraction: false
-      }).catch(() => {});
+      }).catch((err) => { console.error('fire-and-forget failed:', err); });
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_approved', ?, ?, ?, 0, datetime('now'), ?)`)
         .bind(generateId(), head.id, '✅ Заявка закрыта', approveBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
     }
@@ -91,7 +91,7 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
     sendPushNotification(env, requestData.executor_id, {
       title: '❌ Работа отклонена', body: rejectBody, type: 'request_rejected',
       tag: `request-rejected-${params.id}`, data: { requestId: params.id, reason, url: '/' }, requireInteraction: true
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.executor_id, '❌ Работа отклонена', rejectBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
 
@@ -105,7 +105,7 @@ route('POST', '/api/requests/:id/reject', async (request, env, params) => {
       sendPushNotification(env, head.id, {
         title: '❌ Работа отклонена жителем', body: rejectBodyHead, type: 'request_rejected',
         tag: `request-rejected-head-${params.id}`, data: { requestId: params.id, reason, url: '/requests' }, requireInteraction: true
-      }).catch(() => {});
+      }).catch((err) => { console.error('fire-and-forget failed:', err); });
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
         .bind(generateId(), head.id, '❌ Работа отклонена жителем', rejectBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
     }
@@ -162,7 +162,7 @@ route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
     sendPushNotification(env, requestData.executor_id as string, {
       title: cancelTitle, body: cancelBody, type: 'request_cancelled',
       tag: `request-cancelled-${params.id}`, data: { requestId: params.id },
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
   }
 
   if (!isResident && requestData.resident_id) {
@@ -173,7 +173,7 @@ route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
     sendPushNotification(env, requestData.resident_id as string, {
       title: cancelTitle, body: cancelBody, type: 'request_cancelled',
       tag: `request-cancelled-${params.id}`, data: { requestId: params.id },
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
   }
 
   invalidateCache('requests');

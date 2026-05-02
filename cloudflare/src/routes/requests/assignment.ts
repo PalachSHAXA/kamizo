@@ -2,6 +2,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
+import { invalidateCache } from '../../middleware/cache-local';
 import { json, error, generateId } from '../../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../../index';
 
@@ -52,20 +53,22 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
   sendPushNotification(env, executorId, {
     title: '📋 Новая заявка назначена', body: assignBodyExec, type: 'request_assigned',
     tag: `request-assigned-${params.id}`, data: { requestId: params.id, url: '/' }, requireInteraction: true
-  }).catch(() => {});
+  }).catch((err) => { console.error('push notification failed:', err); });
   env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_assigned', ?, ?, ?, 0, datetime('now'), ?)`)
-    .bind(generateId(), executorId, '📋 Новая заявка назначена', assignBodyExec, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
+    .bind(generateId(), executorId, '📋 Новая заявка назначена', assignBodyExec, JSON.stringify({ request_id: params.id }), tenantId).run().catch((err) => { console.error('notification insert failed:', err); });
 
   if (requestBefore?.resident_id) {
     const assignBodyRes = `На вашу заявку #${updated?.request_number || requestBefore?.request_number} назначен исполнитель: ${executor.name}`;
     sendPushNotification(env, requestBefore.resident_id, {
       title: '👷 Исполнитель назначен', body: assignBodyRes, type: 'request_status',
       tag: `request-executor-${params.id}`, data: { requestId: params.id, url: '/' }, requireInteraction: false
-    }).catch(() => {});
+    }).catch((err) => { console.error('push notification failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_assigned', ?, ?, ?, 0, datetime('now'), ?)`)
-      .bind(generateId(), requestBefore.resident_id, '👷 Исполнитель назначен', assignBodyRes, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
+      .bind(generateId(), requestBefore.resident_id, '👷 Исполнитель назначен', assignBodyRes, JSON.stringify({ request_id: params.id }), tenantId).run().catch((err) => { console.error('notification insert failed:', err); });
   }
 
+  invalidateCache('requests:');
+  invalidateCache('requests:' + params.id);
   return json({ request: updated });
 });
 
@@ -107,20 +110,23 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
       sendPushNotification(env, requestBefore.resident_id, {
         title: `📋 Заявка #${reqNum}`, body: patchStatusBody, type: 'request_status',
         tag: `request-status-${params.id}`, data: { requestId: params.id, url: '/' }, requireInteraction: body.status === 'pending_approval'
-      }).catch(() => {});
+      }).catch((err) => { console.error('push notification failed:', err); });
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_status', ?, ?, ?, 0, datetime('now'), ?)`)
-        .bind(generateId(), requestBefore.resident_id, `📋 Заявка #${reqNum}`, patchStatusBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
+        .bind(generateId(), requestBefore.resident_id, `📋 Заявка #${reqNum}`, patchStatusBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch((err) => { console.error('notification insert failed:', err); });
     }
     if (requestBefore.executor_id && body.status === 'in_progress' && requestBefore.status === 'pending_approval') {
       const patchRejectBody = `Житель отклонил выполнение. Требуется доработка.`;
       sendPushNotification(env, requestBefore.executor_id, {
         title: `⚠️ Заявка #${reqNum} отклонена`, body: patchRejectBody, type: 'request_rejected',
         tag: `request-rejected-${params.id}`, data: { requestId: params.id, url: '/' }, requireInteraction: true
-      }).catch(() => {});
+      }).catch((err) => { console.error('push notification failed:', err); });
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_rejected', ?, ?, ?, 0, datetime('now'), ?)`)
-        .bind(generateId(), requestBefore.executor_id, `⚠️ Заявка #${reqNum} отклонена`, patchRejectBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
+        .bind(generateId(), requestBefore.executor_id, `⚠️ Заявка #${reqNum} отклонена`, patchRejectBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch((err) => { console.error('notification insert failed:', err); });
     }
   }
+
+  invalidateCache('requests:');
+  invalidateCache('requests:' + params.id);
   return json({ success: true });
 });
 

@@ -4,7 +4,55 @@ import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
+import { invalidateCache } from '../../middleware/cache-local';
 import { json, error, generateId } from '../../utils/helpers';
+
+// Shared SELECT for work_orders with consistent JOINs and tenant filter on user joins.
+// extraWhere is appended to a base WHERE that already enforces wo.tenant_id = ?.
+async function fetchWorkOrderRows(
+  env: Env,
+  tenantId: string | null | undefined,
+  extraWhere: string,
+  extraBindings: any[],
+  options: { orderBy?: string; limit?: number; firstOnly?: boolean } = {}
+) {
+  const { orderBy = 'wo.created_at DESC', limit = 500, firstOnly = false } = options;
+
+  // tenantId is the load-bearing first bind for the base WHERE and for join tenant filters.
+  // Joins use wo.tenant_id (column) so they remain consistent even if filter were absent,
+  // but we always enforce wo.tenant_id = ? in the WHERE when tenantId is set.
+  let whereClause: string;
+  const bindings: any[] = [];
+
+  if (tenantId) {
+    whereClause = 'WHERE wo.tenant_id = ?';
+    bindings.push(tenantId);
+  } else {
+    whereClause = 'WHERE 1=1';
+  }
+  if (extraWhere) {
+    whereClause += ' ' + extraWhere;
+    bindings.push(...extraBindings);
+  }
+
+  const sql = `
+    SELECT wo.*, b.name as building_name,
+           u.name as assigned_to_name, u.phone as assigned_to_phone,
+           cu.name as created_by_name
+    FROM work_orders wo
+    LEFT JOIN buildings b ON wo.building_id = b.id
+    LEFT JOIN users u ON wo.assigned_to = u.id AND u.tenant_id = wo.tenant_id
+    LEFT JOIN users cu ON wo.created_by = cu.id AND cu.tenant_id = wo.tenant_id
+    ${whereClause}
+    ORDER BY ${orderBy}
+    ${firstOnly ? 'LIMIT 1' : `LIMIT ${limit}`}
+  `;
+
+  const stmt = env.DB.prepare(sql).bind(...bindings);
+  if (firstOnly) return await stmt.first();
+  const { results } = await stmt.all();
+  return results;
+}
 
 export function registerWorkOrderRoutes() {
 
@@ -21,28 +69,16 @@ route('GET', '/api/work-orders', async (request, env) => {
   const priority = url.searchParams.get('priority');
   const buildingId = url.searchParams.get('building_id');
 
-  let whereClause = 'WHERE 1=1';
-  const params: any[] = [];
-
   const tenantId = getTenantId(request);
-  if (tenantId) { whereClause += ' AND wo.tenant_id = ?'; params.push(tenantId); }
-  if (status && status !== 'all') { whereClause += ' AND wo.status = ?'; params.push(status); }
-  if (type && type !== 'all') { whereClause += ' AND wo.type = ?'; params.push(type); }
-  if (priority && priority !== 'all') { whereClause += ' AND wo.priority = ?'; params.push(priority); }
-  if (buildingId) { whereClause += ' AND wo.building_id = ?'; params.push(buildingId); }
+  const extraClauses: string[] = [];
+  const extraBindings: any[] = [];
 
-  const { results } = await env.DB.prepare(`
-    SELECT wo.*, b.name as building_name,
-           u.name as assigned_to_name, u.phone as assigned_to_phone,
-           cu.name as created_by_name
-    FROM work_orders wo
-    LEFT JOIN buildings b ON wo.building_id = b.id
-    LEFT JOIN users u ON wo.assigned_to = u.id
-    LEFT JOIN users cu ON wo.created_by = cu.id
-    ${whereClause}
-    ORDER BY wo.created_at DESC LIMIT 500
-  `).bind(...params).all();
+  if (status && status !== 'all') { extraClauses.push('AND wo.status = ?'); extraBindings.push(status); }
+  if (type && type !== 'all') { extraClauses.push('AND wo.type = ?'); extraBindings.push(type); }
+  if (priority && priority !== 'all') { extraClauses.push('AND wo.priority = ?'); extraBindings.push(priority); }
+  if (buildingId) { extraClauses.push('AND wo.building_id = ?'); extraBindings.push(buildingId); }
 
+  const results = await fetchWorkOrderRows(env, tenantId, extraClauses.join(' '), extraBindings);
   return json({ workOrders: results });
 });
 
@@ -78,15 +114,9 @@ route('POST', '/api/work-orders', async (request, env) => {
     body.notes || null, body.request_id || null, user.id
   ).run();
 
-  const created = await env.DB.prepare(`
-    SELECT wo.*, b.name as building_name, u.name as assigned_to_name, cu.name as created_by_name
-    FROM work_orders wo
-    LEFT JOIN buildings b ON wo.building_id = b.id
-    LEFT JOIN users u ON wo.assigned_to = u.id
-    LEFT JOIN users cu ON wo.created_by = cu.id
-    WHERE wo.id = ? ${tenantId ? 'AND wo.tenant_id = ?' : ''}
-  `).bind(id, ...(tenantId ? [tenantId] : [])).first();
+  const created = await fetchWorkOrderRows(env, tenantId, 'AND wo.id = ?', [id], { firstOnly: true });
 
+  invalidateCache('work-orders:');
   return json({ workOrder: created }, 201);
 });
 
@@ -127,15 +157,10 @@ route('PATCH', '/api/work-orders/:id', async (request, env, params) => {
 
   await env.DB.prepare(`UPDATE work_orders SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
 
-  const updated = await env.DB.prepare(`
-    SELECT wo.*, b.name as building_name, u.name as assigned_to_name, cu.name as created_by_name
-    FROM work_orders wo
-    LEFT JOIN buildings b ON wo.building_id = b.id
-    LEFT JOIN users u ON wo.assigned_to = u.id
-    LEFT JOIN users cu ON wo.created_by = cu.id
-    WHERE wo.id = ? ${tenantId ? 'AND wo.tenant_id = ?' : ''}
-  `).bind(params!.id, ...(tenantId ? [tenantId] : [])).first();
+  const updated = await fetchWorkOrderRows(env, tenantId, 'AND wo.id = ?', [params!.id], { firstOnly: true });
 
+  invalidateCache('work-orders:');
+  invalidateCache('work-orders:' + params!.id);
   return json({ workOrder: updated });
 });
 
@@ -174,6 +199,8 @@ route('POST', '/api/work-orders/:id/status', async (request, env, params) => {
   if (tenantId) values.push(tenantId);
   await env.DB.prepare(`UPDATE work_orders SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
 
+  invalidateCache('work-orders:');
+  invalidateCache('work-orders:' + params!.id);
   return json({ success: true });
 });
 
@@ -189,6 +216,8 @@ route('DELETE', '/api/work-orders/:id', async (request, env, params) => {
     `DELETE FROM work_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params!.id, ...(tenantId ? [tenantId] : [])).run();
 
+  invalidateCache('work-orders:');
+  invalidateCache('work-orders:' + params!.id);
   return json({ success: true });
 });
 

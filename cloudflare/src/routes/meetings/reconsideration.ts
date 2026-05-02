@@ -61,7 +61,7 @@ route('POST', '/api/meetings/:meetingId/reconsideration-requests', async (reques
 
   const agendaItem = await env.DB.prepare('SELECT title FROM meeting_agenda_items WHERE id = ?').bind(agenda_item_id).first() as any;
 
-  sendPushNotification(env, resident_id, { title: '\u{1F5F3}\u{FE0F} Просьба пересмотреть голос', body: `УК просит вас пересмотреть голос по вопросу: "${agendaItem?.title || 'Голосование'}"`, type: 'meeting', tag: `reconsider-${requestId}`, data: { meetingId: params.meetingId, requestId, url: '/meetings' }, requireInteraction: true }).catch(() => {});
+  sendPushNotification(env, resident_id, { title: '\u{1F5F3}\u{FE0F} Просьба пересмотреть голос', body: `УК просит вас пересмотреть голос по вопросу: "${agendaItem?.title || 'Голосование'}"`, type: 'meeting', tag: `reconsider-${requestId}`, data: { meetingId: params.meetingId, requestId, url: '/meetings' }, requireInteraction: true }).catch((err) => { console.error('fire-and-forget failed:', err); });
 
   const notificationId = generateId();
   await env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data) VALUES (?, ?, 'meeting', ?, ?, ?)`)

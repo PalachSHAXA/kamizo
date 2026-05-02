@@ -5,6 +5,16 @@ import { generateId } from './helpers';
 import { sendPushNotification } from '../routes/notifications';
 
 /**
+ * Fire-and-forget wrapper for push notifications and other side-effect promises.
+ * Logs the failure with context instead of swallowing it silently.
+ */
+export function firePushAndForget(promise: Promise<unknown>, context: string): void {
+  promise.catch((err) => {
+    console.error(`[fire-and-forget] ${context} failed:`, err);
+  });
+}
+
+/**
  * Notify all managers/admins/directors of a tenant in one DB round-trip,
  * then fire push notifications in parallel (non-blocking).
  */

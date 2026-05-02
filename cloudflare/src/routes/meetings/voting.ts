@@ -107,18 +107,22 @@ route('GET', '/api/meetings/:meetingId/stats', async (request, env, params) => {
   const meeting = await env.DB.prepare(`SELECT id, status, total_area, quorum_percent, voted_area, participation_percent, quorum_reached FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!meeting) return error('Meeting not found', 404);
 
+  const tenantFilter = tenantId ? ' AND tenant_id = ?' : '';
+  const innerTenantFilter = tenantId ? ' AND vr.tenant_id = ?' : '';
+  const aiTenantFilter = tenantId ? ' AND ai.tenant_id = ?' : '';
+
   const [votedAreaResult, participantCount, agendaStats] = await Promise.all([
-    env.DB.prepare(`SELECT COALESCE(SUM(weight), 0) as voted_area FROM (SELECT voter_id, MAX(vote_weight) as weight FROM meeting_vote_records WHERE meeting_id = ? AND is_revote = 0 GROUP BY voter_id)`).bind(params.meetingId).first(),
-    env.DB.prepare(`SELECT COUNT(DISTINCT voter_id) as count FROM meeting_vote_records WHERE meeting_id = ?`).bind(params.meetingId).first(),
+    env.DB.prepare(`SELECT COALESCE(SUM(weight), 0) as voted_area FROM (SELECT voter_id, MAX(vote_weight) as weight FROM meeting_vote_records WHERE meeting_id = ?${tenantFilter} AND is_revote = 0 GROUP BY voter_id)`).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first(),
+    env.DB.prepare(`SELECT COUNT(DISTINCT voter_id) as count FROM meeting_vote_records WHERE meeting_id = ?${tenantFilter}`).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first(),
     env.DB.prepare(`
       SELECT ai.id, ai.title, ai.threshold,
         COALESCE(SUM(CASE WHEN vr.choice = 'for' AND vr.is_revote = 0 THEN vr.vote_weight ELSE 0 END), 0) as votes_for,
         COALESCE(SUM(CASE WHEN vr.choice = 'against' AND vr.is_revote = 0 THEN vr.vote_weight ELSE 0 END), 0) as votes_against,
         COALESCE(SUM(CASE WHEN vr.choice = 'abstain' AND vr.is_revote = 0 THEN vr.vote_weight ELSE 0 END), 0) as votes_abstain,
         COUNT(DISTINCT CASE WHEN vr.is_revote = 0 THEN vr.voter_id END) as voter_count
-      FROM meeting_agenda_items ai LEFT JOIN meeting_vote_records vr ON vr.agenda_item_id = ai.id
-      WHERE ai.meeting_id = ? GROUP BY ai.id ORDER BY ai.item_order
-    `).bind(params.meetingId).all()
+      FROM meeting_agenda_items ai LEFT JOIN meeting_vote_records vr ON vr.agenda_item_id = ai.id${innerTenantFilter}
+      WHERE ai.meeting_id = ?${aiTenantFilter} GROUP BY ai.id ORDER BY ai.item_order
+    `).bind(...(tenantId ? [tenantId] : []), params.meetingId, ...(tenantId ? [tenantId] : [])).all()
   ]) as any[];
 
   const votedArea = (votedAreaResult as any)?.voted_area || 0;

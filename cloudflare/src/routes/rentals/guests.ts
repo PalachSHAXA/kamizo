@@ -16,18 +16,19 @@ route('GET', '/api/guest-codes', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
 
   const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
   const isManagementUser = ['admin', 'director', 'manager', 'security', 'executor', 'department_head'].includes(user.role);
 
   if (isManagementUser) {
     await env.DB.prepare(`
       UPDATE guest_access_codes SET status = 'expired', updated_at = datetime('now')
-      WHERE status = 'active' AND valid_until < datetime('now') ${tenantId ? 'AND tenant_id = ?' : ''}
-    `).bind(...(tenantId ? [tenantId] : [])).run();
+      WHERE status = 'active' AND valid_until < datetime('now') AND tenant_id = ?
+    `).bind(tenantId).run();
   } else {
     await env.DB.prepare(`
       UPDATE guest_access_codes SET status = 'expired', updated_at = datetime('now')
-      WHERE user_id = ? AND status = 'active' AND valid_until < datetime('now') ${tenantId ? 'AND tenant_id = ?' : ''}
-    `).bind(user.id, ...(tenantId ? [tenantId] : [])).run();
+      WHERE user_id = ? AND status = 'active' AND valid_until < datetime('now') AND tenant_id = ?
+    `).bind(user.id, tenantId).run();
   }
 
   let results;
@@ -35,16 +36,16 @@ route('GET', '/api/guest-codes', async (request, env) => {
     const response = await env.DB.prepare(`
       SELECT g.*, u.name as creator_name, u.apartment as creator_apartment, u.phone as creator_phone
       FROM guest_access_codes g
-      LEFT JOIN users u ON u.id = g.user_id ${tenantId ? 'AND u.tenant_id = ?' : ''}
-      WHERE 1=1 ${tenantId ? 'AND g.tenant_id = ?' : ''}
+      LEFT JOIN users u ON u.id = g.user_id AND u.tenant_id = ?
+      WHERE g.tenant_id = ?
       ORDER BY g.created_at DESC LIMIT 200
-    `).bind(...(tenantId ? [tenantId, tenantId] : [])).all();
+    `).bind(tenantId, tenantId).all();
     results = response.results;
   } else {
     const response = await env.DB.prepare(`
-      SELECT * FROM guest_access_codes WHERE user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+      SELECT * FROM guest_access_codes WHERE user_id = ? AND tenant_id = ?
       ORDER BY created_at DESC LIMIT 100
-    `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
+    `).bind(user.id, tenantId).all();
     results = response.results;
   }
 

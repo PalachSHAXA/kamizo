@@ -15,13 +15,16 @@ route('POST', '/api/ratings', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
+
   const body = await request.json() as any;
   const id = generateId();
 
   await env.DB.prepare(`
-    INSERT INTO employee_ratings (id, executor_id, resident_id, quality, speed, politeness, comment)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, body.executor_id, user.id, body.quality, body.speed, body.politeness, body.comment || null).run();
+    INSERT INTO employee_ratings (id, executor_id, resident_id, quality, speed, politeness, comment, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, body.executor_id, user.id, body.quality, body.speed, body.politeness, body.comment || null, tenantId).run();
 
   return json({ id }, 201);
 });
@@ -31,9 +34,12 @@ route('GET', '/api/ratings', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
+
   const { results } = await env.DB.prepare(`
-    SELECT * FROM employee_ratings WHERE resident_id = ? ORDER BY created_at DESC LIMIT 500
-  `).bind(user.id).all();
+    SELECT * FROM employee_ratings WHERE resident_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 500
+  `).bind(user.id, tenantId).all();
 
   return json(results);
 });

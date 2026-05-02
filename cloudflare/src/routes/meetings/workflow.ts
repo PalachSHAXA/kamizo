@@ -45,7 +45,7 @@ route('POST', '/api/meetings/:id/approve', async (request, env, params) => {
       const notifId = generateId();
       await env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at) VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'))`)
         .bind(notifId, resident.id, '\u{1F4E2} Новое собрание объявлено', `Назначено собрание жильцов дома ${meeting.building_address || ''}. Примите участие в выборе даты!`, JSON.stringify({ meetingId: params.id, url: '/meetings' })).run();
-      sendPushNotification(env, resident.id, { title: '\u{1F4E2} Новое собрание объявлено', body: `Назначено собрание жильцов дома ${meeting.building_address || ''}. Примите участие в выборе даты!`, type: 'meeting', tag: `meeting-announced-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: true }).catch(() => {});
+      sendPushNotification(env, resident.id, { title: '\u{1F4E2} Новое собрание объявлено', body: `Назначено собрание жильцов дома ${meeting.building_address || ''}. Примите участие в выборе даты!`, type: 'meeting', tag: `meeting-announced-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: true }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });
@@ -70,7 +70,7 @@ route('POST', '/api/meetings/:id/reject', async (request, env, params) => {
     const rejectBody = `Собрание "${updated.title || ''}" отклонено. Причина: ${body.reason || 'не указана'}`;
     for (const resident of (residents || []) as any[]) {
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting_rejected', ?, ?, ?, 0, datetime('now'), ?)`).bind(generateId(), resident.id, '\u{274C} Собрание отклонено', rejectBody, JSON.stringify({ meeting_id: params.id }), tenantId).run().catch(() => {});
-      sendPushNotification(env, resident.id, { title: '\u{274C} Собрание отклонено', body: rejectBody, type: 'meeting_rejected', tag: `meeting-rejected-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch(() => {});
+      sendPushNotification(env, resident.id, { title: '\u{274C} Собрание отклонено', body: rejectBody, type: 'meeting_rejected', tag: `meeting-rejected-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });
@@ -152,7 +152,7 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
   if (meeting?.building_id) {
     const { results: residents } = await env.DB.prepare(`SELECT id FROM users WHERE role = ? AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind('resident', meeting.building_id, ...(tenantId ? [tenantId] : [])).all();
     for (const resident of residents as any[]) {
-      sendPushNotification(env, resident.id, { title: '\u{1F5F3}\u{FE0F} Голосование открыто!', body: `Голосование на собрании жильцов дома ${meeting.building_address || ''} началось. Примите участие!`, type: 'meeting', tag: `meeting-voting-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: true }).catch(() => {});
+      sendPushNotification(env, resident.id, { title: '\u{1F5F3}\u{FE0F} Голосование открыто!', body: `Голосование на собрании жильцов дома ${meeting.building_address || ''} началось. Примите участие!`, type: 'meeting', tag: `meeting-voting-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: true }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });
@@ -176,7 +176,7 @@ route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
     const cancelBody = `Собрание "${updated.title || ''}" отменено. ${body.reason ? 'Причина: ' + body.reason : ''}`;
     for (const resident of (residentsCancel || []) as any[]) {
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting_cancelled', ?, ?, ?, 0, datetime('now'), ?)`).bind(generateId(), resident.id, '\u{274C} Собрание отменено', cancelBody, JSON.stringify({ meeting_id: params.id }), tenantId).run().catch(() => {});
-      sendPushNotification(env, resident.id, { title: '\u{274C} Собрание отменено', body: cancelBody, type: 'meeting_cancelled', tag: `meeting-cancelled-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: true }).catch(() => {});
+      sendPushNotification(env, resident.id, { title: '\u{274C} Собрание отменено', body: cancelBody, type: 'meeting_cancelled', tag: `meeting-cancelled-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: true }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });

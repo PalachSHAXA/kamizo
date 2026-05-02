@@ -31,6 +31,16 @@ route('POST', '/api/announcements', async (request, env) => {
   // Handle personalized data for debt-based announcements (JSON object)
   const personalizedData = body.personalized_data ? JSON.stringify(body.personalized_data) : null;
 
+  // Validate target_building_id belongs to caller's tenant before inserting
+  if (body.target_building_id) {
+    const tenantIdValidate = getTenantId(request);
+    if (!tenantIdValidate) return error('Tenant context required', 401);
+    const buildingCheck = await env.DB.prepare(
+      'SELECT id FROM buildings WHERE id = ? AND tenant_id = ?'
+    ).bind(body.target_building_id, tenantIdValidate).first();
+    if (!buildingCheck) return error('Building does not belong to your tenant', 403);
+  }
+
   await env.DB.prepare(`
     INSERT INTO announcements (id, title, content, type, target_type, target_branch, target_building_id, target_entrance, target_floor, target_logins, priority, expires_at, attachments, personalized_data, created_by, created_at, updated_at, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
@@ -172,6 +182,13 @@ route('PUT', '/api/announcements/:id', async (request, env, params) => {
     : undefined;
 
   const tenantIdUpd = getTenantId(request);
+  if (body.target_building_id) {
+    if (!tenantIdUpd) return error('Tenant context required', 401);
+    const buildingCheck = await env.DB.prepare(
+      'SELECT id FROM buildings WHERE id = ? AND tenant_id = ?'
+    ).bind(body.target_building_id, tenantIdUpd).first();
+    if (!buildingCheck) return error('Building does not belong to your tenant', 403);
+  }
   await env.DB.prepare(`
     UPDATE announcements
     SET title = COALESCE(?, title),

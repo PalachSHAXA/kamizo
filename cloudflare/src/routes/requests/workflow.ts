@@ -36,7 +36,7 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
     sendPushNotification(env, requestData.resident_id, {
       title: '✅ Заявка принята', body: acceptBody, type: 'request_status',
       tag: `request-accepted-${params.id}`, data: { requestId: params.id, url: '/' }, requireInteraction: false
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_accepted', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.resident_id, '✅ Заявка принята', acceptBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -74,7 +74,7 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
     sendPushNotification(env, requestData.resident_id, {
       title: '⚠️ Исполнитель освободил заявку', body: declineBodyRes, type: 'request_declined',
       tag: `request-declined-${params.id}`, data: { requestId: params.id, reason, url: '/' }, requireInteraction: true
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_declined', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.resident_id, '⚠️ Исполнитель освободил заявку', declineBodyRes, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -87,7 +87,7 @@ route('POST', '/api/requests/:id/decline', async (request, env, params) => {
     tag: `request-declined-manager-${params.id}`,
     data: { request_id: params.id, requestId: params.id, reason, url: '/requests' },
     requireInteraction: true,
-  }).catch(() => {});
+  }).catch((err) => { console.error('fire-and-forget failed:', err); });
   return json({ success: true });
 });
 
@@ -117,7 +117,7 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
     sendPushNotification(env, requestData.resident_id, {
       title: '🔧 Работа началась', body: startBody, type: 'request_status',
       tag: `request-started-${params.id}`, data: { requestId: params.id, url: '/' }, requireInteraction: false
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_started', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.resident_id, '🔧 Работа началась', startBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -131,7 +131,7 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
     sendPushNotification(env, head.id, {
       title: '🔧 Работа началась', body: startBodyHead, type: 'request_started',
       tag: `request-started-head-${params.id}`, data: { requestId: params.id, url: '/requests' }, requireInteraction: false
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_started', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), head.id, '🔧 Работа началась', startBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -164,7 +164,7 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
     sendPushNotification(env, requestData.resident_id, {
       title: '✅ Работа завершена!', body: completeBody, type: 'request_completed',
       tag: `request-completed-${params.id}`, data: { requestId: params.id, url: '/' }, requireInteraction: true
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_completed', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), requestData.resident_id, '✅ Работа завершена!', completeBody, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }
@@ -178,7 +178,7 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
     sendPushNotification(env, head.id, {
       title: '✅ Исполнитель завершил работу', body: completeBodyHead, type: 'request_completed',
       tag: `request-completed-head-${params.id}`, data: { requestId: params.id, url: '/requests' }, requireInteraction: false
-    }).catch(() => {});
+    }).catch((err) => { console.error('fire-and-forget failed:', err); });
     env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'request_completed', ?, ?, ?, 0, datetime('now'), ?)`)
       .bind(generateId(), head.id, '✅ Исполнитель завершил работу', completeBodyHead, JSON.stringify({ request_id: params.id }), tenantId).run().catch(() => {});
   }

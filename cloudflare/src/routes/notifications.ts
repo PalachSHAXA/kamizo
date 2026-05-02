@@ -939,14 +939,24 @@ route('POST', '/api/push/broadcast', async (request, env) => {
     return error('title and body are required', 400);
   }
 
+  const broadcastTenantId = getTenantId(request);
+  if (!broadcastTenantId) return error('tenant context required', 400);
+
   let userIds: string[] = [];
 
   if (body.userIds) {
-    userIds = body.userIds;
+    // Validate that all explicit userIds belong to the caller's tenant
+    if (body.userIds.length > 0) {
+      const placeholders = body.userIds.map(() => '?').join(',');
+      const { results: validUsers } = await env.DB.prepare(
+        `SELECT id FROM users WHERE id IN (${placeholders}) AND tenant_id = ?`
+      ).bind(...body.userIds, broadcastTenantId).all();
+      userIds = (validUsers as any[]).map(u => u.id);
+    }
   } else if (body.role || body.buildingId) {
-    // Get users by criteria
-    let query = 'SELECT id FROM users WHERE 1=1';
-    const params: string[] = [];
+    // Get users by criteria, scoped to tenant
+    let query = 'SELECT id FROM users WHERE tenant_id = ?';
+    const params: string[] = [broadcastTenantId];
 
     if (body.role) {
       query += ' AND role = ?';
