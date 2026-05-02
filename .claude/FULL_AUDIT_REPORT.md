@@ -161,8 +161,8 @@ ResidentDashboard.tsx: 1,559 строк ⚠️
 #### 2.2 CORS Protection - ХОРОШО ✅
 ```typescript
 Allowed Origins:
-- https://app.myhelper.uz
-- https://myhelper.uz
+- https://kamizo.uz
+- https://kamizo.uz
 - http://localhost:5173 (dev)
 - http://localhost:3000 (dev)
 ```

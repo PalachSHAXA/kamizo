@@ -1,6 +1,6 @@
 # ПОЛНЫЙ АУДИТ СИСТЕМЫ UK CRM
 **Дата:** 31 декабря 2025
-**Версия:** Production (app.myhelper.uz)
+**Версия:** Production (kamizo.uz)
 
 ---
 

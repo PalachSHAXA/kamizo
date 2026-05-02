@@ -142,7 +142,7 @@ grep -r "migrations" cloudflare/src/index.ts
 ```bash
 # Step 5: Deploy to Cloudflare
 echo "📦 Step 5: Deploying to Cloudflare Workers..."
-echo "   Domain: app.myhelper.uz"
+echo "   Domain: kamizo.uz"
 npm run deploy
 
 # ❌ ОТСУТСТВУЕТ:

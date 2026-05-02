@@ -244,7 +244,7 @@ Line 7885:
 ## 🚀 ДЕПЛОЙ
 
 **Версия:** 288daa82-edf4-480d-95e6-cc6d0a1e6e93
-**URL:** https://app.myhelper.uz
+**URL:** https://kamizo.uz
 **Время деплоя:** 10.28 sec
 **Статус:** ✅ Успешно
 

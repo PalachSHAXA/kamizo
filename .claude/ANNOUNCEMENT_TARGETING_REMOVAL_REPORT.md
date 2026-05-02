@@ -401,7 +401,7 @@ curl -H "Authorization: Bearer MGiQRntLKr1xSAluOW0H_-QrLFTDSMWhluK9_dvZ" \
   -X POST -d '{"sql":"PRAGMA table_info(announcements)"}'
 
 # 2. Создайте тестовое объявление
-curl -X POST https://app.myhelper.uz/api/announcements \
+curl -X POST https://kamizo.uz/api/announcements \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

@@ -12,7 +12,7 @@
 
 1. **500 (Internal Server Error)** - множественные попытки:
    ```
-   POST https://app.myhelper.uz/api/chat/channels/e14f06c9-701a-4f44-8f8b-3040ada4d226/messages
+   POST https://kamizo.uz/api/chat/channels/e14f06c9-701a-4f44-8f8b-3040ada4d226/messages
    → 500 (Internal Server Error)
    ```
 

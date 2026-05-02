@@ -181,7 +181,7 @@ POST /api/chat/channels/e14f06c9.../messages
 
 ### Проверить что чат работает:
 
-1. Открыть https://app.myhelper.uz
+1. Открыть https://kamizo.uz
 2. Войти как житель
 3. Перейти в раздел "Чат"
 4. Написать сообщение в любой чат
@@ -217,7 +217,7 @@ POST /api/chat/channels/e14f06c9.../messages
 
 **Production версия:**
 - Database: uk-crm-db
-- URL: https://app.myhelper.uz
+- URL: https://kamizo.uz
 - Дата исправления: 2026-01-07 03:12
 
 ---

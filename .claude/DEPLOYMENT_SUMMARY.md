@@ -9,7 +9,7 @@
 
 ```
 Version ID: 8824b5cb-f2e3-44e4-b78e-e0e4444e6145
-URL: https://app.myhelper.uz
+URL: https://kamizo.uz
 Status: ✅ DEPLOYED & LIVE
 ```
 
@@ -146,7 +146,7 @@ wrangler rollback [VERSION_ID]
 
 ## 📞 SUPPORT
 
-**URL:** https://app.myhelper.uz
+**URL:** https://kamizo.uz
 **Version:** `8824b5cb-f2e3-44e4-b78e-e0e4444e6145`
 **Cloudflare Dashboard:** https://dash.cloudflare.com/
 

@@ -2,7 +2,7 @@
 
 **Дата:** 2026-01-07
 **Версия после исправлений:** `8824b5cb-f2e3-44e4-b78e-e0e4444e6145`
-**URL:** https://app.myhelper.uz
+**URL:** https://kamizo.uz
 **Cloudflare Workers:** ✅ Deployed
 **Cloudflare D1:** ✅ Connected (uk-crm-db)
 
@@ -356,7 +356,7 @@ Gzipped: ~580 KB
 ```
 ✅ Status: SUCCESSFUL
 📦 Version: 8824b5cb-f2e3-44e4-b78e-e0e4444e6145
-🌐 URL: https://app.myhelper.uz
+🌐 URL: https://kamizo.uz
 ⏱️ Upload time: 10.09 sec
 ⏱️ Trigger deployment: 5.36 sec
 📊 Worker size: 377.55 KiB (gzip: 64.40 KiB)
@@ -473,7 +473,7 @@ await sendPushNotification(env, reschedule.initiator_id, {
 | Параметр | Значение |
 |----------|----------|
 | **Version ID** | `8824b5cb-f2e3-44e4-b78e-e0e4444e6145` |
-| **URL** | https://app.myhelper.uz |
+| **URL** | https://kamizo.uz |
 | **Platform** | Cloudflare Workers |
 | **Database** | Cloudflare D1 (uk-crm-db) |
 | **Durable Objects** | CONNECTION_MANAGER |

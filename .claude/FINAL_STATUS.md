@@ -203,7 +203,7 @@ Migration 021_remove_announcement_entrance_floor_targeting.sql failed
 
 ### Как проверить что чат работает:
 
-1. Открыть https://app.myhelper.uz
+1. Открыть https://kamizo.uz
 2. Войти как житель
 3. Перейти в раздел "Чат"
 4. Открыть "Общий чат УК"
@@ -229,7 +229,7 @@ Migration 021_remove_announcement_entrance_floor_targeting.sql failed
 
 **Версия:** 8824b5cb-f2e3-44e4-b78e-e0e4444e6145 (код)
 **База данных:** uk-crm-db (миграции применены)
-**URL:** https://app.myhelper.uz
+**URL:** https://kamizo.uz
 
 **Дата завершения:** 2026-01-07
 **Статус:** ✅ PRODUCTION READY

@@ -1612,7 +1612,7 @@ UK CRM ЧАТЫ
 ## 7.1 Production URLs
 | Компонент | URL |
 |-----------|-----|
-| Web App | https://app.myhelper.uz |
+| Web App | https://kamizo.uz |
 | API | https://uk-crm-api.shaxzod.workers.dev |
 | Mobile (iOS) | App Store (скоро) |
 | Mobile (Android) | Google Play (скоро) |

@@ -114,7 +114,7 @@ VALUES (
 
 **Details:**
 - Version: `5da2c702-b2c9-497d-b3bd-638db49d6041`
-- URL: https://app.myhelper.uz
+- URL: https://kamizo.uz
 - Deploy time: 16.98 seconds (10.45s upload + 5.53s triggers)
 - Date: 2026-01-07
 

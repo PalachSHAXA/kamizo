@@ -251,7 +251,7 @@ npx wrangler deploy
 
 **Deployed URL:**
 ```
-✅ https://app.myhelper.uz
+✅ https://kamizo.uz
 ✅ Version ID: 060a0421-df45-4112-bff2-ab70ccdf20ad
 ```
 

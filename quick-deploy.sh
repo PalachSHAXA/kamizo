@@ -59,11 +59,11 @@ fi
 # Step 5: Deploy to Cloudflare
 echo ""
 echo "📦 Step 5: Deploying to Cloudflare Workers..."
-echo "   Domain: app.myhelper.uz"
+echo "   Domain: kamizo.uz"
 npm run deploy
 
 echo ""
 echo "✅ Deployment complete!"
 echo ""
-echo "🌐 Your UK CRM is now live at: https://app.myhelper.uz"
+echo "🌐 Your UK CRM is now live at: https://kamizo.uz"
 echo ""

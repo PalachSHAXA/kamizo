@@ -259,7 +259,7 @@ const { results: deptHeadsReject } = await env.DB.prepare(
 - ✅ Размер: 377.69 KiB / gzip: 64.48 KiB
 - ✅ Startup time: 1 ms
 
-**URL:** https://app.myhelper.uz
+**URL:** https://kamizo.uz
 
 ---
 
@@ -313,7 +313,7 @@ const { results: deptHeadsReject } = await env.DB.prepare(
 ### Как проверить что всё работает:
 
 1. **Чат:**
-   - Открыть https://app.myhelper.uz
+   - Открыть https://kamizo.uz
    - Войти как житель
    - Перейти в раздел "Чат"
    - Написать сообщение в любой чат
@@ -351,7 +351,7 @@ const { results: deptHeadsReject } = await env.DB.prepare(
 
 **Production версия:**
 - Worker: `57e7828c-d67d-42e8-95a7-91cbfd856950`
-- URL: https://app.myhelper.uz
+- URL: https://kamizo.uz
 - Дата деплоя: 2026-01-07 03:20
 
 ---

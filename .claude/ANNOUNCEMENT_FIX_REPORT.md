@@ -363,7 +363,7 @@ target_building_id TEXT REFERENCES buildings(id),
 ## 🚀 ДЕПЛОЙ
 
 **Версия:** 78dce154-e355-4e81-9c08-90b0537f66a8
-**URL:** https://app.myhelper.uz
+**URL:** https://kamizo.uz
 **Время деплоя:** 31.53 sec
 **Статус:** ✅ Успешно
 

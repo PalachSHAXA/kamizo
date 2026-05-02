@@ -109,7 +109,7 @@ cd cloudflare && npx tsc --noEmit
 
 | Ветка | Среда | URL |
 |-------|-------|-----|
-| `main` | Production | https://app.myhelper.uz |
+| `main` | Production | https://kamizo.uz |
 | `develop` | Staging | https://kamizo-staging.workers.dev |
 
 **Pipeline:**

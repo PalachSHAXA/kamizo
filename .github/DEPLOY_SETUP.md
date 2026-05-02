@@ -9,7 +9,7 @@ GitHub Actions автоматически деплоит UK-CRM на Cloudflare 
 2. ✅ Копирует файлы в `cloudflare/public`
 3. ✅ Деплоит на Cloudflare Workers
 4. ✅ Применяет миграции к D1 database
-5. ✅ Сайт обновляется на https://app.myhelper.uz
+5. ✅ Сайт обновляется на https://kamizo.uz
 
 ---
 
@@ -184,7 +184,7 @@ on:
 1. Сделайте любой commit и push
 2. Откройте **Actions** на GitHub
 3. Дождитесь завершения workflow (≈2-3 минуты)
-4. Откройте https://app.myhelper.uz
+4. Откройте https://kamizo.uz
 5. Проверьте что изменения применились
 
 ---

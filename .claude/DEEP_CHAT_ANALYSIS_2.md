@@ -227,7 +227,7 @@ Worker deployment: `8824b5cb-f2e3-44e4-b78e-e0e4444e6145` (2026-01-06 20:01)
 
 Посмотреть запрос:
 ```
-POST https://app.myhelper.uz/api/chat/channels/uk-general/messages
+POST https://kamizo.uz/api/chat/channels/uk-general/messages
 ```
 
 **Что проверить:**
@@ -240,7 +240,7 @@ POST https://app.myhelper.uz/api/chat/channels/uk-general/messages
 
 Использовать curl для прямого вызова:
 ```bash
-curl -X POST https://app.myhelper.uz/api/chat/channels/uk-general/messages \
+curl -X POST https://kamizo.uz/api/chat/channels/uk-general/messages \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"content": "Test from curl"}'

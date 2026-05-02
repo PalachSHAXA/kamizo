@@ -58,11 +58,11 @@ if (-not (Test-Path "node_modules")) {
 # Step 5: Deploy to Cloudflare
 Write-Host ""
 Write-Host "📦 Step 5: Deploying to Cloudflare Workers..." -ForegroundColor Yellow
-Write-Host "   Domain: app.myhelper.uz" -ForegroundColor Cyan
+Write-Host "   Domain: kamizo.uz" -ForegroundColor Cyan
 npm run deploy
 
 Write-Host ""
 Write-Host "✅ Deployment complete!" -ForegroundColor Green
 Write-Host ""
-Write-Host "🌐 Your UK CRM is now live at: https://app.myhelper.uz" -ForegroundColor Cyan
+Write-Host "🌐 Your UK CRM is now live at: https://kamizo.uz" -ForegroundColor Cyan
 Write-Host ""
