@@ -4,7 +4,7 @@ import { apiRequest, cachedGet, invalidateCache, CACHE_TTL, API_URL } from './cl
 
 export const announcementsApi = {
   getAll: async () => {
-    return cachedGet<{ announcements: any[] }>('/api/announcements', CACHE_TTL.SHORT);
+    return cachedGet<{ announcements: Record<string, unknown>[] }>('/api/announcements', CACHE_TTL.SHORT);
   },
 
   create: async (announcement: {
@@ -52,7 +52,7 @@ export const announcementsApi = {
     expires_at?: string;
     attachments?: { name: string; url: string; type: string; size: number }[] | null;
   }) => {
-    const result = await apiRequest<{ announcement: any }>(`/api/announcements/${announcementId}`, {
+    const result = await apiRequest<{ announcement: Record<string, unknown> }>(`/api/announcements/${announcementId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -73,7 +73,7 @@ export const announcementsApi = {
       count: number;
       targetAudienceSize: number;
       viewPercentage: number;
-      viewers: any[];
+      viewers: Record<string, unknown>[];
       userViewed: boolean;
     }>(`/api/announcements/${announcementId}/views`);
   },

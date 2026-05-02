@@ -31,7 +31,6 @@ interface BuildingsTopBarProps {
 
 export function BuildingsTopBar({
   viewLevel,
-  selectedDistrict,
   selectedBranch,
   selectedBuilding,
   apartments,
@@ -41,7 +40,6 @@ export function BuildingsTopBar({
   canManageImportExport,
   language,
   onBack,
-  onBreadcrumbDistricts,
   onBreadcrumbBranches,
   onBreadcrumbBuildings,
   onRefresh,

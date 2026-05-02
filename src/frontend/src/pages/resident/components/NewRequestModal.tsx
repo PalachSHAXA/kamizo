@@ -73,7 +73,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
 
       if (!trashType || !trashVolume || !trashDate || !trashTime) return;
 
-      let finalTitle = `Вывоз мусора: ${typeLabel}`;
+      const finalTitle = `Вывоз мусора: ${typeLabel}`;
       let finalDescription = `Тип мусора: ${typeLabel}\nОбъём: ${volumeLabel}`;
       if (trashDetails.trim()) {
         finalDescription += `\n\nДополнительно: ${trashDetails.trim()}`;

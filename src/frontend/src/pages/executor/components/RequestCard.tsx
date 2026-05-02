@@ -1,13 +1,13 @@
 import {
-  Clock, CheckCircle, MapPin, Phone, User,
+  Clock, MapPin, Phone, User,
   Play, Check, Star, Timer,
   CalendarDays, XCircle, AlertCircle,
-  Pause, PlayCircle, RefreshCw, Hand, FileText
+  Pause, PlayCircle, RefreshCw, Hand
 } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { formatAddress } from '../../../utils/formatAddress';
 import { formatName } from '../../../utils/formatName';
-import { SPECIALIZATION_LABELS, STATUS_LABELS } from '../../../types';
+import { STATUS_LABELS } from '../../../types';
 import type { Request, RequestStatus } from '../../../types';
 import { StatusBadge } from '../../../components/common';
 import type { StatusTone } from '../../../theme';

@@ -49,7 +49,7 @@ export const useVehicleStore = create<VehicleState>()(
           notes: v.notes || undefined,
           createdAt: v.created_at,
           updatedAt: v.updated_at || undefined,
-        }));
+        } as Vehicle));
         set({ vehicles: mappedVehicles, isLoadingVehicles: false });
       } catch (error) {
         console.error('Failed to fetch vehicles:', error);
@@ -250,16 +250,16 @@ export const useVehicleStore = create<VehicleState>()(
         const response = await vehiclesApi.search(plateNumber);
         if (response.vehicles && response.vehicles.length > 0) {
           return response.vehicles.map((v: Record<string, unknown>) => ({
-            id: v.id,
-            ownerId: v.user_id,
-            ownerName: v.owner_name || '',
-            ownerPhone: v.owner_phone || '',
-            apartment: v.apartment || '',
-            address: v.address || '',
-            plateNumber: v.plate_number,
-            brand: v.brand || '',
-            model: v.model || '',
-            color: v.color || '',
+            id: v.id as string,
+            ownerId: v.user_id as string,
+            ownerName: (v.owner_name as string) || '',
+            ownerPhone: (v.owner_phone as string) || '',
+            apartment: (v.apartment as string) || '',
+            address: (v.address as string) || '',
+            plateNumber: v.plate_number as string,
+            brand: (v.brand as string) || '',
+            model: (v.model as string) || '',
+            color: (v.color as string) || '',
             year: v.year || undefined,
             type: (v.vehicle_type || 'car') as Vehicle['type'],
             ownerType: (v.owner_type || 'individual') as Vehicle['ownerType'],

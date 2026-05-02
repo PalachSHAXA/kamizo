@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Car } from 'lucide-react';
-import { branchesApi, buildingsApi, entrancesApi, apartmentsApi, vehiclesApi } from '../../../../services/api';
+import { branchesApi, buildingsApi, entrancesApi, apartmentsApi } from '../../../../services/api';
 import type { BuildingFull } from './types';
 
 interface ManualForm {
@@ -40,14 +40,14 @@ interface BuildingItem {
   name: string;
   branch_code: string;
   building_number: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface EntranceItem {
   id: string;
   building_id: string;
   number: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface ApartmentItem {
@@ -55,7 +55,7 @@ interface ApartmentItem {
   number: string;
   status: string;
   entrance_id: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function AddResidentModal({
@@ -106,6 +106,7 @@ export function AddResidentModal({
 
   // Load branches on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingBranches(true);
     branchesApi.getAll()
       .then(res => setBranches(res.branches || []))
@@ -116,6 +117,7 @@ export function AddResidentModal({
   // Load buildings when branch changes
   useEffect(() => {
     if (!selectedBranchId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBuildings([]);
       return;
     }
@@ -137,6 +139,7 @@ export function AddResidentModal({
   // Load entrances when building changes
   useEffect(() => {
     if (!selectedBuildingId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEntrances([]);
       return;
     }
@@ -150,6 +153,7 @@ export function AddResidentModal({
   // Load apartments when entrance changes
   useEffect(() => {
     if (!selectedEntranceId || !selectedBuildingId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setApartments([]);
       return;
     }

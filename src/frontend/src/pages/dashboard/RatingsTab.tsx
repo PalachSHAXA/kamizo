@@ -6,10 +6,23 @@ import {
   TrendingUp, TrendingDown, Star, AlertTriangle
 } from 'lucide-react';
 
+interface RatingSummaryData {
+  current?: {
+    avg_overall?: number;
+    avg_cleanliness?: number;
+    avg_responsiveness?: number;
+    avg_communication?: number;
+    count?: number;
+  };
+  trend: number;
+  monthly?: Array<{ period: string; avg_overall?: number; count?: number }>;
+  recentComments?: Array<{ overall: number; comment: string; created_at?: string }>;
+}
+
 interface RatingsTabProps {
   language: string;
   t: (key: string) => string;
-  ratingSummary: any;
+  ratingSummary: RatingSummaryData | null;
   isLoadingRatings: boolean;
 }
 
@@ -91,7 +104,7 @@ export function RatingsTab({
               <h3 className="text-sm font-semibold mb-3">{t('director.monthlyTrend')}</h3>
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={ratingSummary.monthly.map((m: any) => ({
+                  <AreaChart data={ratingSummary.monthly.map((m) => ({
                     period: m.period,
                     overall: Number(m.avg_overall || 0).toFixed(1),
                     count: m.count,
@@ -175,7 +188,7 @@ export function RatingsTab({
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
               <h3 className="text-sm font-semibold mb-3">{t('director.recentComments')}</h3>
               <div className="space-y-3">
-                {ratingSummary.recentComments.map((comment: any, idx: number) => (
+                {ratingSummary.recentComments.map((comment, idx) => (
                   <div key={idx} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex gap-0.5">

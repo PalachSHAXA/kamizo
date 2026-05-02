@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Megaphone, Vote, Droplet, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Megaphone, Vote, AlertTriangle, ChevronRight } from 'lucide-react';
 import { useAnnouncementStore } from '../../../../stores/announcementStore';
 import { useMeetingStore } from '../../../../stores/meetingStore';
 import { useAuthStore } from '../../../../stores/authStore';

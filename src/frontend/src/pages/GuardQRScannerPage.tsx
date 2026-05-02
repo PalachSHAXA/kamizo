@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  ArrowLeft, Zap, X, CheckCircle, XCircle, AlertTriangle,
+  ArrowLeft, Zap, CheckCircle, XCircle, AlertTriangle,
   User, Keyboard, Square, Camera, Phone, MapPin, Car
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -35,7 +35,7 @@ export function GuardQRScannerPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
-  const { validateGuestAccessCode, useGuestAccessCode, guestAccessCodes } = useDataStore();
+  const { validateGuestAccessCode, useGuestAccessCode: markGuestCodeUsed, guestAccessCodes } = useDataStore();
   const { language } = useLanguageStore();
 
   const [isScanning, setIsScanning] = useState(false);
@@ -70,7 +70,7 @@ export function GuardQRScannerPage() {
   const processQRCode = useCallback(async (qrData: string) => {
     // Server-side validation (authoritative); fallback to client-side store if offline
     try {
-      const serverResult = await apiRequest<{valid: boolean; error?: string; code?: any}>('/api/guest-codes/validate', {
+      const serverResult = await apiRequest<{valid: boolean; error?: string; code?: GuestAccessCode}>('/api/guest-codes/validate', {
         method: 'POST',
         body: JSON.stringify({ qr_data: qrData }),
       });
@@ -180,14 +180,14 @@ export function GuardQRScannerPage() {
   const toggleFlash = async () => {
     if (streamRef.current) {
       const track = streamRef.current.getVideoTracks()[0];
-      if (track) { try { await (track as any).applyConstraints({ advanced: [{ torch: !flashOn }] }); setFlashOn(!flashOn); } catch {} }
+      if (track) { try { await track.applyConstraints({ advanced: [{ torch: !flashOn }] } as MediaTrackConstraints); setFlashOn(!flashOn); } catch { /* torch may not be supported */ } }
     }
   };
 
   const handleAllowEntry = async () => {
     if (!scanResult?.code || !user) return;
     try { await guestCodesApi.use(scanResult.code.id); } catch (err) { console.error('Failed to register code use:', err); }
-    useGuestAccessCode(scanResult.code.id, scanResult.code);
+    markGuestCodeUsed(scanResult.code.id, scanResult.code);
     setScanLogs(prev => [{ id: crypto.randomUUID(), code_id: scanResult.code!.id, scanned_by_id: user.id, scanned_by_name: user.name, scanned_by_role: user.role, action: 'entry_allowed', visitor_type: scanResult.code!.visitorType, resident_name: scanResult.code!.residentName, resident_apartment: scanResult.code!.residentApartment || '', scanned_at: new Date().toISOString() }, ...prev]);
     setScanResult(null);
     scanningRef.current = true; scanFrame();
@@ -222,7 +222,7 @@ export function GuardQRScannerPage() {
       {/* ── Header ── */}
       <div className="relative z-20 bg-white border-b border-gray-100 px-4 flex items-center justify-between" style={{ paddingTop: 'max(env(safe-area-inset-top, 12px), 12px)', paddingBottom: '10px' }}>
         <button
-          onClick={() => { stopCamera(); navigate((location.state as any)?.from ?? '/guest-access'); }}
+          onClick={() => { stopCamera(); navigate((location.state as Record<string, unknown> | null)?.from as string | undefined ?? '/guest-access'); }}
           className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center active:scale-95 transition-transform"
         >
           <ArrowLeft className="w-5 h-5 text-gray-700" />
@@ -360,7 +360,7 @@ export function GuardQRScannerPage() {
             {language === 'ru' ? 'Ввести код' : 'Kod kiriting'}
           </button>
           <button
-            onClick={() => { stopCamera(); navigate((location.state as any)?.from ?? '/guest-access'); }}
+            onClick={() => { stopCamera(); navigate((location.state as Record<string, unknown> | null)?.from as string | undefined ?? '/guest-access'); }}
             className="flex-1 py-3.5 bg-red-50 rounded-2xl flex items-center justify-center gap-2 text-[14px] font-bold text-red-500 active:scale-[0.97] transition-transform border border-red-100"
           >
             <Square className="w-4 h-4" />

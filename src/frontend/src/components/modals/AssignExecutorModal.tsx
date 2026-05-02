@@ -1,7 +1,7 @@
 import { X, Star } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { SPECIALIZATION_LABELS } from '../../types';
-import type { ExecutorSpecialization, Request } from '../../types';
+import type { ExecutorSpecialization, Request, Executor } from '../../types';
 
 // Format request number - if it's already formatted (e.g., YS-L-1001 or #ABC123), don't add #
 const formatRequestNumber = (num: number | string): string => {
@@ -17,7 +17,7 @@ interface AssignExecutorModalProps {
   isOpen: boolean;
   onClose: () => void;
   request: Request;
-  executors: any[];
+  executors: Executor[];
   onAssign: (requestId: string, executorId: string) => void;
 }
 
@@ -30,7 +30,7 @@ export function AssignExecutorModal({ isOpen, onClose, request, executors, onAss
   const matchingExecutors = executors.filter(e => e.specialization === request.category);
   const otherExecutors = executors.filter(e => e.specialization !== request.category);
 
-  const ExecutorOption = ({ executor, recommended }: { executor: any; recommended?: boolean }) => (
+  const ExecutorOption = ({ executor, recommended }: { executor: Executor; recommended?: boolean }) => (
     <button
       onClick={() => onAssign(request.id, executor.id)}
       className={`w-full p-3 md:p-4 rounded-xl text-left transition-colors touch-manipulation ${

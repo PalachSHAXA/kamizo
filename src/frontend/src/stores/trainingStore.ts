@@ -36,7 +36,7 @@ const mapPartnerFromApi = (p: Record<string, unknown>): Partner => ({
   isActive: p.is_active === 1 || p.is_active === true,
   trainingsConducted: p.trainings_conducted,
   averageRating: p.average_rating,
-});
+} as Partner);
 
 const mapVoteFromApi = (v: Record<string, unknown>): TrainingVote => ({
   id: v.id,
@@ -46,7 +46,7 @@ const mapVoteFromApi = (v: Record<string, unknown>): TrainingVote => ({
   participationIntent: v.participation_intent as ParticipationIntent,
   isAnonymous: v.is_anonymous === 1 || v.is_anonymous === true,
   votedAt: v.voted_at,
-});
+} as TrainingVote);
 
 const mapFeedbackFromApi = (f: Record<string, unknown>): TrainingFeedback => ({
   id: f.id,
@@ -60,7 +60,7 @@ const mapFeedbackFromApi = (f: Record<string, unknown>): TrainingFeedback => ({
   usefulnessRating: f.usefulness_rating,
   comment: f.comment,
   createdAt: f.created_at,
-});
+} as TrainingFeedback);
 
 const mapProposalFromApi = (p: Record<string, unknown>): TrainingProposal => ({
   id: p.id,
@@ -74,8 +74,8 @@ const mapProposalFromApi = (p: Record<string, unknown>): TrainingProposal => ({
   format: p.format as TrainingFormat,
   preferredTimeSlots: Array.isArray(p.preferred_time_slots)
     ? p.preferred_time_slots
-    : p.preferred_time_slots ? JSON.parse(p.preferred_time_slots) : [],
-  votes: p.votes ? p.votes.map(mapVoteFromApi) : [],
+    : p.preferred_time_slots ? JSON.parse(p.preferred_time_slots as string) : [],
+  votes: p.votes ? (p.votes as Record<string, unknown>[]).map(mapVoteFromApi) : [],
   voteThreshold: p.vote_threshold || 5,
   status: p.status as TrainingProposalStatus,
   partnerResponse: p.partner_response,
@@ -89,7 +89,7 @@ const mapProposalFromApi = (p: Record<string, unknown>): TrainingProposal => ({
   registeredParticipants: p.registrations
     ? (p.registrations as Record<string, unknown>[]).map((r) => r.user_id)
     : [],
-  feedback: p.feedback ? p.feedback.map(mapFeedbackFromApi) : [],
+  feedback: p.feedback ? (p.feedback as Record<string, unknown>[]).map(mapFeedbackFromApi) : [],
   completedAt: p.completed_at,
   actualParticipantsCount: p.actual_participants_count,
   createdAt: p.created_at,
@@ -97,7 +97,7 @@ const mapProposalFromApi = (p: Record<string, unknown>): TrainingProposal => ({
   // Computed fields from API
   voteCount: p.vote_count,
   registeredCount: p.registered_count,
-});
+} as TrainingProposal);
 
 const mapNotificationFromApi = (n: Record<string, unknown>): TrainingNotification => ({
   id: n.id,
@@ -109,7 +109,7 @@ const mapNotificationFromApi = (n: Record<string, unknown>): TrainingNotificatio
   message: n.message,
   isRead: n.is_read === 1 || n.is_read === true,
   createdAt: n.created_at,
-});
+} as TrainingNotification);
 
 const mapSettingsFromApi = (s: Record<string, unknown>): TrainingSettings => ({
   voteThreshold: s.vote_threshold ?? 5,
@@ -118,7 +118,7 @@ const mapSettingsFromApi = (s: Record<string, unknown>): TrainingSettings => ({
   allowAnonymousFeedback: s.allow_anonymous_feedback ?? true,
   notifyAllOnNewProposal: s.notify_all_on_new_proposal ?? true,
   autoCloseAfterDays: s.auto_close_after_days ?? 30,
-});
+} as TrainingSettings);
 
 // ==================== State Interface ====================
 

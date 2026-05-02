@@ -5,7 +5,6 @@ import { useLanguageStore } from '../../stores/languageStore';
 import {
   useTrainingStore,
   PARTICIPATION_LABELS,
-  PARTICIPATION_COLORS,
 } from '../../stores/trainingStore';
 import type { TrainingProposal, ParticipationIntent } from '../../types';
 

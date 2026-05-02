@@ -4,7 +4,7 @@ import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTr
 import { PageSkeleton } from '../../../components/PageSkeleton';
 import { HistoryRequestCard } from './HistoryRequestCard';
 import { PendingApprovalCard } from './PendingApprovalCard';
-import type { RequestsTabProps } from './types';
+import type { RequestsTabProps, RequestsSubTab } from './types';
 
 const chip = (active: boolean) =>
   `px-3 py-1.5 rounded-[10px] text-[12px] font-semibold transition-all touch-manipulation active:scale-[0.96] ${
@@ -112,7 +112,7 @@ export function RequestsTab({
         ].map((sub) => (
           <button
             key={sub.id}
-            onClick={() => setRequestsSubTab(sub.id as any)}
+            onClick={() => setRequestsSubTab(sub.id as RequestsSubTab)}
             className={`px-4 py-2 rounded-[12px] text-[13px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-[0.96] ${
               requestsSubTab === sub.id
                 ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
@@ -167,7 +167,7 @@ export function RequestsTab({
                   key={request.id}
                   request={request}
                   executorName={request.executorName}
-                  language={language}
+                  language={language as 'ru' | 'uz'}
                   onClick={() => setSelectedRequest(request)}
                 />
               ))}

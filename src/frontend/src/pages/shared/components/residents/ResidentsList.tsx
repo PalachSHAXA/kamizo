@@ -1,11 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
 import {
-  Users, Search, MapPin, Key, Trash2, Check,
+  Users, Search, MapPin, Trash2, Check,
   ChevronRight, Home, Phone, Loader2,
-  Car, FileText, Shield, LogIn, Wallet
+  Car, FileText, Shield, LogIn
 } from 'lucide-react';
 import { EmptyState } from '../../../../components/common';
-import { financeApi } from '../../../../services/api';
 import { formatName } from '../../../../utils/formatName';
 import { plural } from '../../../../utils/plural';
 import type { MappedResident } from './types';
@@ -18,11 +16,6 @@ interface ResidentsListProps {
   onResidentClick: (resident: MappedResident) => void;
   onDeleteAllClick: () => void;
   language: string;
-}
-
-// Format number with spaces for thousands
-function formatSum(n: number): string {
-  return Math.abs(Math.round(n)).toLocaleString('ru-RU');
 }
 
 export function ResidentsList({

@@ -3,7 +3,7 @@ import {
   Phone, MapPin, Clock, Search, ArrowLeft,
   Ticket, CheckCircle, Loader2, Flame, Sparkles,
   Tag, Eye, Gift, Globe, ChevronRight, Shield, Siren,
-  HeartPulse, FireExtinguisher, Zap, PlugZap,
+  HeartPulse, Zap, PlugZap,
   Droplet, Thermometer, Wrench
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
@@ -102,7 +102,7 @@ export default function ResidentUsefulContactsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingCoupon, setLoadingCoupon] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [banners, setBanners] = useState<any[]>([]);
+  const [banners, setBanners] = useState<{ id: string; title: string; description?: string; image_url?: string; link_url?: string; logo_url?: string }[]>([]);
 
   // Show "листайте ›" only when emergency row actually overflows
   const emergencyScrollRef = useRef<HTMLDivElement>(null);
@@ -472,7 +472,7 @@ export default function ResidentUsefulContactsPage() {
       {/* Kamizo Banner — compact single row */}
       {banners.length > 0 ? (
         <div className="mb-4 px-1 space-y-2.5">
-          {banners.map((banner: any) => (
+          {banners.map((banner) => (
             <div
               key={banner.id}
               onClick={() => banner.link_url && window.open(banner.link_url, '_blank')}

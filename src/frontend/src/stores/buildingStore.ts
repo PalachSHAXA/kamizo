@@ -59,7 +59,7 @@ const mapBuildingFromApi = (b: Record<string, unknown>): BuildingFull => ({
   documents: [],
   createdAt: b.created_at,
   updatedAt: b.updated_at,
-});
+} as BuildingFull);
 
 const mapEntranceFromApi = (e: Record<string, unknown>): Entrance => ({
   id: e.id,
@@ -77,7 +77,7 @@ const mapEntranceFromApi = (e: Record<string, unknown>): Entrance => ({
   responsibleId: e.responsible_id,
   lastInspection: e.last_inspection,
   notes: e.notes,
-});
+} as Entrance);
 
 interface BuildingState {
   // Data

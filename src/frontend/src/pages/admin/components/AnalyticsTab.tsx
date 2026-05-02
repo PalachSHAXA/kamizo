@@ -5,8 +5,8 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from '../../../components/LazyCharts';
 import { useLanguageStore } from '../../../stores/languageStore';
+import type { AnalyticsData, TimePeriod } from './types';
 import {
-  AnalyticsData, TimePeriod,
   PLAN_COLORS, PLAN_LABELS, FEATURE_COLORS,
   getFeatureLabel,
 } from './types';

@@ -51,6 +51,7 @@ export interface ScheduleOption {
   dateTime: string;            // ISO datetime
   votes: string[];             // Array of voter IDs
   votesByShare?: number;       // Sum of shares if voting by shares
+  voteCount?: number;          // Aggregated vote count from API
 }
 
 // Agenda item
@@ -70,6 +71,7 @@ export interface AgendaItem {
   isApproved?: boolean;
   decision?: string;
   order: number;               // Order in agenda
+  attachments?: Array<{ name: string; url: string; type: string; size?: number }>;
 }
 
 // Meeting material (attachment)

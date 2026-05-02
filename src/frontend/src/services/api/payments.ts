@@ -17,7 +17,7 @@ export const paymentsApi = {
     if (filters?.page) params.append('page', String(filters.page));
     if (filters?.limit) params.append('limit', String(filters.limit));
     const query = params.toString();
-    return apiRequest<{ payments: any[]; pagination?: any }>(`/api/payments${query ? '?' + query : ''}`);
+    return apiRequest<{ payments: Record<string, unknown>[]; pagination?: Record<string, unknown> }>(`/api/payments${query ? '?' + query : ''}`);
   },
 
   createPayment: async (data: {
@@ -27,7 +27,7 @@ export const paymentsApi = {
     period?: string;
     description?: string;
   }) => {
-    return apiRequest<{ payment: any }>('/api/payments', {
+    return apiRequest<{ payment: Record<string, unknown> }>('/api/payments', {
       method: 'POST',
       body: JSON.stringify(data),
     });

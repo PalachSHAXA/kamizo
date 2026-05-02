@@ -57,19 +57,20 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
   // Get latest code from store to ensure updated values (like currentUses)
   const code = guestAccessCodes.find(c => c.id === codeId);
 
-  if (!code) {
-    return null;
-  }
-
   useEffect(() => {
-    if (canvasRef.current) {
+    if (canvasRef.current && code) {
       generateQRCodeCanvas(canvasRef.current, code.qrToken, {
         width: 280,
         margin: 2,
         color: { dark: '#000000', light: '#ffffff' }
       });
     }
-  }, [code.qrToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-render QR when token changes; code object identity changes on every store update
+  }, [code?.qrToken]);
+
+  if (!code) {
+    return null;
+  }
 
   const handleCopy = async () => {
     try {
@@ -415,9 +416,9 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
       } else {
         setCreateError(language === 'ru' ? 'Не удалось создать пропуск' : 'Ruxsatnoma yaratib bo\'lmadi');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to create pass:', err);
-      setCreateError(err.message || (language === 'ru' ? 'Ошибка создания' : 'Yaratishda xatolik'));
+      setCreateError((err instanceof Error ? err.message : null) || (language === 'ru' ? 'Ошибка создания' : 'Yaratishda xatolik'));
     } finally {
       setIsCreating(false);
     }

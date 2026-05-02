@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useAuthStore } from '../authStore'
+import type { User } from '../../types'
 
 // Mock the API modules
 vi.mock('../../services/api', () => ({
@@ -99,7 +100,7 @@ describe('authStore', () => {
 
     // Set up logged-in state
     useAuthStore.setState({
-      user: { id: 'user-1', name: 'Test', login: 'test', role: 'resident' } as any,
+      user: { id: 'user-1', name: 'Test', login: 'test', role: 'resident', phone: '+998900000000' } as User,
       token: 'some-token',
     })
 
@@ -117,7 +118,7 @@ describe('authStore', () => {
     expect(useAuthStore.getState().token).toBeNull()
 
     // With token → authenticated
-    useAuthStore.setState({ token: 'valid-token', user: { id: '1' } as any })
+    useAuthStore.setState({ token: 'valid-token', user: { id: '1', name: 'Test', login: 'test', role: 'resident', phone: '+998900000000' } as User })
     const state = useAuthStore.getState()
     expect(state.token).toBeTruthy()
     expect(state.user).not.toBeNull()

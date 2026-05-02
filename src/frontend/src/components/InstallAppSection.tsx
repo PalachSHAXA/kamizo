@@ -14,7 +14,7 @@ function getDevicePlatform(): 'ios' | 'android' | 'desktop' {
 }
 
 function isStandaloneMode(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+  return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
 }
 
 // Shared dismissal state — once "hide forever" is clicked on the profile page,
@@ -66,7 +66,7 @@ export function InstallAppSection({ language, roleContext, onHideForever }: { la
         try {
           const { pushNotifications } = await import('../services/pushNotifications');
           await pushNotifications.subscribe();
-        } catch {}
+        } catch { /* subscription may fail if push is unsupported */ }
       }
     }
   };
@@ -126,7 +126,7 @@ export function InstallAppSection({ language, roleContext, onHideForever }: { la
   if (isInstalled || hiddenForever) return null;
 
   const handleHideForever = () => {
-    try { localStorage.setItem(FOREVER_KEY, '1'); } catch {}
+    try { localStorage.setItem(FOREVER_KEY, '1'); } catch { /* storage may be unavailable */ }
     setHiddenForever(true);
     onHideForever?.();
   };
@@ -272,7 +272,7 @@ export function InstallAppBanner({ language }: { language: string }) {
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
-    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch {}
+    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch { /* storage may be unavailable */ }
     setDismissed(true);
   };
 

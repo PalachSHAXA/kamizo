@@ -6,11 +6,11 @@ import { apiRequest } from './client';
 export const trainingPartnersApi = {
   getAll: async (activeOnly?: boolean) => {
     const query = activeOnly ? '?active=true' : '';
-    return apiRequest<{ partners: any[] }>(`/api/training/partners${query}`);
+    return apiRequest<{ partners: Record<string, unknown>[] }>(`/api/training/partners${query}`);
   },
 
   getById: async (id: string) => {
-    return apiRequest<{ partner: any }>(`/api/training/partners/${id}`);
+    return apiRequest<{ partner: Record<string, unknown> }>(`/api/training/partners/${id}`);
   },
 
   create: async (partner: {
@@ -23,7 +23,7 @@ export const trainingPartnersApi = {
     avatarUrl?: string;
     isActive?: boolean;
   }) => {
-    return apiRequest<{ partner: any }>('/api/training/partners', {
+    return apiRequest<{ partner: Record<string, unknown> }>('/api/training/partners', {
       method: 'POST',
       body: JSON.stringify(partner),
     });
@@ -39,7 +39,7 @@ export const trainingPartnersApi = {
     avatarUrl: string;
     isActive: boolean;
   }>) => {
-    return apiRequest<{ partner: any }>(`/api/training/partners/${id}`, {
+    return apiRequest<{ partner: Record<string, unknown> }>(`/api/training/partners/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -68,11 +68,11 @@ export const trainingProposalsApi = {
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ proposals: any[] }>(`/api/training/proposals${query}`);
+    return apiRequest<{ proposals: Record<string, unknown>[] }>(`/api/training/proposals${query}`);
   },
 
   getById: async (id: string) => {
-    return apiRequest<{ proposal: any }>(`/api/training/proposals/${id}`);
+    return apiRequest<{ proposal: Record<string, unknown> }>(`/api/training/proposals/${id}`);
   },
 
   create: async (proposal: {
@@ -83,7 +83,7 @@ export const trainingProposalsApi = {
     preferredTimeSlots?: string[];
     isAuthorAnonymous?: boolean;
   }) => {
-    return apiRequest<{ proposal: any }>('/api/training/proposals', {
+    return apiRequest<{ proposal: Record<string, unknown> }>('/api/training/proposals', {
       method: 'POST',
       body: JSON.stringify(proposal),
     });
@@ -98,7 +98,7 @@ export const trainingProposalsApi = {
     partnerResponse: 'accepted' | 'rejected';
     partnerResponseNote: string;
   }>) => {
-    return apiRequest<{ proposal: any }>(`/api/training/proposals/${id}`, {
+    return apiRequest<{ proposal: Record<string, unknown> }>(`/api/training/proposals/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -117,14 +117,14 @@ export const trainingProposalsApi = {
     scheduledLink?: string;
     maxParticipants?: number;
   }) => {
-    return apiRequest<{ proposal: any }>(`/api/training/proposals/${id}/schedule`, {
+    return apiRequest<{ proposal: Record<string, unknown> }>(`/api/training/proposals/${id}/schedule`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   complete: async (id: string, data?: { actualParticipantsCount?: number }) => {
-    return apiRequest<{ proposal: any }>(`/api/training/proposals/${id}/complete`, {
+    return apiRequest<{ proposal: Record<string, unknown> }>(`/api/training/proposals/${id}/complete`, {
       method: 'POST',
       body: JSON.stringify(data || {}),
     });
@@ -134,14 +134,14 @@ export const trainingProposalsApi = {
 // Training Votes API
 export const trainingVotesApi = {
   getForProposal: async (proposalId: string) => {
-    return apiRequest<{ votes: any[] }>(`/api/training/proposals/${proposalId}/votes`);
+    return apiRequest<{ votes: Record<string, unknown>[] }>(`/api/training/proposals/${proposalId}/votes`);
   },
 
   vote: async (proposalId: string, data: {
     participationIntent?: 'definitely' | 'maybe' | 'support_only';
     isAnonymous?: boolean;
   }) => {
-    return apiRequest<{ vote: any }>(`/api/training/proposals/${proposalId}/votes`, {
+    return apiRequest<{ vote: Record<string, unknown> }>(`/api/training/proposals/${proposalId}/votes`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -157,7 +157,7 @@ export const trainingVotesApi = {
 // Training Registrations API
 export const trainingRegistrationsApi = {
   register: async (proposalId: string) => {
-    return apiRequest<{ registration: any }>(`/api/training/proposals/${proposalId}/register`, {
+    return apiRequest<{ registration: Record<string, unknown> }>(`/api/training/proposals/${proposalId}/register`, {
       method: 'POST',
     });
   },
@@ -178,7 +178,7 @@ export const trainingRegistrationsApi = {
 // Training Feedback API
 export const trainingFeedbackApi = {
   getForProposal: async (proposalId: string) => {
-    return apiRequest<{ feedback: any[] }>(`/api/training/proposals/${proposalId}/feedback`);
+    return apiRequest<{ feedback: Record<string, unknown>[] }>(`/api/training/proposals/${proposalId}/feedback`);
   },
 
   submit: async (proposalId: string, feedback: {
@@ -189,7 +189,7 @@ export const trainingFeedbackApi = {
     comment?: string;
     isAnonymous?: boolean;
   }) => {
-    return apiRequest<{ feedback: any }>(`/api/training/proposals/${proposalId}/feedback`, {
+    return apiRequest<{ feedback: Record<string, unknown> }>(`/api/training/proposals/${proposalId}/feedback`, {
       method: 'POST',
       body: JSON.stringify(feedback),
     });
@@ -200,7 +200,7 @@ export const trainingFeedbackApi = {
 export const trainingNotificationsApi = {
   getAll: async (unreadOnly?: boolean) => {
     const query = unreadOnly ? '?unread=true' : '';
-    return apiRequest<{ notifications: any[] }>(`/api/training/notifications${query}`);
+    return apiRequest<{ notifications: Record<string, unknown>[] }>(`/api/training/notifications${query}`);
   },
 
   markAsRead: async (id: string) => {
@@ -219,10 +219,10 @@ export const trainingNotificationsApi = {
 // Training Settings API
 export const trainingSettingsApi = {
   getAll: async () => {
-    return apiRequest<{ settings: Record<string, any> }>('/api/training/settings');
+    return apiRequest<{ settings: Record<string, unknown> }>('/api/training/settings');
   },
 
-  update: async (settings: Record<string, any>) => {
+  update: async (settings: Record<string, unknown>) => {
     return apiRequest<{ success: boolean }>('/api/training/settings', {
       method: 'PATCH',
       body: JSON.stringify(settings),

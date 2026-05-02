@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Navigate } from 'react-router-dom';
-import { Search, MapPin, Loader2, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock, ClipboardList } from 'lucide-react';
+import { Search, MapPin, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock, ClipboardList } from 'lucide-react';
 import { EmptyState, StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
 import { PageSkeleton } from '../../components/PageSkeleton';
@@ -20,12 +20,6 @@ export function RequestsPage() {
   const { requests, executors, assignRequest, addRequest, fetchRequests, fetchExecutors, isLoadingRequests, cancelRequest } = useDataStore();
   const [searchParams] = useSearchParams();
 
-  // Resident-like roles (resident, tenant, commercial_owner) get the richer
-  // ResidentDashboard "requests" tab with tappable cards and a detail modal.
-  // Redirect them here so /requests deep-links still work for them.
-  if (user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner') {
-    return <Navigate to="/?tab=requests" replace />;
-  }
   const statusFilter = searchParams.get('status') || 'all';
   const [filter, setFilter] = useState(statusFilter);
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,6 +67,13 @@ export function RequestsPage() {
       fetchExecutors();
     }
   }, [showAssignModal, fetchExecutors]);
+
+  // Resident-like roles (resident, tenant, commercial_owner) get the richer
+  // ResidentDashboard "requests" tab with tappable cards and a detail modal.
+  // Redirect them here so /requests deep-links still work for them.
+  if (user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner') {
+    return <Navigate to="/?tab=requests" replace />;
+  }
 
   // Map request status to semantic StatusTone so all colors come from design tokens
   const requestStatusTone = (status: string): StatusTone => {

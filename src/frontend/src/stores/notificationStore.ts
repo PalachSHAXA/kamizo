@@ -30,10 +30,10 @@ export const useNotificationStore = create<NotificationState>()(
               type: n.type || 'request_created',
               title: n.title || '',
               message: n.body || n.message || '',
-              requestId: n.data?.requestId || null,
+              requestId: (n.data as Record<string, unknown>)?.requestId || null,
               read: Boolean(n.is_read),
               createdAt: n.created_at,
-            }));
+            } as Notification));
             // Replace local notifications with API data (source of truth)
             // Keep any local-only notifications that aren't in the API yet
             const apiIds = new Set(mapped.map((n: { id: string }) => n.id));

@@ -5,7 +5,7 @@ import { apiRequest, cachedGet, CACHE_TTL } from './client';
 export const vehiclesApi = {
   // Get current user's vehicles only
   getMyVehicles: async () => {
-    return cachedGet<{ vehicles: any[] }>('/api/vehicles', CACHE_TTL.MEDIUM);
+    return cachedGet<{ vehicles: Record<string, unknown>[] }>('/api/vehicles', CACHE_TTL.MEDIUM);
   },
 
   // Get ALL vehicles with pagination (for staff: admin, manager, executor, department_head)
@@ -16,13 +16,13 @@ export const vehiclesApi = {
     if (options?.limit) params.append('limit', String(options.limit));
     if (options?.search) params.append('search', options.search);
     const query = params.toString();
-    return apiRequest<{ vehicles: any[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(
+    return apiRequest<{ vehicles: Record<string, unknown>[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(
       `/api/vehicles/all${query ? '?' + query : ''}`
     );
   },
 
   getForResident: async (residentId: string) => {
-    return cachedGet<{ vehicles: any[] }>(`/api/vehicles?resident_id=${residentId}`, CACHE_TTL.MEDIUM);
+    return cachedGet<{ vehicles: Record<string, unknown>[] }>(`/api/vehicles?resident_id=${residentId}`, CACHE_TTL.MEDIUM);
   },
 
   create: async (vehicle: {
@@ -38,7 +38,7 @@ export const vehiclesApi = {
     notes?: string;
     is_primary?: boolean;
   }) => {
-    return apiRequest<{ vehicle: any }>('/api/vehicles', {
+    return apiRequest<{ vehicle: Record<string, unknown> }>('/api/vehicles', {
       method: 'POST',
       body: JSON.stringify(vehicle),
     });
@@ -57,7 +57,7 @@ export const vehiclesApi = {
     notes?: string;
     is_primary?: boolean;
   }) => {
-    return apiRequest<{ vehicle: any }>(`/api/vehicles/${vehicleId}`, {
+    return apiRequest<{ vehicle: Record<string, unknown> }>(`/api/vehicles/${vehicleId}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -70,7 +70,7 @@ export const vehiclesApi = {
   },
 
   search: async (plateNumber: string) => {
-    return apiRequest<{ vehicles: any[] }>(`/api/vehicles/search?plate=${encodeURIComponent(plateNumber)}`);
+    return apiRequest<{ vehicles: Record<string, unknown>[] }>(`/api/vehicles/search?plate=${encodeURIComponent(plateNumber)}`);
   },
 };
 
@@ -78,12 +78,12 @@ export const vehiclesApi = {
 export const rentalsApi = {
   // Apartments
   getApartments: async () => {
-    return apiRequest<{ apartments: any[] }>('/api/rentals/apartments');
+    return apiRequest<{ apartments: Record<string, unknown>[] }>('/api/rentals/apartments');
   },
 
   // Get my apartments (for tenants/commercial_owners)
   getMyApartments: async () => {
-    return apiRequest<{ apartments: any[]; records: any[] }>('/api/rentals/my-apartments');
+    return apiRequest<{ apartments: Record<string, unknown>[]; records: Record<string, unknown>[] }>('/api/rentals/my-apartments');
   },
 
   createApartment: async (data: {
@@ -97,7 +97,7 @@ export const rentalsApi = {
     ownerType?: 'tenant' | 'commercial_owner';
     existingUserId?: string;
   }) => {
-    return apiRequest<{ apartment: any }>('/api/rentals/apartments', {
+    return apiRequest<{ apartment: Record<string, unknown> }>('/api/rentals/apartments', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -119,7 +119,7 @@ export const rentalsApi = {
   // Records
   getRecords: async (apartmentId?: string) => {
     const url = apartmentId ? `/api/rentals/records?apartmentId=${apartmentId}` : '/api/rentals/records';
-    return apiRequest<{ records: any[] }>(url);
+    return apiRequest<{ records: Record<string, unknown>[] }>(url);
   },
 
   createRecord: async (data: {
@@ -132,7 +132,7 @@ export const rentalsApi = {
     currency?: string;
     notes?: string;
   }) => {
-    return apiRequest<{ record: any }>('/api/rentals/records', {
+    return apiRequest<{ record: Record<string, unknown> }>('/api/rentals/records', {
       method: 'POST',
       body: JSON.stringify(data),
     });

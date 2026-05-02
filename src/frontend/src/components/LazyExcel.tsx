@@ -1,5 +1,5 @@
 // Lazy loading for XLSX library (large dependency)
-export async function exportToExcel(data: any[], filename: string, sheetName: string = 'Sheet1') {
+export async function exportToExcel(data: Record<string, unknown>[], filename: string, sheetName: string = 'Sheet1') {
   // Dynamic import of XLSX only when needed
   const XLSX = await import('xlsx');
 
@@ -9,7 +9,7 @@ export async function exportToExcel(data: any[], filename: string, sheetName: st
   XLSX.writeFile(wb, filename);
 }
 
-export async function importFromExcel(file: File): Promise<any[]> {
+export async function importFromExcel(file: File): Promise<Record<string, unknown>[]> {
   // Dynamic import of XLSX only when needed
   const XLSX = await import('xlsx');
 

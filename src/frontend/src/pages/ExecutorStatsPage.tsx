@@ -82,6 +82,7 @@ export function ExecutorStatsPage() {
       });
     }
     return stats;
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   }, [myRequests, language]);
 
   return (

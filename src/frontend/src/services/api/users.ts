@@ -4,12 +4,12 @@ import { apiRequest, transformUser } from './client';
 
 export const usersApi = {
   getMe: async () => {
-    const data = await apiRequest<{ user: any }>('/api/users/me');
+    const data = await apiRequest<{ user: Record<string, unknown> }>('/api/users/me');
     return { user: transformUser(data.user) };
   },
 
   updateMe: async (updates: { phone?: string; name?: string; language?: string }) => {
-    const data = await apiRequest<{ user: any }>('/api/users/me', {
+    const data = await apiRequest<{ user: Record<string, unknown> }>('/api/users/me', {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -51,7 +51,7 @@ export const usersApi = {
     document_date?: string;
     comment?: string;
   }) => {
-    return apiRequest<{ success: boolean; user: any }>(`/api/users/${userId}/change-with-reason`, {
+    return apiRequest<{ success: boolean; user: Record<string, unknown> }>(`/api/users/${userId}/change-with-reason`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -59,7 +59,7 @@ export const usersApi = {
 
   // Get resident change history
   getChangeHistory: async (userId: string) => {
-    return apiRequest<{ changes: any[] }>(`/api/users/${userId}/changes`);
+    return apiRequest<{ changes: Record<string, unknown>[] }>(`/api/users/${userId}/changes`);
   },
 
   // Deactivate resident (soft delete)
@@ -76,7 +76,7 @@ export const usersApi = {
     if (filters?.building_id) params.append('building_id', filters.building_id);
     if (filters?.limit) params.append('limit', filters.limit.toString());
     const query = params.toString();
-    return apiRequest<{ users: any[]; pagination?: any }>(`/api/users${query ? '?' + query : ''}`);
+    return apiRequest<{ users: Record<string, unknown>[]; pagination?: Record<string, unknown> }>(`/api/users${query ? '?' + query : ''}`);
   },
 
   delete: async (userId: string) => {
@@ -91,17 +91,17 @@ export const teamApi = {
   getAll: async () => {
     // Always fetch fresh data, no caching
     return apiRequest<{
-      admins: any[];
-      managers: any[];
-      departmentHeads: any[];
-      executors: any[];
+      admins: Record<string, unknown>[];
+      managers: Record<string, unknown>[];
+      departmentHeads: Record<string, unknown>[];
+      executors: Record<string, unknown>[];
     }>('/api/team', { cache: 'no-store' });
   },
 
   // Get single staff member by ID (for live data refresh with password)
   getById: async (userId: string) => {
     // Always fetch fresh data, no caching
-    return apiRequest<{ user: any }>(`/api/team/${userId}`, { cache: 'no-store' });
+    return apiRequest<{ user: Record<string, unknown> }>(`/api/team/${userId}`, { cache: 'no-store' });
   },
 
   // Create new staff member (uses auth/register endpoint)
@@ -113,7 +113,7 @@ export const teamApi = {
     role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser';
     specialization?: string;
   }) => {
-    return apiRequest<{ user: any }>('/api/auth/register', {
+    return apiRequest<{ user: Record<string, unknown> }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -127,7 +127,7 @@ export const teamApi = {
     specialization?: string;
     status?: string;
   }) => {
-    return apiRequest<{ user: any }>(`/api/team/${userId}`, {
+    return apiRequest<{ user: Record<string, unknown> }>(`/api/team/${userId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });

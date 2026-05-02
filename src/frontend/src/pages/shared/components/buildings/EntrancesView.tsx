@@ -14,7 +14,7 @@ interface EntrancesViewProps {
   isLoadingApartments: boolean;
   isGenerating: boolean;
   language: string;
-  user: any;
+  user: { role: string } | null;
   sortedEntrances: Entrance[];
   entranceMap: Map<string, Apartment[]>;
   floors: number[];

@@ -6,7 +6,7 @@ import { apiRequest, apiRequestWrapped, cachedGet, invalidateCache, CACHE_TTL } 
 // Meetings API (simple)
 export const meetingsApi = {
   getAll: async () => {
-    return cachedGet<{ meetings: any[] }>('/api/meetings', CACHE_TTL.MEDIUM);
+    return cachedGet<{ meetings: Record<string, unknown>[] }>('/api/meetings', CACHE_TTL.MEDIUM);
   },
 
   create: async (meeting: {
@@ -18,7 +18,7 @@ export const meetingsApi = {
     type?: 'general' | 'emergency' | 'committee';
     target_building_id?: string;
   }) => {
-    return apiRequest<{ meeting: any }>('/api/meetings', {
+    return apiRequest<{ meeting: Record<string, unknown> }>('/api/meetings', {
       method: 'POST',
       body: JSON.stringify(meeting),
     });
@@ -28,14 +28,14 @@ export const meetingsApi = {
     question: string;
     options: string[];
   }) => {
-    return apiRequest<{ vote: any }>(`/api/meetings/${meetingId}/votes`, {
+    return apiRequest<{ vote: Record<string, unknown> }>(`/api/meetings/${meetingId}/votes`, {
       method: 'POST',
       body: JSON.stringify(vote),
     });
   },
 
   submitVote: async (voteId: string, optionIndex: number) => {
-    return apiRequest<{ response: any }>(`/api/votes/${voteId}/respond`, {
+    return apiRequest<{ response: Record<string, unknown> }>(`/api/votes/${voteId}/respond`, {
       method: 'POST',
       body: JSON.stringify({ option_index: optionIndex }),
     });
@@ -56,7 +56,7 @@ export const meetingsFullApi = {
     if (options?.organizerId) params.append('organizer_id', options.organizerId);
     if (options?.onlyActive) params.append('only_active', 'true');
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequestWrapped<{ meetings?: any[] }>(`/api/meetings${query}`).then(r => ({
+    return apiRequestWrapped<{ meetings?: Record<string, unknown>[] }>(`/api/meetings${query}`).then(r => ({
       success: r.success,
       data: r.data?.meetings || r.data,
       error: r.error
@@ -64,7 +64,7 @@ export const meetingsFullApi = {
   },
 
   getById: async (id: string) => {
-    return apiRequestWrapped<any>(`/api/meetings/${id}`).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}`).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
       error: r.error
@@ -80,10 +80,10 @@ export const meetingsFullApi = {
     description?: string;
     meetingTime?: string;
     agendaItems: { title: string; description?: string; threshold?: string }[];
-    materials?: any[];
+    materials?: Record<string, unknown>[];
   }) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>('/api/meetings', {
+    return apiRequestWrapped<Record<string, unknown>>('/api/meetings', {
       method: 'POST',
       body: JSON.stringify(meeting),
     }).then(r => ({
@@ -93,9 +93,9 @@ export const meetingsFullApi = {
     }));
   },
 
-  update: async (id: string, updates: any) => {
+  update: async (id: string, updates: Record<string, unknown>) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     }).then(r => ({
@@ -115,7 +115,7 @@ export const meetingsFullApi = {
   // Status transitions
   submit: async (id: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/submit`, { method: 'POST' }).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/submit`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
       error: r.error
@@ -124,7 +124,7 @@ export const meetingsFullApi = {
 
   approve: async (id: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/approve`, { method: 'POST' }).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/approve`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
       error: r.error
@@ -133,7 +133,7 @@ export const meetingsFullApi = {
 
   reject: async (id: string, reason: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/reject`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/reject`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }).then(r => ({
@@ -145,7 +145,7 @@ export const meetingsFullApi = {
 
   openSchedulePoll: async (id: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/open-schedule-poll`, { method: 'POST' }).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/open-schedule-poll`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
       error: r.error
@@ -154,7 +154,7 @@ export const meetingsFullApi = {
 
   confirmSchedule: async (id: string, optionId?: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/confirm-schedule`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/confirm-schedule`, {
       method: 'POST',
       body: JSON.stringify({ optionId }),
     }).then(r => ({
@@ -166,7 +166,7 @@ export const meetingsFullApi = {
 
   openVoting: async (id: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/open-voting`, { method: 'POST' }).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/open-voting`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
       error: r.error
@@ -175,7 +175,7 @@ export const meetingsFullApi = {
 
   closeVoting: async (id: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/close-voting`, { method: 'POST' }).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/close-voting`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
       error: r.error
@@ -184,7 +184,7 @@ export const meetingsFullApi = {
 
   publishResults: async (id: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/publish-results`, { method: 'POST' }).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/publish-results`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.meeting || r.data,
       error: r.error
@@ -193,7 +193,7 @@ export const meetingsFullApi = {
 
   generateProtocol: async (id: string) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/generate-protocol`, { method: 'POST' }).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/generate-protocol`, { method: 'POST' }).then(r => ({
       success: r.success,
       data: r.data?.protocol || r.data,
       error: r.error
@@ -202,7 +202,7 @@ export const meetingsFullApi = {
 
   approveProtocol: async (id: string, signerData?: { signerId: string; signerName: string; signerRole: string }) => {
     invalidateCache('/api/meetings');
-    return apiRequestWrapped<any>(`/api/meetings/${id}/approve-protocol`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/approve-protocol`, {
       method: 'POST',
       body: signerData ? JSON.stringify(signerData) : undefined,
     }).then(r => ({
@@ -213,7 +213,7 @@ export const meetingsFullApi = {
   },
 
   cancel: async (id: string, reason: string) => {
-    return apiRequestWrapped<any>(`/api/meetings/${id}/cancel`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${id}/cancel`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }).then(r => ({
@@ -224,7 +224,7 @@ export const meetingsFullApi = {
   },
 
   getProtocol: async (meetingId: string) => {
-    return apiRequestWrapped<any>(`/api/meetings/${meetingId}/protocol`).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${meetingId}/protocol`).then(r => ({
       success: r.success,
       data: r.data?.protocol || r.data,
       error: r.error
@@ -278,7 +278,7 @@ export const meetingScheduleVotesApi = {
     // Invalidate meetings cache to force fresh data after vote
     invalidateCache('/api/meetings');
 
-    return apiRequestWrapped<any>(`/api/meetings/${meetingId}/schedule-votes`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${meetingId}/schedule-votes`, {
       method: 'POST',
       body: JSON.stringify({ option_id: optionId }), // API expects snake_case
     }).then(r => ({
@@ -307,7 +307,7 @@ export const meetingAgendaVotesApi = {
     comment?: string;
     counter_proposal?: string;
   }) => {
-    return apiRequestWrapped<any>(
+    return apiRequestWrapped<Record<string, unknown>>(
       `/api/meetings/${meetingId}/agenda/${agendaItemId}/vote`,
       {
         method: 'POST',
@@ -322,7 +322,7 @@ export const meetingAgendaVotesApi = {
 
   getMyVotes: async (meetingId: string, voterId?: string) => {
     const query = voterId ? `?voter_id=${voterId}` : '';
-    return apiRequestWrapped<{ votes?: any[] }>(`/api/meetings/${meetingId}/votes/me${query}`).then(r => ({
+    return apiRequestWrapped<{ votes?: Record<string, unknown>[] }>(`/api/meetings/${meetingId}/votes/me${query}`).then(r => ({
       success: r.success,
       data: r.data?.votes || r.data || [],
       error: r.error
@@ -330,7 +330,7 @@ export const meetingAgendaVotesApi = {
   },
 
   getVoteRecords: async (meetingId: string) => {
-    return apiRequestWrapped<{ voteRecords?: any[] }>(`/api/meetings/${meetingId}/vote-records`).then(r => ({
+    return apiRequestWrapped<{ voteRecords?: Record<string, unknown>[] }>(`/api/meetings/${meetingId}/vote-records`).then(r => ({
       success: r.success,
       data: r.data?.voteRecords || r.data || [],
       error: r.error
@@ -342,7 +342,7 @@ export const meetingAgendaVotesApi = {
 export const meetingReconsiderationApi = {
   // Get "against" votes for an agenda item (for managers)
   getAgainstVotes: async (meetingId: string, agendaItemId: string) => {
-    return apiRequestWrapped<{ votes: any[] }>(
+    return apiRequestWrapped<{ votes: Record<string, unknown>[] }>(
       `/api/meetings/${meetingId}/agenda/${agendaItemId}/votes/against`
     ).then(r => ({
       success: r.success,
@@ -373,7 +373,7 @@ export const meetingReconsiderationApi = {
 
   // Get resident's pending reconsideration requests
   getMyRequests: async () => {
-    return apiRequestWrapped<{ requests: any[] }>(
+    return apiRequestWrapped<{ requests: Record<string, unknown>[] }>(
       '/api/meetings/reconsideration-requests/me'
     ).then(r => ({
       success: r.success,
@@ -408,7 +408,7 @@ export const meetingReconsiderationApi = {
 
   // Get reconsideration statistics for a meeting
   getStats: async (meetingId: string) => {
-    return apiRequestWrapped<{ stats: any }>(
+    return apiRequestWrapped<{ stats: Record<string, unknown> }>(
       `/api/meetings/${meetingId}/reconsideration-requests/stats`
     ).then(r => ({
       success: r.success,
@@ -427,7 +427,7 @@ export const meetingOtpApi = {
     meetingId?: string;
     agendaItemId?: string;
   }) => {
-    return apiRequestWrapped<any>('/api/meetings/otp/request', {
+    return apiRequestWrapped<Record<string, unknown>>('/api/meetings/otp/request', {
       method: 'POST',
       body: JSON.stringify(data),
     }).then(r => ({
@@ -452,15 +452,15 @@ export const meetingOtpApi = {
 // Meeting Building Settings API
 export const meetingBuildingSettingsApi = {
   get: async (buildingId: string) => {
-    return apiRequestWrapped<any>(`/api/meetings/building-settings/${buildingId}`).then(r => ({
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/building-settings/${buildingId}`).then(r => ({
       success: r.success,
       data: r.data?.settings || r.data,
       error: r.error
     }));
   },
 
-  update: async (buildingId: string, settings: any) => {
-    return apiRequestWrapped<any>(`/api/meetings/building-settings/${buildingId}`, {
+  update: async (buildingId: string, settings: Record<string, unknown>) => {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/building-settings/${buildingId}`, {
       method: 'PATCH',
       body: JSON.stringify(settings),
     }).then(r => ({
@@ -474,7 +474,7 @@ export const meetingBuildingSettingsApi = {
 // Meeting Voting Units API
 export const meetingVotingUnitsApi = {
   getByBuilding: async (buildingId: string) => {
-    return apiRequestWrapped<{ votingUnits?: any[] }>(`/api/meetings/voting-units?building_id=${buildingId}`).then(r => ({
+    return apiRequestWrapped<{ votingUnits?: Record<string, unknown>[] }>(`/api/meetings/voting-units?building_id=${buildingId}`).then(r => ({
       success: r.success,
       data: r.data?.votingUnits || r.data || [],
       error: r.error
@@ -491,7 +491,7 @@ export const meetingVotingUnitsApi = {
     ownershipShare?: number;
     totalArea?: number;
   }) => {
-    return apiRequestWrapped<any>('/api/meetings/voting-units', {
+    return apiRequestWrapped<Record<string, unknown>>('/api/meetings/voting-units', {
       method: 'POST',
       body: JSON.stringify({
         building_id: unit.buildingId,
@@ -511,7 +511,7 @@ export const meetingVotingUnitsApi = {
   },
 
   verify: async (id: string, verifiedBy: string) => {
-    return apiRequestWrapped<any>(`/api/meetings/voting-units/${id}/verify`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/voting-units/${id}/verify`, {
       method: 'POST',
       body: JSON.stringify({ verified_by: verifiedBy }),
     }).then(r => ({
@@ -525,7 +525,7 @@ export const meetingVotingUnitsApi = {
 // Meeting Eligible Voters API
 export const meetingEligibleVotersApi = {
   set: async (meetingId: string, voterIds: string[], totalCount: number) => {
-    return apiRequestWrapped<any>(`/api/meetings/${meetingId}/eligible-voters`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/meetings/${meetingId}/eligible-voters`, {
       method: 'POST',
       body: JSON.stringify({ voterIds, totalCount }),
     }).then(r => ({
@@ -539,7 +539,7 @@ export const meetingEligibleVotersApi = {
 // Meeting Agenda Comments API
 export const meetingAgendaCommentsApi = {
   getByAgendaItem: async (agendaItemId: string) => {
-    return apiRequestWrapped<{ comments: any[] }>(`/api/agenda/${agendaItemId}/comments`).then(r => ({
+    return apiRequestWrapped<{ comments: Record<string, unknown>[] }>(`/api/agenda/${agendaItemId}/comments`).then(r => ({
       success: r.success,
       data: r.data?.comments || [],
       error: r.error
@@ -551,7 +551,7 @@ export const meetingAgendaCommentsApi = {
     apartmentNumber?: string;
     includeInProtocol?: boolean;
   }) => {
-    return apiRequestWrapped<any>(`/api/agenda/${agendaItemId}/comments`, {
+    return apiRequestWrapped<Record<string, unknown>>(`/api/agenda/${agendaItemId}/comments`, {
       method: 'POST',
       body: JSON.stringify({
         content: data.content,

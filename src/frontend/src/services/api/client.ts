@@ -149,7 +149,7 @@ export async function apiRequest<T>(
               authState.state.token = null;
               localStorage.setItem('uk-auth-storage', JSON.stringify(authState));
             }
-          } catch {}
+          } catch { /* storage cleanup may fail */ }
           // Reload page to show login (delayed to allow state cleanup)
           setTimeout(() => window.location.reload(), 100);
           throw new Error('Session expired');
@@ -208,13 +208,13 @@ export async function apiRequestWrapped<T>(
   try {
     const data = await apiRequest<T>(endpoint, options);
     return { success: true, data };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'API Error' };
+  } catch (error: unknown) {
+    return { success: false, error: error instanceof Error ? error.message : 'API Error' };
   }
 }
 
 // Transform user object from snake_case (API) to camelCase (frontend)
-export function transformUser(user: any): any {
+export function transformUser(user: Record<string, unknown>): Record<string, unknown> {
   if (!user) return user;
   return {
     ...user,

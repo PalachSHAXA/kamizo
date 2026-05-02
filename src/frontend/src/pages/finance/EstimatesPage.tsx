@@ -154,7 +154,7 @@ export default function EstimatesPage() {
   // Estimate total area from building data (if available)
   const totalArea = useMemo(() => {
     if (!selectedBuilding) return 0;
-    return Number((selectedBuilding as Record<string, unknown>).total_area) || 0;
+    return Number((selectedBuilding as unknown as Record<string, unknown>).total_area) || 0;
   }, [selectedBuilding]);
 
   const costPerSqm = useMemo(
@@ -408,12 +408,12 @@ export default function EstimatesPage() {
                 <div className="flex items-center gap-2">
                   <Banknote className="w-4 h-4 text-primary-500" />
                   <span className="text-lg font-bold text-gray-900">
-                    {formatAmount(est.total_amount)} {t('сум', "so'm")}
+                    {formatAmount(est.total_amount as number)} {t('сум', "so'm")}
                   </span>
                 </div>
                 {Number(est.commercial_rate_per_sqm) > 0 && (
                   <div className="text-xs text-gray-400 mt-1">
-                    1 {t('кв.м', 'kv.m')} = {formatAmount(est.commercial_rate_per_sqm)} {t('сум', "so'm")}
+                    1 {t('кв.м', 'kv.m')} = {formatAmount(est.commercial_rate_per_sqm as number)} {t('сум', "so'm")}
                   </div>
                 )}
               </button>
@@ -712,7 +712,7 @@ export default function EstimatesPage() {
                   {t('Жилое (за м²)', 'Turar joy (m² uchun)')}
                 </p>
                 <p className="text-lg font-bold text-primary-900">
-                  {formatAmount(currentEstimate.commercial_rate_per_sqm)}
+                  {formatAmount(currentEstimate.commercial_rate_per_sqm as number)}
                 </p>
                 <p className="text-xs text-primary-400">{t('сум', "so'm")}</p>
               </div>
@@ -721,7 +721,7 @@ export default function EstimatesPage() {
                   {t('Нежилое (за м²)', 'Noturar (m² uchun)')}
                 </p>
                 <p className="text-lg font-bold text-amber-900">
-                  {formatAmount(currentEstimate.non_commercial_rate_per_sqm)}
+                  {formatAmount(currentEstimate.non_commercial_rate_per_sqm as number)}
                 </p>
                 <p className="text-xs text-amber-400">{t('сум', "so'm")}</p>
               </div>
@@ -731,7 +731,7 @@ export default function EstimatesPage() {
                     {t('Коммерч.', 'Tijoriy')}
                   </p>
                   <p className="text-lg font-bold text-blue-900">
-                    {formatAmount(currentEstimate.commercial_rate)}
+                    {formatAmount(currentEstimate.commercial_rate as number)}
                   </p>
                   <p className="text-xs text-blue-400">{t('сум/м²', "so'm/m²")}</p>
                 </div>
@@ -742,7 +742,7 @@ export default function EstimatesPage() {
                     {t('Парковка', 'Avtoturargoh')}
                   </p>
                   <p className="text-lg font-bold text-violet-900">
-                    {formatAmount(currentEstimate.parking_rate)}
+                    {formatAmount(currentEstimate.parking_rate as number)}
                   </p>
                   <p className="text-xs text-violet-400">{t('сум/место', "so'm/joy")}</p>
                 </div>
@@ -777,10 +777,10 @@ export default function EstimatesPage() {
                           {(it.name as string) || '-'}
                         </td>
                         <td className="py-2 px-3 text-right text-gray-600">
-                          {formatAmount(it.monthly_amount || Math.round(Number(it.amount) / 12))}
+                          {formatAmount((it.monthly_amount || Math.round(Number(it.amount) / 12)) as number)}
                         </td>
                         <td className="py-2 px-3 text-right font-medium text-gray-900">
-                          {formatAmount(it.amount)}
+                          {formatAmount(it.amount as number)}
                         </td>
                       </tr>
                     ))}
@@ -795,14 +795,14 @@ export default function EstimatesPage() {
                         {formatAmount(Math.round(Number(currentEstimate.total_amount) / 12))}
                       </td>
                       <td className="py-2 px-3 text-right font-bold text-gray-900">
-                        {formatAmount(currentEstimate.total_amount)} {t('сум', "so'm")}
+                        {formatAmount(currentEstimate.total_amount as number)} {t('сум', "so'm")}
                       </td>
                     </tr>
                     {Number(currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent) > 0 && (
                       <tr className="border-t border-gray-100">
                         <td />
                         <td className="py-2 px-3 text-gray-600">
-                          {t('Доход предприятия', 'Korxona daromadi')} ({currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent}%)
+                          {t('Доход предприятия', 'Korxona daromadi')} ({String(currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent)}%)
                         </td>
                         <td />
                         <td className="py-2 px-3 text-right font-medium text-primary-700">
@@ -851,7 +851,7 @@ export default function EstimatesPage() {
                     generateEstimateExcel(
                       currentEstimate,
                       detailItems,
-                      buildings as any[],
+                      buildings as Array<Record<string, unknown>>,
                       language as 'ru' | 'uz'
                     );
                   }

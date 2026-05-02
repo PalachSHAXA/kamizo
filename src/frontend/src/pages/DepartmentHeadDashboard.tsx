@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { InstallAppBanner } from '../components/InstallAppSection';
-import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
 import { PageSkeleton } from '../components/PageSkeleton';
 import {
@@ -10,7 +9,7 @@ import {
 import {
   FileText, Users, Clock,
   Star, ChevronRight,
-  Wrench, CheckCircle, Loader2
+  Wrench, CheckCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';

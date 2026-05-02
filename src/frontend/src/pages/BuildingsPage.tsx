@@ -2,7 +2,6 @@ import { CheckCircle } from 'lucide-react';
 import { PageSkeleton } from '../components/PageSkeleton';
 
 import {
-  DistrictsView,
   BranchesView,
   BuildingsView,
   EntrancesView,

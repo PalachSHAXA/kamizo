@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ComponentType } from 'react';
 import {
   Key, Phone, Save, Eye, EyeOff, Edit3,
   Shield, Loader2, X, Globe,
@@ -9,7 +9,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { formatName } from '../utils/formatName';
 
-const ROLE_CONFIG: Record<string, { labelRu: string; labelUz: string; icon: any; color: string; bgColor: string }> = {
+const ROLE_CONFIG: Record<string, { labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string; bgColor: string }> = {
   executor: { labelRu: 'Исполнитель', labelUz: 'Ijrochi', icon: Wrench, color: 'text-amber-600', bgColor: 'bg-amber-50' },
   security: { labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'text-slate-600', bgColor: 'bg-slate-50' },
   dispatcher: { labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Radio, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Users, Wrench, Car } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguageStore } from '../stores/languageStore';
@@ -203,7 +203,8 @@ export function BottomBar() {
       if (currentPath === '/') {
         window.dispatchEvent(new Event('open-services'));
       } else {
-        (window as any).__pendingOpenServices = true;
+        // eslint-disable-next-line react-hooks/immutability
+        (window as unknown as Record<string, unknown>).__pendingOpenServices = true;
         navigate('/');
         setTimeout(() => window.dispatchEvent(new Event('open-services')), 600);
       }

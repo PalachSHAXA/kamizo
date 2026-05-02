@@ -3,8 +3,18 @@ import { Plus, Edit2, Trash2, RefreshCw, X, Image } from 'lucide-react';
 import { apiRequest } from '../../../services/api';
 import { useToastStore } from '../../../stores/toastStore';
 
+interface BannerItem {
+  id: string;
+  title: string;
+  description?: string;
+  image_url?: string;
+  link_url?: string;
+  placement?: string;
+  is_active: boolean | number;
+}
+
 interface BannersTabProps {
-  banners: any[];
+  banners: BannerItem[];
   isLoadingBanners: boolean;
   loadBanners: () => void;
 }
@@ -13,7 +23,7 @@ export function BannersTab({ banners, isLoadingBanners, loadBanners }: BannersTa
   const addToast = useToastStore(s => s.addToast);
 
   const [showBannerModal, setShowBannerModal] = useState(false);
-  const [editingBanner, setEditingBanner] = useState<any>(null);
+  const [editingBanner, setEditingBanner] = useState<BannerItem | null>(null);
   const [bannerForm, setBannerForm] = useState({ title: '', description: '', image_url: '', link_url: '', placement: 'marketplace' as string, is_active: true });
 
   const handleSaveBanner = async () => {
@@ -28,17 +38,17 @@ export function BannersTab({ banners, isLoadingBanners, loadBanners }: BannersTa
       setEditingBanner(null);
       setBannerForm({ title: '', description: '', image_url: '', link_url: '', placement: 'marketplace', is_active: true });
       loadBanners();
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка');
     }
   };
 
-  const handleToggleBanner = async (banner: any) => {
+  const handleToggleBanner = async (banner: BannerItem) => {
     try {
       await apiRequest(`/api/super-admin/banners/${banner.id}`, { method: 'PATCH', body: JSON.stringify({ is_active: !banner.is_active }) });
       loadBanners();
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка');
     }
   };
 
@@ -47,8 +57,8 @@ export function BannersTab({ banners, isLoadingBanners, loadBanners }: BannersTa
     try {
       await apiRequest(`/api/super-admin/banners/${id}`, { method: 'DELETE' });
       loadBanners();
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка');
     }
   };
 
@@ -78,7 +88,7 @@ export function BannersTab({ banners, isLoadingBanners, loadBanners }: BannersTa
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {banners.map((banner: any) => (
+          {banners.map((banner) => (
             <div key={banner.id} className={`bg-white rounded-xl border-2 overflow-hidden transition-all ${banner.is_active ? 'border-green-200' : 'border-gray-200 opacity-60'}`}>
               {banner.image_url && (
                 <img src={banner.image_url} alt={banner.title} className="w-full h-40 object-cover" />

@@ -1,6 +1,6 @@
 import { Phone, MapPin, Calendar, User, UserPlus } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
-import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../../../types';
+import { STATUS_LABELS, PRIORITY_LABELS } from '../../../types';
 import type { RequestStatus, RequestPriority } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
 import { formatName } from '../../../utils/formatName';

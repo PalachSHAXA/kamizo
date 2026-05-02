@@ -37,7 +37,7 @@ export function ExecutorsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [createdPasswords, setCreatedPasswords] = useState<Record<string, string>>({});
-  // @ts-ignore - used in modal
+  // @ts-expect-error - used in modal
   const [showCredentialsModal, setShowCredentialsModal] = useState<{ login: string; password: string } | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -64,7 +64,7 @@ export function ExecutorsPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [, setIsLoadingDetails] = useState(false);
 
   // Specialization labels with language support
   const specLabels: Record<ExecutorSpecialization, string> = language === 'ru' ? {
@@ -170,8 +170,8 @@ export function ExecutorsPage() {
       try {
         await deleteExecutor(selectedExecutor.id);
         handleCloseDetails();
-      } catch (error: any) {
-        addToast('error', error.message || (language === 'ru' ? 'Ошибка при удалении' : 'O\'chirishda xatolik'));
+      } catch (error: unknown) {
+        addToast('error', (error instanceof Error ? error.message : null) || (language === 'ru' ? 'Ошибка при удалении' : 'O\'chirishda xatolik'));
       } finally {
         setIsDeleting(false);
       }
@@ -212,8 +212,8 @@ export function ExecutorsPage() {
       setShowAddModal(false);
       // Refresh the list
       fetchExecutors();
-    } catch (error: any) {
-      setAddError(error.message || (language === 'ru' ? 'Ошибка при добавлении исполнителя' : 'Ijrochi qo\'shishda xatolik'));
+    } catch (error: unknown) {
+      setAddError((error instanceof Error ? error.message : null) || (language === 'ru' ? 'Ошибка при добавлении исполнителя' : 'Ijrochi qo\'shishda xatolik'));
     } finally {
       setIsAdding(false);
     }
@@ -344,7 +344,7 @@ export function ExecutorsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Роль' : 'Rol'} *</label>
                   <select
                     value={newExecutor.role}
-                    onChange={(e) => setNewExecutor({ ...newExecutor, role: e.target.value as any })}
+                    onChange={(e) => setNewExecutor({ ...newExecutor, role: e.target.value as 'executor' | 'department_head' })}
                     className="input-field"
                   >
                     <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
@@ -399,7 +399,7 @@ export function ExecutorsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация/Отдел' : 'Mutaxassislik/Bo\'lim'} *</label>
                   <select
                     value={newExecutor.specialization}
-                    onChange={(e) => setNewExecutor({ ...newExecutor, specialization: e.target.value as any })}
+                    onChange={(e) => setNewExecutor({ ...newExecutor, specialization: e.target.value as ExecutorSpecialization })}
                     className="input-field"
                   >
                     <option value="plumber">{specLabels.plumber}</option>

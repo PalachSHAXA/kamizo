@@ -36,7 +36,7 @@ export const useExecutorStore = create<ExecutorState>()(
           totalEarnings: e.total_earnings || 0,
           avgCompletionTime: e.avg_completion_time || 0,
           createdAt: e.created_at,
-        }));
+        } as Executor));
         set({ executors: mappedExecutors, isLoadingExecutors: false, executorsError: null });
       } catch (err: unknown) {
         console.error('Failed to fetch executors:', err);

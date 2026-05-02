@@ -44,9 +44,22 @@ export interface RescheduleDetailsModalProps {
   onClose: () => void;
 }
 
+export interface ManagerStats {
+  newRequests: number;
+  inProgress: number;
+  completed: number;
+  total: number;
+  avgRating: number;
+}
+
+export interface ManagerChartData {
+  weeklyData: Array<{ day: string; created: number; completed: number }>;
+  statusData: Array<{ name: string; value: number; color: string }>;
+}
+
 export interface OverviewTabProps {
-  stats: ReturnType<any>;
-  chartData: ReturnType<any>;
+  stats: ManagerStats;
+  chartData: ManagerChartData;
   categoryData: Array<{ name: string; value: number; color: string }>;
   pendingReschedules: RescheduleRequest[];
   recentReschedules: RescheduleRequest[];
@@ -55,8 +68,21 @@ export interface OverviewTabProps {
   onSelectReschedule: (reschedule: RescheduleRequest) => void;
 }
 
+export interface ManagerRatingSummary {
+  current?: {
+    avg_overall?: number;
+    avg_cleanliness?: number;
+    avg_responsiveness?: number;
+    avg_communication?: number;
+    count?: number;
+  };
+  trend: number;
+  monthly?: Array<{ period: string; avg_overall?: number; count?: number }>;
+  recentComments?: Array<{ overall: number; comment: string; created_at?: string }>;
+}
+
 export interface RatingsTabProps {
-  ratingSummary: any;
+  ratingSummary: ManagerRatingSummary | null;
   isLoadingRatings: boolean;
 }
 

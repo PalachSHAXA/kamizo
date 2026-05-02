@@ -26,7 +26,7 @@ export interface AppSettings {
 export const settingsApi = {
   // Get all settings
   getAll: async () => {
-    return apiRequestWrapped<{ settings: Record<string, any> }>('/api/settings').then(r => ({
+    return apiRequestWrapped<{ settings: Record<string, unknown> }>('/api/settings').then(r => ({
       success: r.success,
       data: r.data,
       error: r.error
@@ -35,7 +35,7 @@ export const settingsApi = {
 
   // Get single setting
   get: async (key: string) => {
-    return apiRequestWrapped<{ value: any }>(`/api/settings/${key}`).then(r => ({
+    return apiRequestWrapped<{ value: unknown }>(`/api/settings/${key}`).then(r => ({
       success: r.success,
       data: r.data,
       error: r.error
@@ -43,7 +43,7 @@ export const settingsApi = {
   },
 
   // Update single setting
-  update: async (key: string, value: any) => {
+  update: async (key: string, value: unknown) => {
     return apiRequestWrapped<{ success: boolean }>(`/api/settings/${key}`, {
       method: 'PUT',
       body: JSON.stringify({ value }),
@@ -69,7 +69,7 @@ export interface Notification {
   type: string;
   title: string;
   body?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
 }
@@ -93,7 +93,7 @@ export const notificationsApi = {
     type: string;
     title: string;
     body?: string;
-    data?: any;
+    data?: Record<string, unknown>;
   }) => {
     return apiRequest<{ id: string; success: boolean }>('/api/notifications', {
       method: 'POST',
@@ -128,7 +128,7 @@ export const notificationsApi = {
     type: string;
     title: string;
     body?: string;
-    data?: any;
+    data?: Record<string, unknown>;
   }) => {
     return apiRequest<{ success: boolean; count: number }>('/api/notifications/broadcast', {
       method: 'POST',
@@ -141,7 +141,7 @@ export const notificationsApi = {
 export const tenantApi = {
   // Get all tenants
   getAll: async () => {
-    return apiRequest<{ tenants: any[] }>('/api/tenants');
+    return apiRequest<{ tenants: Record<string, unknown>[] }>('/api/tenants');
   },
 
   // Create tenant
@@ -157,7 +157,7 @@ export const tenantApi = {
     admin_email?: string;
     admin_phone?: string;
   }) => {
-    return apiRequest<{ tenant: any }>('/api/tenants', {
+    return apiRequest<{ tenant: Record<string, unknown> }>('/api/tenants', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -177,7 +177,7 @@ export const tenantApi = {
     admin_phone: string;
     is_active: number;
   }>) => {
-    return apiRequest<{ tenant: any }>(`/api/tenants/${id}`, {
+    return apiRequest<{ tenant: Record<string, unknown> }>(`/api/tenants/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });

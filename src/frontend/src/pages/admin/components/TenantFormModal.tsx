@@ -1,8 +1,8 @@
 import { FileText, Upload, X } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
+import type { Tenant, TenantFormData } from './types';
 import {
-  Tenant, TenantFormData,
   BASE_DOMAIN, AVAILABLE_FEATURES, PLAN_FEATURES,
 } from './types';
 

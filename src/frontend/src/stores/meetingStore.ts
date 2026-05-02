@@ -112,7 +112,7 @@ const mapMeetingFromApi = (data: Record<string, unknown>): Meeting => {
     remindersSent: parseJson(data.reminders_sent || data.remindersSent, []),
     notificationLogs: parseJson(data.notification_logs || data.notificationLogs, []),
     createdAt: data.created_at || data.createdAt,
-  };
+  } as Meeting;
 };
 
 // Merge partial API response (base meeting fields) with existing full meeting (preserving sub-data)
@@ -372,7 +372,7 @@ export const useMeetingStore = create<MeetingState>()(
             const meetings = Array.isArray(response.data) ? response.data.map(mapMeetingFromApi) : [];
             set({ meetings });
           }
-        } catch {}
+        } catch { /* silently fail for silent refresh */ }
       },
 
       fetchMeetings: async () => {
@@ -385,7 +385,7 @@ export const useMeetingStore = create<MeetingState>()(
           } else {
             set({ error: response.error || 'Failed to fetch meetings', loading: false });
           }
-        } catch (error) {
+        } catch {
           set({ error: 'Network error', loading: false });
         }
       },
@@ -403,7 +403,7 @@ export const useMeetingStore = create<MeetingState>()(
           } else {
             set({ error: response.error || 'Failed to fetch meetings', loading: false });
           }
-        } catch (error) {
+        } catch {
           set({ error: 'Network error', loading: false });
         }
       },
@@ -464,7 +464,7 @@ export const useMeetingStore = create<MeetingState>()(
           } else {
             set({ error: response.error || 'Failed to update meeting', loading: false });
           }
-        } catch (error) {
+        } catch {
           set({ error: 'Network error', loading: false });
         }
       },
@@ -477,7 +477,7 @@ export const useMeetingStore = create<MeetingState>()(
             meetings: state.meetings.filter(m => m.id !== id),
             loading: false
           }));
-        } catch (error) {
+        } catch {
           set({ error: 'Network error', loading: false });
         }
       },

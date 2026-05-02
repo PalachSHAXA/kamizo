@@ -276,9 +276,9 @@ export const useAnnouncementStore = create<AnnouncementState>()(
               buildingId: a.target_building_id,
               entrance: a.target_entrance,
               floor: a.target_floor,
-              customLogins: a.target_logins?.split(',').map((l: string) => l.trim()).filter(Boolean),
+              customLogins: (a.target_logins as string)?.split(',').map((l: string) => l.trim()).filter(Boolean),
             } : undefined,
-          };
+          } as Announcement;
         });
 
         set({ announcements });

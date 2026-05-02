@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Menu, Megaphone, Users, Key, Phone, FileText, Car, CheckCircle } from 'lucide-react';
+import { Bell, Megaphone, Users, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { useNotificationStore, useAnnouncementStore, useVehicleStore } from '../../stores/dataStore';
+import { useNotificationStore, useAnnouncementStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { AppLogo } from '../common/AppLogo';
 import { useTenantStore } from '../../stores/tenantStore';
@@ -24,7 +24,6 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   const markAllNotificationsAsRead = useNotificationStore(s => s.markAllNotificationsAsRead);
   const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
   const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
-  const vehicles = useVehicleStore(s => s.vehicles);
   const { meetings } = useMeetingStore();
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
 
@@ -55,9 +54,9 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
       const meetingDate = new Date(m.confirmedDateTime);
       return meetingDate >= nowDate && meetingDate <= weekFromNow && m.status !== 'cancelled';
     });
-  }, [meetings, isRentalUser]);
+  }, [meetings, isRentalUser, isExecutor]);
 
-  const pendingTasks: any[] = [];
+  const pendingTasks: unknown[] = [];
   const pendingTasksCount = 0;
 
   // Menu badge - only sidebar tab notifications (announcements, meetings), NOT onboarding tasks

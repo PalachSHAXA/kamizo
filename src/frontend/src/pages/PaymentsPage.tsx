@@ -6,6 +6,18 @@ import { useToastStore } from '../stores/toastStore';
 import { PageSkeleton } from '../components/PageSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 
+interface Payment {
+  id: string;
+  created_at: string;
+  apartment_number?: string;
+  apartment_id: string;
+  amount: number;
+  payment_type: string;
+  period?: string;
+  status?: string;
+  description?: string;
+}
+
 export function PaymentsPage() {
   const { language } = useLanguageStore();
   const { addToast } = useToastStore();
@@ -15,7 +27,6 @@ export function PaymentsPage() {
   } = usePaymentsStore();
 
   const [showModal, setShowModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [form, setForm] = useState({
     apartment_id: '',
     amount: '',
@@ -172,7 +183,7 @@ export function PaymentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {payments.map((p: any) => (
+                {(payments as unknown as Payment[]).map((p) => (
                   <tr key={p.id} className="hover:bg-white/40 transition-colors">
                     <td className="px-4 py-3 text-sm text-gray-700">{new Date(p.created_at).toLocaleDateString()}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.apartment_number || p.apartment_id}</td>

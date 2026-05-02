@@ -70,6 +70,7 @@ export function Sheet({
   // Enter animation flag — flipped on next frame after mount so the sheet
   // slides/fades in instead of popping.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!isOpen) { setEntered(false); return; }
     const raf = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(raf);

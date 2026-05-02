@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, AlertCircle, X, FileText, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home } from 'lucide-react';
+import { useState, useRef, useEffect, type ComponentType } from 'react';
+import { Eye, EyeOff, AlertCircle, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
@@ -7,7 +7,7 @@ import { AppLogo } from '../components/common/AppLogo';
 import { Modal } from '../components/common';
 
 // Demo account definitions (without passwords — passwords filled at click time)
-type DemoAccount = { login: string; role: string; labelRu: string; labelUz: string; icon: any; color: string };
+type DemoAccount = { login: string; role: string; labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string };
 
 const DEMO_ACCOUNTS: DemoAccount[] = [
   { login: 'director', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-rose-600' },
@@ -82,6 +82,7 @@ export function LoginPage() {
   // Reset scroll check when modal opens
   useEffect(() => {
     if (showOfferModal) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCanAcceptOffer(false);
       // Check initial state in case content is short
       setTimeout(() => {

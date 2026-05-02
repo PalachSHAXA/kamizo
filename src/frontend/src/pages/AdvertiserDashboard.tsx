@@ -30,6 +30,8 @@ interface AdCategory {
   active_ads_count: number;
 }
 
+type DurationType = 'week' | '2weeks' | 'month' | '3months' | '6months' | 'year' | 'custom';
+
 interface Ad {
   id: string;
   category_id: string;
@@ -39,6 +41,9 @@ interface Ad {
   phone: string;
   phone2?: string;
   telegram?: string;
+  instagram?: string;
+  facebook?: string;
+  website?: string;
   address?: string;
   work_hours?: string;
   work_days?: string;
@@ -51,7 +56,7 @@ interface Ad {
   target_buildings?: string[];
   starts_at: string;
   expires_at: string;
-  duration_type: 'week' | 'month' | 'custom';
+  duration_type: DurationType;
   status: 'draft' | 'active' | 'paused' | 'expired' | 'archived';
   views_count: number;
   coupons_issued: number;
@@ -124,7 +129,7 @@ export function AdvertiserDashboard() {
   const [buildings, setBuildings] = useState<BuildingOption[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [expiringSoon, setExpiringSoon] = useState<any[]>([]);
+  const [expiringSoon, setExpiringSoon] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'expired' | 'draft'>('all');
   const [showAdModal, setShowAdModal] = useState(false);
@@ -180,13 +185,13 @@ export function AdvertiserDashboard() {
       }
       if (adsRes.ok) {
         const data = await adsRes.json();
-        setAds(data.ads?.map((ad: any) => ({
+        setAds(data.ads?.map((ad: Record<string, unknown>) => ({
           ...ad,
-          badges: ad.badges ? JSON.parse(ad.badges) : {},
-          photos: ad.photos ? JSON.parse(ad.photos) : [],
-          target_branches: ad.target_branches ? JSON.parse(ad.target_branches) : [],
-          target_buildings: ad.target_buildings ? JSON.parse(ad.target_buildings) : []
-        })) || []);
+          badges: ad.badges ? JSON.parse(ad.badges as string) : {},
+          photos: ad.photos ? JSON.parse(ad.photos as string) : [],
+          target_branches: ad.target_branches ? JSON.parse(ad.target_branches as string) : [],
+          target_buildings: ad.target_buildings ? JSON.parse(ad.target_buildings as string) : []
+        })) as Ad[] || []);
       }
       if (branchRes.ok) {
         const data = await branchRes.json();
@@ -194,11 +199,11 @@ export function AdvertiserDashboard() {
       }
       if (buildingsRes.ok) {
         const data = await buildingsRes.json();
-        setBuildings((data.buildings || []).map((b: any) => ({
-          id: b.id,
-          name: b.name,
-          address: b.address || '',
-          branch_code: b.branch_code
+        setBuildings((data.buildings || []).map((b: Record<string, unknown>) => ({
+          id: b.id as string,
+          name: b.name as string,
+          address: (b.address as string) || '',
+          branch_code: b.branch_code as string
         })));
       }
     } catch (err) {
@@ -329,15 +334,15 @@ export function AdvertiserDashboard() {
       phone: ad.phone,
       phone2: ad.phone2 || '',
       telegram: ad.telegram || '',
-      instagram: (ad as any).instagram || '',
-      facebook: (ad as any).facebook || '',
-      website: (ad as any).website || '',
+      instagram: ad.instagram || '',
+      facebook: ad.facebook || '',
+      website: ad.website || '',
       address: ad.address || '',
       work_hours: ad.work_hours || '',
       work_days: ad.work_days || '',
       logo_url: ad.logo_url || '',
       discount_percent: ad.discount_percent,
-      duration_type: ad.duration_type as any,
+      duration_type: ad.duration_type,
       target_type: ad.target_type,
       badges: {
         recommended: ad.badges?.recommended ?? false,
@@ -346,7 +351,7 @@ export function AdvertiserDashboard() {
         verified: ad.badges?.verified ?? false
       },
       target_branches: ad.target_branches || [],
-      target_buildings: (ad as any).target_buildings || []
+      target_buildings: ad.target_buildings || []
     });
     setShowAdModal(true);
   };
@@ -451,7 +456,7 @@ export function AdvertiserDashboard() {
             <span className="font-medium">{language === 'ru' ? `Скоро истекают (${expiringSoon.length})` : `Tez orada tugaydi (${expiringSoon.length})`}</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {expiringSoon.map((ad: any) => (
+            {expiringSoon.map((ad) => (
               <span key={ad.id} className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
                 {ad.title} - {new Date(ad.expires_at).toLocaleDateString('ru-RU')}
               </span>
@@ -794,7 +799,7 @@ export function AdvertiserDashboard() {
                     type="text"
                     value={adForm.work_hours}
                     onChange={e => {
-                      let v = e.target.value;
+                      const v = e.target.value;
                       setAdForm({ ...adForm, work_hours: v });
                     }}
                     onBlur={() => {
@@ -882,7 +887,7 @@ export function AdvertiserDashboard() {
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => setAdForm({ ...adForm, duration_type: opt.value as any })}
+                      onClick={() => setAdForm({ ...adForm, duration_type: opt.value as DurationType })}
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                         adForm.duration_type === opt.value
                           ? 'bg-primary-600 text-white shadow-lg shadow-primary-200'

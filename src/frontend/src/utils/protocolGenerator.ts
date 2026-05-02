@@ -125,6 +125,7 @@ function escapeXml(str: string): string {
 }
 
 // Calculate vote result for an agenda item
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function calculateVoteResult(item: AgendaItem, _totalArea: number): VoteResult {
   const votedArea = item.votes_for_area + item.votes_against_area + item.votes_abstain_area;
   return {

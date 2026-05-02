@@ -285,6 +285,7 @@ export function ComponentErrorBoundary({
  * Placeholder: send error to Sentry when VITE_SENTRY_DSN is configured.
  * TODO: Implement via @sentry/browser or fetch-based envelope once DSN is set.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function reportFrontendError(error: Error, context?: Record<string, unknown>): void {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!dsn) return; // Sentry not configured — skip silently
@@ -295,8 +296,9 @@ export function reportFrontendError(error: Error, context?: Record<string, unkno
 /**
  * Hook for manual error reporting
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useErrorReporter() {
-  return (error: Error, context?: Record<string, any>) => {
+  return (error: Error, context?: Record<string, unknown>) => {
     console.error('Manual error report:', error, context);
 
     // Log to localStorage

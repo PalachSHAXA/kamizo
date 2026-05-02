@@ -1,5 +1,5 @@
 import { useState, useEffect, Component } from 'react';
-import { Star, X, Users, Award, TrendingUp, Heart, MessageCircle, Loader2, CheckCircle } from 'lucide-react';
+import { Star, Users, Award, TrendingUp, Heart, MessageCircle, Loader2, CheckCircle } from 'lucide-react';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -751,7 +751,7 @@ function ColleaguesSectionInner() {
             return Math.min(5, Math.max(3.5, parseFloat(val.toFixed(1))));
           };
           const name = (executor.name && String(executor.name).trim()) || 'Сотрудник';
-          const spec = executor.specialization as any;
+          const spec = executor.specialization as string | undefined;
           return {
             id: executor.id,
             name,
@@ -778,6 +778,7 @@ function ColleaguesSectionInner() {
           };
         });
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEmployees(mappedEmployees);
 
       // Генерируем начальные новости

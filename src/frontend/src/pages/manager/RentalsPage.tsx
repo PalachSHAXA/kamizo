@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Key, User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, Banknote, Home } from 'lucide-react';
+import { User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, Banknote, Home } from 'lucide-react';
 import { EmptyState, StatusBadge } from '../../components/common';
 import { pluralWithCount } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
@@ -232,7 +232,7 @@ export function RentalsPage() {
       setDeleteConfirmApartment(null);
       setDeletePassword('');
       setDeleteError('');
-    } catch (error) {
+    } catch {
       setDeleteError(language === 'ru' ? 'Ошибка удаления' : 'O\'chirish xatosi');
     }
   };
@@ -266,11 +266,12 @@ export function RentalsPage() {
       } else {
         addToast('error', language === 'ru' ? 'Ошибка создания пользователя. Ответ сервера пустой.' : 'Foydalanuvchi yaratishda xato. Server javobi bo\'sh.');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[RentalsPage] Error creating apartment:', error);
+      const errMsg = error instanceof Error ? error.message : (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xato');
       addToast('error', language === 'ru'
-        ? `Ошибка создания пользователя: ${error.message || 'Неизвестная ошибка'}`
-        : `Foydalanuvchi yaratishda xato: ${error.message || 'Noma\'lum xato'}`);
+        ? `Ошибка создания пользователя: ${errMsg}`
+        : `Foydalanuvchi yaratishda xato: ${errMsg}`);
     }
   };
 
@@ -489,7 +490,7 @@ export function RentalsPage() {
                               onClick={async () => {
                                 try {
                                   await deleteRentalRecord(record.id);
-                                } catch (error) {
+                                } catch {
                                   addToast('error', language === 'ru' ? 'Ошибка удаления записи' : 'Yozuvni o\'chirishda xato');
                                 }
                               }}

@@ -45,12 +45,12 @@ interface OverviewTabProps {
   buildingStats: BuildingStat[];
   departmentStats: DepartmentStat[];
   topExecutors: Array<{ id: string; name: string; rating?: number }>;
-  recentRequests: Array<any>;
+  recentRequests: Array<Record<string, unknown>>;
   teamData: TeamData | null;
-  executors: Array<any>;
-  buildings: Array<any>;
-  meetings: Array<any>;
-  announcements: Array<any>;
+  executors: Array<Record<string, unknown>>;
+  buildings: Array<Record<string, unknown>>;
+  meetings: Array<Record<string, unknown>>;
+  announcements: Array<Record<string, unknown>>;
   t: (key: string) => string;
 }
 
@@ -447,7 +447,7 @@ export function OverviewTab({
         title={t('director.recentRequests')}
       >
         <div className="space-y-3">
-          {recentRequests.map((req: any) => (
+          {recentRequests.map((req: Record<string, unknown>) => (
             <div key={req.id} className="p-3 bg-gray-50 rounded-xl">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -550,7 +550,7 @@ export function OverviewTab({
               {language === 'ru' ? 'Исполнители' : 'Ijrochilar'} ({teamData?.executors.length || executors.length})
             </h4>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {(teamData?.executors || executors).slice(0, 10).map((member: any) => (
+              {(teamData?.executors || executors).slice(0, 10).map((member: Record<string, unknown>) => (
                 <div key={member.id} className="p-3 bg-green-50 rounded-xl flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
                     member.status === 'available' ? 'bg-green-500' :
@@ -596,7 +596,7 @@ export function OverviewTab({
         title={t('director.buildingsList')}
       >
         <div className="space-y-3">
-          {buildings.slice(0, 15).map((building: any) => (
+          {buildings.slice(0, 15).map((building: Record<string, unknown>) => (
             <div key={building.id} className="p-3 bg-gray-50 rounded-xl">
               <div className="flex items-start gap-3">
                 <Building2 className="w-8 h-8 text-teal-500 flex-shrink-0" />
@@ -638,7 +638,7 @@ export function OverviewTab({
               {t('director.meetings')} ({companyStats.activeMeetings})
             </h4>
             <div className="space-y-2">
-              {meetings.filter((m: any) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).slice(0, 5).map((meeting: any) => (
+              {meetings.filter((m: Record<string, unknown>) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).slice(0, 5).map((meeting: Record<string, unknown>) => (
                 <div key={meeting.id} className="p-3 bg-gray-50 rounded-xl">
                   <div className="font-medium text-sm">#{meeting.number}</div>
                   <div className="text-xs text-gray-500">{meeting.buildingAddress}</div>
@@ -651,7 +651,7 @@ export function OverviewTab({
                   </div>
                 </div>
               ))}
-              {meetings.filter((m: any) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).length === 0 && (
+              {meetings.filter((m: Record<string, unknown>) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).length === 0 && (
                 <div className="text-gray-400 text-sm text-center py-4">
                   {language === 'ru' ? 'Нет активных собраний' : 'Faol yig\'ilishlar yo\'q'}
                 </div>
@@ -672,7 +672,7 @@ export function OverviewTab({
               {t('director.announcements')} ({companyStats.activeAnnouncements})
             </h4>
             <div className="space-y-2">
-              {announcements.filter((a: any) => a.isActive).slice(0, 5).map((announcement: any) => (
+              {announcements.filter((a: Record<string, unknown>) => a.isActive).slice(0, 5).map((announcement: Record<string, unknown>) => (
                 <div key={announcement.id} className="p-3 bg-gray-50 rounded-xl">
                   <div className="font-medium text-sm">{announcement.title}</div>
                   <div className="text-xs text-gray-500 line-clamp-2 mt-1">{announcement.content}</div>
@@ -687,7 +687,7 @@ export function OverviewTab({
                   </div>
                 </div>
               ))}
-              {announcements.filter((a: any) => a.isActive).length === 0 && (
+              {announcements.filter((a: Record<string, unknown>) => a.isActive).length === 0 && (
                 <div className="text-gray-400 text-sm text-center py-4">
                   {language === 'ru' ? 'Нет активных объявлений' : 'Faol e\'lonlar yo\'q'}
                 </div>

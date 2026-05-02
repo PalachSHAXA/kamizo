@@ -108,7 +108,7 @@ export function CreateMeetingWizard({
       try {
         const resp = await buildingsApi.getAll();
         if (!cancelled && resp.buildings) {
-          const filtered = resp.buildings.filter((b: any) => b.branch_code === selectedBranchCode);
+          const filtered = resp.buildings.filter((b: Record<string, unknown>) => b.branch_code === selectedBranchCode);
           setBuildingsForBranch(filtered);
           // Reset building selection
           setFormData(prev => ({ ...prev, buildingId: '', buildingAddress: '' }));

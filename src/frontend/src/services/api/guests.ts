@@ -4,11 +4,11 @@ import { apiRequest, cachedGet, CACHE_TTL } from './client';
 
 export const guestCodesApi = {
   getAll: async () => {
-    return cachedGet<{ codes: any[] }>('/api/guest-codes', CACHE_TTL.SHORT);
+    return cachedGet<{ codes: Record<string, unknown>[] }>('/api/guest-codes', CACHE_TTL.SHORT);
   },
 
   getById: async (codeId: string) => {
-    return cachedGet<{ code: any }>(`/api/guest-codes/${codeId}`, CACHE_TTL.SHORT);
+    return cachedGet<{ code: Record<string, unknown> }>(`/api/guest-codes/${codeId}`, CACHE_TTL.SHORT);
   },
 
   create: async (code: {
@@ -25,7 +25,7 @@ export const guestCodesApi = {
     resident_address?: string;
     notes?: string;
   }) => {
-    return apiRequest<{ code: any }>('/api/guest-codes', {
+    return apiRequest<{ code: Record<string, unknown> }>('/api/guest-codes', {
       method: 'POST',
       body: JSON.stringify(code),
     });
@@ -45,19 +45,19 @@ export const guestCodesApi = {
   },
 
   validate: async (qrToken: string) => {
-    return apiRequest<{ valid: boolean; code?: any; error?: string; message?: string }>('/api/guest-codes/validate', {
+    return apiRequest<{ valid: boolean; code?: Record<string, unknown>; error?: string; message?: string }>('/api/guest-codes/validate', {
       method: 'POST',
       body: JSON.stringify({ qr_token: qrToken }),
     });
   },
 
   use: async (codeId: string) => {
-    return apiRequest<{ success: boolean; code?: any }>(`/api/guest-codes/${codeId}/use`, {
+    return apiRequest<{ success: boolean; code?: Record<string, unknown> }>(`/api/guest-codes/${codeId}/use`, {
       method: 'POST',
     });
   },
 
   getLogs: async (codeId: string) => {
-    return apiRequest<{ logs: any[] }>(`/api/guest-codes/${codeId}/logs`);
+    return apiRequest<{ logs: Record<string, unknown>[] }>(`/api/guest-codes/${codeId}/logs`);
   },
 };

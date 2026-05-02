@@ -7,6 +7,7 @@ import {
   MessageSquare, Send, Phone
 } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
+import type { AgainstVote, ReconsiderationStats } from '../stores/meetingReconsiderationStore';
 import { useToastStore } from '../stores/toastStore';
 import { generateProtocolDocx } from '../utils/protocolGenerator';
 import type { Meeting } from '../types';
@@ -40,13 +41,13 @@ export function MeetingDetailsModal({
   const [downloadingProtocol, setDownloadingProtocol] = useState(false);
   const [activeTab, setActiveTab] = useState<'agenda' | 'against'>('agenda');
   const [selectedAgendaItem, setSelectedAgendaItem] = useState<string | null>(null);
-  const [againstVotes, setAgainstVotes] = useState<any[]>([]);
+  const [againstVotes, setAgainstVotes] = useState<AgainstVote[]>([]);
   const [loadingAgainstVotes, setLoadingAgainstVotes] = useState(false);
   const [sendingRequest, setSendingRequest] = useState<string | null>(null);
   const [showSendModal, setShowSendModal] = useState<{ voterId: string; voterName: string } | null>(null);
   const [requestReason, setRequestReason] = useState('');
   const [requestMessage, setRequestMessage] = useState('');
-  const [reconsiderationStats, setReconsiderationStats] = useState<any>(null);
+  const [reconsiderationStats, setReconsiderationStats] = useState<ReconsiderationStats | null>(null);
 
   const { fetchAgainstVotes, sendReconsiderationRequest, fetchReconsiderationStats } = useMeetingStore();
 
@@ -368,9 +369,9 @@ export function MeetingDetailsModal({
                         <p className="text-sm text-gray-500 mt-1">{item.description}</p>
 
                         {/* Agenda item attachments */}
-                        {(item as any).attachments && (item as any).attachments.length > 0 && (
+                        {item.attachments && item.attachments.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {(item as any).attachments.map((att: { name: string; url: string; type: string; size: number }, ai: number) => (
+                            {item.attachments.map((att: { name: string; url: string; type: string; size?: number }, ai: number) => (
                               <div key={ai}>
                                 {att.type.startsWith('image/') ? (
                                   <a href={att.url} target="_blank" rel="noopener noreferrer">

@@ -175,7 +175,7 @@ export function FeatureLockedModal({ isOpen, onClose, featureName, featureKey }:
             {isResidentRole && featureInfo && (
               <>
                 <p className="text-[12px] text-gray-400 text-center -mb-1">
-                  {t(`Попросите ${tenantName} повысить план`, `${tenantName}dan rejani yangilashni so\'rang`)}
+                  {t(`Попросите ${tenantName} повысить план`, `${tenantName}dan rejani yangilashni so'rang`)}
                 </p>
                 <button
                   onClick={handleContactUK}

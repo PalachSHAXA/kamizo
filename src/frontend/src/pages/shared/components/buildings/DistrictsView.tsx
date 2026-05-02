@@ -8,7 +8,7 @@ interface DistrictsViewProps {
   allDistricts: string[];
   noBranchDistrict: boolean;
   language: string;
-  user: any;
+  user: { role: string } | null;
   onDistrictClick: (district: string) => void;
   onDeleteDistrictConfirm: (district: string) => void;
   onShowAddDistrictModal: () => void;

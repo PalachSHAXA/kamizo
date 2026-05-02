@@ -10,7 +10,7 @@ export const requestsApi = {
     if (category) params.append('category', category);
     const queryString = params.toString();
     // Use cached GET with short TTL (10s) - requests change frequently
-    return cachedGet<{ requests: any[] }>(`/api/requests${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
+    return cachedGet<{ requests: Record<string, unknown>[] }>(`/api/requests${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
   },
 
   create: async (request: {
@@ -23,7 +23,7 @@ export const requestsApi = {
     // For manual creation by managers/admins - specify resident
     resident_id?: string;
   }) => {
-    const result = await apiRequest<{ request: any }>('/api/requests', {
+    const result = await apiRequest<{ request: Record<string, unknown> }>('/api/requests', {
       method: 'POST',
       body: JSON.stringify(request),
     });
@@ -46,7 +46,7 @@ export const requestsApi = {
   },
 
   assign: async (requestId: string, executorId: string) => {
-    const result = await apiRequest<{ request: any }>(`/api/requests/${requestId}/assign`, {
+    const result = await apiRequest<{ request: Record<string, unknown> }>(`/api/requests/${requestId}/assign`, {
       method: 'POST',
       body: JSON.stringify({ executor_id: executorId }),
     });
@@ -78,7 +78,7 @@ export const requestsApi = {
   },
 
   pause: async (requestId: string, reason?: string) => {
-    const result = await apiRequest<{ success: boolean; request: any }>(`/api/requests/${requestId}/pause`, {
+    const result = await apiRequest<{ success: boolean; request: Record<string, unknown> }>(`/api/requests/${requestId}/pause`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
@@ -87,7 +87,7 @@ export const requestsApi = {
   },
 
   resume: async (requestId: string) => {
-    const result = await apiRequest<{ success: boolean; request: any; totalPausedTime: number }>(`/api/requests/${requestId}/resume`, {
+    const result = await apiRequest<{ success: boolean; request: Record<string, unknown>; totalPausedTime: number }>(`/api/requests/${requestId}/resume`, {
       method: 'POST',
     });
     invalidateCache('/api/requests');
@@ -149,14 +149,14 @@ export const requestsApi = {
     reason: string;
     reason_text?: string;
   }) => {
-    return apiRequest<{ reschedule: any }>(`/api/requests/${requestId}/reschedule`, {
+    return apiRequest<{ reschedule: Record<string, unknown> }>(`/api/requests/${requestId}/reschedule`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   getReschedules: async (requestId: string) => {
-    return apiRequest<{ reschedules: any[] }>(`/api/requests/${requestId}/reschedule`);
+    return apiRequest<{ reschedules: Record<string, unknown>[] }>(`/api/requests/${requestId}/reschedule`);
   },
 };
 
@@ -164,7 +164,7 @@ export const requestsApi = {
 export const rescheduleApi = {
   // Get pending reschedules for current user
   getPending: async () => {
-    return apiRequest<{ reschedules: any[] }>('/api/reschedule-requests');
+    return apiRequest<{ reschedules: Record<string, unknown>[] }>('/api/reschedule-requests');
   },
 
   // Respond to reschedule request.
@@ -173,7 +173,7 @@ export const rescheduleApi = {
   // requests cache stale would show the old time for up to ~10s after
   // the resident accepts/rejects (audit P0 fix).
   respond: async (rescheduleId: string, accepted: boolean, responseNote?: string) => {
-    const result = await apiRequest<{ reschedule: any }>(`/api/reschedule-requests/${rescheduleId}/respond`, {
+    const result = await apiRequest<{ reschedule: Record<string, unknown> }>(`/api/reschedule-requests/${rescheduleId}/respond`, {
       method: 'POST',
       body: JSON.stringify({ accepted, response_note: responseNote }),
     });
@@ -186,7 +186,7 @@ export const rescheduleApi = {
 // Ratings API
 export const ratingsApi = {
   getForExecutor: async (executorId: string) => {
-    return apiRequest<{ ratings: any[]; average: any }>(`/api/ratings?executor_id=${executorId}`);
+    return apiRequest<{ ratings: Record<string, unknown>[]; average: Record<string, unknown> }>(`/api/ratings?executor_id=${executorId}`);
   },
 
   create: async (rating: {
@@ -196,7 +196,7 @@ export const ratingsApi = {
     politeness: number;
     comment?: string;
   }) => {
-    return apiRequest<{ rating: any }>('/api/ratings', {
+    return apiRequest<{ rating: Record<string, unknown> }>('/api/ratings', {
       method: 'POST',
       body: JSON.stringify(rating),
     });
@@ -219,16 +219,16 @@ export const ukRatingsApi = {
   },
 
   getMyRating: async () => {
-    return apiRequest<{ rating: any; period: string }>('/api/uk-ratings/my');
+    return apiRequest<{ rating: Record<string, unknown> | null; period: string }>('/api/uk-ratings/my');
   },
 
   getSummary: async (months = 6) => {
     return apiRequest<{
-      monthly: any[];
-      current: any;
-      previous: any;
+      monthly: Record<string, unknown>[];
+      current: Record<string, unknown>;
+      previous: Record<string, unknown>;
       trend: number;
-      recentComments: any[];
+      recentComments: Record<string, unknown>[];
       currentPeriod: string;
     }>(`/api/uk-ratings/summary?months=${months}`);
   },
@@ -237,14 +237,14 @@ export const ukRatingsApi = {
 // Categories API
 export const categoriesApi = {
   getAll: async () => {
-    return apiRequest<{ categories: any[] }>('/api/categories');
+    return apiRequest<{ categories: Record<string, unknown>[] }>('/api/categories');
   },
 };
 
 // Stats API
 export const statsApi = {
   getDashboard: async () => {
-    return apiRequest<any>('/api/stats/dashboard');
+    return apiRequest<Record<string, unknown>>('/api/stats/dashboard');
   },
 };
 
@@ -257,7 +257,7 @@ export const workOrdersApi = {
     if (filters?.priority) params.append('priority', filters.priority);
     if (filters?.buildingId) params.append('building_id', filters.buildingId);
     const queryString = params.toString();
-    return cachedGet<{ workOrders: any[] }>(`/api/work-orders${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
+    return cachedGet<{ workOrders: Record<string, unknown>[] }>(`/api/work-orders${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
   },
 
   create: async (data: {
@@ -271,12 +271,12 @@ export const workOrdersApi = {
     scheduled_date?: string;
     scheduled_time?: string;
     estimated_duration?: number;
-    materials?: any[];
-    checklist?: any[];
+    materials?: Record<string, unknown>[];
+    checklist?: Record<string, unknown>[];
     notes?: string;
     request_id?: string;
   }) => {
-    const result = await apiRequest<{ workOrder: any }>('/api/work-orders', {
+    const result = await apiRequest<{ workOrder: Record<string, unknown> }>('/api/work-orders', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -284,8 +284,8 @@ export const workOrdersApi = {
     return result;
   },
 
-  update: async (id: string, data: any) => {
-    const result = await apiRequest<{ workOrder: any }>(`/api/work-orders/${id}`, {
+  update: async (id: string, data: Record<string, unknown>) => {
+    const result = await apiRequest<{ workOrder: Record<string, unknown> }>(`/api/work-orders/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });

@@ -50,30 +50,68 @@ interface WorkOrder {
 }
 
 // Map API snake_case fields to camelCase interface
-function mapWorkOrder(raw: any): WorkOrder {
+interface WorkOrderRaw {
+  id: string;
+  number: string;
+  title: string;
+  description?: string;
+  type: WorkOrder['type'];
+  priority: WorkOrder['priority'];
+  status: WorkOrder['status'];
+  building_id?: string;
+  buildingId?: string;
+  apartment_id?: string;
+  apartmentId?: string;
+  assigned_to?: string;
+  assignedTo?: string;
+  scheduled_date?: string;
+  scheduledDate?: string;
+  scheduled_time?: string;
+  scheduledTime?: string;
+  started_at?: string;
+  startedAt?: string;
+  completed_at?: string;
+  completedAt?: string;
+  estimated_duration?: number;
+  estimatedDuration?: number;
+  actual_duration?: number;
+  actualDuration?: number;
+  materials?: string | { name: string; quantity: number; cost: number }[];
+  checklist?: string | { item: string; completed: boolean }[];
+  notes?: string;
+  request_id?: string;
+  requestId?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+}
+
+function mapWorkOrder(raw: Record<string, unknown>): WorkOrder {
+  const r = raw as unknown as WorkOrderRaw;
   return {
-    id: raw.id,
-    number: raw.number,
-    title: raw.title,
-    description: raw.description || '',
-    type: raw.type,
-    priority: raw.priority,
-    status: raw.status,
-    buildingId: raw.building_id || raw.buildingId || '',
-    apartmentId: raw.apartment_id || raw.apartmentId,
-    assignedTo: raw.assigned_to || raw.assignedTo,
-    scheduledDate: raw.scheduled_date || raw.scheduledDate,
-    scheduledTime: raw.scheduled_time || raw.scheduledTime,
-    startedAt: raw.started_at || raw.startedAt,
-    completedAt: raw.completed_at || raw.completedAt,
-    estimatedDuration: raw.estimated_duration ?? raw.estimatedDuration ?? 60,
-    actualDuration: raw.actual_duration ?? raw.actualDuration,
-    materials: typeof raw.materials === 'string' ? JSON.parse(raw.materials || '[]') : (raw.materials || []),
-    checklist: typeof raw.checklist === 'string' ? JSON.parse(raw.checklist || '[]') : (raw.checklist || []),
-    notes: raw.notes,
-    requestId: raw.request_id || raw.requestId,
-    createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
-    updatedAt: raw.updated_at || raw.updatedAt || new Date().toISOString(),
+    id: r.id,
+    number: r.number,
+    title: r.title,
+    description: r.description || '',
+    type: r.type,
+    priority: r.priority,
+    status: r.status,
+    buildingId: r.building_id || r.buildingId || '',
+    apartmentId: r.apartment_id || r.apartmentId,
+    assignedTo: r.assigned_to || r.assignedTo,
+    scheduledDate: r.scheduled_date || r.scheduledDate,
+    scheduledTime: r.scheduled_time || r.scheduledTime,
+    startedAt: r.started_at || r.startedAt,
+    completedAt: r.completed_at || r.completedAt,
+    estimatedDuration: r.estimated_duration ?? r.estimatedDuration ?? 60,
+    actualDuration: r.actual_duration ?? r.actualDuration,
+    materials: typeof r.materials === 'string' ? JSON.parse(r.materials || '[]') : (r.materials || []),
+    checklist: typeof r.checklist === 'string' ? JSON.parse(r.checklist || '[]') : (r.checklist || []),
+    notes: r.notes,
+    requestId: r.request_id || r.requestId,
+    createdAt: r.created_at || r.createdAt || new Date().toISOString(),
+    updatedAt: r.updated_at || r.updatedAt || new Date().toISOString(),
   };
 }
 
@@ -101,7 +139,8 @@ export function WorkOrdersPage() {
       if (filterPriority !== 'all') filters.priority = filterPriority;
       if (filterBuilding !== 'all') filters.buildingId = filterBuilding;
       const response = await workOrdersApi.getAll(Object.keys(filters).length > 0 ? filters : undefined);
-      const orders = ((response as any).workOrders || (response as any).work_orders || []).map(mapWorkOrder);
+      const resp = response as Record<string, unknown>;
+      const orders = ((resp.workOrders || resp.work_orders || []) as Record<string, unknown>[]).map(mapWorkOrder);
       setWorkOrders(orders);
     } catch (error) {
       console.error('Failed to fetch work orders:', error);

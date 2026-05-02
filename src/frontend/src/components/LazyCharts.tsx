@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ComponentProps } from 'react';
 // Direct import for Cell - it must be synchronous inside Pie
 import { Cell as RechartsCell } from 'recharts';
 
@@ -24,73 +24,73 @@ const ChartLoader = () => (
 );
 
 // Export wrapped components with Suspense
-export const LineChart = (props: any) => (
+export const LineChart = (props: ComponentProps<typeof LazyLineChart>) => (
   <Suspense fallback={<ChartLoader />}>
     <LazyLineChart {...props} />
   </Suspense>
 );
 
-export const BarChart = (props: any) => (
+export const BarChart = (props: ComponentProps<typeof LazyBarChart>) => (
   <Suspense fallback={<ChartLoader />}>
     <LazyBarChart {...props} />
   </Suspense>
 );
 
-export const PieChart = (props: any) => (
+export const PieChart = (props: ComponentProps<typeof LazyPieChart>) => (
   <Suspense fallback={<ChartLoader />}>
     <LazyPieChart {...props} />
   </Suspense>
 );
 
-export const Line = (props: any) => (
+export const Line = (props: ComponentProps<typeof LazyLine>) => (
   <Suspense fallback={null}>
     <LazyLine {...props} />
   </Suspense>
 );
 
-export const Bar = (props: any) => (
+export const Bar = (props: ComponentProps<typeof LazyBar>) => (
   <Suspense fallback={null}>
     <LazyBar {...props} />
   </Suspense>
 );
 
-export const Pie = (props: any) => (
+export const Pie = (props: ComponentProps<typeof LazyPie>) => (
   <Suspense fallback={null}>
     <LazyPie {...props} />
   </Suspense>
 );
 
-export const XAxis = (props: any) => (
+export const XAxis = (props: ComponentProps<typeof LazyXAxis>) => (
   <Suspense fallback={null}>
     <LazyXAxis {...props} />
   </Suspense>
 );
 
-export const YAxis = (props: any) => (
+export const YAxis = (props: ComponentProps<typeof LazyYAxis>) => (
   <Suspense fallback={null}>
     <LazyYAxis {...props} />
   </Suspense>
 );
 
-export const CartesianGrid = (props: any) => (
+export const CartesianGrid = (props: ComponentProps<typeof LazyCartesianGrid>) => (
   <Suspense fallback={null}>
     <LazyCartesianGrid {...props} />
   </Suspense>
 );
 
-export const Tooltip = (props: any) => (
+export const Tooltip = (props: ComponentProps<typeof LazyTooltip>) => (
   <Suspense fallback={null}>
     <LazyTooltip {...props} />
   </Suspense>
 );
 
-export const Legend = (props: any) => (
+export const Legend = (props: ComponentProps<typeof LazyLegend>) => (
   <Suspense fallback={null}>
     <LazyLegend {...props} />
   </Suspense>
 );
 
-export const ResponsiveContainer = (props: any) => (
+export const ResponsiveContainer = (props: ComponentProps<typeof LazyResponsiveContainer>) => (
   <Suspense fallback={<ChartLoader />}>
     <LazyResponsiveContainer {...props} />
   </Suspense>
@@ -103,13 +103,13 @@ export const Cell = RechartsCell;
 const LazyAreaChart = lazy(() => import('recharts').then(module => ({ default: module.AreaChart })));
 const LazyArea = lazy(() => import('recharts').then(module => ({ default: module.Area })));
 
-export const AreaChart = (props: any) => (
+export const AreaChart = (props: ComponentProps<typeof LazyAreaChart>) => (
   <Suspense fallback={<ChartLoader />}>
     <LazyAreaChart {...props} />
   </Suspense>
 );
 
-export const Area = (props: any) => (
+export const Area = (props: ComponentProps<typeof LazyArea>) => (
   <Suspense fallback={null}>
     <LazyArea {...props} />
   </Suspense>

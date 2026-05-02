@@ -209,7 +209,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     try {
       const res = await financeApi.getChargesSummary(buildingId, period);
       set({ chargesSummary: res.summary || null });
-    } catch (err) {
+    } catch {
       set({ chargesSummary: { total_charged: 0, total_paid: 0, total_debt: 0, total_overpaid: 0 } });
     }
   },

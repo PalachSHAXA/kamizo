@@ -7,7 +7,7 @@ import {
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
   X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock, CreditCard,
-  Wallet, FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck,
+  FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck,
   ChevronDown
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
@@ -32,7 +32,6 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { user } = useAuthStore();
   const { t, language } = useLanguageStore();
   const requests = useRequestStore(s => s.requests);
-  const announcements = useAnnouncementStore(s => s.announcements);
   const executors = useExecutorStore(s => s.executors);
   const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
   const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
@@ -268,7 +267,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
 
     return {};
-  }, [user, requests, announcements, executors, getAnnouncementsForEmployees, getAnnouncementsForResidents, chatUnreadCount, meetings]);
+  }, [user, requests, executors, getAnnouncementsForEmployees, getAnnouncementsForResidents, chatUnreadCount, meetings]);
 
   // Different nav items based on role and account_type
   const getNavItems = () => {
@@ -545,7 +544,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   };
 
   // Filter: still show all items but mark locked ones
-  const filterByFeatures = (items: Array<{ path: string; icon: any; label: string; section?: string }>): Array<{ path: string; icon: any; label: string; section?: string }> => {
+  const filterByFeatures = (items: Array<{ path: string; icon: React.ElementType; label: string; section?: string }>): Array<{ path: string; icon: React.ElementType; label: string; section?: string }> => {
     // If no tenant (main domain) or super_admin, show all items
     if (!config?.tenant || user?.role === 'super_admin') {
       return items;
@@ -611,6 +610,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             // Precompute which section each item belongs to
             let currentSection = '';
             const itemsWithSection = navItems.map((item: { path: string; icon: React.ElementType; label: string; section?: string }) => {
+              // eslint-disable-next-line react-hooks/immutability
               if (item.section) currentSection = item.section;
               return { ...item, currentSection };
             });

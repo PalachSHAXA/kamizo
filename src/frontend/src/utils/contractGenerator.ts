@@ -104,6 +104,7 @@ async function generateUKQRCode(): Promise<string> {
 export async function generateContractDocx(
   user: User,
   residentQrCodeDataUrl: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _language: 'ru' | 'uz' = 'ru'
 ): Promise<void> {
   // Get fixed contract date
@@ -139,7 +140,7 @@ export async function generateContractDocx(
   });
 
   // Format area (KVM) - square meters from user's totalArea
-  const area = user.totalArea || (user as any).total_area;
+  const area = user.totalArea || (user as unknown as Record<string, unknown>).total_area;
   const kvm = (area != null && area !== '' && area !== 'undefined') ? String(area) : '_____';
 
   // Build full address

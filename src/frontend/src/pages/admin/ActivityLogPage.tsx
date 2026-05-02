@@ -272,12 +272,12 @@ export function ActivityLogPage() {
                             {formatDateTime(activity.timestamp)}
                           </p>
                         </div>
-                        {(activity as any).rating && (
+                        {'rating' in activity && activity.rating && (
                           <div className="flex items-center gap-1">
                             {[1, 2, 3, 4, 5].map(star => (
                               <Star
                                 key={star}
-                                className={`w-4 h-4 ${star <= (activity as any).rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
+                                className={`w-4 h-4 ${star <= (activity as { rating?: number }).rating! ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
                               />
                             ))}
                           </div>

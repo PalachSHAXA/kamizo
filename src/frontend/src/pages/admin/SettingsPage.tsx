@@ -14,7 +14,7 @@ export function SettingsPage() {
   const { settings, updateSettings } = useDataStore();
   const { user, updateUserProfile } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
-  const { config, hasFeature, fetchConfig } = useTenantStore();
+  const { hasFeature, fetchConfig } = useTenantStore();
   const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
   const isAdmin = user?.role === 'admin';
   const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'modules' | 'notifications' | 'integrations' | 'users'>('profile');
@@ -197,8 +197,8 @@ export function SettingsPage() {
       setTimeout(() => {
         window.location.reload();
       }, 2000);
-    } catch (err: any) {
-      setResetMessage({ type: 'error', text: err.message || (language === 'ru' ? 'Ошибка при сбросе заявок' : 'Arizalarni tiklashda xatolik') });
+    } catch (err: unknown) {
+      setResetMessage({ type: 'error', text: (err instanceof Error ? err.message : '') || (language === 'ru' ? 'Ошибка при сбросе заявок' : 'Arizalarni tiklashda xatolik') });
     } finally {
       setIsResetting(false);
     }
@@ -218,8 +218,8 @@ export function SettingsPage() {
       }
       setProfileMessage({ type: 'success', text: language === 'ru' ? 'Профиль успешно сохранён' : 'Profil muvaffaqiyatli saqlandi' });
       setTimeout(() => setProfileMessage(null), 3000);
-    } catch (err: any) {
-      setProfileMessage({ type: 'error', text: err.message || (language === 'ru' ? 'Ошибка при сохранении профиля' : 'Profilni saqlashda xatolik') });
+    } catch (err: unknown) {
+      setProfileMessage({ type: 'error', text: (err instanceof Error ? err.message : '') || (language === 'ru' ? 'Ошибка при сохранении профиля' : 'Profilni saqlashda xatolik') });
     } finally {
       setIsProfileSaving(false);
     }
@@ -255,8 +255,8 @@ export function SettingsPage() {
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordMessage(null), 3000);
-    } catch (err: any) {
-      setPasswordMessage({ type: 'error', text: err.message || (language === 'ru' ? 'Ошибка при смене пароля' : 'Parolni o\'zgartirishda xatolik') });
+    } catch (err: unknown) {
+      setPasswordMessage({ type: 'error', text: (err instanceof Error ? err.message : '') || (language === 'ru' ? 'Ошибка при смене пароля' : 'Parolni o\'zgartirishda xatolik') });
     } finally {
       setIsPasswordSaving(false);
     }
@@ -750,7 +750,7 @@ export function SettingsPage() {
                         try {
                           await apiRequest('/api/tenant/features', { method: 'PATCH', body: JSON.stringify({ feature: mod.key, enabled: !enabled }) });
                           await fetchConfig();
-                        } catch {}
+                        } catch { /* toggle may fail */ }
                         setTogglingFeature(null);
                       }}
                       className="flex-shrink-0 transition-colors"

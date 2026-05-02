@@ -3,7 +3,6 @@ import {
   Eye, Play, Square, BarChart3, Shield, X, Check, CalendarCheck, Download, Trash2,
 } from 'lucide-react';
 import type { Meeting, MeetingStatus } from '../types';
-import { MEETING_STATUS_LABELS } from '../types';
 import { plural } from '../utils/plural';
 import { StatusBadge } from '../components/common';
 import type { StatusTone } from '../theme';
@@ -145,10 +144,10 @@ export function MeetingCard({
               </div>
               <div className="space-y-1">
                 {meeting.scheduleOptions.map((option) => {
-                  const totalVotes = meeting.scheduleOptions.reduce((sum, opt) => sum + ((opt as any).voteCount ?? opt.votes?.length ?? 0), 0);
-                  const voteCount = (option as any).voteCount ?? option.votes?.length ?? 0;
+                  const totalVotes = meeting.scheduleOptions.reduce((sum, opt) => sum + (opt.voteCount ?? opt.votes?.length ?? 0), 0);
+                  const voteCount = option.voteCount ?? option.votes?.length ?? 0;
                   const percent = totalVotes > 0 ? (voteCount / totalVotes * 100) : 0;
-                  const isLeading = voteCount > 0 && voteCount === Math.max(...meeting.scheduleOptions.map(o => (o as any).voteCount ?? o.votes?.length ?? 0));
+                  const isLeading = voteCount > 0 && voteCount === Math.max(...meeting.scheduleOptions.map(o => o.voteCount ?? o.votes?.length ?? 0));
 
                   return (
                     <div key={option.id} className="flex items-center gap-2 text-sm">
@@ -175,7 +174,7 @@ export function MeetingCard({
               </div>
               <div className="text-xs text-gray-400 mt-2">
                 {language === 'ru' ? 'Всего голосов: ' : 'Jami ovozlar: '}
-                {meeting.scheduleOptions.reduce((sum, opt) => sum + ((opt as any).voteCount ?? opt.votes?.length ?? 0), 0)}
+                {meeting.scheduleOptions.reduce((sum, opt) => sum + (opt.voteCount ?? opt.votes?.length ?? 0), 0)}
               </div>
             </div>
           )}

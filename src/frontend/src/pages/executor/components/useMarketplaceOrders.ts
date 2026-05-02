@@ -64,9 +64,9 @@ export function useMarketplaceOrders() {
       });
       // Refresh both lists
       await Promise.all([fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to take order:', error);
-      addToast('error', language === 'ru' ? (error?.message || '\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0432\u0437\u044f\u0442\u0438\u0438 \u0437\u0430\u043a\u0430\u0437\u0430') : 'Buyurtmani olishda xatolik');
+      addToast('error', language === 'ru' ? ((error instanceof Error ? error.message : '') || '\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0432\u0437\u044f\u0442\u0438\u0438 \u0437\u0430\u043a\u0430\u0437\u0430') : 'Buyurtmani olishda xatolik');
       // Refresh to get current state
       fetchAvailableMarketplaceOrders();
     }
@@ -91,11 +91,11 @@ export function useMarketplaceOrders() {
       setSelectedMarketplaceOrder(null);
       // Also fetch fresh data from server
       await Promise.all([fetchMarketplaceOrders(), fetchDeliveredMarketplaceOrders()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to update order status:', error);
       // Refresh orders to get current state
       await Promise.all([fetchMarketplaceOrders(), fetchDeliveredMarketplaceOrders()]);
-      const errorMsg = error?.message || (language === 'ru' ? '\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0438 \u0441\u0442\u0430\u0442\u0443\u0441\u0430' : 'Status yangilashda xatolik');
+      const errorMsg = (error instanceof Error ? error.message : '') || (language === 'ru' ? '\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0438 \u0441\u0442\u0430\u0442\u0443\u0441\u0430' : 'Status yangilashda xatolik');
       addToast('error', errorMsg);
     }
   };

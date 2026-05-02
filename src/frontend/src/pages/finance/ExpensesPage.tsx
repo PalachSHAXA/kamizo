@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { TrendingDown, Plus, Filter, FileText, AlertTriangle } from 'lucide-react';
+import { TrendingDown, Plus, Filter, FileText } from 'lucide-react';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useAuthStore } from '../../stores/authStore';

@@ -112,6 +112,7 @@ export function usePopupNotifications() {
     });
 
     if (newPopups.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPopups(prev => [...prev, ...newPopups]);
     }
 
@@ -158,6 +159,7 @@ export function usePopupNotifications() {
     });
 
     if (newPopups.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPopups(prev => [...prev, ...newPopups]);
     }
   }, [user, requests]);

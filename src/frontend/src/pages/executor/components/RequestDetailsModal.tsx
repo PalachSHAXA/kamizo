@@ -1,6 +1,6 @@
 import {
-  Clock, CheckCircle, MapPin, Phone, User,
-  Play, Check, X, Star, Timer,
+  Clock, MapPin, Phone, User,
+  Play, Check, X, Star,
   CalendarDays, AlertCircle,
   RefreshCw, Hand, XCircle
 } from 'lucide-react';

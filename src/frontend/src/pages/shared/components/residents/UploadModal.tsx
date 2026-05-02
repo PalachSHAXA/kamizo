@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import {
   X, Check, FileSpreadsheet, AlertCircle, Loader2
 } from 'lucide-react';
@@ -70,7 +69,7 @@ export function UploadModal({
             </div>
 
             <input
-              ref={fileInputRef}
+              ref={fileInputRef as React.RefObject<HTMLInputElement>}
               type="file"
               accept=".csv,.xlsx,.xls"
               onChange={onFileUpload}

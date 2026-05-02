@@ -28,8 +28,8 @@ export function useVehicles() {
     try {
       const data = await vehiclesApi.getAll();
       setVehicles(data.vehicles || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
       setVehicles([]);
     } finally {
       setIsLoading(false);
@@ -53,8 +53,8 @@ export function useVehicles() {
       const data = await vehiclesApi.create(vehicleData);
       setVehicles(prev => [...prev, data.vehicle]);
       return data.vehicle;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
       throw err;
     } finally {
       setIsLoading(false);
@@ -67,8 +67,8 @@ export function useVehicles() {
     try {
       await vehiclesApi.delete(vehicleId);
       setVehicles(prev => prev.filter(v => v.id !== vehicleId));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
       throw err;
     } finally {
       setIsLoading(false);
@@ -82,7 +82,7 @@ export function useVehicles() {
     try {
       const data = await vehiclesApi.search(query);
       return data.vehicles || [];
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Search error:', err);
       return [];
     }

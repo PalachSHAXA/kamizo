@@ -5,11 +5,11 @@ import { apiRequest, cachedGet, invalidateCache, CACHE_TTL } from './client';
 // Branches API (CRM)
 export const branchesApi = {
   getAll: async () => {
-    return cachedGet<{ branches: any[] }>('/api/branches', CACHE_TTL.LONG);
+    return cachedGet<{ branches: Record<string, unknown>[] }>('/api/branches', CACHE_TTL.LONG);
   },
 
   getById: async (id: string) => {
-    return apiRequest<{ branch: any }>(`/api/branches/${id}`);
+    return apiRequest<{ branch: Record<string, unknown> }>(`/api/branches/${id}`);
   },
 };
 
@@ -17,11 +17,11 @@ export const branchesApi = {
 export const buildingsApi = {
   getAll: async () => {
     // Buildings rarely change - use long cache
-    return cachedGet<{ buildings: any[] }>('/api/buildings', CACHE_TTL.LONG);
+    return cachedGet<{ buildings: Record<string, unknown>[] }>('/api/buildings', CACHE_TTL.LONG);
   },
 
   getById: async (id: string) => {
-    return cachedGet<{ building: any; entrances: any[]; documents: any[] }>(`/api/buildings/${id}`, CACHE_TTL.LONG);
+    return cachedGet<{ building: Record<string, unknown>; entrances: Record<string, unknown>[]; documents: Record<string, unknown>[] }>(`/api/buildings/${id}`, CACHE_TTL.LONG);
   },
 
   create: async (building: {
@@ -62,7 +62,7 @@ export const buildingsApi = {
     monthlyBudget?: number;
     reserveFund?: number;
   }) => {
-    const result = await apiRequest<{ building: any }>('/api/buildings', {
+    const result = await apiRequest<{ building: Record<string, unknown> }>('/api/buildings', {
       method: 'POST',
       body: JSON.stringify(building),
     });
@@ -111,7 +111,7 @@ export const buildingsApi = {
     totalDebt: number;
     collectionRate: number;
   }>) => {
-    const result = await apiRequest<{ building: any }>(`/api/buildings/${id}`, {
+    const result = await apiRequest<{ building: Record<string, unknown> }>(`/api/buildings/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -133,7 +133,7 @@ export const buildingsApi = {
 // Entrances API (CRM)
 export const entrancesApi = {
   getByBuilding: async (buildingId: string) => {
-    return apiRequest<{ entrances: any[] }>(`/api/buildings/${buildingId}/entrances`);
+    return apiRequest<{ entrances: Record<string, unknown>[] }>(`/api/buildings/${buildingId}/entrances`);
   },
 
   create: async (buildingId: string, entrance: {
@@ -150,7 +150,7 @@ export const entrancesApi = {
     responsibleId?: string;
     notes?: string;
   }) => {
-    return apiRequest<{ entrance: any }>(`/api/buildings/${buildingId}/entrances`, {
+    return apiRequest<{ entrance: Record<string, unknown> }>(`/api/buildings/${buildingId}/entrances`, {
       method: 'POST',
       body: JSON.stringify(entrance),
     });
@@ -171,7 +171,7 @@ export const entrancesApi = {
     lastInspection: string;
     notes: string;
   }>) => {
-    return apiRequest<{ entrance: any }>(`/api/entrances/${id}`, {
+    return apiRequest<{ entrance: Record<string, unknown> }>(`/api/entrances/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -187,7 +187,7 @@ export const entrancesApi = {
 // Building Documents API (CRM)
 export const buildingDocumentsApi = {
   getByBuilding: async (buildingId: string) => {
-    return apiRequest<{ documents: any[] }>(`/api/buildings/${buildingId}/documents`);
+    return apiRequest<{ documents: Record<string, unknown>[] }>(`/api/buildings/${buildingId}/documents`);
   },
 
   create: async (buildingId: string, document: {
@@ -197,7 +197,7 @@ export const buildingDocumentsApi = {
     fileSize?: number;
     expiresAt?: string;
   }) => {
-    return apiRequest<{ document: any }>(`/api/buildings/${buildingId}/documents`, {
+    return apiRequest<{ document: Record<string, unknown> }>(`/api/buildings/${buildingId}/documents`, {
       method: 'POST',
       body: JSON.stringify(document),
     });
@@ -224,13 +224,13 @@ export const apartmentsApi = {
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ apartments: any[]; pagination: { page: number; limit: number; total: number; pages: number } }>(
+    return apiRequest<{ apartments: Record<string, unknown>[]; pagination: { page: number; limit: number; total: number; pages: number } }>(
       `/api/buildings/${buildingId}/apartments${query}`
     );
   },
 
   getById: async (id: string) => {
-    return apiRequest<{ apartment: any; owners: any[]; personalAccount: any }>(`/api/apartments/${id}`);
+    return apiRequest<{ apartment: Record<string, unknown>; owners: Record<string, unknown>[]; personalAccount: Record<string, unknown> }>(`/api/apartments/${id}`);
   },
 
   create: async (buildingId: string, apartment: {
@@ -245,7 +245,7 @@ export const apartmentsApi = {
     hasLoggia?: boolean;
     status?: string;
   }) => {
-    return apiRequest<{ apartment: any }>(`/api/buildings/${buildingId}/apartments`, {
+    return apiRequest<{ apartment: Record<string, unknown> }>(`/api/buildings/${buildingId}/apartments`, {
       method: 'POST',
       body: JSON.stringify(apartment),
     });
@@ -262,7 +262,7 @@ export const apartmentsApi = {
     primaryOwnerId: string;
     personalAccountId: string;
   }>) => {
-    return apiRequest<{ apartment: any }>(`/api/apartments/${id}`, {
+    return apiRequest<{ apartment: Record<string, unknown> }>(`/api/apartments/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });

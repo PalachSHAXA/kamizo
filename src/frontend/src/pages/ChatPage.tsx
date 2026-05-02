@@ -119,22 +119,6 @@ function formatRelativeTime(dateStr: string, lang: string): string {
   return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
 }
 
-function formatTime(dateStr: string, lang: string): string {
-  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return d.toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { hour: '2-digit', minute: '2-digit' });
-  }
-  if (diffDays === 1) return lang === 'ru' ? 'Вчера' : 'Kecha';
-  if (diffDays < 7) {
-    return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'short' });
-  }
-  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
-}
-
 function formatMessageTime(dateStr: string, lang: string): string {
   const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
   return d.toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { hour: '2-digit', minute: '2-digit' });
@@ -717,12 +701,12 @@ function ChatView({
     fetchMessages();
     markAsRead();
 
-    const unsubscribe = subscribeToChatMessages((message: any) => {
+    const unsubscribe = subscribeToChatMessages((message: ChatMessage & { type?: string; message_id?: string; user_id?: string }) => {
       if (message.channel_id === channelId) {
         if (message.type === 'read') {
           setMessages(prev => prev.map(m =>
             m.id === message.message_id
-              ? { ...m, read_by: [...(m.read_by || []), message.user_id] }
+              ? { ...m, read_by: [...(m.read_by || []), message.user_id ?? ''] }
               : m
           ));
           return;
@@ -730,7 +714,7 @@ function ChatView({
         setMessages(prev => {
           const exists = prev.some(m => m.id === message.id);
           if (exists) return prev;
-          return [...prev, message];
+          return [...prev, message as ChatMessage];
         });
         markAsRead();
       }
@@ -1404,7 +1388,7 @@ export function ChatPage() {
         const response = await chatApi.getChannels();
         const newChannels = response.channels || [];
         // Preserve unread_count: 0 for the currently open channel (user is reading it)
-        setChannels(prev => {
+        setChannels(() => {
           const merged = newChannels.map((ch: ChatChannel) => {
             // If this channel is currently open, always force unread to 0
             // (the user is actively reading it — markAsRead runs on polling)
@@ -1428,6 +1412,7 @@ export function ChatPage() {
   }, [isResident, playSound, language]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     fetchChannels().finally(() => setIsLoading(false));
   }, [fetchChannels]);

@@ -74,7 +74,7 @@ export const useGuestAccessStore = create<GuestAccessState>()(
           creatorName: c.creator_name || undefined,
           creatorApartment: c.creator_apartment || undefined,
           creatorPhone: c.creator_phone || undefined,
-        }));
+        } as GuestAccessCode));
         set({ guestAccessCodes: mappedCodes, isLoadingGuestCodes: false });
       } catch (error) {
         console.error('Failed to fetch guest codes:', error);

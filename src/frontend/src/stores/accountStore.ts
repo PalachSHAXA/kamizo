@@ -36,7 +36,7 @@ const mapAccountFromApi = (a: Record<string, unknown>): PersonalAccount => ({
   notes: a.notes,
   createdAt: a.created_at,
   updatedAt: a.updated_at,
-});
+} as PersonalAccount);
 
 interface AccountState {
   // Data

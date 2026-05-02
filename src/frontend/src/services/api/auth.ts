@@ -4,7 +4,7 @@ import { apiRequest, transformUser, markLoggedIn } from './client';
 
 export const authApi = {
   login: async (login: string, password: string) => {
-    const data = await apiRequest<{ user: any; token: string }>('/api/auth/login', {
+    const data = await apiRequest<{ user: Record<string, unknown>; token: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ login, password }),
     });
@@ -33,7 +33,7 @@ export const authApi = {
     branch?: string;
     building?: string;
   }) => {
-    return apiRequest<{ user: any }>('/api/auth/register', {
+    return apiRequest<{ user: Record<string, unknown> }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -51,7 +51,7 @@ export const authApi = {
     entrance?: string;
     floor?: string;
   }>) => {
-    return apiRequest<{ created: any[]; updated: any[] }>('/api/auth/register-bulk', {
+    return apiRequest<{ created: Record<string, unknown>[]; updated: Record<string, unknown>[] }>('/api/auth/register-bulk', {
       method: 'POST',
       body: JSON.stringify({ users }),
     });

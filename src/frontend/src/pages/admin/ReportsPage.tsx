@@ -22,7 +22,7 @@ export function ReportsPage() {
   const [reportType, setReportType] = useState<'general' | 'branch' | 'debts'>('general');
 
   // Debts tab state
-  const [debtRecords, setDebtRecords] = useState<any[]>([]);
+  const [debtRecords, setDebtRecords] = useState<Record<string, unknown>[]>([]);
   const [debtSummary, setDebtSummary] = useState<{ totalDebt: number; totalBalance: number; debtorCount: number } | null>(null);
   const [debtLoading, setDebtLoading] = useState(false);
   const [debtSearch, setDebtSearch] = useState('');
@@ -43,7 +43,7 @@ export function ReportsPage() {
       params.set('sort_by', debtSortBy);
       params.set('sort_dir', debtSortDir);
       params.set('limit', '1000');
-      const data = await apiRequest<{ records: any[]; summary: any }>(`/api/reports/debts?${params}`);
+      const data = await apiRequest<{ records: Record<string, unknown>[]; summary: { totalDebt: number; totalBalance: number; debtorCount: number } }>(`/api/reports/debts?${params}`);
       setDebtRecords(data.records || []);
       setDebtSummary(data.summary || null);
     } catch {
@@ -62,17 +62,17 @@ export function ReportsPage() {
     if (!debtSearch.trim()) return debtRecords;
     const q = debtSearch.trim().toLowerCase();
     return debtRecords.filter(r =>
-      (r.resident_name || '').toLowerCase().includes(q) ||
-      (r.apartment_number || '').toLowerCase().includes(q) ||
-      (r.account_number || '').toLowerCase().includes(q)
+      (String(r.resident_name || '')).toLowerCase().includes(q) ||
+      (String(r.apartment_number || '')).toLowerCase().includes(q) ||
+      (String(r.account_number || '')).toLowerCase().includes(q)
     );
   }, [debtRecords, debtSearch]);
 
   // Get unique districts/buildings from loaded debt records for filter dropdowns
-  const debtDistricts = useMemo(() => [...new Set(debtRecords.map(r => r.district).filter(Boolean))].sort(), [debtRecords]);
+  const debtDistricts = useMemo(() => [...new Set(debtRecords.map(r => String(r.district || '')).filter(Boolean))].sort(), [debtRecords]);
   const debtBuildings = useMemo(() => {
     const seen = new Map<string, string>();
-    debtRecords.forEach(r => { if (r.building_id && r.building_name) seen.set(r.building_id, r.building_name); });
+    debtRecords.forEach(r => { if (r.building_id && r.building_name) seen.set(String(r.building_id), String(r.building_name)); });
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }));
   }, [debtRecords]);
 
@@ -158,8 +158,8 @@ export function ReportsPage() {
     return buildings.map(building => {
       // Get residents for this building - check multiple sources
       // 1. From CRM residents by apartmentId that belongs to this building
-      const crmResidentsCount = residents.filter((r: any) =>
-        r.building_id === building.id || r.buildingId === building.id || r.apartmentId?.startsWith(building.id)
+      const crmResidentsCount = residents.filter((r) =>
+        (r as Record<string, unknown>).building_id === building.id || r.buildingId === building.id || r.apartmentId?.startsWith(building.id)
       ).length;
 
       // 2. From additionalUsers by buildingId or by matching address
@@ -167,7 +167,7 @@ export function ReportsPage() {
         .filter(u => {
           if (u.user.role !== 'resident') return false;
           // Check by buildingId
-          if (u.user.buildingId === building.id || (u.user as any).building_id === building.id) return true;
+          if (u.user.buildingId === building.id || (u.user as Record<string, unknown>).building_id === building.id) return true;
           // Check by address match
           if (u.user.address && (
             u.user.address.includes(building.address) ||
@@ -222,8 +222,8 @@ export function ReportsPage() {
   };
 
   // Numeric-aware sort so "Дом 22" < "Дом 112" (not string compare which puts "Дом 112" first)
-  const branchStats = getBuildingStats().sort((a: any, b: any) =>
-    String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true })
+  const branchStats = getBuildingStats().sort((a, b) =>
+    String(a.branch || '').localeCompare(String(b.branch || ''), undefined, { numeric: true })
   );
 
   // Export branch report to CSV
@@ -271,7 +271,7 @@ export function ReportsPage() {
     const dateStr = new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ');
     const filename = language === 'ru'
       ? `отчет_объекты_${branch || 'все'}_${periodLabels[period]}_${dateStr}.csv`
-      : `hisobot_ob\'ektlar_${branch || 'barchasi'}_${periodLabels[period]}_${dateStr}.csv`;
+      : `hisobot_ob'ektlar_${branch || 'barchasi'}_${periodLabels[period]}_${dateStr}.csv`;
     link.download = filename;
     link.click();
     window.URL.revokeObjectURL(url);

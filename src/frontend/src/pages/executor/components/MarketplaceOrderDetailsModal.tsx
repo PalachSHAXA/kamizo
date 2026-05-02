@@ -1,5 +1,5 @@
 import {
-  Clock, CheckCircle, MapPin, Phone, User,
+  CheckCircle, MapPin, Phone, User,
   X, ShoppingBag, Package
 } from 'lucide-react';
 import type { MarketplaceOrder } from './types';

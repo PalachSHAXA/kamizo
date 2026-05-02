@@ -20,14 +20,14 @@ interface BuildingItem {
   name: string;
   branch_code: string;
   building_number: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface EntranceItem {
   id: string;
   building_id: string;
   number: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface ApartmentItem {
@@ -35,7 +35,7 @@ interface ApartmentItem {
   number: string;
   status: string;
   entrance_id: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Add Resident Modal
@@ -234,7 +234,6 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
   };
 
   // Derive selected items for display
-  const selectedBranch = branches.find(b => b.id === selectedBranchId);
   const selectedBuilding = buildings.find(b => b.id === selectedBuildingId);
   const selectedApartment = apartments.find(a => a.id === selectedApartmentId);
   const selectedEntrance = entrances.find(e => e.id === selectedEntranceId);

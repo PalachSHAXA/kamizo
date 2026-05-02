@@ -38,7 +38,7 @@ const mapApartmentFromApi = (a: Record<string, unknown>): Apartment => ({
   notes: a.notes,
   createdAt: a.created_at,
   updatedAt: a.updated_at,
-});
+} as Apartment);
 
 const mapOwnerFromApi = (o: Record<string, unknown>): Owner => ({
   id: o.id,
@@ -69,8 +69,8 @@ const mapOwnerFromApi = (o: Record<string, unknown>): Owner => ({
   ownershipShare: o.ownership_share || 100,
   ownershipDocument: o.ownership_document,
   ownershipDocumentDate: o.ownership_document_date,
-  apartmentIds: o.apartment_ids ? JSON.parse(o.apartment_ids) : [],
-  personalAccountIds: o.personal_account_ids ? JSON.parse(o.personal_account_ids) : [],
+  apartmentIds: o.apartment_ids ? JSON.parse(o.apartment_ids as string) : [],
+  personalAccountIds: o.personal_account_ids ? JSON.parse(o.personal_account_ids as string) : [],
   isActive: o.is_active !== false && o.is_active !== 0,
   isVerified: !!o.is_verified,
   verifiedAt: o.verified_at,
@@ -78,11 +78,11 @@ const mapOwnerFromApi = (o: Record<string, unknown>): Owner => ({
   bankName: o.bank_name,
   bankBik: o.bank_bik,
   bankAccount: o.bank_account,
-  tags: o.tags ? JSON.parse(o.tags) : [],
+  tags: o.tags ? JSON.parse(o.tags as string) : [],
   notes: o.notes,
   createdAt: o.created_at,
   updatedAt: o.updated_at,
-});
+} as Owner);
 
 const mapAccountFromApi = (a: Record<string, unknown>): PersonalAccount => ({
   id: a.id,
@@ -144,7 +144,7 @@ const mapResidentFromApi = (r: Record<string, unknown>): Resident => ({
   notes: r.notes,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
-});
+} as Resident);
 
 interface ApartmentState {
   // Data

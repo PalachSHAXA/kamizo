@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Building2, Plus, Trash2, CheckCircle, RefreshCw, X, Eye, EyeOff, Phone, Globe, MapPin, Clock, Image, ChevronDown, ChevronUp, Ticket, User, Megaphone } from 'lucide-react';
+import { Building2, Trash2, CheckCircle, RefreshCw, X, Eye, Phone, Globe, MapPin, Clock, Image, ChevronDown, ChevronUp, Ticket, User, Megaphone } from 'lucide-react';
 import { apiRequest } from '../../../services/api';
 import { useToastStore } from '../../../stores/toastStore';
-import {
-  Tenant, SuperAd, AdCategory, AdTenantAssignment, adCategoryIcons, BASE_DOMAIN,
-} from './types';
+import type { Tenant, SuperAd, AdCategory, AdTenantAssignment } from './types';
+import { adCategoryIcons, BASE_DOMAIN } from './types';
 
 interface AdsTabProps {
   allAds: SuperAd[];
@@ -45,19 +44,19 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
 
   // Assign modal
   const [showAssignModal, setShowAssignModal] = useState<SuperAd | null>(null);
-  const [assignModalData, setAssignModalData] = useState<{ assignments: AdTenantAssignment[]; all_tenants: any[] }>({ assignments: [], all_tenants: [] });
+  const [assignModalData, setAssignModalData] = useState<{ assignments: AdTenantAssignment[]; all_tenants: Array<{ id: string; name: string; slug: string; color?: string; color_secondary?: string }> }>({ assignments: [], all_tenants: [] });
   const [isLoadingAssign, setIsLoadingAssign] = useState(false);
   const [isSavingAssign, setIsSavingAssign] = useState(false);
   const [assignSelectedIds, setAssignSelectedIds] = useState<string[]>([]);
 
   // Views modal
   const [showViewsModal, setShowViewsModal] = useState<SuperAd | null>(null);
-  const [adViews, setAdViews] = useState<any[]>([]);
+  const [adViews, setAdViews] = useState<Array<{ id?: string; user_name?: string; user_phone?: string; apartment_number?: string; viewed_at?: string }>>([]);
   const [isLoadingViews, setIsLoadingViews] = useState(false);
 
   // Coupons modal
   const [showCouponsModal, setShowCouponsModal] = useState<SuperAd | null>(null);
-  const [adCoupons, setAdCoupons] = useState<any[]>([]);
+  const [adCoupons, setAdCoupons] = useState<Array<{ id?: string; code?: string; status?: string; discount_percent?: number; discount_amount?: number; user_name?: string; user_phone?: string; issued_at?: string; activated_by_name?: string }>>([]);
   const [isLoadingCoupons, setIsLoadingCoupons] = useState(false);
 
   const handleCreateSuperAd = async () => {
@@ -71,8 +70,8 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
       setShowAdModal(false);
       setAdForm({ category_id: '', title: '', description: '', phone: '', phone2: '', telegram: '', instagram: '', facebook: '', website: '', address: '', work_hours: '', logo_url: '', discount_percent: 10, duration_type: 'month', badges: { recommended: false, new: true, hot: false, verified: false }, target_tenant_ids: [] });
       await loadAds();
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка создания рекламы');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка создания рекламы');
     } finally {
       setIsSubmittingAd(false);
     }
@@ -83,8 +82,8 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
     try {
       await apiRequest(`/api/super-admin/ads/${adId}`, { method: 'DELETE' });
       setAllAds(prev => prev.filter(a => a.id !== adId));
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка');
     }
   };
 
@@ -95,8 +94,8 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
         body: JSON.stringify({ status: newStatus }),
       });
       setAllAds(prev => prev.map(a => a.id === adId ? { ...a, status: newStatus } : a));
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка');
     }
   };
 
@@ -104,7 +103,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
     setShowViewsModal(ad);
     setIsLoadingViews(true);
     try {
-      const res = await apiRequest<{ views: any[] }>(`/api/super-admin/ads/${ad.id}/views`);
+      const res = await apiRequest<{ views: typeof adViews }>(`/api/super-admin/ads/${ad.id}/views`);
       setAdViews(res.views || []);
     } catch {
       setAdViews([]);
@@ -117,7 +116,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
     setShowCouponsModal(ad);
     setIsLoadingCoupons(true);
     try {
-      const res = await apiRequest<{ coupons: any[] }>(`/api/super-admin/ads/${ad.id}/coupons`);
+      const res = await apiRequest<{ coupons: typeof adCoupons }>(`/api/super-admin/ads/${ad.id}/coupons`);
       setAdCoupons(res.coupons || []);
     } catch {
       setAdCoupons([]);
@@ -130,7 +129,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
     setShowAssignModal(ad);
     setIsLoadingAssign(true);
     try {
-      const res = await apiRequest<{ assignments: AdTenantAssignment[]; all_tenants: any[] }>(`/api/super-admin/ads/${ad.id}/tenants`);
+      const res = await apiRequest<{ assignments: AdTenantAssignment[]; all_tenants: Array<{ id: string; name: string; slug: string; color?: string; color_secondary?: string }> }>(`/api/super-admin/ads/${ad.id}/tenants`);
       setAssignModalData(res);
       setAssignSelectedIds((res.assignments || []).map((a) => a.tenant_id));
     } catch {
@@ -153,8 +152,8 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
         ? { ...a, assigned_tenants_count: assignSelectedIds.length, assigned_tenant_names: assignSelectedIds.map(id => (assignModalData?.all_tenants || []).find(t => t.id === id)?.name || id).join(', ') }
         : a));
       setShowAssignModal(null);
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка сохранения');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка сохранения');
     } finally {
       setIsSavingAssign(false);
     }
@@ -170,8 +169,8 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
         ...prev,
         assignments: prev.assignments.map(a => a.tenant_id === tenantId ? { ...a, enabled: enabled ? 1 : 0 } : a),
       }));
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка');
     }
   };
 
@@ -536,7 +535,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {adViews.map((v: any, i: number) => (
+                  {adViews.map((v, i) => (
                     <div key={v.id || i} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50">
                       <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                         <User className="w-4 h-4 text-blue-600" />
@@ -587,7 +586,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  {adCoupons.map((c: any, i: number) => (
+                  {adCoupons.map((c, i) => (
                     <div key={c.id || i} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                         c.status === 'activated' ? 'bg-green-100' : c.status === 'expired' ? 'bg-gray-200' : 'bg-purple-100'

@@ -27,7 +27,7 @@ const mapMeterFromApi = (m: Record<string, unknown>): Meter => ({
   notes: m.notes,
   createdAt: m.created_at,
   updatedAt: m.updated_at,
-});
+} as Meter);
 
 const mapMeterReadingFromApi = (r: Record<string, unknown>): MeterReading => ({
   id: r.id,
@@ -47,7 +47,7 @@ const mapMeterReadingFromApi = (r: Record<string, unknown>): MeterReading => ({
   rejectionReason: r.rejection_reason,
   notes: r.notes,
   createdAt: r.created_at,
-});
+} as MeterReading);
 
 interface MeterState {
   // Data

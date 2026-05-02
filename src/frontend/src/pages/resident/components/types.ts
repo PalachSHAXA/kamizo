@@ -1,5 +1,4 @@
 import type { Request, ExecutorSpecialization, RequestPriority, RescheduleRequest } from '../../../types';
-import type { LucideIcon } from 'lucide-react';
 
 export type { Request, ExecutorSpecialization, RequestPriority, RescheduleRequest };
 
@@ -8,16 +7,16 @@ export type RequestsSubTab = 'active' | 'pending_tab' | 'history_tab';
 
 export interface HomeTabProps {
   language: string;
-  user: any;
+  user: Record<string, unknown> | null;
   activeRequests: Request[];
-  latestAnnouncements: any[];
-  activeMeetings: any[];
+  latestAnnouncements: Record<string, unknown>[];
+  activeMeetings: Record<string, unknown>[];
   financeBalance: Record<string, unknown> | null;
   tenantName: string;
   switchTab: (tab: ActiveTab) => void;
   setSelectedRequest: (request: Request) => void;
   setShowAllServices: (show: boolean) => void;
-  generateReconciliation: (params: { apartment_id: string; period_from: string; period_to: string }) => Promise<any>;
+  generateReconciliation: (params: { apartment_id: string; period_from: string; period_to: string }) => Promise<unknown>;
 }
 
 export interface RequestsTabProps {
@@ -57,7 +56,7 @@ export interface ServiceBottomSheetProps {
 
 export interface NewRequestModalProps {
   category: ExecutorSpecialization;
-  user: any;
+  user: Record<string, unknown> | null;
   onClose: () => void;
   onSubmit: (data: {
     title: string;

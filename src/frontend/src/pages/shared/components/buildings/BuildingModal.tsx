@@ -5,7 +5,7 @@ import type { BuildingFull } from '../../../../types';
 interface BuildingModalProps {
   building: BuildingFull | null;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: Record<string, unknown>) => void;
   language: string;
 }
 
@@ -68,7 +68,7 @@ export function BuildingModal({ building, onClose, onSave, language }: BuildingM
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Тип дома', 'Uy turi')}</label>
-            <select value={form.buildingType} onChange={e => setForm({ ...form, buildingType: e.target.value as any })}
+            <select value={form.buildingType} onChange={e => setForm({ ...form, buildingType: e.target.value as typeof form.buildingType })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none">
               <option value="panel">{t('Панельный', 'Panelli')}</option>
               <option value="brick">{t('Кирпичный', "G'ishtli")}</option>
@@ -84,7 +84,7 @@ export function BuildingModal({ building, onClose, onSave, language }: BuildingM
               { key: 'hasParkingLot', label: t('Парковка', 'Parking') },
             ].map(item => (
               <label key={item.key} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl cursor-pointer text-sm font-semibold">
-                <input type="checkbox" checked={(form as any)[item.key]}
+                <input type="checkbox" checked={form[item.key as keyof typeof form] as boolean}
                   onChange={e => setForm({ ...form, [item.key]: e.target.checked })} className="w-4 h-4 accent-orange-500" />
                 {item.label}
               </label>

@@ -67,6 +67,7 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
   );
 
   // Build cards. Order: dynamic alerts FIRST (so they show on top), then static services.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const cards: CardStyle[] = useMemo(() => {
     const list: CardStyle[] = [];
 
@@ -217,11 +218,12 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
     );
 
     return list;
-  }, [onboardingPending, activeVoting, pendingApproval, urgentUnread, language, navigate, user?.totalArea]);
+  }, [onboardingPending, onboardingItems, activeVoting, pendingApproval, urgentUnread, language, navigate, user?.totalArea]);
 
   const [activeIdx, setActiveIdx] = useState(0);
   // Reset active index if cards array shrinks
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeIdx >= cards.length) setActiveIdx(0);
   }, [cards.length, activeIdx]);
 

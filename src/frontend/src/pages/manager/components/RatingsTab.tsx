@@ -83,7 +83,7 @@ export function RatingsTab({
               <h3 className="text-sm font-semibold mb-3">{language === 'ru' ? 'Динамика по месяцам' : 'Oylik dinamika'}</h3>
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={ratingSummary.monthly.map((m: any) => ({
+                  <AreaChart data={ratingSummary.monthly.map((m) => ({
                     period: m.period,
                     overall: Number(m.avg_overall || 0).toFixed(1),
                     count: m.count,
@@ -165,7 +165,7 @@ export function RatingsTab({
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <h3 className="text-sm font-semibold mb-3">{language === 'ru' ? 'Последние отзывы' : 'So\'nggi sharhlar'}</h3>
               <div className="space-y-3">
-                {ratingSummary.recentComments.map((comment: any, idx: number) => (
+                {ratingSummary.recentComments.map((comment, idx) => (
                   <div key={idx} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex gap-0.5">

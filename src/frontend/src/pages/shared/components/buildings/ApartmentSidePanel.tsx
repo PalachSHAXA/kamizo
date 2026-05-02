@@ -13,10 +13,13 @@ interface ApartmentSidePanelProps {
     number: string; floor: string; rooms: string; total_area: string;
     status: string; is_commercial: boolean; entrance_id: string;
   };
-  setEditForm: (form: any) => void;
+  setEditForm: (form: {
+    number: string; floor: string; rooms: string; total_area: string;
+    status: string; is_commercial: boolean; entrance_id: string;
+  }) => void;
   isSavingApartment: boolean;
   isLoadingResidents: boolean;
-  apartmentResidents: any[];
+  apartmentResidents: Array<{ id: string; name: string; phone?: string; type?: string; login?: string; password_decrypted?: string }>;
   entrances: Entrance[];
   language: string;
   onClose: () => void;

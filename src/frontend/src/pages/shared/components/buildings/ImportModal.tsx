@@ -7,7 +7,7 @@ interface ImportModalProps {
   importFile: File | null;
   setImportFile: (file: File | null) => void;
   importLoading: boolean;
-  importResult: { success: boolean; stats?: any; error?: string } | null;
+  importResult: { success: boolean; stats?: Record<string, number>; error?: string } | null;
   language: string;
   onClose: () => void;
   onSubmit: () => void;

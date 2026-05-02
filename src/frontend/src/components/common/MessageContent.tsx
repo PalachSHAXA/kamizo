@@ -43,7 +43,7 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
   );
 }
 
-const ATTACHMENT_RE = /\[([^\[\]]+?\.(?:png|jpg|jpeg|gif|webp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|mp3|mp4|mov))\]/gi;
+const ATTACHMENT_RE = /\[([^[\]]+?\.(?:png|jpg|jpeg|gif|webp|svg|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|mp3|mp4|mov))\]/gi;
 // Markdown-ish `![alt](data:image/png;base64,...)` inline image embed, used
 // when a resident attaches a small image from the chat composer. We accept
 // either a data: URL or an https:// URL so external image attachments render
@@ -94,12 +94,15 @@ type Part =
 
 export function MessageContent({ content, isOwn, language }: MessageContentProps) {
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
+  // Reset global regex lastIndex before each render (intentional mutation of module-level regex)
+  /* eslint-disable react-hooks/immutability */
   IMAGE_EMBED_RE.lastIndex = 0;
   ATTACHMENT_RE.lastIndex = 0;
   const hasImageEmbed = IMAGE_EMBED_RE.test(content);
   IMAGE_EMBED_RE.lastIndex = 0;
   const hasAttachment = ATTACHMENT_RE.test(content);
   ATTACHMENT_RE.lastIndex = 0;
+  /* eslint-enable react-hooks/immutability */
 
   // Fast path: plain text
   if (!hasImageEmbed && !hasAttachment) {
@@ -129,6 +132,7 @@ export function MessageContent({ content, isOwn, language }: MessageContentProps
       continue;
     }
     // Re-run attachment regex against this text chunk
+    // eslint-disable-next-line react-hooks/immutability
     ATTACHMENT_RE.lastIndex = 0;
     let inner = 0;
     let am: RegExpExecArray | null;

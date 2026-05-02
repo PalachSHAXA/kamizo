@@ -64,7 +64,7 @@ export function ResidentContractPage() {
                   ? (language === 'ru' ? 'Стандартный' : 'Standart')
                   : user.contractType === 'commercial'
                     ? (language === 'ru' ? 'Коммерческий' : 'Tijorat')
-                    : user.contractType === 'rental'
+                    : user.contractType === 'temporary'
                       ? (language === 'ru' ? 'Аренда' : 'Ijara')
                       : user.contractType}
               </span>

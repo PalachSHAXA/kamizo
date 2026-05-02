@@ -77,15 +77,7 @@ interface FinanceData {
   loading: boolean;
 }
 
-interface ReconciliationAct {
-  id: string;
-  claim_type: string;
-  total_debt: number;
-  period_from: string;
-  period_to: string;
-  created_at: string;
-  status?: string;
-}
+
 
 export function ResidentCardModal({
   resident,
@@ -136,23 +128,20 @@ export function ResidentCardModal({
   // ── Current resident data (may be updated after changes) ──
   const [currentResident, setCurrentResident] = useState(resident);
 
-  // ── Vehicle data ──
-  const [vehicles, setVehicles] = useState<Array<{ plate_number?: string; brand_model?: string; color?: string }>>([]);
-
   // Load finance data
   useEffect(() => {
-    const apartmentId = (resident as any).apartmentId || (resident as any).apartment_id;
+    const apartmentId = (resident as Record<string, unknown>).apartmentId || (resident as Record<string, unknown>).apartment_id;
     if (!apartmentId) return;
     setFinanceData(prev => ({ ...prev, loading: true }));
-    financeApi.getApartmentBalance(apartmentId).then(res => {
-      const bal = res.balance as any;
-      const balance = bal?.balance ?? bal?.total_debt ?? 0;
+    financeApi.getApartmentBalance(apartmentId as string).then(res => {
+      const bal = res.balance as Record<string, unknown> | undefined;
+      const balance = (bal?.balance ?? bal?.total_debt ?? 0) as number;
       // Find last payment from charges_by_month
       let lastPayDate: string | undefined;
       let lastPayAmount: number | undefined;
       if (res.charges_by_month && Array.isArray(res.charges_by_month)) {
         for (let i = res.charges_by_month.length - 1; i >= 0; i--) {
-          const m = res.charges_by_month[i] as any;
+          const m = res.charges_by_month[i] as Record<string, unknown>;
           if (m.paid && m.paid > 0) {
             lastPayDate = m.period || m.month;
             lastPayAmount = m.paid;
@@ -246,8 +235,8 @@ export function ResidentCardModal({
       setShowChangeModal(false);
       resetChangeModal();
       loadHistory();
-    } catch (err: any) {
-      addToast('error', err.message || t('Ошибка', 'Xatolik'));
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || t('Ошибка', 'Xatolik'));
     } finally {
       setChangeSaving(false);
     }
@@ -274,8 +263,8 @@ export function ResidentCardModal({
       addToast('success', t('Аккаунт деактивирован', 'Akkaunt faolsizlantirildi'));
       setShowDeactivate(false);
       onClose();
-    } catch (err: any) {
-      addToast('error', err.message || t('Ошибка', 'Xatolik'));
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || t('Ошибка', 'Xatolik'));
     } finally {
       setDeactivating(false);
     }
@@ -283,15 +272,15 @@ export function ResidentCardModal({
 
   // Handle reconciliation
   const handleReconciliation = async () => {
-    const apartmentId = (resident as any).apartmentId || (resident as any).apartment_id;
+    const apartmentId = (resident as Record<string, unknown>).apartmentId || (resident as Record<string, unknown>).apartment_id;
     if (!apartmentId || !reconcPeriodFrom || !reconcPeriodTo) {
       addToast('error', t('Укажите период', 'Davrni ko\'rsating'));
       return;
     }
     setReconcLoading(true);
     try {
-      const res = await financeApi.generateReconciliation({
-        apartment_id: apartmentId,
+      await financeApi.generateReconciliation({
+        apartment_id: apartmentId as string,
         period_from: reconcPeriodFrom,
         period_to: reconcPeriodTo,
       });
@@ -301,8 +290,8 @@ export function ResidentCardModal({
       if (!reconcOneWay) {
         addToast('info', t('Отправлено жителю на подтверждение', 'Yashovchiga tasdiqlash uchun yuborildi'));
       }
-    } catch (err: any) {
-      addToast('error', err.message || t('Ошибка', 'Xatolik'));
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || t('Ошибка', 'Xatolik'));
     } finally {
       setReconcLoading(false);
     }
@@ -474,7 +463,7 @@ export function ResidentCardModal({
           </div>
 
           {/* ═══ 6. Автомобиль ═══ */}
-          {(resident as any).vehicle_count > 0 && (
+          {(resident as Record<string, unknown>).vehicle_count > 0 && (
             <div className="p-3.5 bg-gray-50 rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -483,7 +472,7 @@ export function ResidentCardModal({
                 <div>
                   <div className="text-xs text-gray-500 font-medium">{t('Автомобиль', 'Avtomobil')}</div>
                   <div className="text-sm font-medium text-gray-900">
-                    {(resident as any).vehicle_count} {t('авто', 'avto')}
+                    {(resident as Record<string, unknown>).vehicle_count} {t('авто', 'avto')}
                   </div>
                 </div>
               </div>

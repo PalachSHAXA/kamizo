@@ -119,7 +119,7 @@ export const useRequestStore = create<RequestState>()(
           pausedAt: r.paused_at,
           pauseReason: r.pause_reason,
           totalPausedTime: r.total_paused_time || 0,
-        }));
+        } as Request));
 
         // Keep pending/optimistic requests (temp-*) that are still being created
         // but only if they're less than 60 seconds old (prevents memory leak from stuck temps)
@@ -1036,7 +1036,7 @@ export const useRequestStore = create<RequestState>()(
           createdAt: r.created_at,
           respondedAt: r.responded_at,
           expiresAt: r.expires_at,
-        }));
+        } as RescheduleRequest));
 
         set({ rescheduleRequests: mappedReschedules });
       } catch (error) {

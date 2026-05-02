@@ -1,6 +1,27 @@
 import { memo, useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, Clock, TrendingUp, Zap } from 'lucide-react';
 
+interface PerformanceMemory {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+interface PerfMetric {
+  name: string;
+  avg: number;
+}
+
+interface PerfMonitor {
+  getAverages: () => PerfMetric[];
+  clear: () => void;
+}
+
+interface WindowWithPerf extends Window {
+  perfMonitor?: PerfMonitor;
+  perfReport?: () => void;
+}
+
 interface PerformanceStats {
   fps: number;
   memory: number;
@@ -62,7 +83,7 @@ export const PerformanceMonitor = memo<PerformanceMonitorProps>(
       // Memory measurement (if available)
       const memoryInterval = setInterval(() => {
         if ('memory' in performance) {
-          const mem = (performance as any).memory;
+          const mem = (performance as unknown as { memory: PerformanceMemory }).memory;
           const usedMB = Math.round(mem.usedJSHeapSize / 1024 / 1024);
           setStats(prev => ({ ...prev, memory: usedMB }));
         }
@@ -70,12 +91,13 @@ export const PerformanceMonitor = memo<PerformanceMonitorProps>(
 
       // Render time from custom performance monitor
       const renderInterval = setInterval(() => {
-        if ((window as any).perfMonitor) {
-          const averages = (window as any).perfMonitor.getAverages();
-          const renderMetrics = averages.filter((m: any) => m.name.startsWith('render:'));
+        const perfWindow = window as WindowWithPerf;
+        if (perfWindow.perfMonitor) {
+          const averages = perfWindow.perfMonitor.getAverages();
+          const renderMetrics = averages.filter((m: PerfMetric) => m.name.startsWith('render:'));
 
           if (renderMetrics.length > 0) {
-            const avgRenderTime = renderMetrics.reduce((sum: number, m: any) => sum + m.avg, 0) / renderMetrics.length;
+            const avgRenderTime = renderMetrics.reduce((sum: number, m: PerfMetric) => sum + m.avg, 0) / renderMetrics.length;
             setStats(prev => ({ ...prev, renderTime: Math.round(avgRenderTime) }));
           }
         }
@@ -235,8 +257,9 @@ export const PerformanceMonitor = memo<PerformanceMonitorProps>(
             <div className="pt-2 border-t border-gray-700 flex gap-2">
               <button
                 onClick={() => {
-                  if ((window as any).perfReport) {
-                    (window as any).perfReport();
+                  const perfWindow = window as WindowWithPerf;
+                  if (perfWindow.perfReport) {
+                    perfWindow.perfReport();
                   }
                 }}
                 className="flex-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
@@ -245,8 +268,9 @@ export const PerformanceMonitor = memo<PerformanceMonitorProps>(
               </button>
               <button
                 onClick={() => {
-                  if ((window as any).perfMonitor) {
-                    (window as any).perfMonitor.clear();
+                  const perfWindow = window as WindowWithPerf;
+                  if (perfWindow.perfMonitor) {
+                    perfWindow.perfMonitor.clear();
                   }
                 }}
                 className="flex-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
