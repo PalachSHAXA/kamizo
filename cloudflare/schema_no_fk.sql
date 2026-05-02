@@ -38,6 +38,33 @@ CREATE TABLE IF NOT EXISTS users (
   tenant_id TEXT DEFAULT ''
 );
 
+-- Branches table (housing complexes / branches)
+CREATE TABLE IF NOT EXISTS branches (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  address TEXT,
+  phone TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_branches_code ON branches(code);
+
+-- Audit log for ЖК (branch) code changes
+CREATE TABLE IF NOT EXISTS branch_code_audit (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL,
+  old_code TEXT NOT NULL,
+  new_code TEXT NOT NULL,
+  changed_by TEXT NOT NULL,
+  changed_by_name TEXT,
+  tenant_id TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_branch_code_audit_branch ON branch_code_audit(branch_id);
+CREATE INDEX IF NOT EXISTS idx_branch_code_audit_tenant ON branch_code_audit(tenant_id);
+
 -- Buildings table (extended for CRM)
 CREATE TABLE IF NOT EXISTS buildings (
   id TEXT PRIMARY KEY,
@@ -47,6 +74,7 @@ CREATE TABLE IF NOT EXISTS buildings (
   cadastral_number TEXT,
   branch_code TEXT DEFAULT 'YS',
   building_number TEXT,
+  branch_id TEXT,
 
   -- Technical specs
   floors INTEGER,
@@ -110,7 +138,7 @@ CREATE TABLE IF NOT EXISTS buildings (
 -- Entrances table (подъезды)
 CREATE TABLE IF NOT EXISTS entrances (
   id TEXT PRIMARY KEY,
-  building_id TEXT NOT NULL ) ON DELETE CASCADE,
+  building_id TEXT NOT NULL ,
   number INTEGER NOT NULL,
   floors_from INTEGER DEFAULT 1,
   floors_to INTEGER,
@@ -133,7 +161,7 @@ CREATE TABLE IF NOT EXISTS entrances (
 -- Building documents
 CREATE TABLE IF NOT EXISTS building_documents (
   id TEXT PRIMARY KEY,
-  building_id TEXT NOT NULL ) ON DELETE CASCADE,
+  building_id TEXT NOT NULL ,
   name TEXT NOT NULL,
   type TEXT DEFAULT 'other' CHECK (type IN ('contract', 'act', 'protocol', 'passport', 'license', 'certificate', 'other')),
   file_url TEXT NOT NULL,
@@ -148,8 +176,8 @@ CREATE TABLE IF NOT EXISTS building_documents (
 -- Apartments table (extended for CRM)
 CREATE TABLE IF NOT EXISTS apartments (
   id TEXT PRIMARY KEY,
-  building_id TEXT NOT NULL ) ON DELETE CASCADE,
-  entrance_id TEXT ) ON DELETE SET NULL,
+  building_id TEXT NOT NULL ,
+  entrance_id TEXT ,
   number TEXT NOT NULL,
   floor INTEGER,
 
@@ -242,8 +270,8 @@ CREATE TABLE IF NOT EXISTS owners (
 
 -- Owner-Apartment relationship (many-to-many)
 CREATE TABLE IF NOT EXISTS owner_apartments (
-  owner_id TEXT NOT NULL ) ON DELETE CASCADE,
-  apartment_id TEXT NOT NULL ) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL ,
+  apartment_id TEXT NOT NULL ,
   ownership_share REAL DEFAULT 100,
   is_primary INTEGER DEFAULT 0,
   start_date TEXT,
@@ -257,9 +285,9 @@ CREATE TABLE IF NOT EXISTS owner_apartments (
 CREATE TABLE IF NOT EXISTS personal_accounts (
   id TEXT PRIMARY KEY,
   number TEXT NOT NULL UNIQUE,
-  apartment_id TEXT NOT NULL ) ON DELETE CASCADE,
-  building_id TEXT NOT NULL ) ON DELETE CASCADE,
-  primary_owner_id TEXT ) ON DELETE SET NULL,
+  apartment_id TEXT NOT NULL ,
+  building_id TEXT NOT NULL ,
+  primary_owner_id TEXT ,
 
   -- Info
   owner_name TEXT,
@@ -295,8 +323,8 @@ CREATE TABLE IF NOT EXISTS personal_accounts (
 -- CRM Residents table (жители квартир - расширенная версия)
 CREATE TABLE IF NOT EXISTS crm_residents (
   id TEXT PRIMARY KEY,
-  apartment_id TEXT NOT NULL ) ON DELETE CASCADE,
-  owner_id TEXT ) ON DELETE SET NULL,
+  apartment_id TEXT NOT NULL ,
+  owner_id TEXT ,
 
   -- Personal info
   last_name TEXT,
@@ -340,8 +368,8 @@ CREATE TABLE IF NOT EXISTS crm_residents (
 -- Meters table (счётчики)
 CREATE TABLE IF NOT EXISTS meters (
   id TEXT PRIMARY KEY,
-  apartment_id TEXT ) ON DELETE CASCADE,
-  building_id TEXT ) ON DELETE CASCADE,
+  apartment_id TEXT ,
+  building_id TEXT ,
 
   -- Type
   type TEXT NOT NULL CHECK (type IN ('cold_water', 'hot_water', 'electricity', 'gas', 'heating')),
@@ -382,7 +410,7 @@ CREATE TABLE IF NOT EXISTS meters (
 -- Meter readings table (показания счётчиков)
 CREATE TABLE IF NOT EXISTS meter_readings (
   id TEXT PRIMARY KEY,
-  meter_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meter_id TEXT NOT NULL ,
 
   -- Reading info
   value REAL NOT NULL,
@@ -453,7 +481,7 @@ CREATE TABLE IF NOT EXISTS training_proposals (
   is_author_anonymous INTEGER DEFAULT 0,
 
   -- Partner (lecturer)
-  partner_id TEXT NOT NULL ) ON DELETE CASCADE,
+  partner_id TEXT NOT NULL ,
   partner_name TEXT NOT NULL,
 
   -- Format
@@ -490,7 +518,7 @@ CREATE TABLE IF NOT EXISTS training_proposals (
 -- Training votes (голоса за предложения)
 CREATE TABLE IF NOT EXISTS training_votes (
   id TEXT PRIMARY KEY,
-  proposal_id TEXT NOT NULL ) ON DELETE CASCADE,
+  proposal_id TEXT NOT NULL ,
   voter_id TEXT NOT NULL,
   voter_name TEXT NOT NULL,
   participation_intent TEXT DEFAULT 'definitely' CHECK (participation_intent IN ('definitely', 'maybe', 'support_only')),
@@ -503,7 +531,7 @@ CREATE TABLE IF NOT EXISTS training_votes (
 -- Training registrations (регистрации на тренинг)
 CREATE TABLE IF NOT EXISTS training_registrations (
   id TEXT PRIMARY KEY,
-  proposal_id TEXT NOT NULL ) ON DELETE CASCADE,
+  proposal_id TEXT NOT NULL ,
   user_id TEXT NOT NULL,
   user_name TEXT,
   registered_at TEXT DEFAULT (datetime('now')),
@@ -516,7 +544,7 @@ CREATE TABLE IF NOT EXISTS training_registrations (
 -- Training feedback (отзывы после тренинга)
 CREATE TABLE IF NOT EXISTS training_feedback (
   id TEXT PRIMARY KEY,
-  proposal_id TEXT NOT NULL ) ON DELETE CASCADE,
+  proposal_id TEXT NOT NULL ,
   reviewer_id TEXT NOT NULL,
   reviewer_name TEXT NOT NULL,
   is_anonymous INTEGER DEFAULT 0,
@@ -534,7 +562,7 @@ CREATE TABLE IF NOT EXISTS training_feedback (
 CREATE TABLE IF NOT EXISTS training_notifications (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL CHECK (type IN ('new_proposal', 'threshold_reached', 'partner_response', 'training_scheduled', 'training_reminder', 'feedback_request', 'training_completed')),
-  proposal_id TEXT ) ON DELETE CASCADE,
+  proposal_id TEXT ,
   recipient_id TEXT NOT NULL, -- can be 'all', 'admin', or specific user_id
   recipient_role TEXT CHECK (recipient_role IN ('admin', 'partner', 'employee', 'all')),
   title TEXT NOT NULL,
@@ -557,8 +585,8 @@ CREATE TABLE IF NOT EXISTS training_settings (
 -- Legacy Residents table (for backward compatibility with existing requests system)
 CREATE TABLE IF NOT EXISTS residents (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL ),
-  apartment_id TEXT NOT NULL ),
+  user_id TEXT NOT NULL,
+  apartment_id TEXT NOT NULL,
   is_owner INTEGER DEFAULT 0,
   mening_uyim_account TEXT,
   balance INTEGER DEFAULT 0,
@@ -570,7 +598,7 @@ CREATE TABLE IF NOT EXISTS residents (
 -- Executors table (extends users for executors)
 CREATE TABLE IF NOT EXISTS executors (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL ),
+  user_id TEXT NOT NULL,
   specialization TEXT NOT NULL CHECK (specialization IN ('plumber', 'electrician', 'elevator', 'intercom', 'cleaning', 'other')),
   is_senior INTEGER DEFAULT 0,
   status TEXT DEFAULT 'offline' CHECK (status IN ('available', 'busy', 'offline')),
@@ -582,8 +610,8 @@ CREATE TABLE IF NOT EXISTS executors (
 
 -- Executor zones (many-to-many)
 CREATE TABLE IF NOT EXISTS executor_zones (
-  executor_id TEXT NOT NULL ),
-  building_id TEXT NOT NULL ),
+  executor_id TEXT NOT NULL,
+  building_id TEXT NOT NULL,
   tenant_id TEXT DEFAULT '',
   PRIMARY KEY (executor_id, building_id)
 );
@@ -633,8 +661,8 @@ CREATE TABLE IF NOT EXISTS requests (
 -- Request history/log
 CREATE TABLE IF NOT EXISTS request_history (
   id TEXT PRIMARY KEY,
-  request_id TEXT NOT NULL ),
-  user_id TEXT NOT NULL ),
+  request_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   action TEXT NOT NULL,
   old_status TEXT,
   new_status TEXT,
@@ -646,7 +674,7 @@ CREATE TABLE IF NOT EXISTS request_history (
 -- Reschedule requests (запросы на перенос времени)
 CREATE TABLE IF NOT EXISTS reschedule_requests (
   id TEXT PRIMARY KEY,
-  request_id TEXT NOT NULL ) ON DELETE CASCADE,
+  request_id TEXT NOT NULL ,
   initiator TEXT NOT NULL CHECK (initiator IN ('resident', 'executor')),
   initiator_id TEXT NOT NULL,
   initiator_name TEXT NOT NULL,
@@ -677,7 +705,7 @@ CREATE TABLE IF NOT EXISTS rental_apartments (
   name TEXT NOT NULL,
   address TEXT NOT NULL,
   apartment TEXT,
-  owner_id TEXT NOT NULL ) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL ,
   owner_type TEXT DEFAULT 'tenant' CHECK (owner_type IN ('tenant', 'commercial_owner')),
   is_active INTEGER DEFAULT 1,
   created_at TEXT DEFAULT (datetime('now')),
@@ -690,7 +718,7 @@ CREATE INDEX IF NOT EXISTS idx_rental_apartments_owner ON rental_apartments(owne
 -- Rental records (guest stays, payments)
 CREATE TABLE IF NOT EXISTS rental_records (
   id TEXT PRIMARY KEY,
-  apartment_id TEXT NOT NULL ) ON DELETE CASCADE,
+  apartment_id TEXT NOT NULL ,
   guest_names TEXT NOT NULL,
   passport_info TEXT,
   check_in_date TEXT NOT NULL,
@@ -698,7 +726,7 @@ CREATE TABLE IF NOT EXISTS rental_records (
   amount REAL NOT NULL,
   currency TEXT DEFAULT 'UZS',
   notes TEXT,
-  created_by TEXT ),
+  created_by TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT ''
@@ -710,8 +738,8 @@ CREATE INDEX IF NOT EXISTS idx_rental_records_dates ON rental_records(check_in_d
 -- Messages (three-way chat)
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
-  request_id TEXT NOT NULL ),
-  sender_id TEXT NOT NULL ),
+  request_id TEXT NOT NULL,
+  sender_id TEXT NOT NULL,
   content TEXT NOT NULL,
   attachments TEXT,
   is_read INTEGER DEFAULT 0,
@@ -722,7 +750,7 @@ CREATE TABLE IF NOT EXISTS messages (
 -- Notifications
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL ),
+  user_id TEXT NOT NULL,
   type TEXT NOT NULL,
   title TEXT NOT NULL,
   body TEXT,
@@ -743,7 +771,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Vehicles table
 CREATE TABLE IF NOT EXISTS vehicles (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL ),
+  user_id TEXT NOT NULL,
   plate_number TEXT NOT NULL,
   brand TEXT,
   model TEXT,
@@ -811,7 +839,7 @@ CREATE TABLE IF NOT EXISTS chat_channels (
   type TEXT NOT NULL CHECK (type IN ('uk_general', 'building_general', 'admin_support', 'private_support')),
   name TEXT NOT NULL,
   description TEXT,
-  building_id TEXT ),
+  building_id TEXT,
   resident_id TEXT,  -- user.id for private_support channels (no FK to allow flexibility)
   created_by TEXT,
   created_at TEXT DEFAULT (datetime('now')),
@@ -820,8 +848,8 @@ CREATE TABLE IF NOT EXISTS chat_channels (
 
 -- Chat channel participants
 CREATE TABLE IF NOT EXISTS chat_participants (
-  channel_id TEXT NOT NULL ),
-  user_id TEXT NOT NULL ),
+  channel_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   joined_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT '',
   PRIMARY KEY (channel_id, user_id)
@@ -830,8 +858,8 @@ CREATE TABLE IF NOT EXISTS chat_participants (
 -- Chat messages
 CREATE TABLE IF NOT EXISTS chat_messages (
   id TEXT PRIMARY KEY,
-  channel_id TEXT NOT NULL ),
-  sender_id TEXT NOT NULL ),
+  channel_id TEXT NOT NULL,
+  sender_id TEXT NOT NULL,
   content TEXT NOT NULL,
   created_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT ''
@@ -839,8 +867,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 -- Chat message read status
 CREATE TABLE IF NOT EXISTS chat_message_reads (
-  message_id TEXT NOT NULL ),
-  user_id TEXT NOT NULL ),
+  message_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   read_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT '',
   PRIMARY KEY (message_id, user_id)
@@ -848,8 +876,8 @@ CREATE TABLE IF NOT EXISTS chat_message_reads (
 
 -- Chat channel reads (for tracking when user last read a channel)
 CREATE TABLE IF NOT EXISTS chat_channel_reads (
-  channel_id TEXT NOT NULL ) ON DELETE CASCADE,
-  user_id TEXT NOT NULL ) ON DELETE CASCADE,
+  channel_id TEXT NOT NULL ,
+  user_id TEXT NOT NULL ,
   last_read_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT '',
   PRIMARY KEY (channel_id, user_id)
@@ -873,7 +901,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   content TEXT NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('residents', 'employees', 'all')),
   target_type TEXT CHECK (target_type IN ('all', 'branch', 'building', 'entrance', 'floor', 'custom')),
-  target_building_id TEXT ),
+  target_building_id TEXT,
   target_entrance TEXT,
   target_floor TEXT,
   target_logins TEXT,
@@ -881,7 +909,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   is_active INTEGER DEFAULT 1,
   expires_at TEXT,
   attachments TEXT, -- JSON array of {name, url, type, size}
-  created_by TEXT ),
+  created_by TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT ''
 );
@@ -889,8 +917,8 @@ CREATE TABLE IF NOT EXISTS announcements (
 -- Announcement views (for tracking who viewed which announcement)
 CREATE TABLE IF NOT EXISTS announcement_views (
   id TEXT PRIMARY KEY,
-  announcement_id TEXT NOT NULL ) ON DELETE CASCADE,
-  user_id TEXT NOT NULL ) ON DELETE CASCADE,
+  announcement_id TEXT NOT NULL ,
+  user_id TEXT NOT NULL ,
   viewed_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT '',
   UNIQUE(announcement_id, user_id)
@@ -906,7 +934,7 @@ CREATE INDEX IF NOT EXISTS idx_announcement_views_user ON announcement_views(use
 CREATE TABLE IF NOT EXISTS meetings (
   id TEXT PRIMARY KEY,
   number INTEGER,
-  building_id TEXT NOT NULL ) ON DELETE CASCADE,
+  building_id TEXT NOT NULL ,
   building_address TEXT,
   description TEXT, -- Обоснование/описание собрания
 
@@ -982,7 +1010,7 @@ CREATE TABLE IF NOT EXISTS meetings (
 -- Meeting schedule options (for schedule poll)
 CREATE TABLE IF NOT EXISTS meeting_schedule_options (
   id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meeting_id TEXT NOT NULL ,
   date_time TEXT NOT NULL,
   votes_by_share REAL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
@@ -992,8 +1020,8 @@ CREATE TABLE IF NOT EXISTS meeting_schedule_options (
 -- Meeting schedule votes
 CREATE TABLE IF NOT EXISTS meeting_schedule_votes (
   id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
-  option_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meeting_id TEXT NOT NULL ,
+  option_id TEXT NOT NULL ,
   voter_id TEXT NOT NULL,
   voter_name TEXT,
   vote_weight REAL DEFAULT 50, -- Вес голоса = площадь квартиры (кв.м), default 50 sq.m
@@ -1005,7 +1033,7 @@ CREATE TABLE IF NOT EXISTS meeting_schedule_votes (
 -- Meeting agenda items (вопросы повестки дня)
 CREATE TABLE IF NOT EXISTS meeting_agenda_items (
   id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meeting_id TEXT NOT NULL ,
   item_order INTEGER NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
@@ -1025,8 +1053,8 @@ CREATE TABLE IF NOT EXISTS meeting_agenda_items (
 -- Meeting vote records (юридически значимые голоса)
 CREATE TABLE IF NOT EXISTS meeting_vote_records (
   id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
-  agenda_item_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meeting_id TEXT NOT NULL ,
+  agenda_item_id TEXT NOT NULL ,
 
   -- Voter info
   voter_id TEXT NOT NULL,
@@ -1061,7 +1089,7 @@ CREATE TABLE IF NOT EXISTS meeting_otp_records (
   phone TEXT NOT NULL,
   code TEXT NOT NULL,
   purpose TEXT NOT NULL CHECK (purpose IN ('schedule_vote', 'agenda_vote', 'protocol_sign')),
-  meeting_id TEXT ) ON DELETE CASCADE,
+  meeting_id TEXT ,
   agenda_item_id TEXT,
   attempts INTEGER DEFAULT 0,
   max_attempts INTEGER DEFAULT 3,
@@ -1075,7 +1103,7 @@ CREATE TABLE IF NOT EXISTS meeting_otp_records (
 -- Meeting protocols
 CREATE TABLE IF NOT EXISTS meeting_protocols (
   id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meeting_id TEXT NOT NULL ,
   protocol_number TEXT NOT NULL,
   content TEXT NOT NULL,
   protocol_hash TEXT NOT NULL,
@@ -1103,8 +1131,8 @@ CREATE TABLE IF NOT EXISTS meeting_protocols (
 -- Voting units (квартиры с правом голоса)
 CREATE TABLE IF NOT EXISTS meeting_voting_units (
   id TEXT PRIMARY KEY,
-  building_id TEXT NOT NULL ) ON DELETE CASCADE,
-  apartment_id TEXT ) ON DELETE CASCADE,
+  building_id TEXT NOT NULL ,
+  apartment_id TEXT ,
   apartment_number TEXT NOT NULL,
   owner_id TEXT,
   owner_name TEXT,
@@ -1121,7 +1149,7 @@ CREATE TABLE IF NOT EXISTS meeting_voting_units (
 
 -- Building meeting settings
 CREATE TABLE IF NOT EXISTS meeting_building_settings (
-  building_id TEXT PRIMARY KEY ) ON DELETE CASCADE,
+  building_id TEXT PRIMARY KEY ,
   voting_unit TEXT DEFAULT 'apartment' CHECK (voting_unit IN ('apartment', 'share', 'person')),
   default_quorum_percent INTEGER DEFAULT 50,
   schedule_poll_duration_days INTEGER DEFAULT 3,
@@ -1137,7 +1165,7 @@ CREATE TABLE IF NOT EXISTS meeting_building_settings (
 
 -- Meeting eligible voters (many-to-many)
 CREATE TABLE IF NOT EXISTS meeting_eligible_voters (
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meeting_id TEXT NOT NULL ,
   user_id TEXT NOT NULL,
   apartment_id TEXT,
   ownership_share REAL DEFAULT 100,
@@ -1147,7 +1175,7 @@ CREATE TABLE IF NOT EXISTS meeting_eligible_voters (
 
 -- Meeting participated voters (tracking)
 CREATE TABLE IF NOT EXISTS meeting_participated_voters (
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
+  meeting_id TEXT NOT NULL ,
   user_id TEXT NOT NULL,
   first_vote_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT '',
@@ -1158,8 +1186,8 @@ CREATE TABLE IF NOT EXISTS meeting_participated_voters (
 -- Согласно ТЗ: Каждый участник может оставить комментарий/довод к вопросу
 CREATE TABLE IF NOT EXISTS meeting_agenda_comments (
   id TEXT PRIMARY KEY,
-  agenda_item_id TEXT NOT NULL ) ON DELETE CASCADE,
-  meeting_id TEXT NOT NULL ) ON DELETE CASCADE,
+  agenda_item_id TEXT NOT NULL ,
+  meeting_id TEXT NOT NULL ,
   resident_id TEXT NOT NULL,
   resident_name TEXT NOT NULL,
   apartment_number TEXT,
@@ -1177,8 +1205,8 @@ CREATE INDEX IF NOT EXISTS idx_meeting_comments_resident ON meeting_agenda_comme
 -- Employee ratings
 CREATE TABLE IF NOT EXISTS employee_ratings (
   id TEXT PRIMARY KEY,
-  executor_id TEXT NOT NULL ),
-  resident_id TEXT NOT NULL ),
+  executor_id TEXT NOT NULL,
+  resident_id TEXT NOT NULL,
   quality INTEGER CHECK (quality >= 1 AND quality <= 5),
   speed INTEGER CHECK (speed >= 1 AND speed <= 5),
   politeness INTEGER CHECK (politeness >= 1 AND politeness <= 5),
@@ -1395,7 +1423,7 @@ CREATE TABLE IF NOT EXISTS ad_categories (
 -- Advertisements (рекламные объявления)
 CREATE TABLE IF NOT EXISTS ads (
   id TEXT PRIMARY KEY,
-  category_id TEXT NOT NULL ),
+  category_id TEXT NOT NULL,
 
   -- Basic info
   title TEXT NOT NULL,                         -- Заголовок
@@ -1439,7 +1467,7 @@ CREATE TABLE IF NOT EXISTS ads (
   coupons_activated INTEGER DEFAULT 0,         -- Активировано купонов
 
   -- Meta
-  created_by TEXT NOT NULL ),  -- ukreklama user
+  created_by TEXT NOT NULL,  -- ukreklama user
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT ''
@@ -1448,8 +1476,8 @@ CREATE TABLE IF NOT EXISTS ads (
 -- Coupons (купоны выданные жителям)
 CREATE TABLE IF NOT EXISTS ad_coupons (
   id TEXT PRIMARY KEY,
-  ad_id TEXT NOT NULL ) ON DELETE CASCADE,
-  user_id TEXT NOT NULL ),  -- Житель получивший купон
+  ad_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,  -- Житель получивший купон
 
   -- Coupon details
   code TEXT NOT NULL UNIQUE,                   -- Уникальный 6-символьный код (буквы+цифры)
@@ -1462,7 +1490,7 @@ CREATE TABLE IF NOT EXISTS ad_coupons (
   issued_at TEXT DEFAULT (datetime('now')),    -- Когда выдан
   expires_at TEXT,                             -- Когда истекает (копируется из ad.expires_at)
   activated_at TEXT,                           -- Когда активирован
-  activated_by TEXT ),      -- ukchek user который активировал
+  activated_by TEXT,      -- ukchek user который активировал
 
   -- Activation details (заполняется при активации)
   activation_amount REAL,                      -- Сумма покупки
@@ -1473,8 +1501,8 @@ CREATE TABLE IF NOT EXISTS ad_coupons (
 -- Ad views tracking (для статистики)
 CREATE TABLE IF NOT EXISTS ad_views (
   id TEXT PRIMARY KEY,
-  ad_id TEXT NOT NULL ) ON DELETE CASCADE,
-  user_id TEXT NOT NULL ),
+  ad_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   viewed_at TEXT DEFAULT (datetime('now')),
 
   -- Unique constraint: один просмотр в день от одного пользователя,
@@ -1526,8 +1554,6 @@ CREATE INDEX IF NOT EXISTS idx_apartments_tenant_id ON apartments(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_requests_tenant_id ON requests(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON notifications(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_meetings_tenant_id ON meetings(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_marketplace_products_tenant_id ON marketplace_products(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_marketplace_orders_tenant_id ON marketplace_orders(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_chat_channels_tenant_id ON chat_channels(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_tenant_id ON chat_messages(tenant_id);
 
@@ -1740,3 +1766,223 @@ INSERT OR IGNORE INTO finance_income_categories (id, name, is_default, is_active
   ('fic_advertising', 'Реклама в подъездах', 1, 1, ''),
   ('fic_parking', 'Парковка', 1, 1, ''),
   ('fic_other', 'Прочее', 1, 1, '');
+
+-- =================================================================
+-- Tables added to match schema.sql parity (no FK version)
+-- =================================================================
+
+-- Platform ad → tenant assignments (super admin assigns one ad to many tenants)
+CREATE TABLE IF NOT EXISTS ad_tenant_assignments (
+  id TEXT PRIMARY KEY,
+  ad_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  assigned_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(ad_id, tenant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ata_ad_id ON ad_tenant_assignments(ad_id);
+CREATE INDEX IF NOT EXISTS idx_ata_tenant_id ON ad_tenant_assignments(tenant_id, enabled);
+
+-- UK satisfaction ratings (resident feedback per period)
+CREATE TABLE IF NOT EXISTS uk_satisfaction_ratings (
+  id TEXT PRIMARY KEY,
+  resident_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  period TEXT NOT NULL,
+  overall INTEGER NOT NULL CHECK (overall >= 1 AND overall <= 5),
+  cleanliness INTEGER CHECK (cleanliness >= 1 AND cleanliness <= 5),
+  responsiveness INTEGER CHECK (responsiveness >= 1 AND responsiveness <= 5),
+  communication INTEGER CHECK (communication >= 1 AND communication <= 5),
+  comment TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(resident_id, tenant_id, period)
+);
+CREATE INDEX IF NOT EXISTS idx_uk_ratings_resident ON uk_satisfaction_ratings(resident_id);
+CREATE INDEX IF NOT EXISTS idx_uk_ratings_period ON uk_satisfaction_ratings(period);
+CREATE INDEX IF NOT EXISTS idx_uk_ratings_tenant ON uk_satisfaction_ratings(tenant_id);
+
+-- Resident changes log (passport / contract / status changes audit)
+CREATE TABLE IF NOT EXISTS resident_changes_log (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  resident_id TEXT NOT NULL,
+  changed_by TEXT NOT NULL,
+  change_type TEXT NOT NULL,
+  field_name TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT,
+  reason TEXT NOT NULL,
+  document_number TEXT,
+  document_date TEXT,
+  comment TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rcl_tenant ON resident_changes_log(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_rcl_resident ON resident_changes_log(resident_id);
+CREATE INDEX IF NOT EXISTS idx_rcl_changed_by ON resident_changes_log(changed_by);
+
+-- Finance expenses
+CREATE TABLE IF NOT EXISTS finance_expenses (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT '',
+  building_id TEXT,
+  estimate_id TEXT,
+  estimate_item_id TEXT,
+  estimate_item_name TEXT,
+  amount REAL NOT NULL,
+  expense_date TEXT NOT NULL,
+  description TEXT,
+  document_url TEXT,
+  request_id TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fe_tenant ON finance_expenses(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_fe_building ON finance_expenses(building_id);
+CREATE INDEX IF NOT EXISTS idx_fe_estimate ON finance_expenses(estimate_id);
+
+-- Audit log for sensitive operations (user deactivation, password changes, role changes)
+CREATE TABLE IF NOT EXISTS audit_log (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT,
+  actor_id TEXT NOT NULL,
+  actor_name TEXT,
+  actor_role TEXT,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  details TEXT,
+  ip_address TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant ON audit_log(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+
+-- Marketplace categories
+CREATE TABLE IF NOT EXISTS marketplace_categories (
+  id TEXT PRIMARY KEY,
+  name_ru TEXT NOT NULL,
+  name_uz TEXT NOT NULL,
+  icon TEXT,
+  sort_order INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
+);
+
+-- Marketplace products
+CREATE TABLE IF NOT EXISTS marketplace_products (
+  id TEXT PRIMARY KEY,
+  category_id TEXT NOT NULL,
+  name_ru TEXT NOT NULL,
+  name_uz TEXT NOT NULL,
+  description_ru TEXT,
+  description_uz TEXT,
+  price REAL NOT NULL,
+  old_price REAL,
+  unit TEXT DEFAULT 'шт',
+  stock_quantity INTEGER DEFAULT 0,
+  image_url TEXT,
+  is_active INTEGER DEFAULT 1,
+  is_featured INTEGER DEFAULT 0,
+  orders_count INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
+);
+
+-- Marketplace cart
+CREATE TABLE IF NOT EXISTS marketplace_cart (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  added_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT '',
+  UNIQUE(user_id, product_id)
+);
+
+-- Marketplace orders
+CREATE TABLE IF NOT EXISTS marketplace_orders (
+  id TEXT PRIMARY KEY,
+  order_number TEXT UNIQUE NOT NULL,
+  user_id TEXT NOT NULL,
+  executor_id TEXT,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled')),
+  total_amount REAL NOT NULL,
+  delivery_fee REAL DEFAULT 0,
+  final_amount REAL NOT NULL,
+  delivery_address TEXT,
+  delivery_apartment TEXT,
+  delivery_entrance TEXT,
+  delivery_floor TEXT,
+  delivery_phone TEXT,
+  delivery_date TEXT,
+  delivery_time_slot TEXT,
+  delivery_notes TEXT,
+  payment_method TEXT DEFAULT 'cash',
+  created_at TEXT DEFAULT (datetime('now')),
+  assigned_at TEXT,
+  confirmed_at TEXT,
+  preparing_at TEXT,
+  ready_at TEXT,
+  delivering_at TEXT,
+  delivered_at TEXT,
+  cancelled_at TEXT,
+  cancellation_reason TEXT,
+  rating INTEGER,
+  review TEXT,
+  updated_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
+);
+
+-- Marketplace order items
+CREATE TABLE IF NOT EXISTS marketplace_order_items (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  product_name TEXT NOT NULL,
+  product_image TEXT,
+  quantity INTEGER NOT NULL,
+  unit_price REAL NOT NULL,
+  total_price REAL NOT NULL,
+  tenant_id TEXT DEFAULT ''
+);
+
+-- Marketplace order history
+CREATE TABLE IF NOT EXISTS marketplace_order_history (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  comment TEXT,
+  changed_by TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT ''
+);
+
+-- Marketplace favorites
+CREATE TABLE IF NOT EXISTS marketplace_favorites (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT DEFAULT '',
+  UNIQUE(user_id, product_id)
+);
+
+-- Indexes for marketplace
+CREATE INDEX IF NOT EXISTS idx_marketplace_products_category ON marketplace_products(category_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_products_active ON marketplace_products(is_active);
+CREATE INDEX IF NOT EXISTS idx_marketplace_cart_user ON marketplace_cart(user_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_user ON marketplace_orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_executor ON marketplace_orders(executor_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_status ON marketplace_orders(status);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_number ON marketplace_orders(order_number);
+CREATE INDEX IF NOT EXISTS idx_marketplace_order_items_order ON marketplace_order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_favorites_user ON marketplace_favorites(user_id);
+
+-- Marketplace tenant_id indexes (defined here because marketplace tables now appear above)
+CREATE INDEX IF NOT EXISTS idx_marketplace_products_tenant_id ON marketplace_products(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_tenant_id ON marketplace_orders(tenant_id);

@@ -38,6 +38,33 @@ CREATE TABLE IF NOT EXISTS users (
   tenant_id TEXT DEFAULT ''
 );
 
+-- Branches table (housing complexes / branches) — must be defined before buildings (FK target)
+CREATE TABLE IF NOT EXISTS branches (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  address TEXT,
+  phone TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_branches_code ON branches(code);
+
+-- Audit log for ЖК (branch) code changes
+CREATE TABLE IF NOT EXISTS branch_code_audit (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  old_code TEXT NOT NULL,
+  new_code TEXT NOT NULL,
+  changed_by TEXT NOT NULL REFERENCES users(id),
+  changed_by_name TEXT,
+  tenant_id TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_branch_code_audit_branch ON branch_code_audit(branch_id);
+CREATE INDEX IF NOT EXISTS idx_branch_code_audit_tenant ON branch_code_audit(tenant_id);
+
 -- Buildings table (extended for CRM)
 CREATE TABLE IF NOT EXISTS buildings (
   id TEXT PRIMARY KEY,
@@ -1976,7 +2003,9 @@ CREATE TABLE IF NOT EXISTS finance_expenses (
 CREATE INDEX IF NOT EXISTS idx_fe_tenant ON finance_expenses(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_fe_building ON finance_expenses(building_id);
 CREATE INDEX IF NOT EXISTS idx_fe_estimate ON finance_expenses(estimate_id);
--- Logical FK: estimate_item_id -> finance_estimate_items.id (enforced at application level)
+-- Logical FK: finance_expenses.estimate_item_id -> finance_estimate_items.id (enforced at application level).
+-- TODO: convert to real FK with `REFERENCES finance_estimate_items(id) ON DELETE SET NULL` when table can be rebuilt;
+-- requires data audit (no orphaned estimate_item_id) and a CREATE-new+COPY+RENAME migration on prod D1.
 
 -- Missing tenant_id indexes for frequently queried tables
 CREATE INDEX IF NOT EXISTS idx_announcements_tenant_id ON announcements(tenant_id);
@@ -2010,7 +2039,7 @@ CREATE INDEX IF NOT EXISTS idx_requests_tenant_status ON requests(tenant_id, sta
 CREATE INDEX IF NOT EXISTS idx_requests_tenant_executor ON requests(tenant_id, executor_id, status);
 CREATE INDEX IF NOT EXISTS idx_apartments_building_tenant ON apartments(building_id, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_finance_charges_tenant_status ON finance_charges(tenant_id, status);
-CREATE INDEX IF NOT EXISTS idx_finance_payments_tenant_date ON finance_payments(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_finance_payments_tenant_date ON finance_payments(tenant_id, payment_date);
 CREATE INDEX IF NOT EXISTS idx_announcements_tenant_active ON announcements(tenant_id, is_active, type);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_date ON chat_messages(channel_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_votes_meeting_agenda ON meeting_vote_records(meeting_id, agenda_item_id);
