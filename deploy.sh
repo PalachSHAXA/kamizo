@@ -1,56 +1,44 @@
 #!/bin/bash
 
-# UK CRM Deployment Script for Cloudflare
+# Kamizo Deployment Script (Cloudflare Workers + D1)
+# Layout: frontend in src/frontend, worker in cloudflare/
 
 set -e
 
-echo "🚀 UK CRM Deployment"
+echo "🚀 Kamizo Deployment"
 echo "===================="
 
-# Check if wrangler is logged in
-if ! npx wrangler whoami &> /dev/null; then
-    echo "❌ Please login to Cloudflare first:"
-    echo "   npx wrangler login"
+# Sanity: wrangler logged in
+if ! (cd cloudflare && npx wrangler whoami &> /dev/null); then
+    echo "❌ Wrangler is not authenticated. Run: cd cloudflare && npx wrangler login"
     exit 1
 fi
 
-# Step 1: Create D1 Database (if not exists)
+# Step 1: Build frontend
 echo ""
-echo "📦 Step 1: Setting up D1 Database..."
-DB_INFO=$(npx wrangler d1 list 2>/dev/null | grep "uk-crm-db" || true)
-
-if [ -z "$DB_INFO" ]; then
-    echo "Creating new D1 database..."
-    npx wrangler d1 create uk-crm-db
-    echo "⚠️  Please update wrangler.toml with the database_id from above"
-    echo "   Then run this script again"
-    exit 0
-else
-    echo "✅ Database exists"
-fi
-
-# Step 2: Run migrations
-echo ""
-echo "📦 Step 2: Running database migrations..."
-cd src/backend
-npm run db:migrate:prod
-cd ../..
-
-# Step 3: Build frontend
-echo ""
-echo "📦 Step 3: Building frontend..."
+echo "📦 Step 1/3: Building frontend..."
 cd src/frontend
 npm run build
 cd ../..
+echo "   ✅ Frontend build complete (src/frontend/dist)"
 
-# Step 4: Deploy to Cloudflare Workers
+# Step 2: Sync built assets to cloudflare/public
 echo ""
-echo "📦 Step 4: Deploying to Cloudflare Workers..."
-cd src/backend
+echo "📦 Step 2/3: Syncing dist → cloudflare/public..."
+rm -rf cloudflare/public
+cp -r src/frontend/dist cloudflare/public
+echo "   ✅ Assets synced"
+
+# Step 3: Deploy worker
+echo ""
+echo "📦 Step 3/3: Deploying worker to Cloudflare..."
+cd cloudflare
 npm run deploy
-cd ../..
+cd ..
 
 echo ""
-echo "✅ Deployment complete!"
+echo "✅ Deployment complete — https://kamizo.uz"
 echo ""
-echo "Your UK CRM is now live!"
+echo "ℹ️  Migrations are NOT applied automatically."
+echo "    Apply manually if needed:"
+echo "      cd cloudflare && npx wrangler d1 migrations apply kamizo-db --remote"
