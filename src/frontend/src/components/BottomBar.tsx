@@ -5,6 +5,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useDataStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useTenantStore } from '../stores/tenantStore';
+import { useModalStore } from '../stores/modalStore';
 import { FeatureLockedModal } from './FeatureLockedModal';
 
 interface Tab {
@@ -25,6 +26,7 @@ export function BottomBar() {
   const { user } = useAuthStore();
   const { requests, getUnreadCount } = useDataStore();
   const { hasFeature, config } = useTenantStore();
+  const modalCount = useModalStore((s) => s.count);
   const barRef = useRef<HTMLDivElement>(null);
   const [fabPressed, setFabPressed] = useState(false);
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
@@ -45,6 +47,11 @@ export function BottomBar() {
   // list. Management roles see a thread list at /chat, so their nav stays.
   const isDirectChatRole = role === 'resident' || role === 'tenant' || role === 'commercial_owner';
   if (location.pathname === '/chat' && isDirectChatRole) return null;
+
+  // Hide while any sheet/modal is open — prevents the bar from peeking under
+  // the sheet's primary action (eg "Продолжить") on iOS PWA where bar is
+  // anchored at bottom: -25px.
+  if (modalCount > 0) return null;
 
   // Calculate badges
   const activeRequestsCount = requests.filter(r =>

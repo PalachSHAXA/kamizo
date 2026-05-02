@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Clock, User, MapPin, Calendar, AlertCircle } from 'lucide-react';
+import { Clock, User, MapPin, Calendar, AlertCircle, Camera } from 'lucide-react';
 import type { Request } from '../types';
 import { STATUS_LABELS, PRIORITY_LABELS, SPECIALIZATION_LABELS } from '../types';
 import { useLanguageStore } from '../stores/languageStore';
@@ -84,6 +84,24 @@ export const RequestCard = memo<RequestCardProps>(
             {/* Description */}
             {request.description && (
               <p className="text-sm text-gray-600 mb-3 line-clamp-2">{request.description}</p>
+            )}
+
+            {/* Photo previews from resident — first 3 thumbs + count chip if more.
+                Click navigates via onView so executor opens the full detail. */}
+            {request.photos && request.photos.length > 0 && (
+              <div className="flex items-center gap-1.5 mb-3">
+                {request.photos.slice(0, 3).map((src, i) => (
+                  <div key={i} className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+                {request.photos.length > 3 && (
+                  <div className="h-12 px-2 rounded-lg bg-gray-100 border border-gray-200 flex items-center gap-1 text-xs font-semibold text-gray-600">
+                    <Camera className="w-3.5 h-3.5" />
+                    +{request.photos.length - 3}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Meta info */}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { InstallAppBanner } from '../components/InstallAppSection';
 import {
-  ChevronRight, MapPin
+  ChevronRight, MapPin, CheckCircle2, Clock as ClockIcon
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -253,24 +253,94 @@ export function ResidentDashboard() {
         </div>
       )}
 
-      {/* Pending Approval Alert */}
-      {pendingApproval.length > 0 && activeTab === 'home' && (
-        <div className="px-3 mb-3 md:px-0">
-          <button
-            onClick={() => switchTab('requests')}
-            className="w-full rounded-[18px] p-[11px_14px] flex items-center gap-[10px] border border-purple-200/60 active:scale-[0.98] transition-transform touch-manipulation"
-            style={{ background: 'linear-gradient(135deg, #F5EEFF, #EDE4FF)' }}
-          >
-            <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0 animate-pulse" />
-            <div className="flex-1 text-[12px] font-semibold text-purple-700 leading-snug">
-              {language === 'ru'
-                ? `${pendingApproval.length} ${pendingApproval.length === 1 ? 'заявка ожидает' : 'заявки ожидают'} подтверждения`
-                : `${pendingApproval.length} ta ariza tasdiqlanishi kerak`}
+      {/* Pending Approval Hero — rich card on home tab.
+          Replaces the previous 12px purple pill with a real preview card:
+          shows the topmost waiting request (#, title, executor, work time)
+          and a brand-coloured CTA that jumps straight into the Approve modal.
+          Stacked count shown only when there are multiple. */}
+      {pendingApproval.length > 0 && activeTab === 'home' && (() => {
+        const top = pendingApproval[0];
+        const formatWorkDuration = (seconds?: number) => {
+          if (!seconds) return null;
+          const mins = Math.floor(seconds / 60);
+          if (mins < 60) return `${mins} ${language === 'ru' ? 'мин' : 'daq'}`;
+          const hrs = Math.floor(mins / 60);
+          const rem = mins % 60;
+          return rem === 0
+            ? `${hrs} ${language === 'ru' ? 'ч' : 'soat'}`
+            : `${hrs} ${language === 'ru' ? 'ч' : 'soat'} ${rem} ${language === 'ru' ? 'мин' : 'daq'}`;
+        };
+        const work = formatWorkDuration(top.workDuration);
+        const more = pendingApproval.length - 1;
+
+        return (
+          <div className="px-3 mb-3 md:px-0">
+            <div
+              className="rounded-[20px] p-[14px_16px] border"
+              style={{
+                background: 'linear-gradient(135deg, rgba(var(--brand-rgb),0.08), rgba(var(--brand-rgb),0.16))',
+                borderColor: 'rgba(var(--brand-rgb),0.25)',
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-[42px] h-[42px] rounded-[13px] flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]"
+                  style={{ background: `linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb),0.85))` }}
+                >
+                  <CheckCircle2 className="w-[22px] h-[22px] text-white" strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgb(var(--brand-rgb))' }}>
+                    {language === 'ru' ? 'Ждёт вашей оценки' : 'Sizning baholashingiz kutilyapti'}
+                  </div>
+                  <div className="text-[15px] font-extrabold text-gray-900 truncate mt-0.5">
+                    {top.title}
+                  </div>
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[12px] text-gray-600 mt-1">
+                    <span className="font-mono font-semibold text-gray-400">#{top.number}</span>
+                    {top.executorName && (
+                      <span className="font-medium">· {formatName(top.executorName)}</span>
+                    )}
+                    {work && (
+                      <span className="inline-flex items-center gap-1 text-gray-500">
+                        · <ClockIcon className="w-3 h-3" /> {work}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => handleApproveClick(top)}
+                  className="flex-1 py-2.5 rounded-[12px] font-bold text-[13px] text-white active:scale-[0.97] transition-transform touch-manipulation flex items-center justify-center gap-1.5"
+                  style={{
+                    background: `linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb),0.85))`,
+                    boxShadow: '0 4px 14px rgba(var(--brand-rgb),0.35)',
+                  }}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {language === 'ru' ? 'Принять работу' : 'Ishni qabul qilish'}
+                </button>
+                <button
+                  onClick={() => switchTab('requests')}
+                  className="px-4 py-2.5 rounded-[12px] font-bold text-[13px] active:scale-[0.97] transition-transform touch-manipulation flex items-center gap-1"
+                  style={{
+                    background: 'white',
+                    color: 'rgb(var(--brand-rgb))',
+                    border: '1px solid rgba(var(--brand-rgb),0.25)',
+                  }}
+                >
+                  {more > 0
+                    ? (language === 'ru' ? `Ещё ${more}` : `Yana ${more}`)
+                    : (language === 'ru' ? 'Подробнее' : 'Batafsil')}
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
-            <ChevronRight className="w-3 h-3 text-purple-400" />
-          </button>
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* Pending Reschedule Requests Alert */}
       {pendingReschedules.length > 0 && activeTab === 'home' && (

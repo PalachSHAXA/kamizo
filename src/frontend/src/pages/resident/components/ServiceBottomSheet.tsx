@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { SERVICE_CATEGORIES } from '../../../types';
+import { useModalPresence } from '../../../stores/modalStore';
 import type { ServiceBottomSheetProps } from './types';
 
 /* Service Icons & Color Maps */
@@ -47,6 +48,7 @@ export function ServiceBottomSheet({
   language, serviceSearch, setServiceSearch, serviceCatFilter, setServiceCatFilter,
   selectedServiceId, setSelectedServiceId, onClose, onSubmit,
 }: ServiceBottomSheetProps) {
+  useModalPresence();
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; currentY: number; isDragging: boolean }>({ startY: 0, currentY: 0, isDragging: false });
 

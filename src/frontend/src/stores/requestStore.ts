@@ -114,6 +114,13 @@ export const useRequestStore = create<RequestState>()(
           workDuration: r.work_duration,
           buildingId: r.building_id,
           buildingName: r.building_name,
+          photos: (() => {
+            // photos column is TEXT (JSON-encoded array of data-URLs).
+            // Tolerate both string and already-parsed array.
+            if (!r.photos) return undefined;
+            if (Array.isArray(r.photos)) return r.photos;
+            try { return JSON.parse(r.photos); } catch { return undefined; }
+          })(),
           // Pause fields from DB
           isPaused: r.is_paused === 1 || r.is_paused === true,
           pausedAt: r.paused_at,
@@ -167,6 +174,7 @@ export const useRequestStore = create<RequestState>()(
         accessInfo: requestData.accessInfo,
         scheduledDate: requestData.scheduledDate,
         scheduledTime: requestData.scheduledTime,
+        photos: requestData.photos,
         createdAt: now,
       };
 
@@ -195,6 +203,7 @@ export const useRequestStore = create<RequestState>()(
             : undefined,
           // For manual creation by managers - pass the resident_id
           resident_id: requestData.residentId,
+          photos: requestData.photos,
         });
 
         // Replace temp with real data

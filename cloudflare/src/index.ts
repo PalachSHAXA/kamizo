@@ -364,6 +364,42 @@ async function runMigrations(env: Env) {
   }
 }
 
+// Shared 404 page for unknown tenant subdomains
+function tenantNotFoundResponse(tenantSlug: string): Response {
+  return new Response(`
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Управляющая компания не найдена</title>
+      <style>
+        body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .container { text-align: center; padding: 2rem; }
+        h1 { font-size: 3rem; margin: 0 0 1rem 0; }
+        p { font-size: 1.25rem; margin: 0.5rem 0; opacity: 0.9; }
+        .code { font-family: monospace; background: rgba(255,255,255,0.1); padding: 0.25rem 0.5rem; border-radius: 4px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>404</h1>
+        <p>Управляющая компания <span class="code">${tenantSlug}</span> не найдена</p>
+        <p>Данный поддомен не зарегистрирован в системе</p>
+      </div>
+    </body>
+    </html>
+  `, {
+    status: 404,
+    headers: {
+      'Content-Type': 'text/html;charset=UTF-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    }
+  });
+}
+
 // ==================== MAIN HANDLER ====================
 
 export default {
@@ -425,62 +461,7 @@ export default {
         `).bind(tenantSlug).first();
 
         if (!tenant) {
-          return new Response(`
-            <!DOCTYPE html>
-            <html lang="ru">
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Управляющая компания не найдена</title>
-              <style>
-                body {
-                  font-family: system-ui, -apple-system, sans-serif;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  min-height: 100vh;
-                  margin: 0;
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white;
-                }
-                .container {
-                  text-align: center;
-                  padding: 2rem;
-                }
-                h1 {
-                  font-size: 3rem;
-                  margin: 0 0 1rem 0;
-                }
-                p {
-                  font-size: 1.25rem;
-                  margin: 0.5rem 0;
-                  opacity: 0.9;
-                }
-                .code {
-                  font-family: monospace;
-                  background: rgba(255,255,255,0.1);
-                  padding: 0.25rem 0.5rem;
-                  border-radius: 4px;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <h1>404</h1>
-                <p>Управляющая компания <span class="code">${tenantSlug}</span> не найдена</p>
-                <p>Данный поддомен не зарегистрирован в системе</p>
-              </div>
-            </body>
-            </html>
-          `, {
-            status: 404,
-            headers: {
-              'Content-Type': 'text/html;charset=UTF-8',
-              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
-            }
-          });
+          return tenantNotFoundResponse(tenantSlug);
         }
 
         // Store tenant context for this request
@@ -600,63 +581,8 @@ export default {
     // For SPA: serve static assets or fallback to index.html
     // BUT first verify tenant exists if this is a tenant subdomain
     if (tenantSlug && !getTenantForRequest(request)) {
-      // This shouldn't happen as we checked above, but double-check for safety
-      return new Response(`
-        <!DOCTYPE html>
-        <html lang="ru">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Управляющая компания не найдена</title>
-          <style>
-            body {
-              font-family: system-ui, -apple-system, sans-serif;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-            }
-            .container {
-              text-align: center;
-              padding: 2rem;
-            }
-            h1 {
-              font-size: 3rem;
-              margin: 0 0 1rem 0;
-            }
-            p {
-              font-size: 1.25rem;
-              margin: 0.5rem 0;
-              opacity: 0.9;
-            }
-            .code {
-              font-family: monospace;
-              background: rgba(255,255,255,0.1);
-              padding: 0.25rem 0.5rem;
-              border-radius: 4px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>404</h1>
-            <p>Управляющая компания <span class="code">${tenantSlug}</span> не найдена</p>
-            <p>Данный поддомен не зарегистрирован в системе</p>
-          </div>
-        </body>
-        </html>
-      `, {
-        status: 404,
-        headers: {
-          'Content-Type': 'text/html;charset=UTF-8',
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
+      // Defensive: should already be handled above when fetching tenant
+      return tenantNotFoundResponse(tenantSlug);
     }
 
     // Helper: add no-cache + CSP headers to HTML responses (index.html)

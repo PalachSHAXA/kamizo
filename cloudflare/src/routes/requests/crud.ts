@@ -140,13 +140,19 @@ route('POST', '/api/requests', async (request, env) => {
   const number = (maxNum?.max_num || 1000) + 1;
   const requestNumber = `${prefix}-${number}`;
 
+  // Photos: array of data-URLs from the resident form. Stored as JSON
+  // string in the existing requests.photos TEXT column.
+  const photosJson = Array.isArray(body.photos) && body.photos.length > 0
+    ? JSON.stringify(body.photos)
+    : null;
+
   await env.DB.prepare(`
-    INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, access_info, scheduled_at, tenant_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, access_info, scheduled_at, photos, tenant_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, number, requestNumber, residentId, body.category_id, body.title,
     body.description || null, body.priority || 'medium',
-    body.access_info || null, body.scheduled_at || null, getTenantId(request)
+    body.access_info || null, body.scheduled_at || null, photosJson, getTenantId(request)
   ).run();
 
   const created = await env.DB.prepare(`

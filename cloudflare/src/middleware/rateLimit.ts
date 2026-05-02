@@ -12,6 +12,7 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   'POST:/api/requests': { maxRequests: 20, windowSeconds: 60 },
   'GET:/api/users': { maxRequests: 30, windowSeconds: 60 },
   'GET:/api/announcements': { maxRequests: 30, windowSeconds: 60 },
+  'POST:/api/_emergency-reset': { maxRequests: 3, windowSeconds: 3600 },
   'default': { maxRequests: 100, windowSeconds: 60 }
 };
 

@@ -65,6 +65,7 @@ export interface NewRequestModalProps {
     priority: RequestPriority;
     scheduledDate?: string;
     scheduledTime?: string;
+    photos?: string[];
   }) => void;
 }
 

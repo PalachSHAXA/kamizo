@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Calendar, MapPin, Send } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Calendar, MapPin, Send, Camera, X as XIcon, ImagePlus } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { SERVICE_CATEGORIES, PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../../../types';
 import type { RequestPriority } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
 import { Sheet } from '../../../components/common';
+import { useModalPresence } from '../../../stores/modalStore';
 import type { NewRequestModalProps } from './types';
 
 // Time slots for scheduling
@@ -34,6 +35,7 @@ const TRASH_VOLUME = [
 ];
 
 export function NewRequestModal({ category, user, onClose, onSubmit }: NewRequestModalProps) {
+  useModalPresence();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<RequestPriority>('medium');
@@ -46,7 +48,50 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
   const [trashDetails, setTrashDetails] = useState('');
   const [trashDate, setTrashDate] = useState('');
   const [trashTime, setTrashTime] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { language } = useLanguageStore();
+
+  // Photo handling: read into data-URLs, cap at 5 photos, ~3MB each before
+  // base64 inflation. Persisted as JSON string in requests.photos column.
+  // Compress is light — full image fidelity isn't needed for ЖКХ context.
+  const MAX_PHOTOS = 5;
+  const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhotoError(null);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const remaining = MAX_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      setPhotoError(language === 'ru' ? `Максимум ${MAX_PHOTOS} фото` : `Maksimum ${MAX_PHOTOS} ta rasm`);
+      return;
+    }
+    const accepted = files.slice(0, remaining);
+    const newPhotos: string[] = [];
+    for (const file of accepted) {
+      if (!file.type.startsWith('image/')) {
+        setPhotoError(language === 'ru' ? 'Только изображения' : 'Faqat rasmlar');
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        setPhotoError(language === 'ru' ? 'Файл больше 3 МБ' : 'Fayl 3 MB dan katta');
+        continue;
+      }
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      }).catch(() => null);
+      if (dataUrl) newPhotos.push(dataUrl);
+    }
+    setPhotos((p) => [...p, ...newPhotos]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removePhoto = (i: number) => setPhotos((p) => p.filter((_, idx) => idx !== i));
 
   const categoryInfo = SERVICE_CATEGORIES.find(c => c.id === category);
 
@@ -85,7 +130,8 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
         category,
         priority,
         scheduledDate: trashDate,
-        scheduledTime: trashTime
+        scheduledTime: trashTime,
+        photos: photos.length > 0 ? photos : undefined,
       });
       return;
     }
@@ -98,7 +144,8 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
       category,
       priority,
       scheduledDate: scheduledDate || undefined,
-      scheduledTime: scheduledTime || undefined
+      scheduledTime: scheduledTime || undefined,
+      photos: photos.length > 0 ? photos : undefined,
     });
   };
 
@@ -345,6 +392,66 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
               )}
             </div>
           )}
+
+          {/* Photos — visible to executor and management */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+              <Camera className="w-4 h-4 text-gray-500" />
+              {language === 'ru' ? 'Фото проблемы' : 'Muammo rasmlari'}
+              <span className="ml-auto text-xs font-normal text-gray-400">
+                {photos.length}/{MAX_PHOTOS}
+              </span>
+            </label>
+            <p className="text-xs text-gray-500 -mt-0.5 mb-2 leading-snug">
+              {language === 'ru'
+                ? 'Прикрепите фото — мастер и управляющая компания увидят их вместе с заявкой'
+                : 'Rasm biriktiring — usta va boshqaruv kompaniyasi arizangiz bilan birga ko\'radi'}
+            </p>
+
+            {photos.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                {photos.map((src, i) => (
+                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 backdrop-blur flex items-center justify-center active:scale-90 transition-transform touch-manipulation"
+                      aria-label={language === 'ru' ? 'Удалить фото' : 'Rasmni o\'chirish'}
+                    >
+                      <XIcon className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {photos.length < MAX_PHOTOS && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 active:border-primary-300 active:bg-primary-50 transition-colors touch-manipulation flex items-center justify-center gap-2"
+              >
+                <ImagePlus className="w-5 h-5 text-gray-400" strokeWidth={2} />
+                <span className="text-sm font-semibold text-gray-500">
+                  {language === 'ru' ? 'Добавить фото' : 'Rasm qo\'shish'}
+                </span>
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              capture="environment"
+              onChange={handlePhotoSelect}
+              className="hidden"
+              aria-label={language === 'ru' ? 'Выбрать фото' : 'Rasm tanlang'}
+            />
+            {photoError && (
+              <div className="text-xs text-red-500 mt-1.5">{photoError}</div>
+            )}
+          </div>
 
           {/* Address info */}
           <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">

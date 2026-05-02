@@ -176,6 +176,11 @@ route('POST', '/api/auth/register', async (request, env) => {
     return error('Login, password, and name required');
   }
 
+  // SECURITY: Only super_admin can create super_admin accounts (prevents privilege escalation)
+  if (role === 'super_admin' && !isSuperAdmin(authUser)) {
+    return error('Only super admin can create super_admin accounts', 403);
+  }
+
   // SECURITY: Only super_admin can create admin accounts (directors cannot create admins)
   if (role === 'admin' && !isSuperAdmin(authUser)) {
     return error('Only super admin can create admin accounts', 403);

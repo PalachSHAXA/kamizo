@@ -9,6 +9,7 @@ export interface Env {
   VAPID_EMAIL: string;
   VAPID_PRIVATE_KEY: string;
   SENTRY_DSN?: string;
+  EMERGENCY_RESET_SECRET?: string;
   ASSETS: Fetcher;
   RATE_LIMITER: KVNamespace;
   CONNECTION_MANAGER: DurableObjectNamespace;

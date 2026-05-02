@@ -53,6 +53,28 @@ export function RequestDetailsModal({
             </p>
           </div>
 
+          {/* Photos attached by resident */}
+          {request.photos && request.photos.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">
+                {language === 'ru' ? `Фото (${request.photos.length})` : `Rasmlar (${request.photos.length})`}
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                {request.photos.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80"
+                  >
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Priority */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">

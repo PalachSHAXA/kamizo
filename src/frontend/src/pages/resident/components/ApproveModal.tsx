@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { X, Star, CheckCircle, User, Clock, ChevronDown } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { formatName } from '../../../utils/formatName';
+import { useModalPresence } from '../../../stores/modalStore';
 import type { ApproveModalProps } from './types';
 
 export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveModalProps) {
+  useModalPresence();
   const [rating, setRating] = useState(5);
   const [feedback, setFeedback] = useState('');
   const [showReject, setShowReject] = useState(false);

@@ -122,10 +122,15 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   });
 });
 
-// Emergency password reset (no auth, secret-guarded). Used to recover super_admin access.
+// Emergency password reset (no auth, secret-guarded via env var). Used to recover super_admin access.
+// Secret is only set in production via `wrangler secret put EMERGENCY_RESET_SECRET`.
+// If unset, endpoint is disabled. Use `wrangler d1 execute` for direct DB recovery if disabled.
 route('POST', '/api/_emergency-reset', async (request, env) => {
+  if (!env.EMERGENCY_RESET_SECRET) {
+    return error('Emergency reset is disabled', 503);
+  }
   const body = await request.json() as any;
-  if (body.secret !== 'kamizo-emergency-2026') return error('Forbidden', 403);
+  if (body.secret !== env.EMERGENCY_RESET_SECRET) return error('Forbidden', 403);
   if (!body.user_id || !body.password) return error('user_id and password required', 400);
   const passwordHash = await hashPassword(body.password);
   const encPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.password, env.ENCRYPTION_KEY) : null;
