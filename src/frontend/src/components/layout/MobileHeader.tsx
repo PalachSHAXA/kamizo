@@ -108,7 +108,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
       <header className="mobile-header" role="banner">
         <button
           onClick={onMenuClick}
-          className="w-[42px] h-[42px] rounded-[14px] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-[4px] active:scale-[0.92] transition-transform touch-manipulation relative shrink-0"
+          className="tap-target w-[42px] h-[42px] rounded-[14px] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-[4px] active:scale-[0.92] transition-transform touch-manipulation relative shrink-0"
           aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'}
           aria-expanded={false}
         >
@@ -133,7 +133,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
 
         <button
           onClick={() => setShowNotifications(!showNotifications)}
-          className="w-[42px] h-[42px] rounded-[14px] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] flex items-center justify-center active:scale-[0.92] transition-transform touch-manipulation relative shrink-0"
+          className="tap-target w-[42px] h-[42px] rounded-[14px] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] flex items-center justify-center active:scale-[0.92] transition-transform touch-manipulation relative shrink-0"
           aria-label={language === 'ru' ? `Уведомления, ${totalNotificationsBadge} новых` : `Bildirishnomalar, ${totalNotificationsBadge} yangi`}
           aria-pressed={showNotifications}
         >

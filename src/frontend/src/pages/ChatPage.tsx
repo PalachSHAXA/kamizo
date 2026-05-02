@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   Send, ArrowLeft, Building2, Home,
   Search, Check, CheckCheck,
@@ -164,7 +164,7 @@ function getBranchColor(index: number) {
 }
 
 // ─── Location Badges ──────────────────────────────────────────────────────
-function LocationBadges({ channel, language, branchIndex }: { channel: ChatChannel; language: string; branchIndex: number }) {
+const LocationBadges = memo(function LocationBadges({ channel, language, branchIndex }: { channel: ChatChannel; language: string; branchIndex: number }) {
   const color = getBranchColor(branchIndex);
   return (
     <div className="flex items-center gap-1 flex-wrap mt-1">
@@ -188,7 +188,7 @@ function LocationBadges({ channel, language, branchIndex }: { channel: ChatChann
       )}
     </div>
   );
-}
+});
 
 // ─── Admin Channel Sidebar ──────────────────────────────────────────────
 function AdminChannelList({

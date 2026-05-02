@@ -337,10 +337,7 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
         })}
       </div>
 
-      {/* Dots indicator. Wrapped in a tap-friendly button — but the dot
-          itself is a span so the global `button { min-height: 44px }` rule
-          doesn't blow it up to a chunky square. The button stays 16px tall
-          (good tap target) and the span renders the visible 7px dot. */}
+      {/* Dots indicator — decorative carousel dots, intentionally small. */}
       <div className="flex justify-center items-center gap-1.5 mb-2 h-4">
         {cards.map((_, i) => (
           <button
@@ -348,7 +345,7 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
             onClick={() => setActiveIdx(i)}
             aria-label={`card ${i + 1}`}
             className="flex items-center justify-center bg-transparent border-0 p-0 cursor-pointer"
-            style={{ width: 28, height: 16, minHeight: 0, minWidth: 0 }}
+            style={{ width: 28, height: 16 }}
           >
             <span
               style={{

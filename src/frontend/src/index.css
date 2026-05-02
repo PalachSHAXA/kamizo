@@ -173,16 +173,19 @@ body {
     overflow: hidden;
   }
 
-  /* Minimum touch target size — all interactive elements */
-  button, a, [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
   /* Base font size on mobile — never below 14px */
   body {
     font-size: 14px;
   }
+}
+
+/* Opt-in tap-target — apply to primary mobile interactive elements
+   (headers, footers, bottom bar, FABs, nav items). Replaces the previous
+   global `button, a, [role="button"]` rule which inflated decorative
+   buttons such as carousel dots, inline icon chips, and small chevrons. */
+.tap-target {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 /* ── Keyboard visible — hide bottom nav, shrink content ── */

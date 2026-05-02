@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
   CheckCircle, ShoppingBag, Star, ArrowLeft, Truck
@@ -88,7 +88,7 @@ function getProductEmoji(name: string, categoryId: string): string {
   return CATEGORY_ICONS[categoryId] || '📦';
 }
 
-function ProductCardPlaceholder({ name, categoryId, size = 'md' }: { name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
+const ProductCardPlaceholder = memo(function ProductCardPlaceholder({ name, categoryId, size = 'md' }: { name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
   const gradient = CATEGORY_GRADIENTS[categoryId] || 'from-gray-400 to-gray-500';
   const emoji = getProductEmoji(name, categoryId);
   const emojiSize = { xs: 'text-xl', sm: 'text-3xl', md: 'text-4xl', lg: 'text-5xl', xl: 'text-7xl' }[size];
@@ -103,7 +103,7 @@ function ProductCardPlaceholder({ name, categoryId, size = 'md' }: { name: strin
       )}
     </div>
   );
-}
+});
 
 function ProductPhoto({ src, name, size = 'md' }: { src: string; name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
   return (
@@ -219,21 +219,30 @@ export function MarketplacePage() {
     if (id) { const o = orders.find(x => x.id === id); if (o?.status === 'delivered') { setRatingOrderId(id); setShowDeliveryRatingModal(true); sessionStorage.removeItem('open_delivery_rating_for_order'); } }
   }, [orders]);
 
-  const addToCart = async (productId: string) => {
+  const removeFromCart = useCallback(async (productId: string) => {
+    try { await apiRequest(`/api/marketplace/cart/${productId}`, { method: 'DELETE' }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
+  }, []);
+  const addToCart = useCallback(async (productId: string) => {
     try { await apiRequest('/api/marketplace/cart', { method: 'POST', body: JSON.stringify({ product_id: productId, quantity: 1 }) }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
-  };
-  const updateCartQuantity = async (productId: string, qty: number) => {
+  }, []);
+  const updateCartQuantity = useCallback(async (productId: string, qty: number) => {
     if (qty <= 0) { await removeFromCart(productId); return; }
     try { await apiRequest('/api/marketplace/cart', { method: 'POST', body: JSON.stringify({ product_id: productId, quantity: qty }) }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
-  };
-  const removeFromCart = async (productId: string) => {
-    try { await apiRequest(`/api/marketplace/cart/${productId}`, { method: 'DELETE' }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
-  };
-  const toggleFavorite = async (productId: string) => {
-    const was = favorites.includes(productId);
-    setFavorites(was ? favorites.filter(id => id !== productId) : [...favorites, productId]);
-    try { await apiRequest(`/api/marketplace/favorites/${productId}`, { method: 'POST' }); } catch { setFavorites(was ? [...favorites, productId] : favorites.filter(id => id !== productId)); }
-  };
+  }, [removeFromCart]);
+  const toggleFavorite = useCallback(async (productId: string) => {
+    setFavorites(prev => {
+      const was = prev.includes(productId);
+      return was ? prev.filter(id => id !== productId) : [...prev, productId];
+    });
+    try {
+      await apiRequest(`/api/marketplace/favorites/${productId}`, { method: 'POST' });
+    } catch {
+      setFavorites(prev => {
+        const was = prev.includes(productId);
+        return was ? prev.filter(id => id !== productId) : [...prev, productId];
+      });
+    }
+  }, []);
   const createOrder = async () => {
     try {
       await apiRequest('/api/marketplace/orders', { method: 'POST', body: JSON.stringify({ delivery_notes: deliveryNote }) });
@@ -257,14 +266,35 @@ export function MarketplacePage() {
     try { setCancellingOrderId(orderId); await apiRequest(`/api/marketplace/orders/${orderId}/cancel`, { method: 'POST', body: JSON.stringify({ reason: language === 'ru' ? 'Отменено' : 'Bekor qilindi' }) }); const r = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders'); setOrders(r?.orders || []); } catch { addToast('error', language === 'ru' ? 'Ошибка' : 'Xato'); } finally { setCancellingOrderId(null); }
   };
 
-  const filteredProducts = products.filter(p => (!selectedCategory || p.category_id === selectedCategory) && (!searchQuery || (language === 'ru' ? p.name_ru : p.name_uz).toLowerCase().includes(searchQuery.toLowerCase())));
-  const getCartQty = (id: string) => cart.find(c => c.product_id === id)?.quantity || 0;
-  const cartTotal = cart.reduce((s, i) => { const p = products.find(x => x.id === i.product_id); return s + (p?.price || 0) * i.quantity; }, 0);
-  const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
-  const fmt = (p: number) => new Intl.NumberFormat('ru-RU').format(p) + (language === 'ru' ? ' сум' : ' so\'m');
-  const activeOrders = orders.filter(o => !['delivered', 'cancelled'].includes(o.status));
-  const historyOrders = orders.filter(o => ['delivered', 'cancelled'].includes(o.status));
-  const featured = products.filter(p => p.is_featured);
+  const filteredProducts = useMemo(
+    () => products.filter(p =>
+      (!selectedCategory || p.category_id === selectedCategory) &&
+      (!searchQuery || (language === 'ru' ? p.name_ru : p.name_uz).toLowerCase().includes(searchQuery.toLowerCase()))
+    ),
+    [products, selectedCategory, searchQuery, language]
+  );
+  const getCartQty = useCallback(
+    (id: string) => cart.find(c => c.product_id === id)?.quantity || 0,
+    [cart]
+  );
+  const cartTotal = useMemo(
+    () => cart.reduce((s, i) => { const p = products.find(x => x.id === i.product_id); return s + (p?.price || 0) * i.quantity; }, 0),
+    [cart, products]
+  );
+  const cartCount = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
+  const fmt = useCallback(
+    (p: number) => new Intl.NumberFormat('ru-RU').format(p) + (language === 'ru' ? ' сум' : ' so\'m'),
+    [language]
+  );
+  const activeOrders = useMemo(
+    () => orders.filter(o => !['delivered', 'cancelled'].includes(o.status)),
+    [orders]
+  );
+  const historyOrders = useMemo(
+    () => orders.filter(o => ['delivered', 'cancelled'].includes(o.status)),
+    [orders]
+  );
+  const featured = useMemo(() => products.filter(p => p.is_featured), [products]);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" /></div>;
 
@@ -279,7 +309,7 @@ export function MarketplacePage() {
       {/* HEADER */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-2xl border-b border-gray-100/60 md:hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="px-4 pt-1.5 pb-2 flex items-center justify-between">
-          <button onClick={() => navigate('/')} className="w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center active:scale-90 transition-transform touch-manipulation">
+          <button onClick={() => navigate('/')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}>
             <ArrowLeft className="w-[18px] h-[18px] text-gray-700" />
           </button>
           <div className="text-center">
@@ -288,12 +318,12 @@ export function MarketplacePage() {
           </div>
           <div className="flex gap-2">
             {activeOrders.length > 0 && (
-              <button onClick={() => setActiveTab('orders')} className="w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation">
+              <button onClick={() => setActiveTab('orders')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? `Активные заказы, ${activeOrders.length}` : `Faol buyurtmalar, ${activeOrders.length}`}>
                 <Package className="w-[18px] h-[18px] text-gray-700" />
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-white">{activeOrders.length}</span>
               </button>
             )}
-            <button onClick={() => setActiveTab('cart')} className="w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation">
+            <button onClick={() => setActiveTab('cart')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? `Корзина, ${cartCount} товаров` : `Savat, ${cartCount} mahsulot`}>
               <ShoppingCart className="w-[18px] h-[18px] text-gray-700" />
               {cartCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-white">{cartCount > 9 ? '9+' : cartCount}</span>}
             </button>
@@ -410,9 +440,9 @@ export function MarketplacePage() {
                       </div>
                       {getCartQty(featured[0].id) > 0 ? (
                         <div className="flex items-center gap-1.5">
-                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) - 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
+                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) - 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-gray-100 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
                           <span className="text-[14px] font-bold text-gray-900 w-5 text-center">{getCartQty(featured[0].id)}</span>
-                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) + 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
+                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) + 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}><Plus className="w-3.5 h-3.5 text-white" /></button>
                         </div>
                       ) : (
                         <button onClick={e => { e.stopPropagation(); addToCart(featured[0].id); }} className="px-4 py-2 rounded-[12px] bg-primary-500 text-white text-[13px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]"><Plus className="w-4 h-4" />{language === 'ru' ? 'В корзину' : 'Savatga'}</button>
@@ -436,7 +466,7 @@ export function MarketplacePage() {
                         <div className="flex items-end justify-between mt-1.5">
                           <span className="font-bold text-[13px] text-gray-900">{fmt(p.price)}</span>
                           {getCartQty(p.id) > 0 ? <span className="text-xs font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded-full">{getCartQty(p.id)}</span> : (
-                            <button onClick={e => { e.stopPropagation(); addToCart(p.id); }} className="w-7 h-7 rounded-full bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
+                            <button onClick={e => { e.stopPropagation(); addToCart(p.id); }} className="w-7 h-7 rounded-full bg-primary-500 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'В корзину' : 'Savatga'}><Plus className="w-3.5 h-3.5 text-white" /></button>
                           )}
                         </div>
                       </div>
@@ -461,7 +491,7 @@ export function MarketplacePage() {
                     <div key={p.id} className="bg-white rounded-[18px] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform">
                       <div className="relative aspect-square bg-gray-50 flex items-center justify-center cursor-pointer" onClick={() => setSelectedProduct(p)}>
                         {p.image_url ? <ProductPhoto src={p.image_url} name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="lg" /> : <ProductCardPlaceholder name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="lg" />}
-                        <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform">
+                        <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform" aria-label={language === 'ru' ? 'В избранное' : 'Sevimlilarga'}>
                           <Heart className={`w-[15px] h-[15px] ${fav ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} strokeWidth={1.8} />
                         </button>
                         {p.is_featured && disc === 0 && <div className="absolute top-2 left-2 bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">ХИТ</div>}
@@ -483,9 +513,9 @@ export function MarketplacePage() {
                           <div className="mt-2">
                             {qty > 0 ? (
                               <div className="flex items-center justify-between bg-gray-50 rounded-[12px] p-1">
-                                <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
+                                <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
                                 <span className="text-[14px] font-bold text-gray-900">{qty}</span>
-                                <button onClick={() => updateCartQuantity(p.id, qty + 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3.5 h-3.5 text-white" /></button>
+                                <button onClick={() => updateCartQuantity(p.id, qty + 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}><Plus className="w-3.5 h-3.5 text-white" /></button>
                               </div>
                             ) : (
                               <button onClick={() => addToCart(p.id)} disabled={p.stock_quantity === 0} className={`w-full py-2 rounded-[12px] flex items-center justify-center gap-1.5 text-[13px] font-semibold active:scale-[0.97] transition-transform ${p.stock_quantity === 0 ? 'bg-gray-100 text-gray-400' : 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.25)]'}`}>
@@ -595,11 +625,11 @@ export function MarketplacePage() {
                         <p className="font-bold text-[14px] text-primary-600 mt-1">{fmt(p.price * item.quantity)}</p>
                       </div>
                       <div className="flex flex-col items-end justify-between">
-                        <button onClick={() => removeFromCart(p.id)} className="p-1 text-gray-300 active:text-red-500"><X className="w-4 h-4" /></button>
+                        <button onClick={() => removeFromCart(p.id)} className="p-1 text-gray-300 active:text-red-500" aria-label={language === 'ru' ? 'Удалить из корзины' : 'Savatdan olib tashlash'}><X className="w-4 h-4" /></button>
                         <div className="flex items-center gap-1.5 bg-gray-50 rounded-[10px] p-0.5">
-                          <button onClick={() => updateCartQuantity(p.id, item.quantity - 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform"><Minus className="w-3 h-3 text-gray-600" /></button>
+                          <button onClick={() => updateCartQuantity(p.id, item.quantity - 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3 h-3 text-gray-600" /></button>
                           <span className="w-5 text-center text-[13px] font-bold">{item.quantity}</span>
-                          <button onClick={() => updateCartQuantity(p.id, item.quantity + 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform"><Plus className="w-3 h-3 text-gray-600" /></button>
+                          <button onClick={() => updateCartQuantity(p.id, item.quantity + 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}><Plus className="w-3 h-3 text-gray-600" /></button>
                         </div>
                       </div>
                     </div>
@@ -718,8 +748,8 @@ export function MarketplacePage() {
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="relative">
               <div className="aspect-square bg-gray-50 flex items-center justify-center">{selectedProduct.image_url ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" /> : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}</div>
-              <button onClick={() => setSelectedProduct(null)} className="absolute top-3 right-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm"><X className="w-4 h-4 text-gray-600" /></button>
-              <button onClick={() => toggleFavorite(selectedProduct.id)} className="absolute top-3 left-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm"><Heart className={`w-4 h-4 ${favorites.includes(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} /></button>
+              <button onClick={() => setSelectedProduct(null)} className="absolute top-3 right-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}><X className="w-4 h-4 text-gray-600" /></button>
+              <button onClick={() => toggleFavorite(selectedProduct.id)} className="absolute top-3 left-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm" aria-label={language === 'ru' ? 'В избранное' : 'Sevimlilarga'}><Heart className={`w-4 h-4 ${favorites.includes(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} /></button>
             </div>
             <div className="p-4">
               <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
@@ -770,7 +800,7 @@ export function MarketplacePage() {
                       {new Date(selectedOrder.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
-                  <button onClick={() => setSelectedOrder(null)} className="min-w-[44px] min-h-[44px] bg-gray-100 rounded-full flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+                  <button onClick={() => setSelectedOrder(null)} className="min-w-[44px] min-h-[44px] bg-gray-100 rounded-full flex items-center justify-center" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}><X className="w-4 h-4 text-gray-500" /></button>
                 </div>
               </div>
 
@@ -888,7 +918,7 @@ export function MarketplacePage() {
                 <h2 className="text-[17px] font-bold text-gray-900">{language === 'ru' ? 'Оцените доставку' : 'Baholang'}</h2>
                 <p className="text-[13px] text-gray-500 mt-1">#{orders.find(o => o.id === ratingOrderId)?.order_number}</p>
               </div>
-              <div className="flex justify-center gap-2 mb-2">{[1,2,3,4,5].map(s => <button key={s} onClick={() => setDeliveryRating(s)} className="p-1 active:scale-90 transition-transform"><Star className={`w-9 h-9 ${s <= deliveryRating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} /></button>)}</div>
+              <div className="flex justify-center gap-2 mb-2">{[1,2,3,4,5].map(s => <button key={s} onClick={() => setDeliveryRating(s)} className="p-1 active:scale-90 transition-transform" aria-label={language === 'ru' ? `Оценка ${s} из 5` : `${s} dan 5 baho`}><Star className={`w-9 h-9 ${s <= deliveryRating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} /></button>)}</div>
               <p className="text-center text-[13px] font-medium text-gray-600 mb-4">{deliveryRating >= 4 ? (language === 'ru' ? 'Отлично!' : 'Ajoyib!') : deliveryRating >= 3 ? (language === 'ru' ? 'Нормально' : 'O\'rtacha') : (language === 'ru' ? 'Плохо' : 'Yomon')}</p>
               <textarea value={deliveryReview} onChange={e => setDeliveryReview(e.target.value)} placeholder={language === 'ru' ? 'Отзыв...' : 'Sharh...'} className="w-full px-3.5 py-3 border border-gray-200 rounded-[14px] resize-none text-[14px] mb-4" rows={2} />
               <button onClick={submitDeliveryRating} disabled={isSubmittingRating} className="w-full py-3.5 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-2">

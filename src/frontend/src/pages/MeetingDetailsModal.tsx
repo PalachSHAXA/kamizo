@@ -12,6 +12,7 @@ import { useToastStore } from '../stores/toastStore';
 import { generateProtocolDocx } from '../utils/protocolGenerator';
 import type { Meeting } from '../types';
 import { MEETING_STATUS_LABELS, DECISION_THRESHOLD_LABELS } from '../types';
+import { Modal } from '../components/ui/Modal';
 
 export interface MeetingDetailsModalProps {
   meeting: Meeting;
@@ -141,41 +142,39 @@ export function MeetingDetailsModal({
     }
   };
 
-  // TODO: migrate to <Modal> component
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
-        {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-base sm:text-lg md:text-xl font-bold">
-              {language === 'ru' ? `Собрание #${meeting.number}` : `Yig'ilish #${meeting.number}`}
-            </h2>
-            <p className="text-sm text-gray-500">{meeting.buildingAddress}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Download protocol button - show for completed meetings */}
-            {['protocol_generated', 'protocol_approved'].includes(meeting.status) && (
-              <button
-                onClick={handleDownloadProtocol}
-                disabled={downloadingProtocol}
-                className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50"
-              >
-                <Download className="w-4 h-4" />
-                {downloadingProtocol
-                  ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
-                  : (language === 'ru' ? 'Скачать протокол' : 'Bayonnomani yuklab olish')}
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-              aria-label="Закрыть"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+    <Modal open={true} onClose={onClose} size="lg" hideCloseButton>
+      {/* Header */}
+      <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-base sm:text-lg md:text-xl font-bold">
+            {language === 'ru' ? `Собрание #${meeting.number}` : `Yig'ilish #${meeting.number}`}
+          </h2>
+          <p className="text-sm text-gray-500">{meeting.buildingAddress}</p>
         </div>
+        <div className="flex items-center gap-2">
+          {/* Download protocol button - show for completed meetings */}
+          {['protocol_generated', 'protocol_approved'].includes(meeting.status) && (
+            <button
+              onClick={handleDownloadProtocol}
+              disabled={downloadingProtocol}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-xl hover:bg-teal-600 transition-colors disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              {downloadingProtocol
+                ? (language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...')
+                : (language === 'ru' ? 'Скачать протокол' : 'Bayonnomani yuklab olish')}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="tap-target p-2 hover:bg-gray-100 rounded-xl transition-colors flex items-center justify-center"
+            aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
 
         <div className="p-6 space-y-6">
           {/* Status & Quorum */}
@@ -535,7 +534,6 @@ export function MeetingDetailsModal({
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

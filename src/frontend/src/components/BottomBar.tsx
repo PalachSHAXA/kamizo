@@ -261,7 +261,7 @@ export function BottomBar() {
               <div key={tab.id} className="flex-1 flex justify-center items-start pt-2 relative z-20">
                 <button
                   onClick={() => handleTap(tab)}
-                  className="touch-manipulation -mt-3.5"
+                  className="tap-target touch-manipulation -mt-3.5"
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                   aria-label={tab.id === 'qr' ? (language === 'ru' ? 'QR сканер' : 'QR skaner') : (language === 'ru' ? 'Новая заявка' : 'Yangi ariza')}
                   data-tour={`bottombar-${tab.id}`}
@@ -290,7 +290,7 @@ export function BottomBar() {
             <button
               key={tab.id}
               onClick={() => handleTap(tab)}
-              className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 touch-manipulation ${locked ? 'opacity-40' : ''}`}
+              className={`tap-target relative flex-1 flex flex-col items-center justify-center gap-0.5 touch-manipulation ${locked ? 'opacity-40' : ''}`}
               style={{ WebkitTapHighlightColor: 'transparent', minHeight: '52px', paddingTop: '6px', paddingBottom: '4px', minWidth: '0' }}
               aria-current={isActive(tab) ? 'page' : undefined}
               aria-label={tab.label}
