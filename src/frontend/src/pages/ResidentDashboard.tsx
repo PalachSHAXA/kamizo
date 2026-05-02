@@ -31,6 +31,37 @@ export function ResidentDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { requests, addRequest, approveRequest, rejectRequest, cancelRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, getActiveRescheduleForRequest, fetchRequests, fetchPendingReschedules, isLoadingRequests } = useDataStore();
+  const { language } = useLanguageStore();
+  const { meetings, fetchMeetings } = useMeetingStore();
+  const { getAnnouncementsForResidents, fetchAnnouncements } = useDataStore();
+  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
+  const getApartmentBalance = useFinanceStore((s) => s.getApartmentBalance);
+  const generateReconciliation = useFinanceStore((s) => s.generateReconciliation);
+
+  // Read tab from URL params (e.g. /?tab=requests from bottom bar)
+  const tabParam = searchParams.get('tab');
+
+  // All state declarations (must come before any useEffect)
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => tabParam === 'requests' ? 'requests' : 'home');
+  const [showAllServices, setShowAllServices] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [serviceCatFilter, setServiceCatFilter] = useState<string>('all');
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const [financeBalance, setFinanceBalance] = useState<Record<string, unknown> | null>(null);
+  const [requestsSubTab, setRequestsSubTab] = useState<RequestsSubTab>('active');
+  const [showNewRequestModal, setShowNewRequestModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<ExecutorSpecialization | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [requestToCancel, setRequestToCancel] = useState<Request | null>(null);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [requestToReschedule, setRequestToReschedule] = useState<Request | null>(null);
+  const [showRescheduleResponseModal, setShowRescheduleResponseModal] = useState(false);
+  const [rescheduleToRespond, setRescheduleToRespond] = useState<RescheduleRequest | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterPriority, setFilterPriority] = useState<string>('all');
 
   // Fetch requests and reschedules from D1 database on mount
   useEffect(() => {
@@ -73,49 +104,15 @@ export function ResidentDashboard() {
         setSelectedRequest(request);
         setShowApproveModal(true);
         sessionStorage.removeItem('open_rating_for_request');
-      } else {
-        // Request not found or not pending approval - might not be loaded yet
-        // Keep checking on next requests update
       }
     }
   }, [requests]);
-  const { language } = useLanguageStore();
-  const { meetings, fetchMeetings } = useMeetingStore();
-  const { getAnnouncementsForResidents, fetchAnnouncements } = useDataStore();
-  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
 
   // Fetch announcements and meetings for home screen
   useEffect(() => {
     fetchAnnouncements();
     fetchMeetings();
   }, [fetchAnnouncements, fetchMeetings]);
-
-  // Get latest announcements for this resident
-  const userLogin = user?.login || '';
-  const userBuilding = user?.buildingId || '';
-  const userEntrance = user?.entrance || '';
-  const userFloor = user?.floor || '';
-  const userBranch = user?.branch || '';
-  const userApartment = user?.apartment || '';
-  const residentAnnouncements = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
-  const unreadAnnouncements = residentAnnouncements.filter(a => !a.viewedBy?.includes(user?.id || ''));
-  const latestAnnouncements = unreadAnnouncements.slice(0, 3);
-  const unreadAnnouncementsCount = unreadAnnouncements.length;
-
-  // Get upcoming meetings (voting open or schedule confirmed)
-  const activeMeetings = meetings.filter(m => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status));
-
-  // Read tab from URL params (e.g. /?tab=requests from bottom bar)
-  const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => tabParam === 'requests' ? 'requests' : 'home');
-  const [showAllServices, setShowAllServices] = useState(false);
-  const [serviceSearch, setServiceSearch] = useState('');
-  const [serviceCatFilter, setServiceCatFilter] = useState<string>('all');
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-
-  const getApartmentBalance = useFinanceStore((s) => s.getApartmentBalance);
-  const generateReconciliation = useFinanceStore((s) => s.generateReconciliation);
-  const [financeBalance, setFinanceBalance] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -133,6 +130,7 @@ export function ResidentDashboard() {
     if (!tabParam && activeTab === 'requests') {
       setActiveTab('home');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeTab is set inside; including it would cause re-trigger after the state change
   }, [tabParam]);
 
   // Listen for FAB 'open-services' event from BottomBar.
@@ -143,14 +141,28 @@ export function ResidentDashboard() {
       setServiceSearch('');
       setServiceCatFilter('all');
       setShowAllServices(true);
-      (window as any).__pendingOpenServices = false;
+      (window as unknown as Record<string, unknown>).__pendingOpenServices = false;
     };
     window.addEventListener('open-services', openServices);
-    if ((window as any).__pendingOpenServices) {
+    if ((window as unknown as Record<string, unknown>).__pendingOpenServices) {
       openServices();
     }
     return () => window.removeEventListener('open-services', openServices);
   }, []);
+
+  // Get latest announcements for this resident
+  const userLogin = user?.login || '';
+  const userBuilding = user?.buildingId || '';
+  const userEntrance = user?.entrance || '';
+  const userFloor = user?.floor || '';
+  const userBranch = user?.branch || '';
+  const userApartment = user?.apartment || '';
+  const residentAnnouncements = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
+  const unreadAnnouncements = residentAnnouncements.filter(a => !a.viewedBy?.includes(user?.id || ''));
+  const latestAnnouncements = unreadAnnouncements.slice(0, 3);
+
+  // Get upcoming meetings (voting open or schedule confirmed)
+  const activeMeetings = meetings.filter(m => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status));
 
   // When switching tabs, update URL
   const switchTab = (tab: ActiveTab) => {
@@ -161,20 +173,6 @@ export function ResidentDashboard() {
       setSearchParams({}, { replace: true });
     }
   };
-  const [requestsSubTab, setRequestsSubTab] = useState<RequestsSubTab>('active');
-  const [showNewRequestModal, setShowNewRequestModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<ExecutorSpecialization | null>(null);
-  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
-  const [showApproveModal, setShowApproveModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [requestToCancel, setRequestToCancel] = useState<Request | null>(null);
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const [requestToReschedule, setRequestToReschedule] = useState<Request | null>(null);
-  const [showRescheduleResponseModal, setShowRescheduleResponseModal] = useState(false);
-  const [rescheduleToRespond, setRescheduleToRespond] = useState<RescheduleRequest | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterPriority, setFilterPriority] = useState<string>('all');
 
   // Filter requests for this resident
   const myRequests = useMemo(() => requests.filter(r => {

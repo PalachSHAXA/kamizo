@@ -2,14 +2,15 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Bell, Clock, Search, Lock, Phone, FileText, Car, ChevronRight, Megaphone, Users,
+  Bell, Clock, Search, ChevronRight, Megaphone, Users,
   Plus, QrCode, MessageSquare, BarChart3, ClipboardList
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useRequestStore, useExecutorStore, useNotificationStore, useVehicleStore, useAnnouncementStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { SPECIALIZATION_LABELS, SPECIALIZATION_LABELS_UZ } from '../../types';
-import type { ExecutorSpecialization } from '../../types';
+import type { ExecutorSpecialization, User } from '../../types';
+import type { Vehicle } from '../../hooks/useVehicles';
 import { useLanguageStore } from '../../stores/languageStore';
 
 // Onboarding tasks for residents
@@ -19,7 +20,7 @@ interface OnboardingTask {
   description: string;
   icon: React.ReactNode;
   route: string;
-  checkComplete: (user: any, vehicles: any[]) => boolean;
+  checkComplete: (user: User | null, vehicles: Vehicle[]) => boolean;
 }
 
 // NOTE: Onboarding completion is now tracked in the database (password_changed_at, contract_signed_at)
@@ -28,6 +29,7 @@ interface OnboardingTask {
 // source of truth is now the user object from the API.
 
 // Mark action as completed (legacy - kept for backward compatibility during transition)
+// eslint-disable-next-line react-refresh/only-export-components, @typescript-eslint/no-unused-vars
 export const markOnboardingComplete = (_userId: string, _action: string): void => {
   // This is now handled by the API automatically
   // password_changed_at is set when user changes password
@@ -181,7 +183,7 @@ export function Header() {
 
   // Check for upcoming scheduled requests (every minute)
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     const checkUpcomingRequests = () => {
       const currentUser = useAuthStore.getState().user;
@@ -212,7 +214,7 @@ export function Header() {
         return false;
       });
 
-      relevantRequests.forEach((request: any) => {
+      relevantRequests.forEach((request) => {
         // Parse scheduled time (format: "09:00-12:00" or "14:00")
         const timeStr = request.scheduledTime!;
         const startTime = timeStr.split('-')[0]; // Take start time

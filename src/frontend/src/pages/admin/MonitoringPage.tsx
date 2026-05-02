@@ -120,7 +120,7 @@ export function MonitoringPage() {
       value: count,
       color: STATUS_COLORS[status] || '#9CA3AF',
     }));
-  }, [requests]);
+  }, [requests, language]);
 
   // Requests by category for bar chart
   const requestsByCategory = useMemo(() => {
@@ -158,7 +158,7 @@ export function MonitoringPage() {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
-  }, [requests]);
+  }, [requests, language]);
 
   // Requests by day of week
   const requestsByDay = useMemo(() => {
@@ -187,7 +187,7 @@ export function MonitoringPage() {
         active: e.activeRequests,
         rating: e.rating,
       }));
-  }, [executors, language]);
+  }, [executors]);
 
   const fetchMetrics = async () => {
     try {

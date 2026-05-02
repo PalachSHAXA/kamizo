@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Bell, AlertTriangle, Users, CheckCircle, Truck } from 'lucide-react';
 
 export type PopupType =
@@ -29,17 +29,17 @@ export function PopupNotification({
 }: PopupNotificationProps) {
   const [isClosing, setIsClosing] = useState(false);
 
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => onClose(), 300);
+  }, [onClose]);
+
   useEffect(() => {
     if (autoClose > 0) {
       const timer = setTimeout(() => handleClose(), autoClose);
       return () => clearTimeout(timer);
     }
-  }, [autoClose]);
-
-  const handleClose = () => {
-    setIsClosing(true);
-    setTimeout(() => onClose(), 300);
-  };
+  }, [autoClose, handleClose]);
 
   const handleAction = () => {
     if (onAction) {

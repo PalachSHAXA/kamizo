@@ -73,6 +73,7 @@ export function useResidentsLogic() {
   useEffect(() => {
     fetchBranches();
     fetchBuildings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   // Load buildings when branch is selected
@@ -232,7 +233,7 @@ export function useResidentsLogic() {
 
   // Get local residents
   const localResidents: MappedResident[] = Object.entries(additionalUsers)
-    .filter(([_, data]) => data.user.role === 'resident')
+    .filter(([, data]) => data.user.role === 'resident')
     .map(([userLogin, data]) => ({
       ...data.user,
       login: userLogin,
@@ -372,6 +373,7 @@ export function useResidentsLogic() {
     if (event.target) {
       event.target.value = '';
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parseExcelData is a pure helper defined in the same hook scope; including it would require restructuring without behavior change
   }, [language]);
 
   // Parse Excel data
@@ -439,7 +441,7 @@ export function useResidentsLogic() {
       let totalArea: number | undefined;
       if (areaCol >= 0 && row[areaCol]) {
         const rawValue = row[areaCol];
-        let areaStr = String(rawValue).replace(',', '.').replace(/[^\d.]/g, '');
+        const areaStr = String(rawValue).replace(',', '.').replace(/[^\d.]/g, '');
         let parsed = parseFloat(areaStr);
 
         if (!isNaN(parsed) && parsed > 0) {
@@ -485,7 +487,11 @@ export function useResidentsLogic() {
 
   // Create accounts from data
   const createAccountsFromData = async () => {
-    const usersToCreate: any[] = [];
+    const usersToCreate: Array<{
+      login: string; password: string; name: string; role: string; phone: string;
+      address: string; apartment: string; building_id: string; entrance: string; floor: string;
+      total_area: number | null;
+    }> = [];
     let skippedNonResidential = 0;
 
     uploadedData.forEach((row, index) => {
@@ -543,7 +549,7 @@ export function useResidentsLogic() {
 
       if (createdCount > 0 || updatedCount > 0) {
         const allAccounts = [...(result.created || []), ...(result.updated || [])];
-        setCreatedAccounts(allAccounts.map((u: any) => ({ login: u.login, name: u.name })));
+        setCreatedAccounts(allAccounts.map((u: { login: string; name: string }) => ({ login: u.login, name: u.name })));
       }
 
       setUploadedData([]);
@@ -554,8 +560,8 @@ export function useResidentsLogic() {
 
       if (selectedBuilding) await fetchResidents(selectedBuilding.id);
       setTimeout(() => setProgressMessage(''), 6000);
-    } catch (error: any) {
-      setUploadError(error.message || (language === 'ru' ? 'Ошибка при массовой регистрации' : 'Ommaviy ro\'yxatdan o\'tishda xatolik'));
+    } catch (error: unknown) {
+      setUploadError((error instanceof Error ? error.message : null) || (language === 'ru' ? 'Ошибка при массовой регистрации' : 'Ommaviy ro\'yxatdan o\'tishda xatolik'));
       setProgressMessage('');
     } finally {
       setIsCreating(false);
@@ -617,9 +623,9 @@ export function useResidentsLogic() {
       if (selectedBuilding) await fetchResidents(selectedBuilding.id);
       setProgressMessage(language === 'ru' ? 'Аккаунт создан!' : 'Akkaunt yaratildi!');
       setTimeout(() => setProgressMessage(''), 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Manual registration error:', error);
-      addToast('error', (language === 'ru' ? 'Ошибка создания: ' : 'Yaratishda xatolik: ') + (error.message || (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xatolik')));
+      addToast('error', (language === 'ru' ? 'Ошибка создания: ' : 'Yaratishda xatolik: ') + (error instanceof Error ? error.message : (language === 'ru' ? 'Неизвестная ошибка' : 'Noma\'lum xatolik')));
       setProgressMessage('');
     } finally {
       setIsCreating(false);
@@ -661,7 +667,7 @@ export function useResidentsLogic() {
           : `O'chirish ${i + 1}/${total}: ${resident.name.split(' ')[0]}...`);
 
         try {
-          let residentId = (resident as any).id;
+          let residentId = resident.id;
           if (!residentId) {
             const apiResident = apiResidents.find(r => r.login === resident.login);
             residentId = apiResident?.id;
@@ -703,8 +709,8 @@ export function useResidentsLogic() {
         updateUserPassword(showResidentCard.login, newPassword);
         setEditingPassword(false);
         setShowPassword(true);
-      } catch (err: any) {
-        addToast('error', (language === 'ru' ? 'Ошибка сохранения пароля: ' : 'Parolni saqlashda xatolik: ') + err.message);
+      } catch (err: unknown) {
+        addToast('error', (language === 'ru' ? 'Ошибка сохранения пароля: ' : 'Parolni saqlashda xatolik: ') + (err instanceof Error ? err.message : ''));
       }
     }
   };
@@ -723,8 +729,8 @@ export function useResidentsLogic() {
       const msg = language === 'ru' ? 'Данные жителя успешно обновлены' : 'Yashovchi ma\'lumotlari muvaffaqiyatli yangilandi';
       setNameToast(msg);
       setTimeout(() => setNameToast(''), 3000);
-    } catch (err: any) {
-      addToast('error', (language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + err.message);
+    } catch (err: unknown) {
+      addToast('error', (language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (err instanceof Error ? err.message : ''));
     } finally {
       setSavingName(false);
     }

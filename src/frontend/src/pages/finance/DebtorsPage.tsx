@@ -22,11 +22,11 @@ interface Debtor {
 
 export default function DebtorsPage() {
   const language = useLanguageStore((s) => s.language);
-  const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
+  const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
 
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'УК';
 
-  const debtors = useFinanceStore((s) => s.debtors) as Debtor[];
+  const debtors = useFinanceStore((s) => s.debtors) as unknown as Debtor[];
   const debtorsLoading = useFinanceStore((s) => s.debtorsLoading);
   const fetchDebtors = useFinanceStore((s) => s.fetchDebtors);
   const generateReconciliation = useFinanceStore((s) => s.generateReconciliation);

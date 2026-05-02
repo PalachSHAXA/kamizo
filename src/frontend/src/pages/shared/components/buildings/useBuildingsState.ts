@@ -57,7 +57,7 @@ export function useBuildingsState() {
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
   const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);
-  const [apartmentResidents, setApartmentResidents] = useState<any[]>([]);
+  const [apartmentResidents, setApartmentResidents] = useState<Array<{ id: string; name: string; phone?: string; type?: string; login?: string; password_decrypted?: string }>>([]);
   const [isLoadingResidents, setIsLoadingResidents] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -78,13 +78,14 @@ export function useBuildingsState() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: boolean; stats?: any; error?: string } | null>(null);
+  const [importResult, setImportResult] = useState<{ success: boolean; stats?: Record<string, number>; error?: string } | null>(null);
 
   // Load branches on mount
   useEffect(() => { fetchBranches(); }, []);
 
   useEffect(() => {
     if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchBuildingsForBranch is a stable local function defined in this hook scope
   }, [selectedBranch]);
 
   useEffect(() => {
@@ -108,6 +109,7 @@ export function useBuildingsState() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fetchBuildingsForBranch = async (_branchId: string) => {
     await fetchBuildings();
   };
@@ -146,18 +148,18 @@ export function useBuildingsState() {
     setApartmentResidents([]);
     setIsLoadingResidents(true);
     try {
-      const aptDetail = await apiRequest<any>(`/api/apartments/${apt.id}`);
+      const aptDetail = await apiRequest<{ owners?: Array<Record<string, unknown>>; userResidents?: Array<Record<string, unknown>> }>(`/api/apartments/${apt.id}`);
       const owners = aptDetail.owners || [];
       const userResidents = aptDetail.userResidents || [];
-      let crmResidents: any[] = [];
+      let crmResidents: Array<Record<string, unknown>> = [];
       try {
-        const crmRes = await apiRequest<{ residents: any[] }>(`/api/apartments/${apt.id}/residents`);
+        const crmRes = await apiRequest<{ residents: Array<Record<string, unknown>> }>(`/api/apartments/${apt.id}/residents`);
         crmResidents = crmRes.residents || [];
-      } catch {}
+      } catch { /* CRM residents endpoint may not exist */ }
       const combined = [
-        ...owners.map((o: any) => ({ id: o.id, name: o.name || o.full_name || '', phone: o.phone, type: 'owner' })),
-        ...userResidents.map((u: any) => ({ id: u.id, name: u.name || '', phone: u.phone, login: u.login, password_decrypted: u.password_decrypted, type: 'resident' })),
-        ...crmResidents.map((r: any) => ({ id: r.id, name: r.name || r.full_name || '', phone: r.phone, type: 'resident' })),
+        ...owners.map((o) => ({ id: String(o.id), name: String(o.name || o.full_name || ''), phone: o.phone as string | undefined, type: 'owner' as const })),
+        ...userResidents.map((u) => ({ id: String(u.id), name: String(u.name || ''), phone: u.phone as string | undefined, login: u.login as string | undefined, password_decrypted: u.password_decrypted as string | undefined, type: 'resident' as const })),
+        ...crmResidents.map((r) => ({ id: String(r.id), name: String(r.name || r.full_name || ''), phone: r.phone as string | undefined, type: 'resident' as const })),
       ];
       const seen = new Set<string>();
       const unique = combined.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
@@ -196,8 +198,8 @@ export function useBuildingsState() {
         body: JSON.stringify({ apartments: aptData }),
       });
       await fetchApartmentsForBuilding(selectedBuilding.id);
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     } finally {
       setIsGenerating(false);
     }
@@ -229,8 +231,8 @@ export function useBuildingsState() {
       setDeleteDistrictConfirm(null);
       setCascadeConfirmChecked(false);
       await fetchBranches();
-    } catch (err: any) {
-      addToast('error', (language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + (err.message || 'Error'));
+    } catch (err: unknown) {
+      addToast('error', (language === 'ru' ? 'Ошибка: ' : 'Xatolik: ') + ((err instanceof Error ? err.message : '') || 'Error'));
     } finally {
       setIsDeletingDistrict(false);
     }
@@ -263,8 +265,8 @@ export function useBuildingsState() {
       await apiRequest('/api/branches', { method: 'POST', body: JSON.stringify({ ...data, district: data.district || selectedDistrict || undefined }) });
       fetchBranches();
       setShowAddBranchModal(false);
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     }
   };
 
@@ -273,8 +275,8 @@ export function useBuildingsState() {
       await apiRequest(`/api/branches/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
       fetchBranches();
       setEditingBranch(null);
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     }
   };
 
@@ -282,8 +284,8 @@ export function useBuildingsState() {
     try {
       await apiRequest(`/api/branches/${id}/change-code`, { method: 'POST', body: JSON.stringify({ new_code: newCode }) });
       fetchBranches();
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
       throw error;
     }
   };
@@ -293,8 +295,8 @@ export function useBuildingsState() {
     try {
       await apiRequest(`/api/branches/${id}`, { method: 'DELETE' });
       fetchBranches();
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     }
   };
 
@@ -310,8 +312,8 @@ export function useBuildingsState() {
       a.download = `zhk-${branch.code}-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      addToast('error', err.message || t('Ошибка экспорта', 'Eksport xatosi'));
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || t('Ошибка экспорта', 'Eksport xatosi'));
     } finally {
       setExportingBranchId(null);
     }
@@ -333,19 +335,19 @@ export function useBuildingsState() {
       const result = await apiRequest(url, {
         method: 'POST',
         body: JSON.stringify(data),
-      }) as any;
+      }) as { stats?: Record<string, number> };
       setImportResult({ success: true, stats: result.stats });
       fetchBranches();
       if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
-    } catch (err: any) {
-      setImportResult({ success: false, error: err.message || t('Ошибка импорта', 'Import xatosi') });
+    } catch (err: unknown) {
+      setImportResult({ success: false, error: (err instanceof Error ? err.message : '') || t('Ошибка импорта', 'Import xatosi') });
     } finally {
       setImportLoading(false);
     }
   };
 
   // CRUD: buildings
-  const handleAddBuilding = async (data: any) => {
+  const handleAddBuilding = async (data: Record<string, unknown>) => {
     await addBuilding({ ...data, branchId: selectedBranch?.id, branchCode: selectedBranch?.code });
     setShowAddBuildingModal(false);
     if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
@@ -364,8 +366,8 @@ export function useBuildingsState() {
       await deleteBuilding(id);
       if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
       fetchBranches();
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     }
   };
 
@@ -378,8 +380,8 @@ export function useBuildingsState() {
       });
       fetchEntrancesForBuilding(selectedBuilding.id);
       setShowAddEntranceModal(false);
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     }
   };
 
@@ -401,8 +403,8 @@ export function useBuildingsState() {
       const msg = language === 'ru' ? 'Данные подъезда успешно обновлены' : 'Podyezd ma\'lumotlari muvaffaqiyatli yangilandi';
       setEntranceEditToast(msg);
       setTimeout(() => setEntranceEditToast(''), 3000);
-    } catch (err: any) {
-      addToast('error', (language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlash xatoligi: ') + (err.message || 'Error'));
+    } catch (err: unknown) {
+      addToast('error', (language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlash xatoligi: ') + ((err instanceof Error ? err.message : '') || 'Error'));
     }
   };
 
@@ -478,8 +480,8 @@ export function useBuildingsState() {
         setApartments(prev => prev.map(a => a.id === updated.id ? updated : a));
         setIsEditingApartment(false);
       }
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     } finally {
       setIsSavingApartment(false);
     }
@@ -492,8 +494,8 @@ export function useBuildingsState() {
       await apiRequest(`/api/apartments/${selectedApartment.id}`, { method: 'DELETE' });
       setApartments(prev => prev.filter(a => a.id !== selectedApartment.id));
       closeSidePanel();
-    } catch (error: any) {
-      addToast('error', error.message || 'Error');
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : '') || 'Error');
     }
   };
 

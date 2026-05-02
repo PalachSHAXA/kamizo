@@ -7,6 +7,7 @@ import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { SPECIALIZATION_LABELS } from '../types';
+import type { Request } from '../types/request';
 import { teamApi, apiRequest, ukRatingsApi, statsApi } from '../services/api';
 import { OverviewTab, MarketplaceTab, RatingsTab, createTranslator } from './dashboard';
 import type { TeamData, MarketplaceReport, TabType, CompanyStats, BuildingStat, DepartmentStat, ChartData } from './dashboard';
@@ -49,7 +50,7 @@ export function DirectorDashboard() {
   const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   // UK Satisfaction ratings state
-  const [ratingSummary, setRatingSummary] = useState<any>(null);
+  const [ratingSummary, setRatingSummary] = useState<Record<string, unknown> | null>(null);
   const [isLoadingRatings, setIsLoadingRatings] = useState(false);
 
   const loadRatingSummary = async () => {
@@ -83,6 +84,7 @@ export function DirectorDashboard() {
     if (activeTab === 'ratings') {
       loadRatingSummary();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only re-run on tab/date change; loaders are stable in this scope
   }, [activeTab, reportStartDate, reportEndDate]);
 
   const loadMarketplaceReport = async () => {
@@ -165,7 +167,7 @@ export function DirectorDashboard() {
   const buildingStats: BuildingStat[] = useMemo(() => {
     return buildings.map(building => {
       const buildingRequests = requests.filter(r => {
-        if ((r as any).building_id === building.id || (r as any).buildingId === building.id) return true;
+        if ((r as Request & { building_id?: string }).building_id === building.id || r.buildingId === building.id) return true;
         if (r.address) {
           const addr = r.address.toLowerCase();
           const bName = building.name.toLowerCase();

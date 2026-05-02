@@ -12,11 +12,9 @@ interface UserItem {
   role: string;
 }
 
-const ALLOWED_ROLES = ['manager', 'executor', 'department_head', 'plumber', 'electrician'];
-
 export default function SettingsPage() {
   const { language } = useLanguageStore();
-  const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
+  const t = useCallback((ru: string, uz: string) => language === 'ru' ? ru : uz, [language]);
 
   const { financeAccess, accessLoading, fetchFinanceAccess, grantAccess, revokeAccess } = useFinanceStore();
 
@@ -49,12 +47,12 @@ export default function SettingsPage() {
       const data = await teamApi.getAll();
       // Combine all staff categories into one flat list
       const allStaff: UserItem[] = [
-        ...(data.managers || []).map((u: any) => ({ id: u.id, name: u.name, role: u.role || 'manager' })),
-        ...(data.departmentHeads || []).map((u: any) => ({ id: u.id, name: u.name, role: u.role || 'department_head' })),
-        ...(data.executors || []).map((u: any) => ({ id: u.id, name: u.name, role: u.role || 'executor' })),
+        ...(data.managers || []).map((u: { id: string; name: string; role?: string }) => ({ id: u.id, name: u.name, role: u.role || 'manager' })),
+        ...(data.departmentHeads || []).map((u: { id: string; name: string; role?: string }) => ({ id: u.id, name: u.name, role: u.role || 'department_head' })),
+        ...(data.executors || []).map((u: { id: string; name: string; role?: string }) => ({ id: u.id, name: u.name, role: u.role || 'executor' })),
       ];
       // Exclude users who already have access
-      const existingUserIds = new Set(financeAccess.map((a: any) => a.user_id));
+      const existingUserIds = new Set(financeAccess.map((a) => a.user_id as string));
       setUsers(allStaff.filter((u) => !existingUserIds.has(u.id)));
     } catch {
       setUsers([]);
@@ -208,7 +206,9 @@ export default function SettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {financeAccess.map((item) => (
+                {financeAccess.map((raw) => {
+                  const item = raw as { id: string; user_name: string; user_role: string; access_level: string; granted_by_name: string; granted_at: string };
+                  return (
                   <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">{item.user_name}</td>
                     <td className="px-4 py-3">
@@ -229,7 +229,8 @@ export default function SettingsPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

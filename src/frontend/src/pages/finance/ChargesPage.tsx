@@ -9,7 +9,6 @@ import {
   TrendingUp,
   AlertTriangle,
   ArrowUpCircle,
-  X,
   CreditCard,
   Banknote,
   Landmark,
@@ -122,7 +121,7 @@ export default function ChargesPage() {
         .then((res) => setBuildingStatuses(res.statuses || []))
         .catch(() => setBuildingStatuses([]));
     }
-  }, [isResident, user?.buildingId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isResident, user?.buildingId]);  
 
   const applyFilters = useCallback(() => {
     setFilters({ buildingId: localBuilding, period: localPeriod, status: localStatus });
@@ -172,6 +171,7 @@ export default function ChargesPage() {
       };
       return map[s] || s;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- i18n t function is recreated on each render — disabling exhaustive-deps to avoid spurious memo invalidation
     [language],
   );
 
@@ -190,6 +190,7 @@ export default function ChargesPage() {
         </span>
       );
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- i18n t function is recreated on each render — disabling exhaustive-deps to avoid spurious memo invalidation
     [language],
   );
 
@@ -545,12 +546,15 @@ export default function ChargesPage() {
                   {t('Расшифровка начисления', 'Hisoblash tafsiloti')}
                 </h4>
                 <div className="bg-gray-50 rounded-lg divide-y divide-gray-100">
-                  {parseBreakdown.map((item, i) => (
+                  {parseBreakdown.map((item, i) => {
+                    const r = item as Record<string, unknown>;
+                    return (
                     <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                      <span className="text-gray-600">{(item.name || item.label || item.type || `#${i + 1}`) as string}</span>
-                      <span className="font-medium text-gray-800">{fmt(item.amount ?? item.value)}</span>
+                      <span className="text-gray-600">{(r.name || r.label || r.type || `#${i + 1}`) as string}</span>
+                      <span className="font-medium text-gray-800">{fmt(r.amount ?? r.value)}</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Plus, X, Building2, Edit2, Trash2, QrCode, Loader2 } from 'lucide-react';
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
@@ -9,7 +9,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { apiRequest, usersApi } from '../services/api';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
-import { SearchPlateInput, PlateNumberInput, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay, UZFlag } from './vehicles';
+import { SearchPlateInput, PlateNumberInput, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
 
 
 // Guest vehicle result shape (from guestAccessCodes with vehicle plate)
@@ -109,6 +109,7 @@ export function VehicleSearchPage() {
     if (!editingVehicle) {
       setPlateParts({ region: plateParts.region, letters1: '', digits: '', letters2: '' });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to ownerType change; plateParts.region is preserved as-is and editingVehicle would re-fire reset on every edit
   }, [selectedOwnerType]);
 
   // Resident search with debounce
@@ -123,13 +124,13 @@ export function VehicleSearchPage() {
         const res = await usersApi.getAll({ role: 'resident', limit: 20 });
         const query = residentSearch.toLowerCase();
         const filtered = (res.users || [])
-          .filter((u: any) =>
+          .filter((u: { name?: string; apartment?: string; phone?: string }) =>
             u.name?.toLowerCase().includes(query) ||
             u.apartment?.toLowerCase().includes(query) ||
             u.phone?.includes(query)
           )
           .slice(0, 10)
-          .map((u: any) => ({ id: u.id, name: u.name, phone: u.phone, apartment: u.apartment, address: u.address }));
+          .map((u: { id: string; name: string; phone?: string; apartment?: string; address?: string }) => ({ id: u.id, name: u.name, phone: u.phone, apartment: u.apartment, address: u.address }));
         setResidentResults(filtered);
       } catch {
         setResidentResults([]);
@@ -176,8 +177,15 @@ export function VehicleSearchPage() {
     // Search via API for accurate results across all vehicles
     const doSearch = async () => {
       try {
-        const res = await apiRequest<{ vehicles: any[] }>(`/api/vehicles/search?q=${encodeURIComponent(searchQuery)}`);
-        const mapped: Vehicle[] = (res.vehicles || []).map((v: any) => ({
+        interface VehicleApiItem {
+          id: string; user_id: string; owner_name?: string; owner_phone?: string;
+          apartment?: string; address?: string; plate_number: string;
+          brand?: string; model?: string; color?: string; year?: number;
+          vehicle_type?: string; owner_type?: string; company_name?: string;
+          parking_spot?: string; notes?: string; created_at: string; updated_at?: string;
+        }
+        const res = await apiRequest<{ vehicles: VehicleApiItem[] }>(`/api/vehicles/search?q=${encodeURIComponent(searchQuery)}`);
+        const mapped: Vehicle[] = (res.vehicles || []).map((v: VehicleApiItem) => ({
           id: v.id,
           ownerId: v.user_id,
           ownerName: v.owner_name || '',

@@ -13,6 +13,7 @@ import {
   Megaphone, Building2, Eye, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import type { User } from '../types/auth';
 import { useDataStore } from '../stores/dataStore';
 import { SPECIALIZATION_LABELS } from '../types';
 import { apiRequest } from '../services/api';
@@ -99,7 +100,7 @@ export function AdminDashboard() {
   const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Platform ads state
-  const [platformAds, setPlatformAds] = useState<any[]>([]);
+  const [platformAds, setPlatformAds] = useState<Record<string, unknown>[]>([]);
   const [isLoadingPlatformAds, setIsLoadingPlatformAds] = useState(false);
   const [togglingAdId, setTogglingAdId] = useState<string | null>(null);
 
@@ -122,12 +123,13 @@ export function AdminDashboard() {
     if (activeTab === 'platform_ads' && platformAds.length === 0) {
       loadPlatformAds();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only re-run on tab/date change; adding loaders or platformAds.length would re-trigger on every load
   }, [activeTab, reportStartDate, reportEndDate]);
 
   const loadPlatformAds = async () => {
     setIsLoadingPlatformAds(true);
     try {
-      const res = await apiRequest<{ ads: any[] }>('/api/ads/assigned');
+      const res = await apiRequest<{ ads: Record<string, unknown>[] }>('/api/ads/assigned');
       setPlatformAds(res.ads || []);
     } catch {
       setPlatformAds([]);
@@ -144,8 +146,8 @@ export function AdminDashboard() {
         body: JSON.stringify({ enabled: currentEnabled === 0 }),
       });
       setPlatformAds(prev => prev.map(a => a.id === adId ? { ...a, tenant_enabled: currentEnabled === 0 ? 1 : 0 } : a));
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : null) || 'Ошибка');
     } finally {
       setTogglingAdId(null);
     }
@@ -1180,7 +1182,7 @@ export function AdminDashboard() {
                         </div>
                         {/* Toggle switch */}
                         <button
-                          onClick={() => handleTogglePlatformAd(ad.id, (user as any)?.tenant_id, ad.tenant_enabled)}
+                          onClick={() => handleTogglePlatformAd(ad.id, (user as User & { tenant_id?: string })?.tenant_id ?? '', ad.tenant_enabled)}
                           disabled={togglingAdId === ad.id}
                           className="flex-shrink-0 flex items-center gap-2 transition-colors"
                           title={ad.tenant_enabled ? (language === 'ru' ? 'Показывается жильцам — нажмите чтобы скрыть' : 'Ko\'rinmoqda — yashirish uchun bosing') : (language === 'ru' ? 'Скрыто от жильцов — нажмите чтобы показать' : 'Yashirin — ko\'rsatish uchun bosing')}

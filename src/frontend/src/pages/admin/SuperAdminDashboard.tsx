@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Plus, RefreshCw, Settings, X, XCircle, BarChart3, Megaphone, Image, UserCog, LayoutDashboard, LogOut } from 'lucide-react';
+import { Plus, RefreshCw, Settings, X, XCircle, BarChart3, Megaphone, Image, UserCog, LayoutDashboard, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/api';
@@ -12,10 +12,8 @@ import {
   UsersTab,
   TenantFormModal,
 } from './components';
-import {
-  Tenant, TenantFormData, AnalyticsData, SuperAd, AdCategory,
-  TabType, INITIAL_FORM_DATA,
-} from './components/types';
+import type { Tenant, TenantFormData, AnalyticsData, SuperAd, AdCategory, TabType } from './components/types';
+import { INITIAL_FORM_DATA } from './components/types';
 
 export function SuperAdminDashboard() {
   const { logout } = useAuthStore();
@@ -40,7 +38,7 @@ export function SuperAdminDashboard() {
   const [isLoadingAds, setIsLoadingAds] = useState(false);
 
   // Banners
-  const [banners, setBanners] = useState<any[]>([]);
+  const [banners, setBanners] = useState<Record<string, unknown>[]>([]);
   const [isLoadingBanners, setIsLoadingBanners] = useState(false);
 
   useEffect(() => {
@@ -57,6 +55,7 @@ export function SuperAdminDashboard() {
     if (activeTab === 'banners' && banners.length === 0) {
       loadBanners();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run on tab change; analytics/allAds/banners are set inside and would re-trigger on every load
   }, [activeTab]);
 
   const loadTenants = async () => {
@@ -65,8 +64,8 @@ export function SuperAdminDashboard() {
     try {
       const response = await apiRequest<{ tenants: Tenant[] }>('/api/tenants');
       setTenants(response.tenants);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки данных');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки данных');
     } finally {
       setIsLoading(false);
     }
@@ -77,8 +76,8 @@ export function SuperAdminDashboard() {
     try {
       const response = await apiRequest<{ analytics: AnalyticsData }>('/api/super-admin/analytics');
       setAnalytics(response.analytics);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки аналитики');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки аналитики');
     } finally {
       setIsLoadingAnalytics(false);
     }
@@ -93,8 +92,8 @@ export function SuperAdminDashboard() {
       ]);
       setAllAds(adsRes.ads || []);
       setAdCategories(catRes.categories || []);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки рекламы');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки рекламы');
     } finally {
       setIsLoadingAds(false);
     }
@@ -103,10 +102,10 @@ export function SuperAdminDashboard() {
   const loadBanners = async () => {
     setIsLoadingBanners(true);
     try {
-      const res = await apiRequest<{ banners: any[] }>('/api/super-admin/banners');
+      const res = await apiRequest<{ banners: Record<string, unknown>[] }>('/api/super-admin/banners');
       setBanners(res.banners || []);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки баннеров');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки баннеров');
     } finally {
       setIsLoadingBanners(false);
     }
@@ -150,8 +149,8 @@ export function SuperAdminDashboard() {
     try {
       await apiRequest(`/api/tenants/${tenant.id}`, { method: 'DELETE' });
       await loadTenants();
-    } catch (err: any) {
-      addToast('error', err.message || 'Ошибка удаления');
+    } catch (err: unknown) {
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка удаления');
     }
   };
 
@@ -167,9 +166,9 @@ export function SuperAdminDashboard() {
       if (resp.tenant) {
         setTenants(prev => prev.map(t => t.id === resp.tenant.id ? resp.tenant : t));
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setTenants(prev => prev.map(t => t.id === tenant.id ? tenant : t));
-      addToast('error', err.message || 'Ошибка обновления статуса');
+      addToast('error', (err instanceof Error ? err.message : '') || 'Ошибка обновления статуса');
     }
   };
 
@@ -177,7 +176,8 @@ export function SuperAdminDashboard() {
     e.preventDefault();
     setError('');
     try {
-      const { contract_template_name, ...rest } = formData;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { contract_template_name: _contractTemplateName, ...rest } = formData;
       const body = { ...rest, features: formData.features };
 
       if (editingTenant) {
@@ -193,8 +193,8 @@ export function SuperAdminDashboard() {
       }
       setShowModal(false);
       await loadTenants();
-    } catch (err: any) {
-      setError(err.message || 'Ошибка сохранения');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка сохранения');
     }
   };
 

@@ -6,7 +6,7 @@ import { useToastStore } from '../stores/toastStore';
 import { pushNotifications } from '../services/pushNotifications';
 
 // Global event emitter for chat messages
-type ChatMessageListener = (message: any) => void;
+type ChatMessageListener = (message: Record<string, unknown>) => void;
 const chatListeners: Set<ChatMessageListener> = new Set();
 
 export function subscribeToChatMessages(listener: ChatMessageListener) {
@@ -14,12 +14,12 @@ export function subscribeToChatMessages(listener: ChatMessageListener) {
   return () => chatListeners.delete(listener);
 }
 
-function emitChatMessage(message: any) {
+function emitChatMessage(message: Record<string, unknown>) {
   chatListeners.forEach(listener => listener(message));
 }
 
 // Global event emitter for reschedule updates
-type RescheduleListener = (reschedule: any) => void;
+type RescheduleListener = (reschedule: Record<string, unknown>) => void;
 const rescheduleListeners: Set<RescheduleListener> = new Set();
 
 export function subscribeToRescheduleUpdates(listener: RescheduleListener) {
@@ -27,8 +27,17 @@ export function subscribeToRescheduleUpdates(listener: RescheduleListener) {
   return () => rescheduleListeners.delete(listener);
 }
 
-function emitRescheduleUpdate(reschedule: any) {
+function emitRescheduleUpdate(reschedule: Record<string, unknown>) {
   rescheduleListeners.forEach(listener => listener(reschedule));
+}
+
+interface WsMessage {
+  type: string;
+  data?: Record<string, unknown> & {
+    meetings?: Array<Record<string, unknown>>;
+    message?: Record<string, unknown>;
+    reschedule?: Record<string, unknown>;
+  };
 }
 
 /**
@@ -174,7 +183,7 @@ export function useWebSocketSync() {
 
       ws.onmessage = async (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const message = JSON.parse(event.data) as WsMessage;
 
           switch (message.type) {
             case 'connected':
@@ -192,7 +201,7 @@ export function useWebSocketSync() {
             case 'meeting_update':
               await syncMeetings();
               if (message.data?.meetings && message.data.meetings.length > 0) {
-                const activeMeeting = message.data.meetings.find((m: any) =>
+                const activeMeeting = message.data.meetings.find((m) =>
                   m.status === 'voting_open' || m.status === 'schedule_poll_open'
                 );
                 if (activeMeeting) {
@@ -214,11 +223,11 @@ export function useWebSocketSync() {
               break;
 
             case 'chat_message':
-              emitChatMessage(message.data?.message || message.data);
+              emitChatMessage((message.data?.message || message.data || {}) as Record<string, unknown>);
               break;
 
             case 'chat_read':
-              emitChatMessage({ type: 'read', ...message.data });
+              emitChatMessage({ type: 'read', ...(message.data || {}) } as Record<string, unknown>);
               break;
 
             case 'executor_update':
@@ -230,7 +239,7 @@ export function useWebSocketSync() {
             case 'reschedule_update':
               await fetchPendingReschedulesRef.current();
               if (message.data?.reschedule) {
-                emitRescheduleUpdate(message.data.reschedule);
+                emitRescheduleUpdate(message.data.reschedule as Record<string, unknown>);
               }
               break;
 
@@ -351,7 +360,7 @@ export function useWebSocketSync() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [connect, syncData, syncMeetings]);
+  }, [connect, syncData, syncMeetings, WEBSOCKET_ENABLED]);
 
   // Manual refresh function
   const refresh = useCallback(() => {

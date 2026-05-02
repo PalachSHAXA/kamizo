@@ -3,8 +3,8 @@ import { Building2, Users, Banknote, CheckCircle, XCircle, Edit2, Trash2, Extern
 import { apiRequest } from '../../../services/api';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
+import type { Tenant, TenantStats, DetailTab } from './types';
 import {
-  Tenant, TenantStats, DetailTab,
   BASE_DOMAIN, PLAN_LABELS,
   getStatusColor, getRoleColor, getFeatureLabel,
   ROLE_LABELS_MAP, STATUS_LABELS,
@@ -23,14 +23,13 @@ interface DashboardTabProps {
 
 export function DashboardTab({
   tenants, setTenants, error, setError,
-  onEditTenant, onDeleteTenant, onToggleActive, loadTenants,
+  onEditTenant, onDeleteTenant, onToggleActive,
 }: DashboardTabProps) {
   const { language } = useLanguageStore();
-  const addToast = useToastStore(s => s.addToast);
 
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [tenantStats, setTenantStats] = useState<TenantStats | null>(null);
-  const [tenantTabData, setTenantTabData] = useState<any>(null);
+  const [tenantTabData, setTenantTabData] = useState<Record<string, unknown>[] | Record<string, unknown> | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>('requests');
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isLoadingTabData, setIsLoadingTabData] = useState(false);
@@ -41,6 +40,7 @@ export function DashboardTab({
     if (tenants.length > 0 && !selectedTenant) {
       loadTenantDetails(tenants[0]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedTenant is set inside loadTenantDetails; including it would cause re-fetch loop
   }, [tenants]);
 
   const loadTenantDetails = async (tenant: Tenant, tab: DetailTab = 'requests') => {
@@ -49,13 +49,13 @@ export function DashboardTab({
     setIsLoadingDetail(true);
     setTenantTabData(null);
     try {
-      const response = await apiRequest<{ tenant: Tenant; stats: TenantStats; tabData: any }>(
+      const response = await apiRequest<{ tenant: Tenant; stats: TenantStats; tabData: Record<string, unknown>[] | Record<string, unknown> }>(
         `/api/super-admin/tenants/${tenant.id}/details?tab=${tab}`
       );
       setTenantStats(response.stats);
       setTenantTabData(response.tabData);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки данных тенанта');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки данных тенанта');
     } finally {
       setIsLoadingDetail(false);
     }
@@ -67,12 +67,12 @@ export function DashboardTab({
     setIsLoadingTabData(true);
     setTenantTabData(null);
     try {
-      const response = await apiRequest<{ tenant: Tenant; stats: TenantStats; tabData: any }>(
+      const response = await apiRequest<{ tenant: Tenant; stats: TenantStats; tabData: Record<string, unknown>[] | Record<string, unknown> }>(
         `/api/super-admin/tenants/${selectedTenant.id}/details?tab=${tab}`
       );
       setTenantTabData(response.tabData);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки данных');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки данных');
     } finally {
       setIsLoadingTabData(false);
     }
@@ -157,7 +157,7 @@ export function DashboardTab({
             <button
               onClick={async () => {
                 try {
-                  const resp = await apiRequest<{ user: any; token: string; tenantUrl: string; tenantName: string }>(
+                  const resp = await apiRequest<{ user: Record<string, unknown>; token: string; tenantUrl: string; tenantName: string }>(
                     `/api/super-admin/impersonate/${selectedTenant.id}`,
                     { method: 'POST' }
                   );
@@ -178,8 +178,8 @@ export function DashboardTab({
                     tenant_name: resp.tenantName || selectedTenant.name,
                   })));
                   window.open(`${selectedTenant.url}?auto_auth=${encodeURIComponent(authData)}`, '_blank');
-                } catch (e: any) {
-                  useToastStore.getState().addToast('error', e.message || 'Не удалось войти в админку УК');
+                } catch (e: unknown) {
+                  useToastStore.getState().addToast('error', (e instanceof Error ? e.message : '') || 'Не удалось войти в админку УК');
                 }
               }}
               className="px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 flex items-center gap-1.5 text-xs sm:text-sm font-medium shadow-sm transition-all"
@@ -263,7 +263,7 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет заявок</div>
                   ) : (
-                    tenantTabData.map((item: any) => (
+                    tenantTabData.map((item: Record<string, unknown>) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
                           {STATUS_LABELS[item.status] || item.status}
@@ -278,7 +278,7 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет жителей</div>
                   ) : (
-                    tenantTabData.map((item: any) => (
+                    tenantTabData.map((item: Record<string, unknown>) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold text-sm">
                           {(item.name || '?')[0]}
@@ -298,7 +298,7 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет голосований</div>
                   ) : (
-                    tenantTabData.map((item: any) => (
+                    tenantTabData.map((item: Record<string, unknown>) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
                           {STATUS_LABELS[item.status] || item.status}
@@ -313,7 +313,7 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет QR-кодов</div>
                   ) : (
-                    tenantTabData.map((item: any) => (
+                    tenantTabData.map((item: Record<string, unknown>) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <QrCode className="w-5 h-5 text-green-600 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -331,7 +331,7 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет персонала</div>
                   ) : (
-                    tenantTabData.map((item: any) => (
+                    tenantTabData.map((item: Record<string, unknown>) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-sm">
                           {(item.name || '?')[0]}
@@ -360,7 +360,7 @@ export function DashboardTab({
                         { key: 'show_useful_contacts_banner', label: 'Полезные контакты', desc: 'Показать Coming Soon если нет контактов' },
                         { key: 'show_marketplace_banner', label: 'Маркетплейс', desc: 'Показать Coming Soon если нет товаров' },
                       ].map(item => {
-                        const isOn = !!(selectedTenant as any)[item.key];
+                        const isOn = !!(selectedTenant as Record<string, unknown>)[item.key];
                         return (
                           <div key={item.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div>
@@ -370,13 +370,13 @@ export function DashboardTab({
                             <button
                               onClick={async () => {
                                 try {
-                                  const updated = await apiRequest<{ tenant: any }>(`/api/super-admin/tenants/${selectedTenant!.id}/banners`, {
+                                  const updated = await apiRequest<{ tenant: Record<string, unknown> }>(`/api/super-admin/tenants/${selectedTenant!.id}/banners`, {
                                     method: 'PATCH',
                                     body: JSON.stringify({ [item.key]: !isOn }),
                                   });
                                   setTenants(prev => prev.map(t => t.id === selectedTenant!.id ? { ...t, ...updated.tenant } : t));
                                   setSelectedTenant(prev => prev ? { ...prev, ...updated.tenant } : prev);
-                                } catch {}
+                                } catch { /* toggle may fail */ }
                               }}
                               className={`relative w-11 h-6 rounded-full transition-colors ${isOn ? 'bg-orange-500' : 'bg-gray-300'}`}
                             >
@@ -514,7 +514,7 @@ export function DashboardTab({
               <div className="flex items-center gap-3 text-xs text-gray-400">
                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count || 0}</span>
                 <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count || 0}</span>
-                <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {(tenant as any).buildings_count || 0}</span>
+                <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {(tenant as Record<string, unknown>).buildings_count as number || 0}</span>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onDeleteTenant(tenant); }}

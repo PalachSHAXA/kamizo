@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Star, Users, Check, X, ThumbsUp, Send, MessageCircle, User, Briefcase, ChevronRight, Building2 } from 'lucide-react';
+import { Star, Users, Check, ThumbsUp, Send, MessageCircle, User, Briefcase, ChevronRight, Building2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -39,18 +39,6 @@ const getRatingsFromStorage = (): EmployeeRating[] => {
   } catch {
     return [];
   }
-};
-
-const saveRatingToStorage = (rating: EmployeeRating) => {
-  const ratings = getRatingsFromStorage();
-  // Check if already rated this executor by this resident
-  const existingIndex = ratings.findIndex(r => r.executorId === rating.executorId && r.residentId === rating.residentId);
-  if (existingIndex >= 0) {
-    ratings[existingIndex] = rating; // Update existing rating
-  } else {
-    ratings.push(rating);
-  }
-  localStorage.setItem(RATINGS_STORAGE_KEY, JSON.stringify(ratings));
 };
 
 const getExecutorRating = (executorId: string, residentId: string): EmployeeRating | null => {
@@ -124,7 +112,7 @@ export function ResidentRateEmployeesPage() {
 
   // Load rated executors from API on mount
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       apiRequest<{executor_id: string}[]>('/api/ratings').then(data => {
         if (Array.isArray(data)) {
           setRatedExecutorIds(data.map((r: {executor_id: string}) => r.executor_id));

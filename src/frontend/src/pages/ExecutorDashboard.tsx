@@ -26,6 +26,7 @@ import {
   useMarketplaceOrders,
 } from './executor/components';
 import type { ExecutorStats } from './executor/components';
+import type { MarketplaceOrder } from './executor/components/types';
 
 export function ExecutorDashboard() {
   const { user } = useAuthStore();
@@ -92,7 +93,7 @@ export function ExecutorDashboard() {
       ]);
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, fetchDeliveredMarketplaceOrders, user?.specialization]);
+  }, [fetchRequests, fetchPendingReschedules, fetchMarketplaceOrders, fetchAvailableMarketplaceOrders, fetchDeliveredMarketplaceOrders, user?.specialization]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
   const [deliveryTimers, setDeliveryTimers] = useState<Record<string, number>>({});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
   CheckCircle, ShoppingBag, Star, ArrowLeft, Truck
@@ -154,7 +154,7 @@ export function MarketplacePage() {
   const [deliveryReview, setDeliveryReview] = useState('');
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrderAPI | null>(null);
-  const [banners, setBanners] = useState<any[]>([]);
+  const [banners, setBanners] = useState<{ id: string; title: string; description?: string; image_url?: string; link_url?: string }[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -181,17 +181,20 @@ export function MarketplacePage() {
     finally { setLoading(false); }
     // Fetch banners
     try {
-      const bannersRes = await apiRequest<{ banners: any[] }>('/api/banners?placement=marketplace');
+      const bannersRes = await apiRequest<{ banners: { id: string; title: string; description?: string; image_url?: string; link_url?: string }[] }>('/api/banners?placement=marketplace');
       setBanners(bannersRes?.banners || []);
     } catch { /* banner fetch failed */ }
   }, [user]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const hasActiveOrders = useMemo(
+    () => orders.some(o => !['delivered', 'cancelled'].includes(o.status)),
+    [orders]
+  );
   useEffect(() => {
     if (!user) return;
-    const hasActive = orders.some(o => !['delivered', 'cancelled'].includes(o.status));
-    if (!hasActive) return;
+    if (!hasActiveOrders) return;
     const interval = setInterval(async () => {
       try {
         const r = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
@@ -199,7 +202,7 @@ export function MarketplacePage() {
       } catch { /* ignore */ }
     }, 10000);
     return () => clearInterval(interval);
-  }, [user, orders.some(o => !['delivered', 'cancelled'].includes(o.status))]);
+  }, [user, hasActiveOrders]);
 
   useEffect(() => {
     const handler = (e: CustomEvent<{ orderId: string }>) => {
@@ -348,7 +351,7 @@ export function MarketplacePage() {
           {/* Banners */}
           {!selectedCategory && !searchQuery && banners.length > 0 && (
             <div className="mb-4 space-y-3">
-              {banners.map((banner: any) => (
+              {banners.map((banner) => (
                 <div
                   key={banner.id}
                   onClick={() => banner.link_url && window.open(banner.link_url, '_blank')}

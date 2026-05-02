@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Package, Plus, MinusCircle, Filter, AlertTriangle, X, Paperclip } from 'lucide-react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
@@ -18,14 +18,13 @@ interface BatchItem {
 
 export default function MaterialsPage() {
   const language = useLanguageStore((s) => s.language);
-  const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
+  const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
 
   const materials = useFinanceStore((s) => s.materials);
   const materialsLoading = useFinanceStore((s) => s.materialsLoading);
   const fetchMaterials = useFinanceStore((s) => s.fetchMaterials);
   const createMaterial = useFinanceStore((s) => s.createMaterial);
-  const useMaterial = useFinanceStore((s) => s.useMaterial);
-  const filters = useFinanceStore((s) => s.filters);
+  const consumeMaterial = useFinanceStore((s) => s.useMaterial);
   const setFilters = useFinanceStore((s) => s.setFilters);
 
   const buildings = useBuildingStore((s) => s.buildings);
@@ -34,7 +33,7 @@ export default function MaterialsPage() {
   const [selectedBuilding, setSelectedBuilding] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
-  const [writeOffItem, setWriteOffItem] = useState<any>(null);
+  const [writeOffItem, setWriteOffItem] = useState<Record<string, unknown> | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Batch add state
@@ -71,7 +70,7 @@ export default function MaterialsPage() {
   }, [fetchBuildings, fetchMaterials]);
 
   const handleApplyFilter = useCallback(() => {
-    setFilters({ building_id: selectedBuilding || undefined });
+    setFilters({ buildingId: selectedBuilding || undefined });
     fetchMaterials(selectedBuilding || undefined);
   }, [selectedBuilding, setFilters, fetchMaterials]);
 
@@ -116,7 +115,7 @@ export default function MaterialsPage() {
     }
   }, [batchItems, batchBuildingId, createMaterial, fetchMaterials, selectedBuilding]);
 
-  const openWriteOff = useCallback((item: any) => {
+  const openWriteOff = useCallback((item: Record<string, unknown>) => {
     setWriteOffItem(item);
     setWriteOffForm({ quantity: '', description: '' });
     setWriteOffError('');
@@ -136,7 +135,7 @@ export default function MaterialsPage() {
     }
     setSubmitting(true);
     try {
-      await useMaterial(writeOffItem.id, {
+      await consumeMaterial(writeOffItem.id, {
         quantity: qty,
         description: writeOffForm.description,
       });
@@ -146,13 +145,13 @@ export default function MaterialsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [writeOffItem, writeOffForm, useMaterial, fetchMaterials, selectedBuilding, t]);
+  }, [writeOffItem, writeOffForm, consumeMaterial, fetchMaterials, selectedBuilding, t]);
 
   const formatPrice = useCallback((val: number) => {
     return val.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' сум';
   }, []);
 
-  const rowClass = useCallback((m: any) => {
+  const rowClass = useCallback((m: Record<string, unknown>) => {
     if (m.quantity === 0) return 'bg-red-50';
     if (m.quantity < m.min_quantity && m.quantity > 0) return 'bg-yellow-50';
     return '';
@@ -191,7 +190,7 @@ export default function MaterialsPage() {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">{t('Все комплексы', 'Barcha komplekslar')}</option>
-              {buildings.map((b: any) => (
+              {buildings.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
@@ -235,7 +234,7 @@ export default function MaterialsPage() {
                 </tr>
               </thead>
               <tbody>
-                {materials.map((m: any) => (
+                {materials.map((m) => (
                   <tr key={m.id} className={`border-b border-gray-50 ${rowClass(m)}`}>
                     <td className="px-4 py-3 font-medium text-gray-900">{m.name}</td>
                     <td className="px-4 py-3 text-gray-600">{m.unit}</td>
@@ -313,7 +312,7 @@ export default function MaterialsPage() {
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
                 <option value="">{t('Выберите комплекс', 'Kompleksni tanlang')}</option>
-                {buildings.map((b: any) => (
+                {buildings.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>

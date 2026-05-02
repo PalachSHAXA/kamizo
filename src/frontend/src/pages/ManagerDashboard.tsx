@@ -49,7 +49,7 @@ export function ManagerDashboard() {
   const [selectedExecutor, setSelectedExecutor] = useState<Executor | null>(null);
   const [selectedReschedule, setSelectedReschedule] = useState<RescheduleRequest | null>(null);
   const [managerTab, setManagerTab] = useState<'overview' | 'ratings'>('overview');
-  const [ratingSummary, setRatingSummary] = useState<any>(null);
+  const [ratingSummary, setRatingSummary] = useState<Record<string, unknown> | null>(null);
   const [isLoadingRatings, setIsLoadingRatings] = useState(false);
 
   useEffect(() => {
@@ -60,6 +60,7 @@ export function ManagerDashboard() {
         .catch(err => console.error('Failed to load ratings:', err))
         .finally(() => setIsLoadingRatings(false));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ratingSummary is set inside; including it would cause re-fetch loop
   }, [managerTab]);
 
   // Get pending reschedule requests

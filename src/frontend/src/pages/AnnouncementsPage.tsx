@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Plus, Megaphone, Users, Briefcase, X, AlertTriangle, AlertCircle, Info, Trash2, Eye, Clock, Building2, Upload, FileSpreadsheet, Target, Filter, Paperclip, File, Image, FileText, Download } from 'lucide-react';
 import { EmptyState, StatusBadge } from '../components/common';
 import { plural } from '../utils/plural';
@@ -56,7 +56,7 @@ export function AnnouncementsPage() {
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   // Real buildings from API
-  const [buildings, setBuildings] = useState<any[]>([]);
+  const [buildings, setBuildings] = useState<Record<string, unknown>[]>([]);
 
   // Update debt template when language changes
   useEffect(() => {
@@ -103,7 +103,7 @@ export function AnnouncementsPage() {
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
 
   // Filter announcements by type and date
-  const filterByDate = (items: typeof announcements) => {
+  const filterByDate = useCallback((items: typeof announcements) => {
     if (dateFilter === 'all') return items;
 
     const now = new Date();
@@ -124,16 +124,16 @@ export function AnnouncementsPage() {
           return true;
       }
     });
-  };
+  }, [dateFilter]);
 
   const residentAnnouncements = useMemo(() =>
     filterByDate(announcements.filter(a => a.type === 'residents' && a.isActive)),
-    [announcements, dateFilter]
+    [announcements, filterByDate]
   );
 
   const employeeAnnouncements = useMemo(() =>
     filterByDate(announcements.filter(a => a.type === 'employees' && a.isActive)),
-    [announcements, dateFilter]
+    [announcements, filterByDate]
   );
 
   const currentAnnouncements = activeTab === 'residents' ? residentAnnouncements : employeeAnnouncements;
@@ -164,7 +164,7 @@ export function AnnouncementsPage() {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
 
         // Smart column detection: search for Л/С column by header name
         const loginPatterns = ['л/с', 'лицевой', 'счет', 'login', 'лс', 'абонент'];
@@ -221,7 +221,7 @@ export function AnnouncementsPage() {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
 
         let headerRowIndex = -1, loginColIndex = -1, nameColIndex = -1, debtColIndex = -1;
         const loginPatterns = ['л/с', 'лицевой', 'счет', 'login', 'лс', 'абонент'];
@@ -282,9 +282,10 @@ export function AnnouncementsPage() {
         return selectedBranch ? { type: 'branch', branchId: selectedBranch } : undefined;
       case 'building':
         return selectedBuilding ? { type: 'building', buildingId: selectedBuilding } : undefined;
-      case 'custom':
+      case 'custom': {
         const loginsToUse = isDebtMode ? debtFilteredLogins : customLogins;
         return loginsToUse.length > 0 ? { type: 'custom', customLogins: loginsToUse } : undefined;
+      }
       default:
         return { type: 'all' };
     }
@@ -296,17 +297,20 @@ export function AnnouncementsPage() {
     switch (targetType) {
       case 'all':
         return language === 'ru' ? 'Все жители' : 'Barcha aholiga';
-      case 'branch':
+      case 'branch': {
         const branch = branches.find(b => b.id === selectedBranch);
         return branch ? branch.name : '';
-      case 'building':
+      }
+      case 'building': {
         const building = buildings.find(b => b.id === selectedBuilding);
         return building ? building.name : '';
-      case 'custom':
+      }
+      case 'custom': {
         const recipientCount = isDebtMode ? filteredDebtData.length : customLogins.length;
         return recipientCount > 0
           ? `${recipientCount} ${language === 'ru' ? 'получателей' : 'qabul qiluvchi'}`
           : '';
+      }
       default:
         return '';
     }
@@ -1116,7 +1120,6 @@ function AnnouncementCard({
   onEdit,
   formatDate,
   getPriorityIcon,
-  getPriorityBadge,
   getPriorityTone,
   t,
   canDelete,
@@ -1136,7 +1139,7 @@ function AnnouncementCard({
   language: string;
 }) {
   const [showViewers, setShowViewers] = useState(false);
-  const [viewers, setViewers] = useState<any[]>([]);
+  const [viewers, setViewers] = useState<{ id: string; name: string; apartment?: string; address?: string; viewed_at: string }[]>([]);
   const [isLoadingViewers, setIsLoadingViewers] = useState(false);
   const [viewStats, setViewStats] = useState<{ count: number; targetAudienceSize: number; viewPercentage: number } | null>(null);
 
@@ -1348,7 +1351,7 @@ function AnnouncementCard({
                       <h4 className="text-sm font-medium text-gray-600">
                         {language === 'ru' ? 'Кто просмотрел:' : 'Kim ko\'rgan:'}
                       </h4>
-                      {viewers.map((viewer: any) => (
+                      {viewers.map((viewer) => (
                         <div key={viewer.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                           <div>
                             <p className="font-medium text-gray-900">{viewer.name}</p>

@@ -165,7 +165,7 @@ export function TeamPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: boolean; stats?: any; error?: string } | null>(null);
+  const [importResult, setImportResult] = useState<{ success: boolean; stats?: Record<string, number>; error?: string } | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const ROLE_LABELS = language === 'ru' ? ROLE_LABELS_RU : ROLE_LABELS_UZ;
@@ -175,14 +175,14 @@ export function TeamPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await teamApi.getAll() as any;
+      const data = await teamApi.getAll() as { directors?: StaffMember[]; admins?: StaffMember[]; managers?: StaffMember[]; departmentHeads?: StaffMember[]; executors?: StaffMember[] };
       setDirectors(data.directors || []);
       setAdmins(data.admins || []);
       setManagers(data.managers || []);
       setDepartmentHeads(data.departmentHeads || []);
       setExecutors(data.executors || []);
-    } catch (err: any) {
-      setError(err.message || (language === 'ru' ? 'Ошибка загрузки данных' : 'Ma\'lumotlarni yuklashda xatolik'));
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || (language === 'ru' ? 'Ошибка загрузки данных' : 'Ma\'lumotlarni yuklashda xatolik'));
     } finally {
       setLoading(false);
     }
@@ -191,7 +191,7 @@ export function TeamPage() {
   const handleExportStaff = async () => {
     setExportLoading(true);
     try {
-      const data = await apiRequest('/api/team/export') as any;
+      const data = await apiRequest('/api/team/export') as Record<string, unknown>;
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -199,8 +199,8 @@ export function TeamPage() {
       a.download = `staff-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e: any) {
-      addToast('error', e.message || 'Ошибка экспорта');
+    } catch (e: unknown) {
+      addToast('error', (e instanceof Error ? e.message : '') || 'Ошибка экспорта');
     } finally {
       setExportLoading(false);
     }
@@ -216,11 +216,11 @@ export function TeamPage() {
       const result = await apiRequest('/api/team/import', {
         method: 'POST',
         body: JSON.stringify(data),
-      }) as any;
+      }) as { stats?: Record<string, number> };
       setImportResult({ success: true, stats: result.stats });
       fetchTeam();
-    } catch (e: any) {
-      setImportResult({ success: false, error: e.message || 'Ошибка импорта' });
+    } catch (e: unknown) {
+      setImportResult({ success: false, error: (e instanceof Error ? e.message : '') || 'Ошибка импорта' });
     } finally {
       setImportLoading(false);
     }
@@ -228,6 +228,7 @@ export function TeamPage() {
 
   useEffect(() => {
     fetchTeam();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   const handleOpenDetails = async (member: StaffMember) => {
@@ -284,7 +285,7 @@ export function TeamPage() {
     if (!selectedMember) return;
 
     try {
-      const updates: any = {};
+      const updates: Record<string, string> = {};
       if (editForm.name !== selectedMember.name) updates.name = editForm.name;
       if (editForm.phone !== selectedMember.phone) updates.phone = editForm.phone;
       if (editForm.login !== selectedMember.login) updates.login = editForm.login;
@@ -310,8 +311,8 @@ export function TeamPage() {
 
       setIsEditing(false);
       setEditForm(prev => ({ ...prev, password: '' })); // Clear password field
-    } catch (err: any) {
-      addToast('error', (language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlashda xatolik: ') + err.message);
+    } catch (err: unknown) {
+      addToast('error', (language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlashda xatolik: ') + (err instanceof Error ? err.message : ''));
     }
   };
 
@@ -409,8 +410,8 @@ export function TeamPage() {
 
       // Refresh data
       await fetchTeam();
-    } catch (err: any) {
-      setAddError(err.message || (language === 'ru' ? 'Ошибка создания сотрудника' : 'Xodim yaratishda xatolik'));
+    } catch (err: unknown) {
+      setAddError((err instanceof Error ? err.message : '') || (language === 'ru' ? 'Ошибка создания сотрудника' : 'Xodim yaratishda xatolik'));
     } finally {
       setAddLoading(false);
     }
@@ -447,8 +448,8 @@ export function TeamPage() {
       }
       // Refresh data
       await fetchTeam();
-    } catch (err: any) {
-      addToast('error', (language === 'ru' ? 'Ошибка удаления: ' : 'O\'chirishda xatolik: ') + err.message);
+    } catch (err: unknown) {
+      addToast('error', (language === 'ru' ? 'Ошибка удаления: ' : 'O\'chirishda xatolik: ') + (err instanceof Error ? err.message : ''));
     }
   };
 
@@ -492,8 +493,8 @@ export function TeamPage() {
 
       // Refresh data
       await fetchTeam();
-    } catch (err: any) {
-      addToast('error', (language === 'ru' ? 'Ошибка сброса паролей: ' : 'Parollarni tiklashda xatolik: ') + err.message);
+    } catch (err: unknown) {
+      addToast('error', (language === 'ru' ? 'Ошибка сброса паролей: ' : 'Parollarni tiklashda xatolik: ') + (err instanceof Error ? err.message : ''));
     } finally {
       setLoading(false);
     }

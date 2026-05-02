@@ -8,6 +8,7 @@ import { EmptyState } from '../components/common';
 import { plural, pluralWithCount } from '../utils/plural';
 import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
+import type { ReconsiderationRequest } from '../stores/meetingReconsiderationStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { MEETING_STATUS_LABELS, DECISION_THRESHOLD_LABELS } from '../types';
@@ -16,7 +17,6 @@ import { QRSignatureModal } from '../components/QRSignatureModal';
 
 export function ResidentMeetingsPage() {
   const { user } = useAuthStore();
-  const addToast = useToastStore(s => s.addToast);
   const {
     meetings,
     fetchMeetings,
@@ -35,9 +35,9 @@ export function ResidentMeetingsPage() {
 
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [showVotingModal, setShowVotingModal] = useState(false);
-  const [reconsiderationRequests, setReconsiderationRequests] = useState<any[]>([]);
+  const [reconsiderationRequests, setReconsiderationRequests] = useState<ReconsiderationRequest[]>([]);
   const [allowRevote, setAllowRevote] = useState(false); // Allow changing vote when responding to reconsideration request
-  const [newRequestAlert, setNewRequestAlert] = useState<any | null>(null); // For showing new request popup
+  const [newRequestAlert, setNewRequestAlert] = useState<ReconsiderationRequest | null>(null); // For showing new request popup
 
   // Track known request IDs to detect new ones
   const knownRequestIds = useRef<Set<string>>(new Set());
@@ -48,6 +48,7 @@ export function ResidentMeetingsPage() {
   // ✅ OPTIMIZED: Fetch meetings once on mount (empty deps)
   useEffect(() => {
     fetchMeetings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []); // Empty array - runs only once
 
   // Load reconsideration requests with new request detection
@@ -70,7 +71,7 @@ export function ResidentMeetingsPage() {
           const audio = new Audio('/notification.mp3');
           audio.volume = 0.5;
           audio.play().catch(() => {}); // Ignore if autoplay blocked
-        } catch {}
+        } catch { /* audio may not be available */ }
       }
     }
 
@@ -106,7 +107,7 @@ export function ResidentMeetingsPage() {
   };
 
   // Handle viewing and opening vote modal for a request
-  const handleRespondToRequest = async (request: any) => {
+  const handleRespondToRequest = async (request: ReconsiderationRequest) => {
     // Mark as viewed
     await markReconsiderationRequestViewed(request.id);
 
@@ -568,6 +569,7 @@ function MeetingVotingModal({
   };
   calculateQuorum: () => { participated: number; total: number; percent: number; quorumReached: boolean };
 }) {
+  const addToast = useToastStore(s => s.addToast);
   // Track pending votes for all agenda items (before submission)
   const [pendingVotes, setPendingVotes] = useState<Record<string, VoteChoice>>({});
   // Track comments for each agenda item vote
@@ -660,9 +662,9 @@ function MeetingVotingModal({
       setPendingComments({});
       setPendingCounterProposals({});
       setVotesSubmitted(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to submit votes:', error);
-      const errorMessage = error?.message || 'Ошибка при голосовании. Проверьте что указана площадь квартиры.';
+      const errorMessage = (error instanceof Error ? error.message : null) || 'Ошибка при голосовании. Проверьте что указана площадь квартиры.';
       addToast('error', errorMessage);
       setVotesSubmitted(false);
     } finally {
@@ -706,9 +708,9 @@ function MeetingVotingModal({
           setScheduleVoteSuccess(false);
         }, 2000);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to vote:', error);
-      const errorMessage = error?.message || 'Ошибка при голосовании. Проверьте что указана площадь квартиры.';
+      const errorMessage = (error instanceof Error ? error.message : null) || 'Ошибка при голосовании. Проверьте что указана площадь квартиры.';
       addToast('error', errorMessage);
       setSelectedScheduleOption('');
 
@@ -723,9 +725,9 @@ function MeetingVotingModal({
   };
 
   // Calculate total votes and find leading option (use voteCount for proper counting)
-  const totalScheduleVotes = meeting.scheduleOptions.reduce((sum, opt) => sum + ((opt as any).voteCount ?? opt.votes?.length ?? 0), 0);
-  const maxVotes = Math.max(...meeting.scheduleOptions.map(opt => (opt as any).voteCount ?? opt.votes?.length ?? 0));
-  const leadingOptions = meeting.scheduleOptions.filter(opt => ((opt as any).voteCount ?? opt.votes?.length ?? 0) === maxVotes && maxVotes > 0);
+  const totalScheduleVotes = meeting.scheduleOptions.reduce((sum, opt) => sum + (opt.voteCount ?? opt.votes?.length ?? 0), 0);
+  const maxVotes = Math.max(...meeting.scheduleOptions.map(opt => opt.voteCount ?? opt.votes?.length ?? 0));
+  const leadingOptions = meeting.scheduleOptions.filter(opt => (opt.voteCount ?? opt.votes?.length ?? 0) === maxVotes && maxVotes > 0);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
@@ -886,7 +888,7 @@ function MeetingVotingModal({
                 {meeting.scheduleOptions.map((option, index) => {
                   const isSelected = selectedScheduleOption === option.id;
                   const isLeading = leadingOptions.some(lo => lo.id === option.id);
-                  const optionVoteCount = (option as any).voteCount ?? option.votes?.length ?? 0;
+                  const optionVoteCount = option.voteCount ?? option.votes?.length ?? 0;
                   const votePercent = totalScheduleVotes > 0 ? (optionVoteCount / totalScheduleVotes) * 100 : 0;
 
                   // Disable voting if already voted (previousVote exists)
@@ -1104,8 +1106,8 @@ function MeetingVotingModal({
                     {/* Attachment Previews */}
                     {(() => {
                       const attachments: Array<{ name: string; url: string; type: string; size?: number }> =
-                        Array.isArray((item as any).attachments)
-                          ? (item as any).attachments
+                        Array.isArray(item.attachments)
+                          ? item.attachments
                           : [];
                       if (attachments.length === 0) return null;
                       return (

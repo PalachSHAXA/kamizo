@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Search, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { apiRequest } from '../../../services/api';
-import { Tenant, ROLE_LABELS_MAP } from './types';
+import type { Tenant } from './types';
+import { ROLE_LABELS_MAP } from './types';
 
 interface UsersTabProps {
   tenants: Tenant[];
@@ -9,8 +10,8 @@ interface UsersTabProps {
   setError: (error: string) => void;
 }
 
-export function UsersTab({ tenants, error, setError }: UsersTabProps) {
-  const [allUsers, setAllUsers] = useState<any[]>([]);
+export function UsersTab({ tenants, setError }: UsersTabProps) {
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; name?: string; login: string; role: string; phone?: string; password?: string; tenant_name?: string; branch?: string }>>([]);
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersPage, setUsersPage] = useState(1);
   const [usersSearch, setUsersSearch] = useState('');
@@ -26,12 +27,12 @@ export function UsersTab({ tenants, error, setError }: UsersTabProps) {
       if (search) params.set('search', search);
       if (role) params.set('role', role);
       if (tenant) params.set('tenant', tenant);
-      const res = await apiRequest<{ users: any[]; total: number; page: number }>(`/api/super-admin/users?${params}`);
+      const res = await apiRequest<{ users: typeof allUsers; total: number; page: number }>(`/api/super-admin/users?${params}`);
       setAllUsers(res.users);
       setUsersTotal(res.total);
       setUsersPage(res.page);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки пользователей');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки пользователей');
     } finally {
       setIsLoadingUsers(false);
     }
@@ -40,6 +41,7 @@ export function UsersTab({ tenants, error, setError }: UsersTabProps) {
   // Load users on first render
   useEffect(() => {
     loadUsers(1, '', '', '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   return (
