@@ -7,11 +7,8 @@ export type ExtendedUserRole =
   | 'super_admin'                // Супер-админ (полный доступ)
   | 'admin'                      // Администратор УК
   | 'director'                   // Директор
-  | 'accountant'                 // Бухгалтер
-  | 'chief_engineer'             // Главный инженер
   | 'dispatcher'                 // Диспетчер
   | 'manager'                    // Менеджер по работе с жителями
-  | 'foreman'                    // Мастер/бригадир
   | 'executor'                   // Исполнитель
   | 'resident'                   // Житель
   | 'owner_representative';      // Представитель собственника
@@ -88,11 +85,8 @@ export const ROLE_LABELS: Record<ExtendedUserRole, string> = {
   super_admin: 'Супер-администратор',
   admin: 'Администратор',
   director: 'Директор',
-  accountant: 'Бухгалтер',
-  chief_engineer: 'Главный инженер',
   dispatcher: 'Диспетчер',
   manager: 'Менеджер',
-  foreman: 'Мастер',
   executor: 'Исполнитель',
   resident: 'Житель',
   owner_representative: 'Представитель собственника'
