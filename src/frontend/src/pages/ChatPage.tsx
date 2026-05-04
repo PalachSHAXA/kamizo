@@ -169,13 +169,13 @@ const LocationBadges = memo(function LocationBadges({ channel, language, branchI
   return (
     <div className="flex items-center gap-1 flex-wrap mt-1">
       {channel.resident_branch_name && (
-        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold ${color.inactive}`}>
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold ${color.inactive}`} title={channel.resident_branch_name}>
           <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
           <span className="truncate max-w-[80px]">{channel.resident_branch_name}</span>
         </span>
       )}
       {channel.resident_building_name && (
-        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title={channel.resident_building_name}>
           <Building2 className="w-2.5 h-2.5 flex-shrink-0" />
           <span className="truncate max-w-[80px]">{channel.resident_building_name}</span>
         </span>
@@ -507,7 +507,7 @@ function AdminChannelList({
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`text-sm truncate ${hasUnread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
+                    <span className={`text-sm truncate ${hasUnread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`} title={channel.name}>
                       {formatName(channel.name)}
                     </span>
                     {channel.last_message_at && (
@@ -592,6 +592,10 @@ function ChatView({
   const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  // sendingRef synchronously locks the send path so a rapid double-tap can't
+  // produce two API calls before React re-renders setIsSending(true). The
+  // boolean state still drives the UI spinner; the ref is purely a guard.
+  const sendingRef = useRef(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [attachedFile, setAttachedFile] = useState<{ name: string; size: number; dataUrl?: string; isImage: boolean } | null>(null);
@@ -782,6 +786,8 @@ function ChatView({
     const hasAttachment = !!attachedFile;
     if (!textPart && !hasAttachment) return;
     if (!user || isSending) return;
+    if (sendingRef.current) return; // synchronous guard against double-tap
+    sendingRef.current = true;
 
     // Build the outgoing payload. Inline images get embedded as a data-URL
     // inside the message content so they render inline via MessageContent
@@ -836,6 +842,7 @@ function ChatView({
       );
     } finally {
       setIsSending(false);
+      sendingRef.current = false;
     }
   };
 
@@ -1063,6 +1070,10 @@ function ChatView({
       <div
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto px-3 py-3"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-label={language === 'ru' ? 'Сообщения чата' : 'Chat xabarlari'}
         style={{
           overscrollBehaviorY: 'contain',
           background: 'linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%)',
@@ -1119,7 +1130,7 @@ function ChatView({
                       </div>
                     )}
 
-                    <div className={`max-w-[75%] flex flex-col ${isOwn ? 'items-end' : 'items-start'} ${isCurrentMatch ? 'ring-2 ring-orange-400 rounded-[20px]' : isSearchMatch ? 'ring-1 ring-orange-200 rounded-[20px]' : ''}`}>
+                    <div className={`max-w-[75%] min-w-0 flex flex-col ${isOwn ? 'items-end' : 'items-start'} ${isCurrentMatch ? 'ring-2 ring-orange-400 rounded-[20px]' : isSearchMatch ? 'ring-1 ring-orange-200 rounded-[20px]' : ''}`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                       {showSender && (
                         <div className="flex items-center gap-1.5 mb-1 px-1">
                           <span className="text-[11px] font-semibold text-gray-600">{formatName(message.sender_name)}</span>
@@ -1490,8 +1501,18 @@ export function ChatPage() {
   }
 
   // ── Admin/Manager View ──
+  // Height excludes the mobile header (top safe-area inside) AND the bottom
+  // safe-area / bottom-bar so the message input is never clipped by the iOS
+  // home-indicator on iPhone with notch. Without this last subtraction the
+  // composer was hiding 34px below the screen.
   return (
-    <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden" style={{ height: 'calc(100dvh - var(--mobile-header-h, 68px))', maxHeight: 'calc(100dvh - 68px)' }}>
+    <div
+      className="-mx-4 -mt-4 md:mx-0 md:mt-0 bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden"
+      style={{
+        height: 'calc(100dvh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
+        maxHeight: 'calc(100dvh - 68px - env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <div className="h-full flex">
         <div className={`${
           selectedChannelId ? 'hidden md:flex md:flex-col' : 'flex flex-col'

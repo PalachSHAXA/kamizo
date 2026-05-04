@@ -158,7 +158,16 @@ export function MessageContent({ content, isOwn, language }: MessageContentProps
               alt={p.alt}
               loading="lazy"
               onClick={() => setLightboxImage({ src: p.src, alt: p.alt })}
-              className="my-1 rounded-[12px] max-w-full max-h-[320px] object-contain bg-black/5 cursor-pointer hover:opacity-90 active:scale-[0.98] transition-all"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setLightboxImage({ src: p.src, alt: p.alt });
+                }
+              }}
+              tabIndex={0}
+              role="button"
+              aria-label={p.alt || (language === 'ru' ? 'Открыть изображение' : 'Rasmni ochish')}
+              className="my-1 rounded-[12px] max-w-full max-h-[320px] object-contain bg-black/5 cursor-pointer hover:opacity-90 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
             />
           );
         }

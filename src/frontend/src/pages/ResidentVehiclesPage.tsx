@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home } from 'lucide-react';
+import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home, MoreHorizontal } from 'lucide-react';
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -8,7 +8,70 @@ import { useDataStore, useVehicleStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
-import { SearchPlateInput, PlateNumberInput, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
+import { SearchPlateInput, PlateNumberInput, UZFlag, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
+
+// "Recent searches" persist across sessions in localStorage. Capped at 5
+// entries to keep the list scannable. We store the plate exactly as the
+// user typed it (raw, not formatted) plus whether it resolved to a match.
+type RecentSearch = { plate: string; found: boolean; at: number };
+const RECENT_SEARCHES_KEY = 'kamizo:vehicle-recent-searches';
+const RECENT_SEARCHES_MAX = 5;
+
+function loadRecentSearches(): RecentSearch[] {
+  try {
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, RECENT_SEARCHES_MAX) : [];
+  } catch { return []; }
+}
+
+function saveRecentSearch(entry: RecentSearch): RecentSearch[] {
+  const list = loadRecentSearches().filter(r => r.plate !== entry.plate);
+  list.unshift(entry);
+  const trimmed = list.slice(0, RECENT_SEARCHES_MAX);
+  try { localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(trimmed)); } catch { /* quota */ }
+  return trimmed;
+}
+
+function timeAgo(ts: number, lang: 'ru' | 'uz'): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return lang === 'ru' ? 'только что' : 'hozir';
+  if (mins < 60) return lang === 'ru' ? `${mins} мин назад` : `${mins} daq oldin`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return lang === 'ru' ? `${hrs} ч назад` : `${hrs} soat oldin`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return lang === 'ru' ? 'вчера' : 'kecha';
+  if (days < 7) return lang === 'ru' ? `${days} дн назад` : `${days} kun oldin`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 4) return lang === 'ru' ? `${weeks} нед назад` : `${weeks} hafta oldin`;
+  return new Date(ts).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
+}
+
+// Render a license plate with the same chunked spacing as formatPlateDisplay
+// but with the digits group highlighted in brand orange — matches the design's
+// "01 В 333 ВА" hero where 333 stands out.
+function PlateBig({ plate, accent = false }: { plate: string; accent?: boolean }) {
+  const formatted = formatPlateDisplay(plate);
+  const parts = formatted.split(' ');
+  return (
+    <span className="font-mono tracking-wider tabular-nums">
+      {parts.map((part, i) => {
+        const isDigitGroup = /^\d{3,}$/.test(part);
+        return (
+          <span
+            key={i}
+            className={i > 0 ? 'ml-2' : ''}
+            style={accent && isDigitGroup ? { color: '#FCD34D' } : undefined}
+          >
+            {part}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 
 export function ResidentVehiclesPage() {
@@ -44,6 +107,10 @@ export function ResidentVehiclesPage() {
   // API search results (for searching all vehicles in the system)
   const [apiSearchResults, setApiSearchResults] = useState<Vehicle[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  useEffect(() => { setRecentSearches(loadRecentSearches()); }, []);
 
   // Owner type for form
   const [selectedOwnerType, setSelectedOwnerType] = useState<VehicleOwnerType>('individual');
@@ -211,10 +278,6 @@ export function ResidentVehiclesPage() {
     setDeleteConfirm(null);
   };
 
-  const handleQuickSearch = (vehicle: Vehicle) => {
-    setManuallySelectedResult(vehicle);
-  };
-
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
       day: '2-digit',
@@ -223,101 +286,186 @@ export function ResidentVehiclesPage() {
     });
   };
 
-  const getOwnerTypeIcon = (type: VehicleOwnerType) => {
-    switch (type) {
-      case 'individual': return <User className="w-4 h-4" />;
-      case 'legal_entity': return <Building2 className="w-4 h-4" />;
-      case 'service': return <Car className="w-4 h-4" />;
+  const ownerTypes: VehicleOwnerType[] = ['individual', 'legal_entity'];
+
+  // Primary vehicle for the hero card — first registered (oldest) wins,
+  // matching the "это моя основная машина" mental model. Falls back to
+  // first in the list if createdAt is missing.
+  const primaryVehicle = useMemo(() => {
+    if (vehicles.length === 0) return null;
+    return [...vehicles].sort((a, b) =>
+      new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+    )[0];
+  }, [vehicles]);
+
+  const garageLabel = (() => {
+    // Short address chip for hero header — "ДОМ 12А" feel. Falls back to
+    // user.address truncated, or generic "Гараж" when nothing's set.
+    const addr = (user?.address || '').trim();
+    if (!addr) return language === 'ru' ? 'ГАРАЖ' : 'GARAJ';
+    // Try to extract "ДОМ X" if address contains it; otherwise show address tail
+    const houseMatch = addr.match(/(дом|d\.|uy)\s*[№#]?\s*(\S+)/i);
+    if (houseMatch) {
+      return language === 'ru' ? `ГАРАЖ · ДОМ ${houseMatch[2].toUpperCase()}` : `GARAJ · ${houseMatch[2].toUpperCase()}-UY`;
+    }
+    const short = addr.length > 22 ? addr.slice(0, 22) + '…' : addr;
+    return language === 'ru' ? `ГАРАЖ · ${short.toUpperCase()}` : `GARAJ · ${short.toUpperCase()}`;
+  })();
+
+  const handleSubmitSearch = async () => {
+    const cleanedPlate = searchPattern;
+    if (!cleanedPlate || cleanedPlate.length < 2) return;
+    setIsSearching(true);
+    try {
+      const results = await searchVehiclesByPlate(cleanedPlate);
+      setApiSearchResults(results);
+      if (results.length === 1) setManuallySelectedResult(results[0]);
+      const formatted = formatPlateDisplay(cleanedPlate);
+      setRecentSearches(saveRecentSearch({ plate: formatted, found: results.length > 0, at: Date.now() }));
+    } finally {
+      setIsSearching(false);
     }
   };
 
-  // Plate search is always available to residents — it queries vehicles
-  // across the whole building/tenant (via searchVehiclesByPlate), not just
-  // the resident's own cars. Typical use case: a car is blocking the
-  // driveway, the resident enters its plate to find the owner and call
-  // them, or to verify a guest's vehicle. Earlier versions hid this tab
-  // when the resident had <3 own cars, which mistakenly assumed search was
-  // for browsing the user's own list.
-  const tabs = [
-    {
-      id: 'my_vehicles' as const,
-      label: language === 'ru' ? 'Мои авто' : 'Avtomobillarim',
-      icon: Car,
-      count: vehicles.length
-    },
-    {
-      id: 'search' as const,
-      label: language === 'ru' ? 'Найти авто' : 'Avto qidirish',
-      icon: Search,
-    },
-  ];
-
-  const ownerTypes: VehicleOwnerType[] = ['individual', 'legal_entity'];
+  const handleClickRecent = (entry: RecentSearch) => {
+    const cleaned = entry.plate.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    setSearchPlateParts(parsePlateNumber(cleaned, 'individual'));
+  };
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold flex items-center gap-3">
-          <Car className="w-7 h-7 text-primary-500" />
-          {language === 'ru' ? 'Мои автомобили' : 'Mening avtomobillarim'}
-        </h1>
-        <button
-          onClick={() => handleOpenModal()}
-          className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation"
-          aria-label={language === 'ru' ? 'Добавить автомобиль' : 'Avtomobil qo\'shish'}
+    <div className="space-y-4 md:space-y-5 pb-24 md:pb-0">
+      {/* Hero — dark card with grid background. Houses both the address chip
+          + featured primary vehicle (or search prompt) AND the segmented tab
+          control as a single visual block. */}
+      <div className="px-3 md:px-0">
+        <div
+          className="relative rounded-[20px] overflow-hidden p-5 shadow-[0_12px_32px_rgba(0,0,0,0.18)]"
+          style={{
+            background: '#161922',
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+              radial-gradient(ellipse 80% 60% at 100% 0%, rgba(var(--brand-rgb),0.18), transparent 70%)
+            `,
+            backgroundSize: '24px 24px, 24px 24px, 100% 100%',
+          }}
         >
-          <Plus className="w-5 h-5" />
-          <span className="hidden sm:inline">
-            {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
-          </span>
-        </button>
-      </div>
+          {/* Address chip */}
+          <div className="text-center mb-4">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/45">
+              {garageLabel}
+            </span>
+          </div>
 
-      {/* Tabs */}
-      <div className="glass-card p-1.5 md:p-1 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="flex gap-1 md:inline-flex min-w-max">
-          {tabs.map((tab) => (
+          {/* Tab content — primary vehicle when on Garage, search prompt when on Search */}
+          {activeTab === 'my_vehicles' ? (
+            primaryVehicle ? (
+              <>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'rgb(var(--brand-rgb))' }}>
+                  {language === 'ru' ? 'Основной автомобиль' : 'Asosiy avtomobil'}
+                </div>
+                <div className="text-[34px] sm:text-[40px] leading-none font-extrabold text-white mb-3">
+                  <PlateBig plate={primaryVehicle.plateNumber} accent />
+                </div>
+                <div className="text-[14px] font-semibold text-white/90">
+                  {primaryVehicle.brand} {primaryVehicle.model}
+                  {primaryVehicle.year && <span className="text-white/55 font-medium"> · {primaryVehicle.year}</span>}
+                  {primaryVehicle.color && <span className="text-white/55 font-medium"> · {primaryVehicle.color}</span>}
+                </div>
+                <div className="text-[12px] text-white/55 mt-1.5 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  {primaryVehicle.parkingSpot
+                    ? (language === 'ru' ? `Парковка ${primaryVehicle.parkingSpot}` : `Avtoturargoh ${primaryVehicle.parkingSpot}`)
+                    : (language === 'ru' ? 'В гараже' : 'Garajda')}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'rgb(var(--brand-rgb))' }}>
+                  {language === 'ru' ? 'Гараж пуст' : 'Garaj bo\'sh'}
+                </div>
+                <div className="text-[20px] leading-tight font-extrabold text-white">
+                  {language === 'ru' ? 'Добавьте первый автомобиль' : 'Birinchi avtomobilni qo\'shing'}
+                </div>
+                <div className="text-[12px] text-white/60 mt-1">
+                  {language === 'ru' ? 'Сосед сможет найти вас по номеру' : 'Qo\'shni sizni raqam bo\'yicha topishi mumkin'}
+                </div>
+              </div>
+            )
+          ) : (
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'rgb(var(--brand-rgb))' }}>
+                {language === 'ru' ? 'Найти владельца' : 'Egasini topish'}
+              </div>
+              <div className="text-[24px] sm:text-[28px] leading-tight font-extrabold text-white">
+                {language === 'ru' ? 'Чьё это авто во дворе?' : 'Bu hovlidagi kimning avtomobili?'}
+              </div>
+              <div className="text-[13px] text-white/65 mt-1.5 leading-snug">
+                {language === 'ru'
+                  ? 'Введите номер — найдём соседа среди жителей вашего дома.'
+                  : 'Raqamni kiriting — biz uy aholisi orasidan qo\'shnini topamiz.'}
+              </div>
+            </div>
+          )}
+
+          {/* Tab pills inside hero */}
+          <div className="flex gap-2 mt-5">
             <button
-              key={tab.id}
               onClick={() => {
-                setActiveTab(tab.id);
-                if (tab.id === 'my_vehicles') {
-                  setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
-                  setManuallySelectedResult(null);
-                }
+                setActiveTab('my_vehicles');
+                setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
+                setManuallySelectedResult(null);
               }}
-              className={`px-4 py-3 md:py-2 rounded-xl font-medium transition-all flex items-center gap-2 whitespace-nowrap touch-manipulation ${
-                activeTab === tab.id
-                  ? 'bg-primary-500 text-gray-900 shadow-md'
-                  : 'hover:bg-white/30 active:bg-white/50 text-gray-600'
+              className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-full text-[13px] font-bold transition-all touch-manipulation ${
+                activeTab === 'my_vehicles'
+                  ? 'bg-white text-gray-900'
+                  : 'bg-white/8 text-white/80 hover:bg-white/14 border border-white/10'
               }`}
             >
-              <tab.icon className="w-5 h-5 md:w-4 md:h-4" />
-              <span className="text-sm md:text-base">{tab.label}</span>
-              {tab.count !== undefined && tab.count > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-xs text-white font-medium bg-primary-500`}>
-                  {tab.count}
+              {language === 'ru' ? 'Мой гараж' : 'Mening garajim'}
+              {vehicles.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums ${
+                  activeTab === 'my_vehicles' ? 'bg-gray-900/10 text-gray-700' : 'bg-white/15 text-white/70'
+                }`}>
+                  {vehicles.length}
                 </span>
               )}
             </button>
-          ))}
+            <button
+              onClick={() => setActiveTab('search')}
+              className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-full text-[13px] font-bold transition-all touch-manipulation flex-1 justify-center ${
+                activeTab === 'search'
+                  ? 'text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.4)]'
+                  : 'bg-white/8 text-white/80 hover:bg-white/14 border border-white/10'
+              }`}
+              style={activeTab === 'search'
+                ? { background: 'linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb),0.85))' }
+                : undefined}
+            >
+              <Search className="w-4 h-4" />
+              {language === 'ru' ? 'Поиск' : 'Qidiruv'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* My Vehicles Tab */}
       {activeTab === 'my_vehicles' && (
-        <>
-          {/* Info Card */}
-          <div className="glass-card p-4 bg-primary-50 border-primary-200">
-            <div className="flex items-start gap-3">
-              <Car className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-primary-700">
-                {language === 'ru'
-                  ? 'Зарегистрируйте свои автомобили для быстрой идентификации на территории комплекса. Это поможет охране и управляющей компании.'
-                  : 'Avtomobillaringizni majmua hududida tez aniqlash uchun ro\'yxatdan o\'tkazing. Bu qo\'riqlash va boshqaruv kompaniyasiga yordam beradi.'}
-              </p>
+        <div className="space-y-3 px-3 md:px-0">
+          {/* Section header */}
+          <div className="flex items-end justify-between px-1">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              {language === 'ru' ? 'Все автомобили' : 'Barcha avtomobillar'}
+              {vehicles.length > 0 && <span className="text-gray-400"> · {vehicles.length}</span>}
             </div>
+            <button
+              onClick={() => handleOpenModal()}
+              className="text-[13px] font-bold flex items-center gap-1 active:opacity-70 transition-opacity touch-manipulation min-h-[36px]"
+              style={{ color: 'rgb(var(--brand-rgb))' }}
+            >
+              <Plus className="w-4 h-4" />
+              {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
+            </button>
           </div>
 
           {/* Vehicles List */}
@@ -326,145 +474,193 @@ export function ResidentVehiclesPage() {
               icon={<Car className="w-12 h-12" />}
               title={language === 'ru' ? 'Нет зарегистрированных авто' : 'Ro\'yxatdan o\'tgan avtomobillar yo\'q'}
               description={language === 'ru'
-                ? 'Добавьте свой автомобиль, нажав кнопку выше'
-                : 'Yuqoridagi tugmani bosib avtomobilingizni qo\'shing'}
+                ? 'Добавьте свой автомобиль кнопкой выше'
+                : 'Yuqoridagi tugma orqali avtomobilingizni qo\'shing'}
               action={{
                 label: language === 'ru' ? 'Добавить первый авто' : 'Birinchi avtoni qo\'shish',
                 onClick: () => handleOpenModal(),
               }}
             />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {vehicles.map((vehicle) => (
-                <div key={vehicle.id} className="glass-card p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center">
-                        <Car className="w-6 h-6 text-primary-500" />
+            <div className="space-y-2.5">
+              {vehicles.map((vehicle) => {
+                const isPrimary = primaryVehicle?.id === vehicle.id;
+                const formatted = formatPlateDisplay(vehicle.plateNumber);
+                return (
+                  <div key={vehicle.id} className="bg-white rounded-[16px] p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] relative">
+                    {/* Plate display block — black border like the design */}
+                    <button
+                      onClick={() => handleOpenModal(vehicle)}
+                      className="w-full text-left active:scale-[0.99] transition-transform touch-manipulation"
+                    >
+                      <div className="flex items-stretch border-2 border-gray-900 rounded-[10px] overflow-hidden">
+                        <div className="flex-1 px-3 py-2.5 flex items-center justify-center">
+                          <span className="font-mono tracking-wider text-[20px] sm:text-[22px] font-extrabold text-gray-900 tabular-nums">
+                            {formatted}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center px-2 border-l-2 border-gray-900 bg-white">
+                          <UZFlag className="w-7 h-4" />
+                          <span className="text-[8px] font-bold text-gray-700 leading-none mt-0.5">UZ</span>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-900 tracking-wider">
-                          {formatPlateDisplay(vehicle.plateNumber)}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {vehicle.brand} {vehicle.model}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleOpenModal(vehicle)}
-                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation"
-                        aria-label={language === 'ru' ? 'Редактировать автомобиль' : 'Avtomobilni tahrirlash'}
-                      >
-                        <Edit2 className="w-4 h-4 text-gray-500" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(vehicle.id)}
-                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors touch-manipulation"
-                        aria-label={language === 'ru' ? 'Удалить автомобиль' : 'Avtomobilni o\'chirish'}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </button>
-                    </div>
-                  </div>
+                    </button>
 
-                  <div className="space-y-2 text-sm">
-                    {vehicle.ownerType && (
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                          vehicle.ownerType === 'individual' ? 'bg-blue-100 text-blue-700' :
-                          vehicle.ownerType === 'legal_entity' ? 'bg-purple-100 text-purple-700' :
-                          'bg-orange-100 text-orange-700'
-                        }`}>
-                          {getOwnerTypeIcon(vehicle.ownerType)}
-                          {language === 'ru'
-                            ? (VEHICLE_OWNER_TYPE_LABELS[vehicle.ownerType]?.label ?? vehicle.ownerType)
-                            : (VEHICLE_OWNER_TYPE_LABELS[vehicle.ownerType]?.labelUz ?? vehicle.ownerType)}
-                        </span>
+                    {/* Bottom row: model + meta + ⋯ menu */}
+                    <div className="flex items-center justify-between mt-2.5 px-1">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-[14px] text-gray-900 truncate">
+                            {vehicle.brand} {vehicle.model}
+                          </span>
+                          {isPrimary && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
+                              style={{ backgroundColor: 'rgba(var(--brand-rgb),0.12)', color: 'rgb(var(--brand-rgb))' }}
+                            >
+                              {language === 'ru' ? 'Основной' : 'Asosiy'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-500 truncate mt-0.5">
+                          {vehicle.year && `${vehicle.year} · `}
+                          {vehicle.color}
+                          {vehicle.parkingSpot && ` · ${language === 'ru' ? 'парк.' : 'avt.'} ${vehicle.parkingSpot}`}
+                        </div>
                       </div>
-                    )}
-                    {vehicle.companyName && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">{language === 'ru' ? 'Компания' : 'Kompaniya'}:</span>
-                        <span className="text-gray-900 font-medium">{vehicle.companyName}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">{language === 'ru' ? 'Тип' : 'Turi'}:</span>
-                      <span className="text-gray-900">
-                        {language === 'ru'
-                          ? (VEHICLE_TYPE_LABELS[vehicle.type]?.label ?? vehicle.type)
-                          : (VEHICLE_TYPE_LABELS[vehicle.type]?.labelUz ?? vehicle.type)}
-                      </span>
+
+                      <button
+                        onClick={() => setOpenMenuId(openMenuId === vehicle.id ? null : vehicle.id)}
+                        className="w-9 h-9 rounded-full bg-gray-50 hover:bg-gray-100 active:bg-gray-200 flex items-center justify-center text-gray-500 active:scale-[0.95] transition-all touch-manipulation shrink-0"
+                        aria-label={language === 'ru' ? 'Меню действий' : 'Amallar menyusi'}
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">{language === 'ru' ? 'Цвет' : 'Rangi'}:</span>
-                      <span className="text-gray-900">{vehicle.color}</span>
-                    </div>
-                    {vehicle.year && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">{language === 'ru' ? 'Год' : 'Yili'}:</span>
-                        <span className="text-gray-900">{vehicle.year}</span>
-                      </div>
-                    )}
-                    {vehicle.parkingSpot && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">{language === 'ru' ? 'Парковка' : 'Avtoturargoh'}:</span>
-                        <span className="text-gray-900">{vehicle.parkingSpot}</span>
-                      </div>
+
+                    {/* Action menu popover */}
+                    {openMenuId === vehicle.id && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setOpenMenuId(null)}
+                          aria-hidden
+                        />
+                        <div className="absolute right-3 bottom-12 z-20 bg-white rounded-[12px] shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 py-1 min-w-[160px]">
+                          <button
+                            onClick={() => { setOpenMenuId(null); handleOpenModal(vehicle); }}
+                            className="w-full text-left px-3 py-2.5 text-[13px] font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 flex items-center gap-2 touch-manipulation min-h-[44px]"
+                          >
+                            <Edit2 className="w-4 h-4 text-gray-400" />
+                            {language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
+                          </button>
+                          <button
+                            onClick={() => { setOpenMenuId(null); setDeleteConfirm(vehicle.id); }}
+                            className="w-full text-left px-3 py-2.5 text-[13px] font-medium text-red-600 hover:bg-red-50 active:bg-red-100 flex items-center gap-2 touch-manipulation min-h-[44px]"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            {language === 'ru' ? 'Удалить' : 'O\'chirish'}
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
+
+              {/* Add another vehicle */}
+              <button
+                onClick={() => handleOpenModal()}
+                className="w-full bg-white rounded-[16px] py-4 px-4 flex items-center justify-center gap-2 text-gray-500 font-medium text-[14px] border-2 border-dashed border-gray-200 hover:border-gray-300 active:bg-gray-50 transition-colors touch-manipulation min-h-[56px]"
+              >
+                <Plus className="w-4 h-4" />
+                {language === 'ru' ? 'Добавить ещё одно авто' : 'Yana avto qo\'shish'}
+              </button>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Search Tab */}
       {activeTab === 'search' && (
-        <div className="space-y-4">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Search className="w-5 h-5 text-primary-500" />
-              {language === 'ru' ? 'Поиск автомобиля' : 'Avtomobil qidirish'}
-            </h2>
-            <span className="text-sm text-gray-500">
-              {language === 'ru' ? 'Всего:' : 'Jami:'} {vehicles.length}
-            </span>
-          </div>
-
-          {/* Search Form with Beautiful Plate Input */}
-          <div className="glass-card p-6 relative z-10 overflow-visible">
+        <div className="space-y-3 px-3 md:px-0">
+          {/* Plate input + CTA card */}
+          <div className="bg-white rounded-[18px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.05)] relative z-10 overflow-visible">
             <div className="flex flex-col items-center relative">
               <SearchPlateInput
                 value={searchPlateParts}
                 onChange={setSearchPlateParts}
                 language={language}
-                onSearch={() => {
-                  if (filteredVehicles.length === 1) {
-                    setManuallySelectedResult(filteredVehicles[0]);
-                  }
-                }}
+                onSearch={handleSubmitSearch}
               />
-
-              {/* Clear search button */}
-              {(searchPlateParts.region || searchPlateParts.letters1 || searchPlateParts.digits || searchPlateParts.letters2) && (
-                <button
-                  onClick={() => {
-                    setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
-                    setManuallySelectedResult(null);
-                  }}
-                  className="mt-4 px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <X className="w-4 h-4" />
-                  {language === 'ru' ? 'Очистить поиск' : 'Qidiruvni tozalash'}
-                </button>
-              )}
+              <div className="text-[11px] text-gray-400 mt-2">
+                {language === 'ru' ? 'Введите любую часть номера' : 'Raqamning istalgan qismini kiriting'}
+              </div>
             </div>
+
+            <button
+              onClick={handleSubmitSearch}
+              disabled={!hasSearchInput || isSearching}
+              className="w-full mt-3 py-3.5 min-h-[48px] rounded-[14px] font-bold text-white text-[14px] active:scale-[0.98] transition-all touch-manipulation flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: 'linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb),0.85))',
+                boxShadow: hasSearchInput && !isSearching ? '0 6px 18px rgba(var(--brand-rgb),0.4)' : 'none',
+              }}
+            >
+              {isSearching
+                ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {language === 'ru' ? 'Поиск...' : 'Qidirilmoqda...'}</>
+                : <><Search className="w-4 h-4" /> {language === 'ru' ? 'Найти владельца' : 'Egasini topish'}</>
+              }
+            </button>
+
+            {(searchPlateParts.region || searchPlateParts.letters1 || searchPlateParts.digits || searchPlateParts.letters2) && (
+              <button
+                onClick={() => {
+                  setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
+                  setManuallySelectedResult(null);
+                  setApiSearchResults([]);
+                }}
+                className="w-full mt-2 py-2 min-h-[36px] text-[12px] text-gray-500 hover:text-gray-700 active:text-gray-900 rounded-lg transition-colors flex items-center justify-center gap-1 touch-manipulation"
+              >
+                <X className="w-3.5 h-3.5" />
+                {language === 'ru' ? 'Очистить' : 'Tozalash'}
+              </button>
+            )}
           </div>
+
+          {/* Recent searches — show only when nothing's actively typed */}
+          {!hasSearchInput && recentSearches.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 px-1">
+                {language === 'ru' ? 'Недавние поиски' : 'So\'nggi qidiruvlar'}
+              </div>
+              <div className="bg-white rounded-[14px] divide-y divide-gray-100 overflow-hidden">
+                {recentSearches.map((entry) => (
+                  <button
+                    key={`${entry.plate}-${entry.at}`}
+                    onClick={() => handleClickRecent(entry)}
+                    className="w-full flex items-center gap-3 p-3 active:bg-gray-50 transition-colors touch-manipulation min-h-[52px] text-left"
+                  >
+                    <span className="font-mono tracking-wider font-bold text-[14px] text-gray-900 tabular-nums flex-1 truncate">
+                      {entry.plate}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                      entry.found
+                        ? 'bg-emerald-50 text-emerald-600'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {entry.found
+                        ? (language === 'ru' ? 'Найдено' : 'Topildi')
+                        : (language === 'ru' ? 'Не найдено' : 'Topilmadi')}
+                    </span>
+                    <span className="text-[11px] text-gray-400 shrink-0">
+                      {timeAgo(entry.at, language === 'ru' ? 'ru' : 'uz')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Filtered Results List */}
           {hasSearched && filteredVehicles.length > 1 && !searchResult && (
@@ -630,92 +826,31 @@ export function ResidentVehiclesPage() {
             </div>
           )}
 
-          {/* Loading State */}
-          {isSearching && (
-            <div className="glass-card p-8 text-center">
-              <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-gray-500">
-                {language === 'ru' ? 'Поиск...' : 'Qidirilmoqda...'}
-              </p>
-            </div>
-          )}
-
-          {/* Not Found State */}
+          {/* Not Found State — slim banner instead of full empty card */}
           {!isSearching && hasSearched && filteredVehicles.length === 0 && (searchPlateParts.region || searchPlateParts.digits) && (
-            <div className="glass-card p-8 text-center border-2 border-amber-200 bg-amber-50/50">
-              <AlertCircle className="w-12 h-12 mx-auto text-amber-400 mb-3" />
-              <h3 className="text-lg font-semibold text-amber-700 mb-2">
-                {language === 'ru' ? 'Автомобиль не найден' : 'Avtomobil topilmadi'}
-              </h3>
-              <p className="text-amber-600 text-sm">
+            <div className="rounded-[14px] p-3 flex items-start gap-2.5 border border-gray-200 bg-gray-50">
+              <AlertCircle className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              <div className="text-[12px] text-gray-600 leading-snug">
                 {language === 'ru'
-                  ? 'По введённым данным автомобиль не найден в системе'
-                  : 'Kiritilgan ma\'lumotlar bo\'yicha avtomobil topilmadi'}
-              </p>
-            </div>
-          )}
-
-          {/* Quick list - show when no search */}
-          {vehicles.length > 0 && !hasSearched && (
-            <div className="glass-card p-4">
-              <h3 className="font-medium text-gray-700 mb-3">
-                {language === 'ru' ? 'Ваши автомобили' : 'Sizning avtomobillaringiz'}
-              </h3>
-              <div className="space-y-2">
-                {vehicles.map((vehicle) => (
-                  <button
-                    key={vehicle.id}
-                    type="button"
-                    className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-primary-50 cursor-pointer transition-colors border-2 border-transparent hover:border-primary-300 active:scale-[0.99] text-left"
-                    onClick={() => handleQuickSearch(vehicle)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
-                        <Car className="w-5 h-5 text-primary-500" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-900 tracking-wider">{formatPlateDisplay(vehicle.plateNumber)}</p>
-                        <p className="text-sm text-gray-500">
-                          {vehicle.brand} {vehicle.model}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-primary-500">
-                      <span className="text-sm font-medium hidden sm:inline">
-                        {language === 'ru' ? 'Подробнее' : 'Batafsil'}
-                      </span>
-                      <Search className="w-4 h-4" />
-                    </div>
-                  </button>
-                ))}
+                  ? 'Авто с таким номером не найдено среди жителей. Попробуйте другой номер или обратитесь на пост охраны.'
+                  : 'Bunday raqamli avto aholilar orasida topilmadi. Boshqa raqamni urunib ko\'ring yoki qo\'riqchi postiga murojaat qiling.'}
               </div>
             </div>
           )}
 
-          {/* Empty State */}
-          {vehicles.length === 0 && !hasSearched && (
-            <div className="glass-card p-12 text-center">
-              <Car className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-              <h3 className="text-lg font-medium text-gray-600 mb-2">
-                {language === 'ru' ? 'Нет автомобилей для поиска' : 'Qidirish uchun avtomobillar yo\'q'}
-              </h3>
-              <p className="text-gray-400 mb-4">
-                {language === 'ru'
-                  ? 'Сначала добавьте свои автомобили'
-                  : 'Avval avtomobillaringizni qo\'shing'}
-              </p>
-              <button
-                onClick={() => {
-                  setActiveTab('my_vehicles');
-                  handleOpenModal();
-                }}
-                className="btn-primary inline-flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                {language === 'ru' ? 'Добавить авто' : 'Avto qo\'shish'}
-              </button>
+          {/* Static disclaimer — kept visible so residents understand the
+              search scope (only their tenant, not city-wide). */}
+          <div
+            className="rounded-[14px] p-3 flex items-start gap-2.5 border"
+            style={{ background: '#FFF9E6', borderColor: '#FDE68A' }}
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#B45309' }} />
+            <div className="text-[12px] leading-snug" style={{ color: '#92400E' }}>
+              {language === 'ru'
+                ? 'Поиск работает только среди машин жителей. Если авто не найдено — обратитесь на пост охраны.'
+                : 'Qidiruv faqat aholilar avtomobillari orasida ishlaydi. Agar topilmasa, qo\'riqchi postiga murojaat qiling.'}
             </div>
-          )}
+          </div>
         </div>
       )}
 

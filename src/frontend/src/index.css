@@ -188,8 +188,11 @@ body {
   min-width: 44px;
 }
 
-/* ── Keyboard visible — hide bottom nav, shrink content ── */
-@media (max-width: 768px) and (max-height: 500px) {
+/* ── Keyboard visible — hide bottom nav, shrink content ──
+   Threshold raised from 500px to 600px so landscape phones (Pixel/Galaxy
+   in horizontal orientation report ~520-580px viewport height with the
+   keyboard up) don't keep the BottomBar overlapping the chat composer. */
+@media (max-width: 768px) and (max-height: 600px) {
   .bottom-nav,
   [role="navigation"] {
     display: none !important;

@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  QrCode, Plus, X, Clock, Package, Users, Car, User,
+  QrCode, X, Clock, Package, Users, Car, User,
   Share2, Download, Copy, ChevronRight, ArrowLeft, Calendar,
-  Trash2, History, CheckCircle2, XCircle
+  History, CheckCircle2, XCircle
 } from 'lucide-react';
 import { EmptyState, StatusBadge, ConfirmDialog } from '../components/common';
 import type { StatusTone } from '../theme';
@@ -316,18 +316,215 @@ function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => voi
   );
 }
 
+// Hero card showing the most recent guest pass.
+// Sits at the top of the page so the resident can hand off the active pass
+// to a guest without scrolling through the history list.
+function LatestPassHero({
+  code,
+  onOpen,
+  onRevoke,
+}: {
+  code: GuestAccessCode;
+  onOpen: () => void;
+  onRevoke: () => void;
+}) {
+  const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      generateQRCodeCanvas(canvasRef.current, code.qrToken, {
+        width: 200,
+        margin: 1,
+        color: { dark: '#0f172a', light: '#ffffff' },
+      });
+    }
+  }, [code.qrToken]);
+
+  const visitorLabel = safeVisitorLabel(code.visitorType);
+  const accessLabel = safeAccessLabel(code.accessType);
+  const isActive = code.status === 'active';
+
+  // Compact "until" text — just hours:minutes if today, else day+month
+  const validUntil = new Date(code.validUntil);
+  const isToday = validUntil.toDateString() === new Date().toDateString();
+  const untilText = isToday
+    ? validUntil.toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { hour: '2-digit', minute: '2-digit' })
+    : validUntil.toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+  const statusColor =
+    code.status === 'active' ? '#22c55e' :
+    code.status === 'used' ? '#3b82f6' :
+    code.status === 'revoked' ? '#ef4444' :
+    '#9ca3af';
+  const statusText =
+    code.status === 'active' ? (language === 'ru' ? 'Активен' : 'Faol') :
+    code.status === 'used' ? (language === 'ru' ? 'Использован' : 'Ishlatilgan') :
+    code.status === 'revoked' ? (language === 'ru' ? 'Отозван' : 'Bekor qilingan') :
+    (language === 'ru' ? 'Истёк' : 'Tugagan');
+
+  // Subtitle line — the big white text under the visitor type label.
+  // Falls back to access type name when no visitor name (e.g. courier).
+  const headline = code.visitorName
+    || (language === 'ru' ? visitorLabel.label : visitorLabel.labelUz);
+
+  // Meta line — access scope ("Подъезд + двор" style) + uses counter
+  const accessText = language === 'ru' ? accessLabel.label : accessLabel.labelUz;
+  const usesText = code.maxUses > 1
+    ? (language === 'ru' ? `Использовано: ${code.currentUses} из ${code.maxUses}` : `Ishlatilgan: ${code.currentUses} / ${code.maxUses}`)
+    : null;
+
+  const handleShare = async () => {
+    const text = language === 'ru'
+      ? `Пропуск Kamizo · ${language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}\n${code.residentAddress}, кв. ${code.residentApartment}\nДействует до ${untilText}\nКод: ${code.qrToken}`
+      : `Kamizo ruxsatnomasi · ${visitorLabel.labelUz}\n${code.residentAddress}, ${code.residentApartment}-xona\n${untilText} gacha amal qiladi\nKod: ${code.qrToken}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: language === 'ru' ? 'Пропуск' : 'Ruxsatnoma', text });
+        return;
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      addToast('success', language === 'ru' ? 'Данные пропуска скопированы' : 'Ma\'lumotlar nusxalandi');
+    } catch {
+      onOpen();
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code.qrToken);
+      addToast('success', language === 'ru' ? 'Код скопирован' : 'Kod nusxalandi');
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="px-3 md:px-0">
+      <div
+        className="relative rounded-[22px] overflow-hidden p-4 shadow-[0_12px_28px_rgba(var(--brand-rgb),0.32)]"
+        style={{
+          background: 'linear-gradient(135deg, #FB923C 0%, #F97316 45%, #EA580C 100%)',
+        }}
+      >
+        {/* Decorative orb in top-right corner — soft warm highlight */}
+        <div
+          className="absolute -top-12 -right-12 w-44 h-44 rounded-full opacity-50 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.4), transparent 70%)', filter: 'blur(6px)' }}
+        />
+
+        {/* Top row: status pill + until time */}
+        <div className="relative flex items-center justify-between mb-3">
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/95 shadow-sm"
+            style={{ color: statusColor }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
+            {statusText}
+          </span>
+          <span className="text-[12px] font-semibold text-white/90">
+            {language === 'ru' ? 'до' : 'gacha'} {untilText}
+          </span>
+        </div>
+
+        {/* Body: QR on left, info + actions stacked on right */}
+        <div className="relative flex items-start gap-4">
+          <button
+            onClick={onOpen}
+            className="bg-white p-2 rounded-[14px] shrink-0 active:scale-[0.97] transition-transform touch-manipulation shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
+            aria-label={language === 'ru' ? 'Открыть QR' : 'QR-ni ochish'}
+          >
+            <canvas ref={canvasRef} className="w-[140px] h-[140px] block" />
+          </button>
+
+          <div className="min-w-0 flex-1 flex flex-col">
+            {/* Info block */}
+            <div className="pt-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/70">
+                {language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}
+              </div>
+              <div className="text-[18px] leading-tight font-extrabold text-white mt-0.5 truncate">
+                {headline}
+              </div>
+              <div className="text-[12px] text-white/85 mt-1 truncate">{accessText}</div>
+              {code.visitorVehiclePlate && (
+                <div className="text-[12px] text-white/85 mt-0.5 font-mono tracking-wider truncate">
+                  {code.visitorVehiclePlate}
+                </div>
+              )}
+              {usesText && (
+                <div className="text-[11px] text-white/75 mt-0.5 truncate">{usesText}</div>
+              )}
+            </div>
+
+            {/* Action stack — vertical, compact, right of QR */}
+            <div className="mt-3 space-y-1.5">
+              <button
+                onClick={handleShare}
+                className="w-full px-2.5 py-2 min-h-[36px] rounded-[10px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[12px] active:scale-[0.97] transition-all touch-manipulation flex items-center gap-1.5 border border-white/20 backdrop-blur-sm"
+              >
+                <Share2 className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{language === 'ru' ? 'Поделиться' : 'Ulashish'}</span>
+              </button>
+              <button
+                onClick={handleCopy}
+                className="w-full px-2.5 py-2 min-h-[36px] rounded-[10px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[12px] active:scale-[0.97] transition-all touch-manipulation flex items-center gap-1.5 border border-white/20 backdrop-blur-sm"
+              >
+                <Copy className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{language === 'ru' ? 'Код' : 'Kod'}</span>
+              </button>
+              <button
+                onClick={isActive ? onRevoke : onOpen}
+                className={`w-full px-2.5 py-2 min-h-[36px] rounded-[10px] font-bold text-[12px] active:scale-[0.97] transition-all touch-manipulation flex items-center gap-1.5 border backdrop-blur-sm ${
+                  isActive
+                    ? 'bg-white/95 text-red-600 border-white/40 hover:bg-white'
+                    : 'bg-white/95 hover:bg-white border-white/40'
+                }`}
+                style={!isActive ? { color: 'rgb(var(--brand-rgb))' } : undefined}
+              >
+                {isActive ? <X className="w-3.5 h-3.5 shrink-0" /> : <QrCode className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">
+                  {isActive
+                    ? (language === 'ru' ? 'Отозвать' : 'Bekor')
+                    : (language === 'ru' ? 'Открыть' : 'Ochish')}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Create pass form component
-function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated: (code: GuestAccessCode) => void }) {
+function CreatePassForm({
+  onClose,
+  onCreated,
+  initialVisitorType,
+  initialAccessType,
+}: {
+  onClose: () => void;
+  onCreated: (code: GuestAccessCode) => void;
+  initialVisitorType?: VisitorType;
+  initialAccessType?: AccessType;
+}) {
   const { user } = useAuthStore();
   const { createGuestAccessCode } = useDataStore();
   const { language } = useLanguageStore();
 
-  const [step, setStep] = useState(1);
-  const [visitorType, setVisitorType] = useState<VisitorType | null>(null);
-  const [accessType, setAccessType] = useState<AccessType | null>(null);
+  // Quick-create tiles pre-fill both visitor and access type — skip wizard
+  // straight to step 3 (details) when both are passed in.
+  const skipToDetails = !!initialVisitorType && !!initialAccessType;
+  const [step, setStep] = useState(skipToDetails ? 3 : 1);
+  const [visitorType, setVisitorType] = useState<VisitorType | null>(initialVisitorType ?? null);
+  const [accessType, setAccessType] = useState<AccessType | null>(initialAccessType ?? null);
   const [visitorName, setVisitorName] = useState('');
   const [visitorPhone, setVisitorPhone] = useState('');
-  const [hasVehicle, setHasVehicle] = useState(false);
+  const [hasVehicle, setHasVehicle] = useState(initialVisitorType === 'taxi');
   const [visitorVehiclePlate, setVisitorVehiclePlate] = useState('');
   const [customDate, setCustomDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -693,6 +890,75 @@ function CreatePassForm({ onClose, onCreated }: { onClose: () => void; onCreated
   );
 }
 
+// Quick-create tiles: 4 most-common visitor scenarios, one tap to start
+// the create flow with both visitor type and access duration pre-selected.
+type QuickPreset = {
+  visitor: VisitorType;
+  access: AccessType;
+  icon: React.ReactNode;
+  bg: string;
+  fg: string;
+  titleRu: string;
+  titleUz: string;
+  subRu: string;
+  subUz: string;
+};
+
+const QUICK_PRESETS: QuickPreset[] = [
+  {
+    visitor: 'guest', access: 'day',
+    icon: <Users className="w-4 h-4" />, bg: 'bg-emerald-50', fg: 'text-emerald-600',
+    titleRu: 'Гость', titleUz: 'Mehmon', subRu: 'до 24 ч', subUz: '24 soatgacha',
+  },
+  {
+    visitor: 'courier', access: 'single_use',
+    icon: <Package className="w-4 h-4" />, bg: 'bg-amber-50', fg: 'text-amber-600',
+    titleRu: 'Доставка', titleUz: 'Yetkazib berish', subRu: 'на 24 ч', subUz: '24 soat',
+  },
+  {
+    visitor: 'other', access: 'day',
+    icon: <User className="w-4 h-4" />, bg: 'bg-sky-50', fg: 'text-sky-600',
+    titleRu: 'Услуги', titleUz: 'Xizmatlar', subRu: 'мастер', subUz: 'usta',
+  },
+  {
+    visitor: 'taxi', access: 'single_use',
+    icon: <Car className="w-4 h-4" />, bg: 'bg-violet-50', fg: 'text-violet-600',
+    titleRu: 'Такси', titleUz: 'Taksi', subRu: '1 проезд', subUz: '1 marta',
+  },
+];
+
+function QuickCreateTiles({ onPick }: { onPick: (preset: QuickPreset) => void }) {
+  const { language } = useLanguageStore();
+  return (
+    <div className="px-3 md:px-0 space-y-2">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 px-1">
+        {language === 'ru' ? 'Создать новый' : 'Yangi yaratish'}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {QUICK_PRESETS.map((p) => (
+          <button
+            key={`${p.visitor}-${p.access}`}
+            onClick={() => onPick(p)}
+            className="bg-white rounded-[14px] p-3 flex items-center gap-3 text-left active:scale-[0.97] transition-transform touch-manipulation min-h-[60px] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+          >
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${p.bg} ${p.fg}`}>
+              {p.icon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-[14px] text-gray-900 leading-tight truncate">
+                {language === 'ru' ? p.titleRu : p.titleUz}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5 truncate">
+                {language === 'ru' ? p.subRu : p.subUz}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Main page component
 export function ResidentGuestAccessPage() {
   const { user } = useAuthStore();
@@ -700,9 +966,11 @@ export function ResidentGuestAccessPage() {
   const { language } = useLanguageStore();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createPreset, setCreatePreset] = useState<{ visitor: VisitorType; access: AccessType } | null>(null);
   const [selectedCode, setSelectedCode] = useState<GuestAccessCode | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired' | 'revoked' | 'archive'>('all');
+  const [filter] = useState<'all' | 'active' | 'used' | 'expired' | 'revoked' | 'archive'>('all');
   const [showRevokeConfirm, setShowRevokeConfirm] = useState<GuestAccessCode | null>(null);
+  const [showHistorySheet, setShowHistorySheet] = useState(false);
 
   // Visit history — list of scans from guards/security on this resident's
   // own QR codes. The backend endpoint returns ALL tenant logs, we filter
@@ -765,6 +1033,19 @@ export function ResidentGuestAccessPage() {
 
   const activeCodes = codes.filter(c => c.status === 'active');
 
+  // Pick the latest pass to feature at the top of the page.
+  // Active passes win over historical ones — that's what the resident is most
+  // likely to hand off right now. Within each group, sort by createdAt desc.
+  const latestPass = useMemo(() => {
+    const byCreated = (a: typeof codes[number], b: typeof codes[number]) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    const activeSorted = [...activeCodes].sort(byCreated);
+    if (activeSorted[0]) return activeSorted[0];
+    const recentSorted = [...codes].filter(c => !isArchived(c)).sort(byCreated);
+    return recentSorted[0] ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- isArchived depends on `now` which we don't want to track
+  }, [codes, activeCodes]);
+
   const handleCreated = (code: GuestAccessCode) => {
     setShowCreateForm(false);
     setSelectedCode(code);
@@ -782,81 +1063,79 @@ export function ResidentGuestAccessPage() {
     setShowRevokeConfirm(null);
   };
 
+  // Two views: "active" (recent, non-archived) shown on main screen,
+  // "archive" opened via the "История →" link as a separate sheet/list.
+  const recentCodes = codes.filter(c => !isArchived(c));
+  const archivedCodes = codes.filter(isArchived);
+  const visibleCodes = showHistorySheet ? archivedCodes : recentCodes;
+  // Keep `filter` reachable so we don't break it; not surfaced in UI now.
+  void filter; void filteredCodes;
+
   return (
-    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-900">
-            {language === 'ru' ? 'Гостевой доступ' : 'Mehmon kirishi'}
+    <div className="space-y-4 md:space-y-5 pb-24 md:pb-0">
+      {/* Header — eyebrow + big title + history shortcut */}
+      <div className="flex items-end justify-between gap-4 px-3 md:px-0">
+        <div className="min-w-0">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+            {language === 'ru' ? 'QR-доступ' : 'QR-kirish'}
+          </div>
+          <h1 className="text-[22px] md:text-[26px] leading-tight font-extrabold text-gray-900 mt-0.5">
+            {language === 'ru' ? 'Гости и доставка' : 'Mehmonlar va yetkazib berish'}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {language === 'ru'
-              ? 'Создавайте QR-пропуска для гостей и курьеров'
-              : 'Mehmonlar va kuryerlar uchun QR-ruxsatnomalar yarating'}
-          </p>
         </div>
         <button
-          onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2.5 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-gray-900 font-medium rounded-lg sm:rounded-xl flex items-center gap-2 transition-colors shadow-sm touch-manipulation"
+          onClick={() => setShowHistorySheet(s => !s)}
+          className="w-11 h-11 rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex items-center justify-center text-gray-600 active:scale-[0.95] transition-transform touch-manipulation shrink-0"
+          aria-label={language === 'ru' ? 'История' : 'Tarix'}
+          title={language === 'ru' ? 'История' : 'Tarix'}
         >
-          <Plus className="w-5 h-5" />
-          <span className="hidden sm:inline">{language === 'ru' ? 'Создать' : 'Yaratish'}</span>
+          <History className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Filter tabs with inline counts.
-          Previously we had a 5-cell StatusStat grid AND a separate filter bar —
-          the grid left "Всего" dangling alone in the 2-column mobile layout,
-          and the same numbers appeared twice. Collapsed into a single segmented
-          control: the count is now part of the tab, so tapping a tab both
-          filters the list and confirms the count. No more dangling cell. */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
-        {(() => {
-          const allCount = codes.filter(c => !isArchived(c)).length;
-          const activeCount = activeCodes.length;
-          const usedCount = codes.filter(c => c.status === 'used' && !isArchived(c)).length;
-          const expiredCount = codes.filter(c => c.status === 'expired' && !isArchived(c)).length;
-          const revokedCount = codes.filter(c => c.status === 'revoked' && !isArchived(c)).length;
-          const archiveCount = codes.filter(isArchived).length;
-          const tabs = [
-            { id: 'all' as const, label: language === 'ru' ? 'Все' : 'Barchasi', count: allCount },
-            { id: 'active' as const, label: language === 'ru' ? 'Активные' : 'Faol', count: activeCount },
-            { id: 'used' as const, label: language === 'ru' ? 'Использованные' : 'Ishlatilgan', count: usedCount },
-            { id: 'expired' as const, label: language === 'ru' ? 'Истёкшие' : 'Muddati tugagan', count: expiredCount },
-            { id: 'revoked' as const, label: language === 'ru' ? 'Отменённые' : 'Bekor qilingan', count: revokedCount },
-            { id: 'archive' as const, label: language === 'ru' ? 'Архив' : 'Arxiv', count: archiveCount },
-          ];
-          return tabs.map((tab) => {
-            const isActive = filter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setFilter(tab.id)}
-                className={`flex-shrink-0 px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium whitespace-nowrap transition-colors touch-manipulation flex items-center gap-2 ${
-                  isActive
-                    ? 'bg-primary-500 text-gray-900'
-                    : 'bg-white/70 text-gray-600 hover:bg-white'
-                }`}
-                aria-pressed={isActive}
-              >
-                <span>{tab.label}</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold tabular-nums ${
-                  isActive
-                    ? 'bg-gray-900/10 text-gray-900'
-                    : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {tab.count}
-                </span>
-              </button>
-            );
-          });
-        })()}
+      {/* Latest pass hero — boarding-pass styled card so the resident can
+          show/hand off the active QR without scrolling the list. */}
+      {latestPass && !showHistorySheet && (
+        <LatestPassHero
+          code={latestPass}
+          onOpen={() => setSelectedCode(latestPass)}
+          onRevoke={() => setShowRevokeConfirm(latestPass)}
+        />
+      )}
+
+      {/* Quick-create tiles: 2x2 grid of common scenarios */}
+      {!showHistorySheet && (
+        <QuickCreateTiles
+          onPick={(p) => {
+            setCreatePreset({ visitor: p.visitor, access: p.access });
+            setShowCreateForm(true);
+          }}
+        />
+      )}
+
+      {/* Section header for the codes list */}
+      <div className="flex items-center justify-between px-4 md:px-1 pt-1">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+          {showHistorySheet
+            ? (language === 'ru' ? 'Архив' : 'Arxiv')
+            : (language === 'ru' ? 'Все коды' : 'Barcha kodlar')}
+        </div>
+        {archivedCodes.length > 0 && (
+          <button
+            onClick={() => setShowHistorySheet(s => !s)}
+            className="text-[12px] font-bold flex items-center gap-1 active:opacity-70 transition-opacity touch-manipulation"
+            style={{ color: 'rgb(var(--brand-rgb))' }}
+          >
+            {showHistorySheet
+              ? (language === 'ru' ? '← Назад' : '← Orqaga')
+              : (language === 'ru' ? 'История →' : 'Tarix →')}
+          </button>
+        )}
       </div>
 
       {/* Codes list */}
       {isLoadingGuestCodes ? (
-        <div className="glass-card p-8 text-center">
+        <div className="bg-white rounded-[14px] p-8 text-center mx-3 md:mx-0">
           <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center animate-pulse">
             <QrCode className="w-8 h-8 text-gray-400" />
           </div>
@@ -864,120 +1143,74 @@ export function ResidentGuestAccessPage() {
             {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
           </h3>
         </div>
-      ) : filteredCodes.length === 0 ? (
-        <EmptyState
-          icon={<QrCode className="w-12 h-12" />}
-          title={language === 'ru' ? 'Пропусков нет' : 'Ruxsatnomalar yo\'q'}
-          description={language === 'ru'
-            ? 'Создайте первый пропуск для гостя или курьера'
-            : 'Mehmon yoki kuryer uchun birinchi ruxsatnomani yarating'}
-          action={{
-            label: language === 'ru' ? 'Создать пропуск' : 'Ruxsatnoma yaratish',
-            onClick: () => setShowCreateForm(true),
-          }}
-        />
+      ) : visibleCodes.length === 0 ? (
+        <div className="px-3 md:px-0">
+          <EmptyState
+            icon={<QrCode className="w-12 h-12" />}
+            title={showHistorySheet
+              ? (language === 'ru' ? 'Архив пуст' : 'Arxiv bo\'sh')
+              : (language === 'ru' ? 'Пропусков нет' : 'Ruxsatnomalar yo\'q')}
+            description={showHistorySheet
+              ? (language === 'ru' ? 'Старые пропуска появятся здесь через 30 дней' : 'Eski ruxsatnomalar 30 kundan keyin paydo bo\'ladi')
+              : (language === 'ru' ? 'Создайте пропуск через карточки выше' : 'Yuqoridagi kartochkalar orqali ruxsatnoma yarating')}
+          />
+        </div>
       ) : (
-        <div className="space-y-3">
-          {filteredCodes.map((code) => {
+        <div className="px-3 md:px-0 bg-white rounded-[14px] divide-y divide-gray-100 overflow-hidden mx-3 md:mx-0">
+          {visibleCodes.map((code) => {
             const visitorLabel = safeVisitorLabel(code.visitorType);
-            const statusLabel = safeStatusLabel(code.status);
+            const accessLabel = safeAccessLabel(code.accessType);
             const isExpired = code.status === 'expired';
             const isRevoked = code.status === 'revoked';
             const isUsed = code.status === 'used';
+            const headline = code.visitorName || (language === 'ru' ? visitorLabel.label : visitorLabel.labelUz);
+            const until = new Date(code.validUntil);
+            const isToday = until.toDateString() === new Date().toDateString();
+            const untilStr = isToday
+              ? (language === 'ru' ? `до ${until.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} сегодня` : `bugun ${until.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })} gacha`)
+              : (language === 'ru' ? `до ${until.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : `${until.toLocaleDateString('uz-UZ', { day: 'numeric', month: 'short' })} gacha`);
+            const usesPart = code.maxUses > 1 ? ` · ${code.currentUses}/${code.maxUses}` : '';
+            const accessPart = ` · ${language === 'ru' ? accessLabel.label : accessLabel.labelUz}`;
+
+            const pillBg =
+              code.status === 'active' ? 'bg-emerald-50 text-emerald-600' :
+              isUsed ? 'bg-blue-50 text-blue-600' :
+              isRevoked ? 'bg-red-50 text-red-600' :
+              'bg-gray-100 text-gray-500';
+            const pillText =
+              code.status === 'active' ? (language === 'ru' ? 'Активен' : 'Faol') :
+              isUsed ? (language === 'ru' ? 'Использован' : 'Ishlatilgan') :
+              isRevoked ? (language === 'ru' ? 'Отозван' : 'Bekor') :
+              (language === 'ru' ? 'Истёк' : 'Tugagan');
+            const iconBg =
+              code.status === 'active' ? 'bg-emerald-50 text-emerald-600' :
+              isUsed ? 'bg-blue-50 text-blue-600' :
+              isRevoked ? 'bg-red-50 text-red-600' :
+              'bg-gray-100 text-gray-500';
 
             return (
-              <div
+              <button
                 key={code.id}
-                className={`glass-card p-4 ${
-                  isExpired || isRevoked ? 'opacity-60' : ''
+                onClick={() => setSelectedCode(code)}
+                className={`w-full p-3 flex items-center gap-3 text-left active:bg-gray-50 transition-colors touch-manipulation ${
+                  isExpired || isRevoked ? 'opacity-70' : ''
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  {/* Icon */}
-                  <button
-                    onClick={() => setSelectedCode(code)}
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      code.status === 'active' ? 'bg-green-100 text-green-600' :
-                      isUsed ? 'bg-blue-100 text-blue-600' :
-                      isRevoked ? 'bg-red-100 text-red-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    <QrCode className="w-6 h-6" />
-                  </button>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-lg">{visitorLabel.icon}</span>
-                      <span className="font-medium">
-                        {language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}
-                      </span>
-                      <StatusBadge status={toneFor(code.status)} size="sm">
-                        {language === 'ru' ? statusLabel.label : statusLabel.labelUz}
-                      </StatusBadge>
-                    </div>
-
-                    {code.visitorName && (
-                      <div className="text-sm text-gray-600 flex items-center gap-1">
-                        <User className="w-3.5 h-3.5" />
-                        {code.visitorName}
-                      </div>
-                    )}
-
-                    {code.visitorVehiclePlate && (
-                      <div className="text-sm text-gray-600 flex items-center gap-1">
-                        <Car className="w-3.5 h-3.5" />
-                        <span className="font-mono tracking-wider">{code.visitorVehiclePlate}</span>
-                      </div>
-                    )}
-
-                    <div className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      {language === 'ru' ? 'до' : 'gacha'} {new Date(code.validUntil).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </div>
-
-                    {code.accessType !== 'single_use' && !isExpired && !isRevoked && (
-                      <div className="text-xs text-gray-400 mt-1">
-                        {language === 'ru' ? 'Использований' : 'Ishlatilgan'}: {code.currentUses}
-                      </div>
-                    )}
-
-                    {/* Revocation reason for revoked passes */}
-                    {isRevoked && code.revocationReason && (
-                      <div className="mt-2 text-xs text-red-600 bg-red-50 px-2 py-1 rounded inline-block">
-                        {language === 'ru' ? 'Причина' : 'Sabab'}: {code.revocationReason}
-                      </div>
-                    )}
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                  <span className="text-base leading-none">{visitorLabel.icon}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-[14px] text-gray-900 truncate">
+                    {headline}
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
-                    {code.status === 'active' && (
-                      <button
-                        onClick={() => setShowRevokeConfirm(code)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title={language === 'ru' ? 'Отменить' : 'Bekor qilish'}
-                        aria-label={language === 'ru' ? 'Отменить пропуск' : 'Ruxsatnomani bekor qilish'}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setSelectedCode(code)}
-                      className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                      aria-label={language === 'ru' ? 'Открыть QR-код' : 'QR-kodni ochish'}
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
+                  <div className="text-[12px] text-gray-500 truncate">
+                    {untilStr}{usesPart}{accessPart}
                   </div>
                 </div>
-              </div>
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider shrink-0 ${pillBg}`}>
+                  {pillText}
+                </span>
+              </button>
             );
           })}
         </div>
@@ -1055,8 +1288,10 @@ export function ResidentGuestAccessPage() {
       {/* Modals */}
       {showCreateForm && (
         <CreatePassForm
-          onClose={() => setShowCreateForm(false)}
-          onCreated={handleCreated}
+          onClose={() => { setShowCreateForm(false); setCreatePreset(null); }}
+          onCreated={(c) => { handleCreated(c); setCreatePreset(null); }}
+          initialVisitorType={createPreset?.visitor}
+          initialAccessType={createPreset?.access}
         />
       )}
 
