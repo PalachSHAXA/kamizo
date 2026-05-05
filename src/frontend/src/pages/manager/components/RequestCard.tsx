@@ -77,6 +77,24 @@ export function RequestCard({
             {getPriorityBadge(request.priority)}
           </div>
           <p className="text-gray-600 mb-2 md:mb-3 text-sm md:text-base line-clamp-2">{request.description}</p>
+          {/* Resident-uploaded photos thumbnail strip. Click opens full-size. */}
+          {request.photos && request.photos.length > 0 && (
+            <div className="flex gap-1.5 mb-2 md:mb-3 -mx-1 overflow-x-auto px-1" role="list" aria-label="Прикреплённые фото">
+              {request.photos.map((src, i) => (
+                <a
+                  key={i}
+                  href={src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="block w-16 h-16 md:w-20 md:h-20 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"
+                  role="listitem"
+                >
+                  <img src={src} alt={`Фото ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                </a>
+              ))}
+            </div>
+          )}
           {/* Trash type and volume badges */}
           {request.category === 'trash' && (
             <div className="flex flex-wrap gap-1.5 mb-2">

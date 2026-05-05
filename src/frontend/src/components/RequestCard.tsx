@@ -86,6 +86,25 @@ export const RequestCard = memo<RequestCardProps>(
               <p className="text-sm text-gray-600 mb-3 line-clamp-2">{request.description}</p>
             )}
 
+            {/* Resident photos thumbnail strip */}
+            {request.photos && request.photos.length > 0 && (
+              <div className="flex gap-1.5 mb-3 -mx-1 overflow-x-auto px-1">
+                {request.photos.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="block w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"
+                    aria-label={`Фото ${i + 1}`}
+                  >
+                    <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            )}
+
             {/* Meta info */}
             <div className="flex flex-wrap gap-3 text-xs text-gray-500">
               <div className="flex items-center gap-1">

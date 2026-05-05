@@ -3,8 +3,9 @@
   "short_name": "kamizo",
   "description": "Приложение для управления многоквартирными домами. Заявки, чат с УК, объявления, собрания.",
   "start_url": "/",
-  "display": "standalone",
-  "background_color": "#FEFAF6",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#FFFFFF",
   "theme_color": "#F59E0B",
   "orientation": "portrait",
   "icons": [

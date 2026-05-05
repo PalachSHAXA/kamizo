@@ -132,6 +132,28 @@ export function ManagementRequestModal({
             </div>
           )}
 
+          {/* Photos uploaded by the resident */}
+          {request.photos && request.photos.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                {t(`Фото (${request.photos.length})`, `Rasmlar (${request.photos.length})`)}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {request.photos.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50 active:scale-[0.97] transition-transform"
+                  >
+                    <img src={src} alt={`${t('Фото', 'Rasm')} ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Scheduled */}
           {request.scheduledDate && (
             <div className="bg-primary-50 border border-primary-200 rounded-xl p-3">

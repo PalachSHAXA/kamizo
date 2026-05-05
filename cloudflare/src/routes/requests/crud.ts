@@ -140,13 +140,22 @@ route('POST', '/api/requests', async (request, env) => {
   const number = (maxNum?.max_num || 1000) + 1;
   const requestNumber = `${prefix}-${number}`;
 
+  // Photos arrive as an array of data-URLs (already client-compressed to
+  // ~200KB each). Store as JSON in TEXT column. Cap at 5 to mirror the UI
+  // and keep request payload < 1.5MB (well below CF Workers' 100MB body
+  // limit and any reasonable D1 row).
+  const photosToSave = Array.isArray(body.photos)
+    ? JSON.stringify(body.photos.slice(0, 5))
+    : null;
+
   await env.DB.prepare(`
-    INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, access_info, scheduled_at, tenant_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, access_info, scheduled_at, photos, tenant_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
   `).bind(
     id, number, requestNumber, residentId, body.category_id, body.title,
     body.description || null, body.priority || 'medium',
-    body.access_info || null, body.scheduled_at || null, getTenantId(request)
+    body.access_info || null, body.scheduled_at || null,
+    photosToSave, getTenantId(request)
   ).run();
 
   const created = await env.DB.prepare(`

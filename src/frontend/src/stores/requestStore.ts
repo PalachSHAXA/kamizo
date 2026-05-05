@@ -114,6 +114,9 @@ export const useRequestStore = create<RequestState>()(
           workDuration: r.work_duration,
           buildingId: r.building_id,
           buildingName: r.building_name,
+          photos: r.photos
+            ? (typeof r.photos === 'string' ? (() => { try { return JSON.parse(r.photos as string); } catch { return undefined; } })() : r.photos)
+            : undefined,
           // Pause fields from DB
           isPaused: r.is_paused === 1 || r.is_paused === true,
           pausedAt: r.paused_at,
@@ -167,6 +170,7 @@ export const useRequestStore = create<RequestState>()(
         accessInfo: requestData.accessInfo,
         scheduledDate: requestData.scheduledDate,
         scheduledTime: requestData.scheduledTime,
+        photos: requestData.photos,
         createdAt: now,
       };
 
@@ -195,6 +199,7 @@ export const useRequestStore = create<RequestState>()(
             : undefined,
           // For manual creation by managers - pass the resident_id
           resident_id: requestData.residentId,
+          photos: requestData.photos,
         });
 
         // Replace temp with real data
@@ -216,6 +221,9 @@ export const useRequestStore = create<RequestState>()(
           residentPhone: apiRequest.resident_phone,
           address: apiRequest.address,
           apartment: apiRequest.apartment,
+          photos: apiRequest.photos
+            ? (typeof apiRequest.photos === 'string' ? JSON.parse(apiRequest.photos) : apiRequest.photos)
+            : undefined,
           createdAt: apiRequest.created_at,
         };
 

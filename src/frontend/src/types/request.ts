@@ -43,6 +43,7 @@ export interface Request {
   rejectionCount?: number; // сколько раз работа была отклонена
   buildingId?: string; // ID дома резидента
   buildingName?: string; // Название дома
+  photos?: string[]; // Фото от жителя при создании заявки (data-URL или http)
 }
 
 export interface Notification {

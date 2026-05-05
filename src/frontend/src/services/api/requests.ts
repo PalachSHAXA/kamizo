@@ -22,6 +22,8 @@ export const requestsApi = {
     scheduled_at?: string;
     // For manual creation by managers/admins - specify resident
     resident_id?: string;
+    /** Up to 5 photos, compressed to ≤200KB each as JPEG data-URLs. */
+    photos?: string[];
   }) => {
     const result = await apiRequest<{ request: Record<string, unknown> }>('/api/requests', {
       method: 'POST',

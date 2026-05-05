@@ -1,11 +1,43 @@
-import { useState } from 'react';
-import { Calendar, MapPin, Send } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Calendar, Camera, MapPin, Send, X } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { SERVICE_CATEGORIES, PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../../../types';
 import type { RequestPriority } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
 import { Sheet } from '../../../components/common';
 import type { NewRequestModalProps } from './types';
+
+const MAX_PHOTOS = 5;
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB before downscale
+
+// Downscale + JPEG-compress so a 5MP iPhone photo doesn't blow up the
+// payload. ~1280px longest side @ 0.8 quality keeps each photo under 200KB
+// while staying readable for an admin/dispatcher reviewing the request.
+async function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSide = 1280;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('canvas-2d'));
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 // Time slots for scheduling
 const TIME_SLOTS = [
@@ -46,7 +78,37 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
   const [trashDetails, setTrashDetails] = useState('');
   const [trashDate, setTrashDate] = useState('');
   const [trashTime, setTrashTime] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { language } = useLanguageStore();
+
+  const handleAddPhotos = async (files: FileList | null) => {
+    if (!files) return;
+    setPhotoError(null);
+    const slots = MAX_PHOTOS - photos.length;
+    const accepted = Array.from(files).slice(0, slots);
+    const next: string[] = [];
+    for (const f of accepted) {
+      if (!f.type.startsWith('image/')) continue;
+      if (f.size > MAX_PHOTO_BYTES) {
+        setPhotoError(language === 'ru' ? 'Фото слишком большое (макс 2 МБ)' : 'Rasm juda katta (maks 2 MB)');
+        continue;
+      }
+      try {
+        const dataUrl = await compressImage(f);
+        next.push(dataUrl);
+      } catch {
+        setPhotoError(language === 'ru' ? 'Не удалось обработать фото' : 'Rasmni qayta ishlab bo\'lmadi');
+      }
+    }
+    if (next.length > 0) setPhotos(prev => [...prev, ...next]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removePhoto = (idx: number) => {
+    setPhotos(prev => prev.filter((_, i) => i !== idx));
+  };
 
   const categoryInfo = SERVICE_CATEGORIES.find(c => c.id === category);
 
@@ -85,7 +147,8 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
         category,
         priority,
         scheduledDate: trashDate,
-        scheduledTime: trashTime
+        scheduledTime: trashTime,
+        photos: photos.length > 0 ? photos : undefined,
       });
       return;
     }
@@ -98,7 +161,8 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
       category,
       priority,
       scheduledDate: scheduledDate || undefined,
-      scheduledTime: scheduledTime || undefined
+      scheduledTime: scheduledTime || undefined,
+      photos: photos.length > 0 ? photos : undefined,
     });
   };
 
@@ -345,6 +409,53 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
               )}
             </div>
           )}
+
+          {/* Photos — uploaded as compressed data-URLs (≤1280px / 0.8 JPEG)
+              so the request payload stays small. Max 5 photos per request. */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {language === 'ru' ? `Фото (${photos.length}/${MAX_PHOTOS})` : `Rasmlar (${photos.length}/${MAX_PHOTOS})`}
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {photos.map((src, i) => (
+                <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200">
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center active:scale-95"
+                    aria-label={language === 'ru' ? 'Удалить фото' : 'Rasmni o\'chirish'}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {photos.length < MAX_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-500 hover:bg-gray-50 active:scale-95 transition-all"
+                >
+                  <Camera className="w-6 h-6" />
+                  <span className="text-xs font-medium">
+                    {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
+                  </span>
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              capture="environment"
+              className="hidden"
+              onChange={(e) => handleAddPhotos(e.target.files)}
+            />
+            {photoError && (
+              <p className="mt-2 text-xs text-red-600">{photoError}</p>
+            )}
+          </div>
 
           {/* Address info */}
           <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">

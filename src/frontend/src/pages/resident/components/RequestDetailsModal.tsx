@@ -53,6 +53,28 @@ export function RequestDetailsModal({
             </p>
           </div>
 
+          {/* Photos — full grid in details (vs. thumbnail strip on cards) */}
+          {request.photos && request.photos.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">
+                {language === 'ru' ? `Фото (${request.photos.length})` : `Rasmlar (${request.photos.length})`}
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                {request.photos.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50 active:scale-[0.97] transition-transform"
+                  >
+                    <img src={src} alt={`${language === 'ru' ? 'Фото' : 'Rasm'} ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Priority */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">
