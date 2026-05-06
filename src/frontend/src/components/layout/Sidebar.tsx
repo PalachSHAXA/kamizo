@@ -324,10 +324,9 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar', section: language === 'ru' ? 'Информация' : 'Ma\'lumot' },
         { path: '/marketplace', icon: Headphones, label: language === 'ru' ? 'Маркет для дома' : 'Uy uchun market' },
         { path: '/rate-employees', icon: Star, label: language === 'ru' ? 'Оценить УК' : 'UK ni baholash' },
-        // /trainings is gated by a tenant feature flag, but residents who
-        // CAN see it (per ProtectedRoute) couldn't reach it from the
-        // drawer — the link was only in the executor sidebar.
-        { path: '/trainings', icon: GraduationCap, label: language === 'ru' ? 'Тренинги' : 'Treninglar' },
+        // /trainings intentionally NOT in the resident drawer — that surface
+        // is for staff training (executors / managers), residents have no
+        // use for it and seeing it on a resident's home was confusing.
       ];
     }
     if (user?.role === 'tenant' || user?.role === 'commercial_owner') {

@@ -245,13 +245,14 @@ export function ResidentProfilePage() {
   const handleDownloadContract = async () => {
     if (!user || !qrCodeUrl || isDownloading) return;
 
+    // Contract is now a passive preview/download — no auto-mark-as-signed
+    // because the document doesn't carry a binding e-signature flow yet,
+    // and silently flipping a "signed" flag misled both parties about the
+    // contract's legal state. Once a real signing flow ships, restore the
+    // markContractSigned() call here.
     setIsDownloading(true);
     try {
       await generateContractDocx(user, qrCodeUrl, language);
-      // Mark contract as signed if not already
-      if (!user.contractSignedAt) {
-        await markContractSigned();
-      }
     } catch (error) {
       console.error('Error generating contract:', error);
       addToast('error', language === 'ru' ? 'Ошибка при генерации договора' : 'Shartnoma yaratishda xatolik');
@@ -281,12 +282,10 @@ export function ResidentProfilePage() {
                 <span className="px-2.5 py-0.5 bg-primary-50 text-primary-600 rounded-full text-xs font-semibold">
                   {roleLabel}
                 </span>
-                {!isRentalUser && user.contractSignedAt && (
-                  <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-xs font-semibold flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" />
-                    {t.active}
-                  </span>
-                )}
+                {/* Contract status badge intentionally removed — until a
+                    real e-signature flow ships, "active vs pending" was
+                    misleading and the orange pulse made the profile feel
+                    like it had outstanding work. */}
               </div>
               {user.address && (
                 <div className="flex items-center gap-1 mt-1.5">
@@ -493,7 +492,8 @@ export function ResidentProfilePage() {
 
             <div className="px-4 pb-4">
               <div className="space-y-3">
-                {/* Contract Number & Status */}
+                {/* Contract Number + Type — moved into one row, no
+                    status column (signing flow removed). */}
                 <div className="flex gap-3">
                   <div className="flex-1 p-3 bg-yellow-50 rounded-[12px]">
                     <div className="text-xs text-gray-400 mb-0.5">{t.contractNumber}</div>
@@ -502,39 +502,21 @@ export function ResidentProfilePage() {
                     </div>
                   </div>
                   <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
-                    <div className="text-xs text-gray-400 mb-0.5">{t.contractStatus}</div>
-                    <div className="flex items-center gap-1.5">
-                      {user.contractSignedAt ? (
-                        <>
-                          <span className="w-2 h-2 rounded-full bg-green-500" />
-                          <span className="font-semibold text-[13px] text-green-700">{t.active}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                          <span className="font-semibold text-[13px] text-yellow-700">{t.pending}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contract Type & Dates */}
-                <div className="flex gap-3">
-                  <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
                     <div className="text-xs text-gray-400 mb-0.5">{t.contractType}</div>
                     <div className="font-medium text-[13px] text-gray-900">{getContractTypeLabel(user.contractType)}</div>
                   </div>
-                  <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
-                    <div className="text-xs text-gray-400 mb-0.5">{t.contractEnd}</div>
-                    <div className="font-medium text-[13px] text-gray-900 flex items-center gap-1">
-                      {user.contractEndDate ? formatDate(user.contractEndDate) : (
-                        <>
-                          <Sparkles className="w-3 h-3 text-green-500" />
-                          {t.indefinite}
-                        </>
-                      )}
-                    </div>
+                </div>
+
+                {/* Contract End Date */}
+                <div className="p-3 bg-gray-50 rounded-[12px]">
+                  <div className="text-xs text-gray-400 mb-0.5">{t.contractEnd}</div>
+                  <div className="font-medium text-[13px] text-gray-900 flex items-center gap-1">
+                    {user.contractEndDate ? formatDate(user.contractEndDate) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-green-500" />
+                        {t.indefinite}
+                      </>
+                    )}
                   </div>
                 </div>
 

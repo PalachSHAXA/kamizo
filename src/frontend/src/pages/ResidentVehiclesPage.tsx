@@ -350,8 +350,28 @@ export function ResidentVehiclesPage() {
             backgroundSize: '24px 24px, 24px 24px, 100% 100%',
           }}
         >
+          {/* Faint car silhouette in the bottom-right corner — pure
+              decoration, gives the hero a vehicle identity even when the
+              user has no cars yet. SVG inline (no asset roundtrip) and
+              positioned absolutely so it doesn't affect content layout. */}
+          <svg
+            viewBox="0 0 200 80"
+            className="absolute pointer-events-none"
+            style={{ right: -10, bottom: -8, width: 220, height: 88, opacity: 0.07 }}
+            aria-hidden="true"
+          >
+            <path
+              fill="#fff"
+              d="M30 55 L50 32 Q56 26 66 26 L138 26 Q150 26 156 33 L172 50 L186 53 Q194 56 194 62 L194 66 Q194 70 190 70 L172 70 Q170 78 162 78 Q154 78 152 70 L66 70 Q64 78 56 78 Q48 78 46 70 L30 70 Q26 70 26 66 L26 60 Q26 56 30 55 Z"
+            />
+            <circle cx="58" cy="70" r="6" fill="#161922" />
+            <circle cx="58" cy="70" r="3" fill="#fff" />
+            <circle cx="160" cy="70" r="6" fill="#161922" />
+            <circle cx="160" cy="70" r="3" fill="#fff" />
+          </svg>
+
           {/* Address chip */}
-          <div className="text-center mb-4">
+          <div className="text-center mb-4 relative">
             <span className="text-[10px] font-bold uppercase tracking-wider text-white/45">
               {garageLabel}
             </span>
@@ -408,44 +428,23 @@ export function ResidentVehiclesPage() {
             </div>
           )}
 
-          {/* Tab pills inside hero */}
-          <div className="flex gap-2 mt-5">
-            <button
-              onClick={() => {
-                setActiveTab('my_vehicles');
-                setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
-                setManuallySelectedResult(null);
-              }}
-              className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-full text-[13px] font-bold transition-all touch-manipulation ${
-                activeTab === 'my_vehicles'
-                  ? 'bg-white text-gray-900'
-                  : 'bg-white/8 text-white/80 hover:bg-white/14 border border-white/10'
-              }`}
-            >
-              {language === 'ru' ? 'Мой гараж' : 'Mening garajim'}
-              {vehicles.length > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums ${
-                  activeTab === 'my_vehicles' ? 'bg-gray-900/10 text-gray-700' : 'bg-white/15 text-white/70'
-                }`}>
-                  {vehicles.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('search')}
-              className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-full text-[13px] font-bold transition-all touch-manipulation flex-1 justify-center ${
-                activeTab === 'search'
-                  ? 'text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.4)]'
-                  : 'bg-white/8 text-white/80 hover:bg-white/14 border border-white/10'
-              }`}
-              style={activeTab === 'search'
-                ? { background: 'linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb),0.85))' }
-                : undefined}
-            >
-              <Search className="w-4 h-4" />
-              {language === 'ru' ? 'Поиск' : 'Qidiruv'}
-            </button>
-          </div>
+          {/* Hero search bar — replaces the My-garage / Search tab pill row.
+              Tapping the input flips the page to the search tab automatically;
+              clearing it returns to "Мой гараж". The visual is a soft white
+              translucent pill so it reads as part of the hero, not a hard
+              divider. */}
+          <button
+            onClick={() => setActiveTab('search')}
+            className="mt-5 w-full flex items-center gap-3 px-4 py-3 min-h-[48px] rounded-[16px] bg-white/12 hover:bg-white/18 border border-white/15 backdrop-blur-sm active:scale-[0.99] transition-all touch-manipulation text-left"
+            aria-label={language === 'ru' ? 'Поиск чужого авто по номеру' : "Boshqa avtomobilni raqami bo'yicha qidirish"}
+          >
+            <div className="w-8 h-8 rounded-[10px] bg-white/20 flex items-center justify-center shrink-0">
+              <Search className="w-[16px] h-[16px] text-white" strokeWidth={2.4} />
+            </div>
+            <span className="flex-1 text-[13px] font-semibold text-white/85 truncate">
+              {language === 'ru' ? 'Найти авто соседа по номеру' : "Qo'shni avtomobilini raqami bo'yicha topish"}
+            </span>
+          </button>
         </div>
       </div>
 

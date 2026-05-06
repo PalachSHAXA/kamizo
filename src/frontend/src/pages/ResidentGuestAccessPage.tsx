@@ -334,8 +334,14 @@ function LatestPassHero({
 
   useEffect(() => {
     if (canvasRef.current) {
+      // Render at 2× the displayed size so the QR stays crisp on retina;
+      // displayed at ~118px below. Previous 200×200 was overkill and pushed
+      // the action buttons against the screen edge on narrow phones.
+      // Render at 2× the displayed 96px so the QR stays crisp on retina
+      // without dominating the card. Bumped down from 118 → 96 because the
+      // wider QR squeezed the action stack on narrow phones.
       generateQRCodeCanvas(canvasRef.current, code.qrToken, {
-        width: 200,
+        width: 192,
         margin: 1,
         color: { dark: '#0f172a', light: '#ffffff' },
       });
@@ -437,7 +443,7 @@ function LatestPassHero({
             className="bg-white p-2 rounded-[14px] shrink-0 active:scale-[0.97] transition-transform touch-manipulation shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
             aria-label={language === 'ru' ? 'Открыть QR' : 'QR-ni ochish'}
           >
-            <canvas ref={canvasRef} className="w-[140px] h-[140px] block" />
+            <canvas ref={canvasRef} className="w-[96px] h-[96px] block" />
           </button>
 
           <div className="min-w-0 flex-1 flex flex-col">

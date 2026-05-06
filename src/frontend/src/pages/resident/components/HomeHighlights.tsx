@@ -337,24 +337,30 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
         })}
       </div>
 
-      {/* Dots indicator — decorative carousel dots, intentionally small. */}
-      <div className="flex justify-center items-center gap-1.5 mb-2 h-4">
+      {/* Dots indicator — minimal, calmer than before. Active dot is a 14px
+          pill in brand color; inactive dots are 5px circles. The previous
+          7px / 22px size made them read as buttons rather than progress
+          markers. */}
+      <div className="flex justify-center items-center gap-1.5 mb-2 h-4" role="tablist" aria-label="Карусель карточек">
         {cards.map((_, i) => (
           <button
             key={i}
+            type="button"
             onClick={() => setActiveIdx(i)}
-            aria-label={`card ${i + 1}`}
+            aria-label={`Карточка ${i + 1}`}
+            aria-selected={i === activeIdx}
+            role="tab"
             className="flex items-center justify-center bg-transparent border-0 p-0 cursor-pointer"
-            style={{ width: 28, height: 16 }}
+            style={{ width: 22, height: 14, minHeight: 0, minWidth: 0 }}
           >
             <span
               style={{
                 display: 'block',
-                width: i === activeIdx ? 22 : 7,
-                height: 7,
-                borderRadius: 4,
-                background: i === activeIdx ? 'rgb(var(--brand-rgb))' : '#ddd',
-                transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+                width: i === activeIdx ? 14 : 5,
+                height: 5,
+                borderRadius: 999,
+                background: i === activeIdx ? 'rgb(var(--brand-rgb))' : 'rgba(0,0,0,0.18)',
+                transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
               }}
             />
           </button>

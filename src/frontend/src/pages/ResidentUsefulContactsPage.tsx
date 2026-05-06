@@ -571,16 +571,37 @@ export default function ResidentUsefulContactsPage() {
         </h2>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-5 px-1">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder={language === 'ru' ? 'Поиск услуг...' : 'Xizmatlarni qidirish...'}
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 text-sm border border-gray-200 rounded-2xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50 focus:bg-white transition-colors"
-        />
+      {/* Search — pill-style with brand-tinted left icon and clear ✕ when
+          there's text. Reads as a primary affordance instead of a generic
+          gray field. */}
+      <div className="mb-5">
+        <div className="relative">
+          <div
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-[12px] flex items-center justify-center pointer-events-none"
+            style={{ background: 'rgba(var(--brand-rgb), 0.10)' }}
+            aria-hidden="true"
+          >
+            <Search className="w-[18px] h-[18px]" style={{ color: 'rgb(var(--brand-rgb))' }} strokeWidth={2.2} />
+          </div>
+          <input
+            type="text"
+            placeholder={language === 'ru' ? 'Поиск услуг и партнёров…' : "Xizmat va hamkorlarni qidirish…"}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-[60px] pr-12 py-3.5 text-[14px] bg-white border border-gray-200 rounded-[18px] outline-none transition-all focus:border-orange-300 focus:ring-2 focus:ring-orange-300/30 placeholder:text-gray-400 shadow-[0_2px_8px_rgba(0,0,0,0.03)]"
+            aria-label={language === 'ru' ? 'Поиск контактов' : "Kontaktlar qidirish"}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-gray-100 active:bg-gray-200 flex items-center justify-center"
+              aria-label={language === 'ru' ? 'Очистить' : 'Tozalash'}
+            >
+              <span className="text-gray-500 text-[14px] leading-none">✕</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Contacts by Category */}

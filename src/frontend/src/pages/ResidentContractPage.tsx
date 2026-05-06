@@ -1,8 +1,7 @@
-import { User, FileText, CheckCircle, Clock } from 'lucide-react';
+import { User, FileText } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { ContractQRCode } from '../components/ContractQRCode';
-import { StatusBadge } from '../components/common';
 import { formatName } from '../utils/formatName';
 
 export function ResidentContractPage() {
@@ -15,13 +14,16 @@ export function ResidentContractPage() {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
-      {/* Header */}
+      {/* Header — preview-only. The "sign / pending" state was dropped
+          because contract signing is handled offline (paper or external
+          DocFlow). Showing "Ожидает подписания" here just confused
+          residents who had already signed elsewhere. */}
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">
           {language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma'}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          {language === 'ru' ? 'Ваш договор и уникальный QR-код' : 'Sizning shartnomangiz va noyob QR-kodingiz'}
+          {language === 'ru' ? 'Превью вашего договора и уникальный QR-код' : 'Shartnoma ko\'rinishi va noyob QR-kod'}
         </p>
       </div>
 
@@ -36,20 +38,6 @@ export function ResidentContractPage() {
           {language === 'ru' ? 'Детали договора' : 'Shartnoma tafsilotlari'}
         </h3>
         <div className="space-y-3 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-500">{language === 'ru' ? 'Статус' : 'Holat'}</span>
-            {user.contractSignedAt ? (
-              <StatusBadge status="active" size="sm" className="gap-1">
-                <CheckCircle className="w-3 h-3" />
-                {language === 'ru' ? 'Действующий' : 'Amal qiluvchi'}
-              </StatusBadge>
-            ) : (
-              <StatusBadge status="pending" size="sm" className="gap-1">
-                <Clock className="w-3 h-3" />
-                {language === 'ru' ? 'Ожидает подписания' : "Imzolash kutilmoqda"}
-              </StatusBadge>
-            )}
-          </div>
           <div className="flex justify-between">
             <span className="text-gray-500">{language === 'ru' ? 'Номер' : 'Raqam'}</span>
             <span className="font-mono font-medium text-gray-900 text-xs sm:text-sm">
@@ -86,14 +74,6 @@ export function ResidentContractPage() {
                 : (language === 'ru' ? 'Бессрочно' : 'Muddatsiz')}
             </span>
           </div>
-          {user.contractSignedAt && (
-            <div className="flex justify-between">
-              <span className="text-gray-500">{language === 'ru' ? 'Подписан' : 'Imzolangan'}</span>
-              <span className="font-medium text-gray-900">
-                {new Date(user.contractSignedAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 

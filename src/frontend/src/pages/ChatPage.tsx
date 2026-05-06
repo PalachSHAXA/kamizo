@@ -1208,10 +1208,17 @@ function ChatView({
         </div>
       )}
 
-      {/* ── Input ── */}
+      {/* ── Input ──
+            Sticky composer at the bottom of the chat. Soft shadow on top
+            (instead of a hairline border) makes the divider read at a
+            glance — previously the line was so thin on mobile that the
+            input looked like it was floating in mid-screen. */}
       <div
-        className="bg-white border-t border-gray-100 flex-shrink-0"
-        style={{ paddingBottom: keyboardOffset > 0 ? '0px' : 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+        className="bg-white flex-shrink-0"
+        style={{
+          paddingBottom: keyboardOffset > 0 ? '0px' : 'max(12px, env(safe-area-inset-bottom, 12px))',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.04), 0 -1px 0 rgba(0,0,0,0.04)',
+        }}
       >
         {/* Attached file preview — dismissible chip above the input so the
             user sees what they are about to send and can remove it before
@@ -1307,7 +1314,7 @@ function ChatView({
                 }
               }}
               placeholder={language === 'ru' ? 'Сообщение...' : 'Xabar...'}
-              className="w-full px-4 py-2.5 bg-gray-50 rounded-[20px] text-[14px] border border-black/[0.04] focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition-all placeholder:text-gray-400"
+              className="w-full px-4 py-2.5 bg-gray-100 rounded-[20px] text-[14px] border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/60 focus:bg-white transition-all placeholder:text-gray-400"
               disabled={isSending}
               aria-label={language === 'ru' ? 'Написать сообщение' : 'Xabar yozing'}
             />
