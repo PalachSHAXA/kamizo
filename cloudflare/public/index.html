@@ -23,18 +23,161 @@
     <meta name="msapplication-TileColor" content="#F97316" />
     <meta name="msapplication-TileImage" content="/icons/favicon-128x128.png" />
     <title>kamizo - Управление жильём</title>
-    <script type="module" crossorigin src="/assets/index-C2ttfim-.js"></script>
+    <script type="module" crossorigin src="/assets/index-BE0Xtcus.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/charts-BFe3Y058.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-B3Y1hgqY.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-BNuOHT_8.css">
   </head>
   <body>
     <div id="root">
-      <div style="display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh;background:#ffffff;">
-        <img src="/icons/favicon-64x64.png" alt="" style="width:48px;height:48px;animation:kamizo-pulse 1.5s ease-in-out infinite" />
+      <!-- Splash screen — themed loader. While the JS bundle hydrates, the
+           user sees a Kamizo monogram in a soft brand-tinted card with a
+           thin progress bar and four orbiting feature icons (дом, ключ,
+           чат, авто) representing the app's core jobs. Pure CSS + inline
+           SVGs so it renders before any framework boots. -->
+      <div class="kamizo-splash">
+        <div class="kamizo-splash__stage" aria-hidden="true">
+          <!-- Orbiting icons — each lives in its own ring rotating at its
+               own speed; the icon counter-rotates so it stays upright. -->
+          <div class="kamizo-orbit kamizo-orbit--1">
+            <div class="kamizo-orbit__icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="rgb(249,115,22)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 12 3l9 9"/><path d="M5 10v10h14V10"/></svg>
+            </div>
+          </div>
+          <div class="kamizo-orbit kamizo-orbit--2">
+            <div class="kamizo-orbit__icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="rgb(249,115,22)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4"/><path d="M18 5l3 3"/><path d="M15 8l3 3"/></svg>
+            </div>
+          </div>
+          <div class="kamizo-orbit kamizo-orbit--3">
+            <div class="kamizo-orbit__icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="rgb(249,115,22)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+          </div>
+          <div class="kamizo-orbit kamizo-orbit--4">
+            <div class="kamizo-orbit__icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="rgb(249,115,22)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
+            </div>
+          </div>
+
+          <!-- Center: brand monogram card. Subtle floating animation on
+               top of the static brand gradient. -->
+          <div class="kamizo-mark">
+            <div class="kamizo-mark__inner">K</div>
+          </div>
+        </div>
+
+        <!-- Wordmark + thin progress bar — same brand voice as the rest of
+             the app, no extra spinner needed. -->
+        <div class="kamizo-splash__title">Kamizo</div>
+        <div class="kamizo-splash__bar"><span></span></div>
       </div>
     </div>
     <style>
-      @keyframes kamizo-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+      .kamizo-splash {
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 28px;
+        background: radial-gradient(ellipse at top, #FFF7ED 0%, #FFFFFF 65%);
+        padding-top: env(safe-area-inset-top, 0);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+      }
+      .kamizo-splash__stage {
+        position: relative;
+        width: 192px;
+        height: 192px;
+      }
+      .kamizo-mark {
+        position: absolute;
+        inset: 56px;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 28px;
+        background: linear-gradient(135deg, #F97316 0%, #FB923C 100%);
+        box-shadow: 0 18px 40px rgba(249, 115, 22, 0.30);
+        animation: kamizo-bob 2.4s ease-in-out infinite;
+      }
+      .kamizo-mark__inner {
+        font: 700 38px/1 -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+        color: #fff;
+        letter-spacing: -0.02em;
+      }
+      .kamizo-orbit {
+        position: absolute;
+        inset: 0;
+        animation: kamizo-spin 6s linear infinite;
+      }
+      .kamizo-orbit--2 { animation-duration: 8s; animation-direction: reverse; }
+      .kamizo-orbit--3 { animation-duration: 7s; }
+      .kamizo-orbit--4 { animation-duration: 9s; animation-direction: reverse; }
+      .kamizo-orbit__icon {
+        position: absolute;
+        top: 0; left: 50%;
+        transform: translate(-50%, 0);
+        width: 36px; height: 36px;
+        display: flex; align-items: center; justify-content: center;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(249, 115, 22, 0.18), 0 1px 0 rgba(0,0,0,0.04);
+        animation: kamizo-spin-rev 6s linear infinite;
+      }
+      .kamizo-orbit--2 .kamizo-orbit__icon {
+        top: auto; bottom: 0; transform: translate(-50%, 0);
+        animation-duration: 8s; animation-direction: reverse;
+      }
+      .kamizo-orbit--3 .kamizo-orbit__icon {
+        top: 50%; left: 0; transform: translate(0, -50%);
+        animation-duration: 7s;
+      }
+      .kamizo-orbit--4 .kamizo-orbit__icon {
+        top: 50%; left: auto; right: 0; transform: translate(0, -50%);
+        animation-duration: 9s; animation-direction: reverse;
+      }
+      .kamizo-splash__title {
+        font: 800 22px/1 -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+        letter-spacing: -0.01em;
+        color: #111;
+      }
+      .kamizo-splash__bar {
+        width: 140px; height: 3px;
+        border-radius: 999px;
+        background: rgba(249, 115, 22, 0.15);
+        overflow: hidden;
+      }
+      .kamizo-splash__bar > span {
+        display: block; height: 100%;
+        background: linear-gradient(90deg, transparent, rgb(249, 115, 22), transparent);
+        animation: kamizo-progress 1.4s ease-in-out infinite;
+      }
+      @keyframes kamizo-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes kamizo-spin-rev {
+        from { transform: translate(-50%, 0) rotate(0deg); }
+        to   { transform: translate(-50%, 0) rotate(-360deg); }
+      }
+      .kamizo-orbit--2 .kamizo-orbit__icon {
+        animation-name: kamizo-spin-rev2;
+      }
+      @keyframes kamizo-spin-rev2 {
+        from { transform: translate(-50%, 0) rotate(0deg); }
+        to   { transform: translate(-50%, 0) rotate(360deg); }
+      }
+      .kamizo-orbit--3 .kamizo-orbit__icon,
+      .kamizo-orbit--4 .kamizo-orbit__icon {
+        animation: none; /* lateral icons stay upright via static transform */
+      }
+      @keyframes kamizo-bob {
+        0%, 100% { transform: translateY(0); }
+        50%      { transform: translateY(-4px); }
+      }
+      @keyframes kamizo-progress {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .kamizo-orbit, .kamizo-mark, .kamizo-splash__bar > span { animation: none !important; }
+      }
     </style>
     <script>
       // Register Service Worker

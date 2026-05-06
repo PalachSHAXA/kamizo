@@ -466,40 +466,48 @@ function LatestPassHero({
               )}
             </div>
 
-            {/* Action stack — vertical, compact, right of QR */}
-            <div className="mt-3 space-y-1.5">
-              <button
-                onClick={handleShare}
-                className="w-full px-2.5 py-2 min-h-[36px] rounded-[10px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[12px] active:scale-[0.97] transition-all touch-manipulation flex items-center gap-1.5 border border-white/20 backdrop-blur-sm"
-              >
-                <Share2 className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{language === 'ru' ? 'Поделиться' : 'Ulashish'}</span>
-              </button>
-              <button
-                onClick={handleCopy}
-                className="w-full px-2.5 py-2 min-h-[36px] rounded-[10px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[12px] active:scale-[0.97] transition-all touch-manipulation flex items-center gap-1.5 border border-white/20 backdrop-blur-sm"
-              >
-                <Copy className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{language === 'ru' ? 'Код' : 'Kod'}</span>
-              </button>
-              <button
-                onClick={isActive ? onRevoke : onOpen}
-                className={`w-full px-2.5 py-2 min-h-[36px] rounded-[10px] font-bold text-[12px] active:scale-[0.97] transition-all touch-manipulation flex items-center gap-1.5 border backdrop-blur-sm ${
-                  isActive
-                    ? 'bg-white/95 text-red-600 border-white/40 hover:bg-white'
-                    : 'bg-white/95 hover:bg-white border-white/40'
-                }`}
-                style={!isActive ? { color: 'rgb(var(--brand-rgb))' } : undefined}
-              >
-                {isActive ? <X className="w-3.5 h-3.5 shrink-0" /> : <QrCode className="w-3.5 h-3.5 shrink-0" />}
-                <span className="truncate">
-                  {isActive
-                    ? (language === 'ru' ? 'Отозвать' : 'Bekor')
-                    : (language === 'ru' ? 'Открыть' : 'Ochish')}
-                </span>
-              </button>
-            </div>
           </div>
+        </div>
+
+        {/* Action row — full-width below the QR/info row. Icon + short label
+            so the buttons never truncate on narrow phones (the previous
+            stacked layout right of the QR cropped "Поделиться" → "Поде…"
+            and "Открыть" → "Откр…" on iPhone SE / 12 mini). aria-label
+            keeps the longer accessible name. */}
+        <div className="relative mt-3 grid grid-cols-3 gap-2">
+          <button
+            onClick={handleShare}
+            aria-label={language === 'ru' ? 'Поделиться пропуском' : 'Ulashish'}
+            className="flex flex-col items-center justify-center gap-1 px-2 py-2.5 min-h-[52px] rounded-[12px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[11px] active:scale-[0.97] transition-all touch-manipulation border border-white/20 backdrop-blur-sm"
+          >
+            <Share2 className="w-[18px] h-[18px]" strokeWidth={2.2} />
+            <span className="leading-none">{language === 'ru' ? 'Поделиться' : 'Ulashish'}</span>
+          </button>
+          <button
+            onClick={handleCopy}
+            aria-label={language === 'ru' ? 'Скопировать код' : 'Kodni nusxalash'}
+            className="flex flex-col items-center justify-center gap-1 px-2 py-2.5 min-h-[52px] rounded-[12px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[11px] active:scale-[0.97] transition-all touch-manipulation border border-white/20 backdrop-blur-sm"
+          >
+            <Copy className="w-[18px] h-[18px]" strokeWidth={2.2} />
+            <span className="leading-none">{language === 'ru' ? 'Код' : 'Kod'}</span>
+          </button>
+          <button
+            onClick={isActive ? onRevoke : onOpen}
+            aria-label={isActive ? (language === 'ru' ? 'Отозвать пропуск' : 'Bekor qilish') : (language === 'ru' ? 'Открыть QR' : 'QR ni ochish')}
+            className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 min-h-[52px] rounded-[12px] font-bold text-[11px] active:scale-[0.97] transition-all touch-manipulation border backdrop-blur-sm ${
+              isActive
+                ? 'bg-white/95 text-red-600 border-white/40 hover:bg-white'
+                : 'bg-white/95 hover:bg-white border-white/40'
+            }`}
+            style={!isActive ? { color: 'rgb(var(--brand-rgb))' } : undefined}
+          >
+            {isActive ? <X className="w-[18px] h-[18px]" strokeWidth={2.2} /> : <QrCode className="w-[18px] h-[18px]" strokeWidth={2.2} />}
+            <span className="leading-none">
+              {isActive
+                ? (language === 'ru' ? 'Отозвать' : 'Bekor')
+                : (language === 'ru' ? 'Открыть' : 'Ochish')}
+            </span>
+          </button>
         </div>
       </div>
     </div>

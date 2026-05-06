@@ -365,52 +365,6 @@ export function ResidentVehiclesPage() {
           </div>
         </button>
 
-        {/* Featured "primary vehicle" hero — shown only on the my_vehicles
-            section. Light card with a brand-tinted car silhouette tile on
-            the left, plate + brand on the right. Replaces the heavy dark
-            hero block. */}
-        {activeTab === 'my_vehicles' && primaryVehicle && (
-          <div className="bg-white rounded-[20px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-black/[0.04] flex items-center gap-3">
-            <div
-              className="w-[56px] h-[56px] rounded-[16px] flex items-center justify-center shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.15), rgba(var(--brand-rgb), 0.06))',
-                color: 'rgb(var(--brand-rgb))',
-              }}
-              aria-hidden="true"
-            >
-              {/* Inline car silhouette — keeps the visual identity the dark
-                  hero used to provide, but in brand color and at card scale. */}
-              <svg viewBox="0 0 200 80" className="w-9 h-7">
-                <path
-                  fill="currentColor"
-                  d="M30 55 L50 32 Q56 26 66 26 L138 26 Q150 26 156 33 L172 50 L186 53 Q194 56 194 62 L194 66 Q194 70 190 70 L172 70 Q170 78 162 78 Q154 78 152 70 L66 70 Q64 78 56 78 Q48 78 46 70 L30 70 Q26 70 26 66 L26 60 Q26 56 30 55 Z"
-                />
-              </svg>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                {language === 'ru' ? 'Основной' : 'Asosiy'}
-              </div>
-              <div className="text-[15px] font-extrabold text-gray-900 truncate">
-                {primaryVehicle.brand} {primaryVehicle.model}
-              </div>
-              <div className="text-[12px] text-gray-500 font-mono tracking-wider mt-0.5 truncate">
-                {formatPlateDisplay(primaryVehicle.plateNumber)}
-                {primaryVehicle.parkingSpot && (
-                  <span className="ml-2 text-gray-400 font-sans">· 🅿️ {primaryVehicle.parkingSpot}</span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => handleOpenModal(primaryVehicle)}
-              className="w-9 h-9 rounded-[12px] bg-gray-50 hover:bg-gray-100 active:bg-gray-200 flex items-center justify-center text-gray-500 shrink-0"
-              aria-label={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
-            >
-              <Edit2 className="w-[16px] h-[16px]" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* My Vehicles Tab */}
