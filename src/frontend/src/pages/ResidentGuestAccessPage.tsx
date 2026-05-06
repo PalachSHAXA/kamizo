@@ -436,14 +436,17 @@ function LatestPassHero({
           </span>
         </div>
 
-        {/* Body: QR on left, info + actions stacked on right */}
-        <div className="relative flex items-start gap-4">
+        {/* Body: smaller QR on the left + info on top-right + action buttons
+            stacked under the info on the right. The QR was shrunk to 92×92
+            so the right column has enough horizontal room (~150px+) to
+            host icon-only round buttons without truncation. */}
+        <div className="relative flex items-start gap-3.5">
           <button
             onClick={onOpen}
             className="bg-white p-2 rounded-[14px] shrink-0 active:scale-[0.97] transition-transform touch-manipulation shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
             aria-label={language === 'ru' ? 'Открыть QR' : 'QR-ni ochish'}
           >
-            <canvas ref={canvasRef} className="w-[96px] h-[96px] block" />
+            <canvas ref={canvasRef} className="w-[92px] h-[92px] block" />
           </button>
 
           <div className="min-w-0 flex-1 flex flex-col">
@@ -452,62 +455,56 @@ function LatestPassHero({
               <div className="text-[10px] font-bold uppercase tracking-wider text-white/70">
                 {language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}
               </div>
-              <div className="text-[18px] leading-tight font-extrabold text-white mt-0.5 truncate">
+              <div className="text-[16px] leading-tight font-extrabold text-white mt-0.5 truncate">
                 {headline}
               </div>
-              <div className="text-[12px] text-white/85 mt-1 truncate">{accessText}</div>
+              <div className="text-[11.5px] text-white/85 mt-1 truncate">{accessText}</div>
               {code.visitorVehiclePlate && (
-                <div className="text-[12px] text-white/85 mt-0.5 font-mono tracking-wider truncate">
+                <div className="text-[11.5px] text-white/85 mt-0.5 font-mono tracking-wider truncate">
                   {code.visitorVehiclePlate}
                 </div>
               )}
               {usesText && (
-                <div className="text-[11px] text-white/75 mt-0.5 truncate">{usesText}</div>
+                <div className="text-[10.5px] text-white/75 mt-0.5 truncate">{usesText}</div>
               )}
             </div>
 
+            {/* Action stack — icon-only square tiles right of the QR. Three
+                buttons fit the right column even on iPhone SE (375 → ~155px
+                available after gap+QR). aria-label carries the verbose
+                name; tooltip via title for desktop. */}
+            <div className="mt-2.5 flex items-center gap-1.5">
+              <button
+                onClick={handleShare}
+                aria-label={language === 'ru' ? 'Поделиться пропуском' : 'Ulashish'}
+                title={language === 'ru' ? 'Поделиться' : 'Ulashish'}
+                className="w-9 h-9 rounded-[11px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white flex items-center justify-center active:scale-[0.95] transition-all touch-manipulation border border-white/20 backdrop-blur-sm shrink-0"
+              >
+                <Share2 className="w-[16px] h-[16px]" strokeWidth={2.2} />
+              </button>
+              <button
+                onClick={handleCopy}
+                aria-label={language === 'ru' ? 'Скопировать код' : 'Kodni nusxalash'}
+                title={language === 'ru' ? 'Копировать код' : 'Kodni nusxalash'}
+                className="w-9 h-9 rounded-[11px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white flex items-center justify-center active:scale-[0.95] transition-all touch-manipulation border border-white/20 backdrop-blur-sm shrink-0"
+              >
+                <Copy className="w-[16px] h-[16px]" strokeWidth={2.2} />
+              </button>
+              <button
+                onClick={isActive ? onRevoke : onOpen}
+                aria-label={isActive ? (language === 'ru' ? 'Отозвать пропуск' : 'Bekor qilish') : (language === 'ru' ? 'Открыть QR' : 'QR ni ochish')}
+                title={isActive ? (language === 'ru' ? 'Отозвать' : 'Bekor') : (language === 'ru' ? 'Открыть' : 'Ochish')}
+                className={`w-9 h-9 rounded-[11px] flex items-center justify-center active:scale-[0.95] transition-all touch-manipulation border backdrop-blur-sm shrink-0 ${
+                  isActive
+                    ? 'bg-white/95 text-red-600 border-white/40 hover:bg-white'
+                    : 'bg-white/95 hover:bg-white border-white/40'
+                }`}
+                style={!isActive ? { color: 'rgb(var(--brand-rgb))' } : undefined}
+              >
+                {isActive ? <X className="w-[16px] h-[16px]" strokeWidth={2.2} /> : <QrCode className="w-[16px] h-[16px]" strokeWidth={2.2} />}
+              </button>
+            </div>
           </div>
-        </div>
-
-        {/* Action row — full-width below the QR/info row. Icon + short label
-            so the buttons never truncate on narrow phones (the previous
-            stacked layout right of the QR cropped "Поделиться" → "Поде…"
-            and "Открыть" → "Откр…" on iPhone SE / 12 mini). aria-label
-            keeps the longer accessible name. */}
-        <div className="relative mt-3 grid grid-cols-3 gap-2">
-          <button
-            onClick={handleShare}
-            aria-label={language === 'ru' ? 'Поделиться пропуском' : 'Ulashish'}
-            className="flex flex-col items-center justify-center gap-1 px-2 py-2.5 min-h-[52px] rounded-[12px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[11px] active:scale-[0.97] transition-all touch-manipulation border border-white/20 backdrop-blur-sm"
-          >
-            <Share2 className="w-[18px] h-[18px]" strokeWidth={2.2} />
-            <span className="leading-none">{language === 'ru' ? 'Поделиться' : 'Ulashish'}</span>
-          </button>
-          <button
-            onClick={handleCopy}
-            aria-label={language === 'ru' ? 'Скопировать код' : 'Kodni nusxalash'}
-            className="flex flex-col items-center justify-center gap-1 px-2 py-2.5 min-h-[52px] rounded-[12px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white font-bold text-[11px] active:scale-[0.97] transition-all touch-manipulation border border-white/20 backdrop-blur-sm"
-          >
-            <Copy className="w-[18px] h-[18px]" strokeWidth={2.2} />
-            <span className="leading-none">{language === 'ru' ? 'Код' : 'Kod'}</span>
-          </button>
-          <button
-            onClick={isActive ? onRevoke : onOpen}
-            aria-label={isActive ? (language === 'ru' ? 'Отозвать пропуск' : 'Bekor qilish') : (language === 'ru' ? 'Открыть QR' : 'QR ni ochish')}
-            className={`flex flex-col items-center justify-center gap-1 px-2 py-2.5 min-h-[52px] rounded-[12px] font-bold text-[11px] active:scale-[0.97] transition-all touch-manipulation border backdrop-blur-sm ${
-              isActive
-                ? 'bg-white/95 text-red-600 border-white/40 hover:bg-white'
-                : 'bg-white/95 hover:bg-white border-white/40'
-            }`}
-            style={!isActive ? { color: 'rgb(var(--brand-rgb))' } : undefined}
-          >
-            {isActive ? <X className="w-[18px] h-[18px]" strokeWidth={2.2} /> : <QrCode className="w-[18px] h-[18px]" strokeWidth={2.2} />}
-            <span className="leading-none">
-              {isActive
-                ? (language === 'ru' ? 'Отозвать' : 'Bekor')
-                : (language === 'ru' ? 'Открыть' : 'Ochish')}
-            </span>
-          </button>
         </div>
       </div>
     </div>
