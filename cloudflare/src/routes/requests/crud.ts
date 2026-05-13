@@ -140,11 +140,34 @@ route('POST', '/api/requests', async (request, env) => {
   const number = (maxNum?.max_num || 1000) + 1;
   const requestNumber = `${prefix}-${number}`;
 
-  // Photos: array of data-URLs from the resident form. Stored as JSON
-  // string in the existing requests.photos TEXT column.
-  const photosJson = Array.isArray(body.photos) && body.photos.length > 0
-    ? JSON.stringify(body.photos)
-    : null;
+  // Photos: array of data-URLs from the resident form. Server-side validation
+  // hardened (audit P1):
+  //  - Type:  only image/png|jpeg|jpg|webp data-URLs allowed.
+  //  - Count: capped at 5 (matches the UI limit).
+  //  - Size:  each data-URL ≤ 350KB after client compression (1280px JPEG q=0.8
+  //           typically yields 150-250KB; 350KB gives headroom for retina shots
+  //           without letting a malicious client push multi-megabyte payloads).
+  //  - Total: aggregate ≤ 1.5MB so one request never blows past D1 row limits.
+  //  - Invalid entries are silently filtered, so a partial upload still works.
+  const MAX_PHOTOS = 5;
+  const MAX_PHOTO_BYTES = 350 * 1024;
+  const MAX_TOTAL_BYTES = 1.5 * 1024 * 1024;
+  const PHOTO_PREFIX_RE = /^data:image\/(png|jpe?g|webp);base64,/i;
+  const rawPhotos: unknown = body.photos;
+  const photos: string[] = [];
+  if (Array.isArray(rawPhotos)) {
+    let total = 0;
+    for (const p of rawPhotos) {
+      if (photos.length >= MAX_PHOTOS) break;
+      if (typeof p !== 'string') continue;
+      if (!PHOTO_PREFIX_RE.test(p)) continue;
+      if (p.length > MAX_PHOTO_BYTES) continue;
+      if (total + p.length > MAX_TOTAL_BYTES) break;
+      photos.push(p);
+      total += p.length;
+    }
+  }
+  const photosJson = photos.length > 0 ? JSON.stringify(photos) : null;
 
   await env.DB.prepare(`
     INSERT INTO requests (id, number, request_number, resident_id, category_id, title, description, priority, access_info, scheduled_at, photos, tenant_id, created_at, updated_at)

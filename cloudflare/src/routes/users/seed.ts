@@ -19,20 +19,37 @@ route('GET', '/api/admin/cache/stats', async (request, env) => {
   return json(stats);
 });
 
-// POST /api/init-superadmin - create or reset superadmin (no auth required, one-time setup)
-// This endpoint ONLY creates/updates the superadmin user, nothing else.
+// POST /api/init-superadmin — one-time setup. Was previously OPEN (no auth)
+// and returned the seeded password 'admin123' in the JSON body — anyone who
+// hit the URL could re-seed superadmin and read the password from logs/network.
+// Now:
+//   1. Gated by env.SETUP_TOKEN (`wrangler secret put SETUP_TOKEN`). Without
+//      it set the endpoint returns 410 Gone, so on prod where the secret is
+//      never deployed the route is effectively disabled.
+//   2. Caller must send `Authorization: Bearer <token>` matching SETUP_TOKEN.
+//   3. Password is read from env.SUPERADMIN_BOOTSTRAP_PASSWORD, never from a
+//      hard-coded literal. Response no longer includes the password.
+//   4. Only creates the user if missing — does NOT silently overwrite an
+//      existing superadmin's password. Use the regular reset flow instead.
 route('POST', '/api/init-superadmin', async (request, env) => {
+  if (!env.SETUP_TOKEN) {
+    return error('Endpoint disabled (no SETUP_TOKEN configured)', 410);
+  }
+  const authHeader = request.headers.get('Authorization') || '';
+  if (authHeader !== `Bearer ${env.SETUP_TOKEN}`) {
+    return error('Forbidden', 403);
+  }
+  const bootstrapPassword = env.SUPERADMIN_BOOTSTRAP_PASSWORD;
+  if (!bootstrapPassword || bootstrapPassword.length < 12) {
+    return error('SUPERADMIN_BOOTSTRAP_PASSWORD must be set and >= 12 chars', 500);
+  }
+
   const superadminLogin = 'superadmin';
-  const superadminPassword = 'admin123';
-  const passwordHash = await hashPassword(superadminPassword);
+  const passwordHash = await hashPassword(bootstrapPassword);
 
   const existing = await env.DB.prepare('SELECT id FROM users WHERE login = ?').bind(superadminLogin).first() as any;
   if (existing) {
-    // Update password hash, role, and ensure active
-    await env.DB.prepare(
-      `UPDATE users SET password_hash = ?, role = 'super_admin', is_active = 1, updated_at = datetime('now') WHERE id = ?`
-    ).bind(passwordHash, existing.id).run();
-    return json({ login: superadminLogin, status: 'updated', message: 'Superadmin password reset to admin123' });
+    return error('Superadmin already exists. Use the in-app reset flow.', 409);
   }
 
   const id = generateId();
@@ -40,7 +57,7 @@ route('POST', '/api/init-superadmin', async (request, env) => {
     INSERT INTO users (id, login, password_hash, name, role, phone, is_active, created_at, updated_at)
     VALUES (?, ?, ?, 'Super Administrator', 'super_admin', '+998900000000', 1, datetime('now'), datetime('now'))
   `).bind(id, superadminLogin, passwordHash).run();
-  return json({ login: superadminLogin, status: 'created', message: 'Superadmin created with password admin123' });
+  return json({ login: superadminLogin, status: 'created' });
 });
 
 // Seed initial users (for setup) - Demo accounts for all roles

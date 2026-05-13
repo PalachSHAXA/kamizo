@@ -10,6 +10,8 @@ export interface Env {
   VAPID_PRIVATE_KEY: string;
   SENTRY_DSN?: string;
   EMERGENCY_RESET_SECRET?: string;
+  SETUP_TOKEN?: string;
+  SUPERADMIN_BOOTSTRAP_PASSWORD?: string;
   ASSETS: Fetcher;
   RATE_LIMITER: KVNamespace;
   CONNECTION_MANAGER: DurableObjectNamespace;

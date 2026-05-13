@@ -678,13 +678,29 @@ route('GET', '/api/super-admin/analytics', async (request, env) => {
   if (!isSuperAdmin(user)) return error('Access denied', 403);
 
   try {
-    // Helper: build time-series queries for a given period
-    const timeQueries = (groupExpr: string, periodAlias: string, dateFilter: string) => [
-      env.DB.prepare(`SELECT ${groupExpr} as period, COUNT(*) as count FROM users WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
-      env.DB.prepare(`SELECT ${groupExpr} as period, COUNT(*) as count FROM requests WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
-      env.DB.prepare(`SELECT ${groupExpr} as period, COALESCE(SUM(CASE WHEN status = 'delivered' THEN final_amount ELSE 0 END), 0) as revenue, COUNT(*) as orders FROM marketplace_orders WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
-      env.DB.prepare(`SELECT ${groupExpr} as period, COUNT(*) as count FROM buildings WHERE created_at >= ${dateFilter} GROUP BY ${groupExpr} ORDER BY period`).all(),
-    ];
+    // Time-series helper. The previous version took raw SQL fragments
+    // (groupExpr, dateFilter) and interpolated them via template literals.
+    // Not exploitable today because all callers pass hard-coded literals,
+    // but it would become SQL-injection-shaped the moment someone refactors
+    // the period to come from a query param. Lock the shape: only allow
+    // 'day'|'week'|'month', look up the SQL fragments from a fixed map.
+    type Period = 'day' | 'week' | 'month';
+    const PERIOD_SQL: Record<Period, { group: string; since: string }> = {
+      day:   { group: "date(created_at)",                   since: "date('now', '-30 days')" },
+      week:  { group: "strftime('%Y-W%W', created_at)",     since: "date('now', '-84 days')" },
+      month: { group: "strftime('%Y-%m', created_at)",      since: "date('now', '-12 months')" },
+    };
+    const timeQueries = (period: Period) => {
+      const { group, since } = PERIOD_SQL[period];
+      // Safe: `group` and `since` come from a constant map keyed by an
+      // enum — no user input ever reaches the SQL string.
+      return [
+        env.DB.prepare(`SELECT ${group} as period, COUNT(*) as count FROM users WHERE created_at >= ${since} GROUP BY ${group} ORDER BY period`).all(),
+        env.DB.prepare(`SELECT ${group} as period, COUNT(*) as count FROM requests WHERE created_at >= ${since} GROUP BY ${group} ORDER BY period`).all(),
+        env.DB.prepare(`SELECT ${group} as period, COALESCE(SUM(CASE WHEN status = 'delivered' THEN final_amount ELSE 0 END), 0) as revenue, COUNT(*) as orders FROM marketplace_orders WHERE created_at >= ${since} GROUP BY ${group} ORDER BY period`).all(),
+        env.DB.prepare(`SELECT ${group} as period, COUNT(*) as count FROM buildings WHERE created_at >= ${since} GROUP BY ${group} ORDER BY period`).all(),
+      ];
+    };
 
     const [
       perTenantResult, planResult, tenantsResult,
@@ -712,12 +728,11 @@ route('GET', '/api/super-admin/analytics', async (request, env) => {
       `).all(),
       env.DB.prepare(`SELECT plan, COUNT(*) as count FROM tenants GROUP BY plan`).all(),
       env.DB.prepare(`SELECT features FROM tenants`).all(),
-      // Daily
-      ...timeQueries("date(created_at)", "day", "date('now', '-30 days')"),
-      // Weekly
-      ...timeQueries("strftime('%Y-W%W', created_at)", "week", "date('now', '-84 days')"),
-      // Monthly
-      ...timeQueries("strftime('%Y-%m', created_at)", "month", "date('now', '-12 months')"),
+      // Daily / Weekly / Monthly — period name is a closed enum, no user
+      // input reaches the SQL string. See PERIOD_SQL map above.
+      ...timeQueries('day'),
+      ...timeQueries('week'),
+      ...timeQueries('month'),
     ]);
 
     const perTenant = (perTenantResult.results || []) as any[];
