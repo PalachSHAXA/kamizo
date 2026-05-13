@@ -5,7 +5,7 @@ import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, clearFeatureCache } from '../middleware/tenant';
-import { json, error, generateId, isManagement, sanitizeInput, sanitizeUrl } from '../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement, sanitizeInput, sanitizeUrl } from '../utils/helpers';
 import { hashPassword, createJWT } from '../utils/crypto';
 import { isSuperAdmin } from '../index';
 import { createRequestLogger } from '../utils/logger';
@@ -584,7 +584,7 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
      LIMIT 1`
   ).bind(tenantId).first() as any;
 
-  if (!adminUser) return error('В выбранной компании нет активных сотрудников', 404);
+  if (!adminUser) return bilingualError('В выбранной компании нет активных сотрудников', 'Tanlangan kompaniyada faol xodimlar mavjud emas', 404);
 
   // Issue JWT for impersonated admin (7 days)
   const impersonateToken = await createJWT(

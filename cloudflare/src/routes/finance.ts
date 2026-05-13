@@ -3,7 +3,7 @@ import type { Env, User } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';
-import { json, error, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { createRequestLogger } from '../utils/logger';
 
 // ── Helper: finance access check ──────────────────────────────────
@@ -231,18 +231,18 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
   const itemsCount = await env.DB.prepare(
     `SELECT COUNT(*) as cnt FROM finance_estimate_items WHERE estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ cnt: number }>();
-  if (!itemsCount?.cnt || itemsCount.cnt === 0) return error('Невозможно активировать смету без статей расходов', 400);
+  if (!itemsCount?.cnt || itemsCount.cnt === 0) return bilingualError('Невозможно активировать смету без статей расходов', "Xarajat moddalarisiz smetani faollashtirib bo'lmaydi", 400);
 
   const estimateData = await env.DB.prepare(
     `SELECT total_amount FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ total_amount: number }>();
-  if (!estimateData?.total_amount || estimateData.total_amount <= 0) return error('Невозможно активировать смету с нулевой суммой', 400);
+  if (!estimateData?.total_amount || estimateData.total_amount <= 0) return bilingualError('Невозможно активировать смету с нулевой суммой', "Nol summali smetani faollashtirib bo'lmaydi", 400);
 
   // P09: Check for existing active estimate for same building
   const existingActive = await env.DB.prepare(
     `SELECT id FROM finance_estimates WHERE building_id = (SELECT building_id FROM finance_estimates WHERE id = ?) AND status = 'active' AND id != ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params.id, params.id, ...(tenantId ? [tenantId] : [])).first();
-  if (existingActive) return error('Для этого здания уже есть активная смета. Деактивируйте её перед активацией новой.', 400);
+  if (existingActive) return bilingualError('Для этого здания уже есть активная смета. Деактивируйте её перед активацией новой.', 'Bu bino uchun faol smeta mavjud. Yangisini faollashtirishdan oldin uni o\'chiring.', 400);
 
   await env.DB.prepare(`UPDATE finance_estimates SET status = 'active' WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
@@ -479,7 +479,7 @@ route('POST', '/api/finance/payments', async (request, env) => {
   const parsedAmount = Number(amount);
   if (!apartment_id || !parsedAmount || !isFinite(parsedAmount) || parsedAmount <= 0) return error('apartment_id and positive amount are required');
   // P23: Max payment amount
-  if (parsedAmount > 100_000_000) return error('Сумма оплаты не может превышать 100 000 000', 400);
+  if (parsedAmount > 100_000_000) return bilingualError('Сумма оплаты не может превышать 100 000 000', "To'lov summasi 100 000 000 dan oshmasligi kerak", 400);
 
   // Generate receipt number: FIN-YYYY-NNNN
   const year = new Date().getFullYear();

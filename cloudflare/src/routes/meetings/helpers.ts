@@ -6,7 +6,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { getCurrentCorsOrigin } from '../../middleware/cors';
 import { getCached, setCache, invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -14,7 +14,7 @@ import { createRequestLogger } from '../../utils/logger';
 export {
   route, getUser, getTenantId, requireFeature, getCurrentCorsOrigin,
   getCached, setCache, invalidateCache,
-  json, error, generateId, isManagement,
+  json, error, bilingualError, generateId, isManagement,
   sendPushNotification, createRequestLogger
 };
 export type { Env };

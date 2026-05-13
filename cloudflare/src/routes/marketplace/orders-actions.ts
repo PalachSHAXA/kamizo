@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 
 export function registerOrderActionRoutes() {
 
@@ -63,7 +63,7 @@ route('POST', '/api/marketplace/orders/:id/rate', async (request, env, params) =
   const { rating, review } = body;
 
   if (typeof rating !== 'number' || rating < 1 || rating > 5) {
-    return error('Рейтинг должен быть от 1 до 5', 400);
+    return bilingualError('Рейтинг должен быть от 1 до 5', 'Reyting 1 dan 5 gacha bo\'lishi kerak', 400);
   }
 
   const tenantId = getTenantId(request);
@@ -72,7 +72,7 @@ route('POST', '/api/marketplace/orders/:id/rate', async (request, env, params) =
   ).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!order) return error('Order not found or not delivered', 404);
 
-  if (order.rating) return error('Вы уже оценили этот заказ', 400);
+  if (order.rating) return bilingualError('Вы уже оценили этот заказ', 'Siz bu buyurtmani allaqachon baholagansiz', 400);
 
   await env.DB.prepare(
     `UPDATE marketplace_orders SET rating = ?, review = ? WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`

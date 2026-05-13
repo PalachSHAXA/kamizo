@@ -2,7 +2,7 @@
 
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error, generateId, generateVoteHash
+  invalidateCache, json, error, bilingualError, generateId, generateVoteHash
 } from './helpers';
 
 export function registerVotingRoutes() {
@@ -28,11 +28,11 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
     const userBuilding = await env.DB.prepare('SELECT apartment, total_area FROM users WHERE id = ? AND building_id = ? AND role = ?').bind(authUser.id, meeting.building_id, 'resident').first() as any;
     if (!userBuilding) return error('You are not eligible to vote in this meeting', 403);
     apartmentArea = apartmentArea || userBuilding.total_area;
-    if (!apartmentArea || apartmentArea <= 0) return error('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', 400);
+    if (!apartmentArea || apartmentArea <= 0) return bilingualError('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', "Xonadon maydoni ko'rsatilmagan. Ma'lumotlarni yangilash uchun administratorga murojaat qiling.", 400);
     apartmentNumber = apartmentNumber || userBuilding.apartment;
   } else {
     apartmentArea = apartmentArea || eligibleVoter.total_area;
-    if (!apartmentArea || apartmentArea <= 0) return error('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', 400);
+    if (!apartmentArea || apartmentArea <= 0) return bilingualError('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', "Xonadon maydoni ko'rsatilmagan. Ma'lumotlarni yangilash uchun administratorga murojaat qiling.", 400);
     apartmentNumber = apartmentNumber || eligibleVoter.apartment;
   }
 

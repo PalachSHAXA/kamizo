@@ -2,7 +2,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { requireFeature, getTenantId } from '../../middleware/tenant';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement } from '../../utils/helpers';
 import { isExecutorRole } from '../../index';
 
 export function registerMeterReadingRoutes() {
@@ -55,7 +55,7 @@ route('POST', '/api/meters/:meterId/readings', async (request, env, params) => {
   let consumption: number | null = null;
   if (prevReading) {
     previousValue = Number(prevReading.value);
-    if (newValue < previousValue) return error('Текущее показание не может быть меньше предыдущего', 400);
+    if (newValue < previousValue) return bilingualError('Текущее показание не может быть меньше предыдущего', "Hozirgi ko'rsatkich oldingisidan kam bo'lmasligi kerak", 400);
     consumption = newValue - previousValue;
   }
 

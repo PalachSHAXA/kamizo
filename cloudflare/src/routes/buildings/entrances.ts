@@ -2,7 +2,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement } from '../../utils/helpers';
 
 export function registerEntranceRoutes() {
 
@@ -100,7 +100,7 @@ route('PATCH', '/api/entrances/:id', async (request, env, params) => {
     `UPDATE entrances SET ${updates.join(', ')} WHERE id = ? ${tenantIdUpd ? 'AND tenant_id = ?' : ''}`
   ).bind(...values, ...(tenantIdUpd ? [tenantIdUpd] : [])).run();
 
-  if (!updateResult.meta?.changes) return error('Подъезд не найден или нет доступа', 404);
+  if (!updateResult.meta?.changes) return bilingualError('Подъезд не найден или нет доступа', "Pod'ezd topilmadi yoki kirish ruxsati yo'q", 404);
 
   const updated = await env.DB.prepare('SELECT * FROM entrances WHERE id = ?').bind(params.id).first() as any;
 

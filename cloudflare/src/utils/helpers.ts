@@ -23,6 +23,15 @@ export function error(message: string, status = 400) {
   return json({ error: message }, status);
 }
 
+// Bilingual error helper for user-facing messages.
+// The frontend reads `error_ru` / `error_uz` and shows the active language,
+// falling back to `error` for older clients that don't know the new fields.
+// Use this for messages the user will SEE (validation failures, business
+// rules); generic "Forbidden" / "Not found" stays single-language.
+export function bilingualError(ru: string, uz: string, status = 400) {
+  return json({ error: ru, error_ru: ru, error_uz: uz }, status);
+}
+
 // Generate UUID
 export function generateId() {
   return crypto.randomUUID();

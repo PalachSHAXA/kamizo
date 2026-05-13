@@ -4,7 +4,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId, setTenantForRequest } from '../../middleware/tenant';
 import { checkRateLimit, getClientIdentifier } from '../../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../../middleware/cors';
-import { json, error, generateId, isAdminLevel } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, isAdminLevel } from '../../utils/helpers';
 import { hashPassword, verifyPassword, createJWT, encryptPassword } from '../../utils/crypto';
 import { isExecutorRole, isSuperAdmin } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
@@ -127,7 +127,7 @@ route('POST', '/api/auth/login', async (request, env) => {
     const tenantData = await env.DB.prepare('SELECT features FROM tenants WHERE id = ?').bind(tenantId).first() as any;
     const features: string[] = tenantData?.features ? JSON.parse(tenantData.features) : [];
     if (!features.includes(featureGatedRoles[user.role])) {
-      return error('Ваш аккаунт деактивирован. Обратитесь к администратору.', 403);
+      return bilingualError('Ваш аккаунт деактивирован. Обратитесь к администратору.', "Hisobingiz o'chirilgan. Administratorga murojaat qiling.", 403);
     }
   }
 

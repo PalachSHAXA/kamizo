@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { isAdvertiser, generateCouponCode } from './helpers';
 
 export function registerCouponRoutes() {
@@ -52,7 +52,7 @@ route('GET', '/api/coupons/check/:code', async (request, env, params) => {
     WHERE c.code = ? ${tenantId ? 'AND c.tenant_id = ?' : ''}
   `).bind(code, ...(tenantId ? [tenantId] : [])).first() as any;
 
-  if (!coupon) return error('Купон не найден', 404);
+  if (!coupon) return bilingualError('Купон не найден', 'Kupon topilmadi', 404);
 
   if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
     return json({ coupon, valid: false, reason: 'Срок действия купона истёк' });
@@ -86,9 +86,9 @@ route('POST', '/api/coupons/activate/:code', async (request, env, params) => {
     WHERE c.code = ? ${tenantId ? 'AND c.tenant_id = ?' : ''}
   `).bind(code, ...(tenantId ? [tenantId] : [])).first() as any;
 
-  if (!coupon) return error('Купон не найден', 404);
-  if (coupon.status !== 'issued') return error('Купон уже использован или недействителен', 400);
-  if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) return error('Срок действия купона истёк', 400);
+  if (!coupon) return bilingualError('Купон не найден', 'Kupon topilmadi', 404);
+  if (coupon.status !== 'issued') return bilingualError('Купон уже использован или недействителен', "Kupon allaqachon ishlatilgan yoki noto'g'ri", 400);
+  if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) return bilingualError('Срок действия купона истёк', 'Kuponning amal qilish muddati tugagan', 400);
 
   const discountAmount = amount * (coupon.discount_percent / 100);
 

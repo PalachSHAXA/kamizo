@@ -2,6 +2,29 @@
 
 export const API_URL = '';
 
+// Pull the user-facing error string in the active language.
+// Backend may return:
+//   - { error_ru, error_uz, error } (new bilingualError helper)
+//   - { error: '...' }              (legacy single-lang)
+// We read languageStore from localStorage instead of importing the store to
+// avoid a dependency cycle (api/client → store → api).
+function pickErrorMessage(data: unknown): string {
+  if (!data || typeof data !== 'object') return 'API Error';
+  const d = data as Record<string, unknown>;
+  let lang: 'ru' | 'uz' = 'ru';
+  try {
+    const raw = localStorage.getItem('language-storage');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.state?.language === 'uz') lang = 'uz';
+    }
+  } catch { /* ignore */ }
+  const localized = lang === 'uz' ? d.error_uz : d.error_ru;
+  if (typeof localized === 'string' && localized.length > 0) return localized;
+  if (typeof d.error === 'string') return d.error;
+  return 'API Error';
+}
+
 // Track 401 responses: require multiple 401s before forcing logout.
 // A single 401 can happen from transient issues (race condition, stale cache).
 // Only force logout after 3+ consecutive 401s within 15s, AND never within
@@ -124,7 +147,7 @@ export async function apiRequest<T>(
         // some endpoints legitimately 401 while the auth middleware's tenant
         // resolution catches up for this role.
         if (now < loginGraceUntil) {
-          throw new Error(data.error || 'API Error');
+          throw new Error(pickErrorMessage(data));
         }
         if (now - first401Timestamp > WINDOW_MS) {
           // Reset counter if too much time passed since first 401
@@ -155,9 +178,9 @@ export async function apiRequest<T>(
           throw new Error('Session expired');
         }
         // First 401: just throw, don't wipe session — might be transient
-        throw new Error(data.error || 'API Error');
+        throw new Error(pickErrorMessage(data));
       }
-      throw new Error(data.error || 'API Error');
+      throw new Error(pickErrorMessage(data));
     }
 
     return data;

@@ -2,7 +2,7 @@
 
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error, generateId
+  invalidateCache, json, error, bilingualError, generateId
 } from './helpers';
 
 export function registerScheduleRoutes() {
@@ -21,7 +21,7 @@ route('POST', '/api/meetings/:meetingId/schedule-votes', async (request, env, pa
   const meeting = await env.DB.prepare(
     `SELECT building_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
-  if (!meeting) return error('Собрание не найдено', 404);
+  if (!meeting) return bilingualError('Собрание не найдено', 'Yig\'ilish topilmadi', 404);
 
   const userInfo = await env.DB.prepare('SELECT total_area FROM users WHERE id = ?').bind(authUser.id).first() as any;
   const voteWeight = userInfo?.total_area || 50;
