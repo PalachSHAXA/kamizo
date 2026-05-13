@@ -200,6 +200,17 @@ body {
   #main-content {
     padding-bottom: 0 !important;
   }
+  /* Landscape phones: modals fit poorly inside 90dvh (~520px usable
+     once header + footer are accounted for). Drop to 95dvh and tighten
+     internal padding so the form scrolls instead of getting clipped.
+     Audit P1 fix. */
+  .modal-landscape-tight {
+    max-height: 95dvh !important;
+  }
+  .modal-landscape-tight > div {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
 }
 
 .glass-card {

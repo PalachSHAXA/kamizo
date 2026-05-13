@@ -27,12 +27,18 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
     if (!ch) return error('Channel not found', 404);
   }
 
-  // Get messages with read_by info - with pagination support
+  // Audit P0: previous version had a correlated GROUP_CONCAT sub-query
+  // executed once per row (`SELECT GROUP_CONCAT(user_id) FROM chat_message_reads
+  // WHERE message_id = m.id`). 100-message page = 100 extra reads against
+  // chat_message_reads. Rewrote as a single LEFT JOIN + GROUP BY m.id —
+  // SQLite is fine grouping by a PK column and exposing the other m.*
+  // fields as bare references.
   let query = `
     SELECT m.*, u.name as sender_name, u.role as sender_role,
-      (SELECT GROUP_CONCAT(user_id) FROM chat_message_reads WHERE message_id = m.id) as read_by_str
+      GROUP_CONCAT(r.user_id) as read_by_str
     FROM chat_messages m
     JOIN users u ON m.sender_id = u.id
+    LEFT JOIN chat_message_reads r ON r.message_id = m.id
     WHERE m.channel_id = ?`;
 
   const bindParams: any[] = [channelId];
@@ -43,7 +49,7 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
     bindParams.push(before);
   }
 
-  query += ` ORDER BY m.created_at DESC LIMIT ?`;
+  query += ` GROUP BY m.id ORDER BY m.created_at DESC LIMIT ?`;
   bindParams.push(limit);
 
   const { results: messages } = await env.DB.prepare(query).bind(...bindParams).all();

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useAnnouncementStore, useRequestStore } from '../stores/dataStore';
 import { apiRequest } from '../services/api';
 import { formatName } from '../utils/formatName';
 import type { PopupType } from '../components/PopupNotification';
@@ -55,12 +55,13 @@ const saveShownId = (id: string) => {
 
 export function usePopupNotifications() {
   const { user } = useAuthStore();
-  const {
-    announcements,
-    getAnnouncementsForResidents,
-    markAnnouncementAsViewed,
-    requests,
-  } = useDataStore();
+  // Audit P0: was useDataStore() (full barrel) — every vehicle / rental /
+  // settings update re-ran the popup logic. Focused selectors below limit
+  // re-runs to actual announcement / request changes.
+  const announcements = useAnnouncementStore(s => s.announcements);
+  const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
+  const markAnnouncementAsViewed = useAnnouncementStore(s => s.markAnnouncementAsViewed);
+  const requests = useRequestStore(s => s.requests);
 
   const [popups, setPopups] = useState<PopupItem[]>([]);
   const processedRef = useRef(false);
