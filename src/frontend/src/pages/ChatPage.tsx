@@ -672,7 +672,15 @@ function ChatView({
 
   const isStaff = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'super_admin' || user?.role === 'director' || user?.role === 'department_head';
   const isResident = user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner';
-  const isPrivateSupport = channel?.type === 'private_support';
+  // While `channel` is still loading the resident UI used to flash a generic
+  // non-support layout for ~1 frame (wrong avatar, wrong subtitle). For
+  // residents the only channel they ever see IS private_support, so treat
+  // unknown channel as private_support for them — eliminates the flicker.
+  // Staff wait for the real type because they have multiple channel types.
+  const channelLoaded = !!channel;
+  const isPrivateSupport = channelLoaded
+    ? channel.type === 'private_support'
+    : isResident;
 
   // Fetch messages
   const fetchMessages = useCallback(async () => {

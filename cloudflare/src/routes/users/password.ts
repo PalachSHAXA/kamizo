@@ -122,22 +122,14 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   });
 });
 
-// Emergency password reset (no auth, secret-guarded via env var). Used to recover super_admin access.
-// Secret is only set in production via `wrangler secret put EMERGENCY_RESET_SECRET`.
-// If unset, endpoint is disabled. Use `wrangler d1 execute` for direct DB recovery if disabled.
-route('POST', '/api/_emergency-reset', async (request, env) => {
-  if (!env.EMERGENCY_RESET_SECRET) {
-    return error('Emergency reset is disabled', 503);
-  }
-  const body = await request.json() as any;
-  if (body.secret !== env.EMERGENCY_RESET_SECRET) return error('Forbidden', 403);
-  if (!body.user_id || !body.password) return error('user_id and password required', 400);
-  const passwordHash = await hashPassword(body.password);
-  const encPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.password, env.ENCRYPTION_KEY) : null;
-  await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ?')
-    .bind(passwordHash, encPlain, body.user_id).run();
-  await invalidateOnChange('users', env.RATE_LIMITER);
-  return json({ success: true });
+// Emergency password reset removed. It was used once to recover super_admin
+// access in 2026-04; the route stayed gated by EMERGENCY_RESET_SECRET (unset
+// in prod → 503), but the safer move is to delete the code path entirely.
+// For future recovery use one of:
+//   - `wrangler d1 execute kamizo-db --remote --command "UPDATE users SET ..."`
+//   - super_admin → /api/super-admin/reset-password
+route('POST', '/api/_emergency-reset', async (_request, _env) => {
+  return error('Endpoint removed. Use wrangler d1 execute or super-admin reset.', 410);
 });
 
 } // end registerPasswordRoutes
