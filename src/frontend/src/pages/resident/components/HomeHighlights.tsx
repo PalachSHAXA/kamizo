@@ -278,7 +278,11 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
             <button
               key={card.id}
               onClick={() => {
-                if (i === activeIdx && Math.abs(cur.current) < 6) card.onClick();
+                // Audit P0: threshold was 6px which made gentle taps on mobile
+                // (the most common gesture) register as drags and swallow the
+                // click — users thought the carousel was broken. 30px lets a
+                // resting finger count as a tap but still rejects swipes.
+                if (i === activeIdx && Math.abs(cur.current) < 30) card.onClick();
               }}
               className="absolute text-left text-white"
               style={{

@@ -735,14 +735,20 @@ function ChatView({
     return () => { unsubscribe(); };
   }, [fetchMessages, channelId, markAsRead]);
 
-  // Polling fallback when WebSocket is disabled — fetch new messages every 10s
-  // Also re-mark as read so server stays in sync and unread badges don't flicker
+  // Polling fallback while WebSocket is disabled.
+  // Audit P0: was 10s — that's 6 req/min × N online residents → significant
+  // D1 load (600 req/min @ 100 online users). 30s halves the cost while
+  // keeping perceived "live chat" feel. markAsRead is only re-issued when
+  // the tab is visible to avoid sync churn for background tabs.
   useEffect(() => {
     if (!channelId || channelId === 'undefined') return;
-    const interval = setInterval(() => {
+    const POLL_MS = 30000;
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       fetchMessages();
       markAsRead();
-    }, 10000);
+    };
+    const interval = setInterval(tick, POLL_MS);
     return () => clearInterval(interval);
   }, [fetchMessages, channelId, markAsRead]);
 

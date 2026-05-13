@@ -502,6 +502,21 @@ export function ResidentVehiclesPage() {
       {/* Search Tab */}
       {activeTab === 'search' && (
         <div className="space-y-3 px-3 md:px-0">
+          {/* Audit P0: residents who tapped into search had no visible way back
+              to "Мой гараж". They had to clear the input or use the drawer.
+              Now: a dedicated "← К моим авто" pill above the search card. */}
+          <button
+            onClick={() => {
+              setActiveTab('my_vehicles');
+              setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
+              setManuallySelectedResult(null);
+              setApiSearchResults([]);
+            }}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-gray-200 text-[13px] font-semibold text-gray-700 active:bg-gray-50 transition-colors"
+          >
+            <span aria-hidden="true">←</span>
+            {language === 'ru' ? 'К моим авто' : 'Mening avtomobillarimga'}
+          </button>
           {/* Plate input + CTA card */}
           <div className="bg-white rounded-[18px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.05)] relative z-10 overflow-visible">
             <div className="flex flex-col items-center relative">

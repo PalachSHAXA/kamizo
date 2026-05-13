@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Users, Wrench, Car } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguageStore } from '../stores/languageStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useNotificationStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { useModalStore } from '../stores/modalStore';
@@ -24,7 +24,11 @@ export function BottomBar() {
   const location = useLocation();
   const { language } = useLanguageStore();
   const { user } = useAuthStore();
-  const { requests, getUnreadCount } = useDataStore();
+  // Audit P0: was `useDataStore()` (no selector) — that subscribes to ALL
+  // nine sub-stores, so a vehicle update on a different page would re-render
+  // the BottomBar on every screen. Pull from the focused stores directly.
+  const requests = useRequestStore(s => s.requests);
+  const getUnreadCount = useNotificationStore(s => s.getUnreadCount);
   const { hasFeature, config } = useTenantStore();
   const modalCount = useModalStore((s) => s.count);
   const barRef = useRef<HTMLDivElement>(null);

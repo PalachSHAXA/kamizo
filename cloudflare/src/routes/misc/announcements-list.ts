@@ -97,21 +97,33 @@ route('GET', '/api/announcements', async (request, env) => {
   const countQuery = `SELECT COUNT(*) as total FROM announcements ${whereClause}`;
   const { total } = await env.DB.prepare(countQuery).bind(...params).first() as any;
 
-  // Fetch paginated data with view counts
+  // Fetch paginated data with view counts.
+  // Audit P0: previous SELECT used two scalar sub-queries per row (view_count
+  // and author_name). For a 50-row page that was 100 extra SELECTs on D1.
+  // Rewrote as two LEFT JOINs — view_count comes from a GROUP BY sub-query
+  // on announcement_views (single pass), author_name from a direct JOIN
+  // on users. Same shape returned to callers, ~50× fewer round-trips.
   const offset = ((pagination.page || 1) - 1) * (pagination.limit || 50);
   const dataQuery = `
     SELECT a.*,
-      (SELECT COUNT(*) FROM announcement_views WHERE announcement_id = a.id ${tenantId ? 'AND tenant_id = ?' : ''}) as view_count,
-      (SELECT name FROM users WHERE id = a.created_by ${tenantId ? 'AND tenant_id = ?' : ''}) as author_name
+      COALESCE(v.cnt, 0) as view_count,
+      u.name as author_name
     FROM announcements a
+    LEFT JOIN (
+      SELECT announcement_id, COUNT(*) as cnt
+      FROM announcement_views
+      ${tenantId ? 'WHERE tenant_id = ?' : ''}
+      GROUP BY announcement_id
+    ) v ON v.announcement_id = a.id
+    LEFT JOIN users u ON u.id = a.created_by ${tenantId ? 'AND u.tenant_id = ?' : ''}
     ${whereClause}
     ORDER BY a.created_at DESC
     LIMIT ? OFFSET ?
   `;
 
-  const subqueryTenantIds = tenantId ? [tenantId, tenantId] : [];
-  // IMPORTANT: subquery ?s appear in SELECT (before WHERE), so they must be bound FIRST
-  const { results } = await env.DB.prepare(dataQuery).bind(...subqueryTenantIds, ...params, pagination.limit, offset).all();
+  const joinTenantIds = tenantId ? [tenantId, tenantId] : [];
+  // JOIN ?s appear in SELECT clause (before WHERE), so they bind first
+  const { results } = await env.DB.prepare(dataQuery).bind(...joinTenantIds, ...params, pagination.limit, offset).all();
 
   // For current user, check which announcements they've viewed
   const announcementIds = (results as any[]).map(a => a.id);
