@@ -50,6 +50,11 @@ route('POST', '/api/super-admin/banners', async (request, env) => {
 route('PATCH', '/api/super-admin/banners/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!isSuperAdmin(user)) return error('Access denied', 403);
+  // Audit P2: previously this route would silently succeed (UPDATE on
+  // non-existent id is a no-op in SQLite) and return null banner — easy
+  // to spam with random ids and pollute logs. Now explicit 404.
+  const existing = await env.DB.prepare('SELECT id FROM super_banners WHERE id = ?').bind(params.id).first();
+  if (!existing) return error('Banner not found', 404);
   const body = await request.json() as any;
   const updates: string[] = [];
   const values: any[] = [];

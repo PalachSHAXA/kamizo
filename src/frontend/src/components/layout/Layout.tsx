@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
-import { useDataStore } from '../../stores/dataStore';
+import { useAnnouncementStore, useNotificationStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { usePopupNotifications } from '../../hooks/usePopupNotifications';
 import { useWebSocketSync } from '../../hooks/useWebSocketSync';
@@ -167,7 +167,10 @@ export function Layout() {
   const { user, logout } = useAuthStore();
   const { language } = useLanguageStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { getUnreadCount, fetchAnnouncements } = useDataStore();
+  // Audit P0: was useDataStore() — subscribed to all 9 sub-stores so a
+  // vehicle or rental update re-rendered the entire layout. Now focused.
+  const getUnreadCount = useNotificationStore(s => s.getUnreadCount);
+  const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const unreadCount = user ? getUnreadCount(user.id) : 0;
 
   // Director onboarding wizard — go through the central overlay store so it

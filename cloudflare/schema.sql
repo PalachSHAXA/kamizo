@@ -1329,6 +1329,8 @@ CREATE INDEX IF NOT EXISTS idx_meeting_participated_meeting ON meeting_participa
 
 -- Composite indexes for common dashboard queries
 CREATE INDEX IF NOT EXISTS idx_requests_status_created ON requests(status, created_at DESC);
+-- Multi-tenant admin/manager list: WHERE tenant_id=? AND status=? ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS idx_requests_tenant_status_created ON requests(tenant_id, status, created_at DESC);
 -- FIXME: column missing
 -- CREATE INDEX IF NOT EXISTS idx_requests_building_status ON requests(building_id, status);
 CREATE INDEX IF NOT EXISTS idx_requests_resident_status ON requests(resident_id, status);

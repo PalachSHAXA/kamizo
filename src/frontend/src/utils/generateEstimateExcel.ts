@@ -1,34 +1,39 @@
-import ExcelJS from 'exceljs';
+// Audit P1: was `import ExcelJS from 'exceljs'` at top — pulled the entire
+// 916KB ExcelJS bundle into the main chunk on every page load, even for
+// residents who never export. Now lazy-imported inside generateEstimateExcel
+// so the bundle splits and the heavy code only loads when an admin actually
+// clicks Export. Types are imported as `type` (zero runtime cost).
 import { saveAs } from 'file-saver';
+import type { Fill, Borders, Font, Worksheet } from 'exceljs';
 
-const YELLOW_FILL: ExcelJS.Fill = {
+const YELLOW_FILL: Fill = {
   type: 'pattern',
   pattern: 'solid',
   fgColor: { argb: 'FFFFF3CD' },
 };
 
-const GRAY_FILL: ExcelJS.Fill = {
+const GRAY_FILL: Fill = {
   type: 'pattern',
   pattern: 'solid',
   fgColor: { argb: 'FFF0F0F0' },
 };
 
-const THIN_BORDER: Partial<ExcelJS.Borders> = {
+const THIN_BORDER: Partial<Borders> = {
   top: { style: 'thin' },
   left: { style: 'thin' },
   bottom: { style: 'thin' },
   right: { style: 'thin' },
 };
 
-const FONT_BODY: Partial<ExcelJS.Font> = { name: 'Times New Roman', size: 11 };
-const FONT_HEADER: Partial<ExcelJS.Font> = { name: 'Times New Roman', size: 12, bold: true };
-const FONT_TITLE: Partial<ExcelJS.Font> = { name: 'Times New Roman', size: 14, bold: true };
+const FONT_BODY: Partial<Font> = { name: 'Times New Roman', size: 11 };
+const FONT_HEADER: Partial<Font> = { name: 'Times New Roman', size: 12, bold: true };
+const FONT_TITLE: Partial<Font> = { name: 'Times New Roman', size: 14, bold: true };
 
 function fmt(value: unknown): number {
   return Number(value) || 0;
 }
 
-function formatNum(ws: ExcelJS.Worksheet, row: number, cols: number[]) {
+function formatNum(ws: Worksheet, row: number, cols: number[]) {
   cols.forEach((c) => {
     const cell = ws.getCell(row, c);
     cell.numFmt = '#,##0';
@@ -36,13 +41,13 @@ function formatNum(ws: ExcelJS.Worksheet, row: number, cols: number[]) {
   });
 }
 
-function applyBorderRow(ws: ExcelJS.Worksheet, row: number, from: number, to: number) {
+function applyBorderRow(ws: Worksheet, row: number, from: number, to: number) {
   for (let c = from; c <= to; c++) {
     ws.getCell(row, c).border = THIN_BORDER;
   }
 }
 
-function setBodyFont(ws: ExcelJS.Worksheet, row: number, from: number, to: number) {
+function setBodyFont(ws: Worksheet, row: number, from: number, to: number) {
   for (let c = from; c <= to; c++) {
     ws.getCell(row, c).font = { ...FONT_BODY };
   }
@@ -56,6 +61,9 @@ export async function generateEstimateExcel(
 ): Promise<void> {
   const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
 
+  // Lazy-load ExcelJS only when this exporter runs (admin export action).
+  // See header comment for context.
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
 
   // ─── Sheet 1: Смета ───
