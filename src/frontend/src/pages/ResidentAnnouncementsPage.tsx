@@ -2,14 +2,19 @@ import { useState, useEffect } from 'react';
 import { Megaphone, AlertTriangle, AlertCircle, Info, ChevronRight, Check, Download, FileText, File } from 'lucide-react';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { formatName } from '../utils/formatName';
 import type { Announcement, AnnouncementPriority } from '../types';
 
 export function ResidentAnnouncementsPage() {
   const { user } = useAuthStore();
-  const { getAnnouncementsForResidents, markAnnouncementAsViewed, fetchAnnouncements } = useDataStore();
+  // Audit P1: was useDataStore() — subscribed to all 9 sub-stores. Now
+  // reads only from useAnnouncementStore since that's the only domain
+  // this page touches.
+  const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
+  const markAnnouncementAsViewed = useAnnouncementStore(s => s.markAnnouncementAsViewed);
+  const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const { language } = useLanguageStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Start with 'all' so first-time users don't see an empty "Unread (0)" tab.

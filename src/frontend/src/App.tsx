@@ -2,7 +2,12 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useCRMStore } from './stores/crmStore';
-import { useDataStore } from './stores/dataStore';
+import {
+  useExecutorStore,
+  useRequestStore,
+  useVehicleStore,
+  useNotificationStore,
+} from './stores/dataStore';
 import { useTenantStore } from './stores/tenantStore';
 import { Layout } from './components/layout';
 import { LoginPage } from './pages/LoginPage';
@@ -68,7 +73,13 @@ const mixColor = (hex: string, mixWith: 'white' | 'black', percent: number) => {
 function App() {
   const { user } = useAuthStore();
   const { fetchBuildings } = useCRMStore();
-  const { fetchExecutors, fetchRequests, fetchVehicles } = useDataStore();
+  // Audit P0: was useDataStore() (full barrel) — top-level App was being
+  // re-rendered by every store change in the app. Focused selectors limit
+  // re-renders to actual changes in the fetched actions (which are stable
+  // refs so this hook effectively never re-renders App from this line).
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
+  const fetchVehicles = useVehicleStore(s => s.fetchVehicles);
   const { fetchConfig, config: tenantConfig } = useTenantStore();
 
   // Load tenant config on app start
@@ -105,7 +116,7 @@ function App() {
     }
   }, [tenantConfig]);
 
-  const { fetchNotificationsFromAPI } = useDataStore();
+  const fetchNotificationsFromAPI = useNotificationStore(s => s.fetchNotificationsFromAPI);
 
   // Load data from API when user logs in (super_admin only manages tenants, skip tenant data)
   useEffect(() => {

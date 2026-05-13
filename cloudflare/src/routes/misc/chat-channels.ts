@@ -86,7 +86,13 @@ route('GET', '/api/chat/channels', async (request, env) => {
       ORDER BY lm.created_at DESC NULLS LAST
       LIMIT 50
     `;
-    params = [user.id, user.id, user.id, user.building_id, user.id, ...(tenantId ? [tenantId] : [])];
+    // Audit P1: user.building_id can legitimately be undefined for fresh
+    // tenants/commercial_owners who haven't been linked to a building yet.
+    // Passing undefined to .bind() throws or matches the literal string
+    // 'undefined' in the query. Pass an empty string instead — no row
+    // has building_id = '', so the OR clause just degrades to ignoring
+    // that branch.
+    params = [user.id, user.id, user.id, user.building_id || '', user.id, ...(tenantId ? [tenantId] : [])];
   }
 
   const { results } = await env.DB.prepare(query).bind(...params).all();

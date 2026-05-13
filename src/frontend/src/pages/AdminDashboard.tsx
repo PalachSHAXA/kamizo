@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { EmptyState } from '../components/common';
 import { plural, pluralWithCount } from '../utils/plural';
 import { InstallAppBanner } from '../components/InstallAppSection';
@@ -104,16 +104,22 @@ export function AdminDashboard() {
   const [isLoadingPlatformAds, setIsLoadingPlatformAds] = useState(false);
   const [togglingAdId, setTogglingAdId] = useState<string | null>(null);
 
-  // Get pending approval requests that need attention
-  const pendingApprovalRequests = requests.filter(r => r.status === 'pending_approval');
-
-  // Get requests where resident hasn't approved for more than 24 hours
-  const staleApprovals = pendingApprovalRequests.filter(r => {
-    if (!r.completedAt) return false;
-    const completedTime = new Date(r.completedAt).getTime();
-    const hoursSinceCompletion = (Date.now() - completedTime) / (1000 * 60 * 60);
-    return hoursSinceCompletion > 24;
-  });
+  // Audit P1: these filters ran on every render — O(n) sweeps over `requests`
+  // even when nothing in the array changed (e.g. on tab switches, modal open,
+  // child re-renders). Memoized on `requests` so the array allocation +
+  // date-math only happens when the underlying data actually changes.
+  const pendingApprovalRequests = useMemo(
+    () => requests.filter(r => r.status === 'pending_approval'),
+    [requests]
+  );
+  const staleApprovals = useMemo(() => {
+    return pendingApprovalRequests.filter(r => {
+      if (!r.completedAt) return false;
+      const completedTime = new Date(r.completedAt).getTime();
+      const hoursSinceCompletion = (Date.now() - completedTime) / (1000 * 60 * 60);
+      return hoursSinceCompletion > 24;
+    });
+  }, [pendingApprovalRequests]);
 
   // Load marketplace report when tab changes or dates change
   useEffect(() => {
