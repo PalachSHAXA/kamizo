@@ -7,7 +7,7 @@ import {
 import { EmptyState, StatusBadge } from '../components/common';
 import type { StatusTone } from '../theme';
 import { useCRMStore } from '../stores/crmStore';
-import { useDataStore } from '../stores/dataStore';
+import { useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { workOrdersApi } from '../services/api';
 
@@ -118,7 +118,7 @@ function mapWorkOrder(raw: Record<string, unknown>): WorkOrder {
 export function WorkOrdersPage() {
   const { language } = useLanguageStore();
   const { buildings } = useCRMStore();
-  const { executors } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
 
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -577,7 +577,7 @@ function WorkOrderDetailModal({
 }) {
   const { language } = useLanguageStore();
   const { buildings, apartments } = useCRMStore();
-  const { executors } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
 
   const building = buildings.find(b => b.id === order.buildingId);
   const apartment = apartments.find(a => a.id === order.apartmentId);
@@ -791,7 +791,7 @@ function WorkOrderFormModal({
 }) {
   const { language } = useLanguageStore();
   const { buildings, apartments } = useCRMStore();
-  const { executors } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
 
   const [formData, setFormData] = useState({
     title: '',

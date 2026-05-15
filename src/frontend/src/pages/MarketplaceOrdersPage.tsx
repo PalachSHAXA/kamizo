@@ -5,7 +5,7 @@ import {
 import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
 import { useLanguageStore } from '../stores/languageStore';
-import { useDataStore } from '../stores/dataStore';
+import { useExecutorStore } from '../stores/dataStore';
 import { apiRequest } from '../services/api';
 
 // Types for API responses
@@ -67,7 +67,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function MarketplaceOrdersPage() {
   const { language } = useLanguageStore();
-  const { executors, fetchExecutors } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
 
   const [orders, setOrders] = useState<MarketplaceOrderAPI[]>([]);
   const [loading, setLoading] = useState(true);

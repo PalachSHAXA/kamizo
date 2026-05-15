@@ -1,6 +1,6 @@
 import { useState, useEffect, Component } from 'react';
 import { Star, Users, Award, TrendingUp, Heart, MessageCircle, Loader2, CheckCircle } from 'lucide-react';
-import { useDataStore } from '../stores/dataStore';
+import { useExecutorStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
@@ -718,7 +718,9 @@ export function ColleaguesSection() {
 
 function ColleaguesSectionInner() {
   const { language } = useLanguageStore();
-  const { executors, fetchExecutors, isLoadingExecutors } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
+  const isLoadingExecutors = useExecutorStore(s => s.isLoadingExecutors);
   const { user } = useAuthStore();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [ratedThisMonth, setRatedThisMonth] = useState<Set<string>>(new Set());

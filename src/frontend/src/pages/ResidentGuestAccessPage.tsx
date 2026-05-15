@@ -8,7 +8,7 @@ import { EmptyState, StatusBadge, ConfirmDialog } from '../components/common';
 import type { StatusTone } from '../theme';
 import { generateQRCodeCanvas } from '../components/LazyQRCode';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useGuestAccessStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { apiRequest } from '../services/api';
@@ -50,7 +50,7 @@ const safeStatusLabel = (s: unknown) => safeLabel(GUEST_ACCESS_STATUS_LABELS, s,
 function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => void }) {
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
-  const { guestAccessCodes } = useDataStore();
+  const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -524,7 +524,7 @@ function CreatePassForm({
   initialAccessType?: AccessType;
 }) {
   const { user } = useAuthStore();
-  const { createGuestAccessCode } = useDataStore();
+  const createGuestAccessCode = useGuestAccessStore(s => s.createGuestAccessCode);
   const { language } = useLanguageStore();
 
   // Quick-create tiles pre-fill both visitor and access type — skip wizard
@@ -973,7 +973,10 @@ function QuickCreateTiles({ onPick }: { onPick: (preset: QuickPreset) => void })
 // Main page component
 export function ResidentGuestAccessPage() {
   const { user } = useAuthStore();
-  const { guestAccessCodes, fetchGuestCodes, revokeGuestAccessCode, isLoadingGuestCodes } = useDataStore();
+  const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
+  const fetchGuestCodes = useGuestAccessStore(s => s.fetchGuestCodes);
+  const revokeGuestAccessCode = useGuestAccessStore(s => s.revokeGuestAccessCode);
+  const isLoadingGuestCodes = useGuestAccessStore(s => s.isLoadingGuestCodes);
   const { language } = useLanguageStore();
 
   const [showCreateForm, setShowCreateForm] = useState(false);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useExecutorStore, useAnnouncementStore } from '../stores/dataStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useToastStore } from '../stores/toastStore';
 import { pushNotifications } from '../services/pushNotifications';
@@ -55,7 +55,13 @@ export function useWebSocketSync() {
   const WEBSOCKET_ENABLED = false;
 
   const { user, token } = useAuthStore();
-  const { fetchRequests, fetchExecutors, fetchAnnouncements, fetchPendingReschedules } = useDataStore();
+  // Audit P0: was useDataStore() barrel. This hook lives on every page so a
+  // single sub-store change anywhere re-ran the sync effect. Focused
+  // selectors keep the deps stable and limit re-renders.
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
+  const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
+  const fetchPendingReschedules = useRequestStore(s => s.fetchPendingReschedules);
   const { fetchMeetings } = useMeetingStore();
 
   const wsRef = useRef<WebSocket | null>(null);

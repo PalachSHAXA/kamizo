@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { EmptyState, ConfirmDialog } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useGuestAccessStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import {
   VISITOR_TYPE_LABELS, GUEST_ACCESS_STATUS_LABELS,
@@ -18,7 +18,13 @@ const safeStatusLabel = (s: unknown) => safeLabel(GUEST_ACCESS_STATUS_LABELS, s,
 
 export function ManagerGuestAccessPage() {
   const { user } = useAuthStore();
-  const { getAllGuestAccessCodes, revokeGuestAccessCode, getGuestAccessStats, getGuestAccessLogs, fetchGuestCodes, isLoadingGuestCodes } = useDataStore();
+  // Audit P1: was useDataStore() barrel — page only touches guest access.
+  const getAllGuestAccessCodes = useGuestAccessStore(s => s.getAllGuestAccessCodes);
+  const revokeGuestAccessCode = useGuestAccessStore(s => s.revokeGuestAccessCode);
+  const getGuestAccessStats = useGuestAccessStore(s => s.getGuestAccessStats);
+  const getGuestAccessLogs = useGuestAccessStore(s => s.getGuestAccessLogs);
+  const fetchGuestCodes = useGuestAccessStore(s => s.fetchGuestCodes);
+  const isLoadingGuestCodes = useGuestAccessStore(s => s.isLoadingGuestCodes);
   const { language } = useLanguageStore();
 
   const [searchQuery, setSearchQuery] = useState('');
