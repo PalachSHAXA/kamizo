@@ -4,7 +4,7 @@ import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, generateId } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -33,12 +33,27 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
   // chat_message_reads. Rewrote as a single LEFT JOIN + GROUP BY m.id —
   // SQLite is fine grouping by a PK column and exposing the other m.*
   // fields as bare references.
+  //
+  // Sprint 11 privacy fix: read_by_str now only carries non-management reader
+  // IDs (the resident in a private_support thread). Management read-state is
+  // collapsed into the management_read boolean so the API never exposes which
+  // specific colleague opened a ticket.
   let query = `
     SELECT m.*, u.name as sender_name, u.role as sender_role,
-      GROUP_CONCAT(r.user_id) as read_by_str
+      GROUP_CONCAT(
+        CASE
+          WHEN ru.role NOT IN ('admin','director','manager','department_head','super_admin')
+          THEN r.user_id
+        END
+      ) as read_by_str,
+      MAX(CASE
+        WHEN ru.role IN ('admin','director','manager','department_head','super_admin')
+        THEN 1 ELSE 0
+      END) as management_read_int
     FROM chat_messages m
     JOIN users u ON m.sender_id = u.id
     LEFT JOIN chat_message_reads r ON r.message_id = m.id
+    LEFT JOIN users ru ON ru.id = r.user_id
     WHERE m.channel_id = ?`;
 
   const bindParams: any[] = [channelId];
@@ -57,45 +72,28 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
   // Reverse to get chronological order (newest last)
   const orderedMessages = (messages || []).reverse();
 
-  // Convert read_by_str to array
-  const messagesWithReadBy = orderedMessages.map((m: any) => ({
-    ...m,
-    read_by: m.read_by_str ? m.read_by_str.split(',') : []
-  }));
+  // Convert read_by_str to array. Strip out the helper columns so the
+  // client never sees the GROUP_CONCAT or MAX intermediate fields.
+  const messagesWithReadBy = orderedMessages.map((m: any) => {
+    const { read_by_str, management_read_int, ...rest } = m;
+    return {
+      ...rest,
+      read_by: read_by_str ? read_by_str.split(',') : [],
+      management_read: management_read_int === 1,
+    };
+  });
 
-  // Mark as read (exclude own messages)
-  // For management users: mark as read for ALL management users (shared read status)
-  if (isManagement(user)) {
-    // Tenant-guard the channel lookup — otherwise a manager of tenant A
-    // could pass a channel id from tenant B and mark its messages read
-    // under tenant A's management identities.
-    const channel = await env.DB.prepare(
-      `SELECT type FROM chat_channels WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-    ).bind(channelId, ...(tenantId ? [tenantId] : [])).first() as { type: string } | null;
-
-    if (channel?.type === 'private_support') {
-      await env.DB.prepare(`
-        INSERT OR IGNORE INTO chat_message_reads (message_id, user_id)
-        SELECT m.id, u.id
-        FROM chat_messages m
-        CROSS JOIN users u
-        WHERE m.channel_id = ?
-          AND u.role IN ('admin', 'director', 'manager', 'department_head')
-          ${tenantId ? 'AND u.tenant_id = ?' : ''}
-          AND m.sender_id NOT IN (SELECT id FROM users WHERE role IN ('admin', 'director', 'manager', 'department_head'))
-      `).bind(channelId, ...(tenantId ? [tenantId] : [])).run();
-    } else {
-      await env.DB.prepare(`
-        INSERT OR IGNORE INTO chat_message_reads (message_id, user_id)
-        SELECT id, ? FROM chat_messages WHERE channel_id = ? AND sender_id != ?
-      `).bind(user.id, channelId, user.id).run();
-    }
-  } else {
-    await env.DB.prepare(`
-      INSERT OR IGNORE INTO chat_message_reads (message_id, user_id)
-      SELECT id, ? FROM chat_messages WHERE channel_id = ? AND sender_id != ?
-    `).bind(user.id, channelId, user.id).run();
-  }
+  // Mark as read (exclude own messages). Sprint 11 privacy fix: every user
+  // now marks only their own read row. Previously, a manager opening a
+  // private_support thread would CROSS JOIN to mark all colleagues read,
+  // which (a) cleared every manager's notification badge at once and
+  // (b) leaked colleague activity timestamps into the API. The shared
+  // "team has seen it" UX for the resident is preserved via the new
+  // `management_read` aggregate field computed in the SELECT above.
+  await env.DB.prepare(`
+    INSERT OR IGNORE INTO chat_message_reads (message_id, user_id)
+    SELECT id, ? FROM chat_messages WHERE channel_id = ? AND sender_id != ?
+  `).bind(user.id, channelId, user.id).run();
 
   return json({ messages: messagesWithReadBy });
 });

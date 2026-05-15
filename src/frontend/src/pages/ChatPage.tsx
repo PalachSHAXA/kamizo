@@ -50,6 +50,10 @@ interface ChatMessage {
   content: string;
   created_at: string;
   read_by?: string[];
+  // Sprint 11: aggregate flag for private_support — true once any
+  // management user has opened the message. Used by the resident's
+  // double-tick indicator without exposing individual colleague IDs.
+  management_read?: boolean;
   status?: 'sending' | 'sent' | 'failed';
 }
 
@@ -713,14 +717,23 @@ function ChatView({
     fetchMessages();
     markAsRead();
 
-    const unsubscribe = subscribeToChatMessages((message: ChatMessage & { type?: string; message_id?: string; user_id?: string }) => {
+    const unsubscribe = subscribeToChatMessages((message: ChatMessage & { type?: string; message_id?: string; user_id?: string; user_role?: string }) => {
       if (message.channel_id === channelId) {
         if (message.type === 'read') {
-          setMessages(prev => prev.map(m =>
-            m.id === message.message_id
-              ? { ...m, read_by: [...(m.read_by || []), message.user_id ?? ''] }
-              : m
-          ));
+          // Sprint 11: hide colleague IDs from read_by entirely; only
+          // non-management readers (residents) get added by ID. For a
+          // management reader, flip the aggregated management_read flag
+          // so the resident's checkmark goes ✓✓ without leaking which
+          // specific manager opened it.
+          const readerRole = message.user_role || '';
+          const isMgmtReader = ['admin', 'director', 'manager', 'department_head', 'super_admin'].includes(readerRole);
+          setMessages(prev => prev.map(m => {
+            if (m.id !== message.message_id) return m;
+            if (isMgmtReader) {
+              return { ...m, management_read: true };
+            }
+            return { ...m, read_by: [...(m.read_by || []), message.user_id ?? ''] };
+          }));
           return;
         }
         setMessages(prev => {
@@ -1170,7 +1183,15 @@ function ChatView({
                             <Loader2 className="w-3 h-3 animate-spin" />
                           )}
                           {isOwn && message.status !== 'sending' && message.status !== 'failed' && (
-                            message.read_by && message.read_by.length > 0
+                            // Sprint 11: in a private_support thread sent by
+                            // a resident, the API never returns colleague IDs
+                            // — use the aggregated management_read flag for
+                            // the double-tick. All other cases keep the
+                            // direct read_by check (resident-read for a
+                            // manager's own message, group channels, etc).
+                            ((isResident && isPrivateSupport)
+                              ? message.management_read
+                              : (message.read_by && message.read_by.length > 0))
                               ? <CheckCheck className="w-3 h-3" />
                               : <Check className="w-3 h-3" />
                           )}
