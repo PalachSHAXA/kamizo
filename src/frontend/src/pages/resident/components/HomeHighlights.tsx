@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Wrench, QrCode, MessageCircle, Megaphone, FileText, Car, Phone, Star,
@@ -8,6 +8,7 @@ import { useAuthStore } from '../../../stores/authStore';
 import { useAnnouncementStore } from '../../../stores/announcementStore';
 import { useMeetingStore } from '../../../stores/meetingStore';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { useSwipeCarousel } from '../../../hooks/useSwipeCarousel';
 import type { Request } from '../../../types';
 
 /**
@@ -227,44 +228,21 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
     if (activeIdx >= cards.length) setActiveIdx(0);
   }, [cards.length, activeIdx]);
 
-  // Drag handling — touch + mouse for desktop testing
-  const startX = useRef(0);
-  const cur = useRef(0);
-  const [drag, setDrag] = useState(0);
-  const [dragging, setDragging] = useState(false);
-
-  const onStart = (e: React.TouchEvent | React.MouseEvent) => {
-    startX.current = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    setDragging(true);
-  };
-  const onMove = (e: React.TouchEvent | React.MouseEvent) => {
-    if (!dragging) return;
-    const x = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    cur.current = x - startX.current;
-    setDrag(cur.current);
-  };
-  const onEnd = () => {
-    setDragging(false);
-    if (Math.abs(cur.current) > 50) {
-      if (cur.current < 0 && activeIdx < cards.length - 1) setActiveIdx(activeIdx + 1);
-      else if (cur.current > 0 && activeIdx > 0) setActiveIdx(activeIdx - 1);
-    }
-    setDrag(0);
-    cur.current = 0;
-  };
+  // Sprint 5: gesture math factored out to useSwipeCarousel — same hook
+  // is used by NewsWidget and (next) ServiceBottomSheet so all three
+  // share threshold + drag-far behavior.
+  const { drag, dragging, handlers } = useSwipeCarousel({
+    count: cards.length,
+    activeIdx,
+    onChange: setActiveIdx,
+  });
 
   return (
     <div className="-mx-1 md:mx-0">{/* tiny negative margin so the 3D
         side-shoulders peek at the screen edge without padding cropping
         them — parent HomeTab already provides outer breathing room */}
       <div
-        onTouchStart={onStart}
-        onTouchMove={onMove}
-        onTouchEnd={onEnd}
-        onMouseDown={onStart}
-        onMouseMove={onMove}
-        onMouseUp={onEnd}
-        onMouseLeave={() => { if (dragging) onEnd(); }}
+        {...handlers}
         className="relative cursor-grab select-none home-highlights-carousel"
         style={{ height: 195, perspective: 800, marginBottom: 12 }}
       >

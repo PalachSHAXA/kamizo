@@ -1,10 +1,11 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Megaphone, Vote, AlertTriangle, ChevronRight } from 'lucide-react';
 import { useAnnouncementStore } from '../../../../stores/announcementStore';
 import { useMeetingStore } from '../../../../stores/meetingStore';
 import { useAuthStore } from '../../../../stores/authStore';
 import { useLanguageStore } from '../../../../stores/languageStore';
+import { useSwipeCarousel } from '../../../../hooks/useSwipeCarousel';
 
 /**
  * NewsWidget — Telegram-style swipeable stories of building news.
@@ -80,36 +81,17 @@ export function NewsWidget() {
   }, [announcements, meetings, user?.id, language, navigate]);
 
   const [idx, setIdx] = useState(0);
-  const startX = useRef(0);
-  const curX = useRef(0);
-  const draggedFar = useRef(false);
-  const [dragX, setDragX] = useState(0);
-  const [swiping, setSwiping] = useState(false);
-
-  const onStart = (e: React.TouchEvent | React.MouseEvent) => {
-    startX.current = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    draggedFar.current = false;
-    setSwiping(true);
-  };
-  const onMove = (e: React.TouchEvent | React.MouseEvent) => {
-    if (!swiping) return;
-    const x = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    curX.current = x - startX.current;
-    if (Math.abs(curX.current) > 8) draggedFar.current = true;
-    setDragX(curX.current);
-  };
-  const onEnd = () => {
-    setSwiping(false);
-    if (Math.abs(curX.current) > 50) {
-      if (curX.current < 0 && idx < items.length - 1) setIdx(idx + 1);
-      else if (curX.current > 0 && idx > 0) setIdx(idx - 1);
-    }
-    setDragX(0);
-    curX.current = 0;
-  };
+  // Sprint 5: moved to shared useSwipeCarousel — same hook as
+  // HomeHighlights. Local naming kept (dragX/swiping) so the rendering
+  // code below doesn't have to change.
+  const { drag: dragX, dragging: swiping, draggedFar, handlers } = useSwipeCarousel({
+    count: items.length,
+    activeIdx: idx,
+    onChange: setIdx,
+  });
 
   const onCardClick = () => {
-    if (draggedFar.current) return;
+    if (draggedFar()) return;
     items[idx]?.onClick();
   };
 
@@ -137,13 +119,7 @@ export function NewsWidget() {
       </div>
 
       <div
-        onTouchStart={onStart}
-        onTouchMove={onMove}
-        onTouchEnd={onEnd}
-        onMouseDown={onStart}
-        onMouseMove={onMove}
-        onMouseUp={onEnd}
-        onMouseLeave={() => { if (swiping) onEnd(); }}
+        {...handlers}
         className="px-[18px] pt-[14px] pb-4 cursor-grab select-none"
       >
         {/* Header */}
