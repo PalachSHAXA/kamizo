@@ -6,6 +6,11 @@ export default {
   ],
   theme: {
     extend: {
+      screens: {
+        // iPhone SE / Galaxy S10 baseline. Lets us use `xs:` for the
+        // ultra-narrow phone band (375-639px) without overriding sm/md/lg.
+        xs: '375px',
+      },
       colors: {
         primary: {
           50: 'var(--brand-50, #fff7ed)',

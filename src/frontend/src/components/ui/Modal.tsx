@@ -1,7 +1,8 @@
 import { useEffect, useRef, useId, type ReactNode, type MouseEvent } from 'react';
 import { X } from 'lucide-react';
+import { MODAL_SIZES, type ModalSize } from '../../theme/sizes';
 
-export type ModalSize = 'sm' | 'md' | 'lg' | 'full';
+export type { ModalSize };
 
 export interface ModalProps {
   /** Whether the modal is currently visible. */
@@ -22,12 +23,7 @@ export interface ModalProps {
   panelClassName?: string;
 }
 
-const SIZE_CLASS: Record<ModalSize, string> = {
-  sm: 'sm:max-w-sm',
-  md: 'sm:max-w-md',
-  lg: 'sm:max-w-2xl',
-  full: 'sm:max-w-5xl',
-};
+const SIZE_CLASS = MODAL_SIZES;
 
 const FOCUSABLE = [
   'a[href]',

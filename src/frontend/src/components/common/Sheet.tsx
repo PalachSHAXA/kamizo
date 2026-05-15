@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, Component } from 'react';
 import { X } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
-
-type SheetSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
+import { SHEET_SIZES, type SheetSize } from '../../theme/sizes';
 
 interface SheetProps {
   /** Visibility — parent-controlled */
@@ -28,13 +27,7 @@ interface SheetProps {
   showClose?: boolean;
 }
 
-const sizeClass: Record<SheetSize, string> = {
-  sm: 'sm:max-w-sm',
-  md: 'sm:max-w-md',
-  lg: 'sm:max-w-lg',
-  xl: 'sm:max-w-xl',
-  full: 'sm:max-w-4xl',
-};
+const sizeClass = SHEET_SIZES;
 
 /**
  * <Sheet> — primitive for overlays.
