@@ -33,20 +33,25 @@ route('POST', '/api/marketplace/admin/products', async (request, env) => {
   const id = generateId();
   const tenantId = getTenantId(request);
 
+  // Audit P0: previous INSERT listed min_order_quantity, max_order_quantity,
+  // weight, weight_unit, images, created_by — none of those columns exist
+  // in marketplace_products. On a fresh tenant this returned 500. Nothing
+  // on the frontend reads them either, so they're dropped. Add a migration
+  // first if/when the UI gains support for multi-image, weight-based
+  // delivery, or per-product order quantity bounds.
   await env.DB.prepare(`
     INSERT INTO marketplace_products (
       id, category_id, name_ru, name_uz, description_ru, description_uz,
-      price, old_price, unit, stock_quantity, min_order_quantity, max_order_quantity,
-      weight, weight_unit, image_url, images, is_active, is_featured, created_by, tenant_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      price, old_price, unit, stock_quantity,
+      image_url, is_active, is_featured, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, body.category_id, body.name_ru, body.name_uz || body.name_ru,
     body.description_ru || null, body.description_uz || null,
     body.price, body.old_price || null, body.unit || 'шт',
-    body.stock_quantity || 0, body.min_order_quantity || 1, body.max_order_quantity || null,
-    body.weight || null, body.weight_unit || 'кг',
-    body.image_url || null, body.images ? JSON.stringify(body.images) : null,
-    body.is_active !== false ? 1 : 0, body.is_featured ? 1 : 0, user.id, tenantId
+    body.stock_quantity || 0,
+    body.image_url || null,
+    body.is_active !== false ? 1 : 0, body.is_featured ? 1 : 0, tenantId
   ).run();
 
   const created = await env.DB.prepare(
@@ -64,15 +69,17 @@ route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, param
   const updates: string[] = [];
   const values: any[] = [];
 
+  // Same column-trim as the INSERT above — dropped min_order_quantity,
+  // max_order_quantity, weight, weight_unit, images. Re-add via migration
+  // when the UI starts using them.
   const fields = ['category_id', 'name_ru', 'name_uz', 'description_ru', 'description_uz', 'price', 'old_price',
-    'unit', 'stock_quantity', 'min_order_quantity', 'max_order_quantity', 'weight', 'weight_unit', 'image_url', 'is_featured'];
+    'unit', 'stock_quantity', 'image_url', 'is_featured'];
   for (const field of fields) {
     if (body[field] !== undefined) {
       updates.push(`${field} = ?`);
       values.push(field === 'is_featured' ? (body[field] ? 1 : 0) : body[field]);
     }
   }
-  if (body.images) { updates.push('images = ?'); values.push(JSON.stringify(body.images)); }
 
   const tenantId = getTenantId(request);
   if (updates.length > 0) {

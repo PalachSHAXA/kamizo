@@ -1713,6 +1713,25 @@ CREATE TABLE IF NOT EXISTS marketplace_favorites (
   UNIQUE(user_id, product_id)
 );
 
+-- Marketplace reviews (rating 1-5 with optional text, attached to a product
+-- and optionally to the order that the buyer rated).
+CREATE TABLE IF NOT EXISTS marketplace_reviews (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  order_id TEXT,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  text TEXT,
+  is_visible INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  tenant_id TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_marketplace_reviews_product ON marketplace_reviews(product_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_reviews_user ON marketplace_reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_reviews_tenant ON marketplace_reviews(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_reviews_visible_created
+  ON marketplace_reviews(is_visible, created_at DESC);
+
 -- Indexes for marketplace
 CREATE INDEX IF NOT EXISTS idx_marketplace_products_category ON marketplace_products(category_id);
 CREATE INDEX IF NOT EXISTS idx_marketplace_products_active ON marketplace_products(is_active);

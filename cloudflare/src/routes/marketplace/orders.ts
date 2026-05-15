@@ -206,7 +206,16 @@ route('GET', '/api/marketplace/orders/:id/items', async (request, env, params) =
     if (!order) return error('Order not found', 404);
   }
 
-  const { results: items } = await env.DB.prepare(`SELECT * FROM marketplace_order_items WHERE order_id = ?`).bind(params.id).all();
+  // Audit P0: bind items to the order's own tenant_id. The role/tenant
+  // access checks above 403/404 most cross-tenant reads, but if tenantId
+  // is unset (super_admin or main-domain context) the else-if check is
+  // skipped and a known order_id from any tenant would dump its items
+  // here. Defense-in-depth: scope items by the order's tenant.
+  const { results: items } = await env.DB.prepare(
+    `SELECT i.* FROM marketplace_order_items i
+     JOIN marketplace_orders o ON o.id = i.order_id
+     WHERE i.order_id = ? AND i.tenant_id = o.tenant_id`
+  ).bind(params.id).all();
   return json({ items });
 });
 
