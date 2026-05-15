@@ -11,6 +11,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useRequestStore, useAnnouncementStore, useExecutorStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
@@ -38,6 +39,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { meetings } = useMeetingStore();
   const { hasFeature, config } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';
+  const isMobile = useIsMobile();
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
   const [lockedFeatureKey, setLockedFeatureKey] = useState<string | null>(null);
   // Collapsible sidebar sections — persisted per session
@@ -555,8 +557,9 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const navItems = filterByFeatures(getNavItems());
 
   const handleNavClick = () => {
-    // Close sidebar on mobile after navigation
-    if (window.innerWidth < 768) {
+    // Close sidebar on mobile after navigation. Reactive useIsMobile keeps
+    // this correct if the user resizes / rotates between renders.
+    if (isMobile) {
       onClose();
     }
   };

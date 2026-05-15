@@ -1,2 +1,2 @@
-export * from './breakpoints';
+export * from './sizes';
 export * from './tokens';
