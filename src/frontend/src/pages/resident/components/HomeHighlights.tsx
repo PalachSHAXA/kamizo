@@ -265,7 +265,7 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
         onMouseMove={onMove}
         onMouseUp={onEnd}
         onMouseLeave={() => { if (dragging) onEnd(); }}
-        className="relative cursor-grab select-none"
+        className="relative cursor-grab select-none home-highlights-carousel"
         style={{ height: 195, perspective: 800, marginBottom: 12 }}
       >
         {cards.map((card, i) => {

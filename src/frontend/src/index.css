@@ -1087,6 +1087,18 @@ a.btn-secondary:active,
   padding-top: env(safe-area-inset-top, constant(safe-area-inset-top, 0));
 }
 
+/* Sprint 4: HomeHighlights 3D carousel is 195px tall by inline style.
+   On landscape phones (≤500px tall) that eats more than half the viewport
+   and pushes the active-requests block off-screen. Override height in the
+   landscape band so the carousel stays compact. The selector targets the
+   relative cursor-grab container HomeHighlights renders (single element
+   with that combination — no false positives in the codebase). */
+@media (orientation: landscape) and (max-height: 500px) {
+  .home-highlights-carousel {
+    height: 140px !important;
+  }
+}
+
 /* Sprint 2: horizontal safe-area helpers for landscape on notched devices
    (Dynamic Island, camera cutouts). Pair with the bottom/top helpers to
    reserve space along all four edges as needed. */

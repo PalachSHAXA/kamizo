@@ -118,11 +118,14 @@ export function Sheet({
       <div
         ref={sheetRef}
         onClick={(e) => e.stopPropagation()}
+        // Sprint 4: added `modal-landscape-tight` so landscape phones with
+        // max-height 600px get a 95dvh cap + reduced inner padding — was
+        // clipping the bottom of forms on iPhone landscape Safari.
         className={`
           relative w-full ${sizeClass[size]}
           bg-white shadow-2xl
           rounded-t-2xl sm:rounded-2xl
-          max-h-[92dvh] sm:max-h-[90dvh] flex flex-col
+          max-h-[92dvh] sm:max-h-[90dvh] flex flex-col modal-landscape-tight
           transition-transform duration-200 ease-out
           ${entered ? 'translate-y-0 sm:scale-100 sm:opacity-100' : 'translate-y-full sm:translate-y-0 sm:scale-95 sm:opacity-0'}
         `}
