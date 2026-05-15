@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useTenantStore } from '../stores/tenantStore';
@@ -30,10 +30,25 @@ import type { ActiveTab, RequestsSubTab } from './resident/components';
 export function ResidentDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const { requests, addRequest, approveRequest, rejectRequest, cancelRequest, createRescheduleRequest, respondToRescheduleRequest, getPendingRescheduleForUser, getActiveRescheduleForRequest, fetchRequests, fetchPendingReschedules, isLoadingRequests } = useDataStore();
+  // Audit P0: was 2× useDataStore() (full barrel) on the resident home —
+  // every cross-store update re-rendered the dashboard. Focused selectors
+  // below split the reads by domain.
+  const requests = useRequestStore(s => s.requests);
+  const addRequest = useRequestStore(s => s.addRequest);
+  const approveRequest = useRequestStore(s => s.approveRequest);
+  const rejectRequest = useRequestStore(s => s.rejectRequest);
+  const cancelRequest = useRequestStore(s => s.cancelRequest);
+  const createRescheduleRequest = useRequestStore(s => s.createRescheduleRequest);
+  const respondToRescheduleRequest = useRequestStore(s => s.respondToRescheduleRequest);
+  const getPendingRescheduleForUser = useRequestStore(s => s.getPendingRescheduleForUser);
+  const getActiveRescheduleForRequest = useRequestStore(s => s.getActiveRescheduleForRequest);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
+  const fetchPendingReschedules = useRequestStore(s => s.fetchPendingReschedules);
+  const isLoadingRequests = useRequestStore(s => s.isLoadingRequests);
   const { language } = useLanguageStore();
   const { meetings, fetchMeetings } = useMeetingStore();
-  const { getAnnouncementsForResidents, fetchAnnouncements } = useDataStore();
+  const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
+  const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
   const getApartmentBalance = useFinanceStore((s) => s.getApartmentBalance);
   const generateReconciliation = useFinanceStore((s) => s.generateReconciliation);

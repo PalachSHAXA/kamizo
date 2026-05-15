@@ -3,7 +3,7 @@ import {
   BarChart3, Star, CheckCircle, Timer, TrendingUp, Award, Target, FileText
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { executorsApi } from '../services/api';
 
@@ -18,7 +18,9 @@ interface LiveStats {
 
 export function ExecutorStatsPage() {
   const { user } = useAuthStore();
-  const { requests, executors, getExecutorStats } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const executors = useExecutorStore(s => s.executors);
+  const getExecutorStats = useRequestStore(s => s.getExecutorStats);
   const { language } = useLanguageStore();
 
   // Find current executor — check BOTH login and id (same pattern as ExecutorDashboard).

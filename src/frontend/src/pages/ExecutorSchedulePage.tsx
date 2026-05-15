@@ -7,14 +7,14 @@ import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
 import { pluralWithCount } from '../utils/plural';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { PRIORITY_LABELS, SPECIALIZATION_LABELS, STATUS_LABELS } from '../types';
 import type { Request } from '../types';
 
 export function ExecutorSchedulePage() {
   const { user } = useAuthStore();
-  const { requests } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
   const { language } = useLanguageStore();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);

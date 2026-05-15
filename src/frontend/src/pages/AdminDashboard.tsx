@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import type { User } from '../types/auth';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { SPECIALIZATION_LABELS } from '../types';
 import { apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
@@ -76,7 +76,9 @@ type TabType = 'overview' | 'marketplace' | 'platform_ads';
 
 export function AdminDashboard() {
   const { user } = useAuthStore();
-  const { requests, executors, getStats } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const executors = useExecutorStore(s => s.executors);
+  const getStats = useRequestStore(s => s.getStats);
   const { language } = useLanguageStore();
   const { hasFeature, config } = useTenantStore();
   const hasMarketplace = !config?.tenant || hasFeature('marketplace');

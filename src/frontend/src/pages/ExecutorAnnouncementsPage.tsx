@@ -2,13 +2,15 @@ import { useEffect } from 'react';
 import { Megaphone, AlertTriangle, AlertCircle, Info, Clock, Download, FileText, File } from 'lucide-react';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import type { Announcement, AnnouncementPriority } from '../types';
 
 export function ExecutorAnnouncementsPage() {
   const { user } = useAuthStore();
-  const { getAnnouncementsForEmployees, markAnnouncementAsViewed, fetchAnnouncements } = useDataStore();
+  const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
+  const markAnnouncementAsViewed = useAnnouncementStore(s => s.markAnnouncementAsViewed);
+  const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const { language } = useLanguageStore();
 
   // Fetch announcements on component mount

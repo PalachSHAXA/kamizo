@@ -4,7 +4,7 @@ import { EmptyState, StatusBadge } from '../components/common';
 import { plural } from '../utils/plural';
 import type { StatusTone } from '../theme';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { buildingsApi, uploadApi } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
@@ -13,7 +13,11 @@ import type { Announcement, AnnouncementType, AnnouncementPriority, Announcement
 export function AnnouncementsPage() {
   const { user } = useAuthStore();
   const addToast = useToastStore(s => s.addToast);
-  const { announcements, addAnnouncement, deleteAnnouncement, updateAnnouncement, fetchAnnouncements } = useDataStore();
+  const announcements = useAnnouncementStore(s => s.announcements);
+  const addAnnouncement = useAnnouncementStore(s => s.addAnnouncement);
+  const deleteAnnouncement = useAnnouncementStore(s => s.deleteAnnouncement);
+  const updateAnnouncement = useAnnouncementStore(s => s.updateAnnouncement);
+  const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const { t, language } = useLanguageStore();
 
   // Only admin, manager, director can create/edit announcements

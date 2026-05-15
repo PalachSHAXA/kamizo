@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Phone, Star, X, Eye, EyeOff, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw, Wrench } from 'lucide-react';
 import { EmptyState } from '../../components/common';
-import { useDataStore } from '../../stores/dataStore';
+import { useExecutorStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
@@ -12,7 +12,12 @@ export function ExecutorsPage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
-  const { executors, addExecutor, updateExecutor, deleteExecutor, fetchExecutors, isLoadingExecutors } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
+  const addExecutor = useExecutorStore(s => s.addExecutor);
+  const updateExecutor = useExecutorStore(s => s.updateExecutor);
+  const deleteExecutor = useExecutorStore(s => s.deleteExecutor);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
+  const isLoadingExecutors = useExecutorStore(s => s.isLoadingExecutors);
 
   // Check if user is department head - they can only see and manage their department's executors
   const isDepartmentHead = user?.role === 'department_head';

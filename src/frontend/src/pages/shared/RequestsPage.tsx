@@ -4,7 +4,7 @@ import { Search, MapPin, Plus, X, ChevronRight, User, Building2, GitBranch, Paus
 import { EmptyState, StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
 import { PageSkeleton } from '../../components/PageSkeleton';
-import { useDataStore } from '../../stores/dataStore';
+import { useRequestStore, useExecutorStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { SPECIALIZATION_LABELS, PAUSE_REASON_LABELS } from '../../types';
@@ -17,7 +17,14 @@ import type { ExecutorSpecialization, RequestPriority } from '../../types';
 export function RequestsPage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
-  const { requests, executors, assignRequest, addRequest, fetchRequests, fetchExecutors, isLoadingRequests, cancelRequest } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const executors = useExecutorStore(s => s.executors);
+  const assignRequest = useRequestStore(s => s.assignRequest);
+  const addRequest = useRequestStore(s => s.addRequest);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
+  const isLoadingRequests = useRequestStore(s => s.isLoadingRequests);
+  const cancelRequest = useRequestStore(s => s.cancelRequest);
   const [searchParams] = useSearchParams();
 
   const statusFilter = searchParams.get('status') || 'all';

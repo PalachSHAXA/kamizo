@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Download, Building2, Home, Users, Zap, AlertCircle,
   Percent, Timer, Award, CreditCard, Search, ChevronUp, ChevronDown, Loader2
 } from 'lucide-react';
-import { useDataStore } from '../../stores/dataStore';
+import { useRequestStore, useExecutorStore } from '../../stores/dataStore';
 import { pluralWithCount } from '../../utils/plural';
 import { useCRMStore } from '../../stores/crmStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -13,7 +13,8 @@ import { useLanguageStore } from '../../stores/languageStore';
 import { apiRequest } from '../../services/api/client';
 
 export function ReportsPage() {
-  const { requests, executors } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const executors = useExecutorStore(s => s.executors);
   const { buildings, residents } = useCRMStore();
   const { additionalUsers } = useAuthStore();
   const { language } = useLanguageStore();

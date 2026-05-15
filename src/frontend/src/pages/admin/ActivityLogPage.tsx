@@ -1,10 +1,10 @@
 import { FileText, User, CheckCircle, Clock, Star, Calendar, Download, List, Activity } from 'lucide-react';
 import { EmptyState } from '../../components/common';
-import { useDataStore } from '../../stores/dataStore';
+import { useRequestStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 
 export function ActivityLogPage() {
-  const { requests } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
   const { language } = useLanguageStore();
 
   // Generate activity log from requests

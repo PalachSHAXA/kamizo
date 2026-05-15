@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Activity, RefreshCw, ShoppingBag, Star } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useExecutorStore, useAnnouncementStore } from '../stores/dataStore';
 import { useCRMStore } from '../stores/crmStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -14,7 +14,11 @@ import type { TeamData, MarketplaceReport, TabType, CompanyStats, BuildingStat, 
 
 export function DirectorDashboard() {
   const { user } = useAuthStore();
-  const { requests, executors, announcements, fetchRequests, fetchExecutors } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const executors = useExecutorStore(s => s.executors);
+  const announcements = useAnnouncementStore(s => s.announcements);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
   const { buildings, residents, fetchBuildings } = useCRMStore();
   const { meetings, fetchMeetings } = useMeetingStore();
   const { language } = useLanguageStore();

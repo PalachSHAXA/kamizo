@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell
 } from '../../components/LazyCharts';
-import { useDataStore } from '../../stores/dataStore';
+import { useRequestStore, useExecutorStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import type { Request } from '../../types';
 
@@ -84,7 +84,9 @@ export function MonitoringPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'performance' | 'requests'>('overview');
 
-  const { requests, executors, getStats } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
+  const executors = useExecutorStore(s => s.executors);
+  const getStats = useRequestStore(s => s.getStats);
   const { language } = useLanguageStore();
   const stats = getStats();
 
