@@ -171,8 +171,8 @@ export function PaymentsPage() {
         <div className="bg-white/60 rounded-xl border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 text-left">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-100 text-left bg-white/95 backdrop-blur-sm">
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">{t('Дата', 'Sana')}</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">{t('Квартира', 'Kvartira')}</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase">{t('Сумма', 'Summa')}</th>

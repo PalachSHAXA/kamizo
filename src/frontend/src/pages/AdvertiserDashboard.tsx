@@ -397,7 +397,7 @@ export function AdvertiserDashboard() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4 xl:gap-5 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 xl:gap-5 mb-6">
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">

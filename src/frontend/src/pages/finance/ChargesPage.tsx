@@ -384,8 +384,8 @@ export default function ChargesPage() {
           </div>
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-100 bg-gray-50/95 backdrop-blur-sm">
                   <th className="text-left px-4 py-3 font-medium text-gray-500">
                     {t('Квартира', 'Xonadon')}
                   </th>

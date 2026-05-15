@@ -718,6 +718,15 @@ body {
   }
 }
 
+/* Sprint 1: extend the iOS-zoom guard up to 767px (iPad portrait). The
+   640px-cap block above doesn't cover that band, and Tailwind `text-sm`
+   (14px) on inputs at 700-760px still triggers Safari's auto-zoom. */
+@media (min-width: 641px) and (max-width: 767px) {
+  input, select, textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
 /* Mobile badges */
 @media (max-width: 640px) {
   .badge {

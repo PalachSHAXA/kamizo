@@ -248,7 +248,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
                       onChange={(e) => setTrashDate(e.target.value)}
                       min={getMinDate()}
                       max={getMaxDate()}
-                      className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-sm"
+                      className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
                       aria-label={language === 'ru' ? 'Дата вывоза мусора' : 'Chiqindi olib ketish sanasi'}
                       required
                     />
@@ -259,7 +259,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
                       id="trash-time"
                       value={trashTime}
                       onChange={(e) => setTrashTime(e.target.value)}
-                      className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-sm"
+                      className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
                       aria-label={language === 'ru' ? 'Время вывоза мусора' : 'Chiqindi olib ketish vaqti'}
                       required
                     >
@@ -300,7 +300,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-base"
                   placeholder={language === 'ru' ? 'Кратко опишите проблему' : 'Muammoni qisqacha tavsiflang'}
                   aria-label={language === 'ru' ? 'Заголовок заявки' : 'Ariza sarlavhasi'}
                   required
@@ -315,7 +315,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
                   id="request-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[90px] text-sm resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[90px] text-base resize-none"
                   placeholder={language === 'ru' ? 'Подробно опишите проблему' : 'Muammoni batafsil tavsiflang'}
                   aria-label={language === 'ru' ? 'Описание проблемы' : 'Muammo tavsifi'}
                   required
@@ -365,7 +365,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
                     onChange={(e) => setScheduledDate(e.target.value)}
                     min={getMinDate()}
                     max={getMaxDate()}
-                    className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-sm"
+                    className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
                   />
                 </div>
                 <div>
@@ -373,7 +373,7 @@ export function NewRequestModal({ category, user, onClose, onSubmit }: NewReques
                   <select
                     value={scheduledTime}
                     onChange={(e) => setScheduledTime(e.target.value)}
-                    className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-sm"
+                    className="w-full px-3 py-3 rounded-xl border border-gray-200 bg-white text-base"
                     disabled={!scheduledDate}
                   >
                     <option value="">{language === 'ru' ? 'Любое' : 'Istalgan'}</option>

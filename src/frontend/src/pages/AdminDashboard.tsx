@@ -595,7 +595,7 @@ export function AdminDashboard() {
           )}
 
           {/* Stats Cards - mobile optimized */}
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
             <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-orange-400 to-amber-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">

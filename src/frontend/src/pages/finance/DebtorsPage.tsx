@@ -217,8 +217,8 @@ export default function DebtorsPage() {
         <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50/50">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
                   <th className="px-4 py-3 text-left font-medium text-gray-500">#</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">{t('Квартира', 'Xonadon')}</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">{t('Комплекс', 'Kompleks')}</th>

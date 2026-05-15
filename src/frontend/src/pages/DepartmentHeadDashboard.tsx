@@ -106,7 +106,7 @@ export function DepartmentHeadDashboard() {
       {!isLoading && (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 xl:gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 xl:gap-5">
             <Link to="/requests" className="glass-card p-3 sm:p-4 md:p-5 xl:p-6 hover:scale-[1.02] active:scale-[0.98] transition-transform touch-manipulation rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-primary-500 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
@@ -165,7 +165,7 @@ export function DepartmentHeadDashboard() {
             {/* Status Distribution */}
             <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
               <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4">{language === 'ru' ? 'Распределение заявок' : 'Arizalar taqsimoti'}</h3>
-              <div className="h-[200px]">
+              <div className="h-[200px] overflow-visible">
                 {statusData.some(d => d.value > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -197,7 +197,7 @@ export function DepartmentHeadDashboard() {
             {/* Executor Performance */}
             <div className="glass-card p-3 sm:p-4 md:p-5 xl:p-6">
               <h3 className="font-bold text-base sm:text-lg md:text-xl xl:text-2xl mb-3 md:mb-4">{language === 'ru' ? 'Производительность сотрудников' : 'Xodimlar samaradorligi'}</h3>
-              <div className="h-[200px]">
+              <div className="h-[200px] overflow-visible">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={executorChartData}>
                     <CartesianGrid strokeDasharray="3 3" />

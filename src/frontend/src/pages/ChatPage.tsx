@@ -996,7 +996,9 @@ function ChatView({
               <MoreVertical className="w-5 h-5" />
             </button>
             {showInfo && (
-              <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-[14px] shadow-lg border border-gray-100 z-50 p-4">
+              // Sprint 1: w-64 (256px) overflows on iPhone SE 320px. Cap to
+              // viewport so the dropdown always fits regardless of device.
+              <div className="absolute right-0 top-full mt-1 w-[min(16rem,85vw)] bg-white rounded-[14px] shadow-lg border border-gray-100 z-50 p-4">
                 <div className="space-y-2.5">
                   <div>
                     <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{language === 'ru' ? 'Название' : 'Nomi'}</p>
@@ -1040,7 +1042,12 @@ function ChatView({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={language === 'ru' ? 'Поиск по сообщениям...' : 'Xabarlardan qidirish...'}
-              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-[10px] text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+              // Sprint 1: explicit 16px to dodge iOS zoom on iPad portrait
+              // (global rule only covers ≤640px). Focus ring opacity /30
+              // was nearly invisible on the gray-50 input bg; /60 is the
+              // minimum that reads as "focused" on a real device.
+              style={{ fontSize: '16px' }}
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400 transition-all"
               aria-label={language === 'ru' ? 'Поиск по сообщениям' : 'Xabarlardan qidirish'}
             />
           </div>
@@ -1290,7 +1297,7 @@ function ChatView({
         {/* Emoji picker */}
         {showEmojiPicker && (
           <div className="px-3 pt-2 pb-1">
-            <div className="flex flex-wrap gap-1 p-2 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="flex flex-wrap gap-1 p-2 bg-gray-50 rounded-xl border border-gray-200 max-h-48 overflow-y-auto">
               {QUICK_EMOJIS.map(emoji => (
                 <button
                   key={emoji}
@@ -1349,7 +1356,12 @@ function ChatView({
                 }
               }}
               placeholder={language === 'ru' ? 'Сообщение...' : 'Xabar...'}
-              className="w-full px-4 py-2.5 bg-gray-100 rounded-[20px] text-[14px] border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/60 focus:bg-white transition-all placeholder:text-gray-400"
+              // Sprint 1: text-[14px] zooms on iOS focus for any viewport
+              // wider than 640px (the global `font-size: max(16px, 1em)`
+              // override in index.css only kicks in for ≤640px). Force 16px
+              // inline so iPad portrait and any landscape phone don't zoom.
+              style={{ fontSize: '16px' }}
+              className="w-full px-4 py-2.5 bg-gray-100 rounded-[20px] border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400/60 focus:bg-white transition-all placeholder:text-gray-400"
               disabled={isSending}
               aria-label={language === 'ru' ? 'Написать сообщение' : 'Xabar yozing'}
             />
