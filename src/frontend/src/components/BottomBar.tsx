@@ -317,7 +317,7 @@ export function BottomBar() {
 
               {/* Icon */}
               {locked ? (
-                <Lock className="text-gray-300" style={{ width: '22px', height: '22px' }} strokeWidth={1.8} />
+                <Lock className="text-gray-500" style={{ width: '22px', height: '22px' }} strokeWidth={1.8} />
               ) : (
                 <Icon
                   className={`transition-colors duration-200 ${
@@ -332,7 +332,7 @@ export function BottomBar() {
               {/* Label */}
               <span
                 className={`leading-none transition-all duration-200 ${
-                  locked ? 'font-medium text-gray-300' : active ? 'font-bold text-primary-600' : 'font-medium text-gray-500'
+                  locked ? 'font-medium text-gray-500' : active ? 'font-bold text-primary-600' : 'font-medium text-gray-500'
                 }`}
                 style={{ fontSize: '10.5px' }}
               >
@@ -342,7 +342,7 @@ export function BottomBar() {
               {/* Badge */}
               {tab.badge > 0 && !locked && (
                 <span
-                  className="absolute top-1 z-20 min-w-[16px] h-[16px] bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center px-[3px] border-[1.5px] border-white shadow-sm"
+                  className="absolute top-0.5 z-20 min-w-[18px] h-[18px] bg-red-500 rounded-full text-[11px] font-bold text-white flex items-center justify-center px-[4px] border-[1.5px] border-white shadow-sm"
                   style={{ right: `calc(50% - 20px)` }}
                 >
                   {tab.badge > 9 ? '9+' : tab.badge}

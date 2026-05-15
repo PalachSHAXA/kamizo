@@ -82,17 +82,20 @@ export function NewsWidget() {
   const [idx, setIdx] = useState(0);
   const startX = useRef(0);
   const curX = useRef(0);
+  const draggedFar = useRef(false);
   const [dragX, setDragX] = useState(0);
   const [swiping, setSwiping] = useState(false);
 
   const onStart = (e: React.TouchEvent | React.MouseEvent) => {
     startX.current = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    draggedFar.current = false;
     setSwiping(true);
   };
   const onMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!swiping) return;
     const x = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
     curX.current = x - startX.current;
+    if (Math.abs(curX.current) > 8) draggedFar.current = true;
     setDragX(curX.current);
   };
   const onEnd = () => {
@@ -103,6 +106,11 @@ export function NewsWidget() {
     }
     setDragX(0);
     curX.current = 0;
+  };
+
+  const onCardClick = () => {
+    if (draggedFar.current) return;
+    items[idx]?.onClick();
   };
 
   if (items.length === 0) return null;
@@ -153,7 +161,7 @@ export function NewsWidget() {
 
         {/* Card content */}
         <button
-          onClick={item.onClick}
+          onClick={onCardClick}
           key={idx}
           className="w-full flex items-start gap-3 text-left animate-[fadeUp_0.3s_ease_both]"
           style={{

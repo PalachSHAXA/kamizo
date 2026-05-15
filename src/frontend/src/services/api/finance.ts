@@ -1,6 +1,10 @@
 // Finance API module
 
-import { apiRequest, cachedGet, CACHE_TTL } from './client';
+import { apiRequest, cachedGet, CACHE_TTL, invalidateCache } from './client';
+
+function invalidateFinance() {
+  invalidateCache('/api/finance/');
+}
 
 function buildQuery(filters?: Record<string, string | number | undefined>): string {
   if (!filters) return '';
@@ -20,27 +24,40 @@ export const financeApi = {
   getEstimate: (id: string) =>
     apiRequest<{ estimate: Record<string, unknown> }>(`/api/finance/estimates/${id}`),
 
-  createEstimate: (data: {
+  createEstimate: async (data: {
     building_id: string; period: string; title?: string;
     items: { name: string; category?: string; amount: number; description?: string }[];
     uk_profit_percent?: number; non_commercial_coefficient?: number; show_profit_to_residents?: number;
-  }) => apiRequest<{ estimate: Record<string, unknown> }>('/api/finance/estimates', {
-    method: 'POST', body: JSON.stringify(data),
-  }),
+  }) => {
+    const res = await apiRequest<{ estimate: Record<string, unknown> }>('/api/finance/estimates', {
+      method: 'POST', body: JSON.stringify(data),
+    });
+    invalidateFinance();
+    return res;
+  },
 
-  updateEstimate: (id: string, data: Record<string, unknown>) =>
-    apiRequest<{ success: boolean }>(`/api/finance/estimates/${id}`, {
+  updateEstimate: async (id: string, data: Record<string, unknown>) => {
+    const res = await apiRequest<{ success: boolean }>(`/api/finance/estimates/${id}`, {
       method: 'PUT', body: JSON.stringify(data),
-    }),
+    });
+    invalidateFinance();
+    return res;
+  },
 
-  activateEstimate: (id: string) =>
-    apiRequest<{ success: boolean }>(`/api/finance/estimates/${id}/activate`, { method: 'POST' }),
+  activateEstimate: async (id: string) => {
+    const res = await apiRequest<{ success: boolean }>(`/api/finance/estimates/${id}/activate`, { method: 'POST' });
+    invalidateFinance();
+    return res;
+  },
 
   // ── Charges ──────────────────────────────────
-  generateCharges: (estimateId: string) =>
-    apiRequest<{ success: boolean; generated: number; total_apartments: number }>(
+  generateCharges: async (estimateId: string) => {
+    const res = await apiRequest<{ success: boolean; generated: number; total_apartments: number }>(
       '/api/finance/charges/generate', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }
-    ),
+    );
+    invalidateFinance();
+    return res;
+  },
 
   getCharges: (filters?: { apartment_id?: string; period?: string; status?: string; building_id?: string; page?: number; limit?: number }) =>
     apiRequest<{ data: Record<string, unknown>[]; pagination: Record<string, unknown> }>(`/api/finance/charges${buildQuery(filters)}`),
@@ -52,11 +69,15 @@ export const financeApi = {
     ),
 
   // ── Payments ─────────────────────────────────
-  createPayment: (data: {
+  createPayment: async (data: {
     apartment_id: string; amount: number; payment_type?: string; receipt_number?: string; description?: string;
-  }) => apiRequest<{ payment: Record<string, unknown> }>('/api/finance/payments', {
-    method: 'POST', body: JSON.stringify(data),
-  }),
+  }) => {
+    const res = await apiRequest<{ payment: Record<string, unknown> }>('/api/finance/payments', {
+      method: 'POST', body: JSON.stringify(data),
+    });
+    invalidateFinance();
+    return res;
+  },
 
   getPayments: (filters?: { apartment_id?: string; period?: string; payment_type?: string; page?: number; limit?: number }) =>
     apiRequest<{ data: Record<string, unknown>[]; pagination: Record<string, unknown> }>(`/api/finance/payments${buildQuery(filters)}`),
@@ -69,11 +90,15 @@ export const financeApi = {
   getIncome: (filters?: { period?: string; category_id?: string }) =>
     apiRequest<{ income: Record<string, unknown>[] }>(`/api/finance/income${buildQuery(filters)}`),
 
-  createIncome: (data: {
+  createIncome: async (data: {
     category_id?: string; amount: number; period?: string; description?: string; source_type?: string;
-  }) => apiRequest<{ income: Record<string, unknown> }>('/api/finance/income', {
-    method: 'POST', body: JSON.stringify(data),
-  }),
+  }) => {
+    const res = await apiRequest<{ income: Record<string, unknown> }>('/api/finance/income', {
+      method: 'POST', body: JSON.stringify(data),
+    });
+    invalidateFinance();
+    return res;
+  },
 
   getIncomeCategories: () =>
     cachedGet<{ categories: Record<string, unknown>[] }>('/api/finance/income/categories', CACHE_TTL.MEDIUM),
