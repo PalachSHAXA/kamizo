@@ -114,16 +114,20 @@ export default function DebtorsPage() {
       {/* Header */}
       <h1 className="text-2xl font-bold text-gray-900">{t('Должники', 'Qarzdorlar')}</h1>
 
-      {/* Filter bar */}
+      {/* Filter bar — Sprint 3: was flex-wrap with min-w-[180px] on each
+          field, which forced horizontal overflow at 768-1024px instead of
+          wrapping. Switched to a responsive grid that fans out from 1 col
+          on phones to 4 on desktop. Apply button spans full row on mobile
+          for thumb reach. */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-end gap-3">
           {/* Building */}
-          <div className="flex flex-col gap-1 min-w-[180px]">
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">{t('Комплекс', 'Kompleks')}</label>
             <select
               value={filterBuilding}
               onChange={(e) => setFilterBuilding(e.target.value)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">{t('Все комплексы', 'Barcha komplekslar')}</option>
               {buildings.map((b) => (
@@ -135,7 +139,7 @@ export default function DebtorsPage() {
           </div>
 
           {/* Min debt */}
-          <div className="flex flex-col gap-1 min-w-[160px]">
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">{t('Мин. долг (сум)', "Min. qarz (so'm)")}</label>
             <input
               type="number"
@@ -143,12 +147,12 @@ export default function DebtorsPage() {
               value={filterMinDebt}
               onChange={(e) => setFilterMinDebt(e.target.value)}
               placeholder="0"
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           {/* Min months */}
-          <div className="flex flex-col gap-1 min-w-[160px]">
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">
               {t('Мин. месяцев просрочки', 'Min. kechikish oylari')}
             </label>
@@ -158,14 +162,14 @@ export default function DebtorsPage() {
               value={filterMinMonths}
               onChange={(e) => setFilterMinMonths(e.target.value)}
               placeholder="0"
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           {/* Apply */}
           <button
             onClick={handleApplyFilters}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors col-span-1 sm:col-span-2 lg:col-span-1"
           >
             <Filter className="h-4 w-4" />
             {t('Применить', 'Qo\'llash')}
@@ -215,7 +219,59 @@ export default function DebtorsPage() {
         />
       ) : (
         <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile (<md): card list. The 9-column table compresses to
+              illegible widths on a phone — show the same data stacked. */}
+          <ul className="md:hidden divide-y divide-gray-100">
+            {filtered.map((d, idx) => (
+              <li key={d.apartment_id} className={`p-4 ${d.months_overdue >= 3 ? 'bg-red-50' : ''}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-gray-400">#{idx + 1} · {d.building_name}</div>
+                    <div className="text-base font-semibold text-gray-900 mt-0.5">{t('Кв.', 'Kv.')} {d.apartment_number}</div>
+                    <div className="text-sm text-gray-700 mt-0.5 truncate">{d.owner_name}</div>
+                    {d.owner_phone && (
+                      <a href={`tel:${d.owner_phone}`} className="text-xs text-primary-600 mt-0.5 inline-block">{d.owner_phone}</a>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-base font-bold text-red-600">
+                      {(d.total_debt || 0).toLocaleString()}
+                    </div>
+                    <div className="text-[10px] text-gray-400 uppercase">{t('сум', "so'm")}</div>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium mt-1 ${
+                      d.months_overdue >= 3 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {d.months_overdue} {t('мес.', 'oy')}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                  <div className="text-xs text-gray-500">
+                    {t('Послед. оплата', "Oxirgi to'lov")}: {d.last_payment_date || '—'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleReconciliation(d)}
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 transition-colors"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>{t('Сверка', 'Solisht.')}</span>
+                    </button>
+                    <button
+                      onClick={() => handlePretension(d)}
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      <span>{t('Претензия', "Da'vo")}</span>
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* md+: original wide table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">

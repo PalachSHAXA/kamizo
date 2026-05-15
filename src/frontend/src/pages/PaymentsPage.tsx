@@ -169,7 +169,34 @@ export function PaymentsPage() {
         />
       ) : (
         <div className="bg-white/60 rounded-xl border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Sprint 3: mobile card list — 7-column table doesn't fit a phone. */}
+          <ul className="md:hidden divide-y divide-gray-100">
+            {(payments as unknown as Payment[]).map((p) => (
+              <li key={p.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs text-gray-400">{new Date(p.created_at).toLocaleDateString()}</div>
+                    <div className="text-base font-semibold text-gray-900 mt-0.5">
+                      {t('Кв.', 'Kv.')} {p.apartment_number || p.apartment_id}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">{typeLabel(p.payment_type)} · {p.period || '—'}</div>
+                    {p.description && (
+                      <div className="text-xs text-gray-500 mt-1 line-clamp-2">{p.description}</div>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className={`text-base font-bold ${p.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {p.amount >= 0 ? '+' : ''}{Number(p.amount).toLocaleString()}
+                    </div>
+                    <div className="text-[10px] text-gray-400 uppercase">{t('сум', "so'm")}</div>
+                    <div className="mt-1">{statusLabel(p.status || 'confirmed')}</div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-100 text-left bg-white/95 backdrop-blur-sm">
