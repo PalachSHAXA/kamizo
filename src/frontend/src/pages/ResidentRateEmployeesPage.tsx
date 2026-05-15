@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Star, Users, Check, ThumbsUp, Send, MessageCircle, User, Briefcase, ChevronRight, Building2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { ukRatingsApi } from '../services/api';
 import { apiRequest } from '../services/api/client';
@@ -48,7 +48,10 @@ const getExecutorRating = (executorId: string, residentId: string): EmployeeRati
 
 export function ResidentRateEmployeesPage() {
   const { user } = useAuthStore();
-  const { executors, requests, fetchExecutors, fetchRequests } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
+  const requests = useRequestStore(s => s.requests);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
   const { language } = useLanguageStore();
 
   const [selectedExecutor, setSelectedExecutor] = useState<Executor | null>(null);

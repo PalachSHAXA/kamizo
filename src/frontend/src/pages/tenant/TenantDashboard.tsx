@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Key, Calendar, ChevronLeft, ChevronRight, Users, Home, Banknote, TrendingUp, Clock, MapPin, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { useDataStore } from '../../stores/dataStore';
+import { useRentalStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { pluralWithCount } from '../../utils/plural';
 
@@ -10,7 +10,9 @@ const USD_TO_UZS_RATE = 12500;
 
 export function TenantDashboard() {
   const { user } = useAuthStore();
-  const { rentalApartments, rentalRecords, fetchMyRentals } = useDataStore();
+  const rentalApartments = useRentalStore(s => s.rentalApartments);
+  const rentalRecords = useRentalStore(s => s.rentalRecords);
+  const fetchMyRentals = useRentalStore(s => s.fetchMyRentals);
   const { language } = useLanguageStore();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);

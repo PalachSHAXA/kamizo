@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useDataStore } from '../../stores/dataStore';
+import { useSettingsStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useTenantStore } from '../../stores/tenantStore';
@@ -11,7 +11,8 @@ import { pushNotifications as pushService } from '../../services/pushNotificatio
 
 export function SettingsPage() {
   const navigate = useNavigate();
-  const { settings, updateSettings } = useDataStore();
+  const settings = useSettingsStore(s => s.settings);
+  const updateSettings = useSettingsStore(s => s.updateSettings);
   const { user, updateUserProfile } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
   const { hasFeature, fetchConfig } = useTenantStore();

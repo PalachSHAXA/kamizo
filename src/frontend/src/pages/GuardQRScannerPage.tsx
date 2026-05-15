@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useGuestAccessStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { guestCodesApi, apiRequest } from '../services/api';
 import { type GuestAccessCode } from '../types';
@@ -35,7 +35,9 @@ export function GuardQRScannerPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
-  const { validateGuestAccessCode, useGuestAccessCode: markGuestCodeUsed, guestAccessCodes } = useDataStore();
+  const validateGuestAccessCode = useGuestAccessStore(s => s.validateGuestAccessCode);
+  const markGuestCodeUsed = useGuestAccessStore(s => s.useGuestAccessCode);
+  const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
   const { language } = useLanguageStore();
 
   const [isScanning, setIsScanning] = useState(false);

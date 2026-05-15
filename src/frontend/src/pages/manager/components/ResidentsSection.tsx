@@ -1,12 +1,12 @@
 import { Phone, MapPin, Home } from 'lucide-react';
-import { useDataStore } from '../../../stores/dataStore';
+import { useRequestStore } from '../../../stores/dataStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { pluralWithCount } from '../../../utils/plural';
 import { formatName } from '../../../utils/formatName';
 
 // Residents Section - used in ResidentsPage
 export function ResidentsSection() {
-  const { requests } = useDataStore();
+  const requests = useRequestStore(s => s.requests);
   const { language } = useLanguageStore();
 
   // Get unique residents from requests

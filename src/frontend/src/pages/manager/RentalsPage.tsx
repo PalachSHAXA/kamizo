@@ -3,7 +3,7 @@ import { User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, Git
 import { EmptyState, StatusBadge } from '../../components/common';
 import { pluralWithCount } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
-import { useDataStore } from '../../stores/dataStore';
+import { useRentalStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { branchesApi, buildingsApi, usersApi, apiRequest } from '../../services/api';
 import { useToastStore } from '../../stores/toastStore';
@@ -31,7 +31,13 @@ interface Resident {
 
 export function RentalsPage() {
   const { user } = useAuthStore();
-  const { rentalApartments, rentalRecords, addRentalApartment, deleteRentalApartment, addRentalRecord, deleteRentalRecord, fetchRentals } = useDataStore();
+  const rentalApartments = useRentalStore(s => s.rentalApartments);
+  const rentalRecords = useRentalStore(s => s.rentalRecords);
+  const addRentalApartment = useRentalStore(s => s.addRentalApartment);
+  const deleteRentalApartment = useRentalStore(s => s.deleteRentalApartment);
+  const addRentalRecord = useRentalStore(s => s.addRentalRecord);
+  const deleteRentalRecord = useRentalStore(s => s.deleteRentalRecord);
+  const fetchRentals = useRentalStore(s => s.fetchRentals);
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const [isLoading, setIsLoading] = useState(true);

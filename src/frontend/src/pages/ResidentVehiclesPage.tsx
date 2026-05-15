@@ -4,7 +4,7 @@ import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Bui
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore, useVehicleStore } from '../stores/dataStore';
+import { useVehicleStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
@@ -57,7 +57,11 @@ function timeAgo(ts: number, lang: 'ru' | 'uz'): string {
 
 export function ResidentVehiclesPage() {
   const { user } = useAuthStore();
-  const { addVehicle, updateVehicle, deleteVehicle, fetchVehicles, searchVehiclesByPlate } = useDataStore();
+  const addVehicle = useVehicleStore(s => s.addVehicle);
+  const updateVehicle = useVehicleStore(s => s.updateVehicle);
+  const deleteVehicle = useVehicleStore(s => s.deleteVehicle);
+  const fetchVehicles = useVehicleStore(s => s.fetchVehicles);
+  const searchVehiclesByPlate = useVehicleStore(s => s.searchVehiclesByPlate);
   const { language } = useLanguageStore();
   const [searchParams] = useSearchParams();
 

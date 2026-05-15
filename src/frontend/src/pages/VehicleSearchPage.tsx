@@ -3,7 +3,7 @@ import { Search, Car, User, Phone, MapPin, Home, Calendar, Info, AlertCircle, Pl
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
-import { useDataStore } from '../stores/dataStore';
+import { useVehicleStore, useGuestAccessStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { apiRequest, usersApi } from '../services/api';
@@ -25,7 +25,13 @@ interface GuestVehicleResult {
 }
 
 export function VehicleSearchPage() {
-  const { vehicles, addVehicle, updateVehicle, deleteVehicle, fetchVehicles, guestAccessCodes, fetchGuestCodes } = useDataStore();
+  const vehicles = useVehicleStore(s => s.vehicles);
+  const addVehicle = useVehicleStore(s => s.addVehicle);
+  const updateVehicle = useVehicleStore(s => s.updateVehicle);
+  const deleteVehicle = useVehicleStore(s => s.deleteVehicle);
+  const fetchVehicles = useVehicleStore(s => s.fetchVehicles);
+  const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
+  const fetchGuestCodes = useGuestAccessStore(s => s.fetchGuestCodes);
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
 

@@ -13,18 +13,19 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useDataStore } from '../stores/dataStore';
+import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../types';
 import type { ExecutorSpecialization } from '../types';
 
 export function DepartmentHeadDashboard() {
   const { user } = useAuthStore();
-  const {
-    executors, requests,
-    fetchRequests, fetchExecutors,
-    isLoadingRequests, isLoadingExecutors
-  } = useDataStore();
+  const executors = useExecutorStore(s => s.executors);
+  const requests = useRequestStore(s => s.requests);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
+  const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
+  const isLoadingRequests = useRequestStore(s => s.isLoadingRequests);
+  const isLoadingExecutors = useExecutorStore(s => s.isLoadingExecutors);
   const { language } = useLanguageStore();
 
   // Fetch data on mount
