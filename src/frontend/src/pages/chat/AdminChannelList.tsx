@@ -377,26 +377,27 @@ export function AdminChannelList({
               <button
                 key={channel.id}
                 onClick={() => onSelectChannel(channel.id)}
-                className={`w-full px-4 py-3 flex items-start gap-3 text-left transition-all ${
+                className={`w-full px-4 py-3.5 flex items-start gap-3 text-left transition-all ${
                   isSelected
                     ? 'bg-orange-50 border-r-2 border-orange-500'
                     : hasUnread
-                    ? 'bg-orange-50/40 hover:bg-orange-50/60'
+                    ? 'bg-orange-50/30 hover:bg-orange-50/50'
                     : 'hover:bg-gray-50'
                 }`}
               >
-                {/* Avatar */}
-                <div className="relative flex-shrink-0 mt-0.5">
+                {/* Avatar — rounded-full, 44 on md+ / 40 on mobile to read
+                    as a "contact" avatar instead of a tile. */}
+                <div className="relative flex-shrink-0">
                   <div
-                    className={`w-10 h-10 rounded-[13px] bg-gradient-to-br ${getAvatarColor(
+                    className={`w-10 h-10 md:w-11 md:h-11 rounded-full bg-gradient-to-br ${getAvatarColor(
                       channel.name,
                     )} flex items-center justify-center text-white font-semibold text-sm shadow-sm`}
                   >
                     {getInitials(channel.name)}
                   </div>
                   {hasUnread && (
-                    <div className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] bg-orange-500 rounded-full flex items-center justify-center shadow-sm">
-                      <span className="text-xs text-white font-bold px-1">
+                    <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-orange-500 rounded-full flex items-center justify-center shadow-sm ring-2 ring-white">
+                      <span className="text-[10px] text-white font-bold px-1">
                         {channel.unread_count! > 99 ? '99+' : channel.unread_count}
                       </span>
                     </div>
@@ -407,8 +408,8 @@ export function AdminChannelList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`text-sm truncate ${
-                        hasUnread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'
+                      className={`text-[14px] truncate ${
+                        hasUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'
                       }`}
                       title={channel.name}
                     >
@@ -416,8 +417,8 @@ export function AdminChannelList({
                     </span>
                     {channel.last_message_at && (
                       <span
-                        className={`text-xs flex-shrink-0 ${
-                          hasUnread ? 'text-orange-500 font-semibold' : 'text-gray-400'
+                        className={`text-[11px] flex-shrink-0 ${
+                          hasUnread ? 'text-orange-600 font-semibold' : 'text-gray-400'
                         }`}
                       >
                         {formatRelativeTime(channel.last_message_at, language)}
@@ -425,20 +426,29 @@ export function AdminChannelList({
                     )}
                   </div>
 
+                  {/* Last message preview — 2 lines max, gives the manager
+                      enough context to know whether the thread needs a
+                      reply without opening it. */}
+                  {hasMessages && (
+                    <p
+                      className={`text-[12.5px] mt-1 leading-snug ${
+                        hasUnread ? 'text-gray-700 font-medium' : 'text-gray-500'
+                      }`}
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {preview}
+                    </p>
+                  )}
+
                   {(channel.resident_branch_name ||
                     channel.resident_building_name ||
                     channel.resident_apartment) && (
                     <LocationBadges channel={channel} language={language} branchIndex={branchIdx} />
-                  )}
-
-                  {hasMessages && (
-                    <p
-                      className={`text-xs truncate mt-1 ${
-                        hasUnread ? 'text-gray-700 font-medium' : 'text-gray-500'
-                      }`}
-                    >
-                      {preview}
-                    </p>
                   )}
                 </div>
               </button>
