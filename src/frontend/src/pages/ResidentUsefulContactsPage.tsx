@@ -367,7 +367,7 @@ export default function ResidentUsefulContactsPage() {
                 className="flex items-center justify-center gap-3 w-full py-4 bg-green-500 hover:bg-green-600 rounded-2xl text-white font-semibold text-lg transition-colors shadow-lg shadow-green-200"
               >
                 <Phone className="w-6 h-6" />
-                <span>Позвонить: {selectedAd.phone}</span>
+                <span>{language === 'ru' ? 'Позвонить' : "Qo'ng'iroq qilish"}: {selectedAd.phone}</span>
               </a>
             </div>
           </div>

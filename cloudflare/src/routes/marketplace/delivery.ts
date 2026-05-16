@@ -6,6 +6,31 @@ import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../../index';
 
+// Sprint 10: N+1 killer. Each of the three executor list routes used to
+// loop the orders and run one SELECT per order to attach items — for a
+// busy courier that's 500 round-trips. Now do one IN clause and group
+// in JS. Order rows preserve their position because the input is the
+// pre-sorted results array.
+async function attachItems<T extends { id: string }>(
+  db: D1Database,
+  orders: T[],
+): Promise<(T & { items: unknown[] })[]> {
+  if (orders.length === 0) return [];
+  const ids = orders.map(o => o.id);
+  const placeholders = ids.map(() => '?').join(',');
+  const { results } = await db.prepare(`
+    SELECT id, order_id, product_id, product_name, product_image, quantity, unit_price, total_price
+    FROM marketplace_order_items WHERE order_id IN (${placeholders})
+  `).bind(...ids).all<{ order_id: string } & Record<string, unknown>>();
+  const byOrder = new Map<string, unknown[]>();
+  for (const it of (results || [])) {
+    const arr = byOrder.get(it.order_id) || [];
+    arr.push(it);
+    byOrder.set(it.order_id, arr);
+  }
+  return orders.map(o => ({ ...o, items: byOrder.get(o.id) || [] }));
+}
+
 export function registerDeliveryRoutes() {
 
 route('GET', '/api/marketplace/executor/orders', async (request, env) => {
@@ -24,13 +49,7 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
       o.created_at DESC LIMIT 500
   `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
 
-  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
-    const { results: items } = await env.DB.prepare(`
-      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
-      FROM marketplace_order_items WHERE order_id = ?
-    `).bind(order.id).all();
-    return { ...order, items: items || [] };
-  }));
+  const ordersWithItems = await attachItems(env.DB, (results || []) as { id: string }[]);
 
   return json({ orders: ordersWithItems });
 });
@@ -52,13 +71,7 @@ route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
     ORDER BY o.delivered_at DESC, o.updated_at DESC LIMIT 500
   `).bind(user.id, ...(tenantId ? [tenantId] : [])).all();
 
-  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
-    const { results: items } = await env.DB.prepare(`
-      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
-      FROM marketplace_order_items WHERE order_id = ?
-    `).bind(order.id).all();
-    return { ...order, items: items || [] };
-  }));
+  const ordersWithItems = await attachItems(env.DB, (results || []) as { id: string }[]);
 
   return json({ orders: ordersWithItems });
 });
@@ -80,13 +93,7 @@ route('GET', '/api/marketplace/executor/available', async (request, env) => {
     ORDER BY o.created_at ASC LIMIT 500
   `).bind(...(tenantId ? [tenantId] : [])).all();
 
-  const ordersWithItems = await Promise.all((results || []).map(async (order: any) => {
-    const { results: items } = await env.DB.prepare(`
-      SELECT id, product_id, product_name, product_image, quantity, unit_price, total_price
-      FROM marketplace_order_items WHERE order_id = ?
-    `).bind(order.id).all();
-    return { ...order, items: items || [] };
-  }));
+  const ordersWithItems = await attachItems(env.DB, (results || []) as { id: string }[]);
 
   return json({ orders: ordersWithItems });
 });
