@@ -607,10 +607,14 @@ body {
   }
 }
 
-/* Chat container — desktop override (no bottom bar, different header height) */
+/* Chat container — desktop override (no bottom bar, different header height).
+   Sprint A (post-rebuild): the previous magic-number `100dvh - 140px` left
+   ~80px of empty space below the composer because 140px did not match the
+   actual mobile-header-h + safe-area-inset-bottom that the admin view
+   already computes. Now both branches use the same formula. */
 @media (min-width: 769px) {
   .resident-chat-container {
-    height: calc(100dvh - 140px);
+    height: calc(100dvh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px));
   }
 }
 
