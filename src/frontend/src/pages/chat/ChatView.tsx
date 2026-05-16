@@ -396,31 +396,45 @@ export function ChatView({
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
 
-          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="relative flex-shrink-0">
-              <div className={`w-10 h-10 rounded-[13px] flex items-center justify-center ${
-                isPrivateSupport
-                  ? `bg-gradient-to-br ${getAvatarColor(channel?.name || '')} text-white font-bold text-[12px]`
-                  : channel?.type === 'uk_general' ? 'bg-purple-100 text-lg' : 'bg-emerald-100 text-lg'
-              }`}>
+              {/* Avatar. Resident's УК avatar is forced to the brand gradient
+                  so it doesn't get a random color from the hashed name.
+                  Admin/manager view gets a name-hashed avatar so each
+                  resident has their own consistent color. Group channels
+                  fall back to emoji tiles. */}
+              <div
+                className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold text-[13px] shadow-sm ${
+                  isPrivateSupport && isResident
+                    ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B]'
+                    : isPrivateSupport
+                    ? `bg-gradient-to-br ${getAvatarColor(channel?.name || '')}`
+                    : channel?.type === 'uk_general'
+                    ? 'bg-gradient-to-br from-purple-400 to-purple-600 text-xl'
+                    : 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-xl'
+                }`}
+              >
                 {isPrivateSupport
                   ? (isResident ? 'УК' : getInitials(channel?.name || ''))
-                  : (channel?.type === 'uk_general' ? '🏢' : '🏠')}
+                  : channel?.type === 'uk_general' ? '🏢' : '🏠'}
               </div>
               {/* Online indicator — green dot on the avatar when УК is online.
-                  For residents we assume УК is always online during business
-                  hours; management-facing views don't show this. */}
+                  Residents always see it (assume УК online); admin doesn't. */}
               {isPrivateSupport && isResident && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#10B981] border-2 border-white" />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-[15px] font-bold text-gray-900 truncate leading-tight">{getTitle()}</h3>
-              <p className={`text-[11px] truncate leading-tight mt-0.5 font-medium ${
-                isPrivateSupport && isResident ? 'text-[#10B981]' : 'text-gray-500'
-              }`}>
+              <h3 className="text-[16px] font-bold text-gray-900 truncate leading-tight">{getTitle()}</h3>
+              <p
+                className={`text-[12px] truncate leading-tight mt-0.5 ${
+                  isPrivateSupport && isResident
+                    ? 'text-[#10B981] font-medium'
+                    : 'text-gray-500'
+                }`}
+              >
                 {isPrivateSupport && isResident
-                  ? (language === 'ru' ? 'Онлайн' : 'Onlayn')
+                  ? (language === 'ru' ? 'на связи' : 'aloqada')
                   : getSubtitle()}
               </p>
             </div>
