@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import {
-  Send, ArrowLeft, Building2, Home,
-  Search, Check, CheckCheck,
+  ArrowLeft, Building2, Home,
+  Search,
   Loader2, AlertCircle,
   MessageCircle, MessageSquare,
   ChevronDown,
@@ -9,11 +9,10 @@ import {
   ChevronUp,
   X,
   MapPin,
-  Smile,
-  Paperclip
 } from 'lucide-react';
 import { EmptyState, MessageContent } from '../components/common';
 import { MessageBubble } from './chat/MessageBubble';
+import { ChatComposer } from './chat/ChatComposer';
 import { plural } from '../utils/plural';
 import { formatName } from '../utils/formatName';
 import { useNavigate } from 'react-router-dom';
@@ -668,8 +667,6 @@ function ChatView({
   // Info panel state
   const [showInfo, setShowInfo] = useState(false);
 
-  const QUICK_EMOJIS = ['😊','😂','❤️','👍','👎','🙏','😍','😭','🎉','🔥','✅','⚠️','😮','🤔','💪','👋','🏠','🔧','📋','📞'];
-
   const insertEmoji = (emoji: string) => {
     setNewMessage(prev => prev + emoji);
     setShowEmojiPicker(false);
@@ -1204,144 +1201,25 @@ function ChatView({
         </div>
       )}
 
-      {/* ── Input ──
-            Sticky composer at the bottom of the chat. Soft shadow on top
-            (instead of a hairline border) makes the divider read at a
-            glance — previously the line was so thin on mobile that the
-            input looked like it was floating in mid-screen. */}
-      <div
-        className="bg-white flex-shrink-0"
-        style={{
-          paddingBottom: keyboardOffset > 0 ? '0px' : 'max(12px, env(safe-area-inset-bottom, 12px))',
-          boxShadow: '0 -2px 12px rgba(0,0,0,0.04), 0 -1px 0 rgba(0,0,0,0.04)',
-        }}
-      >
-        {/* Attached file preview — dismissible chip above the input so the
-            user sees what they are about to send and can remove it before
-            tapping send. */}
-        {attachedFile && (
-          <div className="px-3 pt-2">
-            <div className="flex items-center gap-2.5 p-2 bg-orange-50 border border-orange-100 rounded-[14px]">
-              {attachedFile.dataUrl ? (
-                <img
-                  src={attachedFile.dataUrl}
-                  alt={attachedFile.name}
-                  className="w-10 h-10 rounded-[10px] object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-[10px] bg-white flex items-center justify-center flex-shrink-0 border border-orange-100">
-                  <Paperclip className="w-4 h-4 text-orange-500" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-semibold text-gray-900 truncate">{attachedFile.name}</div>
-                <div className="text-[11px] text-gray-500">{formatFileSize(attachedFile.size)}</div>
-              </div>
-              <button
-                onClick={() => setAttachedFile(null)}
-                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors touch-manipulation"
-                aria-label={language === 'ru' ? 'Убрать файл' : 'Faylni olib tashlash'}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Emoji picker */}
-        {showEmojiPicker && (
-          <div className="px-3 pt-2 pb-1">
-            <div className="flex flex-wrap gap-1 p-2 bg-gray-50 rounded-xl border border-gray-200 max-h-48 overflow-y-auto">
-              {QUICK_EMOJIS.map(emoji => (
-                <button
-                  key={emoji}
-                  onClick={() => insertEmoji(emoji)}
-                  className="w-9 h-9 flex items-center justify-center text-xl hover:bg-gray-200 rounded-lg transition-colors active:scale-95"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-end gap-2 px-3 py-2">
-          <button
-            onClick={() => setShowEmojiPicker(p => !p)}
-            className={`w-10 h-10 flex items-center justify-center rounded-[13px] transition-colors flex-shrink-0 touch-manipulation ${
-              showEmojiPicker ? 'bg-orange-100 text-orange-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-            }`}
-            aria-label={language === 'ru' ? 'Эмодзи' : 'Emoji'}
-            aria-pressed={showEmojiPicker}
-          >
-            <Smile className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-10 h-10 flex items-center justify-center rounded-[13px] text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0 touch-manipulation"
-            aria-label={language === 'ru' ? 'Прикрепить файл' : 'Fayl biriktirish'}
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,application/pdf,.doc,.docx"
-            className="hidden"
-            aria-label={language === 'ru' ? 'Прикрепить файл' : 'Fayl biriktirish'}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFilePick(file);
-              e.target.value = '';
-            }}
-          />
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onCompositionStart={() => setIsComposing(true)}
-              onCompositionEnd={() => setIsComposing(false)}
-              onKeyDown={(e) => {
-                if (isComposing) return;
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder={language === 'ru' ? 'Сообщение...' : 'Xabar...'}
-              // Sprint 1: text-[14px] zooms on iOS focus for any viewport
-              // wider than 640px (the global `font-size: max(16px, 1em)`
-              // override in index.css only kicks in for ≤640px). Force 16px
-              // inline so iPad portrait and any landscape phone don't zoom.
-              style={{ fontSize: '16px' }}
-              className="w-full px-4 py-2.5 bg-gray-100 rounded-[20px] border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/60 focus:border-orange-400/60 focus:bg-white transition-all placeholder:text-gray-400"
-              disabled={isSending}
-              aria-label={language === 'ru' ? 'Написать сообщение' : 'Xabar yozing'}
-            />
-          </div>
-
-          <button
-            onClick={handleSend}
-            disabled={(!newMessage.trim() && !attachedFile) || isSending}
-            className="w-10 h-10 flex items-center justify-center rounded-[13px] transition-all touch-manipulation flex-shrink-0 active:scale-95 disabled:bg-gray-100 disabled:text-gray-300 disabled:shadow-none"
-            style={(!newMessage.trim() && !attachedFile) || isSending
-              ? undefined
-              : {
-                  background: 'linear-gradient(135deg, #E8621A 0%, #F59E0B 100%)',
-                  color: 'white',
-                  boxShadow: '0 4px 12px rgba(232, 98, 26, 0.3)',
-                }}
-            aria-label={language === 'ru' ? 'Отправить сообщение' : 'Xabar yuborish'}
-          >
-            {isSending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-          </button>
-        </div>
-      </div>
+      {/* Sticky composer — extracted to ChatComposer in Sprint 12. */}
+      <ChatComposer
+        language={language === 'ru' ? 'ru' : 'uz'}
+        value={newMessage}
+        onChange={setNewMessage}
+        onSend={handleSend}
+        isSending={isSending}
+        isComposing={isComposing}
+        onCompositionStart={() => setIsComposing(true)}
+        onCompositionEnd={() => setIsComposing(false)}
+        attachedFile={attachedFile}
+        onRemoveAttachment={() => setAttachedFile(null)}
+        showEmojiPicker={showEmojiPicker}
+        onToggleEmoji={() => setShowEmojiPicker((p) => !p)}
+        onInsertEmoji={insertEmoji}
+        fileInputRef={fileInputRef}
+        onFilePick={handleFilePick}
+        keyboardOffset={keyboardOffset}
+      />
     </div>
   );
 }
