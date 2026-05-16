@@ -7,6 +7,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { apiRequest } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
+import { StockModal } from './marketplace-mgr/StockModal';
+import { DeleteProductConfirm } from './marketplace-mgr/DeleteProductConfirm';
 
 // Types for API responses (snake_case from backend)
 interface MarketplaceCategoryAPI {
@@ -337,18 +339,12 @@ export function MarketplaceManagerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Delete confirmation modal */}
       {pendingDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-bold mb-2">{language === 'ru' ? 'Удалить товар?' : 'Mahsulotni o\'chirmoqchimisiz?'}</h3>
-            <p className="text-sm text-gray-500 mb-4">{language === 'ru' ? 'Это действие нельзя отменить' : 'Bu amalni qaytarib bo\'lmaydi'}</p>
-            <div className="flex gap-3">
-              <button onClick={() => setPendingDeleteId(null)} className="btn-secondary flex-1 min-h-[44px]">{language === 'ru' ? 'Отмена' : 'Bekor'}</button>
-              <button onClick={confirmDeleteProduct} className="flex-1 min-h-[44px] bg-red-500 text-white rounded-xl font-semibold active:scale-95">{language === 'ru' ? 'Удалить' : 'O\'chirish'}</button>
-            </div>
-          </div>
-        </div>
+        <DeleteProductConfirm
+          language={language}
+          onCancel={() => setPendingDeleteId(null)}
+          onConfirm={confirmDeleteProduct}
+        />
       )}
       {/* Header */}
       <div className="bg-white border-b px-4 py-4">
@@ -948,83 +944,24 @@ export function MarketplaceManagerDashboard() {
         </div>
       )}
 
-      {/* Stock Update Modal */}
       {showStockModal && stockProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="font-bold text-lg">
-                {language === 'ru' ? 'Обновить склад' : 'Omborni yangilash'}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowStockModal(false);
-                  setStockProduct(null);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
-                <span className="text-2xl">{CATEGORY_ICONS[stockProduct.category_id] || '📦'}</span>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {language === 'ru' ? stockProduct.name_ru : stockProduct.name_uz}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {language === 'ru' ? 'Текущий остаток:' : 'Joriy qoldiq:'} {stockProduct.stock_quantity} {stockProduct.unit}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {language === 'ru' ? 'Новое количество' : 'Yangi miqdor'}
-                </label>
-                <input
-                  type="number"
-                  value={stockQuantity}
-                  onChange={(e) => setStockQuantity(e.target.value)}
-                  className="w-full p-3 border rounded-xl text-center text-xl font-bold"
-                  min="0"
-                />
-              </div>
-
-              <button
-                onClick={updateStock}
-                className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium"
-              >
-                {language === 'ru' ? 'Сохранить' : 'Saqlash'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <StockModal
+          product={stockProduct}
+          quantity={stockQuantity}
+          setQuantity={setStockQuantity}
+          language={language}
+          categoryIcon={CATEGORY_ICONS[stockProduct.category_id] || '📦'}
+          onClose={() => { setShowStockModal(false); setStockProduct(null); }}
+          onSubmit={updateStock}
+        />
       )}
-      {/* Delete confirmation modal */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <p className="font-semibold text-gray-800 mb-1 text-lg">
-              {language === 'ru' ? 'Удалить товар?' : "Mahsulotni o'chirasizmi?"}
-            </p>
-            <p className="text-sm text-gray-500 mb-5">
-              {language === 'ru' ? 'Это действие нельзя отменить.' : "Bu amalni bekor qilib bo'lmaydi."}
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 py-2.5 min-h-[44px] border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 touch-manipulation">
-                {language === 'ru' ? 'Отмена' : 'Bekor'}
-              </button>
-              <button onClick={() => deleteProduct(deleteConfirmId)}
-                className="flex-1 py-2.5 min-h-[44px] bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 touch-manipulation">
-                {language === 'ru' ? 'Удалить' : "O'chirish"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteProductConfirm
+          language={language}
+          variant="destructive-z300"
+          onCancel={() => setDeleteConfirmId(null)}
+          onConfirm={() => deleteProduct(deleteConfirmId)}
+        />
       )}
     </div>
   );
