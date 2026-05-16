@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Request, ChartData, CancelledBy, RescheduleRequest, RescheduleReason, RescheduleInitiator } from '../types';
+import { computeChartData, computeExecutorStats, computeOverallStats } from './requestStats';
 import { useAuthStore } from './authStore';
 import { useNotificationStore } from './notificationStore';
 import { useActivityStore } from './activityStore';
@@ -917,104 +918,15 @@ export const useRequestStore = create<RequestState>()(
       return get().requests.filter(r => r.executorId === executorId);
     },
 
-    getExecutorStats: (executorId) => {
-      const { requests } = get();
-      const executorRequests = requests.filter(r => r.executorId === executorId);
-      const completed = executorRequests.filter(r => r.status === 'completed');
-      const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    // Sprint 25: stat helpers moved to ./requestStats; these store
+    // methods are now thin wrappers so call sites keep the same API.
+    getExecutorStats: (executorId) =>
+      computeExecutorStats(get().requests, executorId),
 
-      const thisWeek = completed.filter(r => r.approvedAt && new Date(r.approvedAt) >= weekAgo).length;
-      const thisMonth = completed.filter(r => r.approvedAt && new Date(r.approvedAt) >= monthAgo).length;
+    getStats: () =>
+      computeOverallStats(get().requests, useExecutorStore.getState().executors),
 
-      const ratings = completed.filter(r => r.rating).map(r => r.rating!);
-      const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 5;
-
-      const times = completed.filter(r => r.workDuration).map(r => r.workDuration!);
-      const avgTime = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length / 60) : 0;
-
-      return {
-        totalRequests: executorRequests.length,
-        completedRequests: completed.length,
-        avgRating: Math.round(avgRating * 10) / 10,
-        avgTime,
-        thisWeek,
-        thisMonth,
-      };
-    },
-
-    getStats: () => {
-      const { requests } = get();
-      const executors = useExecutorStore.getState().executors;
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-      const completedRequests = requests.filter(r => r.status === 'completed' && r.approvedAt);
-      const completedToday = completedRequests.filter(r =>
-        new Date(r.approvedAt!) >= today
-      ).length;
-      const completedWeek = completedRequests.filter(r =>
-        new Date(r.approvedAt!) >= weekAgo
-      ).length;
-
-      let totalTime = 0;
-      let count = 0;
-      completedRequests.forEach(r => {
-        if (r.workDuration) {
-          totalTime += r.workDuration;
-          count++;
-        }
-      });
-      const avgCompletionTime = count > 0 ? Math.round(totalTime / count / 60) : 0;
-
-      return {
-        totalRequests: requests.length,
-        newRequests: requests.filter(r => r.status === 'new').length,
-        inProgress: requests.filter(r => ['assigned', 'accepted', 'in_progress'].includes(r.status)).length,
-        pendingApproval: requests.filter(r => r.status === 'pending_approval').length,
-        completedToday,
-        completedWeek,
-        avgCompletionTime,
-        executorsOnline: executors.filter(e => e.status !== 'offline').length,
-        executorsTotal: executors.length,
-      };
-    },
-
-    getChartData: () => {
-      const { requests } = get();
-      const now = new Date();
-      const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-      const chartData: ChartData[] = [];
-
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
-        const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-
-        const created = requests.filter(r => {
-          const createdAt = new Date(r.createdAt);
-          return createdAt >= dayStart && createdAt < dayEnd;
-        }).length;
-
-        const completed = requests.filter(r => {
-          if (!r.approvedAt) return false;
-          const approvedAt = new Date(r.approvedAt);
-          return approvedAt >= dayStart && approvedAt < dayEnd;
-        }).length;
-
-        chartData.push({
-          date: dayStart.toISOString(),
-          name: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
-          created,
-          completed,
-        });
-      }
-
-      return chartData;
-    },
+    getChartData: () => computeChartData(get().requests),
 
     // Reschedule actions - using API for cross-user sync
     fetchPendingReschedules: async () => {
