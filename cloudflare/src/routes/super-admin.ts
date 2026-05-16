@@ -1,7 +1,6 @@
 // Super Admin, Tenants & Banners routes — extracted from index.ts
 // Contains: banners CRUD, super-admin ads, tenants CRUD, impersonation, analytics
 
-import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, clearFeatureCache } from '../middleware/tenant';

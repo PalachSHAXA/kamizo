@@ -4,7 +4,6 @@ import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, bilingualError, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
-import { createRequestLogger } from '../utils/logger';
 
 // ── Helper: finance access check ──────────────────────────────────
 
@@ -294,7 +293,9 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
   // Rate hierarchy: specific rates from estimate, fallback to per-sqm rates
   const commercialRate = Number(estimate.commercial_rate) || 0;       // rate for commercial premises per sqm
   const basementRate = Number(estimate.basement_rate) || 0;           // rate for basement per sqm
-  const parkingRate = Number(estimate.parking_rate) || 0;             // rate per parking space
+  // parking_rate was read here but never applied to charges — dropped.
+  // If parking-space billing is wired up later, re-add and use it in
+  // the parking branch below.
   const residentialRate = Number(estimate.commercial_rate_per_sqm) || 0;     // residential rate per sqm
   const nonResidentialRate = Number(estimate.non_commercial_rate_per_sqm) || 0; // non-residential rate per sqm
 

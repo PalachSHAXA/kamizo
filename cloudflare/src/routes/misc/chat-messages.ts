@@ -1,6 +1,5 @@
 // Chat messages routes — list and send messages
 
-import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';

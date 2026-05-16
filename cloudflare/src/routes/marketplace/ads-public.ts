@@ -2,7 +2,7 @@
 
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantId, requireFeature } from '../../middleware/tenant';
+import { requireFeature } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 

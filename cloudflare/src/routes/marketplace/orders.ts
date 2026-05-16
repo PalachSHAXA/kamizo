@@ -4,7 +4,6 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
-import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 import { notifyManagers } from '../../utils/notifications';
 

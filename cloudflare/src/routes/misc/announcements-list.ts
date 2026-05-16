@@ -1,6 +1,5 @@
 // Announcements: List route (complex targeting logic)
 
-import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
@@ -22,7 +21,6 @@ route('GET', '/api/announcements', async (request, env) => {
   }
 
   const url = new URL(request.url);
-  const type = url.searchParams.get('type');
   const pagination = getPaginationParams(url);
   const tenantId = getTenantId(request);
 

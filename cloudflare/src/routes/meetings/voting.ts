@@ -2,7 +2,7 @@
 
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error, bilingualError, generateId, generateVoteHash
+  json, error, bilingualError, generateId, generateVoteHash
 } from './helpers';
 
 export function registerVotingRoutes() {

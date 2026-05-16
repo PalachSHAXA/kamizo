@@ -1,6 +1,5 @@
 // Request categories
 
-import type { Env } from '../../types';
 import { route } from '../../router';
 import { getTenantId } from '../../middleware/tenant';
 import { cachedQuery, CacheTTL, CachePrefix } from '../../cache';

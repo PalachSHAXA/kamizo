@@ -1,6 +1,5 @@
 // Health check, tenant config, and monitoring/admin metrics routes
 
-import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantForRequest, getTenantId } from '../../middleware/tenant';
@@ -14,7 +13,7 @@ export function registerHealthRoutes() {
 
 // Health Check
 // PUBLIC: no auth required
-route('GET', '/api/health', async (request, env) => {
+route('GET', '/api/health', async (_request, env) => {
   const health = await healthCheck(env);
   const status = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 503 : 503;
   return json(health, status);
@@ -22,7 +21,7 @@ route('GET', '/api/health', async (request, env) => {
 
 // Tenant Config (returns current tenant's configuration)
 // PUBLIC: no auth required
-route('GET', '/api/tenant/config', async (request, env) => {
+route('GET', '/api/tenant/config', async (request, _env) => {
   const tenant = getTenantForRequest(request);
   if (!tenant) {
     return json({ tenant: null, features: [] });

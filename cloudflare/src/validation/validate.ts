@@ -3,7 +3,7 @@
 //   const { data, errors } = await validateBody(request, loginSchema);
 //   if (errors) return error(errors, 400);
 
-import type { Schema, FieldRule } from './schemas';
+import type { Schema } from './schemas';
 
 export interface ValidationResult<T = Record<string, unknown>> {
   data: T;

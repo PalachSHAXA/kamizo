@@ -2,7 +2,7 @@
 
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error, generateId, isManagement,
+  invalidateCache, json, error, generateId,
   generateVoteHash, createRequestLogger
 } from './helpers';
 

@@ -2,8 +2,7 @@
 // Handles multi-tenant isolation via subdomain detection
 // For datacenter migration: keep as-is, just change the hostname parsing if needed
 
-import type { Env, User } from '../types';
-import { getCached, setCache } from './cache-local';
+import type { Env } from '../types';
 
 // Request-scoped tenant map (safe from race conditions — no global mutable state)
 const requestTenantMap = new WeakMap<Request, Record<string, unknown>>();

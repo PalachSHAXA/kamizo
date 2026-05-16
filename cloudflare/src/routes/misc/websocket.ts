@@ -1,10 +1,9 @@
 // WebSocket route — JWT auth via query parameter
 
-import type { Env, User } from '../../types';
+import type { User } from '../../types';
 import { route } from '../../router';
 import { verifyJWT } from '../../utils/crypto';
-import { getTenantId } from '../../middleware/tenant';
-import { json, error } from '../../utils/helpers';
+import { error } from '../../utils/helpers';
 
 export function registerWebSocketRoutes() {
 

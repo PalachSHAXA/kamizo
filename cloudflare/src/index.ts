@@ -13,7 +13,7 @@ import { setCorsOrigin, getCurrentCorsOrigin, initCors } from './middleware/cors
 import { getUser } from './middleware/auth';
 import { setTenantForRequest, getTenantForRequest, getTenantSlug, setCurrentTenant } from './middleware/tenant';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
-import { json, error, sanitizeErrorMessage } from './utils/helpers';
+import { error, sanitizeErrorMessage } from './utils/helpers';
 import { createRequestLogger } from './utils/logger';
 import { reportError } from './utils/sentry';
 import { registerAllRoutes } from './routes';

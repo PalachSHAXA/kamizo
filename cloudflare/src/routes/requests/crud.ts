@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId, getPaginationParams, createPaginatedResponse } from '../../utils/helpers';
-import { sendPushNotification, isExecutorRole } from '../../index';
+import { isExecutorRole } from '../../index';
 import { validateBody } from '../../validation/validate';
 import { createRequestSchema } from '../../validation/schemas';
 import { notifyManagers } from '../../utils/notifications';

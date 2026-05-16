@@ -1,6 +1,5 @@
 // Request approval: approve, reject, cancel, rate
 
-import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';

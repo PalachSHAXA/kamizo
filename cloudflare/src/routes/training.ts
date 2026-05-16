@@ -1,7 +1,6 @@
 // Training System routes — extracted from index.ts
 // Contains: training partners, proposals, voting, registration, attendance, feedback, notifications, settings, stats
 
-import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';

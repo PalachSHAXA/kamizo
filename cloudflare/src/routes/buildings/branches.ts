@@ -2,7 +2,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, generateId } from '../../utils/helpers';
 
 export function registerBranchRoutes() {
 
