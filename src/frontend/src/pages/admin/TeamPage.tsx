@@ -13,6 +13,8 @@ import type { StatusTone } from '../../theme';
 import { teamApi, apiRequest } from '../../services/api';
 import { formatName } from '../../utils/formatName';
 import { pluralWithCount } from '../../utils/plural';
+import { CredentialsModal } from './team/CredentialsModal';
+import { StaffImportModal } from './team/StaffImportModal';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -1283,151 +1285,34 @@ export function TeamPage() {
         </div>
       )}
 
-      {/* Credentials Modal - shows after creating new user */}
       {showCredentialsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md p-4 sm:p-6 animate-fade-in">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">{language === 'ru' ? 'Сотрудник создан!' : 'Xodim yaratildi!'}</h3>
-              <p className="text-gray-500 mt-2">{language === 'ru' ? 'Сохраните учетные данные для входа' : 'Kirish ma\'lumotlarini saqlang'}</p>
-            </div>
-
-            <div className="space-y-4 bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
-                <div className="flex items-center gap-2">
-                  <code className="bg-white px-3 py-1.5 rounded-lg text-sm font-mono font-medium">
-                    {showCredentialsModal.login}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(showCredentialsModal.login);
-                      setCopiedField('cred-login');
-                      setTimeout(() => setCopiedField(null), 2000);
-                    }}
-                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    {copiedField === 'cred-login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
-                <div className="flex items-center gap-2">
-                  <code className="bg-white px-3 py-1.5 rounded-lg text-sm font-mono font-medium">
-                    {showCredentialsModal.password}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(showCredentialsModal.password);
-                      setCopiedField('cred-password');
-                      setTimeout(() => setCopiedField(null), 2000);
-                    }}
-                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    {copiedField === 'cred-password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 p-3 bg-yellow-50 rounded-xl border border-yellow-200">
-              <p className="text-sm text-yellow-800">
-                {language === 'ru'
-                  ? '⚠️ Сохраните эти данные! Пароль показывается только один раз.'
-                  : '⚠️ Bu ma\'lumotlarni saqlang! Parol faqat bir marta ko\'rsatiladi.'}
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowCredentialsModal(null)}
-              className="btn-primary w-full mt-6"
-            >
-              {language === 'ru' ? 'Готово' : 'Tayyor'}
-            </button>
-          </div>
-        </div>
+        <CredentialsModal
+          credentials={showCredentialsModal}
+          language={language}
+          onClose={() => setShowCredentialsModal(null)}
+          copiedField={copiedField}
+          onCopy={(field, value) => {
+            navigator.clipboard.writeText(value);
+            setCopiedField(field);
+            setTimeout(() => setCopiedField(null), 2000);
+          }}
+        />
       )}
 
-      {/* Staff Import Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="text-[18px] font-extrabold">{language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}</h3>
-                <p className="text-[13px] text-gray-400 mt-0.5">{language === 'ru' ? 'Загрузите .json файл с данными сотрудников' : 'Xodimlar ma\'lumotlari bilan .json faylni yuklang'}</p>
-              </div>
-              <button onClick={() => setShowImportModal(false)} className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-gray-100" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div
-              onClick={() => importFileRef.current?.click()}
-              className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
-            >
-              <Upload className="w-8 h-8 mx-auto mb-3 text-gray-300" />
-              {importFile ? (
-                <div>
-                  <p className="text-[14px] font-bold text-gray-700">{importFile.name}</p>
-                  <p className="text-[12px] text-gray-400 mt-1">{(importFile.size / 1024).toFixed(1)} KB</p>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-[14px] font-bold text-gray-600">{language === 'ru' ? 'Выберите файл' : 'Faylni tanlang'}</p>
-                  <p className="text-[12px] text-gray-400 mt-1">{language === 'ru' ? 'Поддерживается .json формат' : '.json format qo\'llab-quvvatlanadi'}</p>
-                </div>
-              )}
-              <input ref={importFileRef} type="file" accept=".json" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setImportFile(f); setImportResult(null); } }} />
-            </div>
-
-            {importResult && (
-              <div className={`mt-4 p-4 rounded-xl ${importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                {importResult.success ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="text-[14px] font-bold text-green-700">{language === 'ru' ? 'Импорт успешен!' : 'Import muvaffaqiyatli!'}</span>
-                    </div>
-                    <div className="flex gap-4">
-                      {importResult.stats?.created > 0 && (
-                        <div className="text-center"><div className="text-[22px] font-extrabold text-green-600">{importResult.stats.created}</div><div className="text-xs text-gray-400">{language === 'ru' ? 'Создано' : 'Yaratildi'}</div></div>
-                      )}
-                      {importResult.stats?.updated > 0 && (
-                        <div className="text-center"><div className="text-[22px] font-extrabold text-blue-600">{importResult.stats.updated}</div><div className="text-xs text-gray-400">{language === 'ru' ? 'Обновлено' : 'Yangilandi'}</div></div>
-                      )}
-                      {importResult.stats?.skipped > 0 && (
-                        <div className="text-center"><div className="text-[22px] font-extrabold text-gray-400">{importResult.stats.skipped}</div><div className="text-xs text-gray-400">{language === 'ru' ? 'Пропущено' : 'O\'tkazib yuborildi'}</div></div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    <span className="text-[13px] text-red-600">{importResult.error}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowImportModal(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[14px] font-bold text-gray-600 hover:bg-gray-50 transition-all">
-                {language === 'ru' ? 'Закрыть' : 'Yopish'}
-              </button>
-              <button onClick={handleImportStaff} disabled={!importFile || importLoading}
-                className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition-all disabled:opacity-50">
-                {importLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {language === 'ru' ? 'Импортировать' : 'Import qilish'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <StaffImportModal
+          language={language}
+          onClose={() => setShowImportModal(false)}
+          fileInputRef={importFileRef}
+          importFile={importFile}
+          onFileSelect={(f) => {
+            setImportFile(f);
+            setImportResult(null);
+          }}
+          importResult={importResult}
+          importLoading={importLoading}
+          onImport={handleImportStaff}
+        />
       )}
     </div>
   );
