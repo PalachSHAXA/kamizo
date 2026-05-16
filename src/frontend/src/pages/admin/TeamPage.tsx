@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  UserCog, Wrench, Phone, Star, X, Eye, EyeOff, Plus,
-  Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw,
+  UserCog, Wrench, Phone, Star, X, Plus,
+  Loader2, RefreshCw,
   Shield, ChevronDown, ChevronUp, Search, Filter,
   Droplets, Zap, ArrowUpDown, Bell, Brush, ShieldCheck,
   Hammer, Flame, Wind, Trash2, Key, Truck, Leaf,
-  Download, Upload, CheckCircle, AlertCircle,
-  UserPlus
+  Download, Upload,
+  UserPlus,
 } from 'lucide-react';
 import { EmptyState, StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
@@ -16,6 +16,7 @@ import { pluralWithCount } from '../../utils/plural';
 import { CredentialsModal } from './team/CredentialsModal';
 import { StaffImportModal } from './team/StaffImportModal';
 import { AddStaffModal } from './team/AddStaffModal';
+import { MemberDetailsModal } from './team/MemberDetailsModal';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -912,227 +913,27 @@ export function TeamPage() {
         />
       )}
 
-      {/* Details Modal */}
+
       {selectedMember && (
-        <div className="modal-backdrop items-end sm:items-center" onClick={handleCloseDetails}>
-          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center text-2xl font-medium text-primary-700">
-                  {selectedMember.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">{selectedMember.name}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[selectedMember.role]}`}>
-                      {ROLE_LABELS[selectedMember.role]}
-                    </span>
-                    {selectedMember.specialization && (
-                      <span className="text-sm text-gray-500">
-                        {getSpecLabel(selectedMember.specialization)}
-                      </span>
-                    )}
-                  </div>
-                  {getStatusBadge(selectedMember.status)}
-                </div>
-              </div>
-              <button onClick={handleCloseDetails} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Закрыть">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Stats for executors */}
-            {selectedMember.role === 'executor' && (
-              <div className="grid grid-cols-3 gap-3 mb-6">
-                <div className="bg-amber-50 rounded-xl p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 text-amber-600 mb-1">
-                    <Star className="w-4 h-4" />
-                    <span className="font-bold text-lg">{selectedMember.avg_rating || 0}</span>
-                  </div>
-                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</div>
-                </div>
-                <div className="bg-green-50 rounded-xl p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 text-green-600 mb-1">
-                    <Award className="w-4 h-4" />
-                    <span className="font-bold text-lg">{selectedMember.completed_count || 0}</span>
-                  </div>
-                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Выполнено' : 'Bajarilgan'}</div>
-                </div>
-                <div className="bg-primary-50 rounded-xl p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 text-primary-600 mb-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="font-bold text-lg">{selectedMember.active_count || 0}</span>
-                  </div>
-                  <div className="text-xs text-gray-500">{language === 'ru' ? 'Активных' : 'Faol'}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Info / Edit Form */}
-            {isEditing ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'ФИО' : 'F.I.O.'}</label>
-                  <input
-                    type="text"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="input-field"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
-                  <input
-                    type="text"
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="input-field"
-                    maxLength={13}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Логин' : 'Login'}</label>
-                  <input
-                    type="text"
-                    value={editForm.login}
-                    onChange={(e) => setEditForm({ ...editForm, login: e.target.value })}
-                    className="input-field"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Новый пароль' : 'Yangi parol'}</label>
-                  <input
-                    type="text"
-                    value={editForm.password}
-                    onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                    className="input-field"
-                    placeholder={language === 'ru' ? 'Оставьте пустым, чтобы не менять' : 'O\'zgartirmaslik uchun bo\'sh qoldiring'}
-                  />
-                </div>
-                {(selectedMember.role === 'executor' || selectedMember.role === 'department_head') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'}</label>
-                    <select
-                      value={editForm.specialization}
-                      onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value as ExecutorSpecialization })}
-                      className="input-field"
-                    >
-                      <option value="">{language === 'ru' ? 'Не указана' : 'Ko\'rsatilmagan'}</option>
-                      <option value="plumber">{language === 'ru' ? 'Сантехник' : 'Santexnik'}</option>
-                      <option value="electrician">{language === 'ru' ? 'Электрик' : 'Elektrik'}</option>
-                      <option value="elevator">{language === 'ru' ? 'Лифтёр' : 'Liftchi'}</option>
-                      <option value="intercom">{language === 'ru' ? 'Домофон' : 'Domofon'}</option>
-                      <option value="cleaning">{language === 'ru' ? 'Уборщица' : 'Tozalovchi'}</option>
-                      <option value="gardener">{language === 'ru' ? 'Садовник' : 'Bog\'bon'}</option>
-                      <option value="security">{language === 'ru' ? 'Охранник' : 'Qorovul'}</option>
-                      <option value="trash">{language === 'ru' ? 'Вывоз мусора' : 'Chiqindi tashish'}</option>
-                      <option value="boiler">{language === 'ru' ? 'Котельщик' : 'Qozonxonachi'}</option>
-                      <option value="ac">{language === 'ru' ? 'Кондиционерщик' : 'Konditsionerchi'}</option>
-                      <option value="other">{language === 'ru' ? 'Другое' : 'Boshqa'}</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Contact Info */}
-                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Phone className="w-4 h-4" />
-                      <span className="text-sm">{language === 'ru' ? 'Телефон' : 'Telefon'}</span>
-                    </div>
-                    <span className="font-medium">{selectedMember.phone}</span>
-                  </div>
-                </div>
-
-                {/* Credentials */}
-                <div className="bg-primary-50 rounded-xl p-4 space-y-3">
-                  <div className="text-sm font-medium text-primary-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
-                    <div className="flex items-center gap-2">
-                      <code className="bg-white px-2 py-1 rounded text-sm font-mono">{selectedMember.login}</code>
-                      <button
-                        onClick={() => handleCopy(selectedMember.login, 'login')}
-                        className="p-1 hover:bg-primary-100 rounded"
-                        title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
-                      >
-                        {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
-                    <div className="flex items-center gap-2">
-                      {isLoadingDetails ? (
-                        <span className="flex items-center gap-2 text-sm text-gray-400">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
-                        </span>
-                      ) : selectedMember.password ? (
-                        <>
-                          <code className="bg-white px-2 py-1 rounded text-sm font-mono">
-                            {showPassword ? selectedMember.password : '••••••••'}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setShowPassword(!showPassword);
-                            }}
-                            className="p-2 hover:bg-primary-100 active:bg-primary-200 rounded touch-manipulation z-10"
-                            title={showPassword ? (language === 'ru' ? 'Скрыть пароль' : 'Parolni yashirish') : (language === 'ru' ? 'Показать пароль' : 'Parolni ko\'rsatish')}
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                          </button>
-                          <button
-                            onClick={() => handleCopy(selectedMember.password || '', 'password')}
-                            className="p-1 hover:bg-primary-100 rounded"
-                            title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
-                          >
-                            {copiedField === 'password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-sm text-gray-400 italic">{language === 'ru' ? 'Задайте через "Редактировать"' : '"Tahrirlash" orqali belgilang'}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Created date */}
-                <div className="text-sm text-gray-500 text-center">
-                  {language === 'ru' ? 'Добавлен' : 'Qo\'shilgan'}: {new Date(selectedMember.created_at).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-3 mt-6">
-              {isEditing ? (
-                <>
-                  <button onClick={() => setIsEditing(false)} className="btn-secondary flex-1">
-                    {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
-                  </button>
-                  <button onClick={handleSaveChanges} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                    <Save className="w-4 h-4" />
-                    {language === 'ru' ? 'Сохранить' : 'Saqlash'}
-                  </button>
-                </>
-              ) : (
-                <button onClick={() => setIsEditing(true)} className="btn-primary w-full flex items-center justify-center gap-2">
-                  <Edit3 className="w-4 h-4" />
-                  {language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <MemberDetailsModal
+          member={selectedMember}
+          language={language}
+          isEditing={isEditing}
+          isLoadingDetails={isLoadingDetails}
+          showPassword={showPassword}
+          editForm={editForm}
+          setEditForm={setEditForm}
+          copiedField={copiedField}
+          roleLabel={ROLE_LABELS[selectedMember.role]}
+          roleColorClass={ROLE_COLORS[selectedMember.role]}
+          specLabel={selectedMember.specialization ? getSpecLabel(selectedMember.specialization) : null}
+          statusBadge={getStatusBadge(selectedMember.status)}
+          onClose={handleCloseDetails}
+          onToggleEditing={setIsEditing}
+          onTogglePassword={() => setShowPassword(!showPassword)}
+          onSave={handleSaveChanges}
+          onCopy={handleCopy}
+        />
       )}
 
       {showCredentialsModal && (
