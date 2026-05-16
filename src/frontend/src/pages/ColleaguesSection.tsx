@@ -6,6 +6,8 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { Modal, EmptyState } from '../components/common';
 import { SPECIALIZATION_LABELS, type ExecutorSpecialization } from '../types';
+import { Avatar } from './colleagues/Avatar';
+import { StarRating } from './colleagues/StarRating';
 
 // Типы данных
 interface Employee {
@@ -112,65 +114,7 @@ const getAvatarUrl = (name: string, id: string): string => {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${seed}&backgroundColor=f59e0b,eab308,84cc16,22c55e,14b8a6,06b6d4,0ea5e9,3b82f6,6366f1,8b5cf6,a855f7,d946ef,ec4899,f43f5e&backgroundType=gradientLinear`;
 };
 
-// Deterministic gradient (0-9) based on name+id, so fallback avatar keeps the
-// same colour across renders.
-const AVATAR_GRADIENTS = [
-  'from-amber-400 to-orange-500',
-  'from-lime-400 to-green-500',
-  'from-teal-400 to-cyan-500',
-  'from-sky-400 to-blue-500',
-  'from-indigo-400 to-purple-500',
-  'from-fuchsia-400 to-pink-500',
-  'from-rose-400 to-red-500',
-  'from-emerald-400 to-teal-500',
-  'from-violet-400 to-indigo-500',
-  'from-yellow-400 to-amber-500',
-];
-function hashSeed(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h) % AVATAR_GRADIENTS.length;
-}
-function initialsOf(name: string): string {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-// Avatar with initials fallback. Previously the raw <img> showed alt-text
-// (e.g. "📷 Bobur Toshmat") whenever DiceBear failed to respond — which is
-// apparently common enough to warrant a local fallback.
-function Avatar({ name, src, className, onClick }: {
-  name: string;
-  src: string;
-  className?: string;
-  onClick?: () => void;
-}) {
-  const [broken, setBroken] = useState(false);
-  if (broken || !src) {
-    const gradient = AVATAR_GRADIENTS[hashSeed(name)];
-    return (
-      <div
-        onClick={onClick}
-        className={`bg-gradient-to-br ${gradient} text-white font-bold flex items-center justify-center select-none ${className || ''}`}
-        aria-label={name}
-      >
-        {initialsOf(name)}
-      </div>
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt={name}
-      onClick={onClick}
-      onError={() => setBroken(true)}
-      className={className}
-    />
-  );
-}
+// Avatar + initialsOf moved to ./colleagues/Avatar in sprint 23.
 
 // Функция для генерации бейджей на основе рейтинга
 const generateBadges = (rating: number, completedCount: number): string[] => {
@@ -279,29 +223,7 @@ const getLabels = (language: 'ru' | 'uz') => ({
   ],
 });
 
-// Компонент звёзд
-function StarRating({ rating, maxStars = 5, size = 'md', onChange }: {
-  rating: number;
-  maxStars?: number;
-  size?: 'sm' | 'md' | 'lg';
-  onChange?: (rating: number) => void;
-}) {
-  const sizeClass = size === 'sm' ? 'w-4 h-4' : size === 'lg' ? 'w-6 h-6' : 'w-5 h-5';
-
-  return (
-    <div className="flex gap-1">
-      {[...Array(maxStars)].map((_, i) => (
-        <Star
-          key={i}
-          className={`${sizeClass} ${
-            i < Math.floor(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-          } ${onChange ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
-          onClick={() => onChange?.(i + 1)}
-        />
-      ))}
-    </div>
-  );
-}
+// StarRating moved to ./colleagues/StarRating in sprint 23.
 
 // Модальное окно оценки
 //
