@@ -1,0 +1,109 @@
+// Shared types and pure helpers used by ChatPage and its split-out
+// child components (AdminChannelList, MessageBubble, ChatComposer).
+// Extracted in Sprint 13 to break the ChatPage god-file without
+// duplicating utilities across the new component files.
+
+import type { ChatChannelType } from '../../types';
+
+export interface ChatChannel {
+  id: string;
+  type: ChatChannelType;
+  name: string;
+  description?: string;
+  building_id?: string;
+  resident_id?: string;
+  message_count?: number;
+  last_message?: string;
+  last_message_at?: string;
+  last_sender_id?: string;
+  unread_count?: number;
+  created_at: string;
+  resident_apartment?: string;
+  resident_building_name?: string;
+  resident_branch_name?: string;
+}
+
+export type FilterTab = 'all' | 'unread';
+
+// Branch tab colors cycled by branchIndexMap so the same UK branch
+// always renders with the same color across the page.
+export const BRANCH_COLORS = [
+  { active: 'bg-blue-500 text-white',    inactive: 'bg-blue-50 text-blue-700 border border-blue-200',       dot: 'bg-blue-500' },
+  { active: 'bg-purple-500 text-white',  inactive: 'bg-purple-50 text-purple-700 border border-purple-200', dot: 'bg-purple-500' },
+  { active: 'bg-teal-500 text-white',    inactive: 'bg-teal-50 text-teal-700 border border-teal-200',       dot: 'bg-teal-500' },
+  { active: 'bg-rose-500 text-white',    inactive: 'bg-rose-50 text-rose-700 border border-rose-200',       dot: 'bg-rose-500' },
+  { active: 'bg-amber-500 text-white',   inactive: 'bg-amber-50 text-amber-700 border border-amber-200',    dot: 'bg-amber-500' },
+  { active: 'bg-indigo-500 text-white',  inactive: 'bg-indigo-50 text-indigo-700 border border-indigo-200', dot: 'bg-indigo-500' },
+];
+
+export function getBranchColor(index: number) {
+  return BRANCH_COLORS[index % BRANCH_COLORS.length];
+}
+
+export function getInitials(name: string): string {
+  if (!name || /^\d/.test(name)) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name[0].toUpperCase();
+}
+
+export function getAvatarColor(name: string): string {
+  const colors = [
+    'from-orange-400 to-orange-500',
+    'from-blue-400 to-blue-500',
+    'from-emerald-400 to-emerald-500',
+    'from-purple-400 to-purple-500',
+    'from-pink-400 to-pink-500',
+    'from-cyan-400 to-cyan-500',
+    'from-amber-400 to-amber-500',
+    'from-indigo-400 to-indigo-500',
+    'from-rose-400 to-rose-500',
+    'from-teal-400 to-teal-500',
+  ];
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+export function formatRelativeTime(dateStr: string, lang: string): string {
+  const diff = Date.now() - new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z').getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return lang === 'ru' ? 'сейчас' : 'hozir';
+  if (mins < 60) return `${mins} ${lang === 'ru' ? 'мин' : 'min'}`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} ${lang === 'ru' ? 'ч' : 'soat'}`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days} ${lang === 'ru' ? 'д' : 'kun'}`;
+  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
+}
+
+export function formatMessageTime(dateStr: string, lang: string): string {
+  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+  return d.toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { hour: '2-digit', minute: '2-digit' });
+}
+
+export function formatDateSeparator(dateStr: string, lang: string): string {
+  const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return lang === 'ru' ? 'Сегодня' : 'Bugun';
+  if (diffDays === 1) return lang === 'ru' ? 'Вчера' : 'Kecha';
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/** Last-message preview that ignores stale numeric counts and empty strings. */
+export function getLastMessagePreview(channel: ChatChannel, lang: string): string {
+  if (
+    channel.last_message_at &&
+    channel.last_message &&
+    typeof channel.last_message === 'string' &&
+    channel.last_message.trim().length > 0
+  ) {
+    return channel.last_message;
+  }
+  return lang === 'ru' ? 'Нет сообщений' : "Xabar yo'q";
+}
