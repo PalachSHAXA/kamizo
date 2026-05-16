@@ -13,6 +13,7 @@ import {
   Paperclip
 } from 'lucide-react';
 import { EmptyState, MessageContent } from '../components/common';
+import { MessageBubble } from './chat/MessageBubble';
 import { plural } from '../utils/plural';
 import { formatName } from '../utils/formatName';
 import { useNavigate } from 'react-router-dom';
@@ -1151,66 +1152,19 @@ function ChatView({
                     </div>
                   )}
 
-                  <div className={`flex items-end gap-2 px-1 ${isOwn ? 'justify-end' : 'justify-start'} ${showSender ? 'mt-2.5' : 'mt-0.5'}`}>
-                    {/* Admin side avatar — only on the first message of an author's
-                        block; kept invisible but width-stable on subsequent
-                        messages so bubbles align vertically. */}
-                    {!isOwn && (
-                      <div
-                        className={`w-[30px] h-[30px] rounded-[10px] flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold bg-gradient-to-br from-[#E8621A] to-[#F59E0B]`}
-                        style={{ visibility: showSender ? 'visible' : 'hidden' }}
-                      >
-                        УК
-                      </div>
-                    )}
-
-                    <div className={`max-w-[75%] min-w-0 flex flex-col ${isOwn ? 'items-end' : 'items-start'} ${isCurrentMatch ? 'ring-2 ring-orange-400 rounded-[20px]' : isSearchMatch ? 'ring-1 ring-orange-200 rounded-[20px]' : ''}`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                      {showSender && (
-                        <div className="flex items-center gap-1.5 mb-1 px-1">
-                          <span className="text-[11px] font-semibold text-gray-600">{formatName(message.sender_name)}</span>
-                          <RoleBadge role={message.sender_role} language={language} />
-                        </div>
-                      )}
-
-                      <div className={`px-3.5 py-2 ${
-                        isOwn
-                          ? 'text-white rounded-[18px] rounded-br-[6px] shadow-[0_3px_12px_rgba(232,98,26,0.18)]'
-                          : 'bg-white text-gray-900 rounded-[18px] rounded-bl-[6px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-black/[0.04]'
-                      } ${message.status === 'sending' ? 'opacity-60' : ''}`}
-                      style={isOwn
-                        ? { background: 'linear-gradient(135deg, #E8621A 0%, #F59E0B 100%)' }
-                        : undefined}
-                      >
-                        <MessageContent content={message.content} isOwn={isOwn} language={language === 'ru' ? 'ru' : 'uz'} />
-                        <div className={`flex items-center justify-end gap-1 mt-1 ${
-                          isOwn ? 'text-white/75' : 'text-gray-400'
-                        }`}>
-                          <span className="text-[10px] font-medium">{formatMessageTime(message.created_at, language)}</span>
-                          {isOwn && message.status === 'sending' && (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          )}
-                          {isOwn && message.status !== 'sending' && message.status !== 'failed' && (
-                            // Sprint 11: in a private_support thread sent by
-                            // a resident, the API never returns colleague IDs
-                            // — use the aggregated management_read flag for
-                            // the double-tick. All other cases keep the
-                            // direct read_by check (resident-read for a
-                            // manager's own message, group channels, etc).
-                            ((isResident && isPrivateSupport)
-                              ? message.management_read
-                              : (message.read_by && message.read_by.length > 0))
-                              ? <CheckCheck className="w-3 h-3" />
-                              : <Check className="w-3 h-3" />
-                          )}
-                        </div>
-                      </div>
-                      {message.status === 'failed' && (
-                        <button onClick={() => retrySend(message)} className="text-red-500 text-[11px] flex items-center gap-1 mt-1 px-1">
-                          <AlertCircle className="w-3 h-3" /> {language === 'ru' ? 'Не отправлено. Повторить?' : 'Yuborilmadi. Qayta yuborishmi?'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <MessageBubble
+                    message={message}
+                    isOwn={isOwn}
+                    showSender={showSender}
+                    isCurrentMatch={isCurrentMatch}
+                    isSearchMatch={isSearchMatch}
+                    isResident={isResident}
+                    isPrivateSupport={isPrivateSupport}
+                    language={language === 'ru' ? 'ru' : 'uz'}
+                    formatTime={formatMessageTime}
+                    renderRoleBadge={(role) => <RoleBadge role={role} language={language} />}
+                    onRetry={retrySend}
+                  />
                 </div>
               );
             })}

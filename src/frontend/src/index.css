@@ -243,6 +243,30 @@ body {
   }
 }
 
+/* Sprint 11: container queries. Most cards size themselves to a parent
+   grid track, not to the viewport — a 320px card on a 1440px laptop
+   should look like a phone card, not a desktop card. Opt in by adding
+   `card-cq` to the wrapper; child elements then key off `@container`
+   instead of `@media`. Falls back gracefully on engines without
+   container-query support (children just keep their default styles). */
+.card-cq {
+  container-type: inline-size;
+  container-name: card;
+}
+
+/* Helper utilities children can use inside a `card-cq` parent.
+   These mirror Tailwind's text-sm / text-base for narrow vs roomy cards
+   without forcing every consumer to write a custom @container rule. */
+@container card (max-width: 360px) {
+  .cq-text-compact { font-size: 0.8125rem; line-height: 1.25rem; }   /* 13px */
+  .cq-hide-narrow  { display: none; }
+  .cq-stack-narrow { flex-direction: column; align-items: flex-start; }
+}
+
+@container card (min-width: 480px) {
+  .cq-text-comfort { font-size: 1rem; line-height: 1.5rem; }          /* 16px */
+}
+
 .glass-input {
   width: 100%;
   padding: 12px 16px;
