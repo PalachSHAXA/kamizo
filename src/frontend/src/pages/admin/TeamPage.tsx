@@ -1,22 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  UserCog, Wrench, Phone, Star, X, Plus,
+  UserCog, Wrench, X, Plus,
   Loader2, RefreshCw,
-  Shield, ChevronDown, ChevronUp, Search, Filter,
-  Droplets, Zap, ArrowUpDown, Bell, Brush, ShieldCheck,
-  Hammer, Flame, Wind, Trash2, Key, Truck, Leaf,
+  Shield, Search, Filter,
+  Key,
   Download, Upload,
-  UserPlus,
 } from 'lucide-react';
-import { EmptyState, StatusBadge } from '../../components/common';
+import { StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
 import { teamApi, apiRequest } from '../../services/api';
-import { formatName } from '../../utils/formatName';
 import { pluralWithCount } from '../../utils/plural';
 import { CredentialsModal } from './team/CredentialsModal';
 import { StaffImportModal } from './team/StaffImportModal';
 import { AddStaffModal } from './team/AddStaffModal';
 import { MemberDetailsModal } from './team/MemberDetailsModal';
+import { StaffSection } from './team/StaffSection';
+import { type StaffMember } from './team/constants';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -24,76 +23,6 @@ import { useToastStore } from '../../stores/toastStore';
 import { SPECIALIZATION_LABELS } from '../../types';
 import type { ExecutorSpecialization } from '../../types';
 
-interface StaffMember {
-  id: string;
-  login: string;
-  password?: string;
-  name: string;
-  phone: string;
-  role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser';
-  specialization?: ExecutorSpecialization;
-  status?: string;
-  created_at: string;
-  completed_count?: number;
-  active_count?: number;
-  avg_rating?: number;
-}
-
-const ROLE_LABELS_RU: Record<string, string> = {
-  admin: 'Администратор',
-  manager: 'Менеджер',
-  advertiser: 'Менеджер рекламы',
-  department_head: 'Глава отдела',
-  executor: 'Исполнитель',
-};
-
-const ROLE_LABELS_UZ: Record<string, string> = {
-  admin: 'Administrator',
-  manager: 'Menejer',
-  advertiser: 'Reklama menejeri',
-  department_head: 'Bo\'lim boshlig\'i',
-  executor: 'Ijrochi',
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: 'bg-red-100 text-red-700',
-  manager: 'bg-purple-100 text-purple-700',
-  advertiser: 'bg-orange-100 text-orange-700',
-  department_head: 'bg-blue-100 text-blue-700',
-  executor: 'bg-green-100 text-green-700',
-};
-
-// Иконки для специализаций
-const SPECIALIZATION_ICONS: Record<ExecutorSpecialization, React.ReactNode> = {
-  plumber: <Droplets className="w-4 h-4" />,
-  electrician: <Zap className="w-4 h-4" />,
-  elevator: <ArrowUpDown className="w-4 h-4" />,
-  intercom: <Bell className="w-4 h-4" />,
-  cleaning: <Brush className="w-4 h-4" />,
-  security: <ShieldCheck className="w-4 h-4" />,
-  trash: <Hammer className="w-4 h-4" />,
-  boiler: <Flame className="w-4 h-4" />,
-  ac: <Wind className="w-4 h-4" />,
-  courier: <Truck className="w-4 h-4" />,
-  gardener: <Leaf className="w-4 h-4" />,
-  other: <Wrench className="w-4 h-4" />,
-};
-
-// Цвета для специализаций
-const SPECIALIZATION_COLORS: Record<ExecutorSpecialization, string> = {
-  plumber: 'bg-blue-100 text-blue-700',
-  electrician: 'bg-yellow-100 text-yellow-700',
-  elevator: 'bg-gray-100 text-gray-700',
-  intercom: 'bg-purple-100 text-purple-700',
-  cleaning: 'bg-pink-100 text-pink-700',
-  security: 'bg-red-100 text-red-700',
-  trash: 'bg-amber-100 text-amber-700',
-  boiler: 'bg-orange-100 text-orange-700',
-  ac: 'bg-cyan-100 text-cyan-700',
-  courier: 'bg-green-100 text-green-700',
-  gardener: 'bg-emerald-100 text-emerald-700',
-  other: 'bg-gray-100 text-gray-700',
-};
 
 const SPECIALIZATION_LABELS_UZ: Record<string, string> = {
   plumber: 'Santexnik',
@@ -562,131 +491,6 @@ export function TeamPage() {
     return language === 'ru' ? (SPECIALIZATION_LABELS[spec] || spec) : (SPECIALIZATION_LABELS_UZ[spec] || spec);
   };
 
-  const renderStaffCard = (member: StaffMember) => (
-    <div
-      key={member.id}
-      className="glass-card p-3 sm:p-4 hover:shadow-lg transition-shadow cursor-pointer relative group"
-      onClick={() => handleOpenDetails(member)}
-    >
-      {/* Delete button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleDeleteMember(member);
-        }}
-        className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
-        title={language === 'ru' ? 'Удалить сотрудника' : 'Xodimni o\'chirish'}
-        aria-label={language === 'ru' ? 'Удалить сотрудника' : 'Xodimni o\'chirish'}
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-
-      <div className="flex items-start justify-between mb-2 sm:mb-3 pr-8">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-lg font-medium flex-shrink-0 ${
-            member.specialization
-              ? SPECIALIZATION_COLORS[member.specialization]
-              : 'bg-primary-100 text-primary-700'
-          }`}>
-            {member.specialization
-              ? SPECIALIZATION_ICONS[member.specialization]
-              : member.name.split(' ').map(n => n[0]).join('').slice(0, 2)
-            }
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-sm sm:text-base truncate" title={member.name}>{formatName(member.name)}</h3>
-            {member.specialization && (
-              <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
-                {getSpecLabel(member.specialization)}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[member.role]}`}>
-            {ROLE_LABELS[member.role]}
-          </span>
-          {getStatusBadge(member.status)}
-        </div>
-      </div>
-
-      <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-600">
-        {member.phone && (
-          <a
-            href={`tel:${member.phone}`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-2 hover:text-primary-600 active:text-primary-700 touch-manipulation"
-            aria-label={language === 'ru' ? `Позвонить ${member.phone}` : `Qo'ng'iroq ${member.phone}`}
-          >
-            <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-            {member.phone}
-          </a>
-        )}
-        {(member.role === 'executor' || member.role === 'department_head') && (
-          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-            <div className="flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
-              {member.avg_rating || 0}
-            </div>
-            <div className="flex items-center gap-1">
-              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500" />
-              {member.completed_count || 0} {language === 'ru' ? 'выполнено' : 'bajarilgan'}
-            </div>
-            {member.active_count ? (
-              <div className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-500" />
-                {member.active_count} {language === 'ru' ? 'активных' : 'faol'}
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderSection = (
-    title: string,
-    icon: React.ReactNode,
-    members: StaffMember[],
-    sectionKey: keyof typeof expandedSections
-  ) => (
-    <div className="glass-card overflow-hidden">
-      <button
-        className="w-full p-3 sm:p-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
-        onClick={() => toggleSection(sectionKey)}
-      >
-        <div className="flex items-center gap-2 sm:gap-3">
-          {icon}
-          <h2 className="text-base sm:text-lg font-semibold">{title}</h2>
-          <span className="px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 text-xs sm:text-sm">
-            {members.length}
-          </span>
-        </div>
-        {expandedSections[sectionKey] ? (
-          <ChevronUp className="w-5 h-5 text-gray-500" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-gray-500" />
-        )}
-      </button>
-
-      {expandedSections[sectionKey] && (
-        <div className="p-2 sm:p-4">
-          {members.length === 0 ? (
-            <EmptyState
-              icon={<UserPlus className="w-12 h-12" />}
-              title={language === 'ru' ? 'Нет сотрудников' : 'Xodimlar yo\'q'}
-              description={language === 'ru' ? 'В этой категории пока нет сотрудников' : 'Bu toifada hali xodimlar yo\'q'}
-            />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
-              {members.map(renderStaffCard)}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -864,36 +668,65 @@ export function TeamPage() {
 
       {/* Sections */}
       <div className="space-y-3 sm:space-y-4">
-        {filteredDirectors.length > 0 && renderSection(
-          language === 'ru' ? 'Директора' : 'Direktorlar',
-          <Shield className="w-5 h-5 text-amber-500" />,
-          filteredDirectors,
-          'directors'
+        {filteredDirectors.length > 0 && (
+          <StaffSection
+            title={language === 'ru' ? 'Директора' : 'Direktorlar'}
+            icon={<Shield className="w-5 h-5 text-amber-500" />}
+            members={filteredDirectors}
+            expanded={expandedSections.directors}
+            onToggle={() => toggleSection('directors')}
+            onOpenMember={handleOpenDetails}
+            onDeleteMember={handleDeleteMember}
+            getSpecLabel={getSpecLabel}
+            getStatusBadge={getStatusBadge}
+          />
         )}
-        {!isDirector && filteredAdmins.length > 0 && renderSection(
-          language === 'ru' ? 'Администраторы' : 'Administratorlar',
-          <Shield className="w-5 h-5 text-red-500" />,
-          filteredAdmins,
-          'admins'
+        {!isDirector && filteredAdmins.length > 0 && (
+          <StaffSection
+            title={language === 'ru' ? 'Администраторы' : 'Administratorlar'}
+            icon={<Shield className="w-5 h-5 text-red-500" />}
+            members={filteredAdmins}
+            expanded={expandedSections.admins}
+            onToggle={() => toggleSection('admins')}
+            onOpenMember={handleOpenDetails}
+            onDeleteMember={handleDeleteMember}
+            getSpecLabel={getSpecLabel}
+            getStatusBadge={getStatusBadge}
+          />
         )}
-        {renderSection(
-          language === 'ru' ? 'Менеджеры' : 'Menejerlar',
-          <Shield className="w-5 h-5 text-purple-500" />,
-          filteredManagers,
-          'managers'
-        )}
-        {renderSection(
-          language === 'ru' ? 'Главы отделов' : 'Bo\'lim boshliqlari',
-          <UserCog className="w-5 h-5 text-primary-500" />,
-          filteredDepartmentHeads,
-          'departmentHeads'
-        )}
-        {renderSection(
-          language === 'ru' ? 'Исполнители' : 'Ijrochilar',
-          <Wrench className="w-5 h-5 text-green-500" />,
-          filteredExecutors,
-          'executors'
-        )}
+        <StaffSection
+          title={language === 'ru' ? 'Менеджеры' : 'Menejerlar'}
+          icon={<Shield className="w-5 h-5 text-purple-500" />}
+          members={filteredManagers}
+          expanded={expandedSections.managers}
+          onToggle={() => toggleSection('managers')}
+          onOpenMember={handleOpenDetails}
+          onDeleteMember={handleDeleteMember}
+          getSpecLabel={getSpecLabel}
+          getStatusBadge={getStatusBadge}
+        />
+        <StaffSection
+          title={language === 'ru' ? 'Главы отделов' : "Bo'lim boshliqlari"}
+          icon={<UserCog className="w-5 h-5 text-primary-500" />}
+          members={filteredDepartmentHeads}
+          expanded={expandedSections.departmentHeads}
+          onToggle={() => toggleSection('departmentHeads')}
+          onOpenMember={handleOpenDetails}
+          onDeleteMember={handleDeleteMember}
+          getSpecLabel={getSpecLabel}
+          getStatusBadge={getStatusBadge}
+        />
+        <StaffSection
+          title={language === 'ru' ? 'Исполнители' : 'Ijrochilar'}
+          icon={<Wrench className="w-5 h-5 text-green-500" />}
+          members={filteredExecutors}
+          expanded={expandedSections.executors}
+          onToggle={() => toggleSection('executors')}
+          onOpenMember={handleOpenDetails}
+          onDeleteMember={handleDeleteMember}
+          getSpecLabel={getSpecLabel}
+          getStatusBadge={getStatusBadge}
+        />
       </div>
 
       {showAddModal && (
