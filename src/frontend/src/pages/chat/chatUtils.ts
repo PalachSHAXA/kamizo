@@ -3,7 +3,23 @@
 // Extracted in Sprint 13 to break the ChatPage god-file without
 // duplicating utilities across the new component files.
 
-import type { ChatChannelType } from '../../types';
+import type { ChatChannelType, UserRole } from '../../types';
+
+export interface ChatMessage {
+  id: string;
+  channel_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: UserRole;
+  content: string;
+  created_at: string;
+  read_by?: string[];
+  // Sprint 11 privacy fix: aggregated flag — true once any management
+  // user has opened the message. Used by the resident's double-tick so
+  // the API never has to ship individual colleague IDs.
+  management_read?: boolean;
+  status?: 'sending' | 'sent' | 'failed';
+}
 
 export interface ChatChannel {
   id: string;
