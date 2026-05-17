@@ -12,6 +12,16 @@
   --brand-rgb: 249, 115, 22;
   --brand-bg: #fff7ed;
 
+  /* ── Motion tokens ─────────────────────────────────────
+     Sprint 52: per redesign skill — replace linear ease with
+     spring-physics for natural, weighty interactive motion.
+     `--ease-spring` = quick rise + soft settle.
+     `--ease-emphasized` = Material-style emphasized decel curve. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 0.18s;
+  --duration-base: 0.22s;
+
   /* ── Semantic status palette — single source of truth ──
      Use these for ALL status-like UI (badges, banners, counts, indicators).
      Do NOT invent new colors per-screen. Extend here if a new status type appears. */
@@ -257,7 +267,9 @@ p, li {
   /* Sprint 50: warm-tinted shadow (slight brand hue) instead of generic
      black. Per redesign skill: shadows should carry hue of background. */
   box-shadow: 0 8px 32px 0 rgba(140, 60, 20, 0.06), 0 2px 6px 0 rgba(140, 60, 20, 0.04);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition: transform var(--duration-base) var(--ease-spring),
+              box-shadow var(--duration-base) var(--ease-emphasized),
+              background var(--duration-base) var(--ease-emphasized);
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -334,19 +346,23 @@ p, li {
   border: none;
   cursor: pointer;
   box-shadow: 0 4px 20px 0 rgba(var(--brand-rgb), 0.3);
-  transition: all 0.3s ease;
+  transition: transform var(--duration-fast) var(--ease-spring),
+              background var(--duration-base) var(--ease-emphasized),
+              box-shadow var(--duration-base) var(--ease-emphasized);
   touch-action: manipulation;
 }
 
 @media (hover: hover) {
   .btn-primary:hover {
     background: var(--brand-light);
-    transform: scale(1.02);
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 8px 28px 0 rgba(var(--brand-rgb), 0.4);
   }
 }
 
 .btn-primary:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  transition-duration: 0.08s;
 }
 
 .btn-secondary {
