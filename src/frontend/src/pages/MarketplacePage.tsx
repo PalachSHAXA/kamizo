@@ -628,7 +628,7 @@ export function MarketplacePage() {
                         <p className="font-bold text-[14px] text-primary-600 mt-1">{fmt(p.price * item.quantity)}</p>
                       </div>
                       <div className="flex flex-col items-end justify-between">
-                        <button onClick={() => removeFromCart(p.id)} className="p-1 text-gray-300 active:text-red-500" aria-label={language === 'ru' ? 'Удалить из корзины' : 'Savatdan olib tashlash'}><X className="w-4 h-4" /></button>
+                        <button onClick={() => removeFromCart(p.id)} className="min-h-[36px] min-w-[36px] flex items-center justify-center text-gray-300 active:text-red-500 hover:bg-red-50 rounded-md transition-colors" aria-label={language === 'ru' ? 'Удалить из корзины' : 'Savatdan olib tashlash'}><X className="w-4 h-4" /></button>
                         <div className="flex items-center gap-1.5 bg-gray-50 rounded-[10px] p-0.5">
                           <button onClick={() => updateCartQuantity(p.id, item.quantity - 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3 h-3 text-gray-600" /></button>
                           <span className="w-5 text-center text-[13px] font-bold">{item.quantity}</span>

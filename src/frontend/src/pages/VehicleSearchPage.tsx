@@ -840,8 +840,8 @@ export function VehicleSearchPage() {
                             <span className="text-xs text-gray-500 ml-2">{language === 'ru' ? 'кв.' : 'xon.'} {selectedResidentUser.apartment}</span>
                           )}
                         </div>
-                        <button type="button" onClick={() => { setSelectedResidentUser(null); setResidentSearch(''); }} className="p-1 hover:bg-primary-100 rounded">
-                          <X className="w-3.5 h-3.5 text-gray-500" />
+                        <button type="button" onClick={() => { setSelectedResidentUser(null); setResidentSearch(''); }} className="min-h-[36px] min-w-[36px] flex items-center justify-center hover:bg-primary-100 rounded" aria-label="Снять выбор">
+                          <X className="w-4 h-4 text-gray-500" />
                         </button>
                       </div>
                     ) : (

@@ -34,7 +34,7 @@ export function AdViewsModal({ adTitle, views, loading, onClose }: AdViewsModalP
             <h3 className="font-bold text-base">Просмотры</h3>
             <p className="text-xs text-gray-500 mt-0.5">{adTitle} — {views.length} чел.</p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
+          <button onClick={onClose} className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>

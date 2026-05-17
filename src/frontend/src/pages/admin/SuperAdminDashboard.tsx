@@ -309,7 +309,7 @@ export function SuperAdminDashboard() {
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
           <XCircle className="w-4 h-4 flex-shrink-0" />
           {error}
-          <button onClick={() => setError('')} className="ml-auto p-1 hover:bg-red-100 rounded-lg"><X className="w-3.5 h-3.5" /></button>
+          <button onClick={() => setError('')} className="ml-auto min-h-[36px] min-w-[36px] flex items-center justify-center hover:bg-red-100 rounded-lg" aria-label="Закрыть"><X className="w-4 h-4" /></button>
         </div>
       )}
 

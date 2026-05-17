@@ -433,7 +433,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                 <h3 className="font-bold text-base">Назначить УК</h3>
                 <p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{showAssignModal.title}</p>
               </div>
-              <button onClick={() => setShowAssignModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowAssignModal(null)} className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -531,7 +531,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                   {showCouponsModal.title} — выдано: {showCouponsModal.coupons_issued || 0}, активировано: {showCouponsModal.coupons_activated || 0}
                 </p>
               </div>
-              <button onClick={() => setShowCouponsModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowCouponsModal(null)} className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -596,7 +596,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
           <div className="bg-white rounded-t-2xl sm:rounded-lg max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
             <div className="p-5 border-b flex items-center justify-between sticky top-0 bg-white z-10">
               <h2 className="text-lg font-bold">Добавить рекламу</h2>
-              <button onClick={() => setShowAdModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowAdModal(false)} className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>

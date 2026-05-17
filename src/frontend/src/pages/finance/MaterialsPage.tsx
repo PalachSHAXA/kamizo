@@ -289,8 +289,8 @@ export default function MaterialsPage() {
                         <td className="px-2 py-1.5 text-right text-gray-900">{item.quantity}</td>
                         <td className="px-2 py-1.5 text-right text-gray-900">{item.price_per_unit.toLocaleString()}</td>
                         <td className="px-1 py-1.5">
-                          <button onClick={() => removeBatchItem(idx)} className="p-1 text-gray-400 hover:text-red-500">
-                            <X className="w-3.5 h-3.5" />
+                          <button onClick={() => removeBatchItem(idx)} className="min-h-[36px] min-w-[36px] flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" aria-label="Удалить">
+                            <X className="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
@@ -396,8 +396,8 @@ export default function MaterialsPage() {
                 <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
                   <Paperclip className="w-4 h-4 text-gray-400" />
                   <span className="flex-1 truncate">{batchFile.name}</span>
-                  <button onClick={() => setBatchFile(null)} className="p-1 text-gray-400 hover:text-red-500">
-                    <X className="w-3.5 h-3.5" />
+                  <button onClick={() => setBatchFile(null)} className="min-h-[36px] min-w-[36px] flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" aria-label="Удалить файл">
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
