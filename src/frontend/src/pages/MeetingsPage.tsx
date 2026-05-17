@@ -131,7 +131,7 @@ export function MeetingsPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all active:scale-[0.97] touch-manipulation ${
               activeTab === tab.id
                 ? 'bg-primary-400 text-gray-900'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
@@ -148,7 +148,7 @@ export function MeetingsPage() {
       </div>
 
       {/* Meetings List */}
-      <div className="space-y-4">
+      <div key={activeTab} className="space-y-4 stagger-children anim-content-in">
         {isLoadingMeetings && meetings.length === 0 ? (
           <PageSkeleton variant="list" />
         ) : filteredMeetings.length === 0 ? (

@@ -58,14 +58,14 @@ export function ConfirmDialog({
   const iconNode = icon ?? cfg.defaultIcon;
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4 anim-backdrop-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto"
+        className="bg-white rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto anim-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className={`flex items-center justify-center w-12 h-12 rounded-full mx-auto mb-4 ${cfg.iconBg} ${cfg.iconFg}`}>

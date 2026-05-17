@@ -485,7 +485,7 @@ export function MarketplacePage() {
           {filteredProducts.length > 0 && (
             <>
               {!selectedCategory && !searchQuery && featured.length > 0 && <div className="text-[15px] font-bold text-gray-900 mb-2 px-0.5">{language === 'ru' ? 'Все товары' : 'Barcha mahsulotlar'} <span className="text-[13px] font-normal text-gray-400">{filteredProducts.length} {language === 'ru' ? 'шт.' : 'dona'}</span></div>}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div key={selectedCategory || searchQuery || 'all'} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 stagger-children">
                 {filteredProducts.map(p => {
                   const qty = getCartQty(p.id);
                   const fav = favorites.includes(p.id);

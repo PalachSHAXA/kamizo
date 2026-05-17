@@ -19,7 +19,7 @@ export function EmptyState({
   return (
     <div className={`flex flex-col items-center justify-center text-center py-12 px-4 ${className}`}>
       {icon && (
-        <div className="mb-4 w-12 h-12 text-gray-300">
+        <div className="mb-4 w-12 h-12 text-gray-300 anim-icon-float">
           {icon}
         </div>
       )}

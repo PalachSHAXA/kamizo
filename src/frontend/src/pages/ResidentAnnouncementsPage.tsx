@@ -129,7 +129,7 @@ export function ResidentAnnouncementsPage() {
       <div className="flex gap-2">
         <button
           onClick={() => { setFilter('all'); setUserPickedFilter(true); }}
-          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all touch-manipulation ${
+          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all active:scale-[0.97] touch-manipulation ${
             filter === 'all'
               ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-sm'
               : 'bg-white/70 text-gray-600 hover:bg-white'
@@ -139,7 +139,7 @@ export function ResidentAnnouncementsPage() {
         </button>
         <button
           onClick={() => { setFilter('unread'); setUserPickedFilter(true); }}
-          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all touch-manipulation ${
+          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all active:scale-[0.97] touch-manipulation ${
             filter === 'unread'
               ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-sm'
               : 'bg-white/70 text-gray-600 hover:bg-white'
@@ -159,7 +159,7 @@ export function ResidentAnnouncementsPage() {
           description={language === 'ru' ? 'Новые объявления появятся здесь' : 'Yangi e\'lonlar bu yerda paydo bo\'ladi'}
         />
       ) : (
-        <div className="space-y-3">
+        <div key={filter} className="space-y-3 stagger-children">
           {filteredAnnouncements.map((announcement) => {
             const isUnread = !announcement.viewedBy?.includes(user?.id || '');
             const isExpanded = expandedId === announcement.id;

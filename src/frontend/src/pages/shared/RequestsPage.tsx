@@ -222,7 +222,7 @@ export function RequestsPage() {
           description={language === 'ru' ? 'Заявки не найдены' : 'Arizalar topilmadi'}
         />
       ) : (
-      <div className="space-y-3">
+      <div key={filter} className="space-y-3 stagger-children">
         {filteredRequests.map((req) => (
           <div
             key={req.id}

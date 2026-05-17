@@ -134,7 +134,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4 anim-backdrop-in"
       onClick={handleBackdrop}
     >
       <div
@@ -143,7 +143,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
-        className={`bg-white w-full ${SIZE_CLASS[size]} rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto outline-none modal-landscape-tight ${panelClassName}`}
+        className={`bg-white w-full ${SIZE_CLASS[size]} rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto outline-none modal-landscape-tight modal-content ${panelClassName}`}
       >
         {(title || !hideCloseButton) && (
           <div className="flex items-center justify-between gap-3 p-4 sm:p-6 border-b border-gray-100">

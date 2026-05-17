@@ -151,7 +151,7 @@ export function RequestsTab({
 
       {/* Active requests */}
       {!isLoadingRequests && requestsSubTab === 'active' && (
-        <div className="space-y-3">
+        <div className="space-y-3 stagger-children">
           {activeRequests.length === 0 ? (
             <div className="text-center py-12 px-4">
               <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -201,7 +201,7 @@ export function RequestsTab({
 
       {/* Pending approval */}
       {!isLoadingRequests && requestsSubTab === 'pending_tab' && (
-        <div className="space-y-3">
+        <div className="space-y-3 stagger-children">
           {pendingApproval.length === 0 ? (
             <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
               <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -223,7 +223,7 @@ export function RequestsTab({
 
       {/* History */}
       {!isLoadingRequests && requestsSubTab === 'history_tab' && (
-        <div className="space-y-3">
+        <div className="space-y-3 stagger-children">
           {historyRequests.length === 0 ? (
             <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
