@@ -260,7 +260,7 @@ export function GuardQRScannerPage() {
         <canvas ref={canvasRef} className="hidden" />
 
         {/* Scanner frame with camera inside */}
-        <div className="relative w-[260px] h-[260px]">
+        <div className="relative aspect-square w-[min(260px,72vw)]">
           {/* Camera viewport — clipped to rounded rect */}
           <div className="absolute inset-2 rounded-3xl overflow-hidden bg-gray-800">
             <video
@@ -399,7 +399,7 @@ export function GuardQRScannerPage() {
       {/* ── Scan Result Overlay ── */}
       {scanResult && (
         <div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center px-5" onClick={() => { setScanResult(null); scanningRef.current = true; scanFrame(); }}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-[360px] shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-[360px] max-h-[90dvh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
 
             {/* Status icon */}
             <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${

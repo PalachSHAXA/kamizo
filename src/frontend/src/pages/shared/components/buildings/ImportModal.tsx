@@ -27,7 +27,7 @@ export function ImportModal({
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/60">
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto p-6 border border-white/60">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-[18px] font-extrabold">{t('Импорт комплекса', 'Kompleksni import qilish')}</h3>

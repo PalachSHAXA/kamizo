@@ -13,7 +13,7 @@ export function DistrictModal({ onClose, onSave, language }: DistrictModalProps)
   // TODO: migrate to <Modal> component
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110]" onClick={onClose}>
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-sm max-h-[90dvh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-lg font-bold">{t('Новый район', 'Yangi tuman')}</h2>
           <button onClick={onClose} className="min-w-[44px] min-h-[44px] rounded-lg border border-gray-200 flex items-center justify-center hover:border-orange-400" aria-label="Закрыть"><X className="w-4 h-4" /></button>

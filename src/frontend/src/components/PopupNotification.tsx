@@ -97,7 +97,7 @@ export function PopupNotification({
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="presentation" aria-hidden="false">
       <div
         className={`
-          relative w-full max-w-sm rounded-2xl border-2 shadow-2xl p-6
+          relative w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-2xl border-2 shadow-2xl p-6
           ${getBgColor()}
           ${isClosing ? 'animate-out zoom-out-95 fade-out duration-300' : 'animate-in zoom-in-95 fade-in duration-300'}
         `}

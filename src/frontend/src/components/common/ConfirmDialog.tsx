@@ -65,7 +65,7 @@ export function ConfirmDialog({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl p-6 max-w-sm w-full"
+        className="bg-white rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className={`flex items-center justify-center w-12 h-12 rounded-full mx-auto mb-4 ${cfg.iconBg} ${cfg.iconFg}`}>

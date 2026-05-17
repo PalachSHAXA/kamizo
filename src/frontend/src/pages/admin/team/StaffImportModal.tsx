@@ -34,7 +34,7 @@ export function StaffImportModal({
 }: StaffImportModalProps) {
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-[18px] font-extrabold">

@@ -163,8 +163,8 @@ export function WorkOrderDetailModal({
           {order.materials && order.materials.length > 0 && (
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">{language === 'ru' ? 'Материалы' : 'Materiallar'}</h3>
-              <div className="bg-gray-50 rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-gray-50 rounded-lg overflow-x-auto">
+                <table className="w-full text-sm min-w-[420px]">
                   <thead className="bg-gray-100">
                     <tr>
                       <th className="px-4 py-2 text-left text-gray-600">{language === 'ru' ? 'Наименование' : 'Nomi'}</th>
