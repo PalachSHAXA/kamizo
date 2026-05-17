@@ -352,11 +352,18 @@ function ColleaguesSectionInner() {
   return (
     <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-          <Users className="w-8 h-8 text-primary-500 flex-shrink-0" />
-          <span>{pageTitle}</span>
-        </h1>
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+          <Users className="w-5 h-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{pageTitle}</h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {isResidentView
+              ? (language === 'ru' ? 'Связь с обслуживающим персоналом' : "Xizmat ko'rsatuvchi xodimlar bilan aloqa")
+              : (language === 'ru' ? 'Команда и контакты' : 'Jamoa va aloqalar')}
+          </p>
+        </div>
       </div>
 
       {employees.length === 0 ? (

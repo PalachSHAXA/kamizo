@@ -299,21 +299,26 @@ export default function EstimatesPage() {
   return (
     <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t('Сметы', 'Smetalar')}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {t('Управление финансовыми сметами комплексов', 'Komplekslar moliyaviy smetalarini boshqarish')}
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <FileSpreadsheet className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+              {t('Сметы', 'Smetalar')}
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">
+              {t('Управление финансовыми сметами комплексов', 'Komplekslar moliyaviy smetalarini boshqarish')}
+            </p>
+          </div>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors font-medium text-sm shadow-sm"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm shrink-0"
         >
           <Plus className="w-4 h-4" />
-          {t('Создать смету', 'Smeta yaratish')}
+          <span className="hidden sm:inline">{t('Создать смету', 'Smeta yaratish')}</span>
         </button>
       </div>
 
