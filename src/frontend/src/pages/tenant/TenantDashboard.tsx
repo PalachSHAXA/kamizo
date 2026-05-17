@@ -332,20 +332,25 @@ export function TenantDashboard() {
   return (
     <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {isCommercialOwner
-            ? (language === 'ru' ? 'Моя недвижимость' : 'Mening ko\'chmas mulkim')
-            : (language === 'ru' ? 'Мои квартиры' : 'Mening kvartiralarim')}
-        </h1>
-        <p className="text-gray-500">
-          {language === 'ru' ? 'Добро пожаловать' : 'Xush kelibsiz'}, {user?.name}
-          {isCommercialOwner && (
-            <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-              {language === 'ru' ? 'Коммерческий владелец' : 'Tijoriy egasi'}
-            </span>
-          )}
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+          <Home className="w-5 h-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+            {isCommercialOwner
+              ? (language === 'ru' ? 'Моя недвижимость' : 'Mening ko\'chmas mulkim')
+              : (language === 'ru' ? 'Мои квартиры' : 'Mening kvartiralarim')}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+            <span className="truncate">{language === 'ru' ? 'Добро пожаловать' : 'Xush kelibsiz'}, {user?.name}</span>
+            {isCommercialOwner && (
+              <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                {language === 'ru' ? 'Коммерческий' : 'Tijoriy'}
+              </span>
+            )}
+          </p>
+        </div>
       </div>
 
       {/* Stats Grid */}
