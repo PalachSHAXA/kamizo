@@ -223,18 +223,24 @@ export function ChatView({
     return () => clearTimeout(timer);
   }, [messages.length]);
 
-  // Search logic
+  // Search logic — Sprint 58: debounce 150ms.
+  // Was firing a full scan on every keystroke (500 messages × lowercase
+  // + includes = noticeable lag in long channels). Now waits for the
+  // user to stop typing before scanning.
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const q = searchQuery.toLowerCase();
-    const indices = messages
-      .map((m, i) => m.content.toLowerCase().includes(q) ? i : -1)
-      .filter(i => i !== -1);
-    setSearchResults(indices);
-    setCurrentSearchIndex(0);
+    const timer = setTimeout(() => {
+      const q = searchQuery.toLowerCase();
+      const indices = messages
+        .map((m, i) => m.content.toLowerCase().includes(q) ? i : -1)
+        .filter(i => i !== -1);
+      setSearchResults(indices);
+      setCurrentSearchIndex(0);
+    }, 150);
+    return () => clearTimeout(timer);
   }, [searchQuery, messages]);
 
   // Scroll to current search match
@@ -502,7 +508,9 @@ export function ChatView({
             <Search className="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" />
             <input
               ref={searchInputRef}
-              type="text"
+              type="search"
+              inputMode="search"
+              autoComplete="off"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={language === 'ru' ? 'Поиск по сообщениям...' : 'Xabarlardan qidirish...'}

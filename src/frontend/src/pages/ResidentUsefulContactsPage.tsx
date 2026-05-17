@@ -590,7 +590,9 @@ export default function ResidentUsefulContactsPage() {
             <Search className="w-[18px] h-[18px]" style={{ color: 'rgb(var(--brand-rgb))' }} strokeWidth={2.2} />
           </div>
           <input
-            type="text"
+            type="search"
+            inputMode="search"
+            autoComplete="off"
             placeholder={language === 'ru' ? 'Поиск услуг и партнёров…' : "Xizmat va hamkorlarni qidirish…"}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
@@ -628,7 +630,7 @@ export default function ResidentUsefulContactsPage() {
                   <button
                     key={ad.id}
                     onClick={() => fetchAdDetails(ad.id)}
-                    className="w-full glass-card p-4 hover:shadow-lg transition-all text-left group"
+                    className="w-full glass-card p-4 hover:shadow-lg active:scale-[0.99] transition-all text-left group"
                   >
                     <div className="flex items-start gap-3">
                       {/* Logo/Icon */}

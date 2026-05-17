@@ -194,7 +194,7 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
               <div>
                 <label className={labelCls}>{t('Контактный телефон', 'Aloqa telefoni')}</label>
                 <input
-                  type="tel"
+                  type="tel" inputMode="tel" autoComplete="tel"
                   value={companyPhone}
                   onChange={e => setCompanyPhone(e.target.value)}
                   placeholder="+998 90 000 00 00"
@@ -317,7 +317,7 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
               <div>
                 <label className={labelCls}>{t('Телефон', 'Telefon')}</label>
                 <input
-                  type="tel"
+                  type="tel" inputMode="tel" autoComplete="tel"
                   value={managerPhone}
                   onChange={e => setManagerPhone(e.target.value)}
                   placeholder="+998 90 000 00 00"

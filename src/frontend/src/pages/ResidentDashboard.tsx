@@ -165,19 +165,27 @@ export function ResidentDashboard() {
     return () => window.removeEventListener('open-services', openServices);
   }, []);
 
-  // Get latest announcements for this resident
+  // Get latest announcements for this resident — Sprint 58: memoize.
+  // Was running getAnnouncementsForResidents + filter + slice in render body
+  // on every keystroke/state-change. Now only recomputes when source data
+  // or user identity changes.
   const userLogin = user?.login || '';
   const userBuilding = user?.buildingId || '';
   const userEntrance = user?.entrance || '';
   const userFloor = user?.floor || '';
   const userBranch = user?.branch || '';
   const userApartment = user?.apartment || '';
-  const residentAnnouncements = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
-  const unreadAnnouncements = residentAnnouncements.filter(a => !a.viewedBy?.includes(user?.id || ''));
-  const latestAnnouncements = unreadAnnouncements.slice(0, 3);
+  const userId = user?.id || '';
+  const latestAnnouncements = useMemo(() => {
+    const list = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
+    return list.filter(a => !a.viewedBy?.includes(userId)).slice(0, 3);
+  }, [getAnnouncementsForResidents, userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment, userId]);
 
   // Get upcoming meetings (voting open or schedule confirmed)
-  const activeMeetings = meetings.filter(m => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status));
+  const activeMeetings = useMemo(
+    () => meetings.filter(m => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)),
+    [meetings],
+  );
 
   // When switching tabs, update URL
   const switchTab = (tab: ActiveTab) => {

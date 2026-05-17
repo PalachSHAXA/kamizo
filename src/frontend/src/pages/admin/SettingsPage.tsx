@@ -393,7 +393,7 @@ export function SettingsPage() {
                     <label htmlFor="profile-phone" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
                     <input
                       id="profile-phone"
-                      type="tel"
+                      type="tel" inputMode="tel" autoComplete="tel"
                       value={profilePhone}
                       onChange={(e) => setProfilePhone(e.target.value)}
                       className="input-field text-base"
@@ -594,7 +594,7 @@ export function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
-                <input type="tel" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} className="input-field text-base" />
+                <input type="tel" inputMode="tel" autoComplete="tel" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} className="input-field text-base" />
               </div>
             </div>
           </div>

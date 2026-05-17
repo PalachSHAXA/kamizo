@@ -168,7 +168,7 @@ export function ResidentAnnouncementsPage() {
             return (
               <div
                 key={announcement.id}
-                className={`glass-card relative overflow-hidden p-3 sm:p-4 md:p-5 cursor-pointer transition-all touch-manipulation ${styles.bg} ${
+                className={`glass-card relative overflow-hidden p-3 sm:p-4 md:p-5 cursor-pointer transition-all touch-manipulation active:scale-[0.99] ${styles.bg} ${
                   isUnread ? 'shadow-md' : ''
                 }`}
                 onClick={() => handleExpand(announcement)}

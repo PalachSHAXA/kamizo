@@ -343,7 +343,7 @@ export function AddResidentModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}</label>
             <input
-              type="tel"
+              type="tel" inputMode="tel" autoComplete="tel"
               value={manualForm.phone}
               onChange={(e) => setManualForm({...manualForm, phone: e.target.value})}
               className="input-field"

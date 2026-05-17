@@ -243,7 +243,7 @@ export function TenantFormModal({
             <div>
               <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Телефон администратора' : 'Administrator telefoni'}</label>
               <input
-                type="tel"
+                type="tel" inputMode="tel" autoComplete="tel"
                 value={formData.admin_phone}
                 onChange={(e) => setFormData({ ...formData, admin_phone: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"

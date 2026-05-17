@@ -400,6 +400,8 @@ export function ResidentProfilePage() {
                 ) : (
                   <input
                     type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
                     placeholder="+998 90 123 45 67"

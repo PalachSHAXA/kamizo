@@ -308,7 +308,7 @@ export function CreatePassForm({
                       {language === 'ru' ? 'Телефон гостя' : 'Mehmon telefoni'}
                     </label>
                     <input
-                      type="tel"
+                      type="tel" inputMode="tel" autoComplete="tel"
                       value={visitorPhone}
                       onChange={(e) => setVisitorPhone(e.target.value)}
                       placeholder="+998 90 123 45 67"

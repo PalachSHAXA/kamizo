@@ -696,7 +696,7 @@ export function AdvertiserDashboard() {
                 <div>
                   <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Телефон' : 'Telefon'}<span className="text-red-500 ml-1">*</span></label>
                   <input
-                    type="tel"
+                    type="tel" inputMode="tel" autoComplete="tel"
                     value={adForm.phone}
                     onChange={e => setAdForm({ ...adForm, phone: e.target.value })}
                     placeholder="+998901234567"
@@ -707,7 +707,7 @@ export function AdvertiserDashboard() {
                 <div>
                   <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Доп. телефон' : 'Qo\'shimcha telefon'}</label>
                   <input
-                    type="tel"
+                    type="tel" inputMode="tel" autoComplete="tel"
                     value={adForm.phone2}
                     onChange={e => setAdForm({ ...adForm, phone2: e.target.value })}
                     placeholder="+998901234567"

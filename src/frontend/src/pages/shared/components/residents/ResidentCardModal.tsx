@@ -712,7 +712,7 @@ export function ResidentCardModal({
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Новый телефон', 'Yangi telefon')}</label>
                   <input
-                    type="tel"
+                    type="tel" inputMode="tel" autoComplete="tel"
                     value={changeValues.phone}
                     onChange={e => setChangeValues(prev => ({ ...prev, phone: e.target.value }))}
                     className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none"

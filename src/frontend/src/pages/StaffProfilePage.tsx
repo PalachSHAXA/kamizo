@@ -226,7 +226,7 @@ export function StaffProfilePage() {
                   <div className="font-medium text-[14px] text-gray-900">{user.phone || t.notSpecified}</div>
                 ) : (
                   <input
-                    type="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
+                    type="tel" inputMode="tel" autoComplete="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
                     placeholder="+998 90 123 45 67"
                     className="w-full py-1 text-[14px] font-medium text-gray-900 border-b-2 border-primary-400 outline-none bg-transparent"
                     maxLength={13} autoFocus

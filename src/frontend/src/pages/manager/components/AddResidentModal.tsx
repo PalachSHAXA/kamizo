@@ -363,7 +363,7 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
           <div>
             <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Телефон *' : 'Telefon *'}</label>
             <input
-              type="tel"
+              type="tel" inputMode="tel" autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+998 90 XXX XX XX"
