@@ -482,23 +482,28 @@ export function AnnouncementsPage() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-0">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[22px] font-extrabold text-gray-900 tracking-tight">{t('announcements.title')}</h1>
-          <p className="text-[13px] text-gray-500 mt-0.5">
-            {language === 'ru'
-              ? (canManageAnnouncements ? 'Создавайте объявления для жителей и сотрудников' : 'Объявления от управляющей компании')
-              : (canManageAnnouncements ? 'Aholi va xodimlar uchun e\'lonlar yarating' : 'Boshqaruv kompaniyasidan e\'lonlar')}
-          </p>
+      {/* Header — Sprint 42: brand-orange avatar pattern */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <Megaphone className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{t('announcements.title')}</h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">
+              {language === 'ru'
+                ? (canManageAnnouncements ? 'Создавайте объявления для жителей' : 'Объявления от УК')
+                : (canManageAnnouncements ? "Aholi uchun e'lonlar" : "UK e'lonlari")}
+            </p>
+          </div>
         </div>
         {canManageAnnouncements && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2.5 min-h-[44px] bg-primary-500 text-white rounded-[12px] text-[13px] font-semibold flex items-center gap-2 active:scale-[0.96] transition-transform touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)]"
+            className="px-4 py-2.5 min-h-[44px] rounded-xl bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white text-[13px] font-semibold flex items-center gap-2 active:scale-[0.97] transition-transform touch-manipulation shadow-sm shrink-0"
           >
             <Plus className="w-4 h-4" />
-            {t('announcements.add')}
+            <span className="hidden sm:inline">{t('announcements.add')}</span>
           </button>
         )}
       </div>

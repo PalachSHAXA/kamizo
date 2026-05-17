@@ -514,17 +514,21 @@ export function TeamPage() {
     <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Персонал' : 'Xodimlar'}</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {language === 'ru' ? 'Всего' : 'Jami'}:{' '}
-            {pluralWithCount(
-              language === 'ru' ? 'ru' : 'uz',
-              directors.length + (isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length,
-              { one: 'сотрудник', few: 'сотрудника', many: 'сотрудников' },
-              { one: 'xodim', other: 'xodim' }
-            )}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <UserCog className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Персонал' : 'Xodimlar'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {pluralWithCount(
+                language === 'ru' ? 'ru' : 'uz',
+                directors.length + (isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length,
+                { one: 'сотрудник', few: 'сотрудника', many: 'сотрудников' },
+                { one: 'xodim', other: 'xodim' },
+              )}
+            </p>
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-2 w-full sm:w-auto">
