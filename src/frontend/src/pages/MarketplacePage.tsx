@@ -325,7 +325,10 @@ export function MarketplacePage() {
             )}
             <button onClick={() => setActiveTab('cart')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? `Корзина, ${cartCount} товаров` : `Savat, ${cartCount} mahsulot`}>
               <ShoppingCart className="w-[18px] h-[18px] text-gray-700" />
-              {cartCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-white">{cartCount > 9 ? '9+' : cartCount}</span>}
+              {/* Sprint 36: red badge replaced with brand-orange to
+                  match the rest of the resident UI. Red was reading as
+                  "warning" when really it just meant "count". */}
+              {cartCount > 0 && <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-gradient-to-br from-[#E8621A] to-[#F59E0B] rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 border-2 border-white">{cartCount > 9 ? '9+' : cartCount}</span>}
             </button>
           </div>
         </div>
