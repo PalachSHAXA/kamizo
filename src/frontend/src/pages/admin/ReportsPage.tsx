@@ -451,9 +451,14 @@ export function ReportsPage() {
   return (
     <div className="space-y-6 pb-24 md:pb-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Отчёты и аналитика' : 'Hisobotlar va tahlil'}</h1>
-          <p className="text-gray-500 text-sm sm:text-base mt-1">{language === 'ru' ? 'Статистика и показатели эффективности' : 'Statistika va samaradorlik ko\'rsatkichlari'}</p>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <BarChart3 className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Отчёты и аналитика' : 'Hisobotlar va tahlil'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5">{language === 'ru' ? 'Статистика и KPI' : 'Statistika va KPI'}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <select

@@ -155,14 +155,21 @@ export function MarketplaceOrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header — Sprint 44: brand-orange avatar */}
       <div className="bg-white border-b px-4 py-4">
-        <h1 className="text-xl font-bold text-gray-900">
-          {language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari'}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {language === 'ru' ? 'Назначение и отслеживание заказов' : 'Buyurtmalarni tayinlash va kuzatish'}
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <ShoppingCart className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">
+              {language === 'ru' ? 'Заказы магазина' : "Do'kon buyurtmalari"}
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {language === 'ru' ? 'Назначение и отслеживание' : 'Tayinlash va kuzatish'}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Quick Stats */}

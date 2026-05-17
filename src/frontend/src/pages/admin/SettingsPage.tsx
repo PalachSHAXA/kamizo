@@ -297,14 +297,19 @@ export function SettingsPage() {
         </button>
       )}
 
-      {/* Header - mobile optimized */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</h1>
-          <p className="text-gray-500 text-sm md:text-base mt-0.5 md:mt-1">{language === 'ru' ? 'Параметры системы' : 'Tizim parametrlari'}</p>
+      {/* Header — Sprint 44: brand-orange avatar pattern */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <Settings className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Параметры системы' : 'Tizim parametrlari'}</p>
+          </div>
         </div>
         {saved && (
-          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm">
+          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm shrink-0">
             <CheckCircle className="w-4 h-4" />
             <span className="hidden sm:inline">{language === 'ru' ? 'Сохранено' : 'Saqlandi'}</span>
           </div>
