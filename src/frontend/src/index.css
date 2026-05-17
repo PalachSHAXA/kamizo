@@ -89,9 +89,23 @@ h3 {
   letter-spacing: -0.01em;
 }
 
+/* Body paragraphs — prevent orphaned words at end of paragraphs.
+   `pretty` is smarter than `balance` for multi-line copy. */
+p, li {
+  text-wrap: pretty;
+}
+
 /* Tabular figures for data-heavy UI (prices, counters, balances).
    Apply via class .tabular-nums on any number container. */
 .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Auto-apply tabular figures to common stat-card number sizes — they're
+   almost always numbers and proportional digits cause misalignment when
+   values change. Safe because text-3xl/4xl in this app is reserved for
+   display numbers, not copy. */
+.text-3xl, .text-4xl {
   font-variant-numeric: tabular-nums;
 }
 
