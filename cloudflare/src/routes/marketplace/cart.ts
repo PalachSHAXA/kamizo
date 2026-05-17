@@ -53,10 +53,16 @@ route('POST', '/api/marketplace/cart', async (request, env) => {
   ).bind(product_id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!product) return error('Product not found', 404);
 
+  // Sprint 63 P1: on main-domain (tenantId === null) this summed cart
+  // reservations across ALL tenants, blocking add-to-cart based on
+  // unrelated tenants' reservations. Use product.tenant_id (we already
+  // loaded the product) so the reservation lookup is always
+  // product-tenant-scoped regardless of caller context.
+  const productTenant = product.tenant_id ?? null;
   const reservedStock = await env.DB.prepare(`
     SELECT COALESCE(SUM(quantity), 0) as total FROM marketplace_cart
-    WHERE product_id = ? AND user_id != ? ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(product_id, user.id, ...(tenantId ? [tenantId] : [])).first() as any;
+    WHERE product_id = ? AND user_id != ? ${productTenant ? 'AND tenant_id = ?' : ''}
+  `).bind(product_id, user.id, ...(productTenant ? [productTenant] : [])).first() as any;
 
   const otherUsersReserved = reservedStock?.total || 0;
   const availableStock = product.stock_quantity - otherUsersReserved;

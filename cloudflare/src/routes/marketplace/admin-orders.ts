@@ -88,6 +88,16 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
 
   // Assigning executor
   if (executor_id !== undefined) {
+    // Sprint 63 P0: validate executor before assignment. Was writing
+    // body.executor_id verbatim — manager could route orders to any
+    // user id (including a foreign-tenant user or a non-courier).
+    if (executor_id !== null) {
+      const executorRow = await env.DB.prepare(
+        `SELECT id FROM users WHERE id = ? AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''} AND (specialization = 'courier' OR role IN ('manager', 'admin'))`
+      ).bind(executor_id, ...(tenantId ? [tenantId] : [])).first();
+      if (!executorRow) return error('Executor not found in tenant or not a courier', 404);
+    }
+
     await env.DB.prepare(`
       UPDATE marketplace_orders SET executor_id = ?, assigned_at = datetime('now'),
         status = 'confirmed', confirmed_at = datetime('now'), updated_at = datetime('now')
@@ -134,31 +144,61 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
     const validStatuses = ['confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled'];
     if (!validStatuses.includes(status)) return error('Invalid status');
 
+    // Sprint 63 P0: status transition matrix. Was allowing any → any
+    // (manager could jump new → delivered, skipping packing/delivery).
+    // From=any-of, To=target. 'cancelled' may be reached from any non-
+    // terminal state. 'delivered' may only be reached from 'delivering'.
+    const transitions: Record<string, string[]> = {
+      confirmed: ['new'],
+      preparing: ['new', 'confirmed'],
+      ready: ['preparing'],
+      delivering: ['ready', 'preparing', 'confirmed'],
+      delivered: ['delivering'],
+      cancelled: ['new', 'confirmed', 'preparing', 'ready', 'delivering'],
+    };
+
+    const currentOrder = await env.DB.prepare(
+      `SELECT status FROM marketplace_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+    if (!currentOrder) return error('Order not found', 404);
+
+    // Idempotency: re-PATCHing the same status is a no-op (avoids
+    // duplicate history rows and overwritten timestamps).
+    if (currentOrder.status === status) return json({ success: true, noop: true });
+
+    const allowedFrom = transitions[status] || [];
+    if (!allowedFrom.includes(currentOrder.status)) {
+      return error(`Invalid transition: ${currentOrder.status} → ${status}`, 409);
+    }
+
     if (status === 'cancelled') {
-      const currentOrder = await env.DB.prepare(
-        `SELECT status FROM marketplace_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-      ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
-      if (currentOrder && currentOrder.status !== 'cancelled') {
-        const orderItems = await env.DB.prepare(`
-          SELECT product_id, quantity FROM marketplace_order_items WHERE order_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-        `).bind(params.id, ...(tenantId ? [tenantId] : [])).all() as { results: { product_id: string, quantity: number }[] };
-        for (const item of (orderItems.results || [])) {
-          await env.DB.prepare(`
-            UPDATE marketplace_products SET stock_quantity = stock_quantity + ?
-            WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-          `).bind(item.quantity, item.product_id, ...(tenantId ? [tenantId] : [])).run();
-        }
-      }
+      // Refund stock once. Already gated by transition matrix above —
+      // can't re-cancel because no-op fired earlier.
+      const orderItems = await env.DB.prepare(`
+        SELECT product_id, quantity FROM marketplace_order_items WHERE order_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+      `).bind(params.id, ...(tenantId ? [tenantId] : [])).all() as { results: { product_id: string, quantity: number }[] };
+      const refunds = (orderItems.results || []).map(item =>
+        env.DB.prepare(`
+          UPDATE marketplace_products SET stock_quantity = stock_quantity + ?
+          WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+        `).bind(item.quantity, item.product_id, ...(tenantId ? [tenantId] : []))
+      );
+      if (refunds.length > 0) await env.DB.batch(refunds);
     }
 
     const statusField = status === 'cancelled' ? 'cancelled_at' : status === 'confirmed' ? 'confirmed_at' :
       status === 'preparing' ? 'preparing_at' : status === 'ready' ? 'ready_at' :
       status === 'delivering' ? 'delivering_at' : status === 'delivered' ? 'delivered_at' : null;
 
-    await env.DB.prepare(`
+    // Status precondition on UPDATE so a concurrent transition can't slip past.
+    const statusUpdate = await env.DB.prepare(`
       UPDATE marketplace_orders SET status = ?, ${statusField} = datetime('now'), updated_at = datetime('now')
-      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-    `).bind(status, params.id, ...(tenantId ? [tenantId] : [])).run();
+      WHERE id = ? AND status = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(status, params.id, currentOrder.status, ...(tenantId ? [tenantId] : [])).run();
+
+    if (!statusUpdate.meta || statusUpdate.meta.changes === 0) {
+      return error('Order status changed concurrently — retry', 409);
+    }
 
     await env.DB.prepare(`
       INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by, tenant_id)

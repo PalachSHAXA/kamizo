@@ -74,11 +74,14 @@ route('GET', '/api/marketplace/products/:id', async (request, env, params) => {
   if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
+  // Sprint 63 P1: filter is_active=1 so soft-deleted products don't return
+  // via direct URL. Customer could deep-link a deleted product and try to
+  // add it to cart (cart-add does block, but UX showed the page anyway).
   const product = await env.DB.prepare(`
     SELECT p.*, c.name_ru as category_name_ru, c.name_uz as category_name_uz, c.icon as category_icon
     FROM marketplace_products p
     LEFT JOIN marketplace_categories c ON p.category_id = c.id
-    WHERE p.id = ? ${tenantId ? 'AND p.tenant_id = ?' : ''}
+    WHERE p.id = ? AND p.is_active = 1 ${tenantId ? 'AND p.tenant_id = ?' : ''}
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
 
   if (!product) return error('Product not found', 404);
