@@ -3,9 +3,54 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, generateId, isManagement } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
+
+// Sprint 64 P0: shared membership/tenant check for chat endpoints. Previously
+// GET/POST messages and POST /read all skipped this check, letting any
+// authenticated user read or write any channel by ID — across tenants too,
+// since on main-domain `tenantId` was null and the tenant guard was wrapped
+// in `if (tenantId)`. Now: load the channel (force tenant scope or fail),
+// then verify the user is allowed in.
+//
+// Allowed when:
+//   - user is management AND in same tenant as channel
+//   - private_support: user is the resident_id on that channel
+//   - building_general: user.building_id matches channel.building_id
+//   - uk_general: user has a building in the same tenant (i.e. is a resident
+//     of this UK)
+//   - generic membership via chat_participants table (future-proof)
+async function getAccessibleChannel(env: any, channelId: string, user: any, tenantId: string | null) {
+  const channel = await env.DB.prepare(
+    `SELECT id, tenant_id, type, resident_id, building_id, name FROM chat_channels WHERE id = ?
+     ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(channelId, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!channel) return null;
+
+  // On main-domain (tenantId === null) require channel.tenant_id matches user.tenant_id
+  // — otherwise super-admins across tenants would leak into each other.
+  if (!tenantId && channel.tenant_id && user.tenant_id && channel.tenant_id !== user.tenant_id) {
+    return null;
+  }
+
+  if (isManagement(user)) return channel;
+  if (channel.type === 'private_support' && channel.resident_id === user.id) return channel;
+  if (channel.type === 'building_general' && channel.building_id && channel.building_id === user.building_id) return channel;
+  if (channel.type === 'uk_general') {
+    // Resident in any building of this tenant — same UK
+    if (user.building_id) return channel;
+  }
+  // Membership table fallback (if schema has chat_participants)
+  try {
+    const member = await env.DB.prepare(
+      'SELECT 1 FROM chat_participants WHERE channel_id = ? AND user_id = ?'
+    ).bind(channelId, user.id).first();
+    if (member) return channel;
+  } catch { /* table may not exist; ignore */ }
+
+  return null;
+}
 
 export function registerChatMessageRoutes() {
 
@@ -19,12 +64,11 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10), 500);
   const before = url.searchParams.get('before'); // message ID for pagination
 
-  // MULTI-TENANCY: Verify channel belongs to tenant
+  // Sprint 64 P0: full membership/tenant gate (was only checking tenant
+  // when tenantId resolved, and never checking membership at all).
   const tenantId = getTenantId(request);
-  if (tenantId) {
-    const ch = await env.DB.prepare('SELECT id FROM chat_channels WHERE id = ? AND tenant_id = ?').bind(channelId, tenantId).first();
-    if (!ch) return error('Channel not found', 404);
-  }
+  const channel = await getAccessibleChannel(env, channelId, user, tenantId);
+  if (!channel) return error('Channel not found', 404);
 
   // Audit P0: previous version had a correlated GROUP_CONCAT sub-query
   // executed once per row (`SELECT GROUP_CONCAT(user_id) FROM chat_message_reads
@@ -102,21 +146,32 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  const channelId = params.id;
+  const tenantId = getTenantId(request);
+
+  // Sprint 64 P0: membership gate (was none — anyone could POST into any channel).
+  const channel = await getAccessibleChannel(env, channelId, user, tenantId);
+  if (!channel) return error('Channel not found', 404);
+
   const { content } = await request.json() as { content: string };
   if (!content) return error('Content required');
-  // Allow larger messages when they contain inline images (data:image base64)
-  const maxLen = content.includes('data:image/') ? 2_000_000 : 5000;
-  if (content.length > maxLen) return error(`Message too long (max ${maxLen} characters)`);
+  // Sprint 64 P0: cap inline-image messages tighter — D1 row limit is ~1MB.
+  // Was 2MB, also no MIME-type validation. Now: 1MB cap + strict image MIME.
+  const PHOTO_PREFIX_RE = /^data:image\/(png|jpe?g|webp);base64,/i;
+  if (content.startsWith('data:')) {
+    if (!PHOTO_PREFIX_RE.test(content)) return error('Only PNG/JPEG/WebP inline images allowed', 400);
+    if (content.length > 1_000_000) return error('Inline image too large (max 1MB)', 400);
+  } else if (content.length > 5000) {
+    return error('Message too long (max 5000 characters)', 400);
+  }
 
-  const tenantId = getTenantId(request);
   const id = generateId();
-  const channelId = params.id;
 
   try {
     await env.DB.prepare(`
       INSERT INTO chat_messages (id, channel_id, sender_id, content, tenant_id)
       VALUES (?, ?, ?, ?, ?)
-    `).bind(id, channelId, user.id, content, getTenantId(request)).run();
+    `).bind(id, channelId, user.id, content, tenantId ?? channel.tenant_id ?? '').run();
   } catch (e: any) {
     createRequestLogger(request).error('Failed to insert chat message', e);
     return error('Failed to send message', 500);
@@ -138,21 +193,28 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
     const connManagerId = env.CONNECTION_MANAGER.idFromName('global');
     const connManager = env.CONNECTION_MANAGER.get(connManagerId);
 
-    const channel = await env.DB.prepare(
-      `SELECT * FROM chat_channels WHERE id = ?${tenantId ? ' AND tenant_id = ?' : ''}`
-    ).bind(channelId, ...(tenantId ? [tenantId] : [])).first() as any;
+    // We already verified channel membership above; reuse that row.
+    const channelRow = channel;
 
-    if (channel) {
+    if (channelRow) {
       const channels: string[] = [`chat:channel:${channelId}`];
+      // Sprint 64 P0: use channel.tenant_id as the source of truth for
+      // recipient lookup. Previously the manager-recipient query had NO
+      // tenant filter — a resident's message preview pushed to managers
+      // across ALL tenants (cross-tenant PII leak). Also include director
+      // and department_head (they were missed).
+      const channelTenant = channelRow.tenant_id || null;
+      const tenantFilter = channelTenant ? 'AND tenant_id = ?' : '';
+      const tenantBind = channelTenant ? [channelTenant] : [];
 
-      if (channel.type === 'private_support') {
+      if (channelRow.type === 'private_support') {
         channels.push('chat:all');
-        if (channel.resident_id) {
-          channels.push(`chat:user:${channel.resident_id}`);
+        if (channelRow.resident_id) {
+          channels.push(`chat:user:${channelRow.resident_id}`);
         }
 
-        if (['manager', 'admin', 'department_head'].includes(user.role) && channel.resident_id) {
-          sendPushNotification(env, channel.resident_id, {
+        if (['manager', 'admin', 'department_head', 'director'].includes(user.role) && channelRow.resident_id) {
+          sendPushNotification(env, channelRow.resident_id, {
             title: '\u{1F4AC} Ответ от УК',
             body: content.length > 100 ? content.substring(0, 100) + '...' : content,
             type: 'chat_message',
@@ -162,8 +224,8 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
           }).catch(() => {});
         } else if (user.role === 'resident') {
           const { results: managers } = await env.DB.prepare(
-            `SELECT id FROM users WHERE role IN ('manager', 'admin') AND is_active = 1`
-          ).all();
+            `SELECT id FROM users WHERE role IN ('manager', 'admin', 'department_head', 'director') AND is_active = 1 ${tenantFilter}`
+          ).bind(...tenantBind).all();
 
           for (const mgr of (managers || []) as any[]) {
             sendPushNotification(env, mgr.id, {
@@ -179,17 +241,17 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
       } else {
         channels.push('chat:all');
 
-        if (channel.type === 'building_general' && channel.building_id) {
+        if (channelRow.type === 'building_general' && channelRow.building_id) {
           const { results: residents } = await env.DB.prepare(
-            `SELECT id FROM users WHERE building_id = ? AND id != ? AND role = 'resident' AND is_active = 1 LIMIT 100`
-          ).bind(channel.building_id, user.id).all();
+            `SELECT id FROM users WHERE building_id = ? AND id != ? AND role = 'resident' AND is_active = 1 ${tenantFilter} LIMIT 100`
+          ).bind(channelRow.building_id, user.id, ...tenantBind).all();
 
           const BATCH = 10;
           for (let i = 0; i < (residents?.length || 0); i += BATCH) {
             const batch = (residents || []).slice(i, i + BATCH) as any[];
             Promise.all(batch.map(r =>
               sendPushNotification(env, r.id, {
-                title: `\u{1F4AC} ${channel.name || 'Чат дома'}`,
+                title: `\u{1F4AC} ${channelRow.name || 'Чат дома'}`,
                 body: `${user.name}: ${content.length > 60 ? content.substring(0, 60) + '...' : content}`,
                 type: 'chat_message',
                 tag: `chat-group-${channelId}`,

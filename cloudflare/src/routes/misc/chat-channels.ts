@@ -13,7 +13,14 @@ route('GET', '/api/chat/channels', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  const tenantId = getTenantId(request);
+  const requestTenant = getTenantId(request);
+  // Sprint 64 P0: on main-domain (requestTenant === null) management
+  // queries previously returned channels from ALL tenants — full cross-
+  // tenant chat exposure including resident names + apartments. Default
+  // to the user's own tenant so each manager only sees their tenant.
+  // Super-admin separate endpoint exists; this listing must be tenant-
+  // scoped.
+  const tenantId = requestTenant || (user.tenant_id as string | null) || null;
 
   let query: string;
   let params: any[];
@@ -135,12 +142,22 @@ route('POST', '/api/chat/channels', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // Sprint 64 P0: management-only. Was wide open — any resident could
+  // POST {type:"private_support", name:"...", building_id:"<any>"} and
+  // create channels. Combined with the missing membership checks on
+  // GET/POST messages, this was a write-anywhere + read-anywhere combo.
+  if (!isManagement(user)) return error('Admin/Manager access required', 403);
+
   const body = await request.json() as any;
   const { type, name, description, building_id } = body;
 
   if (!type || !name) {
     return error('Type and name required');
   }
+  // Whitelist channel types — schema may have a CHECK already but app-level
+  // rejection gives a clean 400 instead of a 500.
+  const allowedTypes = ['private_support', 'uk_general', 'building_general', 'group'];
+  if (!allowedTypes.includes(type)) return error(`Invalid channel type: ${type}`, 400);
 
   const id = generateId();
   await env.DB.prepare(`

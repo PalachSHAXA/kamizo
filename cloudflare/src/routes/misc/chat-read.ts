@@ -16,6 +16,29 @@ route('POST', '/api/chat/channels/:id/read', async (request, env, params) => {
   const channelId = params.id;
   const tenantId = getTenantId(request);
 
+  // Sprint 64 P0: was zero-guarded. Any authenticated user could mark
+  // ANY channel as read for themselves AND forge a `chat_read` WebSocket
+  // broadcast with their name/role on `chat:channel:${id}` — spoofing
+  // a "manager read" tick on victim conversations.
+  const channel = await env.DB.prepare(
+    `SELECT id, tenant_id, type, resident_id, building_id FROM chat_channels WHERE id = ?
+     ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(channelId, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!channel) return error('Channel not found', 404);
+
+  const allowed = isManagement(user)
+    || (channel.type === 'private_support' && channel.resident_id === user.id)
+    || (channel.type === 'building_general' && channel.building_id === user.building_id)
+    || (channel.type === 'uk_general' && !!user.building_id);
+  if (!allowed) {
+    try {
+      const member = await env.DB.prepare(
+        'SELECT 1 FROM chat_participants WHERE channel_id = ? AND user_id = ?'
+      ).bind(channelId, user.id).first();
+      if (!member) return error('Forbidden', 403);
+    } catch { return error('Forbidden', 403); }
+  }
+
   // Mark channel as read for the current user
   await env.DB.prepare(`
     INSERT INTO chat_channel_reads (channel_id, user_id, last_read_at)
