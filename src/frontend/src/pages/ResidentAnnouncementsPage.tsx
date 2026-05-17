@@ -104,41 +104,48 @@ export function ResidentAnnouncementsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
-      {/* Header */}
+      {/* Header — chat-style: brand-orange avatar + title + unread chip */}
       <div className="flex items-center justify-between">
-        <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold flex items-center gap-3">
-          <Megaphone className="w-7 h-7 text-primary-500" />
-          {language === 'ru' ? 'Объявления' : 'E\'lonlar'}
-        </h1>
-
-        {unreadCount > 0 && (
-          <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-sm font-medium">
-            {unreadCount} {language === 'ru' ? 'новых' : 'yangi'}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm">
+            <Megaphone className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg md:text-xl xl:text-2xl font-bold">
+              {language === 'ru' ? 'Объявления' : "E'lonlar"}
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {unreadCount > 0
+                ? `${unreadCount} ${language === 'ru' ? 'новых' : 'yangi'}`
+                : language === 'ru' ? 'Все прочитано' : "Hammasi o'qilgan"}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Filter */}
+      {/* Filter — Sprint 34: brand-orange active state with white text
+          (was bg-primary-500 text-gray-900 which read as a yellow chip
+          with black text — off-brand). */}
       <div className="flex gap-2">
         <button
           onClick={() => { setFilter('all'); setUserPickedFilter(true); }}
-          className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-sm transition-colors touch-manipulation ${
+          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all touch-manipulation ${
             filter === 'all'
-              ? 'bg-primary-500 text-gray-900'
-              : 'bg-white/60 text-gray-600 hover:bg-white/80'
+              ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-sm'
+              : 'bg-white/70 text-gray-600 hover:bg-white'
           }`}
         >
-          {language === 'ru' ? 'Все' : 'Hammasi'} ({announcements.length})
+          {language === 'ru' ? 'Все' : 'Hammasi'} · {announcements.length}
         </button>
         <button
           onClick={() => { setFilter('unread'); setUserPickedFilter(true); }}
-          className={`px-4 py-2 min-h-[44px] rounded-lg sm:rounded-xl font-medium text-sm transition-colors touch-manipulation ${
+          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all touch-manipulation ${
             filter === 'unread'
-              ? 'bg-primary-500 text-gray-900'
-              : 'bg-white/60 text-gray-600 hover:bg-white/80'
+              ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-sm'
+              : 'bg-white/70 text-gray-600 hover:bg-white'
           }`}
         >
-          {language === 'ru' ? 'Непрочитанные' : 'O\'qilmagan'} ({unreadCount})
+          {language === 'ru' ? 'Новые' : 'Yangi'} · {unreadCount}
         </button>
       </div>
 
@@ -161,11 +168,18 @@ export function ResidentAnnouncementsPage() {
             return (
               <div
                 key={announcement.id}
-                className={`glass-card p-3 sm:p-4 md:p-5 border-2 cursor-pointer transition-all touch-manipulation ${styles.bg} ${
-                  isUnread ? 'ring-2 ring-yellow-400 ring-offset-2' : ''
+                className={`glass-card relative overflow-hidden p-3 sm:p-4 md:p-5 cursor-pointer transition-all touch-manipulation ${styles.bg} ${
+                  isUnread ? 'shadow-md' : ''
                 }`}
                 onClick={() => handleExpand(announcement)}
               >
+                {/* Sprint 34: left accent bar for unread (was a full
+                    yellow ring around the whole card — too loud). The
+                    accent uses brand orange so unread reads as a "this
+                    is fresh from УК" cue, not a warning. */}
+                {isUnread && (
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#E8621A] to-[#F59E0B]" />
+                )}
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0 mt-0.5">
                     {styles.icon}
@@ -175,7 +189,7 @@ export function ResidentAnnouncementsPage() {
                     {/* Header */}
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                       {isUnread && (
-                        <span className="px-2 py-0.5 rounded-full bg-yellow-400 text-yellow-900 text-xs font-medium">
+                        <span className="px-2 py-0.5 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white text-[11px] font-bold">
                           {language === 'ru' ? 'Новое' : 'Yangi'}
                         </span>
                       )}
