@@ -457,16 +457,22 @@ export default function ResidentUsefulContactsPage() {
   // Main View - Modern card design
   return (
     <div className="max-w-4xl mx-auto pb-24 md:pb-0">
-      {/* Header */}
-      <div className="mb-4 px-1">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-          {language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar'}
-        </h1>
-        <p className="text-gray-500 text-sm mt-0.5">
-          {language === 'ru'
-            ? 'Экстренные службы и проверенные специалисты'
-            : 'Tez yordam xizmatlari va tekshirilgan mutaxassislar'}
-        </p>
+      {/* Header — Sprint 38: brand-orange avatar + title + subtitle,
+          matching the rest of the resident UI. */}
+      <div className="mb-4 px-1 flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm">
+          <Phone className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-gray-900">
+            {language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar'}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {language === 'ru'
+              ? 'Экстренные службы и проверенные специалисты'
+              : 'Tez yordam xizmatlari va tekshirilgan mutaxassislar'}
+          </p>
+        </div>
       </div>
 
       {/* Kamizo Banner — compact single row */}

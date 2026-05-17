@@ -325,19 +325,26 @@ export function ResidentVehiclesPage() {
           the activeTab state below reacts to whether the search input is
           empty or filled, no more visible tab pills. */}
       <div className="px-3 md:px-0 space-y-3">
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-[20px] md:text-[24px] font-extrabold text-gray-900 leading-tight">
-              {language === 'ru' ? 'Авто' : 'Avto'}
-            </h1>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mt-0.5 truncate">
-              {garageLabel}
-            </p>
+        {/* Sprint 38: brand-orange avatar + title + subtitle, matching
+            the Chat / Announcements / Meetings / Requests pattern. The
+            single-line garage label became the proper subtitle slot. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+              <Car className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-gray-900 leading-tight truncate">
+                {language === 'ru' ? 'Авто' : 'Avto'}
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                {garageLabel}
+              </p>
+            </div>
           </div>
           <button
             onClick={() => handleOpenModal()}
-            className="flex items-center gap-1.5 h-10 px-3.5 rounded-full text-[13px] font-bold text-white active:scale-[0.97] transition-transform touch-manipulation shrink-0"
-            style={{ background: 'rgb(var(--brand-rgb))' }}
+            className="flex items-center gap-1.5 h-10 px-3.5 rounded-full text-[13px] font-bold text-white bg-gradient-to-br from-[#E8621A] to-[#F59E0B] active:scale-[0.97] transition-transform touch-manipulation shrink-0 shadow-sm"
           >
             <Plus className="w-4 h-4" />
             {language === 'ru' ? 'Добавить' : "Qo'shish"}
