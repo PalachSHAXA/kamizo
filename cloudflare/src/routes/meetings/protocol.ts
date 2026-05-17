@@ -172,8 +172,11 @@ route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, para
 
   const { results: voteRecords } = await env.DB.prepare(`SELECT v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, MIN(v.voted_at) as voted_at FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.meeting_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) GROUP BY v.voter_id ORDER BY v.voter_name`).bind(params.meetingId).all();
 
-  // Load ALL item votes for the meeting in one query, then group by agenda_item_id
-  const { results: allItemVotes } = await env.DB.prepare(`SELECT v.agenda_item_id, v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, v.choice, v.voted_at, c.comment as comment FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id LEFT JOIN meeting_agenda_comments c ON c.agenda_item_id = v.agenda_item_id AND c.user_id = v.voter_id WHERE v.meeting_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) ORDER BY v.voter_name`).bind(params.meetingId).all();
+  // Load ALL item votes for the meeting in one query, then group by agenda_item_id.
+  // Sprint 61 P1: column is `c.content` not `c.comment`; joined on `c.resident_id`
+  // not `c.user_id`. Previously this LEFT JOIN matched nothing → protocol had
+  // no comments attached.
+  const { results: allItemVotes } = await env.DB.prepare(`SELECT v.agenda_item_id, v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, v.choice, v.voted_at, c.content as comment FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id LEFT JOIN meeting_agenda_comments c ON c.agenda_item_id = v.agenda_item_id AND c.resident_id = v.voter_id WHERE v.meeting_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) ORDER BY v.voter_name`).bind(params.meetingId).all();
 
   const votesByItem: Record<string, any[]> = {};
   for (const vote of (allItemVotes || []) as any[]) {

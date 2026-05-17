@@ -21,19 +21,29 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
 
   const eligibleVoter = await env.DB.prepare(`SELECT ev.*, u.apartment, u.total_area FROM meeting_eligible_voters ev JOIN users u ON u.id = ev.user_id WHERE ev.meeting_id = ? AND ev.user_id = ?`).bind(params.meetingId, authUser.id).first() as any;
 
-  let apartmentArea = body.ownership_share || body.ownershipShare || null;
-  let apartmentNumber = body.apartment_number || body.apartmentNumber || null;
+  // Sprint 61 P0: voting fraud guard. Was reading `body.ownership_share`
+  // as vote weight, letting any resident post `ownership_share: 99999` and
+  // dominate the building's vote. ALWAYS read total_area from users table
+  // server-side. Body values for area/apartment are now ignored.
+  let apartmentArea: number | null = null;
+  let apartmentNumber: string | null = null;
 
   if (!eligibleVoter) {
     const userBuilding = await env.DB.prepare('SELECT apartment, total_area FROM users WHERE id = ? AND building_id = ? AND role = ?').bind(authUser.id, meeting.building_id, 'resident').first() as any;
     if (!userBuilding) return error('You are not eligible to vote in this meeting', 403);
-    apartmentArea = apartmentArea || userBuilding.total_area;
-    if (!apartmentArea || apartmentArea <= 0) return bilingualError('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', "Xonadon maydoni ko'rsatilmagan. Ma'lumotlarni yangilash uchun administratorga murojaat qiling.", 400);
-    apartmentNumber = apartmentNumber || userBuilding.apartment;
+    apartmentArea = Number(userBuilding.total_area) || null;
+    apartmentNumber = userBuilding.apartment || null;
   } else {
-    apartmentArea = apartmentArea || eligibleVoter.total_area;
-    if (!apartmentArea || apartmentArea <= 0) return bilingualError('Площадь квартиры не указана. Обратитесь к администратору для обновления данных.', "Xonadon maydoni ko'rsatilmagan. Ma'lumotlarni yangilash uchun administratorga murojaat qiling.", 400);
-    apartmentNumber = apartmentNumber || eligibleVoter.apartment;
+    apartmentArea = Number(eligibleVoter.total_area) || null;
+    apartmentNumber = eligibleVoter.apartment || null;
+  }
+
+  if (!apartmentArea || apartmentArea <= 0) {
+    return bilingualError(
+      'Площадь квартиры не указана. Обратитесь к администратору для обновления данных.',
+      "Xonadon maydoni ko'rsatilmagan. Ma'lumotlarni yangilash uchun administratorga murojaat qiling.",
+      400,
+    );
   }
 
   const existingVote = await env.DB.prepare('SELECT id, choice FROM meeting_vote_records WHERE meeting_id = ? AND agenda_item_id = ? AND voter_id = ? AND is_revote = 0').bind(params.meetingId, params.agendaItemId, authUser.id).first() as any;
@@ -51,16 +61,20 @@ route('POST', '/api/meetings/:meetingId/agenda/:agendaItemId/vote', async (reque
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(id, params.meetingId, params.agendaItemId, authUser.id, body.choice, authUser.id, authUser.name, body.apartment_id || body.apartmentId || null, apartmentNumber, apartmentArea, apartmentArea, body.choice, body.verification_method || body.verificationMethod || 'login', body.otp_verified || body.otpVerified ? 1 : 0, voteHash, getTenantId(request)).run();
 
-    const alreadyParticipated = await env.DB.prepare(`SELECT 1 FROM meeting_participated_voters WHERE meeting_id = ? AND user_id = ? LIMIT 1`).bind(params.meetingId, authUser.id).first();
-    if (!alreadyParticipated) {
-      await env.DB.prepare(`INSERT INTO meeting_participated_voters (meeting_id, user_id, tenant_id) VALUES (?, ?, ?)`).bind(params.meetingId, authUser.id, getTenantId(request)).run();
-    }
+    // Sprint 61 P0: use INSERT OR IGNORE to avoid race-condition 500
+    // when two concurrent votes from the same voter both pass the SELECT
+    // pre-check and then both INSERT into the PK (meeting_id, user_id).
+    await env.DB.prepare(`INSERT OR IGNORE INTO meeting_participated_voters (meeting_id, user_id, tenant_id) VALUES (?, ?, ?)`).bind(params.meetingId, authUser.id, getTenantId(request)).run();
   }
 
-  // Save comment/objection if provided
+  // Save comment/objection if provided.
+  // Sprint 61 P0: server-derive comment_type (was reading from body — a
+  // 'for' voter could post comment_type: 'objection' and pollute the
+  // protocol's objections list). Also: counter_proposal only makes sense
+  // for AGAINST votes; ignore on others.
   const comment = body.comment?.trim();
-  const counterProposal = body.counter_proposal?.trim() || null;
-  const commentType = body.comment_type || (body.choice === 'against' ? 'objection' : 'comment');
+  const counterProposal = body.choice === 'against' ? (body.counter_proposal?.trim() || null) : null;
+  const commentType = body.choice === 'against' ? 'objection' : 'comment';
   if ((comment && comment.length > 0) || (counterProposal && counterProposal.length > 0)) {
     const commentId = generateId();
     const voterData = eligibleVoter || await env.DB.prepare('SELECT apartment FROM users WHERE id = ?').bind(authUser.id).first() as any;

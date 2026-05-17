@@ -16,6 +16,17 @@ route('POST', '/api/meetings/:id/submit', async (request, env, params) => {
   if (!authUser) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
 
+  // Sprint 61 P0: organizer or management only. Was authorising ANY logged-in
+  // user — and on the main domain (tenantId === null) the WHERE clause would
+  // even match meetings in other tenants.
+  const meetingPre = await env.DB.prepare(
+    `SELECT organizer_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!meetingPre) return error('Meeting not found', 404);
+  if (meetingPre.organizer_id !== authUser.id && !isManagement(authUser)) {
+    return error('Only the organizer or management can submit this meeting', 403);
+  }
+
   await env.DB.prepare(`UPDATE meetings SET status = 'pending_moderation', updated_at = datetime('now') WHERE id = ? AND status = 'draft' ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   invalidateCache('meetings:');
@@ -81,9 +92,11 @@ route('POST', '/api/meetings/:id/open-schedule-poll', async (request, env, param
   const fc = await requireFeature('meetings', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  if (!isManagement(authUser)) return error('Admin/Manager access required', 403);
   const tenantId = getTenantId(request);
 
+  // Sprint 61 P0: was no role check + return SELECT had no tenant filter →
+  // cross-tenant escalation. Now management-only + tenant-scoped read-back.
   await env.DB.prepare(`UPDATE meetings SET status = 'schedule_poll_open', schedule_poll_opened_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND status IN ('draft', 'pending_moderation') ${tenantId ? 'AND tenant_id = ?' : ''}`)
     .bind(params.id, ...(tenantId ? [tenantId] : [])).run();
   invalidateCache('meetings:');
@@ -96,7 +109,7 @@ route('POST', '/api/meetings/:id/confirm-schedule', async (request, env, params)
   const fc = await requireFeature('meetings', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  if (!isManagement(authUser)) return error('Admin/Manager access required', 403);
   const tenantId = getTenantId(request);
   if (tenantId) {
     const mtg = await env.DB.prepare('SELECT id FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.id, tenantId).first();
@@ -131,7 +144,7 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
   const fc = await requireFeature('meetings', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  if (!isManagement(authUser)) return error('Admin/Manager access required', 403);
   const tenantId = getTenantId(request);
 
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
@@ -166,6 +179,22 @@ route('POST', '/api/meetings/:id/cancel', async (request, env, params) => {
   if (!authUser) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
   const body = await request.json() as any;
+
+  // Sprint 61 P0: was zero-guarded. Any resident from another building
+  // could cancel a meeting in protocol_approved state and push-notify the
+  // entire affected building. Restrict to management or organizer + only
+  // non-terminal statuses.
+  const meetingPre = await env.DB.prepare(
+    `SELECT organizer_id, status FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!meetingPre) return error('Meeting not found', 404);
+  if (meetingPre.organizer_id !== authUser.id && !isManagement(authUser)) {
+    return error('Only the organizer or management can cancel this meeting', 403);
+  }
+  const cancellableStatuses = ['draft', 'pending_moderation', 'schedule_poll_open', 'schedule_confirmed', 'voting_open'];
+  if (!cancellableStatuses.includes(meetingPre.status)) {
+    return error(`Cannot cancel meeting in '${meetingPre.status}' state`, 409);
+  }
 
   await env.DB.prepare(`UPDATE meetings SET status = 'cancelled', cancelled_at = datetime('now'), cancellation_reason = ?, updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(body.reason || 'Cancelled', params.id, ...(tenantId ? [tenantId] : [])).run();
   invalidateCache('meetings:');
