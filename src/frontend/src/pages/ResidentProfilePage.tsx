@@ -270,11 +270,12 @@ export function ResidentProfilePage() {
         <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at top right, rgb(var(--brand-rgb)), transparent 70%)' }} />
         <div className="relative px-5 pb-5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
           <div className="flex items-center gap-4">
-            <div
-              className="w-[60px] h-[60px] rounded-[20px] flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, rgb(var(--brand-rgb)), rgba(var(--brand-rgb), 0.75))' }}
-            >
-              <UserIcon className="w-7 h-7 text-white" />
+            {/* Sprint 39: rounded-full circular avatar matches the
+                Chat / Announcements / Meetings / Vehicles / Useful
+                Contacts header avatars. Same explicit brand gradient
+                so the colour stays stable across pages. */}
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+              <UserIcon className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{formatName(user.name)}</h1>
