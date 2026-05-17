@@ -42,14 +42,27 @@ export function RequestsTab({
   };
   return (
     <div className="space-y-4 px-3 md:px-0">
-      {/* Header */}
+      {/* Header — Sprint 37: brand-orange avatar + title pattern,
+          matching Announcements / Meetings / Chat. */}
       <div className="flex items-center justify-between">
-        <h2 className="text-[22px] font-extrabold text-gray-900 tracking-tight">{language === 'ru' ? 'Мои заявки' : 'Mening arizalarim'}</h2>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm">
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg md:text-xl xl:text-2xl font-bold text-gray-900">
+              {language === 'ru' ? 'Мои заявки' : 'Mening arizalarim'}
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {language === 'ru' ? 'История обращений' : "Murojaatlar tarixi"}
+            </p>
+          </div>
+        </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`p-2.5 rounded-[12px] transition-all touch-manipulation active:scale-[0.96] ${
             showFilters || filterCategory !== 'all' || filterPriority !== 'all'
-              ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
+              ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
               : 'bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
           }`}
         >

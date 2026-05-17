@@ -230,22 +230,27 @@ export function ResidentMeetingsPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-          {language === 'ru' ? 'Собрания' : 'Yig\'ilishlar'}
-        </h1>
-        {votableMeetings.length > 0 && (
-          <p className="text-sm text-gray-500 mt-1">
-            {votableMeetings.length}{' '}
-            {plural(
-              language === 'ru' ? 'ru' : 'uz',
-              votableMeetings.length,
-              { one: 'ждёт вашего голоса', few: 'ждут вашего голоса', many: 'ждут вашего голоса' },
-              { one: 'ovozingizni kutmoqda', other: 'ovozingizni kutmoqda' }
-            )}
+      {/* Header — Sprint 36: brand-orange avatar + title + subtitle,
+          matching the Announcements/Chat pattern. */}
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm">
+          <Vote className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-gray-900">
+            {language === 'ru' ? 'Собрания' : "Yig'ilishlar"}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {votableMeetings.length > 0
+              ? `${votableMeetings.length} ${plural(
+                  language === 'ru' ? 'ru' : 'uz',
+                  votableMeetings.length,
+                  { one: 'ждёт вашего голоса', few: 'ждут вашего голоса', many: 'ждут вашего голоса' },
+                  { one: 'ovozingizni kutmoqda', other: 'ovozingizni kutmoqda' },
+                )}`
+              : language === 'ru' ? 'Активных голосований нет' : 'Faol ovoz berishlar yo\'q'}
           </p>
-        )}
+        </div>
       </div>
 
       {/* Reconsideration Requests Banner */}
