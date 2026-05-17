@@ -957,6 +957,8 @@ export function ResidentVehiclesPage() {
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={formData.year}
                     onChange={(e) => setFormData({ ...formData, year: e.target.value })}
                     placeholder="2020"

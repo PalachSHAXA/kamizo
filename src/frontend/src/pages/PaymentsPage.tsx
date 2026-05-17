@@ -286,10 +286,11 @@ export function PaymentsPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Сумма *', 'Summa *')}</label>
                 <input
-                  type="number"
-                  step="100"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
                   value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9.]/g, '') })}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 outline-none"
                   placeholder={t('Сумма в сумах', 'So\'m miqdori')}
                   required

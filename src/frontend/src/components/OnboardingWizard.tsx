@@ -255,6 +255,8 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
                 <label className={labelCls}>{t('Количество подъездов', 'Kirish joylari soni')}</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min="1"
                   max="30"
                   value={buildingEntrances}

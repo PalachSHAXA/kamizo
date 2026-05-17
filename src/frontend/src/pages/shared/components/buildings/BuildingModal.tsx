@@ -45,24 +45,24 @@ export function BuildingModal({ building, onClose, onSave, language }: BuildingM
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Год постройки', 'Qurilgan yili')}</label>
-              <input type="number" value={form.yearBuilt} onChange={e => setForm({ ...form, yearBuilt: parseInt(e.target.value) || 2020 })}
+              <input type="number" inputMode="numeric" pattern="[0-9]*" value={form.yearBuilt} onChange={e => setForm({ ...form, yearBuilt: parseInt(e.target.value) || 2020 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Этажей', 'Qavatlar')}</label>
-              <input type="number" value={form.floors} onChange={e => setForm({ ...form, floors: parseInt(e.target.value) || 1 })}
+              <input type="number" inputMode="numeric" pattern="[0-9]*" value={form.floors} onChange={e => setForm({ ...form, floors: parseInt(e.target.value) || 1 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Подъездов', 'Podyezdlar')}</label>
-              <input type="number" value={form.entrances} onChange={e => setForm({ ...form, entrances: parseInt(e.target.value) || 1 })}
+              <input type="number" inputMode="numeric" pattern="[0-9]*" value={form.entrances} onChange={e => setForm({ ...form, entrances: parseInt(e.target.value) || 1 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">{t('Квартир', 'Xonadonlar')}</label>
-              <input type="number" value={form.totalApartments} onChange={e => setForm({ ...form, totalApartments: parseInt(e.target.value) || 1 })}
+              <input type="number" inputMode="numeric" pattern="[0-9]*" value={form.totalApartments} onChange={e => setForm({ ...form, totalApartments: parseInt(e.target.value) || 1 })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:border-orange-400 outline-none" min="1" />
             </div>
           </div>
