@@ -745,12 +745,15 @@ export const useRequestStore = create<RequestState>()(
 
       const previousExecutorId = request.executorId;
 
-      // Call API to persist cancellation
+      // Sprint 60 P1: roll back on API failure. Was always doing local update
+      // even when server failed → resident saw "Cancelled" but reopening the
+      // app showed the request still active. Now mirror the addRequest
+      // pattern: only mutate local state after the server acknowledges.
       try {
         await requestsApi.cancel(requestId, reason);
       } catch (error) {
-        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
-        // Continue with local update even if API fails
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось отменить заявку');
+        return; // keep request in its previous state
       }
 
       set((state) => ({

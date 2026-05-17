@@ -18,7 +18,15 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
 
   const tenantId = getTenantId(request);
   const body = await request.json() as any;
-  const { rating, feedback } = body;
+  const { feedback } = body;
+
+  // Sprint 60 P1: clamp rating 1-5. Was accepting any number from FE.
+  let rating: number | null = null;
+  if (body.rating !== undefined && body.rating !== null && body.rating !== '') {
+    const n = Number(body.rating);
+    if (!Number.isInteger(n) || n < 1 || n > 5) return error('rating must be an integer 1-5', 400);
+    rating = n;
+  }
 
   const requestData = await env.DB.prepare(`
     SELECT * FROM requests WHERE id = ? AND resident_id = ? AND status = 'pending_approval' ${tenantId ? 'AND tenant_id = ?' : ''}
@@ -30,7 +38,7 @@ route('POST', '/api/requests/:id/approve', async (request, env, params) => {
     UPDATE requests SET status = 'completed', rating = ?, feedback = ?,
       is_paused = 0, paused_at = NULL, pause_reason = NULL, updated_at = datetime('now')
     WHERE id = ? AND resident_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(rating || null, feedback || null, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
+  `).bind(rating, feedback || null, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   if (requestData.executor_id) {
     const ratingText = rating ? ` Оценка: ${'⭐'.repeat(rating)}` : '';

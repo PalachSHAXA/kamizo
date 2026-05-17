@@ -5,6 +5,17 @@ import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../../index';
 
+// Sprint 60 P1: strict format validators. Without these, concatenating
+// `proposed_date || 'T' || proposed_time || ':00'` produces invalid
+// datetime strings (e.g. '09:00:30:00' from a HH:MM:SS time picker),
+// SQLite's datetime() returns NULL, and scheduled_at is silently broken.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
+function isValidScheduleInput(date: unknown, time: unknown): boolean {
+  return typeof date === 'string' && DATE_RE.test(date)
+      && typeof time === 'string' && TIME_RE.test(time);
+}
+
 export function registerRescheduleRoutes() {
 // Create reschedule request
 route('POST', '/api/requests/:id/reschedule', async (request, env, params) => {
@@ -21,6 +32,9 @@ route('POST', '/api/requests/:id/reschedule', async (request, env, params) => {
   const { proposed_date, proposed_time, reason, reason_text } = body;
   if (!proposed_date || !proposed_time || !reason) {
     return error('Missing required fields: proposed_date, proposed_time, reason', 400);
+  }
+  if (!isValidScheduleInput(proposed_date, proposed_time)) {
+    return error('proposed_date must be YYYY-MM-DD and proposed_time must be HH:MM', 400);
   }
 
   const tenantIdResc = getTenantId(request);
@@ -148,6 +162,12 @@ route('POST', '/api/reschedule-requests/:id/respond', async (request, env, param
   `).bind(newStatus, response_note || null, params.id, ...(tenantId ? [tenantId] : [])).run();
 
   if (accepted) {
+    // Sprint 60 P1: validate stored proposed values too — they were inserted
+    // before the format validator was added, so legacy rows may still be bad.
+    // Reject acceptance rather than silently produce NULL scheduled_at.
+    if (!isValidScheduleInput(reschedule.proposed_date, reschedule.proposed_time)) {
+      return error('Stored proposed date/time is malformed; cancel and create a new reschedule', 422);
+    }
     await env.DB.prepare(`
       UPDATE requests SET scheduled_at = datetime(? || 'T' || ? || ':00'), updated_at = datetime('now')
       WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}

@@ -9,7 +9,7 @@ export function registerRatingsRoutes() {
 
 // ==================== EMPLOYEE RATINGS ====================
 
-// Ratings: Create
+// Ratings: Create or update (Sprint 60 P0: validate + dedupe)
 route('POST', '/api/ratings', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
@@ -18,12 +18,56 @@ route('POST', '/api/ratings', async (request, env) => {
   if (!tenantId) return error('Tenant context required', 401);
 
   const body = await request.json() as any;
-  const id = generateId();
+  if (!body.executor_id || typeof body.executor_id !== 'string') {
+    return error('executor_id is required', 400);
+  }
 
+  // Validate 1-5 range. Allow null (means "not rated this dimension"),
+  // but at least one dimension must be provided.
+  const validateScore = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = typeof v === 'number' ? v : Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 5) return undefined as unknown as number;
+    return n;
+  };
+  const quality = validateScore(body.quality);
+  const speed = validateScore(body.speed);
+  const politeness = validateScore(body.politeness);
+  if (quality === undefined || speed === undefined || politeness === undefined) {
+    return error('Ratings must be integers in range 1-5 or null', 400);
+  }
+  if (quality === null && speed === null && politeness === null) {
+    return error('At least one rating dimension is required', 400);
+  }
+
+  const comment = typeof body.comment === 'string' ? body.comment.slice(0, 1000) : null;
+
+  // Verify executor exists in the same tenant (prevents cross-tenant ratings).
+  const executor = await env.DB.prepare(
+    'SELECT id FROM users WHERE id = ? AND role = ? AND tenant_id = ?'
+  ).bind(body.executor_id, 'executor', tenantId).first();
+  if (!executor) return error('Executor not found in this tenant', 404);
+
+  // Dedupe — if rating from this resident for this executor already exists,
+  // update it (let people change their mind) rather than inserting a duplicate.
+  // Schema lacks UNIQUE constraint, so enforce at app level.
+  const existing = await env.DB.prepare(
+    'SELECT id FROM employee_ratings WHERE executor_id = ? AND resident_id = ? AND tenant_id = ?'
+  ).bind(body.executor_id, user.id, tenantId).first() as any;
+
+  if (existing?.id) {
+    await env.DB.prepare(`
+      UPDATE employee_ratings SET quality = ?, speed = ?, politeness = ?, comment = ?, created_at = datetime('now')
+      WHERE id = ?
+    `).bind(quality, speed, politeness, comment, existing.id).run();
+    return json({ id: existing.id, updated: true });
+  }
+
+  const id = generateId();
   await env.DB.prepare(`
     INSERT INTO employee_ratings (id, executor_id, resident_id, quality, speed, politeness, comment, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, body.executor_id, user.id, body.quality, body.speed, body.politeness, body.comment || null, tenantId).run();
+  `).bind(id, body.executor_id, user.id, quality, speed, politeness, comment, tenantId).run();
 
   return json({ id }, 201);
 });

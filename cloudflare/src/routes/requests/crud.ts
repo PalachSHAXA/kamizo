@@ -104,11 +104,19 @@ route('POST', '/api/requests', async (request, env) => {
   let residentId = user.id;
   let residentData: any = null;
 
-  if (['manager', 'admin', 'director', 'department_head'].includes(user.role) && body.resident_id) {
-    residentId = body.resident_id;
+  // Sprint 60 P0: previously this looked up body.resident_id without a
+  // tenant_id filter — manager from tenant A could pass a resident_id
+  // from tenant B and the request would be stored under tenant A but
+  // anchored to a cross-tenant resident. Also missing 'dispatcher' role
+  // which is allowed to create requests-on-behalf elsewhere (audit #11).
+  if (['manager', 'admin', 'director', 'department_head', 'dispatcher'].includes(user.role) && body.resident_id) {
+    const tenantIdForLookup = getTenantId(request);
     residentData = await env.DB.prepare(
-      'SELECT id, branch, building_id, address, name, phone, apartment FROM users WHERE id = ?'
-    ).bind(body.resident_id).first() as any;
+      `SELECT id, branch, building_id, address, name, phone, apartment FROM users
+       WHERE id = ? ${tenantIdForLookup ? 'AND tenant_id = ?' : ''}`
+    ).bind(body.resident_id, ...(tenantIdForLookup ? [tenantIdForLookup] : [])).first() as any;
+    if (!residentData) return error('Resident not found in this tenant', 404);
+    residentId = residentData.id;
   }
 
   let branchCode = 'UK';

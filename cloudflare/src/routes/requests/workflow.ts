@@ -25,10 +25,17 @@ route('POST', '/api/requests/:id/accept', async (request, env, params) => {
 
   if (!requestData) return error('Request not found or not assigned to you', 404);
 
-  await env.DB.prepare(`
+  // Sprint 60 P1: status guard. Without `AND status = 'assigned'` a completed
+  // or cancelled request could be rolled back to 'accepted' by calling /accept
+  // again.
+  const acceptResult = await env.DB.prepare(`
     UPDATE requests SET status = 'accepted', updated_at = datetime('now')
-    WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    WHERE id = ? AND executor_id = ? AND status = 'assigned' ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
+
+  if (!acceptResult.meta || acceptResult.meta.changes === 0) {
+    return error('Request is no longer in "assigned" state', 409);
+  }
 
   if (requestData.resident_id) {
     const acceptBody = `Исполнитель ${user.name} принял вашу заявку #${requestData.request_number}. Ожидайте начала работ.`;
@@ -106,10 +113,16 @@ route('POST', '/api/requests/:id/start', async (request, env, params) => {
 
   if (!requestData) return error('Request not found or not assigned to you', 404);
 
-  await env.DB.prepare(`
+  // Sprint 60 P1: status guard. /start should only fire from 'accepted'.
+  // Otherwise re-starting a completed job would zero out completed_at.
+  const startResult = await env.DB.prepare(`
     UPDATE requests SET status = 'in_progress', started_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    WHERE id = ? AND executor_id = ? AND status = 'accepted' ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
+
+  if (!startResult.meta || startResult.meta.changes === 0) {
+    return error('Request is not in "accepted" state', 409);
+  }
 
   if (requestData.resident_id) {
     const startBody = `Исполнитель ${user.name} начал работу по заявке #${requestData.request_number}.`;
@@ -153,10 +166,15 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
 
   if (!requestData) return error('Request not found or not assigned to you', 404);
 
-  await env.DB.prepare(`
+  // Sprint 60 P1: status guard. /complete should only fire from 'in_progress'.
+  const completeResult = await env.DB.prepare(`
     UPDATE requests SET status = 'pending_approval', completed_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ? AND executor_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    WHERE id = ? AND executor_id = ? AND status = 'in_progress' ${tenantId ? 'AND tenant_id = ?' : ''}
   `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
+
+  if (!completeResult.meta || completeResult.meta.changes === 0) {
+    return error('Request is not in "in_progress" state', 409);
+  }
 
   if (requestData.resident_id) {
     const completeBody = `Исполнитель ${user.name} завершил работу по заявке #${requestData.request_number}. Пожалуйста, подтвердите выполнение и оцените работу.`;

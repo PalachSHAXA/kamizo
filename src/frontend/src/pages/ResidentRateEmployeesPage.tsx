@@ -3,6 +3,7 @@ import { Star, Users, Check, ThumbsUp, Send, MessageCircle, User, Briefcase, Che
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useToastStore } from '../stores/toastStore';
 import { ukRatingsApi } from '../services/api';
 import { apiRequest } from '../services/api/client';
 import type { Executor } from '../types';
@@ -170,6 +171,9 @@ export function ResidentRateEmployeesPage() {
   const handleSubmitRating = async () => {
     if (!selectedExecutor || !user) return;
 
+    // Sprint 60 P1: was swallowing API errors and still marking the executor
+    // as rated locally — resident thought they submitted but server had
+    // nothing. Now only mark on success, show toast on failure.
     try {
       await apiRequest('/api/ratings', {
         method: 'POST',
@@ -181,8 +185,9 @@ export function ResidentRateEmployeesPage() {
           comment: ratings.comment || null,
         }),
       });
-    } catch {
-      // Best-effort: mark rated locally even if API fails
+    } catch (e) {
+      useToastStore.getState().addToast('error', (e as Error).message || (language === 'ru' ? 'Не удалось сохранить оценку' : "Bahoni saqlab bo'lmadi"));
+      return;
     }
     setRatedExecutorIds(prev => {
       if (!prev.includes(selectedExecutor.id)) {
