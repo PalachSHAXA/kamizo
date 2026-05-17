@@ -369,16 +369,26 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
   }
   const generated = chargeStmts.length;
 
-  // P10: Auto-record UK income from enterprise profit in estimate
-  const enterpriseProfit = Number(estimate.enterprise_profit) || 0;
-  if (generated > 0 && enterpriseProfit > 0) {
-    await env.DB.prepare(
-      'INSERT INTO finance_income (id, category_id, amount, period, description, source_type, source_id, created_by, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(
-      generateId(), 'fic_other', enterpriseProfit, period,
-      `Доход предприятия от сметы (${generated} квартир)`,
-      'estimate', estimate_id, user.id, tenantId || ''
-    ).run();
+  // Sprint 62 P1: this block was reading `estimate.enterprise_profit` which
+  // doesn't exist on the schema (column is `enterprise_profit_percent`).
+  // The auto-income record never fired, so UK profit was never logged when
+  // charges generated. Compute as percent × total charge amount.
+  const profitPercent = Number(estimate.enterprise_profit_percent ?? estimate.uk_profit_percent) || 0;
+  if (generated > 0 && profitPercent > 0) {
+    // Sum the just-generated charge amounts to derive the profit base.
+    const generatedSum = await env.DB.prepare(
+      `SELECT COALESCE(SUM(amount), 0) as total FROM finance_charges WHERE estimate_id = ? AND period = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(estimate_id, period, ...(tenantId ? [tenantId] : [])).first() as any;
+    const enterpriseProfit = Math.round(((generatedSum?.total || 0) * profitPercent / 100) * 100) / 100;
+    if (enterpriseProfit > 0) {
+      await env.DB.prepare(
+        'INSERT INTO finance_income (id, category_id, amount, period, description, source_type, source_id, created_by, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(
+        generateId(), 'fic_other', enterpriseProfit, period,
+        `Доход предприятия от сметы (${generated} квартир, ${profitPercent}%)`,
+        'estimate', estimate_id, user.id, tenantId || ''
+      ).run();
+    }
   }
 
   return json({ success: true, generated, total_apartments: apartments.length });
@@ -481,6 +491,15 @@ route('POST', '/api/finance/payments', async (request, env) => {
   if (!apartment_id || !parsedAmount || !isFinite(parsedAmount) || parsedAmount <= 0) return error('apartment_id and positive amount are required');
   // P23: Max payment amount
   if (parsedAmount > 100_000_000) return bilingualError('Сумма оплаты не может превышать 100 000 000', "To'lov summasi 100 000 000 dan oshmasligi kerak", 400);
+
+  // Sprint 62 P1: verify apartment exists in this tenant. Was stamping
+  // tenant_id from the request regardless of whether the apartment
+  // actually belongs to this tenant — payment ended up tagged to tenant A
+  // but citing an apartment from tenant B in the response.
+  const apartmentCheck = await env.DB.prepare(
+    `SELECT id FROM apartments WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(apartment_id, ...(tenantId ? [tenantId] : [])).first();
+  if (!apartmentCheck) return error('Apartment not found in this tenant', 404);
 
   // Generate receipt number: FIN-YYYY-NNNN
   const year = new Date().getFullYear();
@@ -861,8 +880,13 @@ route('POST', '/api/finance/claims/reconciliation', async (request, env) => {
   const totalCharged = charges.reduce((s, c) => s + ((c as Record<string, unknown>).amount as number || 0), 0);
   const totalPaid = payments.reduce((s, p) => s + ((p as Record<string, unknown>).amount as number || 0), 0);
 
-  // Resolve resident_id: use provided or fall back to primary_owner_id
-  const resolvedResidentId = resident_id || (apartment as any)?.primary_owner_id || null;
+  // Sprint 62 P1: was accepting body.resident_id without checking ownership.
+  // Resident could forge any user id and stamp the claim with someone else's
+  // identity. For residents, always use user.id; staff can override.
+  const isStaffClaim = !(user.role === 'resident' || user.role === 'tenant');
+  const resolvedResidentId = isStaffClaim
+    ? (resident_id || (apartment as any)?.primary_owner_id || null)
+    : user.id;
 
   // Save claim record
   const claimId = generateId();
@@ -1059,8 +1083,17 @@ route('GET', '/api/finance/charges/building-status', async (request, env) => {
 
   if (!buildingId || !period) return json({ statuses: [] });
 
-  // If resident — check that the active estimate allows showing debtor status
+  // If resident — must own an apartment in THIS building AND the active
+  // estimate must allow showing debtor status.
+  // Sprint 62 P1: previously only the "show" flag was checked, so a resident
+  // could probe statuses for any building (cross-building leak about who's
+  // a debtor).
   if (user.role === 'resident' || user.role === 'tenant') {
+    const ownsHere = await env.DB.prepare(
+      `SELECT 1 FROM apartments WHERE building_id = ? AND primary_owner_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(buildingId, user.id, ...(tenantId ? [tenantId] : [])).first();
+    if (!ownsHere) return error('You do not own an apartment in this building', 403);
+
     const estimate = await env.DB.prepare(
       `SELECT show_debtor_status_to_residents FROM finance_estimates WHERE building_id = ? AND period = ? AND status = 'active' ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
     ).bind(buildingId, period, ...(tenantId ? [tenantId] : [])).first<{ show_debtor_status_to_residents: number }>();

@@ -854,18 +854,32 @@ route('GET', '/api/payments', async (request, env) => {
   const tenantId = getTenantId(request);
   const url = new URL(request.url);
   const apartmentId = url.searchParams.get('apartment_id');
-  const residentId = url.searchParams.get('resident_id');
+  const residentIdParam = url.searchParams.get('resident_id');
   const period = url.searchParams.get('period');
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
   const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50')));
   const offset = (page - 1) * limit;
 
+  // Sprint 62 P0: was authorising ANY logged-in user — a resident in the
+  // tenant could list ALL payments tenant-wide (PII, amounts, periods).
+  // Now: management sees everything in the tenant; residents only their
+  // own payments (their apartments + their resident_id).
+  const isMgmt = isManagement(authUser);
   let where = 'WHERE 1=1';
   const params: any[] = [];
 
   if (tenantId) { where += ' AND tenant_id = ?'; params.push(tenantId); }
+  if (!isMgmt) {
+    // Restrict residents/tenants to their own apartments and resident_id.
+    where += ' AND (resident_id = ? OR apartment_id IN (SELECT id FROM apartments WHERE primary_owner_id = ?))';
+    params.push(authUser.id, authUser.id);
+  }
   if (apartmentId) { where += ' AND apartment_id = ?'; params.push(apartmentId); }
-  if (residentId) { where += ' AND resident_id = ?'; params.push(residentId); }
+  if (residentIdParam) {
+    // Residents can only filter by their own id.
+    if (!isMgmt && residentIdParam !== authUser.id) return error('Forbidden', 403);
+    where += ' AND resident_id = ?'; params.push(residentIdParam);
+  }
   if (period) { where += ' AND period = ?'; params.push(period); }
 
   const countStmt = env.DB.prepare(`SELECT COUNT(*) as total FROM payments ${where}`).bind(...params);

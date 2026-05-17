@@ -34,8 +34,10 @@ export const createRequestSchema: Schema = {
 };
 
 // ── Payments ──────────────────────────────────────────
+// Sprint 62 P0: amount must be positive. Was accepting negative values —
+// a manager could insert -50000 "payment" to inflate a balance.
 export const createPaymentSchema: Schema = {
-  amount: { required: true, type: 'number', label: 'Amount' },
+  amount: { required: true, type: 'number', min: 1, max: 100_000_000, label: 'Amount' },
   apartment_id: { type: 'string' },
   resident_id: { type: 'string' },
   payment_type: { type: 'string', oneOf: ['cash', 'card', 'transfer'] as const },
