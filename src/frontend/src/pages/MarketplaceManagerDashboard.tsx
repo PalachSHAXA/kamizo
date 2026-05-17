@@ -488,7 +488,7 @@ export function MarketplaceManagerDashboard() {
                   <div className="flex gap-3">
                     <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {product.image_url ? (
-                        <img src={product.image_url} alt="" className="w-full h-full object-cover" />
+                        <img src={product.image_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       ) : (
                         <ProductCardPlaceholder name={language === 'ru' ? product.name_ru : product.name_uz} categoryId={product.category_id} size="sm" />
                       )}

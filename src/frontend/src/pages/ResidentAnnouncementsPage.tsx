@@ -223,7 +223,7 @@ export function ResidentAnnouncementsPage() {
                                 className="flex-shrink-0 rounded-xl overflow-hidden border border-gray-200 hover:border-primary-400 transition-colors"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <img src={attachment.url} alt={attachment.name} className="h-32 w-auto max-w-[200px] object-cover" />
+                                <img src={attachment.url} alt={attachment.name} loading="lazy" decoding="async" className="h-32 w-auto max-w-[200px] object-cover" />
                               </a>
                             ))}
                           </div>

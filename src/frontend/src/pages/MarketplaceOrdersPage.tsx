@@ -450,7 +450,7 @@ export function MarketplaceOrdersPage() {
                   <div key={idx} className="flex items-center gap-3 bg-white rounded-xl p-3 border">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
                       {item.product_image ? (
-                        <img src={item.product_image} alt="" className="w-full h-full object-cover" />
+                        <img src={item.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       ) : (
                         <Package className="w-6 h-6 text-gray-400" />
                       )}

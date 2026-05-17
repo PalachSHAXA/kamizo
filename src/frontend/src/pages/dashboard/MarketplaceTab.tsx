@@ -457,7 +457,7 @@ export function MarketplaceTab({
                       {idx + 1}
                     </div>
                     {product.image_url ? (
-                      <img src={product.image_url} alt="" className="w-10 h-10 object-cover rounded-lg" />
+                      <img src={product.image_url} alt="" loading="lazy" decoding="async" className="w-10 h-10 object-cover rounded-lg" />
                     ) : (
                       <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
                         <Package className="w-5 h-5 text-gray-400" />

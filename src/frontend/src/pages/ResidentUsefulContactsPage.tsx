@@ -486,7 +486,7 @@ export default function ResidentUsefulContactsPage() {
               style={{ background: 'linear-gradient(135deg, #FFF9E6 0%, #FFF3CC 100%)' }}
             >
               {banner.image_url ? (
-                <img src={banner.image_url} alt={banner.title} className="w-full h-36 object-cover" />
+                <img src={banner.image_url} alt={banner.title} loading="lazy" decoding="async" className="w-full h-36 object-cover" />
               ) : (
                 <div className="p-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-orange-50">

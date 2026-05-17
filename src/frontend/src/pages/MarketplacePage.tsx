@@ -108,7 +108,7 @@ const ProductCardPlaceholder = memo(function ProductCardPlaceholder({ name, cate
 function ProductPhoto({ src, name, size = 'md' }: { src: string; name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
   return (
     <div className="w-full h-full relative overflow-hidden bg-gray-50">
-      <img src={src} alt={name} className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+      <img src={src} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
       {size !== 'xs' && size !== 'sm' && (
         <div className="absolute bottom-0 left-0 right-0 px-2 pb-2 pt-6 bg-gradient-to-t from-black/50 to-transparent">
           <span className={`text-white font-semibold leading-tight line-clamp-1 drop-shadow ${size === 'lg' ? 'text-xs' : 'text-[13px]'}`}>{name}</span>
@@ -392,7 +392,7 @@ export function MarketplacePage() {
                   style={{ background: 'linear-gradient(135deg, #FFF9E6 0%, #FFF3CC 100%)' }}
                 >
                   {banner.image_url ? (
-                    <img src={banner.image_url} alt={banner.title} className="w-full h-36 object-cover" />
+                    <img src={banner.image_url} alt={banner.title} loading="lazy" decoding="async" className="w-full h-36 object-cover" />
                   ) : (
                     <div className="p-5 flex items-center justify-between">
                       <div className="flex-1">
@@ -682,7 +682,7 @@ export function MarketplacePage() {
                       <div className="flex justify-between mt-1"><span className="text-xs text-gray-400">{language === 'ru' ? 'Новый' : 'Yangi'}</span><span className="text-xs text-gray-400">{language === 'ru' ? 'Получен' : 'Qabul'}</span></div>
                     </div>
                     <div className="mt-3 flex items-center gap-1.5">
-                      {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
+                      {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
                       {(order.items || []).length > 4 && <span className="text-xs text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
                       <div className="flex-1" />
                       {['new', 'confirmed'].includes(order.status) && <button onClick={(e) => { e.stopPropagation(); cancelOrder(order.id); }} disabled={cancellingOrderId === order.id} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[12px] font-medium disabled:opacity-50 hover:bg-red-100 transition-colors">{language === 'ru' ? 'Отменить' : 'Bekor'}</button>}
@@ -714,7 +714,7 @@ export function MarketplacePage() {
                     <span className="text-[14px] font-bold text-gray-700 shrink-0">{fmt(order.total_amount)}</span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-3">
-                    {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
+                    {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
                     {(order.items || []).length > 4 && <span className="text-xs text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
                   </div>
                   {order.status === 'delivered' && !order.rating && (
@@ -852,7 +852,7 @@ export function MarketplacePage() {
                   {items.map((item, idx) => (
                     <div key={item.id || idx} className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">
-                        {item.product_image ? <img src={item.product_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-lg text-white">{getProductEmoji(item.product_name || '', '')}</span></div>}
+                        {item.product_image ? <img src={item.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-lg text-white">{getProductEmoji(item.product_name || '', '')}</span></div>}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] font-semibold text-gray-900 truncate">{item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}</p>
