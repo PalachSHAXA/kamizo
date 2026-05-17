@@ -154,27 +154,32 @@ export function RequestsPage() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            {isDepartmentHead
-              ? (language === 'ru' ? 'Заявки отдела' : 'Bo\'lim arizalari')
-              : (language === 'ru' ? 'Заявки' : 'Arizalar')}
-          </h1>
-          {isDepartmentHead && userSpecialization && (
-            <p className="text-gray-500 text-sm mt-1">
-              {language === 'ru' ? 'Отдел' : 'Bo\'lim'}: {SPECIALIZATION_LABELS[userSpecialization as ExecutorSpecialization]}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <ClipboardList className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+              {isDepartmentHead
+                ? (language === 'ru' ? 'Заявки отдела' : "Bo'lim arizalari")
+                : (language === 'ru' ? 'Заявки' : 'Arizalar')}
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">
+              {isDepartmentHead && userSpecialization
+                ? `${language === 'ru' ? 'Отдел' : "Bo'lim"}: ${SPECIALIZATION_LABELS[userSpecialization as ExecutorSpecialization]}`
+                : (language === 'ru' ? 'Управление заявками жителей' : 'Aholi arizalarini boshqarish')}
             </p>
-          )}
+          </div>
         </div>
         {canCreateRequest && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white font-medium shadow-sm active:scale-[0.97] transition-transform shrink-0 min-h-[44px]"
             aria-label={language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
           >
             <Plus className="w-5 h-5" />
-            <span className="hidden sm:inline">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</span>
+            <span className="hidden sm:inline">{language === 'ru' ? 'Создать' : 'Yaratish'}</span>
           </button>
         )}
       </div>

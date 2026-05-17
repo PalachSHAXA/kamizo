@@ -221,18 +221,23 @@ export function WorkOrdersPage() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-0">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-base sm:text-lg md:text-xl xl:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Наряды на работы' : 'Ish buyurtmalari'}</h1>
-          <p className="text-gray-500 mt-1">{language === 'ru' ? 'Управление плановыми и аварийными работами' : 'Rejalashtirilgan va favqulodda ishlarni boshqarish'}</p>
+      {/* Header — Sprint 41: brand-orange avatar pattern */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <Wrench className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Наряды на работы' : 'Ish buyurtmalari'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Плановые и аварийные работы' : 'Rejali va favqulodda ishlar'}</p>
+          </div>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white font-medium shadow-sm active:scale-[0.97] transition-transform shrink-0 min-h-[44px]"
         >
           <Plus className="w-4 h-4" />
-          {language === 'ru' ? 'Создать наряд' : 'Buyurtma yaratish'}
+          <span className="hidden sm:inline">{language === 'ru' ? 'Создать' : 'Yaratish'}</span>
         </button>
       </div>
 
