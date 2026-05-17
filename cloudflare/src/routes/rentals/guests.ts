@@ -96,9 +96,25 @@ route('POST', '/api/guest-codes', async (request, env) => {
       validUntil = body.valid_until || new Date(validFrom.getTime() + 24 * 60 * 60 * 1000).toISOString();
   }
 
+  // Sprint 65 P0/F6: identity is ALWAYS derived from the authenticated user,
+  // never from the request body. Was accepting body.resident_apartment /
+  // resident_address / resident_name — resident in apt 5 could mint a pass
+  // naming apt 50 and impersonate another resident at the gate.
+  // Staff (manager creating a pass on behalf of a resident) is also bound
+  // to their own identity here; if "on behalf of" is needed later, build
+  // a separate endpoint that resolves the resident by id and verifies the
+  // staff's tenant.
+  const residentName = user.name;
+  const residentPhone = user.phone;
+  const residentApartment = user.apartment;
+  const residentAddress = user.address;
+
+  // Sprint 65 P2/F15: cap notes length to avoid storage abuse.
+  const notes = typeof body.notes === 'string' ? body.notes.slice(0, 1000) : null;
+
   const tokenData = {
-    i: id, rn: body.resident_name || user.name, rp: body.resident_phone || user.phone,
-    ra: body.resident_apartment || user.apartment, rd: body.resident_address || user.address,
+    i: id, rn: residentName, rp: residentPhone,
+    ra: residentApartment, rd: residentAddress,
     vt: body.visitor_type || 'guest', at: body.access_type || 'single_use',
     vf: validFrom.getTime(), vu: new Date(validUntil).getTime(), mx: maxUses,
     vn: body.visitor_name || '', vp: body.visitor_phone || '', vv: body.visitor_vehicle_plate || '',
@@ -115,9 +131,8 @@ route('POST', '/api/guest-codes', async (request, env) => {
     id, user.id, qrToken, body.visitor_type || 'guest',
     body.visitor_name || null, body.visitor_phone || null, body.visitor_vehicle_plate || null,
     body.access_type || 'single_use', validFrom.toISOString(), validUntil, maxUses,
-    body.resident_name || user.name, body.resident_phone || user.phone,
-    body.resident_apartment || user.apartment, body.resident_address || user.address,
-    body.notes || null, getTenantId(request)
+    residentName, residentPhone, residentApartment, residentAddress,
+    notes, getTenantId(request)
   ).run();
   const tenantId = getTenantId(request);
   const created = await env.DB.prepare(`SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(id, ...(tenantId ? [tenantId] : [])).first();

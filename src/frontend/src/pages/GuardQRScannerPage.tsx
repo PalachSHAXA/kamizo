@@ -72,9 +72,13 @@ export function GuardQRScannerPage() {
   const processQRCode = useCallback(async (qrData: string) => {
     // Server-side validation (authoritative); fallback to client-side store if offline
     try {
+      // Sprint 65 P0/F5: backend expects `qr_token`. Was sending `qr_data`,
+      // which made the server destructure to `undefined.startsWith` → 500,
+      // and the catch fell into the client-only validation that returns
+      // true for ANY well-formed GAPASS — effectively bypassing the server.
       const serverResult = await apiRequest<{valid: boolean; error?: string; code?: GuestAccessCode}>('/api/guest-codes/validate', {
         method: 'POST',
-        body: JSON.stringify({ qr_data: qrData }),
+        body: JSON.stringify({ qr_token: qrData }),
       });
       if (!serverResult.valid) {
         let status: ScanResult['status'] = 'invalid';
