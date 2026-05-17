@@ -77,6 +77,29 @@ html {
   background: var(--app-bg);
 }
 
+/* ── First-paint entrance ──────────────────────────────────
+   #root is tagged .app-booting in main.tsx and gets .app-mounted on the
+   next animation frame after createRoot.render(). This produces a soft
+   8px translate-up fade as the live UI replaces the inline splash. */
+#root.app-booting {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.34s var(--ease-emphasized, ease-out),
+              transform 0.34s var(--ease-emphasized, ease-out);
+  will-change: opacity, transform;
+}
+#root.app-booting.app-mounted {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  #root.app-booting {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 body {
   font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
   background: var(--app-bg);
@@ -1303,6 +1326,15 @@ a.btn-secondary:active,
   }
 }
 
+/* Sprint 63b — desktop modals zoom-in instead of appearing instantly.
+   Mobile sheet still uses slide-up above; the rules are size-scoped. */
+@media (min-width: 641px) {
+  .modal-content {
+    animation: anim-modal-in var(--duration-base) var(--ease-emphasized);
+    transform-origin: center;
+  }
+}
+
 /* Fade in animation */
 @keyframes fade-in {
   from {
@@ -1410,6 +1442,100 @@ a.btn-secondary:active,
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Sprint 63b — entrance animations + interactivity polish.
+   Goal: replace abrupt mounts (modal pop-in, list flash-in,
+   skeleton→content snap, empty-state stillness) with calibrated
+   spring-driven motion that uses the existing motion tokens.
+   ───────────────────────────────────────────────────────────── */
+
+/* Modal backdrop fade — fast & subtle so it never delays content. */
+@keyframes anim-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.anim-backdrop-in {
+  animation: anim-backdrop-in var(--duration-fast) var(--ease-emphasized);
+}
+
+/* Modal panel: zoom-in 95→100 + fade. On phones the sheet still uses
+   the existing `.modal-content` slide-up; this rule is fine because
+   `animation` is overridden by `.modal-content` at <640px. */
+@keyframes anim-modal-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.anim-modal-in {
+  animation: anim-modal-in var(--duration-base) var(--ease-emphasized);
+  transform-origin: center;
+}
+
+/* List/grid staggered fade-up. Apply to a list container with
+   `.stagger-children`; children get a fade-up with index-based delay
+   (capped at ~10 items to avoid noticeable tail-latency on long lists). */
+@keyframes anim-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-children > * {
+  animation: anim-fade-up var(--duration-base) var(--ease-emphasized) both;
+}
+.stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2)  { animation-delay: 30ms; }
+.stagger-children > *:nth-child(3)  { animation-delay: 60ms; }
+.stagger-children > *:nth-child(4)  { animation-delay: 90ms; }
+.stagger-children > *:nth-child(5)  { animation-delay: 120ms; }
+.stagger-children > *:nth-child(6)  { animation-delay: 150ms; }
+.stagger-children > *:nth-child(7)  { animation-delay: 180ms; }
+.stagger-children > *:nth-child(8)  { animation-delay: 210ms; }
+.stagger-children > *:nth-child(9)  { animation-delay: 240ms; }
+.stagger-children > *:nth-child(n+10) { animation-delay: 270ms; }
+
+/* Skeleton → content fade-in (200ms). Wrap the content branch in
+   `.anim-content-in` so it eases in once skeleton unmounts. */
+@keyframes anim-content-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.anim-content-in {
+  animation: anim-content-in 0.2s var(--ease-emphasized);
+}
+
+/* Empty-state icon: subtle, slow float. Pure transform, GPU friendly. */
+@keyframes anim-icon-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+.anim-icon-float {
+  animation: anim-icon-float 3.2s ease-in-out infinite;
+}
+
+/* Tab content swap: 150ms opacity ease. Re-mount the wrapper with a
+   `key` so the animation replays on every tab change. */
+@keyframes anim-tab-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-tab-in {
+  animation: anim-tab-in 0.15s var(--ease-emphasized);
+}
+
+/* Respect reduced-motion. All entrance animations collapse to plain
+   opacity so we never disorient users with vestibular sensitivity. */
+@media (prefers-reduced-motion: reduce) {
+  .anim-backdrop-in,
+  .anim-modal-in,
+  .anim-content-in,
+  .anim-tab-in,
+  .stagger-children > * {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+  }
+  .anim-icon-float {
+    animation: none;
   }
 }
 
