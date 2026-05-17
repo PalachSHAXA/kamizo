@@ -85,13 +85,18 @@ export function ManagerDashboard() {
   return (
     <div className="space-y-4 md:space-y-6 xl:space-y-8 pb-24 md:pb-0">
       {/* Header with greeting */}
-      <div className="min-w-0">
-        <p className="text-sm text-gray-400 font-medium">
-          {language === 'ru'
-            ? `${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${user?.name?.split(' ')[0] || ''} 👋`
-            : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'}, ${user?.name?.split(' ')[0] || ''} 👋`}
-        </p>
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель управления' : 'Boshqaruv paneli'}</h1>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+          <Activity className="w-5 h-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Панель управления' : 'Boshqaruv paneli'}</h1>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">
+            {language === 'ru'
+              ? `${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${user?.name?.split(' ')[0] || ''}`
+              : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'}, ${user?.name?.split(' ')[0] || ''}`}
+          </p>
+        </div>
       </div>
 
       {/* Tabs */}

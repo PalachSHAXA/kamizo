@@ -348,12 +348,19 @@ export function MarketplaceManagerDashboard() {
       )}
       {/* Header */}
       <div className="bg-white border-b px-4 py-4">
-        <h1 className="text-xl font-bold text-gray-900">
-          {language === 'ru' ? 'Управление товарами' : 'Mahsulotlarni boshqarish'}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {language === 'ru' ? 'Добро пожаловать,' : 'Xush kelibsiz,'} {user?.name}
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <Package className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold text-gray-900 truncate">
+              {language === 'ru' ? 'Управление товарами' : 'Mahsulotlarni boshqarish'}
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">
+              {language === 'ru' ? 'Добро пожаловать,' : 'Xush kelibsiz,'} {user?.name}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Quick Stats */}

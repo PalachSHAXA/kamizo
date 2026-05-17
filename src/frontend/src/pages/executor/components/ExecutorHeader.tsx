@@ -1,3 +1,4 @@
+import { HardHat } from 'lucide-react';
 import { SPECIALIZATION_LABELS } from '../../../types';
 import type { ExecutorSpecialization } from '../../../types';
 
@@ -16,18 +17,18 @@ export function ExecutorHeader({
 }: ExecutorHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-400 font-medium">
-          {language === 'ru'
-            ? `${new Date().getHours() < 12 ? '\u0414\u043e\u0431\u0440\u043e\u0435 \u0443\u0442\u0440\u043e' : new Date().getHours() < 18 ? '\u0414\u043e\u0431\u0440\u044b\u0439 \u0434\u0435\u043d\u044c' : '\u0414\u043e\u0431\u0440\u044b\u0439 \u0432\u0435\u0447\u0435\u0440'}`
-            : `${new Date().getHours() < 12 ? 'Xayrli tong' : new Date().getHours() < 18 ? 'Xayrli kun' : 'Xayrli kech'}`}
-        </p>
-        <h1 className="text-xl md:text-2xl xl:text-3xl font-bold text-gray-900 truncate">
-          {userName?.split(' ')[0]}
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5 truncate">
-          {SPECIALIZATION_LABELS[specialization as ExecutorSpecialization] || (language === 'ru' ? '\u0418\u0441\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c' : 'Ijrochi')}
-        </p>
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+          <HardHat className="w-5 h-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+            {userName?.split(' ')[0]}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">
+            {SPECIALIZATION_LABELS[specialization as ExecutorSpecialization] || (language === 'ru' ? '\u0418\u0441\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c' : 'Ijrochi')}
+          </p>
+        </div>
       </div>
       <div className="flex-shrink-0">
         <div className={`px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-1.5 ${

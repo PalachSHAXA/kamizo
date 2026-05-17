@@ -382,17 +382,22 @@ export function AdvertiserDashboard() {
   return (
     <div className="max-w-6xl mx-auto pb-24 md:pb-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Рекламный кабинет' : 'Reklama kabineti'}</h1>
-          <p className="text-gray-500">{language === 'ru' ? 'Управление объявлениями и купонами' : 'E\'lonlar va kuponlarni boshqarish'}</p>
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <LayoutDashboard className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Рекламный кабинет' : 'Reklama kabineti'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5">{language === 'ru' ? 'Управление объявлениями и купонами' : 'E\'lonlar va kuponlarni boshqarish'}</p>
+          </div>
         </div>
         <button
           onClick={() => { resetForm(); setSelectedAd(null); setShowAdModal(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-lg shadow-sm hover:opacity-90 shrink-0"
         >
           <Plus className="w-5 h-5" />
-          {language === 'ru' ? 'Новое объявление' : 'Yangi e\'lon'}
+          <span className="hidden sm:inline">{language === 'ru' ? 'Новое объявление' : 'Yangi e\'lon'}</span>
         </button>
       </div>
 
