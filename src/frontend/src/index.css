@@ -465,10 +465,12 @@ p, li {
   font-size: 15px;
   font-weight: 500;
   text-decoration: none;
-  /* Only transition background and color — avoid animating layout props */
-  transition: background-color 0.15s ease, color 0.15s ease;
+  /* Sprint 53: use shared motion tokens for consistent feel across the app.
+     Animate bg/color (cheap) and a tiny scale on press (physical feel). */
+  transition: background-color var(--duration-fast) var(--ease-emphasized),
+              color var(--duration-fast) var(--ease-emphasized),
+              transform 0.08s var(--ease-emphasized);
   position: relative;
-  /* Prevent item from shifting horizontally during scroll */
   width: calc(100% - 20px);
   box-sizing: border-box;
   transform: none;
@@ -479,6 +481,13 @@ p, li {
     background: #f9fafb;
     color: #1f2937;
   }
+}
+
+/* Press feedback — subtle squish for desktop click + mobile tap.
+   Per redesign skill: "No active/pressed feedback" is a common gap. */
+.sidebar-item:active {
+  background: rgba(var(--brand-rgb), 0.08);
+  transform: scale(0.985);
 }
 
 .sidebar-item.active {
