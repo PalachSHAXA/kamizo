@@ -251,6 +251,17 @@ export default function ChargesPage() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-0">
+      {/* Header — Sprint 40: brand-orange avatar */}
+      <div className="flex items-center gap-3 px-1">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+          <Receipt className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">{t('Начисления', "Hisob-kitob")}</h1>
+          <p className="text-xs text-gray-500 mt-0.5">{t('Учёт коммунальных платежей', "Kommunal to'lovlar")}</p>
+        </div>
+      </div>
+
       {/* ── Filter bar ── */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap items-end gap-3">

@@ -111,8 +111,16 @@ export default function DebtorsPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-6 pb-24 md:pb-0">
-      {/* Header */}
-      <h1 className="text-2xl font-bold text-gray-900">{t('Должники', 'Qarzdorlar')}</h1>
+      {/* Header — Sprint 40: brand-orange avatar matching resident pages */}
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+          <Banknote className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">{t('Должники', 'Qarzdorlar')}</h1>
+          <p className="text-xs text-gray-500 mt-0.5">{t('Жители с задолженностью', 'Qarzdor yashovchilar')}</p>
+        </div>
+      </div>
 
       {/* Filter bar — Sprint 3: was flex-wrap with min-w-[180px] on each
           field, which forced horizontal overflow at 768-1024px instead of
