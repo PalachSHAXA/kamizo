@@ -74,17 +74,21 @@ export default function TrainingsPage() {
   return (
     <div className="space-y-6">
       {/* Заголовок */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <GraduationCap className="w-8 h-8 text-primary-600" />
-            {language === 'ru' ? 'Тренинги' : 'Treninglar'}
-          </h1>
-          <p className="text-gray-600 mt-1">
-            {language === 'ru'
-              ? 'Предлагайте темы, голосуйте и развивайтесь вместе'
-              : 'Mavzular taklif qiling, ovoz bering va birga rivojlaning'}
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <GraduationCap className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+              {language === 'ru' ? 'Тренинги' : 'Treninglar'}
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">
+              {language === 'ru'
+                ? 'Предлагайте темы и голосуйте'
+                : 'Mavzular taklif qiling va ovoz bering'}
+            </p>
+          </div>
         </div>
         <div className="flex gap-3">
           {isAdmin && (

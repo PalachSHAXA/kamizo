@@ -1,3 +1,4 @@
+import { Users, Plus } from 'lucide-react';
 import {
   BranchesView,
   BuildingsView,
@@ -91,17 +92,22 @@ export function ResidentsPage() {
   return (
     <div className="space-y-6 pb-24 md:pb-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h1>
-          <p className="text-gray-500 mt-1">{language === 'ru' ? 'Реестр собственников и жителей' : 'Mulkdorlar va aholi reestri'}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <Users className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Жители' : 'Yashovchilar'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Реестр собственников и жителей' : 'Mulkdorlar va aholi reestri'}</p>
+          </div>
         </div>
         <button
           onClick={() => setShowAddManualModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors font-medium text-sm shadow-sm"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm shrink-0"
         >
-          <span className="text-lg leading-none">+</span>
-          {language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">{language === 'ru' ? 'Добавить жителя' : 'Yashovchi qo\'shish'}</span>
         </button>
       </div>
 

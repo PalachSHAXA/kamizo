@@ -18,13 +18,18 @@ export function ResidentContractPage() {
           because contract signing is handled offline (paper or external
           DocFlow). Showing "Ожидает подписания" here just confused
           residents who had already signed elsewhere. */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">
-          {language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma'}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {language === 'ru' ? 'Превью вашего договора и уникальный QR-код' : 'Shartnoma ko\'rinishi va noyob QR-kod'}
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+          <FileText className="w-5 h-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+            {language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma'}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">
+            {language === 'ru' ? 'Превью договора и QR-код' : 'Shartnoma va QR-kod'}
+          </p>
+        </div>
       </div>
 
       {/* Contract QR Code - uses user from store directly */}
