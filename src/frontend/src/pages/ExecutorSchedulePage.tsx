@@ -168,7 +168,7 @@ export function ExecutorSchedulePage() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="font-medium min-w-[140px] text-center">
+              <span className="font-medium flex-1 text-center text-sm sm:text-base truncate">
                 {selectedDate.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long', year: 'numeric' })}
               </span>
               <button
