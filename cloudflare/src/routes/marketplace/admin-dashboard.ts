@@ -55,6 +55,23 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
   const startDate = url.searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const endDate = url.searchParams.get('end_date') || new Date().toISOString().slice(0, 10);
 
+  // Sprint 72 P1/F7: clamp window to <= 366 days. Was accepting any
+  // start/end string, so a director could request a 10-year window and
+  // trigger a heavy table scan on every request.
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if (!DATE_RE.test(startDate) || !DATE_RE.test(endDate)) {
+    return error('start_date and end_date must be YYYY-MM-DD', 400);
+  }
+  const startMs = Date.parse(startDate);
+  const endMs = Date.parse(endDate);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+    return error('Invalid date range', 400);
+  }
+  const ONE_YEAR_MS = 366 * 24 * 60 * 60 * 1000;
+  if (endMs - startMs > ONE_YEAR_MS) {
+    return error('Date range must be 366 days or less', 400);
+  }
+
   const tenantId = getTenantId(request);
   const tFilter = tenantId ? ' AND tenant_id = ?' : '';
   const tFilterO = tenantId ? ' AND o.tenant_id = ?' : '';

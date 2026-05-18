@@ -1,16 +1,36 @@
 // GET /api/meetings/:meetingId/protocol/doc — protocol as Word document
 
-import { route, getTenantId, requireFeature, getCurrentCorsOrigin, error } from './helpers';
+import { route, getTenantId, requireFeature, getCurrentCorsOrigin, error, getUser, isManagement } from './helpers';
 
 export function registerProtocolDocRoutes() {
 
 route('GET', '/api/meetings/:meetingId/protocol/doc', async (request, env, params) => {
+  // Sprint 72 P0/F1: was completely unauthenticated. Word doc with full
+  // voter PII (name, apartment, vote_weight = living area m², comments,
+  // counter-proposals) was downloadable by anyone with the meeting id.
+  // Now: must be authenticated AND either management OR a participant
+  // in the meeting (voter or organizer).
   const fc = await requireFeature('meetings', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
 
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!meeting) return error('Meeting not found', 404);
+
+  if (!isManagement(user)) {
+    // Resident-side access: must have voted in this meeting OR be the organizer.
+    const isOrganizer = meeting.organizer_id === user.id;
+    let isVoter = false;
+    if (!isOrganizer) {
+      const v = await env.DB.prepare(
+        'SELECT 1 FROM meeting_vote_records WHERE meeting_id = ? AND voter_id = ? LIMIT 1'
+      ).bind(params.meetingId, user.id).first();
+      isVoter = !!v;
+    }
+    if (!isOrganizer && !isVoter) return error('Forbidden', 403);
+  }
 
   const protocol = meeting.protocol_id ? await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ?').bind(meeting.protocol_id).first() as any : null;
   const { results: agendaItems } = await env.DB.prepare('SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ORDER BY item_order').bind(params.meetingId).all();

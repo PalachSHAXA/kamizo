@@ -172,18 +172,29 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
 });
 
 // Staff Export
+//
+// Sprint 72 P0/F3:
+//  - Restrict to admin/director (manager removed). Login column is a
+//    high-value attacker-CSV input (phone+login → password-spray).
+//  - Drop `login` from the export entirely. Re-import flows can still
+//    work via phone/name matching; if a manager needs to re-import the
+//    same staff list with logins, they should use bulk register, not
+//    treat this export as a sync round-trip.
+//  - Refuse on apex (no tenant context).
 route('GET', '/api/team/export', async (request, env) => {
   const user = await getUser(request, env);
-  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
+  if (!user || !['admin', 'director'].includes(user.role)) {
     return error('Access denied', 403);
   }
   const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required for export', 401);
+
   const STAFF_ROLES = ['admin', 'director', 'manager', 'department_head', 'dispatcher', 'executor', 'security'];
   const ph = STAFF_ROLES.map(() => '?').join(',');
   const { results: staff } = await env.DB.prepare(
-    `SELECT id, login, name, phone, role, specialization, branch, is_active
-     FROM users WHERE role IN (${ph}) ${tenantId ? 'AND tenant_id=?' : ''} ORDER BY role, name`
-  ).bind(...STAFF_ROLES, ...(tenantId ? [tenantId] : [])).all() as any;
+    `SELECT id, name, phone, role, specialization, branch, is_active
+     FROM users WHERE role IN (${ph}) AND tenant_id = ? ORDER BY role, name`
+  ).bind(...STAFF_ROLES, tenantId).all() as any;
 
   return json({ exportType: 'staff', exportedAt: new Date().toISOString(), version: '1.0', staff });
 });
