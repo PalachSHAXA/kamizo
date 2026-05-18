@@ -50,6 +50,20 @@ route('GET', '/api/announcements', async (request, env) => {
       userBranchCode = buildingInfo?.branch_code || null;
     }
 
+    // Sprint 67 P0 #3: only include the apartment LIKE branch if the
+    // user actually has an apartment. Otherwise the bind pattern was
+    // `'%,,%'` which trivially matched any target_logins containing an
+    // empty entry (trailing/leading/double commas from a sloppy FE).
+    // Similarly only bind login pattern if login is non-empty.
+    const userLogin = (user.login || '').trim();
+    const userApartment = (user.apartment || '').trim();
+    const customConditions: string[] = [];
+    if (userLogin) customConditions.push(`(',' || target_logins || ',') LIKE ?`);
+    if (userApartment) customConditions.push(`(',' || target_logins || ',') LIKE ?`);
+    const customClause = customConditions.length > 0
+      ? `OR (target_type = 'custom' AND (${customConditions.join(' OR ')}))`
+      : '';
+
     whereClause = `
       WHERE is_active = 1
         AND (expires_at IS NULL OR expires_at > datetime('now'))
@@ -63,7 +77,7 @@ route('GET', '/api/announcements', async (request, env) => {
           ${hasBuilding ? `OR (target_type = 'building' AND target_building_id = ?)` : ''}
           ${hasBuilding && userEntrance ? `OR (target_type = 'entrance' AND target_building_id = ? AND target_entrance = ?)` : ''}
           ${hasBuilding && userEntrance && userFloor ? `OR (target_type = 'floor' AND target_building_id = ? AND target_entrance = ? AND target_floor = ?)` : ''}
-          OR (target_type = 'custom' AND ((',' || target_logins || ',') LIKE ? OR (',' || target_logins || ',') LIKE ?))
+          ${customClause}
         )
     `;
 
@@ -77,9 +91,8 @@ route('GET', '/api/announcements', async (request, env) => {
     if (hasBuilding && userEntrance && userFloor) {
       params.push(user.building_id, userEntrance, userFloor);
     }
-    // For target_type = 'custom' - match by login OR apartment number
-    params.push(`%,${user.login || ''},%`);
-    params.push(`%,${user.apartment || ''},%`);
+    if (userLogin) params.push(`%,${userLogin},%`);
+    if (userApartment) params.push(`%,${userApartment},%`);
   } else {
     // Employees (executors, department_heads) see employee announcements
     whereClause = `
@@ -135,12 +148,17 @@ route('GET', '/api/announcements', async (request, env) => {
     viewedByUser = new Set((views as any[]).map(v => v.announcement_id));
   }
 
-  // Add viewed_by_user flag and apply personalized content for residents
+  // Add viewed_by_user flag and apply personalized content for residents.
+  //
+  // Sprint 67 P1 #9: strip personalized_data for ALL resident-like roles
+  // (resident, tenant, commercial_owner) — was only stripping for the
+  // literal 'resident' role, so tenant/commercial_owner accounts received
+  // the full {login: {name, debt}} map for every neighbour in their
+  // building. Direct PII (debt amounts) leak.
   const enrichedResults = (results as any[]).map(a => {
     let content = a.content;
 
-    // For residents, apply personalized content if available
-    if (user.role === 'resident' && a.personalized_data) {
+    if (isResidentLike && a.personalized_data) {
       try {
         const personalizedData = typeof a.personalized_data === 'string'
           ? JSON.parse(a.personalized_data)
@@ -161,7 +179,7 @@ route('GET', '/api/announcements', async (request, env) => {
       ...a,
       content,
       viewed_by_user: viewedByUser.has(a.id),
-      personalized_data: user.role === 'resident' ? undefined : a.personalized_data
+      personalized_data: isResidentLike ? undefined : a.personalized_data,
     };
   });
 

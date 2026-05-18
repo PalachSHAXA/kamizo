@@ -40,6 +40,25 @@ route('POST', '/api/announcements', async (request, env) => {
     if (!buildingCheck) return error('Building does not belong to your tenant', 403);
   }
 
+  // Sprint 67 P0 #3: normalise target_logins. The list endpoint binds
+  // `'%,${apartment},%'` against this stored value. If the FE sent
+  // a string with stray empty entries (trailing comma, double comma)
+  // and a viewer with no apartment is matched, every announcement
+  // with such a value matched. Trim, dedupe, drop empties, store
+  // canonical `,login1,login2,` form.
+  let normalizedLogins: string | null = null;
+  if (typeof body.target_logins === 'string' && body.target_logins.trim()) {
+    const list = Array.from(new Set(
+      body.target_logins
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0 && s.length <= 100)
+    ));
+    if (list.length > 0) {
+      normalizedLogins = ',' + list.join(',') + ',';
+    }
+  }
+
   await env.DB.prepare(`
     INSERT INTO announcements (id, title, content, type, target_type, target_branch, target_building_id, target_entrance, target_floor, target_logins, priority, expires_at, attachments, personalized_data, created_by, created_at, updated_at, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
@@ -47,57 +66,98 @@ route('POST', '/api/announcements', async (request, env) => {
     id, body.title, body.content, body.type || 'residents',
     body.target_type || 'all', body.target_branch || null, body.target_building_id || null,
     body.target_entrance || null, body.target_floor || null,
-    body.target_logins || null, body.priority || 'normal',
+    normalizedLogins, body.priority || 'normal',
     body.expires_at || null, attachments, personalizedData, authUser!.id, getTenantId(request)
   ).run();
 
-  // Send push notifications to target users
+  // Send push notifications to target users.
+  //
+  // Sprint 67 P0: require a non-null tenant for push fanout. On apex
+  // domain (`getTenantId === null`) the previous code dropped the tenant
+  // filter from the SELECT — a branch-scoped announcement would push
+  // to every resident across ALL tenants who happened to share a
+  // branch_code, and `type='all'` would push to every executor in
+  // every tenant. Now: refuse to fan out without a tenant context.
+  // (For super-admin global broadcasts a separate path is needed.)
   const isUrgent = body.priority === 'urgent';
   const icon = isUrgent ? '\u{1F6A8}' : '\u{1F4E2}';
   const targetType = body.target_type || 'all';
-
-  // Get target users based on target_type and announcement type
   const tenantIdForPush = getTenantId(request);
   let targetUsers: any[] = [];
 
-  if (body.type === 'residents' || body.type === 'all') {
-    let query = `SELECT id FROM users WHERE role = 'resident' AND is_active = 1 ${tenantIdForPush ? 'AND tenant_id = ?' : ''}`;
-    const params: any[] = tenantIdForPush ? [tenantIdForPush] : [];
+  if (!tenantIdForPush) {
+    log.warn('Announcement created on apex domain — push fanout skipped (no tenant context)', { announcementId: id });
+  } else {
+    if (body.type === 'residents' || body.type === 'all') {
+      let query = `SELECT id FROM users WHERE role = 'resident' AND is_active = 1 AND tenant_id = ?`;
+      const params: any[] = [tenantIdForPush];
 
-    if (targetType === 'branch' && body.target_branch) {
-      query = `SELECT u.id FROM users u
-               INNER JOIN buildings b ON u.building_id = b.id
-               WHERE u.role = 'resident' AND u.is_active = 1 AND b.branch_code = ? ${tenantIdForPush ? 'AND u.tenant_id = ?' : ''}`;
-      params.length = 0;
-      params.push(body.target_branch);
-      if (tenantIdForPush) params.push(tenantIdForPush);
-    } else if (targetType === 'building' && body.target_building_id) {
-      query += ' AND building_id = ?';
-      params.push(body.target_building_id);
-    } else if (targetType === 'entrance' && body.target_building_id && body.target_entrance) {
-      query += ' AND building_id = ? AND entrance = ?';
-      params.push(body.target_building_id, body.target_entrance);
-    } else if (targetType === 'floor' && body.target_building_id && body.target_entrance && body.target_floor) {
-      query += ' AND building_id = ? AND entrance = ? AND floor = ?';
-      params.push(body.target_building_id, body.target_entrance, body.target_floor);
-    } else if (targetType === 'custom' && body.target_logins) {
-      const logins = body.target_logins.split(',').map((l: string) => l.trim()).filter(Boolean);
-      if (logins.length > 0) {
-        const placeholders = logins.map(() => '?').join(',');
-        query += ` AND login IN (${placeholders})`;
-        params.push(...logins);
+      if (targetType === 'branch' && body.target_branch) {
+        // Sprint 67 P0 #1: branch query also tenant-scoped (was wiping params array).
+        query = `SELECT u.id FROM users u
+                 INNER JOIN buildings b ON u.building_id = b.id
+                 WHERE u.role = 'resident' AND u.is_active = 1 AND b.branch_code = ?
+                 AND u.tenant_id = ? AND b.tenant_id = ?`;
+        params.length = 0;
+        params.push(body.target_branch, tenantIdForPush, tenantIdForPush);
+      } else if (targetType === 'building' && body.target_building_id) {
+        query += ' AND building_id = ?';
+        params.push(body.target_building_id);
+      } else if (targetType === 'entrance' && body.target_building_id && body.target_entrance) {
+        query += ' AND building_id = ? AND entrance = ?';
+        params.push(body.target_building_id, body.target_entrance);
+      } else if (targetType === 'floor' && body.target_building_id && body.target_entrance && body.target_floor) {
+        query += ' AND building_id = ? AND entrance = ? AND floor = ?';
+        params.push(body.target_building_id, body.target_entrance, body.target_floor);
+      } else if (targetType === 'custom' && body.target_logins) {
+        const logins = body.target_logins.split(',').map((l: string) => l.trim()).filter(Boolean);
+        if (logins.length > 0) {
+          const placeholders = logins.map(() => '?').join(',');
+          query += ` AND login IN (${placeholders})`;
+          params.push(...logins);
+        }
       }
+
+      const { results } = await env.DB.prepare(query).bind(...params).all();
+      targetUsers = results as any[];
     }
 
-    const { results } = await env.DB.prepare(query).bind(...params).all();
-    targetUsers = results as any[];
-  }
+    // Sprint 67 P0 #2: employee fanout used to ignore targeting entirely
+    // (every executor + department_head in the tenant got the push for an
+    // `all`-type announcement scoped to a single building). Now: apply the
+    // same building/branch/entrance/floor filter — fall back to the whole
+    // staff list only when targetType === 'all' (no scoping requested).
+    if (body.type === 'employees' || body.type === 'staff' || body.type === 'all') {
+      let staffQuery = `SELECT id FROM users WHERE role IN ('executor', 'department_head') AND is_active = 1 AND tenant_id = ?`;
+      const staffParams: any[] = [tenantIdForPush];
 
-  if (body.type === 'employees' || body.type === 'staff' || body.type === 'all') {
-    const { results } = await env.DB.prepare(
-      `SELECT id FROM users WHERE role IN ('executor', 'department_head') AND is_active = 1 ${tenantIdForPush ? 'AND tenant_id = ?' : ''}`
-    ).bind(...(tenantIdForPush ? [tenantIdForPush] : [])).all();
-    targetUsers = [...targetUsers, ...(results as any[])];
+      if (targetType === 'branch' && body.target_branch) {
+        staffQuery = `SELECT u.id FROM users u
+                      INNER JOIN buildings b ON u.building_id = b.id
+                      WHERE u.role IN ('executor', 'department_head') AND u.is_active = 1
+                      AND b.branch_code = ? AND u.tenant_id = ? AND b.tenant_id = ?`;
+        staffParams.length = 0;
+        staffParams.push(body.target_branch, tenantIdForPush, tenantIdForPush);
+      } else if (targetType === 'building' && body.target_building_id) {
+        staffQuery += ' AND building_id = ?';
+        staffParams.push(body.target_building_id);
+      } else if (targetType === 'entrance' && body.target_building_id && body.target_entrance) {
+        staffQuery += ' AND building_id = ? AND entrance = ?';
+        staffParams.push(body.target_building_id, body.target_entrance);
+      } else if (targetType === 'floor' && body.target_building_id && body.target_entrance && body.target_floor) {
+        staffQuery += ' AND building_id = ? AND entrance = ? AND floor = ?';
+        staffParams.push(body.target_building_id, body.target_entrance, body.target_floor);
+      } else if (targetType === 'custom' && body.target_logins) {
+        const logins = body.target_logins.split(',').map((l: string) => l.trim()).filter(Boolean);
+        if (logins.length > 0) {
+          const placeholders = logins.map(() => '?').join(',');
+          staffQuery += ` AND login IN (${placeholders})`;
+          staffParams.push(...logins);
+        }
+      }
+      const { results } = await env.DB.prepare(staffQuery).bind(...staffParams).all();
+      targetUsers = [...targetUsers, ...(results as any[])];
+    }
   }
 
   log.info('Announcement created', { announcementId: id, notifiedUsers: targetUsers.length });

@@ -5,6 +5,49 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId, isManagement } from '../../utils/helpers';
 
+// Sprint 67 P1 #5/6: shared targeting check so the view endpoints
+// don't accept reads/writes from users outside the announcement's
+// audience. Mirrors announcements-list.ts logic.
+async function userCanSeeAnnouncement(
+  env: { DB: D1Database },
+  user: { id: string; role: string; login?: string; apartment?: string; building_id?: string; entrance?: string; floor?: string },
+  announcement: any,
+): Promise<boolean> {
+  if (isManagement(user)) return true;
+  if (!announcement.is_active) return false;
+  if (announcement.expires_at && new Date(announcement.expires_at) <= new Date()) return false;
+
+  const isResidentLike = user.role === 'resident' || user.role === 'tenant' || user.role === 'commercial_owner';
+
+  if (isResidentLike) {
+    if (announcement.type !== 'residents' && announcement.type !== 'all') return false;
+  } else {
+    // employees: executor, department_head, security, ...
+    if (announcement.type !== 'employees' && announcement.type !== 'staff' && announcement.type !== 'all') return false;
+  }
+
+  const t = announcement.target_type;
+  if (!t || t === '' || t === 'all') return true;
+
+  if (t === 'building') return user.building_id === announcement.target_building_id;
+  if (t === 'entrance') return user.building_id === announcement.target_building_id && user.entrance === announcement.target_entrance;
+  if (t === 'floor') return user.building_id === announcement.target_building_id && user.entrance === announcement.target_entrance && user.floor === announcement.target_floor;
+  if (t === 'branch') {
+    if (!user.building_id) return false;
+    const b = await env.DB.prepare('SELECT branch_code FROM buildings WHERE id = ?').bind(user.building_id).first() as any;
+    return b?.branch_code === announcement.target_branch;
+  }
+  if (t === 'custom') {
+    const haystack = ',' + (announcement.target_logins || '') + ',';
+    const userLogin = user.login || '';
+    const userApt = user.apartment || '';
+    if (userLogin && haystack.includes(`,${userLogin},`)) return true;
+    if (userApt && haystack.includes(`,${userApt},`)) return true;
+    return false;
+  }
+  return false;
+}
+
 export function registerAnnouncementViewRoutes() {
 
 // Announcements: Mark as viewed
@@ -17,6 +60,18 @@ route('POST', '/api/announcements/:id/view', async (request, env, params) => {
 
   const announcementId = params.id;
   const tenantIdView = getTenantId(request);
+
+  // Sprint 67 P1 #5: was accepting view inserts for announcements the
+  // user can't even see. Inflated view_count and let a curious resident
+  // "tag themselves" on staff-only announcements. Load + audience-check
+  // first.
+  const announcement = await env.DB.prepare(
+    `SELECT * FROM announcements WHERE id = ? ${tenantIdView ? 'AND tenant_id = ?' : ''}`
+  ).bind(announcementId, ...(tenantIdView ? [tenantIdView] : [])).first() as any;
+  if (!announcement) return error('Announcement not found', 404);
+  if (!(await userCanSeeAnnouncement(env, user, announcement))) {
+    return error('Forbidden', 403);
+  }
 
   // Check if already viewed
   const existing = await env.DB.prepare(
@@ -51,6 +106,13 @@ route('GET', '/api/announcements/:id/views', async (request, env, params) => {
 
   if (!announcement) {
     return error('Announcement not found', 404);
+  }
+
+  // Sprint 67 P1 #6: gate the count/percent leak. A curious resident
+  // could ID any announcement and learn "N people read it" — including
+  // for staff-only announcements. Block non-audience non-management.
+  if (!(await userCanSeeAnnouncement(env, user, announcement))) {
+    return error('Forbidden', 403);
   }
 
   // Get total view count
