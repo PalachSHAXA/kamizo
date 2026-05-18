@@ -83,6 +83,16 @@ route('POST', '/api/rentals/records', async (request, env) => {
   const { apartmentId, guestNames, passportInfo, checkInDate, checkOutDate, amount, currency, notes } = body;
   if (!apartmentId || !guestNames || !checkInDate || !checkOutDate) return error('Apartment, guest names, and dates required');
 
+  // Sprint 70 P0/F5: verify apartmentId belongs to caller's tenant before
+  // inserting any record. Was missing — manager on tenant A could pass
+  // tenant B's apartment id and create a record that JOINs into B's
+  // apartment list cross-tenant.
+  const recordTenantId = getTenantId(request);
+  const aptCheck = await env.DB.prepare(
+    `SELECT id FROM rental_apartments WHERE id = ? ${recordTenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(apartmentId, ...(recordTenantId ? [recordTenantId] : [])).first();
+  if (!aptCheck) return error('Apartment not found in this tenant', 404);
+
   let finalAmount = amount || 0;
   let finalCurrency = currency || 'UZS';
   let finalNotes = notes || '';
