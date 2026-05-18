@@ -43,11 +43,37 @@ route('POST', '/api/users/:id/password', async (request, env, params) => {
     return error('Manager access required', 403);
   }
 
+  // Sprint 66 P0/F6: role-relative check. Was authorising any management
+  // role to change ANY user's password — a manager could call this on
+  // the director or admin row and take over the account. Now: caller
+  // must outrank the target. Hierarchy: super_admin > admin/director >
+  // department_head > manager/advertiser > everyone else.
+  const tenantIdPwd = getTenantId(request);
+  const target = await env.DB.prepare(
+    `SELECT id, role FROM users WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).first() as { id: string; role: string } | null;
+  if (!target) return error('User not found', 404);
+
+  const rank: Record<string, number> = {
+    super_admin: 100, admin: 80, director: 80, department_head: 60,
+    manager: 50, advertiser: 50, dispatcher: 40, executor: 30,
+    security: 30, resident: 10, tenant: 10, commercial_owner: 10,
+  };
+  const callerRank = rank[authUser!.role] ?? 0;
+  const targetRank = rank[target.role] ?? 0;
+  // Allow self-reset (e.g. admin resetting their own password) but not
+  // peers or higher. super_admin can reset anyone.
+  if (authUser!.id !== target.id && authUser!.role !== 'super_admin' && callerRank <= targetRank) {
+    return error('Cannot change password of a peer or higher-ranked user', 403);
+  }
+
   const { new_password } = await request.json() as any;
+  if (typeof new_password !== 'string' || new_password.length < 6) {
+    return error('Password must be at least 6 characters', 400);
+  }
   const newHash = await hashPassword(new_password);
   const newPlain = env.ENCRYPTION_KEY ? await encryptPassword(new_password, env.ENCRYPTION_KEY) : null;
 
-  const tenantIdPwd = getTenantId(request);
   await env.DB.prepare(`UPDATE users SET password_hash = ?, password_plain = ?, updated_at = datetime("now") WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, newPlain, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
 
   return json({ success: true });
@@ -114,6 +140,11 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
 
   await invalidateOnChange('users', env.RATE_LIMITER);
 
+  // Sprint 66 P2/F13: temp password is still returned because the admin
+  // UX needs to show it once to relay to the user (no SMS/email rails
+  // configured yet). The mitigation is upstream: request_logger must
+  // never log this response body, and the admin should treat the
+  // response panel like a one-time secret.
   return json({
     success: true,
     message: `Temporary password set for ${targetUser.name}`,

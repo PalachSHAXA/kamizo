@@ -53,32 +53,41 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
     return cachedUser;
   }
 
-  // Verify JWT and extract userId
+  // Verify JWT and extract userId.
+  //
+  // Sprint 66 P0/F4: REMOVED the legacy raw-UUID Bearer fallback. Previously
+  // if JWT verification failed, the token was assumed to be a userId — which
+  // meant ANY leaked user.id (from chat messages, request lists, executor
+  // listings, super_banners, audit logs, push targets, ...) authenticated
+  // the holder as that user. Mass-impersonation surface was huge.
+  // Now: tokens MUST be signed JWTs. Holders of pre-JWT sessions get a
+  // single forced re-login.
   const payload = await verifyJWT(token, env.JWT_SECRET);
-
-  // Fallback: accept raw userId token for backward compatibility with existing sessions
-  // This ensures users don't get logged out after JWT migration
-  let userId: string;
-  if (payload) {
-    userId = payload.userId;
-  } else {
-    // Assume raw token is a userId (UUID format) — legacy session
-    userId = token;
+  if (!payload || typeof payload.userId !== 'string') {
+    requestUserCache.set(request, null);
+    return null;
   }
+  const userId: string = payload.userId;
+  // Sprint 66 P0/F11: JWT also carries `tenantId` (issued at login). On
+  // the apex domain (where authTenantId === null) we previously looked up
+  // by `WHERE id = ?` only — combined with the legacy UUID fallback this
+  // let an attacker pivot between tenants by handing in a leaked id of a
+  // user in another tenant. Now: also pin the lookup to the tenantId
+  // baked into the verified JWT. The legacy fallback is already removed
+  // above, so this is defence in depth.
+  const lookupTenantId: string | null = authTenantId
+    || ((payload as { tenantId?: string }).tenantId ?? null);
 
-  // Query DB by userId
-  // On subdomain: filter by tenant_id for isolation
-  // On main domain: find user across ALL tenants (mobile app uses main domain)
   let result = await env.DB.prepare(
-    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id, is_active FROM users WHERE id = ? ${authTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
-  ).bind(...[userId, ...(authTenantId ? [authTenantId] : [])]).first();
+    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id, is_active FROM users WHERE id = ? ${lookupTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
+  ).bind(...[userId, ...(lookupTenantId ? [lookupTenantId] : [])]).first();
 
   // Super admin fallback: super admins have no tenant_id, so the tenanted
   // query above misses them when they visit a tenant subdomain (e.g. the
   // "Super Admin Panel" on kamizo.uz or an impersonation subdomain). Retry
   // the lookup without the tenant filter and accept the row only if the
   // user's role is super_admin — other roles must stay tenant-scoped.
-  if (!result && authTenantId) {
+  if (!result && lookupTenantId) {
     const fallback = await env.DB.prepare(
       `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id, is_active FROM users WHERE id = ? AND is_active = 1 LIMIT 1`
     ).bind(userId).first() as any;

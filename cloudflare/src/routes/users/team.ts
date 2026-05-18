@@ -4,7 +4,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
 import { json, error, isAdminLevel } from '../../utils/helpers';
-import { hashPassword, decryptPassword, encryptPassword } from '../../utils/crypto';
+import { hashPassword, encryptPassword } from '../../utils/crypto';
 
 export function registerTeamRoutes() {
 
@@ -37,7 +37,7 @@ route('GET', '/api/team', async (request, env) => {
     params.push(`%${search}%`, `%${search}%`);
   }
 
-  const canSeePasswords = user.role === 'admin' || user.role === 'director';
+  // Sprint 66 P0/F5: `canSeePasswords` removed — no role ever sees plaintext now.
 
   const baseSelect = `u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at`;
   const statsJoin = `
@@ -62,9 +62,10 @@ route('GET', '/api/team', async (request, env) => {
 
   let staff: any[];
   try {
-    // Try with password_plain column
+    // Sprint 66 P0/F5: no longer SELECT password_plain. The try/catch
+    // shape stays for compat with very old DBs that lack columns.
     const res = await env.DB.prepare(`
-      SELECT ${baseSelect}, u.password_plain,
+      SELECT ${baseSelect},
         COALESCE(stats.completed_count, 0) as completed_count,
         COALESCE(stats.active_count, 0) as active_count,
         COALESCE(stats.avg_rating, 0) as avg_rating
@@ -83,14 +84,16 @@ route('GET', '/api/team', async (request, env) => {
     staff = res.results as any[];
   }
 
-  // Decrypt passwords for admin/director, strip for others
+  // Sprint 66 P0/F5: stop returning plaintext passwords. Even to admin/
+  // director — there's a separate /api/users/:id/reset-password flow
+  // that issues a fresh temp password when a credential needs to be
+  // recovered. Storing + returning password_plain is a one-shot key to
+  // every staff account if any admin/director session token leaks.
+  // We strip the column unconditionally now; decryption stays available
+  // for the reset endpoint but is no longer wired through team lists.
   for (const s of staff) {
-    if (canSeePasswords && s.password_plain && env.ENCRYPTION_KEY) {
-      try {
-        s.password = await decryptPassword(s.password_plain, env.ENCRYPTION_KEY);
-      } catch { s.password = null; }
-    }
     delete s.password_plain;
+    delete s.password;
   }
 
   const directors = staff.filter((s: any) => s.role === 'director');
@@ -116,33 +119,24 @@ route('GET', '/api/team/:id', async (request, env, params) => {
   if (!isAdminLevel(user)) return error('Access denied', 403);
 
   const tenantId = getTenantId(request);
-  const canSeePasswords = user.role === 'admin' || user.role === 'director';
   const roleFilter = "AND role IN ('admin', 'manager', 'department_head', 'executor', 'director', 'advertiser')";
   const tenantFilter = tenantId ? 'AND tenant_id = ?' : '';
   const idBinds = [params.id, ...(tenantId ? [tenantId] : [])];
 
-  let staff: any;
-  try {
-    staff = await env.DB.prepare(
-      `SELECT id, login, name, phone, role, specialization, status, created_at, password_plain FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
-    ).bind(...idBinds).first();
-  } catch {
-    staff = await env.DB.prepare(
-      `SELECT id, login, name, phone, role, specialization, status, created_at FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
-    ).bind(...idBinds).first();
-  }
+  // Sprint 66 P0/F5: never SELECT password_plain.
+  const staff: any = await env.DB.prepare(
+    `SELECT id, login, name, phone, role, specialization, status, created_at FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
+  ).bind(...idBinds).first();
 
   if (!staff) {
     return error('Staff member not found', 404);
   }
 
-  // Decrypt password for admin/director
-  if (canSeePasswords && staff.password_plain && env.ENCRYPTION_KEY) {
-    try {
-      staff.password = await decryptPassword(staff.password_plain, env.ENCRYPTION_KEY);
-    } catch { staff.password = null; }
-  }
+  // Sprint 66 P0/F5: strip plaintext password unconditionally. See note
+  // on the list endpoint above — admin uses /api/users/:id/reset-password
+  // to issue a fresh credential out-of-band.
   delete staff.password_plain;
+  delete staff.password;
 
   return json({ user: staff });
 });

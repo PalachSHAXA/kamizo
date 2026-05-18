@@ -72,7 +72,15 @@ route('POST', '/api/auth/login', async (request, env) => {
       `SELECT ${userFields} FROM users WHERE login = ? AND is_active = 1 ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 10`
     ).bind(login.trim()).all();
 
+    // Sprint 66 P1/F9: timing-attack guard. Non-matching logins used to
+    // return after 0 PBKDF2 calls (instant); a match against 1-of-10
+    // candidates ran up to ~250ms of PBKDF2. The response-time delta
+    // leaked "login exists in at least one tenant" vs "doesn't". Always
+    // run one verifyPassword against a dummy hash so both branches pay
+    // the same constant cost on the no-match path.
+    const DUMMY_HASH = '50000:1234567890abcdef1234567890abcdef:abcdefabcdefabcdefabcdefabcdefab';
     if (!candidates || candidates.length === 0) {
+      await verifyPassword(trimmedPassword, DUMMY_HASH).catch(() => false);
       return error('Invalid credentials', 401);
     }
 
