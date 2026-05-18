@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
-import { json, error, isManagement, getPaginationParams, createPaginatedResponse } from '../../utils/helpers';
+import { json, error, isManagement, getPaginationParams, createPaginatedResponse, canActOnRole } from '../../utils/helpers';
 
 export function registerCrudRoutes() {
 
@@ -98,6 +98,16 @@ route('PATCH', '/api/users/:id/name', async (request, env, params) => {
   }
 
   const tenantId = getTenantId(request);
+  // Sprint 68 P0/F5: rank check. Without it, a manager could rename the
+  // director (impersonation vector / audit log noise).
+  const target = await env.DB.prepare(
+    `SELECT id, role FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { id: string; role: string } | null;
+  if (!target) return error('User not found', 404);
+  if (!canActOnRole(authUser, target)) {
+    return error('Cannot rename a peer or higher-ranked user', 403);
+  }
+
   const result = await env.DB.prepare(
     `UPDATE users SET name = ?, updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(name.trim(), params.id, ...(tenantId ? [tenantId] : [])).run();
@@ -159,7 +169,13 @@ route('GET', '/api/users', async (request, env) => {
   return json({ users: response.data, pagination: response.pagination });
 });
 
-// Users: Delete
+// Users: Soft-delete
+//
+// Sprint 68 P0/F2: was a hard DELETE FROM users gated only by
+// isManagement — a plain manager could DELETE the admin row, cascading
+// across request_comments / rentals / notes (FK ON DELETE CASCADE).
+// Now: soft-delete via is_active = 0 + rank check (caller must outrank
+// target; super_admin can deactivate anyone; self-deactivate allowed).
 route('DELETE', '/api/users/:id', async (request, env, params) => {
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
@@ -167,7 +183,17 @@ route('DELETE', '/api/users/:id', async (request, env, params) => {
   }
 
   const tenantIdDelUser = getTenantId(request);
-  await env.DB.prepare(`DELETE FROM users WHERE id = ? ${tenantIdDelUser ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantIdDelUser ? [tenantIdDelUser] : [])).run();
+  const target = await env.DB.prepare(
+    `SELECT id, role FROM users WHERE id = ? ${tenantIdDelUser ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantIdDelUser ? [tenantIdDelUser] : [])).first() as { id: string; role: string } | null;
+  if (!target) return error('User not found', 404);
+  if (!canActOnRole(authUser, target)) {
+    return error('Cannot deactivate a peer or higher-ranked user', 403);
+  }
+
+  await env.DB.prepare(
+    `UPDATE users SET is_active = 0, status = 'inactive', updated_at = datetime('now') WHERE id = ? ${tenantIdDelUser ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantIdDelUser ? [tenantIdDelUser] : [])).run();
   return json({ success: true });
 });
 

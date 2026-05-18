@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, generateId, canActOnRole, getRoleRank } from '../../utils/helpers';
 
 export function registerBranchImportRoutes() {
 
@@ -71,8 +71,11 @@ route('POST', '/api/branches/import', async (request, env) => {
   // Pre-fetch existing data
   const { results: existBldRows } = await env.DB.prepare(`SELECT id, name FROM buildings WHERE branch_code=? ${tenantId ? 'AND tenant_id=?' : ''}`).bind(branchCode, ...(tenantId ? [tenantId] : [])).all() as any;
   const existBldMap = new Map<string, string>(); for (const r of existBldRows) existBldMap.set(r.name, r.id);
-  const { results: existUserRows } = await env.DB.prepare(tenantId ? `SELECT id, login FROM users WHERE tenant_id=?` : `SELECT id, login FROM users`).bind(...(tenantId ? [tenantId] : [])).all() as any;
-  const existLoginMap = new Map<string, string>(); for (const r of existUserRows) existLoginMap.set(r.login, r.id);
+  // Sprint 68 P0/F7: load existing user role alongside id so we can
+  // rank-gate the UPDATE path below.
+  const { results: existUserRows } = await env.DB.prepare(tenantId ? `SELECT id, login, role FROM users WHERE tenant_id=?` : `SELECT id, login, role FROM users`).bind(...(tenantId ? [tenantId] : [])).all() as any;
+  const existLoginMap = new Map<string, { id: string; role: string }>(); for (const r of existUserRows) existLoginMap.set(r.login, { id: r.id, role: r.role });
+  const callerRank = getRoleRank(user.role);
 
   // Upsert buildings + entrances + apartments
   const bldNameToId = new Map<string, string>();
@@ -105,8 +108,20 @@ route('POST', '/api/branches/import', async (request, env) => {
     if (!res.login) continue;
     const role = (res as any).role || 'resident';
     if (!ALLOWED.includes(role)) continue;
-    if (existLoginMap.has(res.login)) toUpd.push({ id: existLoginMap.get(res.login)!, ...res, role });
-    else toIns.push({ ...res, role });
+    // Sprint 68 P0/F7: cap proposed role to caller's rank — a manager
+    // can't mass-create admins.
+    if (user.role !== 'super_admin' && getRoleRank(role) >= callerRank) continue;
+    const existing = existLoginMap.get(res.login);
+    if (existing) {
+      // Sprint 68 P0/F7: rank-check UPDATE branch. Was rewriting any
+      // matched login's role/name/phone regardless of who the target was
+      // — a manager could submit a CSV with {login:'admin', role:'manager'}
+      // and silently demote the admin.
+      if (!canActOnRole(user, existing)) continue;
+      toUpd.push({ id: existing.id, ...res, role });
+    } else {
+      toIns.push({ ...res, role });
+    }
   }
 
   const CHUNK = 40;

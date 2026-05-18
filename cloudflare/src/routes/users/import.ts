@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, generateId, isManagement, canActOnRole, getRoleRank } from '../../utils/helpers';
 import { hashPassword } from '../../utils/crypto';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -11,8 +11,8 @@ export function registerImportRoutes() {
 
 // Auth: Bulk register (for Excel import) - now updates existing users instead of skipping
 route('POST', '/api/auth/register-bulk', async (request, env) => {
-  const authUser = await getUser(request, env);
-  if (!isManagement(authUser)) {
+  const user = await getUser(request, env);
+  if (!isManagement(user)) {
     return error('Manager access required', 403);
   }
 
@@ -21,12 +21,25 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
   const updated: any[] = [];
 
   const bulkTenantId = getTenantId(request);
+  const skipped: any[] = [];
   for (const u of users) {
+    // Sprint 68 P0/F3: load existing user's role to gate the UPDATE.
+    // Was UPDATE-ing any matching login regardless of role — a manager
+    // could submit `{login: 'admin', password: 'pwn'}` and rewrite the
+    // admin's password. Now: caller must outrank target (canActOnRole)
+    // for any UPDATE, and password rewrites need that gate too.
     const existing = await env.DB.prepare(
-      `SELECT id FROM users WHERE login = ? ${bulkTenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
+      `SELECT id, role FROM users WHERE login = ? ${bulkTenantId ? 'AND tenant_id = ?' : "AND (tenant_id IS NULL OR tenant_id = '')"}`
     ).bind(...[u.login.trim(), ...(bulkTenantId ? [bulkTenantId] : [])]).first() as any;
 
     if (existing) {
+      // Refuse to UPDATE staff rows you can't act on. Resident rows
+      // (role 'resident') are always lower-ranked than any management
+      // caller — those still go through.
+      if (!canActOnRole(user, existing)) {
+        skipped.push({ login: u.login, reason: 'rank' });
+        continue;
+      }
       // UPDATE existing user with new data
       await env.DB.prepare(`
         UPDATE users SET
@@ -155,7 +168,7 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
     }
   }
 
-  return json({ created, updated }, 201);
+  return json({ created, updated, skipped }, 201);
 });
 
 // Staff Export
@@ -211,11 +224,20 @@ route('POST', '/api/team/import', async (request, env) => {
   const ALLOWED = ['admin','director','manager','department_head','dispatcher','executor','security'];
   const stats = { created: 0, updated: 0, skipped: 0 };
 
+  // Sprint 68 P0/F3: load existing rows WITH their role so we can rank-
+  // check on update. Without this, a manager could submit a CSV with
+  // `{login:'admin', role:'manager'}` and silently demote the admin via
+  // the UPDATE branch.
   const { results: existingRows } = await env.DB.prepare(
-    tenantId ? `SELECT id, login FROM users WHERE tenant_id=?` : `SELECT id, login FROM users`
+    tenantId ? `SELECT id, login, role FROM users WHERE tenant_id=?` : `SELECT id, login, role FROM users`
   ).bind(...(tenantId ? [tenantId] : [])).all() as any;
-  const loginMap = new Map<string, string>();
-  for (const r of existingRows) loginMap.set(r.login, r.id);
+  const loginMap = new Map<string, { id: string; role: string }>();
+  for (const r of existingRows) loginMap.set(r.login, { id: r.id, role: r.role });
+
+  // Sprint 68 P0/F3: cap proposed role to caller's rank. A manager can't
+  // mass-INSERT rows with role='admin' or 'director' (the original
+  // ALLOWED list let manager-callers create admins).
+  const callerRank = getRoleRank(user!.role);
 
   const toInsert: any[] = [];
   const toUpdate: any[] = [];
@@ -223,11 +245,23 @@ route('POST', '/api/team/import', async (request, env) => {
   for (const m of members) {
     const role = m.role || 'executor';
     if (!ALLOWED.includes(role)) { stats.skipped++; continue; }
+    // Block proposed roles that would outrank the caller (super_admin
+    // bypasses).
+    if (user!.role !== 'super_admin' && getRoleRank(role) >= callerRank) {
+      stats.skipped++;
+      continue;
+    }
     const login = m.login || m.phone;
     if (!login) { stats.skipped++; continue; }
 
-    if (loginMap.has(login)) {
-      toUpdate.push({ id: loginMap.get(login)!, ...m, role, login });
+    const existing = loginMap.get(login);
+    if (existing) {
+      // Refuse to UPDATE rows the caller can't act on.
+      if (!canActOnRole(user, existing)) {
+        stats.skipped++;
+        continue;
+      }
+      toUpdate.push({ id: existing.id, ...m, role, login });
     } else {
       toInsert.push({ ...m, role, login });
     }

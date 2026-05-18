@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
-import { json, error, isAdminLevel } from '../../utils/helpers';
+import { json, error, isAdminLevel, canActOnRole } from '../../utils/helpers';
 import { hashPassword, encryptPassword } from '../../utils/crypto';
 
 export function registerTeamRoutes() {
@@ -147,6 +147,20 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   if (!isAdminLevel(user)) return error('Access denied', 403);
 
+  const tenantId = getTenantId(request);
+
+  // Sprint 68 P0/F1: rank check. Was gated only by isAdminLevel — a
+  // director could rewrite the admin's login + password_hash and lock
+  // them out, or an admin could hijack super_admin. Now: caller must
+  // outrank target (super_admin can act on anyone; self-edit allowed).
+  const targetRow = await env.DB.prepare(
+    `SELECT id, role FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { id: string; role: string } | null;
+  if (!targetRow) return error('User not found', 404);
+  if (!canActOnRole(user, targetRow)) {
+    return error('Cannot modify a peer or higher-ranked user', 403);
+  }
+
   const body = await request.json() as any;
   const updates: string[] = [];
   const values: any[] = [];
@@ -155,6 +169,9 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
   if (body.phone) { updates.push('phone = ?'); values.push(body.phone); }
   if (body.login) { updates.push('login = ?'); values.push(body.login); }
   if (body.password) {
+    if (typeof body.password !== 'string' || body.password.trim().length < 6) {
+      return error('Password must be at least 6 characters', 400);
+    }
     const hashedPassword = await hashPassword(body.password.trim());
     updates.push('password_hash = ?');
     values.push(hashedPassword);
@@ -171,7 +188,6 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
     return error('No fields to update');
   }
 
-  const tenantId = getTenantId(request);
   values.push(params.id);
   if (tenantId) {
     values.push(tenantId);
@@ -193,7 +209,12 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
   return json({ user: updated });
 });
 
-// Team: Delete staff member
+// Team: Delete staff member (soft-delete)
+//
+// Sprint 68 P0/F2: was doing a hard DELETE FROM users which cascades
+// (per schema) into request_comments, rentals, notes, chat reads,
+// wiping history. Now: soft-delete via is_active = 0. Caller must
+// also outrank target (canActOnRole).
 route('DELETE', '/api/team/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
@@ -209,13 +230,17 @@ route('DELETE', '/api/team/:id', async (request, env, params) => {
     return error('User not found', 404);
   }
 
-  const staffRoles = ['manager', 'department_head', 'executor', 'advertiser'];
+  const staffRoles = ['manager', 'department_head', 'executor', 'advertiser', 'security', 'dispatcher'];
   if (!staffRoles.includes(targetUser.role)) {
-    return error('Can only delete staff members', 400);
+    return error('Can only deactivate staff members', 400);
+  }
+
+  if (!canActOnRole(user, targetUser)) {
+    return error('Cannot deactivate a peer or higher-ranked user', 403);
   }
 
   await env.DB.prepare(
-    `DELETE FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    `UPDATE users SET is_active = 0, status = 'inactive', updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
   await invalidateOnChange('users', env.RATE_LIMITER);

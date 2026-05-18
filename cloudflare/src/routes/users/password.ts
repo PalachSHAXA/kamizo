@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
-import { json, error, isManagement, isAdminLevel } from '../../utils/helpers';
+import { json, error, isManagement, isAdminLevel, canActOnRole } from '../../utils/helpers';
 import { hashPassword, verifyPassword, encryptPassword } from '../../utils/crypto';
 
 export function registerPasswordRoutes() {
@@ -101,6 +101,13 @@ route('POST', '/api/admin/reset-password', async (request, env) => {
     return error('User not found', 404);
   }
 
+  // Sprint 68 P1/F9: rank check. Without it, an admin could reset
+  // super_admin's password if they share a tenant (or null tenant on
+  // main domain).
+  if (!canActOnRole(user, targetUser)) {
+    return error('Cannot reset password of a peer or higher-ranked user', 403);
+  }
+
   const hashedPassword = await hashPassword(password);
   const encryptedPlain = env.ENCRYPTION_KEY ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
   await env.DB.prepare(`
@@ -128,6 +135,11 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (!targetUser) return error('User not found', 404);
+
+  // Sprint 68 P1/F9: rank check on /:id/reset-password too.
+  if (!canActOnRole(user, targetUser)) {
+    return error('Cannot reset password of a peer or higher-ranked user', 403);
+  }
 
   const randomSuffix = Math.random().toString(36).substring(2, 8);
   const tempPassword = `${targetUser.login}_${randomSuffix}`;

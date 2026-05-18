@@ -86,6 +86,47 @@ export function isSuperAdmin(user: any): user is { role: string; id: string; [ke
   return user?.role === 'super_admin';
 }
 
+// Sprint 68: role hierarchy for privilege-relative checks. Higher number =
+// higher privilege. Use `canActOnRole(caller, targetRole)` to gate any
+// staff-mutating endpoint (password change, rename, delete, role flip).
+//
+// Rules:
+//   - super_admin can act on anyone (including other super_admins for
+//     emergency recovery — they're a tiny trusted set)
+//   - everyone else: must STRICTLY outrank target. Self-edit is checked
+//     separately at the call-site (callerId === targetId).
+const ROLE_RANK: Record<string, number> = {
+  super_admin: 100,
+  admin: 80,
+  director: 80,
+  department_head: 60,
+  manager: 50,
+  advertiser: 50,
+  dispatcher: 40,
+  executor: 30,
+  security: 30,
+  resident: 10,
+  tenant: 10,
+  commercial_owner: 10,
+};
+
+export function getRoleRank(role: string | null | undefined): number {
+  if (!role) return 0;
+  return ROLE_RANK[role.trim().toLowerCase()] ?? 0;
+}
+
+export function canActOnRole(
+  caller: { id?: string; role: string } | null | undefined,
+  target: { id?: string; role: string } | null | undefined,
+): boolean {
+  if (!caller || !target) return false;
+  if (caller.role === 'super_admin') return true;
+  // Self-edit is allowed (admin resetting own password, etc.) — caller
+  // routes should still allow-list which fields are self-mutable.
+  if (caller.id && target.id && caller.id === target.id) return true;
+  return getRoleRank(caller.role) > getRoleRank(target.role);
+}
+
 // Sanitize user input to prevent stored XSS
 export function sanitizeInput(input: string | null | undefined, maxLength = 1000): string | null {
   if (!input) return null;
