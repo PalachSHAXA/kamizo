@@ -333,8 +333,33 @@ route('POST', '/api/tenants', async (request, env) => {
     return error('name, slug, and url are required');
   }
 
+  // Sprint 71 P1/F5: slug must be DNS-safe and not collide with reserved
+  // subdomains. Was accepting any string, including 'admin', 'api', '..',
+  // homoglyphs, leading hyphens — opening subdomain takeover paths.
+  const slug = String(body.slug).trim().toLowerCase();
+  const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
+  const RESERVED_SLUGS = new Set([
+    'admin', 'api', 'www', 'app', 'kamizo', 'main', 'static', 'assets',
+    'cdn', 'auth', 'login', 'dashboard', 'super', 'superadmin', 'public',
+  ]);
+  if (!SLUG_RE.test(slug)) {
+    return error('slug must be 1-32 chars, [a-z0-9-], not start/end with hyphen', 400);
+  }
+  if (RESERVED_SLUGS.has(slug)) {
+    return error(`slug '${slug}' is reserved`, 400);
+  }
+
+  // Sprint 71 P1/F6: enforce password strength on tenant director/admin
+  // credentials. Was accepting empty strings.
+  if (body.director_password && (typeof body.director_password !== 'string' || body.director_password.length < 8)) {
+    return error('director_password must be at least 8 characters', 400);
+  }
+  if (body.admin_password && (typeof body.admin_password !== 'string' || body.admin_password.length < 8)) {
+    return error('admin_password must be at least 8 characters', 400);
+  }
+
   // Check slug uniqueness
-  const existing = await env.DB.prepare(`SELECT id FROM tenants WHERE slug = ?`).bind(body.slug).first();
+  const existing = await env.DB.prepare(`SELECT id FROM tenants WHERE slug = ?`).bind(slug).first();
   if (existing) return error('Tenant with this slug already exists');
 
   const id = generateId();
@@ -344,7 +369,7 @@ route('POST', '/api/tenants', async (request, env) => {
     INSERT INTO tenants (id, name, slug, url, admin_url, color, color_secondary, plan, features, admin_email, admin_phone, logo, contract_template)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    id, body.name, body.slug, body.url, body.admin_url || null,
+    id, body.name, slug, body.url, body.admin_url || null,
     body.color || '#6366f1', body.color_secondary || '#a855f7',
     body.plan || 'basic', features,
     body.admin_email || null, body.admin_phone || null,
@@ -431,15 +456,33 @@ route('PATCH', '/api/tenants/:id', async (request, env, params) => {
 });
 
 // DELETE /api/tenants/:id - delete tenant
+// Sprint 71 P0/F2: was hard `DELETE FROM tenants` with no cascade. The
+// schema has NO foreign keys back to tenants (every child table has a
+// bare `tenant_id TEXT` column), so every user / request / payment /
+// meeting / order / audit row in that tenant survived with a dangling
+// id. If anyone later POSTed a tenant with the same id (or via slug
+// collision after Sprint 71 F5 fix is bypassed), they'd inherit the
+// orphaned data. Soft-delete only — flip is_active=0 and update getUser
+// to also gate by tenants.is_active (F7 below).
 route('DELETE', '/api/tenants/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!isSuperAdmin(user)) return error('Access denied', 403);
 
-  const existing = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(params.id).first();
+  const existing = await env.DB.prepare(`SELECT id, slug FROM tenants WHERE id = ?`).bind(params.id).first() as any;
   if (!existing) return error('Tenant not found', 404);
 
-  await env.DB.prepare(`DELETE FROM tenants WHERE id = ?`).bind(params.id).run();
-  return json({ success: true });
+  await env.DB.prepare(
+    `UPDATE tenants SET is_active = 0, updated_at = datetime('now') WHERE id = ?`
+  ).bind(params.id).run();
+
+  try {
+    await env.DB.prepare(`
+      INSERT INTO audit_log (id, actor_id, action, resource_type, resource_id, details, tenant_id, created_at)
+      VALUES (?, ?, 'tenant.deactivate', 'tenant', ?, ?, ?, datetime('now'))
+    `).bind(generateId(), user!.id, params.id, JSON.stringify({ slug: existing.slug }), params.id).run();
+  } catch {/* ignore if audit_log missing */}
+
+  return json({ success: true, softDeleted: true });
 });
 
 // GET /api/super-admin/tenants/:id/details - detailed tenant data for super admin
@@ -590,14 +633,44 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
 
   if (!adminUser) return bilingualError('В выбранной компании нет активных сотрудников', 'Tanlangan kompaniyada faol xodimlar mavjud emas', 404);
 
-  // Issue JWT for impersonated admin (7 days)
+  // Sprint 71 P0/F1: impersonation hardening.
+  //   - TTL dropped from 7 days to 30 minutes (was a full session, no
+  //     way to revoke if the SA's machine is stolen mid-impersonation).
+  //   - `imp: true` + `imp_by: caller.id` claims so downstream handlers
+  //     (when we add audit checks) can recognise impersonated sessions.
+  //   - audit_log row written so there's a permanent record of which
+  //     super-admin assumed which tenant admin's identity, when.
+  const IMP_TTL_SEC = 30 * 60;
   const impersonateToken = await createJWT(
-    { userId: adminUser.id, role: adminUser.role, tenantId: adminUser.tenant_id || undefined },
+    {
+      userId: adminUser.id,
+      role: adminUser.role,
+      tenantId: adminUser.tenant_id || undefined,
+      // Extra claims surfaced via JWT for audit trail. JwtPayload type
+      // doesn't list them but `createJWT` serialises the full object.
+      imp: true,
+      imp_by: user!.id,
+    } as any,
     env.JWT_SECRET,
-    7 * 24 * 60 * 60
+    IMP_TTL_SEC,
   );
 
-  return json({ user: adminUser, token: impersonateToken, tenantUrl: tenant.url, tenantName: tenant.name });
+  try {
+    await env.DB.prepare(`
+      INSERT INTO audit_log (id, actor_id, action, resource_type, resource_id, details, tenant_id, created_at)
+      VALUES (?, ?, 'impersonate.start', 'user', ?, ?, ?, datetime('now'))
+    `).bind(
+      generateId(), user!.id, adminUser.id,
+      JSON.stringify({ tenant_id: tenantId, tenant_slug: tenant.slug, target_role: adminUser.role, ttl_sec: IMP_TTL_SEC }),
+      tenantId,
+    ).run();
+  } catch {
+    // Don't block the impersonation flow if audit insert fails (table
+    // may not exist in older DBs). Still log to console.
+    createRequestLogger(request).warn('impersonate audit_log insert failed', { actor: user!.id, target: adminUser.id });
+  }
+
+  return json({ user: adminUser, token: impersonateToken, tenantUrl: tenant.url, tenantName: tenant.name, ttlSec: IMP_TTL_SEC });
 });
 
 // GET /api/super-admin/users - list all users across all tenants with credentials (super_admin only)
@@ -635,8 +708,13 @@ route('GET', '/api/super-admin/users', async (request, env) => {
   const total = countResult?.total || 0;
 
   const offset = (page - 1) * limit;
+  // Sprint 71 P1/F4: do NOT return password_hash. Was selected with
+  // alias `password` and rendered behind an Eye toggle on the FE — hash
+  // exfil enabled offline brute-force of weak demo passwords. The FE
+  // should use POST /api/users/:id/reset-password if a fresh credential
+  // is needed.
   const { results } = await env.DB.prepare(`
-    SELECT u.id, u.login, u.password_hash as password, u.name, u.phone, u.role, u.specialization,
+    SELECT u.id, u.login, u.name, u.phone, u.role, u.specialization,
            u.tenant_id, t.name as tenant_name, t.slug as tenant_slug,
            u.branch, u.building, u.created_at, u.is_active
     FROM users u

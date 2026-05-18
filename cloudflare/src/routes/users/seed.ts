@@ -62,10 +62,13 @@ route('POST', '/api/init-superadmin', async (request, env) => {
 
 // Seed initial users (for setup) - Demo accounts for all roles
 route('POST', '/api/seed', async (request, env) => {
-  // In non-production (local dev / staging), allow without auth for easy seeding
+  // Sprint 71 P0/F3: REFUSE in production unconditionally. Was only
+  // gated by super_admin role, which meant any super_admin slip (token
+  // theft, mistaken curl) re-pinned the `superadmin` login to
+  // `admin123` and downgraded every demo login to fixed weak passwords.
+  // For prod, use `wrangler d1 execute` or the bootstrap endpoint.
   if (env.ENVIRONMENT === 'production') {
-    const authUser = await getUser(request, env);
-    if (!isSuperAdmin(authUser)) return error('Access denied', 403);
+    return error('Seed disabled in production. Use wrangler d1 or /api/init-superadmin.', 410);
   }
 
   const initialUsers = [

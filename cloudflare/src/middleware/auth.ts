@@ -99,6 +99,21 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   if (result) {
     const user = result as any;
 
+    // Sprint 71 P1/F7: tenant-active gate. Super-admin can deactivate a
+    // tenant; without this check users in that tenant kept passing auth
+    // for the full JWT TTL (15s cache + no other check). Super-admin
+    // themselves have no tenant_id and bypass this. Soft-deleted tenant
+    // (is_active=0) makes every user in it 401.
+    if (user.tenant_id && user.role !== 'super_admin') {
+      const tenantRow = await env.DB.prepare(
+        'SELECT is_active FROM tenants WHERE id = ? LIMIT 1'
+      ).bind(user.tenant_id).first() as { is_active?: number } | null;
+      if (tenantRow && tenantRow.is_active === 0) {
+        requestUserCache.set(request, null);
+        return null;
+      }
+    }
+
     if (!authTenantId) {
       if (user.tenant_id) {
         setTenantForRequest(request, { id: user.tenant_id });
