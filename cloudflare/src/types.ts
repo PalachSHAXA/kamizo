@@ -38,6 +38,10 @@ export type Handler = (request: Request, env: Env, params: Record<string, string
 
 export interface Route {
   method: string;
+  // Original path template, e.g. '/api/agenda/:agendaItemId/comments'.
+  // Sprint 74: used as the rate-limit key so buckets don't multiply per
+  // resolved id.
+  path: string;
   pattern: RegExp;
   handler: Handler;
 }

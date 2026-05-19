@@ -170,7 +170,11 @@ route('POST', '/api/upload', async (request, env) => {
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
-  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+  // Sprint 74 P1/F5: actually 5MB (was 25MB, comment said 5MB).
+  // Stored as base64 data-URL → 25MB became ~33MB on the wire and got
+  // dumped straight into D1 TEXT rows. 5MB matches the user-facing
+  // limit message and the data-URL caps elsewhere in the codebase.
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
   const ALLOWED_TYPES = [
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
     'application/pdf',

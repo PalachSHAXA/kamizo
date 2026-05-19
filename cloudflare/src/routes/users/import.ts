@@ -17,6 +17,11 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
   }
 
   const { users } = await request.json() as { users: any[] };
+  // Sprint 74 P1/F4: cap batch size. Was unbounded; one POST with
+  // 50 000 rows would run 50 000 × PBKDF2-50k (~250 ms each) = 3+ hours
+  // of worker CPU per request → easy DoS.
+  if (!Array.isArray(users)) return error('users array required', 400);
+  if (users.length > 500) return error('Max 500 users per batch', 400);
   const created: any[] = [];
   const updated: any[] = [];
 
@@ -231,6 +236,8 @@ route('POST', '/api/team/import', async (request, env) => {
   }
 
   if (members.length === 0) return error('No staff data found in file', 400);
+  // Sprint 74 P1/F4: cap batch size on staff import (same DoS class).
+  if (members.length > 500) return error('Max 500 staff per batch', 400);
 
   const ALLOWED = ['admin','director','manager','department_head','dispatcher','executor','security'];
   const stats = { created: 0, updated: 0, skipped: 0 };

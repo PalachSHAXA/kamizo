@@ -487,7 +487,12 @@ export default {
               if (!url.pathname.startsWith('/api/auth/login') && !url.pathname.startsWith('/api/health')) {
                 const user = await getUser(request, env);
                 const identifier = getClientIdentifier(request, user);
-                const endpoint = `${request.method}:${url.pathname}`;
+                // Sprint 74 P0/F2: key by route template (e.g.
+                // `/api/agenda/:agendaItemId/comments`) instead of the
+                // resolved pathname. Was giving a fresh 100/min bucket
+                // per :id, which neutered every entry in RATE_LIMITS
+                // for routes with path params.
+                const endpoint = `${request.method}:${matched.path}`;
                 const rateLimit = await checkRateLimit(env, identifier, endpoint);
 
                 if (!rateLimit.allowed) {
