@@ -154,38 +154,57 @@ route('POST', '/api/admin/requests/reset', async (request, env) => {
 });
 
 // Frontend Error Reporting (Public - errors from React)
-// PUBLIC: no auth required
+//
+// Sprint 79 P0/F2: was reading body.userId verbatim (forge / log
+// injection) and had no body-size cap (multi-MB stack-trace data-URLs
+// could be planted). Now: read identity from token if present, ignore
+// body.userId entirely, hard-truncate all free-text fields, reject
+// oversized payloads.
 route('POST', '/api/admin/monitoring/frontend-error', async (request, env) => {
   try {
-    const body = await request.json() as any;
+    const raw = await request.text();
+    if (raw.length > 16_000) return error('Payload too large', 413);
+    const body = JSON.parse(raw) as any;
 
-    // Log frontend error
+    const truncate = (s: unknown, n: number) => typeof s === 'string' ? s.slice(0, n) : null;
+    const errorMessage = truncate(body?.error?.message, 2000);
+    const errorStack = truncate(body?.error?.stack, 4000);
+    const errorName = truncate(body?.error?.name, 200) || 'UnknownError';
+    const userAgent = truncate(body?.userAgent, 500);
+    const errorUrl = truncate(body?.url, 500);
+
+    // Resolve userId from token; ignore body-supplied value.
+    let userId: string | null = null;
+    try {
+      const { getUser } = await import('../../middleware/auth');
+      const u = await getUser(request, env);
+      userId = u?.id ?? null;
+    } catch { userId = null; }
+
     const log = createRequestLogger(request);
     log.error('Frontend error reported', null, {
-      timestamp: body.timestamp,
-      errorMessage: body.error?.message,
-      errorUrl: body.url,
-      userId: body.userId,
+      timestamp: body?.timestamp,
+      errorMessage,
+      errorUrl,
+      userId,
     });
 
-    // Store in metrics aggregator
     metricsAggregator.logError({
-      message: `[Frontend] ${body.error?.message || 'Unknown error'}`,
-      endpoint: body.url || 'unknown',
+      message: `[Frontend] ${errorMessage || 'Unknown error'}`,
+      endpoint: errorUrl || 'unknown',
       method: 'FRONTEND',
       timestamp: Date.now(),
-      stack: body.error?.stack,
-      userAgent: body.userAgent,
-      userId: body.userId,
+      stack: errorStack || undefined,
+      userAgent: userAgent || undefined,
+      userId: userId || undefined,
     });
 
-    // Send to Cloudflare Analytics if available
     if (env.ENVIRONMENT === 'production') {
       logAnalyticsEvent(request, 'frontend_error', {
-        error_name: body.error?.name || 'UnknownError',
-        error_message: body.error?.message || 'Unknown error',
-        url: body.url,
-        userId: body.userId,
+        error_name: errorName,
+        error_message: errorMessage || 'Unknown error',
+        url: errorUrl,
+        userId,
       });
     }
 

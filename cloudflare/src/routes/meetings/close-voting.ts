@@ -2,7 +2,7 @@
 
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error,
+  invalidateCache, json, error, isManagement,
   sendPushNotification, getMeetingWithDetails
 } from './helpers';
 
@@ -14,6 +14,9 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
   if (!fc.allowed) return error(fc.error!, 403);
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
+  // Sprint 79 P0/F4: management only. Any resident used to be able to
+  // close voting on a meeting they had no stake in.
+  if (!isManagement(authUser)) return error('Admin/Manager access required', 403);
   const tenantId = getTenantId(request);
 
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`)
@@ -87,6 +90,8 @@ route('POST', '/api/meetings/:id/publish-results', async (request, env, params) 
   if (!fc.allowed) return error(fc.error!, 403);
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
+  // Sprint 79 P0/F4: management only.
+  if (!isManagement(authUser)) return error('Admin/Manager access required', 403);
   const tenantId = getTenantId(request);
 
   const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;

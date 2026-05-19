@@ -41,19 +41,25 @@ route('POST', '/api/notes', async (request, env) => {
     return error('Title is required');
   }
 
+  // Sprint 79 P1/F9: cap title/content size. Was unbounded — a resident
+  // could store multi-MB blobs (or pasted data-URL images) and LIST
+  // would return all of it.
+  const title = body.title.trim().slice(0, 200);
+  const content = (body.content || '').slice(0, 50_000);
+
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
   await env.DB.prepare(`
     INSERT INTO notes (id, user_id, title, content, tenant_id, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, user.id, body.title.trim(), body.content || '', getTenantId(request), now, now).run();
+  `).bind(id, user.id, title, content, getTenantId(request), now, now).run();
 
   return json({
     note: {
       id,
-      title: body.title.trim(),
-      content: body.content || '',
+      title,
+      content,
       created_at: now,
       updated_at: now
     }
@@ -87,18 +93,21 @@ route('PUT', '/api/notes/:id', async (request, env, params) => {
     return error('Title is required');
   }
 
+  // Sprint 79 P1/F9: same caps on update path.
+  const title = body.title.trim().slice(0, 200);
+  const content = (body.content || '').slice(0, 50_000);
   const now = new Date().toISOString();
 
   await env.DB.prepare(`
     UPDATE notes SET title = ?, content = ?, updated_at = ?
     WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(body.title.trim(), body.content || '', now, noteId, user.id, ...(tenantId ? [tenantId] : [])).run();
+  `).bind(title, content, now, noteId, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({
     note: {
       id: noteId,
-      title: body.title.trim(),
-      content: body.content || '',
+      title,
+      content,
       updated_at: now
     }
   });

@@ -101,7 +101,11 @@ route('POST', '/api/uk-ratings', async (request, env) => {
     return error('Invalid overall rating', 400);
   }
 
-  const tenantId = getTenantId(request) || 'default';
+  // Sprint 79 P1/F10: was falling back to literal 'default' tenant_id,
+  // which mixed apex residents' ratings into a shared bucket — then
+  // /summary read them back into the wrong tenant.
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
   const now = new Date();
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const id = crypto.randomUUID();
@@ -130,7 +134,11 @@ route('GET', '/api/uk-ratings/my', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  const tenantId = getTenantId(request) || 'default';
+  // Sprint 79 P1/F10: was falling back to literal 'default' tenant_id,
+  // which mixed apex residents' ratings into a shared bucket — then
+  // /summary read them back into the wrong tenant.
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
   const now = new Date();
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -148,7 +156,11 @@ route('GET', '/api/uk-ratings/summary', async (request, env) => {
     return error('Unauthorized', 401);
   }
 
-  const tenantId = getTenantId(request) || 'default';
+  // Sprint 79 P1/F10: was falling back to literal 'default' tenant_id,
+  // which mixed apex residents' ratings into a shared bucket — then
+  // /summary read them back into the wrong tenant.
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
   const url = new URL(request.url);
   const months = parseInt(url.searchParams.get('months') || '6');
 

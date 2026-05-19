@@ -1,7 +1,7 @@
 // POST /api/meetings, PATCH /api/meetings/:id, DELETE /api/meetings/:id
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error, generateId, sendPushNotification, createRequestLogger
+  invalidateCache, json, error, generateId, sendPushNotification, createRequestLogger, isManagement
 } from './helpers';
 
 export function registerMeetingMutateRoutes() {
@@ -140,6 +140,14 @@ route('PATCH', '/api/meetings/:id', async (request, env, params) => {
 
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
+
+  // Sprint 79 P0/F5: rank gate same as DELETE below. Without this, any
+  // resident could set `status='results_published'`, mutate
+  // `quorum_percent`, or write a `cancellation_reason` on a meeting they
+  // didn't organise. Organizer-only mutations on a draft would need a
+  // separate, allow-listed path (location / format / materials only) —
+  // not enabled here yet; managers handle drafts in the current FE.
+  if (!isManagement(authUser)) return error('Admin/Manager access required', 403);
 
   const tenantId = getTenantId(request);
   const body = await request.json() as any;
