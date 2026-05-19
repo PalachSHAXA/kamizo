@@ -4,7 +4,7 @@
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, clearFeatureCache } from '../middleware/tenant';
-import { json, error, bilingualError, generateId, isManagement, sanitizeInput, sanitizeUrl } from '../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement, sanitizeInput, sanitizeUrl, sanitizeAttachmentUrl } from '../utils/helpers';
 import { hashPassword, createJWT } from '../utils/crypto';
 import { isSuperAdmin } from '../index';
 import { createRequestLogger } from '../utils/logger';
@@ -373,7 +373,11 @@ route('POST', '/api/tenants', async (request, env) => {
     body.color || '#6366f1', body.color_secondary || '#a855f7',
     body.plan || 'basic', features,
     body.admin_email || null, body.admin_phone || null,
-    body.logo || null, body.contract_template || null
+    // Sprint 78 P1/F6: sanitize tenant logo same way as ad logo. Was
+    // stored raw — javascript: URL on tenant logo renders to every
+    // login page.
+    sanitizeAttachmentUrl(body.logo, { maxDataUrlBytes: 2_500_000 }),
+    body.contract_template || null
   ).run();
 
   // Create initial director user for the tenant

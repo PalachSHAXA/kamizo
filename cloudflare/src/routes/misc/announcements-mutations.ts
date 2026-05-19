@@ -4,7 +4,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, generateId, isManagement, sanitizeAttachmentUrl, sanitizeFilename } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -25,8 +25,38 @@ route('POST', '/api/announcements', async (request, env) => {
   const body = await request.json() as any;
   const id = generateId();
 
-  // Handle attachments (JSON array of {name, url, type, size})
-  const attachments = body.attachments ? JSON.stringify(body.attachments) : null;
+  // Handle attachments (JSON array of {name, url, type, size}).
+  //
+  // Sprint 78 P0/F1: was JSON.stringify(body.attachments) verbatim. The
+  // `url` field was rendered as `<a href={url}>` / `<img src={url}>`
+  // throughout the resident PWA — `javascript:...` and uncapped data-URL
+  // bombs both made it through. Now: per-attachment URL allowlist
+  // (http(s)/data:image|pdf only, no svg+xml, no javascript:), MIME
+  // whitelist, filename sanitization, hard cap on array length + total
+  // payload size.
+  const MAX_ATTACHMENTS = 10;
+  const MAX_TOTAL_ATTACH_BYTES = 5 * 1024 * 1024;
+  const ALLOWED_TYPES = new Set([
+    'image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif',
+    'application/pdf',
+  ]);
+  const sanitizedAttachments: Array<{ name: string | null; url: string; type: string | null; size: number | null }> = [];
+  if (Array.isArray(body.attachments)) {
+    let totalBytes = 0;
+    for (const raw of body.attachments) {
+      if (sanitizedAttachments.length >= MAX_ATTACHMENTS) break;
+      if (!raw || typeof raw !== 'object') continue;
+      const url = sanitizeAttachmentUrl(raw.url);
+      if (!url) continue;
+      const type = typeof raw.type === 'string' && ALLOWED_TYPES.has(raw.type.toLowerCase()) ? raw.type.toLowerCase() : null;
+      const name = sanitizeFilename(raw.name);
+      const sizeBytes = url.startsWith('data:') ? url.length : 0;
+      if (totalBytes + sizeBytes > MAX_TOTAL_ATTACH_BYTES) break;
+      totalBytes += sizeBytes;
+      sanitizedAttachments.push({ name, url, type, size: typeof raw.size === 'number' && raw.size > 0 ? Math.floor(raw.size) : null });
+    }
+  }
+  const attachments = sanitizedAttachments.length > 0 ? JSON.stringify(sanitizedAttachments) : null;
   // Handle personalized data for debt-based announcements (JSON object)
   const personalizedData = body.personalized_data ? JSON.stringify(body.personalized_data) : null;
 
@@ -236,9 +266,37 @@ route('PUT', '/api/announcements/:id', async (request, env, params) => {
 
   const body = await request.json() as any;
 
-  const attachments = body.attachments !== undefined
-    ? (body.attachments ? JSON.stringify(body.attachments) : null)
-    : undefined;
+  // Sprint 78 P0/F1: same sanitization on PUT path.
+  let attachments: string | null | undefined;
+  if (body.attachments === undefined) {
+    attachments = undefined;
+  } else if (!body.attachments) {
+    attachments = null;
+  } else {
+    const MAX_ATTACHMENTS = 10;
+    const MAX_TOTAL_ATTACH_BYTES = 5 * 1024 * 1024;
+    const ALLOWED_TYPES = new Set([
+      'image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif',
+      'application/pdf',
+    ]);
+    const out: Array<{ name: string | null; url: string; type: string | null; size: number | null }> = [];
+    if (Array.isArray(body.attachments)) {
+      let totalBytes = 0;
+      for (const raw of body.attachments) {
+        if (out.length >= MAX_ATTACHMENTS) break;
+        if (!raw || typeof raw !== 'object') continue;
+        const url = sanitizeAttachmentUrl(raw.url);
+        if (!url) continue;
+        const type = typeof raw.type === 'string' && ALLOWED_TYPES.has(raw.type.toLowerCase()) ? raw.type.toLowerCase() : null;
+        const name = sanitizeFilename(raw.name);
+        const sizeBytes = url.startsWith('data:') ? url.length : 0;
+        if (totalBytes + sizeBytes > MAX_TOTAL_ATTACH_BYTES) break;
+        totalBytes += sizeBytes;
+        out.push({ name, url, type, size: typeof raw.size === 'number' && raw.size > 0 ? Math.floor(raw.size) : null });
+      }
+    }
+    attachments = out.length > 0 ? JSON.stringify(out) : null;
+  }
 
   const tenantIdUpd = getTenantId(request);
   if (body.target_building_id) {

@@ -159,3 +159,39 @@ export function sanitizeUrl(url: string | null | undefined): string | null {
   if (/^(https?:\/\/|\/)/i.test(trimmed)) return trimmed;
   return null;
 }
+
+// Sprint 78 P0: URL validator for attachment / image fields that legitimately
+// need to accept inline data-URL images alongside http(s) links. Allows
+// PNG/JPEG/WebP/GIF/PDF data-URLs up to ~5 MB (data-URL is ~33% bigger than
+// the underlying bytes). Rejects javascript: / vbscript: / file: / svg+xml.
+const ATTACHMENT_DATA_URL_RE = /^data:(image\/(png|jpe?g|webp|gif)|application\/pdf);base64,[A-Za-z0-9+/=]+$/i;
+export function sanitizeAttachmentUrl(url: string | null | undefined, opts: { maxDataUrlBytes?: number } = {}): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (trimmed.length === 0) return null;
+  const maxBytes = opts.maxDataUrlBytes ?? 7_000_000; // ~5 MB binary + base64 overhead
+  if (trimmed.startsWith('data:')) {
+    if (trimmed.length > maxBytes) return null;
+    if (!ATTACHMENT_DATA_URL_RE.test(trimmed)) return null;
+    return trimmed;
+  }
+  // http(s) or absolute-path
+  if (trimmed.length > 2000) return null;
+  if (/^(https?:\/\/|\/)/i.test(trimmed)) return trimmed;
+  return null;
+}
+
+// Sprint 78 P1: filename for download attribute / Content-Disposition.
+// Allows alphanumerics, dots, dashes, underscores, parentheses, spaces.
+// Strips CRLF, path traversal, leading dots.
+export function sanitizeFilename(name: string | null | undefined, maxLength = 128): string | null {
+  if (!name || typeof name !== 'string') return null;
+  // Strip newlines/control chars first
+  let s = name.replace(/[\r\n\t\x00-\x1f\x7f]/g, '');
+  // Strip path separators + parent refs
+  s = s.replace(/[/\\]/g, '_').replace(/\.{2,}/g, '_');
+  // Strip leading dots so the file isn't hidden / leading-dot tricks
+  s = s.replace(/^\.+/, '');
+  s = s.trim().slice(0, maxLength);
+  return s.length > 0 ? s : null;
+}

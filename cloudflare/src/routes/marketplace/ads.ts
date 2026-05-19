@@ -3,7 +3,29 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, generateId, sanitizeAttachmentUrl, sanitizeUrl } from '../../utils/helpers';
+
+// Sprint 78 P0/F2: validator for ad `photos` array. Same shape used in
+// crud.ts for request photos but tailored to ads (5 images, 1 MB each).
+function sanitizeAdPhotos(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const MAX_PHOTOS = 5;
+  const MAX_PHOTO_BYTES = 1_400_000; // ~1 MB binary, ~33% base64 overhead
+  const MAX_TOTAL_BYTES = 6_000_000;
+  const out: string[] = [];
+  let total = 0;
+  for (const p of raw) {
+    if (out.length >= MAX_PHOTOS) break;
+    const url = sanitizeAttachmentUrl(p, { maxDataUrlBytes: MAX_PHOTO_BYTES });
+    if (!url) continue;
+    // Photo arrays should be images, never PDFs.
+    if (url.startsWith('data:application/pdf')) continue;
+    if (total + url.length > MAX_TOTAL_BYTES) break;
+    out.push(url);
+    total += url.length;
+  }
+  return out;
+}
 import { createRequestLogger } from '../../utils/logger';
 import { isAdvertiser } from './helpers';
 
@@ -119,8 +141,13 @@ route('POST', '/api/ads', async (request, env) => {
       id, authUser.id, body.category_id, body.title, body.description || null,
       body.phone, body.phone2 || null, body.telegram || null, body.instagram || null,
       body.facebook || null, body.website || null, body.address || null,
-      body.work_hours || null, body.work_days || null, body.logo_url || null,
-      body.photos ? JSON.stringify(body.photos) : null, body.discount_percent || 0,
+      body.work_hours || null, body.work_days || null,
+      // Sprint 78 P0/F2: sanitize logo + photos. Was passthrough, accepting
+      // `javascript:` URLs and uncapped data-URL bombs that landed on every
+      // resident's "useful contacts" page.
+      sanitizeAttachmentUrl(body.logo_url, { maxDataUrlBytes: 1_400_000 }),
+      (() => { const ph = sanitizeAdPhotos(body.photos); return ph && ph.length > 0 ? JSON.stringify(ph) : null; })(),
+      body.discount_percent || 0,
       body.badges ? JSON.stringify(body.badges) : null, body.target_type || 'all',
       body.target_branches ? JSON.stringify(body.target_branches) : '[]',
       body.target_buildings ? JSON.stringify(body.target_buildings) : '[]',
@@ -160,11 +187,25 @@ route('PATCH', '/api/ads/:id', async (request, env, params) => {
     'starts_at', 'expires_at', 'duration_type', 'status'];
 
   for (const field of fields) {
-    if (body[field] !== undefined) { updates.push(`${field} = ?`); values.push(body[field]); }
+    if (body[field] !== undefined) {
+      let value = body[field];
+      // Sprint 78 P0/F2: sanitize URL-like fields on update.
+      if (field === 'logo_url') value = sanitizeAttachmentUrl(value, { maxDataUrlBytes: 1_400_000 });
+      else if (field === 'website') value = sanitizeUrl(value);
+      updates.push(`${field} = ?`); values.push(value);
+    }
   }
 
   for (const jf of ['photos', 'badges', 'target_branches', 'target_buildings']) {
-    if (body[jf] !== undefined) { updates.push(`${jf} = ?`); values.push(JSON.stringify(body[jf])); }
+    if (body[jf] !== undefined) {
+      // Sprint 78 P0/F2: photos go through the same sanitizer as create.
+      if (jf === 'photos') {
+        const ph = sanitizeAdPhotos(body[jf]);
+        updates.push(`${jf} = ?`); values.push(ph && ph.length > 0 ? JSON.stringify(ph) : null);
+      } else {
+        updates.push(`${jf} = ?`); values.push(JSON.stringify(body[jf]));
+      }
+    }
   }
 
   if (updates.length > 0) {

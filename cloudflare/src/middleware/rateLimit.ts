@@ -34,6 +34,16 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   // Sprint 74 P1/F5: upload (was unbounded; 25 MB rows × 100/min = 2.5 GB).
   'POST:/api/upload': { maxRequests: 20, windowSeconds: 60 },
 
+  // Sprint 78 P1/F3: spread tight caps across every endpoint that
+  // accepts large image/data-URL payloads. Without these a paid manager/
+  // advertiser session can D1-bloat by looping 5MB rows.
+  'POST:/api/ads': { maxRequests: 10, windowSeconds: 60 },
+  'PATCH:/api/ads/:id': { maxRequests: 20, windowSeconds: 60 },
+  'POST:/api/announcements': { maxRequests: 10, windowSeconds: 60 },
+  'PUT:/api/announcements/:id': { maxRequests: 20, windowSeconds: 60 },
+  'POST:/api/marketplace/admin/upload-image': { maxRequests: 30, windowSeconds: 60 },
+  'POST:/api/training/partners': { maxRequests: 10, windowSeconds: 60 },
+
   // Cost-heavy reports / exports — keep per-user calls low.
   'GET:/api/marketplace/admin/reports': { maxRequests: 10, windowSeconds: 60 },
   'GET:/api/reports/debts': { maxRequests: 10, windowSeconds: 60 },
