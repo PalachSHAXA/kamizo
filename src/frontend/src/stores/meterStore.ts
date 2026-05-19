@@ -178,21 +178,27 @@ export const useMeterStore = create<MeterState>()(
         }
         return null;
       } catch (error) {
+        // Sprint 81: addMeter was silent → manager retried after invisible
+        // failure and ended up with duplicates. Toast + re-throw.
         console.error('Failed to create meter:', error);
-        return null;
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось создать счётчик');
+        throw error;
       }
     },
 
     updateMeter: async (id, data) => {
       try {
-        await metersApi.update(id, data as Record<string, unknown>); // TODO: type this properly
+        await metersApi.update(id, data as Record<string, unknown>);
         set((state) => ({
           meters: state.meters.map((m) =>
             m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m
           ),
         }));
       } catch (error) {
+        // Sprint 81: silent fail → user thought update succeeded.
         console.error('Failed to update meter:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось обновить счётчик');
+        throw error;
       }
     },
 
@@ -204,7 +210,10 @@ export const useMeterStore = create<MeterState>()(
           meterReadings: state.meterReadings.filter((r) => r.meterId !== id),
         }));
       } catch (error) {
+        // Sprint 81: silent fail → row removed from UI but server still had it.
         console.error('Failed to delete meter:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось удалить счётчик');
+        throw error;
       }
     },
 
@@ -217,7 +226,10 @@ export const useMeterStore = create<MeterState>()(
           ),
         }));
       } catch (error) {
+        // Sprint 81: silent fail.
         console.error('Failed to decommission meter:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось списать счётчик');
+        throw error;
       }
     },
 

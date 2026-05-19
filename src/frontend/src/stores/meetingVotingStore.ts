@@ -464,7 +464,11 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
           });
         }
       } catch (error) {
+        // Sprint 81: was silent. Manager opened the wizard and saw nothing
+        // — couldn't tell if there were no units or if the fetch failed.
         console.error('Failed to fetch voting units:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось загрузить голосующих');
+        throw error;
       }
     },
 
@@ -485,9 +489,16 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
           set((state) => ({ votingUnits: [...state.votingUnits, votingUnit] }));
           return votingUnit;
         }
-        throw new Error('Failed to create voting unit');
+        // Sprint 81: surface response.error if API returned !success.
+        const msg = (response as { error?: string }).error || 'Failed to create voting unit';
+        useToastStore.getState().addToast('error', msg);
+        throw new Error(msg);
       } catch (error) {
         console.error('Failed to add voting unit:', error);
+        // toast only once — addToast above already handled the non-throw branch
+        if (!(error instanceof Error && error.message === 'Failed to create voting unit')) {
+          useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось добавить голосующего');
+        }
         throw error;
       }
     },

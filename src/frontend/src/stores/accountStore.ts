@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useToastStore } from './toastStore';
 import type {
   PersonalAccount,
 } from '../types';
@@ -107,13 +108,16 @@ export const useAccountStore = create<AccountState>()(
         return null;
       } catch (error) {
         console.error('Failed to create account:', error);
-        return null;
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось создать лицевой счёт');
+        throw error;
       }
     },
 
     updatePersonalAccount: async (id, data) => {
+      // Sprint 81: silent fail → manager edits owner name, account row
+      // never updates, no feedback. Now: toast + re-throw.
       try {
-        await personalAccountsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
+        await personalAccountsApi.update(id, data as Record<string, unknown>);
         set((state) => ({
           personalAccounts: state.personalAccounts.map((a) =>
             a.id === id ? { ...a, ...data, updatedAt: new Date().toISOString() } : a
@@ -121,6 +125,8 @@ export const useAccountStore = create<AccountState>()(
         }));
       } catch (error) {
         console.error('Failed to update account:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось обновить лицевой счёт');
+        throw error;
       }
     },
 
