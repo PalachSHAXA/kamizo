@@ -107,16 +107,28 @@ route('PATCH', '/api/branches/:id', async (request, env, params) => {
 });
 
 // Branches: Delete
+//
+// Sprint 75 P1/F5 + P1/F10: restrict to admin/director (manager-scope is
+// per-building; branch is tenant-wide). Also check BOTH branch_id and
+// branch_code on the orphan-buildings guard — schema's primary linkage
+// elsewhere is branch_code, so the previous branch_id-only check would
+// allow deleting a branch with buildings linked by code alone.
 route('DELETE', '/api/branches/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
+  if (!user || !['admin', 'director', 'super_admin'].includes(user.role)) {
     return error('Admin access required', 403);
   }
   const tenantId = getTenantId(request);
 
+  const branch = await env.DB.prepare(
+    `SELECT id, code FROM branches WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { id: string; code: string } | null;
+  if (!branch) return error('Branch not found', 404);
+
   const buildingsCount = await env.DB.prepare(
-    `SELECT COUNT(*) as count FROM buildings WHERE branch_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+    `SELECT COUNT(*) as count FROM buildings
+     WHERE (branch_id = ? OR branch_code = ?) ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, branch.code, ...(tenantId ? [tenantId] : [])).first() as any;
 
   if (buildingsCount?.count > 0) {
     return error('Cannot delete branch with buildings. Remove buildings first.', 400);

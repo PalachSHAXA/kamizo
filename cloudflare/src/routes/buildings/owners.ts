@@ -7,9 +7,14 @@ import { json, error, generateId, isManagement } from '../../utils/helpers';
 export function registerOwnerRoutes() {
 
 // Owners: List all
+//
+// Sprint 75 P0/F4: was open to any authenticated user, and on apex
+// (tenantId=null) the listing skipped the tenant filter — full
+// passport/INN PII dump across tenants. Now: management-only + require
+// tenant context.
 route('GET', '/api/owners', async (request, env) => {
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  if (!isManagement(authUser)) return error('Manager access required', 403);
 
   const url = new URL(request.url);
   const type = url.searchParams.get('type');
@@ -18,10 +23,11 @@ route('GET', '/api/owners', async (request, env) => {
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const offset = (page - 1) * limit;
   const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
 
   let query = 'SELECT * FROM owners WHERE 1=1';
   const bindings: any[] = [];
-  if (tenantId) { query += ' AND tenant_id = ?'; bindings.push(tenantId); }
+  query += ' AND tenant_id = ?'; bindings.push(tenantId);
   if (type) { query += ' AND type = ?'; bindings.push(type); }
   if (search) {
     query += ' AND (full_name LIKE ? OR phone LIKE ? OR email LIKE ?)';
@@ -34,7 +40,7 @@ route('GET', '/api/owners', async (request, env) => {
 
   let countQuery = 'SELECT COUNT(*) as total FROM owners WHERE 1=1';
   const countBindings: any[] = [];
-  if (tenantId) { countQuery += ' AND tenant_id = ?'; countBindings.push(tenantId); }
+  countQuery += ' AND tenant_id = ?'; countBindings.push(tenantId);
   if (type) { countQuery += ' AND type = ?'; countBindings.push(type); }
   if (search) {
     countQuery += ' AND (full_name LIKE ? OR phone LIKE ? OR email LIKE ?)';
@@ -49,17 +55,22 @@ route('GET', '/api/owners', async (request, env) => {
 // Owners: Get single with apartments
 route('GET', '/api/owners/:id', async (request, env, params) => {
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  // Sprint 75 P0/F4: management-only — owner record holds passport,
+  // INN, registration address.
+  if (!isManagement(authUser)) return error('Manager access required', 403);
   const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
 
-  const owner = await env.DB.prepare(`SELECT * FROM owners WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+  const owner = await env.DB.prepare(
+    `SELECT * FROM owners WHERE id = ? AND tenant_id = ?`
+  ).bind(params.id, tenantId).first();
   if (!owner) return error('Owner not found', 404);
 
   const { results: apartments } = await env.DB.prepare(`
     SELECT a.*, oa.ownership_share, oa.is_primary, b.name as building_name, b.address as building_address
     FROM apartments a JOIN owner_apartments oa ON a.id = oa.apartment_id JOIN buildings b ON a.building_id = b.id
-    WHERE oa.owner_id = ? ${tenantId ? 'AND a.tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).all();
+    WHERE oa.owner_id = ? AND a.tenant_id = ?
+  `).bind(params.id, tenantId).all();
 
   return json({ owner, apartments });
 });
@@ -169,10 +180,27 @@ route('DELETE', '/api/owners/:id', async (request, env, params) => {
 });
 
 // Owner-Apartment: Link
+//
+// Sprint 75 P0/F1: validate BOTH owner and apartment belong to the
+// caller's tenant before linking. Was silently accepting cross-tenant
+// IDs — a manager from tenant A could attach an owner from A to an
+// apartment from B (or vice versa) and become primary owner there.
 route('POST', '/api/owners/:ownerId/apartments/:apartmentId', async (request, env, params) => {
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) return error('Manager access required', 403);
   const body = await request.json() as any;
+
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
+
+  const owner = await env.DB.prepare(
+    'SELECT id FROM owners WHERE id = ? AND tenant_id = ?'
+  ).bind(params.ownerId, tenantId).first();
+  if (!owner) return error('Owner not found in this tenant', 404);
+  const apt = await env.DB.prepare(
+    'SELECT id FROM apartments WHERE id = ? AND tenant_id = ?'
+  ).bind(params.apartmentId, tenantId).first();
+  if (!apt) return error('Apartment not found in this tenant', 404);
 
   await env.DB.prepare(`
     INSERT OR REPLACE INTO owner_apartments (owner_id, apartment_id, ownership_share, is_primary, start_date) VALUES (?, ?, ?, ?, ?)
@@ -180,7 +208,9 @@ route('POST', '/api/owners/:ownerId/apartments/:apartmentId', async (request, en
     body.is_primary || body.isPrimary ? 1 : 0, body.start_date || body.startDate || new Date().toISOString().split('T')[0]).run();
 
   if (body.is_primary || body.isPrimary) {
-    await env.DB.prepare('UPDATE apartments SET primary_owner_id = ? WHERE id = ?').bind(params.ownerId, params.apartmentId).run();
+    await env.DB.prepare(
+      'UPDATE apartments SET primary_owner_id = ? WHERE id = ? AND tenant_id = ?'
+    ).bind(params.ownerId, params.apartmentId, tenantId).run();
   }
   return json({ success: true }, 201);
 });
@@ -190,8 +220,18 @@ route('DELETE', '/api/owners/:ownerId/apartments/:apartmentId', async (request, 
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) return error('Manager access required', 403);
 
-  await env.DB.prepare('DELETE FROM owner_apartments WHERE owner_id = ? AND apartment_id = ?').bind(params.ownerId, params.apartmentId).run();
-  await env.DB.prepare('UPDATE apartments SET primary_owner_id = NULL WHERE id = ? AND primary_owner_id = ?').bind(params.apartmentId, params.ownerId).run();
+  const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
+
+  // Sprint 75 P0/F1: tenant-scoped DELETE + UPDATE.
+  await env.DB.prepare(
+    `DELETE FROM owner_apartments WHERE owner_id = ? AND apartment_id = ?
+     AND owner_id IN (SELECT id FROM owners WHERE tenant_id = ?)
+     AND apartment_id IN (SELECT id FROM apartments WHERE tenant_id = ?)`
+  ).bind(params.ownerId, params.apartmentId, tenantId, tenantId).run();
+  await env.DB.prepare(
+    'UPDATE apartments SET primary_owner_id = NULL WHERE id = ? AND primary_owner_id = ? AND tenant_id = ?'
+  ).bind(params.apartmentId, params.ownerId, tenantId).run();
   return json({ success: true });
 });
 

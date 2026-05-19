@@ -97,8 +97,12 @@ route('DELETE', '/api/buildings/:id', async (request, env, params) => {
   await env.DB.prepare(`UPDATE announcements SET target_building_id = NULL WHERE target_building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
   await env.DB.prepare(`DELETE FROM chat_channels WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
   await env.DB.prepare(`DELETE FROM executor_zones WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
-  await env.DB.prepare(`DELETE FROM meeting_voting_units WHERE building_id = ?`).bind(buildingId).run();
-  await env.DB.prepare(`DELETE FROM meeting_building_settings WHERE building_id = ?`).bind(buildingId).run();
+  // Sprint 75 P1/F6: tenant-scope these two DELETEs too. Was missing the
+  // filter — cross-tenant collision on building_id (deliberately spoofed
+  // by an attacker who learned a foreign building's id) would have
+  // wiped rows in the wrong tenant.
+  await env.DB.prepare(`DELETE FROM meeting_voting_units WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
+  await env.DB.prepare(`DELETE FROM meeting_building_settings WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
   await env.DB.prepare(`DELETE FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(buildingId, ...(tenantId ? [tenantId] : [])).run();
 
   await invalidateOnChange('buildings', env.RATE_LIMITER);

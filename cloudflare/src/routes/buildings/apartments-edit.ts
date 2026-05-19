@@ -119,6 +119,29 @@ route('PATCH', '/api/apartments/:id', async (request, env, params) => {
     personal_account_id: 'personal_account_id', personalAccountId: 'personal_account_id',
   };
 
+  const tenantIdUpd = getTenantId(request);
+
+  // Sprint 75 P0/F2: validate FK fields (primary_owner_id /
+  // personal_account_id / entrance_id) belong to caller's tenant
+  // BEFORE adding them to the UPDATE set. Otherwise manager from
+  // tenant A could swap an apartment's owner / account / entrance
+  // to entities in tenant B.
+  const fkChecks: Array<{ key: string; aliases: string[]; table: string }> = [
+    { key: 'primary_owner_id', aliases: ['primary_owner_id', 'primaryOwnerId'], table: 'users' },
+    { key: 'personal_account_id', aliases: ['personal_account_id', 'personalAccountId'], table: 'personal_accounts' },
+    { key: 'entrance_id', aliases: ['entrance_id', 'entranceId'], table: 'entrances' },
+  ];
+  for (const check of fkChecks) {
+    const incoming = check.aliases.map(a => body[a]).find(v => v !== undefined);
+    if (incoming !== undefined && incoming !== null && incoming !== '') {
+      if (!tenantIdUpd) return error('Tenant context required to set FK fields', 401);
+      const ok = await env.DB.prepare(
+        `SELECT 1 FROM ${check.table} WHERE id = ? AND tenant_id = ? LIMIT 1`
+      ).bind(incoming, tenantIdUpd).first();
+      if (!ok) return error(`${check.key} not found in this tenant`, 404);
+    }
+  }
+
   for (const [key, dbField] of Object.entries(fieldMappings)) {
     if (body[key] !== undefined) {
       let value = body[key];
@@ -130,7 +153,6 @@ route('PATCH', '/api/apartments/:id', async (request, env, params) => {
   if (updates.length === 0) return json({ success: true });
   updates.push('updated_at = datetime("now")');
   values.push(params.id);
-  const tenantIdUpd = getTenantId(request);
 
   await env.DB.prepare(
     `UPDATE apartments SET ${updates.join(', ')} WHERE id = ? ${tenantIdUpd ? 'AND tenant_id = ?' : ''}`

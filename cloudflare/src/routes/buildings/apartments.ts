@@ -59,19 +59,14 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
   if (!authUser) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
 
-  let apartment = await env.DB.prepare(`
+  // Sprint 75 P0/F3: removed the fallback SELECT without tenant filter.
+  // It was returning apartment data (incl. building name/address) from
+  // ANY tenant on a tenanted miss — explicit cross-tenant read path.
+  const apartment = await env.DB.prepare(`
     SELECT a.*, b.name as building_name, b.address as building_address, e.number as entrance_number
     FROM apartments a LEFT JOIN buildings b ON a.building_id = b.id LEFT JOIN entrances e ON a.entrance_id = e.id
     WHERE a.id = ? ${tenantId ? 'AND a.tenant_id = ?' : ''}
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
-
-  if (!apartment && tenantId) {
-    apartment = await env.DB.prepare(`
-      SELECT a.*, b.name as building_name, b.address as building_address, e.number as entrance_number
-      FROM apartments a LEFT JOIN buildings b ON a.building_id = b.id LEFT JOIN entrances e ON a.entrance_id = e.id
-      WHERE a.id = ?
-    `).bind(params.id).first();
-  }
   if (!apartment) return error('Apartment not found', 404);
 
   let owners: any[] = [];
@@ -91,10 +86,13 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
     const apt = apartment as any;
     const aptNumber = String(apt.number || '').trim();
     if (aptNumber && apt.building_id) {
+      // Sprint 75 P0/F3: scope by tenant_id too. Was returning residents
+      // by building_id alone, leaking across tenants on apex/main domain.
       const { results } = await env.DB.prepare(`
         SELECT id, name, phone, login, address, apartment, total_area, role FROM users
         WHERE building_id = ? AND TRIM(apartment) = ? AND role IN ('resident', 'tenant')
-      `).bind(apt.building_id, aptNumber).all();
+        ${tenantId ? 'AND tenant_id = ?' : ''}
+      `).bind(apt.building_id, aptNumber, ...(tenantId ? [tenantId] : [])).all();
       userResidents = results || [];
     }
   } catch (e) {}

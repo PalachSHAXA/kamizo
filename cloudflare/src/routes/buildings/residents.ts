@@ -7,16 +7,26 @@ import { json, error, generateId, isManagement } from '../../utils/helpers';
 export function registerResidentRoutes() {
 
 // CRM Residents: List by apartment
+//
+// Sprint 75 P0/F4: was readable by ANY authenticated user — on apex
+// domain a tenant-A resident could probe any apartmentId in tenant B
+// and get the full PII list (passport series/numbers via SELECT *).
+// Now: management-only + explicit safe column list (no passport, no
+// INN, no registration address).
 route('GET', '/api/apartments/:apartmentId/residents', async (request, env, params) => {
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  if (!isManagement(authUser)) return error('Manager access required', 403);
 
   const url = new URL(request.url);
   const isActive = url.searchParams.get('is_active');
   const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
 
-  let query = `SELECT * FROM crm_residents WHERE apartment_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
-  const bindings: any[] = [params.apartmentId, ...(tenantId ? [tenantId] : [])];
+  let query = `SELECT id, apartment_id, owner_id, last_name, first_name, middle_name, full_name,
+    resident_type, relation_to_owner, registration_type, phone, email, is_active,
+    moved_in_date, moved_out_date, created_at, updated_at, tenant_id
+    FROM crm_residents WHERE apartment_id = ? AND tenant_id = ?`;
+  const bindings: any[] = [params.apartmentId, tenantId];
   if (isActive !== null) { query += ' AND is_active = ?'; bindings.push(isActive === 'true' ? 1 : 0); }
   query += ' ORDER BY resident_type, full_name LIMIT 500';
 
@@ -27,8 +37,11 @@ route('GET', '/api/apartments/:apartmentId/residents', async (request, env, para
 // CRM Residents: Get single
 route('GET', '/api/residents/:id', async (request, env, params) => {
   const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
+  // Sprint 75 P0/F4: management-only. Full record includes passport
+  // series/number/INN — too sensitive for a public detail endpoint.
+  if (!isManagement(authUser)) return error('Manager access required', 403);
   const tenantId = getTenantId(request);
+  if (!tenantId) return error('Tenant context required', 401);
 
   const resident = await env.DB.prepare(`
     SELECT r.*, a.number as apartment_number, a.floor,
@@ -36,8 +49,8 @@ route('GET', '/api/residents/:id', async (request, env, params) => {
       o.full_name as owner_name, o.phone as owner_phone
     FROM crm_residents r LEFT JOIN apartments a ON r.apartment_id = a.id
     LEFT JOIN buildings b ON a.building_id = b.id LEFT JOIN owners o ON r.owner_id = o.id
-    WHERE r.id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+    WHERE r.id = ? AND r.tenant_id = ?
+  `).bind(params.id, tenantId).first();
   if (!resident) return error('Resident not found', 404);
   return json({ resident });
 });
