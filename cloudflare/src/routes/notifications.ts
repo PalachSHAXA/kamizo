@@ -77,8 +77,20 @@ route('POST', '/api/notifications', async (request, env) => {
   if (!isManagement(authUser)) return error('Management access required', 403);
 
   const body = await request.json() as any;
-  const id = generateId();
+  if (!body.user_id || typeof body.user_id !== 'string') {
+    return error('user_id is required', 400);
+  }
 
+  // Sprint 73 P0/F1: verify target user_id belongs to caller's tenant.
+  // Was unchecked — a manager from tenant A could inject notification
+  // rows targeting any tenant-B user UUID (mass phishing surface).
+  const tenantId = getTenantId(request);
+  const target = await env.DB.prepare(
+    `SELECT 1 FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(body.user_id, ...(tenantId ? [tenantId] : [])).first();
+  if (!target) return error('Target user not found in this tenant', 404);
+
+  const id = generateId();
   await env.DB.prepare(`
     INSERT INTO notifications (id, user_id, type, title, body, data, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -89,7 +101,7 @@ route('POST', '/api/notifications', async (request, env) => {
     body.title,
     body.body || null,
     body.data ? JSON.stringify(body.data) : null,
-    getTenantId(request) || null
+    tenantId || null
   ).run();
 
   return json({ id, success: true });
@@ -103,9 +115,15 @@ route('PATCH', '/api/notifications/:id/read', async (request, env, params) => {
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
+  // Sprint 73 P1/F5: tenant filter symmetric with GET. GET uses
+  // `tenant_id = ? OR tenant_id IS NULL` to surface legacy NULL-tenant
+  // rows; the mark-read UPDATE used to require strict `tenant_id = ?`,
+  // so taps on legacy rows silently no-op'd and the UI re-flipped them
+  // back to "unread" on the next fetch.
   const tenantId = getTenantId(request);
   await env.DB.prepare(
-    `UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    `UPDATE notifications SET is_read = 1
+     WHERE id = ? AND user_id = ? ${tenantId ? 'AND (tenant_id = ? OR tenant_id IS NULL)' : ''}`
   ).bind(params.id, authUser.id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({ success: true });
@@ -121,7 +139,8 @@ route('POST', '/api/notifications/read-all', async (request, env) => {
 
   const tenantId = getTenantId(request);
   await env.DB.prepare(
-    `UPDATE notifications SET is_read = 1 WHERE user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    `UPDATE notifications SET is_read = 1
+     WHERE user_id = ? ${tenantId ? 'AND (tenant_id = ? OR tenant_id IS NULL)' : ''}`
   ).bind(authUser.id, ...(tenantId ? [tenantId] : [])).run();
 
   return json({ success: true });
@@ -268,6 +287,24 @@ route('POST', '/api/push/subscribe', async (request, env) => {
     const log = createRequestLogger(request);
     log.warn('Invalid subscription data');
     return error('Invalid subscription data', 400);
+  }
+
+  // Sprint 73 P0/F3: cap subscriptions per user to prevent DB-spam.
+  // Was unbounded — one authenticated user could mint thousands of fake
+  // endpoints (random strings) and bloat the table / sendPushNotificationBatch
+  // fanout. Real users have at most ~3 devices.
+  const MAX_SUBSCRIPTIONS_PER_USER = 10;
+  // Check ONLY if this endpoint is NEW (upsert handles duplicates).
+  const existing = await env.DB.prepare(
+    'SELECT id FROM push_subscriptions WHERE endpoint = ?'
+  ).bind(body.endpoint).first();
+  if (!existing) {
+    const countRow = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM push_subscriptions WHERE user_id = ?'
+    ).bind(authUser.id).first() as { count: number } | null;
+    if ((countRow?.count ?? 0) >= MAX_SUBSCRIPTIONS_PER_USER) {
+      return error(`Maximum ${MAX_SUBSCRIPTIONS_PER_USER} push subscriptions per user reached`, 429);
+    }
   }
 
   const id = generateId();
@@ -1000,15 +1037,32 @@ route('POST', '/api/notifications/broadcast', async (request, env) => {
     return error('user_ids array required', 400);
   }
 
-  const statements = user_ids.map((userId: string) => {
+  // Sprint 73 P0/F2: filter user_ids against caller's tenant + stamp
+  // tenant_id on every INSERT. Was accepting any UUIDs and writing rows
+  // with empty tenant_id — manager from tenant A could spam targeted
+  // rows across tenant boundaries.
+  const tenantId = getTenantId(request);
+  let scopedIds: string[] = user_ids;
+  if (tenantId) {
+    const ph = user_ids.map(() => '?').join(',');
+    const { results } = await env.DB.prepare(
+      `SELECT id FROM users WHERE id IN (${ph}) AND tenant_id = ?`
+    ).bind(...user_ids, tenantId).all();
+    scopedIds = (results as { id: string }[]).map(r => r.id);
+  }
+  if (scopedIds.length === 0) {
+    return json({ success: true, sentCount: 0, message: 'no in-tenant recipients' });
+  }
+
+  const statements = scopedIds.map((userId: string) => {
     const id = generateId();
     return env.DB.prepare(`
-      INSERT INTO notifications (id, user_id, type, title, body, data)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(id, userId, type, title, notifBody || null, data ? JSON.stringify(data) : null);
+      INSERT INTO notifications (id, user_id, type, title, body, data, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, userId, type, title, notifBody || null, data ? JSON.stringify(data) : null, tenantId || null);
   });
 
   await env.DB.batch(statements);
 
-  return json({ success: true, count: user_ids.length });
+  return json({ success: true, count: scopedIds.length, requested: user_ids.length });
 });
