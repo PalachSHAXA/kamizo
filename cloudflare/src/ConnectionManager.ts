@@ -59,7 +59,19 @@ export class ConnectionManager extends DurableObject {
     }
 
     // Direct broadcast from API routes (POST /broadcast)
+    //
+    // Sprint 76 P0/F2: require a shared-secret header. DOs are not
+    // publicly addressable, but any worker route in the same project
+    // (e.g. a future SSRF / open-fetch handler) could reach the stub
+    // and broadcast arbitrary messages. Gate with INTERNAL_RPC_SECRET
+    // (falls back to JWT_SECRET so existing deployments work without
+    // an extra `wrangler secret put`).
     if (url.pathname === '/broadcast' && request.method === 'POST') {
+      const expected = (this.env as any).INTERNAL_RPC_SECRET || (this.env as any).JWT_SECRET;
+      const presented = request.headers.get('x-internal-secret');
+      if (!expected || presented !== expected) {
+        return new Response('Forbidden', { status: 403 });
+      }
       try {
         const message = await request.json() as UpdateMessage;
         this.broadcastUpdate(message);
@@ -173,7 +185,7 @@ export class ConnectionManager extends DurableObject {
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
     const sessionId = this.wsToSession.get(ws);
     if (sessionId) {
-      this.handleMessage(sessionId, message);
+      await this.handleMessage(sessionId, message);
     }
   }
 
@@ -185,7 +197,7 @@ export class ConnectionManager extends DurableObject {
     this.wsToSession.delete(ws);
   }
 
-  private handleMessage(sessionId: string, data: string | ArrayBuffer) {
+  private async handleMessage(sessionId: string, data: string | ArrayBuffer) {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
@@ -201,9 +213,9 @@ export class ConnectionManager extends DurableObject {
       if (message.type === 'subscribe') {
         const channels = Array.isArray(message.channels) ? message.channels : [message.channels];
         for (const ch of channels) {
-          // Only allow subscribing to own user channels (prevent cross-tenant snooping)
-          if (ch.includes(':user:') && !ch.endsWith(`:${session.userId}`)) continue;
-          session.subscriptions.add(ch);
+          if (await this.canSubscribe(session, ch)) {
+            session.subscriptions.add(ch);
+          }
         }
       }
 
@@ -214,6 +226,65 @@ export class ConnectionManager extends DurableObject {
     } catch (error) {
       console.error('[DO] Error handling message:', error);
     }
+  }
+
+  // Sprint 76 P0/F1: subscribe gate. Was only blocking `*:user:*` channels
+  // not ending with caller's userId; `chat:channel:<UUID>` was completely
+  // open — any authed user could subscribe to any channel's message stream
+  // (incl. cross-tenant on main-domain sessions where session.tenantId is
+  // undefined). Now: default-deny with explicit allow rules per channel
+  // family.
+  private async canSubscribe(session: { userId: string; role: string; tenantId?: string; buildingId?: string }, ch: string): Promise<boolean> {
+    if (typeof ch !== 'string' || ch.length === 0 || ch.length > 200) return false;
+
+    // Per-user channels: must be the user themselves.
+    if (ch.includes(':user:')) {
+      return ch.endsWith(`:${session.userId}`);
+    }
+
+    // Per-channel chat: verify membership via DB.
+    if (ch.startsWith('chat:channel:')) {
+      const channelId = ch.slice('chat:channel:'.length);
+      if (!channelId) return false;
+      try {
+        const channel = await this.env.DB.prepare(
+          `SELECT type, resident_id, building_id, tenant_id FROM chat_channels WHERE id = ? LIMIT 1`
+        ).bind(channelId).first() as any;
+        if (!channel) return false;
+        // Tenant gate.
+        if (session.tenantId && channel.tenant_id && channel.tenant_id !== session.tenantId) return false;
+        // Management can subscribe to anything in their tenant.
+        if (['admin', 'manager', 'director', 'department_head', 'super_admin'].includes(session.role)) return true;
+        // Owner of a private_support thread.
+        if (channel.type === 'private_support' && channel.resident_id === session.userId) return true;
+        // Building-wide channel: caller must live in that building.
+        if (channel.type === 'building_general' && channel.building_id && channel.building_id === session.buildingId) return true;
+        // uk_general: anyone in the tenant.
+        if (channel.type === 'uk_general') return true;
+        // Otherwise: must be an explicit participant.
+        const member = await this.env.DB.prepare(
+          'SELECT 1 FROM chat_participants WHERE channel_id = ? AND user_id = ? LIMIT 1'
+        ).bind(channelId, session.userId).first();
+        return !!member;
+      } catch {
+        return false;
+      }
+    }
+
+    // Building-scoped channels: caller's building must match.
+    if (ch.startsWith('announcements:building:') || ch.startsWith('meetings:building:')) {
+      const buildingId = ch.split(':')[2];
+      if (['admin', 'manager', 'director', 'department_head', 'super_admin'].includes(session.role)) return true;
+      return !!buildingId && buildingId === session.buildingId;
+    }
+
+    // Broadcast channels — only management may subscribe to *:all and *:new.
+    if (ch === 'requests:all' || ch === 'executors:all' || ch === 'meetings:all' || ch === 'announcements:all' || ch === 'chat:all' || ch === 'requests:new') {
+      return ['admin', 'manager', 'director', 'department_head', 'super_admin', 'dispatcher', 'executor', 'security'].includes(session.role);
+    }
+
+    // Unknown channel — deny.
+    return false;
   }
 
   private handleClose(sessionId: string) {

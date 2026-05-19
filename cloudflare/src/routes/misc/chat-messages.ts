@@ -263,8 +263,10 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
         }
       }
 
+      // Sprint 76 P0/F2: DO /broadcast now requires the internal secret.
       await connManager.fetch('http://internal/broadcast', {
         method: 'POST',
+        headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
         body: JSON.stringify({
           type: 'chat_message',
           data: { message },

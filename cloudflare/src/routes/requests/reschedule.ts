@@ -193,8 +193,10 @@ route('POST', '/api/reschedule-requests/:id/respond', async (request, env, param
   try {
     const connManagerId = env.CONNECTION_MANAGER.idFromName('global');
     const connManager = env.CONNECTION_MANAGER.get(connManagerId);
+    // Sprint 76 P0/F2: internal secret required by DO.
     await connManager.fetch('http://internal/broadcast', {
       method: 'POST',
+      headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
       body: JSON.stringify({
         type: 'notification', userId: reschedule.initiator_id,
         data: {
