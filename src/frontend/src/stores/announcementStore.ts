@@ -60,29 +60,23 @@ export const useAnnouncementStore = create<AnnouncementState>()(
 
         return newAnnouncement;
       } catch (error) {
+        // Sprint 80 P0 #10: was falling through to a "local-only (demo
+        // mode)" path that pushed the row to the FE state — manager
+        // thought the announcement was published, residents never saw
+        // it. Now: surface the error and re-throw so the modal stays
+        // open with the form intact.
         console.error('[DataStore] Failed to create announcement via API:', error);
-        // Fallback to local-only (for demo mode)
-        const newAnnouncement: Announcement = {
-          ...announcementData,
-          id: generateId(),
-          createdAt: new Date().toISOString(),
-          isActive: true,
-          viewedBy: [],
-        };
-        set((state) => ({ announcements: [newAnnouncement, ...state.announcements] }));
-        return newAnnouncement;
+        useToastStore.getState().addToast('error', (error as Error).message || 'Failed to create announcement');
+        throw error;
       }
     },
 
     updateAnnouncement: async (id, data) => {
-      // Update local state immediately
-      set((state) => ({
-        announcements: state.announcements.map((a) =>
-          a.id === id ? { ...a, ...data } : a
-        ),
-      }));
-
-      // Sync with API
+      // Sprint 80 P0 #4-equivalent: was optimistically updating local
+      // state BEFORE the API call. If the API failed, the UI showed
+      // the new state while the server kept the old row — until the
+      // next fetchAnnouncements wiped the optimism. Now: call API
+      // first, only mutate local state on success.
       try {
         const { announcementsApi } = await import('../services/api');
         await announcementsApi.update(id, {
@@ -100,20 +94,32 @@ export const useAnnouncementStore = create<AnnouncementState>()(
       } catch (error) {
         console.error('[DataStore] Failed to update announcement via API:', error);
         useToastStore.getState().addToast('error', (error as Error).message || 'Failed to update announcement');
+        throw error;
       }
+
+      set((state) => ({
+        announcements: state.announcements.map((a) =>
+          a.id === id ? { ...a, ...data } : a
+        ),
+      }));
     },
 
     deleteAnnouncement: async (id) => {
+      // Sprint 80 P0 #9: was running `set(filter)` AFTER the catch, so
+      // the UI removed the row even when the server kept the active
+      // announcement broadcasting. Move set() inside try, after the
+      // successful await.
       try {
         const { announcementsApi } = await import('../services/api');
         await announcementsApi.delete(id);
+        set((state) => ({
+          announcements: state.announcements.filter((a) => a.id !== id),
+        }));
       } catch (error) {
         console.error('[DataStore] Failed to delete announcement via API:', error);
         useToastStore.getState().addToast('error', (error as Error).message || 'Failed to delete announcement');
+        throw error;
       }
-      set((state) => ({
-        announcements: state.announcements.filter((a) => a.id !== id),
-      }));
     },
 
     markAnnouncementAsViewed: async (announcementId, userId) => {

@@ -446,6 +446,9 @@ export const useMeetingStore = create<MeetingState>()(
       },
 
       updateMeeting: async (id, data) => {
+        // Sprint 80 P0 #4: was setting `error` on state but never surfacing
+        // it; UI looked optimistic-ish. Now: toast + re-throw so the
+        // calling modal can keep the form open.
         set({ loading: true, error: null });
         try {
           const apiData: Record<string, unknown> = {};
@@ -462,14 +465,21 @@ export const useMeetingStore = create<MeetingState>()(
               loading: false
             }));
           } else {
-            set({ error: response.error || 'Failed to update meeting', loading: false });
+            const msg = response.error || 'Failed to update meeting';
+            set({ error: msg, loading: false });
+            useToastStore.getState().addToast('error', msg);
+            throw new Error(msg);
           }
-        } catch {
+        } catch (error) {
           set({ error: 'Network error', loading: false });
+          useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось обновить собрание');
+          throw error;
         }
       },
 
       deleteMeeting: async (id) => {
+        // Sprint 80 P0 #5: silent fail — meeting stayed in resident UI
+        // (no refetch, no toast). Now: toast + re-throw.
         set({ loading: true, error: null });
         try {
           await meetingsFullApi.delete(id);
@@ -477,8 +487,10 @@ export const useMeetingStore = create<MeetingState>()(
             meetings: state.meetings.filter(m => m.id !== id),
             loading: false
           }));
-        } catch {
+        } catch (error) {
           set({ error: 'Network error', loading: false });
+          useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось удалить собрание');
+          throw error;
         }
       },
 

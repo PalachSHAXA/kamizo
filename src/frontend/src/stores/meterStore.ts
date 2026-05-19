@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useToastStore } from './toastStore';
 import type {
   Meter,
   MeterReading,
@@ -249,12 +250,15 @@ export const useMeterStore = create<MeterState>()(
     },
 
     submitMeterReading: async (meterId, readingData) => {
+      // Sprint 80 P0 #6: was returning null silently on failure. Resident
+      // enters this month's reading; if API fails they have no idea, next
+      // month gets charged on stale data. Now: toast + re-throw so the
+      // form stays open with the value.
       try {
         const response = await meterReadingsApi.submit(meterId, readingData);
         if (response.reading) {
           const newReading = mapMeterReadingFromApi(response.reading);
 
-          // Update meter's current value and add reading to state
           set((state) => ({
             meterReadings: [...state.meterReadings, newReading],
             meters: state.meters.map((m) =>
@@ -273,11 +277,15 @@ export const useMeterStore = create<MeterState>()(
         return null;
       } catch (error) {
         console.error('Failed to submit meter reading:', error);
-        return null;
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось отправить показания');
+        throw error;
       }
     },
 
     verifyMeterReading: async (readingId, approved, rejectionReason) => {
+      // Sprint 80 P0 #7: was swallowing failure silently — UI showed
+      // "approved" while server kept the reading pending. Now: only
+      // mutate local state on success, toast + re-throw on failure.
       try {
         await meterReadingsApi.verify(readingId, { approved, rejectionReason });
 
@@ -290,6 +298,8 @@ export const useMeterStore = create<MeterState>()(
         }));
       } catch (error) {
         console.error('Failed to verify meter reading:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось обработать показание');
+        throw error;
       }
     },
 

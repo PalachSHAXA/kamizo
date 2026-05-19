@@ -9,6 +9,7 @@
  */
 
 import { create } from 'zustand';
+import { useToastStore } from './toastStore';
 import type {
   Meeting,
   VoteRecord,
@@ -509,6 +510,8 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
     },
 
     verifyVotingUnit: async (id, verifiedBy) => {
+      // Sprint 80 P0 #2: was silently swallowing. Voting unit stayed
+      // unverified on server but UI showed no error. Now: toast + throw.
       try {
         const response = await meetingVotingUnitsApi.verify(id, verifiedBy);
         if (response.success && response.data) {
@@ -516,9 +519,15 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
           set((state) => ({
             votingUnits: state.votingUnits.map(u => u.id === id ? votingUnit : u)
           }));
+        } else {
+          const msg = response.error || 'Failed to verify voting unit';
+          useToastStore.getState().addToast('error', msg);
+          throw new Error(msg);
         }
       } catch (error) {
         console.error('Failed to verify voting unit:', error);
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось верифицировать голосующего');
+        throw error;
       }
     },
 
@@ -529,12 +538,15 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
     },
 
     fetchVoteRecordsForMeeting: async (meetingId) => {
+      // Sprint 80 P0 #3: was silently returning [] on failure — protocol
+      // UI then displayed "no votes" identically to a successful fetch
+      // that genuinely had zero votes. Surface the error via toast so
+      // managers know to retry rather than ship a blank protocol.
       try {
         const response = await meetingAgendaVotesApi.getVoteRecords(meetingId);
         if (response.success && response.data) {
           const dataArray = Array.isArray(response.data) ? response.data : [];
           const records = dataArray.map(mapVoteRecordFromApi);
-          // Merge with existing records
           set((state) => {
             const otherRecords = state.voteRecords.filter(v => v.meetingId !== meetingId);
             return { voteRecords: [...otherRecords, ...records] };
@@ -544,7 +556,8 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
         return [];
       } catch (error) {
         console.error('Failed to fetch vote records:', error);
-        return [];
+        useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось загрузить голоса');
+        throw error;
       }
     },
   })
