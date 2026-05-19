@@ -41,6 +41,20 @@ export function getTenantForRequest(request: Request): Record<string, unknown> |
 const featureCache = new Map<string, { features: string[]; ts: number }>();
 const FEATURE_CACHE_TTL = 60_000; // 1 min
 
+// Sprint 77 F3: FE admin SettingsPage exposes a `qr` toggle; backend
+// historically checks `rentals` on guest-codes endpoints. Treat them as
+// the same flag so a tenant toggling one off in the UI actually
+// disables the BE family. Same for any future drift.
+const FEATURE_ALIASES: Record<string, string[]> = {
+  rentals: ['rentals', 'qr'],
+  qr: ['rentals', 'qr'],
+};
+
+function featureMatches(want: string, owned: string[]): boolean {
+  const candidates = FEATURE_ALIASES[want] || [want];
+  return candidates.some(c => owned.includes(c));
+}
+
 export async function requireFeature(
   feature: string,
   env: Env,
@@ -52,7 +66,7 @@ export async function requireFeature(
   // Check cache
   const cached = featureCache.get(tenantId);
   if (cached && Date.now() - cached.ts < FEATURE_CACHE_TTL) {
-    if (!cached.features.includes(feature)) {
+    if (!featureMatches(feature, cached.features)) {
       return { allowed: false, error: `Feature "${feature}" is not available in your plan` };
     }
     return { allowed: true };
@@ -63,7 +77,27 @@ export async function requireFeature(
     'SELECT features, plan FROM tenants WHERE id = ?'
   ).bind(tenantId).first() as { features?: string; plan?: string } | null;
 
-  const features: string[] = tenant?.features ? JSON.parse(tenant.features) : [];
+  // Sprint 77 P1/F5: defensive parse. JSON.parse on malformed/legacy
+  // features used to throw and 5xx the request. Now: empty + log.
+  // Also: a brand-new tenant created without features defaults to
+  // an open set so first-day onboarding doesn't lock everything down.
+  // Super-admin can tighten by setting an explicit features array.
+  let features: string[] = [];
+  if (tenant?.features) {
+    try {
+      const parsed = JSON.parse(tenant.features);
+      if (Array.isArray(parsed)) features = parsed.filter((f): f is string => typeof f === 'string');
+    } catch {
+      console.error('[requireFeature] Malformed tenants.features JSON for tenant', tenantId);
+      features = [];
+    }
+  } else if (tenant) {
+    // Row exists but features is NULL — treat as default plan with the
+    // canonical baseline set. Mirrors the CREATE TENANT default in
+    // super-admin.ts.
+    features = ['requests', 'votes', 'qr', 'rentals', 'notepad', 'reports', 'chat', 'announcements', 'communal', 'meetings'];
+  }
+  // tenant === null (not found): features stays empty → deny.
 
   // Cache the result
   featureCache.set(tenantId, { features, ts: Date.now() });
@@ -73,7 +107,7 @@ export async function requireFeature(
     if (oldest) featureCache.delete(oldest);
   }
 
-  if (!features.includes(feature)) {
+  if (!featureMatches(feature, features)) {
     return { allowed: false, error: `Feature "${feature}" is not available in your plan` };
   }
   return { allowed: true };

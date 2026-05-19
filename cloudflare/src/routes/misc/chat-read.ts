@@ -2,7 +2,7 @@
 
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantId } from '../../middleware/tenant';
+import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, isManagement } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -10,6 +10,9 @@ export function registerChatReadRoutes() {
 
 // Chat: Mark channel as read
 route('POST', '/api/chat/channels/:id/read', async (request, env, params) => {
+  // Sprint 77 P0/F1: gate chat feature flag.
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -91,6 +94,10 @@ route('POST', '/api/chat/channels/:id/read', async (request, env, params) => {
 
 // Chat: Get unread count for sidebar badge
 route('GET', '/api/chat/unread-count', async (request, env) => {
+  // Sprint 77 P0/F1: gate chat feature flag. Return 0 if feature off
+  // (UI badge silently empty rather than throwing).
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return json({ unread_count: 0 });
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 

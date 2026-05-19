@@ -1118,6 +1118,9 @@ route('GET', '/api/finance/charges/building-status', async (request, env) => {
 
 // GET /api/finance/expenses — list expenses with filters
 route('GET', '/api/finance/expenses', async (request, env) => {
+  // Sprint 77 P1/F4: gate 'communal' (matches sibling finance routes).
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
@@ -1141,6 +1144,9 @@ route('GET', '/api/finance/expenses', async (request, env) => {
 
 // POST /api/finance/expenses — create expense
 route('POST', '/api/finance/expenses', async (request, env) => {
+  // Sprint 77 P1/F4: gate 'communal' feature.
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!isManagement(user)) return error('Forbidden', 403);
@@ -1179,6 +1185,9 @@ route('POST', '/api/finance/expenses', async (request, env) => {
 
 // GET /api/finance/expenses/summary — plan vs fact by estimate items
 route('GET', '/api/finance/expenses/summary', async (request, env) => {
+  // Sprint 77 P1/F4: gate 'communal' feature.
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);

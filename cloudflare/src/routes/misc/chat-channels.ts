@@ -2,7 +2,7 @@
 
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantId } from '../../middleware/tenant';
+import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId, isManagement } from '../../utils/helpers';
 
 export function registerChatChannelRoutes() {
@@ -10,6 +10,11 @@ export function registerChatChannelRoutes() {
 // Chat channels: List for user
 // Optimized: uses LEFT JOIN instead of multiple subqueries
 route('GET', '/api/chat/channels', async (request, env) => {
+  // Sprint 77 P0/F1: gate chat behind the 'chat' feature flag. Was
+  // ungated — a tenant with chat turned off in their plan still got
+  // full chat traffic.
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -107,6 +112,9 @@ route('GET', '/api/chat/channels', async (request, env) => {
 
 // Chat: Get or create private support channel
 route('POST', '/api/chat/channels/support', async (request, env) => {
+  // Sprint 77 P0/F1: gate behind chat feature flag.
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -139,6 +147,9 @@ route('POST', '/api/chat/channels/support', async (request, env) => {
 
 // Chat: Create channel (general)
 route('POST', '/api/chat/channels', async (request, env) => {
+  // Sprint 77 P0/F1: gate behind chat feature flag.
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 

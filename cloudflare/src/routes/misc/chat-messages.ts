@@ -2,7 +2,7 @@
 
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantId } from '../../middleware/tenant';
+import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId, isManagement } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
@@ -56,6 +56,9 @@ export function registerChatMessageRoutes() {
 
 // Chat messages: List for channel
 route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => {
+  // Sprint 77 P0/F1: gate chat feature flag.
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
@@ -143,6 +146,9 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
 
 // Chat messages: Send
 route('POST', '/api/chat/channels/:id/messages', async (request, env, params) => {
+  // Sprint 77 P0/F1: gate chat feature flag.
+  const fc = await requireFeature('chat', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
