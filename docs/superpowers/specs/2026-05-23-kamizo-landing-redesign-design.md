@@ -341,19 +341,40 @@ Email-подписка ComingSoonSection: **отдельный мини-вопр
 
 ## 9. Deploy plan
 
+**Граница ответственности:** Claude доводит до состояния «локально всё работает через `wrangler dev`, всё закоммичено в feature-ветку». **Сам `wrangler deploy` запускает пользователь** — он хочет лично проверить прежде чем пускать в продакшен на `kamizo.uz`.
+
+### Что делает Claude
 1. `cd ~/Documents/ПРОЕКТЫ/kamizo/kamizo-site/`
 2. `git checkout -b feat/redesign-kimi-adapt` (новая ветка в репо лендинга)
-3. Скопировать `src/`, `index.html`, `vite.config.ts`, `tailwind.config.js`, `package.json` из Kimi-проекта.
-4. Установить i18n библиотеку (`npm i react-i18next i18next i18next-browser-languagedetector`).
-5. Адаптировать контент по этому спеку.
-6. Сменить лого.
-7. `npm run build` → проверить что `dist/` собирается.
-8. Скопировать `dist/*` → `public/` (заменяя старый `index.html`).
-9. **Локальная проверка:** `wrangler dev` → открыть `http://localhost:8787` → пройтись по всем секциям, проверить все 3 языка, проверить модалки демо.
-10. Коммит и push в репо `kamizo-multilang`.
-11. `wrangler deploy` → деплой Worker.
-12. **Smoke check:** `curl -I https://kamizo.uz` → 200, открыть в браузере, проверить все секции, переключение языков, отправку демо-формы.
-13. Если что-то не так — `wrangler rollback` к предыдущей версии Worker.
+3. Перенести `src/worker.js` → `worker/worker.js`, обновить `wrangler.toml` (`main = "worker/worker.js"`)
+4. Скопировать Kimi `src/`, `index.html`, `vite.config.ts`, `tailwind.config.js`, `tsconfig*.json`, `postcss.config.js` в `kamizo-site/`
+5. Слить `package.json` (Vite-зависимости Kimi + `wrangler` старый)
+6. Установить i18n библиотеки (`npm i react-i18next i18next i18next-browser-languagedetector`)
+7. Установить SWR или fetcher для `/api/clients`
+8. Адаптировать контент по этому спеку — переписать секции на правду
+9. Реализовать i18n RU/UZ/EN, перевести все строки
+10. Сменить лого: скопировать иконки из `~/kamizo/cloudflare/public/icons/` в `kamizo-site/public/`, обновить `<Header>` и `<Footer>`
+11. Заменить `kamizo-site/public/favicon.svg` (старый orange-square) и удалить `kamizo.svg` с Canva-AI метаданными
+12. Добавить мини-правку в `admin.html`: фильтр/колонка по `type` для отделения `early-access` от полных демо-заявок
+13. Настроить Vite: `build.outDir = 'public'` (или скрипт копирования `dist/` → `public/`), при этом **не затирая** `admin.html`, `worker/`, и серверные API-маршруты
+14. `npm run build` → проверить что собирается без TS-ошибок и без варнингов про размер бандла > 1MB
+15. **Локальная проверка:** `wrangler dev` → открыть `http://localhost:8787`:
+    - Все секции прокручиваются
+    - Анимации работают (GSAP, Lenis)
+    - Переключение языков RU ↔ UZ ↔ EN — каждая строка переводится
+    - Модалка «Try Demo» с кодом → `palach27` → редирект на `demo.kamizo.uz`
+    - Модалка «Заказать демо» → форма → POST `/api/demo-requests` → 200
+    - ComingSoon форма → POST `/api/demo-requests` с `type: 'early-access'` → видно в `admin.html`
+    - `/api/clients` отдаёт реальные данные (My Helper), фейк-defaults отфильтрованы
+    - На мобильном (DevTools 375px) ничего не плывёт
+16. Финальный коммит, push в `feat/redesign-kimi-adapt`, написать короткий отчёт в чат: что сделано, как проверить, что осталось пользователю.
+
+### Что делает пользователь после Claude
+17. Просматривает изменения локально, ходит по `wrangler dev`
+18. Если ок — `wrangler deploy` сам
+19. `wrangler kv key delete --binding=CLIENTS all` (опционально, чтобы вычистить фейковых defaults и заново положить только реальных клиентов через `admin.html`)
+20. Smoke check на проде: `curl -I https://kamizo.uz`, открыть в браузере
+21. Если что-то не так — `wrangler rollback`
 
 ## 10. Risks & mitigations
 
