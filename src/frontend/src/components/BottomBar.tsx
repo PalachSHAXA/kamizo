@@ -260,8 +260,12 @@ export function BottomBar() {
       <div
         className="flex items-end justify-around px-1 bg-white border-t border-gray-100"
         style={{
-          paddingTop: 0,
-          paddingBottom: '15px',
+          // Was 15px — left a white strip below the icons (the "вырез" the
+          // -25px offset used to hide). With bottom:0 + the safe-area inset on
+          // the wrapper, the bar now reads flush; keep a small 6px breathing
+          // gap above the home-indicator.
+          paddingTop: '6px',
+          paddingBottom: '6px',
           marginBottom: 0,
         }}
       >

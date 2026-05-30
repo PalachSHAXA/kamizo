@@ -1,144 +1,230 @@
-import { Clock } from 'lucide-react';
-import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
-import { HomeHighlights } from './HomeHighlights';
+import { useNavigate } from 'react-router-dom';
 import {
-  AutoWidget, EventsWidget, NewsWidget, PrivilegesWidget,
-  ComingSoonPill,
-} from './widgets';
+  Wrench, QrCode, CreditCard, Car, Lock, Users, ChevronRight,
+  Megaphone, Clock, Download,
+} from 'lucide-react';
+import { HomeHighlights } from './HomeHighlights';
 import type { HomeTabProps } from './types';
 
-// Format ETA from request scheduledDate/scheduledTime into a friendly hint.
-// Returns null if there is no ETA to show.
-function formatEta(req: { scheduledDate?: string; scheduledTime?: string }, language: string): string | null {
-  if (!req.scheduledDate && !req.scheduledTime) return null;
-  const today = new Date().toISOString().slice(0, 10);
-  const isToday = req.scheduledDate === today;
-  const isTomorrow = (() => {
-    if (!req.scheduledDate) return false;
-    const t = new Date(); t.setDate(t.getDate() + 1);
-    return req.scheduledDate === t.toISOString().slice(0, 10);
-  })();
-  const dayLabel = isToday
-    ? (language === 'ru' ? 'Сегодня' : 'Bugun')
-    : isTomorrow
-      ? (language === 'ru' ? 'Завтра' : 'Ertaga')
-      : req.scheduledDate ?? '';
-  const time = req.scheduledTime ? `, ${req.scheduledTime}` : '';
-  return `${dayLabel}${time}`;
+// Resident home feed — Claude Design §01-glavnaya.
+// The dark hero (greeting + address + active count) is rendered by the parent
+// ResidentDashboard above this. Here we render, in design order:
+//   highlights band · quick tiles · meeting widget · payment card · announcements.
+// All bound to real data passed in props (no mock content).
+
+const sec = 'px-4 md:px-0 mt-4';
+
+function QuickTiles({ onNewRequest }: { onNewRequest: () => void }) {
+  const navigate = useNavigate();
+  const tiles = [
+    { Icon: Wrench, label: 'Заявка', onClick: onNewRequest },
+    { Icon: QrCode, label: 'Пропуск', onClick: () => navigate('/guest-access') },
+    { Icon: CreditCard, label: 'Оплата', soon: true },
+    { Icon: Car, label: 'Авто', onClick: () => navigate('/vehicles') },
+  ];
+  return (
+    <div className="grid grid-cols-4 gap-2.5">
+      {tiles.map((t, i) => (
+        <button
+          key={i}
+          onClick={t.onClick}
+          className="relative flex flex-col items-center gap-2 py-3.5 px-2 rounded-[20px] touch-manipulation active:scale-[0.97] transition-transform"
+          style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border-c, #E6DFD2)', boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))' }}
+        >
+          <div
+            className="w-[46px] h-[46px] rounded-full grid place-items-center"
+            style={{ background: 'var(--brand-tint, #FFF3EA)', color: 'var(--brand-dark, #EA580C)' }}
+          >
+            <t.Icon size={22} strokeWidth={1.9} />
+          </div>
+          <span className="text-[12.5px] font-semibold" style={{ color: 'var(--text-primary, #1C1917)' }}>{t.label}</span>
+          {t.soon && (
+            <span className="absolute top-3 right-3" style={{ color: 'var(--text-muted, #A8A29E)' }}><Lock size={12} /></span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MeetingWidget({ meeting, language, onOpen }: { meeting: Record<string, unknown>; language: string; onOpen: () => void }) {
+  const title = (meeting.title as string) || (language === 'ru' ? 'Собрание жильцов' : 'Yig\'ilish');
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full text-left rounded-[20px] p-4 touch-manipulation active:scale-[0.99] transition-transform"
+      style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border-c, #E6DFD2)', boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))' }}
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <span
+          className="inline-flex items-center gap-1.5 text-[10.5px] font-extrabold uppercase tracking-wide px-2.5 py-1 rounded-full"
+          style={{ background: 'var(--status-active-bg, rgba(21,160,110,0.12))', color: 'var(--status-active, #15A06E)' }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--status-active, #15A06E)' }} />
+          {language === 'ru' ? 'Голосование' : 'Ovoz berish'}
+        </span>
+        <Users size={18} className="ml-auto" style={{ color: 'var(--text-muted, #A8A29E)' }} />
+      </div>
+      <div className="text-[16px] font-bold tracking-tight leading-snug" style={{ color: 'var(--text-primary, #1C1917)' }}>
+        {title}
+      </div>
+      <div className="mt-3 inline-flex items-center gap-1 text-[13px] font-bold" style={{ color: 'var(--brand-dark, #EA580C)' }}>
+        {language === 'ru' ? 'Перейти к голосованию' : 'Ovoz berishga o\'tish'} <ChevronRight size={16} />
+      </div>
+    </button>
+  );
+}
+
+function PaymentCard({ language }: { language: string }) {
+  const month = new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long' });
+  return (
+    <div
+      className="relative overflow-hidden rounded-[20px] p-[18px] text-white"
+      style={{ background: 'var(--dark-surface, #211E1B)', boxShadow: 'var(--shadow-md, 0 4px 16px rgba(28,25,23,0.06))' }}
+    >
+      <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full" style={{ background: 'rgba(249,115,22,0.16)' }} />
+      <div className="relative flex items-center justify-between">
+        <div className="text-[12px] font-bold uppercase tracking-wide" style={{ color: 'rgba(244,240,232,0.6)' }}>
+          {language === 'ru' ? `Оплата ЖКУ · ${month}` : `To'lov · ${month}`}
+        </div>
+        <span className="text-[10.5px] font-extrabold px-2.5 py-[3px] rounded-full uppercase tracking-wide" style={{ background: 'rgba(244,240,232,0.12)', color: 'rgba(244,240,232,0.8)' }}>
+          {language === 'ru' ? 'Скоро' : 'Tez orada'}
+        </span>
+      </div>
+      <div className="relative text-[14px] mt-2.5" style={{ color: 'rgba(244,240,232,0.7)' }}>
+        {language === 'ru' ? 'Онлайн-оплата и показания счётчиков — в разработке' : 'Onlayn to\'lov va hisoblagichlar — ishlanmoqda'}
+      </div>
+      <button
+        disabled
+        className="relative w-full mt-3.5 py-3 rounded-[14px] text-white text-[14px] font-bold inline-flex items-center justify-center gap-2 opacity-60 cursor-not-allowed"
+        style={{ background: 'var(--brand, #F97316)' }}
+      >
+        {language === 'ru' ? 'Оплатить онлайн' : 'Onlayn to\'lash'}
+        <span className="text-[10.5px] font-bold px-[7px] py-[2px] rounded-full" style={{ background: 'rgba(255,255,255,0.25)' }}>
+          {language === 'ru' ? 'СКОРО' : 'TEZ'}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+function AnnouncementsMini({ items, language, onOpen }: { items: Record<string, unknown>[]; language: string; onOpen: () => void }) {
+  const two = items.slice(0, 2);
+  const timeAgo = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
+  };
+  return (
+    <div className="rounded-[20px] overflow-hidden" style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border-c, #E6DFD2)', boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))' }}>
+      {two.map((a, i) => {
+        const urgent = a.priority === 'urgent';
+        return (
+          <button
+            key={(a.id as string) || i}
+            onClick={onOpen}
+            className="w-full text-left flex items-center gap-3 px-3.5 py-3 touch-manipulation"
+            style={{ borderBottom: i < two.length - 1 ? '1px solid var(--hairline, rgba(28,25,23,0.06))' : 'none' }}
+          >
+            <div
+              className="w-[38px] h-[38px] rounded-[11px] grid place-items-center shrink-0"
+              style={urgent
+                ? { background: 'var(--status-critical-bg, rgba(226,72,61,0.12))', color: 'var(--status-critical, #E2483D)' }
+                : { background: 'var(--status-info-bg, rgba(47,119,194,0.12))', color: 'var(--status-info, #2F77C2)' }}
+            >
+              <Megaphone size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-semibold truncate" style={{ color: 'var(--text-primary, #1C1917)' }}>{(a.title as string) || ''}</div>
+              <div className="text-[12px] mt-0.5 inline-flex items-center gap-1" style={{ color: 'var(--text-secondary, #6F6A62)' }}>
+                <Clock size={11} /> {timeAgo(a.createdAt as string)}{urgent ? (language === 'ru' ? ' · срочно' : ' · shoshilinch') : ''}
+              </div>
+            </div>
+            <ChevronRight size={16} style={{ color: 'var(--text-muted, #A8A29E)' }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PWABanner({ language }: { language: string }) {
+  return (
+    <div
+      className="flex items-center gap-3 px-3.5 py-3 rounded-[20px]"
+      style={{ background: 'var(--surface-2, #FBF8F2)', border: '1px dashed var(--border-strong, #D8CFBE)' }}
+    >
+      <div className="w-[38px] h-[38px] rounded-[11px] grid place-items-center shrink-0" style={{ background: 'var(--brand-tint, #FFF3EA)', color: 'var(--brand-dark, #EA580C)' }}>
+        <Download size={18} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13.5px] font-bold tracking-tight" style={{ color: 'var(--text-primary, #1C1917)' }}>
+          {language === 'ru' ? 'Установите приложение' : 'Ilovani o\'rnating'}
+        </div>
+        <div className="text-[12px]" style={{ color: 'var(--text-secondary, #6F6A62)' }}>
+          {language === 'ru' ? 'Быстрый доступ как у приложения' : 'Ilovadek tez kirish'}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function HomeTab({
   language,
-  activeRequests,
+  latestAnnouncements,
+  activeMeetings,
+  setShowAllServices,
   switchTab,
   setSelectedRequest,
+  activeRequests,
 }: HomeTabProps) {
-  // All hero state (onboarding card, active meeting card, finance widget,
-  // marketplace teaser, services 2x2 grid) was moved into HomeHighlights /
-  // dedicated widgets and stripped from here. HomeTab is now a thin
-  // composition of widgets — much easier to maintain.
+  const navigate = useNavigate();
+  void setSelectedRequest; void activeRequests; void switchTab; // kept for API compatibility
+  const meeting = activeMeetings && activeMeetings.length > 0 ? activeMeetings[0] : null;
 
   return (
-    <div className="space-y-3 px-4 md:px-0">
+    <div>
+      {/* Highlights — swipeable stories (voting / urgent / approvals / rating) */}
+      <div className={sec}>
+        <HomeHighlights activeRequests={activeRequests} />
+      </div>
 
-      {/* Greeting and address pill are rendered by the parent
-          ResidentDashboard above this component — keeping it here would
-          duplicate the welcome. */}
+      {/* Quick tiles */}
+      <div className={sec}>
+        <QuickTiles onNewRequest={() => setShowAllServices(true)} />
+      </div>
 
-      {/* ===== HIGHLIGHTS — swipeable stories at the top of the feed.
-          Shows what needs attention right now: voting, urgent
-          announcements, pending approvals, monthly UK rating. Hidden if
-          nothing is pending; falls back to an "everything's calm" tile.
-          Onboarding stays as a separate inline card below because it has
-          a multi-step checklist that doesn't fit the headline format. ===== */}
-      <HomeHighlights activeRequests={activeRequests} />
-
-      {/* Inline onboarding block + standalone active-meeting hero removed:
-          both are surfaced in the HomeHighlights swipeable carousel above.
-          Showing them again as full-width cards under the carousel was a
-          dub — same alert in two visual treatments. The carousel handles
-          priority order ('Завершите регистрацию' / 'Голосование открыто'),
-          tap → /profile or /meetings respectively. */}
-
-      {/* ===== Active requests — using existing compact tracker. We only
-          add a small ETA hint underneath when the request has a scheduled
-          time, to answer "когда придёт мастер" before the resident has to
-          tap through. ===== */}
-      {activeRequests.length > 0 && (
-        <div className="space-y-2.5">
-          {activeRequests.slice(0, 2).map((req) => {
-            const eta = formatEta(req, language);
-            return (
-              <div key={req.id} className="space-y-1">
-                <RequestStatusTrackerCompact
-                  request={req}
-                  executorName={req.executorName}
-                  language={language as 'ru' | 'uz'}
-                  onClick={() => setSelectedRequest(req)}
-                />
-                {eta && (
-                  <div className="flex items-center gap-1.5 px-3 text-[11px] font-semibold text-primary-600">
-                    <Clock className="w-3 h-3" strokeWidth={2.2} />
-                    {language === 'ru' ? 'Придёт' : 'Keladi'} {eta}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {activeRequests.length > 2 && (
-            <button
-              onClick={() => switchTab('requests')}
-              className="w-full text-center py-2 text-sm font-medium text-primary-600 touch-manipulation"
-            >
-              {language === 'ru' ? `Ещё ${activeRequests.length - 2} заявок` : `Yana ${activeRequests.length - 2} ta ariza`}
-            </button>
-          )}
+      {/* Meeting widget — only when there is an active meeting */}
+      {meeting && (
+        <div className={sec}>
+          <MeetingWidget meeting={meeting} language={language} onOpen={() => navigate('/meetings')} />
         </div>
       )}
 
-      {/* Two big 'УЖЕ СКОРО' cards (Payment + Meters) collapsed into a
-          single thin pill — same honest message that integration isn't
-          ready, but 50px instead of 340px so the home tab stops feeling
-          like a parade of placeholders. */}
-      <ComingSoonPill />
+      {/* Payment (online payment is "coming soon" — shown honestly) */}
+      <div className={sec}>
+        <PaymentCard language={language} />
+      </div>
 
-      {/* ===== AutoWidget — primary car + quick "Найти" + parking info.
-          Hidden when the resident has no registered vehicles (the carousel
-          card 'Найти авто' covers that empty state). ===== */}
-      <AutoWidget />
+      {/* Announcements — only when there are unread ones */}
+      {latestAnnouncements && latestAnnouncements.length > 0 && (
+        <div className={sec}>
+          <div className="flex items-baseline justify-between px-1 mb-2.5">
+            <span className="text-[13px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-secondary, #6F6A62)' }}>
+              {language === 'ru' ? 'Объявления' : 'E\'lonlar'}
+            </span>
+            <button onClick={() => navigate('/announcements')} className="text-[13px] font-bold" style={{ color: 'var(--brand-dark, #EA580C)' }}>
+              {language === 'ru' ? 'Все →' : 'Barchasi →'}
+            </button>
+          </div>
+          <AnnouncementsMini items={latestAnnouncements} language={language} onOpen={() => navigate('/announcements')} />
+        </div>
+      )}
 
-      {/* Quick actions removed — all 7 services are now in the swipeable
-          3D CardStack at the top, so a separate 2×2 grid was a duplicate.
-          Marketplace teaser also dropped because it's accessible via
-          /marketplace from the drawer. */}
-
-      {/* Finance widget intentionally NOT shown here. The previous live
-          balance widget contradicted the 'Уже скоро · онлайн-оплата'
-          message above — without payment integration the numbers were
-          UK manual entries, misleading the resident about real status.
-          When Click/Payme integration ships, restore as a real hero. */}
-
-      {/* ===== EventsWidget — mini-calendar of upcoming building events
-          (meetings + urgent announcements within 14 days). Replaces the
-          'Лучшие мастера' widget: knowing 'когда следующее собрание /
-          плановое отключение воды' is a more daily concern than
-          browsing master ratings. Hidden when nothing's coming up. ===== */}
-      <EventsWidget />
-
-      {/* ===== NewsWidget — Telegram-style swipeable stories of
-          announcements + active meetings. Replaces the previous static
-          announcements list because residents skim faster when news
-          comes one-card-at-a-time. ===== */}
-      <NewsWidget />
-
-      {/* ===== PrivilegesWidget — promo banner that points to
-          /useful-contacts where partner discounts live. Brand-gradient
-          banner, end of feed so it doesn't compete with action cards. ===== */}
-      <PrivilegesWidget />
-
-      {/* Old announcements list removed — NewsWidget above renders the
-          same data as swipeable Telegram-style stories. */}
-
+      {/* PWA install */}
+      <div className={sec}>
+        <PWABanner language={language} />
+      </div>
     </div>
   );
 }
