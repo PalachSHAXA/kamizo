@@ -9,7 +9,7 @@ import {
 // --- Internal modules (extracted from this file) ---
 import type { Env } from './types';
 import { matchRoute } from './router';
-import { setCorsOrigin, getCurrentCorsOrigin, initCors } from './middleware/cors';
+import { setCorsOrigin, getCurrentCorsOrigin, resolveCorsOrigin, initCors } from './middleware/cors';
 import { getUser } from './middleware/auth';
 import { setTenantForRequest, getTenantForRequest, getTenantSlug, setCurrentTenant } from './middleware/tenant';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
@@ -428,14 +428,27 @@ export default {
     // Configure CORS allowed origins based on environment
     initCors(env.ENVIRONMENT);
 
-    // Set CORS origin for this request
+    // Set CORS origin for this request (legacy global — kept for callers that
+    // still read getCurrentCorsOrigin(); the authoritative header is applied
+    // per-request by applyCors() below, which is race-safe on the Node VPS).
     setCorsOrigin(request);
+
+    // Race-free CORS: overwrite Access-Control-Allow-Origin on every outgoing
+    // response from THIS request's Origin, regardless of what any global said.
+    // Fixes "Load failed" on the resident home screen, where ~8 concurrent
+    // API calls were corrupting the shared currentCorsOrigin global on Node.
+    const applyCors = (resp: Response): Response => {
+      if (resp.status === 101 || resp.headers.get('Upgrade') === 'websocket') return resp;
+      const h = new Headers(resp.headers);
+      h.set('Access-Control-Allow-Origin', resolveCorsOrigin(request));
+      return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
+    };
 
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
-          'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
+          'Access-Control-Allow-Origin': resolveCorsOrigin(request),
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         }
@@ -481,7 +494,7 @@ export default {
       if (matched) {
         // Wrap in monitoring middleware with safety net
         try {
-          return await withMonitoring(request, async () => {
+          return applyCors(await withMonitoring(request, async () => {
             try {
               // Apply rate limiting to non-auth endpoints (auth handles it internally)
               if (!url.pathname.startsWith('/api/auth/login') && !url.pathname.startsWith('/api/health')) {
@@ -559,7 +572,7 @@ export default {
               const safeMessage = sanitizeErrorMessage(err.message, 500);
               return error(safeMessage, 500);
             }
-          });
+          }));
         } catch (outerErr: any) {
           // Safety net: if withMonitoring itself crashes, still return a valid CORS response
           log.error('critical_api_error', outerErr, { durationMs: Date.now() - requestStart });
@@ -572,7 +585,7 @@ export default {
             status: 500,
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
+              'Access-Control-Allow-Origin': resolveCorsOrigin(request),
               'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
               'Access-Control-Allow-Headers': 'Content-Type, Authorization',
               'X-Request-Id': log.requestId,
@@ -580,7 +593,7 @@ export default {
           });
         }
       }
-      return error('Not found', 404);
+      return applyCors(error('Not found', 404));
     }
 
     // For SPA: serve static assets or fallback to index.html
