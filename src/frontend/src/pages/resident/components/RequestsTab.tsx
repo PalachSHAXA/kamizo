@@ -1,9 +1,7 @@
-import { Plus, FileText, CheckCircle, History, Filter } from 'lucide-react';
+import { Plus, FileText, Filter } from 'lucide-react';
 import { SERVICE_CATEGORIES, PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../../../types';
-import { RequestStatusTrackerCompact } from '../../../components/RequestStatusTracker';
 import { PageSkeleton } from '../../../components/PageSkeleton';
-import { HistoryRequestCard } from './HistoryRequestCard';
-import { PendingApprovalCard } from './PendingApprovalCard';
+import { RequestCardRedesign } from './RequestCardRedesign';
 import type { RequestsTabProps, RequestsSubTab } from './types';
 
 const chip = (active: boolean) =>
@@ -33,46 +31,77 @@ export function RequestsTab({
   handleApproveClick,
   openNewRequest,
 }: RequestsTabProps) {
+  const lang = (language === 'ru' ? 'ru' : 'uz') as 'ru' | 'uz';
   const handleCreateNew = () => {
-    if (openNewRequest) {
-      openNewRequest();
-    } else {
-      switchTab('home');
-    }
+    if (openNewRequest) openNewRequest();
+    else switchTab('home');
   };
+  const filtersActive = showFilters || filterCategory !== 'all' || filterPriority !== 'all';
+
+  const subTabs: { id: RequestsSubTab; label: string; count: number }[] = [
+    { id: 'active', label: language === 'ru' ? 'Активные' : 'Faol', count: activeRequests.length },
+    { id: 'pending_tab', label: language === 'ru' ? 'На приёмке' : 'Qabulda', count: pendingApproval.length },
+    { id: 'history_tab', label: language === 'ru' ? 'История' : 'Tarix', count: historyRequests.length },
+  ];
+
   return (
-    <div className="space-y-4 px-3 md:px-0">
-      {/* Header — Sprint 37: brand-orange avatar + title pattern,
-          matching Announcements / Meetings / Chat. */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm">
-            <FileText className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-lg md:text-xl xl:text-2xl font-bold text-gray-900">
-              {language === 'ru' ? 'Мои заявки' : 'Mening arizalarim'}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {language === 'ru' ? 'История обращений' : "Murojaatlar tarixi"}
-            </p>
-          </div>
-        </div>
+    <div className="px-3 md:px-0">
+      {/* Header — design §02: plain "Заявки" title + square filter toggle */}
+      <div className="flex items-center justify-between pt-1">
+        <h2 className="text-[24px] font-extrabold tracking-tight" style={{ color: 'var(--text-primary, #1C1917)' }}>
+          {language === 'ru' ? 'Заявки' : 'Arizalar'}
+        </h2>
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`p-2.5 rounded-[12px] transition-all touch-manipulation active:scale-[0.96] ${
-            showFilters || filterCategory !== 'all' || filterPriority !== 'all'
-              ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
-              : 'bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
-          }`}
+          aria-label={language === 'ru' ? 'Фильтры' : 'Filtrlar'}
+          className="w-10 h-10 rounded-[12px] grid place-items-center transition-all touch-manipulation active:scale-[0.96]"
+          style={
+            filtersActive
+              ? { background: 'var(--brand, #F97316)', color: '#fff', border: '1px solid var(--brand, #F97316)' }
+              : { background: 'var(--surface, #fff)', color: 'var(--text-secondary, #6F6A62)', border: '1px solid var(--border-c, #E6DFD2)' }
+          }
         >
-          <Filter className="w-5 h-5" />
+          <Filter className="w-[18px] h-[18px]" />
         </button>
       </div>
 
+      {/* Segment control — 3 equal columns in a sunken track */}
+      <div
+        className="grid grid-cols-3 gap-1 mt-3.5 p-1 rounded-[14px]"
+        style={{ background: 'var(--surface-sunken, #EDE7DB)' }}
+      >
+        {subTabs.map((t) => {
+          const on = requestsSubTab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setRequestsSubTab(t.id)}
+              className="py-[9px] px-1.5 rounded-[10px] text-[13px] inline-flex items-center justify-center gap-1.5 transition-all touch-manipulation"
+              style={
+                on
+                  ? { background: 'var(--surface, #fff)', color: 'var(--text-primary, #1C1917)', fontWeight: 750, boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))' }
+                  : { background: 'transparent', color: 'var(--text-secondary, #6F6A62)', fontWeight: 600 }
+              }
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span
+                  className="min-w-[17px] h-[17px] px-[5px] rounded-full text-[10px] font-extrabold grid place-items-center"
+                  style={on
+                    ? { background: 'var(--brand, #F97316)', color: '#fff' }
+                    : { background: 'var(--border-strong, #D8CFBE)', color: 'var(--text-secondary, #6F6A62)' }}
+                >
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Filter accordion */}
       {showFilters && (
-        <div className="bg-white rounded-[16px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-3">
-          {/* Category filter */}
+        <div className="bg-white rounded-[16px] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.04)] space-y-3 mt-3">
           <div>
             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
               {language === 'ru' ? 'Категория' : 'Kategoriya'}
@@ -88,7 +117,6 @@ export function RequestsTab({
               ))}
             </div>
           </div>
-          {/* Priority filter */}
           <div>
             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">
               {language === 'ru' ? 'Приоритет' : 'Ustuvorlik'}
@@ -104,7 +132,6 @@ export function RequestsTab({
               ))}
             </div>
           </div>
-          {/* Reset button */}
           {(filterCategory !== 'all' || filterPriority !== 'all') && (
             <button
               onClick={() => { setFilterCategory('all'); setFilterPriority('all'); }}
@@ -116,83 +143,33 @@ export function RequestsTab({
         </div>
       )}
 
-      {/* Sub-tabs inside requests */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
-        {[
-          { id: 'active', label: language === 'ru' ? 'Активные' : 'Faol', count: activeRequests.length },
-          { id: 'pending_tab', label: language === 'ru' ? 'Подтвердить' : 'Tasdiqlash', count: pendingApproval.length },
-          { id: 'history_tab', label: language === 'ru' ? 'История' : 'Tarix', count: historyRequests.length },
-        ].map((sub) => (
-          <button
-            key={sub.id}
-            onClick={() => setRequestsSubTab(sub.id as RequestsSubTab)}
-            className={`px-4 py-2 rounded-[12px] text-[13px] font-semibold whitespace-nowrap transition-all touch-manipulation active:scale-[0.96] ${
-              requestsSubTab === sub.id
-                ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
-                : 'bg-white text-gray-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
-            }`}
-          >
-            {sub.label}
-            {sub.count > 0 && (
-              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                requestsSubTab === sub.id ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-500'
-              }`}>
-                {sub.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Loading State */}
+      {/* Loading */}
       {isLoadingRequests && requestsCount === 0 && (
-        <PageSkeleton variant="list" />
+        <div className="mt-4"><PageSkeleton variant="list" /></div>
       )}
 
-      {/* Active requests */}
+      {/* Active */}
       {!isLoadingRequests && requestsSubTab === 'active' && (
-        <div className="space-y-3 stagger-children">
+        <div className="space-y-2.5 mt-4 stagger-children">
           {activeRequests.length === 0 ? (
-            <div className="text-center py-12 px-4">
-              <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <FileText className="w-8 h-8 text-primary-400" />
-              </div>
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
-                {language === 'ru' ? 'Пока ни одной заявки' : 'Hali birorta ariza yo\'q'}
-              </h3>
-              <p className="text-sm text-gray-500 max-w-[260px] mx-auto">
-                {language === 'ru'
-                  ? 'Создайте заявку — сантехник, электрик, уборка, охрана или любая другая услуга'
-                  : 'Ariza yarating — santexnik, elektrik, tozalash, qo\'riqchi yoki boshqa xizmat'}
-              </p>
-              <button
-                onClick={handleCreateNew}
-                className="mt-5 px-5 py-3 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-gray-900 rounded-[12px] text-[14px] font-semibold active:scale-[0.98] transition-transform touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)] inline-flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                {language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
-              </button>
-            </div>
+            <EmptyState language={language} onNew={handleCreateNew} variant="active" />
           ) : (
             <>
               {activeRequests.map((request) => (
-                <RequestStatusTrackerCompact
+                <RequestCardRedesign
                   key={request.id}
                   request={request}
-                  executorName={request.executorName}
-                  language={language as 'ru' | 'uz'}
-                  onClick={() => setSelectedRequest(request)}
+                  language={lang}
+                  onOpen={() => setSelectedRequest(request)}
                 />
               ))}
-              {/* Secondary CTA after the last active card — stops the tab from
-                  feeling empty below the list and gives a one-tap path to
-                  create another request. */}
               <button
                 onClick={handleCreateNew}
-                className="w-full py-3.5 min-h-[44px] bg-white border-2 border-dashed border-primary-200 hover:border-primary-400 hover:bg-primary-50/50 active:bg-primary-50 rounded-[14px] text-[14px] font-semibold text-primary-600 transition-colors touch-manipulation inline-flex items-center justify-center gap-1.5"
+                className="w-full py-3.5 rounded-[16px] text-white text-[14.5px] font-bold inline-flex items-center justify-center gap-2 touch-manipulation active:scale-[0.99] transition-transform mt-1"
+                style={{ background: 'var(--brand, #F97316)', boxShadow: 'var(--sh-brand, 0 8px 22px rgba(249,115,22,0.26))' }}
               >
-                <Plus className="w-4 h-4" />
-                {language === 'ru' ? 'Создать новую заявку' : 'Yangi ariza yaratish'}
+                <Plus className="w-[18px] h-[18px]" strokeWidth={2.4} />
+                {language === 'ru' ? 'Новая заявка' : 'Yangi ariza'}
               </button>
             </>
           )}
@@ -201,19 +178,16 @@ export function RequestsTab({
 
       {/* Pending approval */}
       {!isLoadingRequests && requestsSubTab === 'pending_tab' && (
-        <div className="space-y-3 stagger-children">
+        <div className="space-y-2.5 mt-4 stagger-children">
           {pendingApproval.length === 0 ? (
-            <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-              <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <CheckCircle className="w-7 h-7 text-green-400" />
-              </div>
-              <h3 className="text-[15px] font-semibold text-gray-500">{language === 'ru' ? 'Всё подтверждено' : 'Hammasi tasdiqlangan'}</h3>
-            </div>
+            <EmptyState language={language} variant="pending" />
           ) : (
             pendingApproval.map((request) => (
-              <PendingApprovalCard
+              <RequestCardRedesign
                 key={request.id}
                 request={request}
+                language={lang}
+                onOpen={() => setSelectedRequest(request)}
                 onApprove={() => handleApproveClick(request)}
               />
             ))
@@ -223,24 +197,54 @@ export function RequestsTab({
 
       {/* History */}
       {!isLoadingRequests && requestsSubTab === 'history_tab' && (
-        <div className="space-y-3 stagger-children">
+        <div className="space-y-2.5 mt-4 stagger-children">
           {historyRequests.length === 0 ? (
-            <div className="bg-white rounded-[18px] p-8 text-center shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <History className="w-7 h-7 text-gray-300" />
-              </div>
-              <h3 className="text-[15px] font-semibold text-gray-500">{language === 'ru' ? 'История пуста' : 'Tarix bo\'sh'}</h3>
-            </div>
+            <EmptyState language={language} variant="history" />
           ) : (
             historyRequests.map((request) => (
-              <HistoryRequestCard
+              <RequestCardRedesign
                 key={request.id}
                 request={request}
-                onClick={() => setSelectedRequest(request)}
+                language={lang}
+                onOpen={() => setSelectedRequest(request)}
               />
             ))
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ language, onNew, variant }: { language: string; onNew?: () => void; variant: 'active' | 'pending' | 'history' }) {
+  const title = variant === 'active'
+    ? (language === 'ru' ? 'Заявок пока нет' : 'Arizalar yo\'q')
+    : variant === 'pending'
+      ? (language === 'ru' ? 'Всё подтверждено' : 'Hammasi tasdiqlangan')
+      : (language === 'ru' ? 'История пуста' : 'Tarix bo\'sh');
+  return (
+    <div className="text-center py-12 px-6">
+      <div
+        className="w-[72px] h-[72px] rounded-full grid place-items-center mx-auto mb-4"
+        style={{ background: 'var(--surface-sunken, #EDE7DB)', color: 'var(--text-muted, #A8A29E)' }}
+      >
+        <FileText className="w-8 h-8" />
+      </div>
+      <div className="text-[16px] font-bold tracking-tight" style={{ color: 'var(--text-primary, #1C1917)' }}>{title}</div>
+      {variant === 'active' && (
+        <>
+          <div className="text-[13.5px] mt-1.5 leading-snug" style={{ color: 'var(--text-secondary, #6F6A62)' }}>
+            {language === 'ru' ? 'Создайте заявку — сантехник, электрик, уборка и другое.' : 'Ariza yarating — santexnik, elektrik, tozalash va boshqa.'}
+          </div>
+          <button
+            onClick={onNew}
+            className="mt-4 px-[22px] py-3 rounded-[14px] text-white text-[14px] font-bold inline-flex items-center gap-1.5 touch-manipulation active:scale-[0.98] transition-transform"
+            style={{ background: 'var(--brand, #F97316)', boxShadow: 'var(--sh-brand, 0 8px 22px rgba(249,115,22,0.26))' }}
+          >
+            <Plus className="w-4 h-4" />
+            {language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}
+          </button>
+        </>
       )}
     </div>
   );
