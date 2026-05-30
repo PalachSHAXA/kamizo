@@ -1,6 +1,11 @@
 // API Client - Core infrastructure for all API modules
 
-export const API_URL = '';
+// Cross-origin API endpoint hosted in Tashkent (PDN compliance).
+// Empty string = same-origin (legacy Cloudflare Worker setup).
+// Set to https://api.kamizo.uz to route all data through UZ-located VPS.
+// Backend resolves tenant via Origin header when host = api.kamizo.uz
+// (see [node-port] patch in cloudflare/src/index.ts).
+export const API_URL = 'https://api.kamizo.uz';
 
 // Pull the user-facing error string in the active language.
 // Backend may return:

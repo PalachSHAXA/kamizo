@@ -1,4 +1,4 @@
-import { Phone, MapPin, Calendar, User, UserPlus } from 'lucide-react';
+import { Phone, MapPin, Calendar, User, UserPlus, Camera } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { STATUS_LABELS, PRIORITY_LABELS } from '../../../types';
 import type { RequestStatus, RequestPriority } from '../../../types';
@@ -77,6 +77,29 @@ export function RequestCard({
             {getPriorityBadge(request.priority)}
           </div>
           <p className="text-gray-600 mb-2 md:mb-3 text-sm md:text-base line-clamp-2">{request.description}</p>
+          {/* Photo previews from resident — first 3 thumbs + count chip if more */}
+          {request.photos && request.photos.length > 0 && (
+            <div className="flex items-center gap-1.5 mb-2 md:mb-3">
+              {request.photos.slice(0, 3).map((src, i) => (
+                <a
+                  key={i}
+                  href={src}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80"
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                </a>
+              ))}
+              {request.photos.length > 3 && (
+                <div className="h-12 px-2 rounded-lg bg-gray-100 border border-gray-200 flex items-center gap-1 text-xs font-semibold text-gray-600">
+                  <Camera className="w-3.5 h-3.5" />
+                  +{request.photos.length - 3}
+                </div>
+              )}
+            </div>
+          )}
           {/* Trash type and volume badges */}
           {request.category === 'trash' && (
             <div className="flex flex-wrap gap-1.5 mb-2">

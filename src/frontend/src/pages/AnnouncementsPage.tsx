@@ -131,13 +131,17 @@ export function AnnouncementsPage() {
     });
   }, [dateFilter]);
 
+  // Backend treats type='all' as visible to both residents AND employees
+  // (см. cloudflare/src/routes/misc/announcements-list.ts whereClause).
+  // Фронт должен совпадать — иначе объявления типа 'all' проваливаются
+  // мимо обеих вкладок.
   const residentAnnouncements = useMemo(() =>
-    filterByDate(announcements.filter(a => a.type === 'residents' && a.isActive)),
+    filterByDate(announcements.filter(a => (a.type === 'residents' || a.type === 'all') && a.isActive)),
     [announcements, filterByDate]
   );
 
   const employeeAnnouncements = useMemo(() =>
-    filterByDate(announcements.filter(a => a.type === 'employees' && a.isActive)),
+    filterByDate(announcements.filter(a => (a.type === 'employees' || a.type === 'all') && a.isActive)),
     [announcements, filterByDate]
   );
 

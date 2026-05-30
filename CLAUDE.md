@@ -76,14 +76,43 @@
 
 ---
 
-## 📐 Архитектура проекта
+## 📐 Архитектура проекта (после миграции 2026-05-19 — гибрид)
 
-- **Frontend**: React 18 + Vite + TypeScript, путь: `src/frontend/`
-- **Backend**: Cloudflare Workers (модульный), пути: `cloudflare/src/routes/*/`, `cloudflare/src/middleware/`, `cloudflare/src/utils/`
-- **БД**: Cloudflare D1 (SQLite), схема: `cloudflare/schema.sql` + `cloudflare/schema_no_fk.sql`
-- **Миграции**: `cloudflare/migrations/0XX_*.sql` — нумерация строго последовательная
-- **Деплой**: `wrangler deploy` из `cloudflare/`, статика через `npm run build` → копия в `cloudflare/public/`
-- **Auth**: токен = голый `user.id` UUID в `localStorage.auth_token`, шлётся `Authorization: Bearer <id>`. Валидируется в `cloudflare/src/middleware/auth.ts:getUser()`. **НЕ JWT** — намеренно упрощено, для migration на JWT поменять одну функцию.
+**Из-за требований закона РУз о ПДн (персональные данные граждан Узбекистана хранятся и обрабатываются только в РУз)** проект разделён:
+
+```
+ПОЛЬЗОВАТЕЛЬ ОТКРЫВАЕТ {tenant}.kamizo.uz
+       │
+       ├─ Статика (HTML/CSS/JS)  ─►  Cloudflare CDN (без ПДн)
+       │                            kamizo Worker сейчас просто отдаёт ASSETS
+       │
+       └─ API /api/*  ─►  api.kamizo.uz (DNS-only, не proxied)  ─►  VPS Ташкент
+                                                                   95.46.96.209
+                                                                   ├─ Node.js 20 + Hono
+                                                                   ├─ better-sqlite3
+                                                                   └─ /opt/kamizo/data/kamizo.db
+```
+
+- **Frontend**: React 18 + Vite + TypeScript, путь: `src/frontend/`. `API_URL = 'https://api.kamizo.uz'` в `services/api/client.ts`.
+- **Backend (HISTORICAL NAME)**: код в `cloudflare/src/routes/*/`, `cloudflare/src/middleware/`, `cloudflare/src/utils/`. Это **не воркеры** больше — это Node.js на VPS, под Hono+`@hono/node-server`. Тонкий совместимый шим в `/opt/kamizo/app/src/shim/{d1,kv}.js` адаптирует D1/KV API на `better-sqlite3` и in-memory. Роуты работают БЕЗ ИЗМЕНЕНИЙ.
+- **БД**: SQLite на VPS в `/opt/kamizo/data/kamizo.db` (WAL mode). Схема в `cloudflare/schema.sql`.
+- **Миграции**: `cloudflare/migrations/0XX_*.sql` — применяются на VPS через `sqlite3 < file.sql` (нет wrangler).
+- **Auth**: подписанные JWT (Sprint 66+). Секрет `JWT_SECRET` в `/opt/kamizo/app/.env` на VPS. **НЕ голый UUID** как было раньше.
+- **VPS детали**: см. [`~/.claude/projects/-Users-shaxzodisamahamadov-kamizo/memory/reference_infrastructure.md`](memory). Доступ по SSH-ключу `~/.ssh/kamizo_vps` под юзером `kamizo` (sudo) или `root`.
+- **Cloudflare**: остался для (1) CDN статики, (2) DNS-зоны, (3) Worker `kamizo` обслуживает `*.kamizo.uz/*` для отдачи статики. D1 пока существует как archive, удалить через 24-48ч стабильности.
+
+## 🚀 Деплой (изменилось!)
+
+| Что меняется | Куда | Команда |
+|---|---|---|
+| `src/frontend/**` | Cloudflare CDN | `cd src/frontend && npm run build && cp -r dist/* ../../cloudflare/public/ && cd ../../cloudflare && wrangler deploy` |
+| `cloudflare/src/**` (backend) | VPS Ташкент | `rsync -avz -e "ssh -i ~/.ssh/kamizo_vps" cloudflare/src/ kamizo@95.46.96.209:/opt/kamizo/app/server-src/ && ssh -i ~/.ssh/kamizo_vps kamizo@95.46.96.209 'sudo systemctl restart kamizo-api'` |
+| `cloudflare/migrations/*.sql` | VPS SQLite | `scp -i ~/.ssh/kamizo_vps cloudflare/migrations/NNN.sql kamizo@95.46.96.209:/tmp/ && ssh -i ~/.ssh/kamizo_vps kamizo@95.46.96.209 'sqlite3 /opt/kamizo/data/kamizo.db < /tmp/NNN.sql'` |
+| Секреты | VPS `.env` | edit `/opt/kamizo/app/.env` + `sudo systemctl restart kamizo-api` |
+
+После любого фронт-деплоя бамп версии SW (`src/frontend/public/sw.js` суффикс `v{N}`) — иначе кеш у юзеров залипает.
+
+**Логи**: `ssh -i ~/.ssh/kamizo_vps kamizo@95.46.96.209 'tail -f /opt/kamizo/logs/api.{log,err.log}'` или `sudo journalctl -u kamizo-api -f`.
 
 ## 🧰 Стек
 - **State**: Zustand, модульные store-ы в `src/frontend/src/stores/`. Импортируй точечно: `useRequestStore(s => s.requests)`, **НЕ** `useDataStore()` целиком — barrel-селекторы возвращают весь объект и крашат сайт.

@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Loader2, AlertCircle, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { chatApi } from '../services/api';
-import { subscribeToChatMessages } from '../hooks/useWebSocketSync';
 import { AdminChannelList } from './chat/AdminChannelList';
 import { ChatView } from './chat/ChatView';
 import { type ChatChannel } from './chat/chatUtils';
@@ -61,13 +60,13 @@ export function ChatPage() {
       if (isResident) {
         const channel = await chatApi.getOrCreateSupportChannel();
         if (channel && channel.id) {
-          setResidentChannel(channel);
+          setResidentChannel(channel as unknown as ChatChannel);
         } else {
           setError(language === 'ru' ? 'Не удалось создать чат' : 'Chat yaratib bo\'lmadi');
         }
       } else {
         const response = await chatApi.getChannels();
-        const newChannels = response.channels || [];
+        const newChannels = (response.channels || []) as unknown as ChatChannel[];
         // Preserve unread_count: 0 for the currently open channel (user is reading it)
         setChannels(() => {
           const merged = newChannels.map((ch: ChatChannel) => {

@@ -33,7 +33,7 @@ route('GET', '/api/announcements', async (request, env) => {
 
   if (isManagement(user)) {
     // Admins/directors/managers see all
-    whereClause = `WHERE 1=1 ${tenantId ? 'AND tenant_id = ?' : ''}`;
+    whereClause = `WHERE 1=1 ${tenantId ? 'AND a.tenant_id = ?' : ''}`;
     if (tenantId) params.push(tenantId);
   } else if (isResidentLike) {
     // Residents see announcements targeted to them
@@ -58,25 +58,25 @@ route('GET', '/api/announcements', async (request, env) => {
     const userLogin = (user.login || '').trim();
     const userApartment = (user.apartment || '').trim();
     const customConditions: string[] = [];
-    if (userLogin) customConditions.push(`(',' || target_logins || ',') LIKE ?`);
-    if (userApartment) customConditions.push(`(',' || target_logins || ',') LIKE ?`);
+    if (userLogin) customConditions.push(`(',' || a.target_logins || ',') LIKE ?`);
+    if (userApartment) customConditions.push(`(',' || a.target_logins || ',') LIKE ?`);
     const customClause = customConditions.length > 0
       ? `OR (target_type = 'custom' AND (${customConditions.join(' OR ')}))`
       : '';
 
     whereClause = `
-      WHERE is_active = 1
-        AND (expires_at IS NULL OR expires_at > datetime('now'))
-        AND (type = 'residents' OR type = 'all')
-        ${tenantId ? 'AND tenant_id = ?' : ''}
+      WHERE a.is_active = 1
+        AND (a.expires_at IS NULL OR a.expires_at > datetime('now'))
+        AND (a.type = 'residents' OR a.type = 'all')
+        ${tenantId ? 'AND a.tenant_id = ?' : ''}
         AND (
-          target_type IS NULL
-          OR target_type = ''
-          OR target_type = 'all'
-          ${userBranchCode ? `OR (target_type = 'branch' AND target_branch = ?)` : ''}
-          ${hasBuilding ? `OR (target_type = 'building' AND target_building_id = ?)` : ''}
-          ${hasBuilding && userEntrance ? `OR (target_type = 'entrance' AND target_building_id = ? AND target_entrance = ?)` : ''}
-          ${hasBuilding && userEntrance && userFloor ? `OR (target_type = 'floor' AND target_building_id = ? AND target_entrance = ? AND target_floor = ?)` : ''}
+          a.target_type IS NULL
+          OR a.target_type = ''
+          OR a.target_type = 'all'
+          ${userBranchCode ? `OR (a.target_type = 'branch' AND a.target_branch = ?)` : ''}
+          ${hasBuilding ? `OR (a.target_type = 'building' AND a.target_building_id = ?)` : ''}
+          ${hasBuilding && userEntrance ? `OR (a.target_type = 'entrance' AND a.target_building_id = ? AND a.target_entrance = ?)` : ''}
+          ${hasBuilding && userEntrance && userFloor ? `OR (a.target_type = 'floor' AND a.target_building_id = ? AND a.target_entrance = ? AND a.target_floor = ?)` : ''}
           ${customClause}
         )
     `;
@@ -96,16 +96,19 @@ route('GET', '/api/announcements', async (request, env) => {
   } else {
     // Employees (executors, department_heads) see employee announcements
     whereClause = `
-      WHERE is_active = 1
-        AND (expires_at IS NULL OR expires_at > datetime('now'))
-        AND (type = 'employees' OR type = 'staff' OR type = 'all')
-        ${tenantId ? 'AND tenant_id = ?' : ''}
+      WHERE a.is_active = 1
+        AND (a.expires_at IS NULL OR a.expires_at > datetime('now'))
+        AND (a.type = 'employees' OR a.type = 'staff' OR a.type = 'all')
+        ${tenantId ? 'AND a.tenant_id = ?' : ''}
     `;
     if (tenantId) params.push(tenantId);
   }
 
   // Count total
-  const countQuery = `SELECT COUNT(*) as total FROM announcements ${whereClause}`;
+  // whereClause references `a.*` columns (introduced when the data query
+  // gained LEFT JOINs). Alias the count source the same way so the same
+  // whereClause works in both queries.
+  const countQuery = `SELECT COUNT(*) as total FROM announcements a ${whereClause}`;
   const { total } = await env.DB.prepare(countQuery).bind(...params).first() as any;
 
   // Fetch paginated data with view counts.

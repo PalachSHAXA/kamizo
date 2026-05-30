@@ -130,6 +130,28 @@ export function RequestDetailsModal({
             <p className="text-gray-900">{request.description}</p>
           </div>
 
+          {/* Photos attached by resident \u2014 executor needs to see them to assess the job */}
+          {request.photos && request.photos.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">
+                {language === 'ru' ? `\u0424\u043e\u0442\u043e (${request.photos.length})` : `Rasmlar (${request.photos.length})`}
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                {request.photos.map((src, i) => (
+                  <a
+                    key={i}
+                    href={src}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80"
+                  >
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Scheduled Date/Time */}
           {request.scheduledDate && (
             <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
