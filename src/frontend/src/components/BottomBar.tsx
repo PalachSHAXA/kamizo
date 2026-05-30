@@ -237,7 +237,13 @@ export function BottomBar() {
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
       style={{
-        bottom: '-25px',
+        // Pinned flush to the bottom of the viewport. Was bottom:'-25px'
+        // (a hack to kill a white strip above the iOS home-indicator) which
+        // pushed the bar partly off-screen and made it look detached / sit
+        // too low. position:fixed + bottom:0 keeps it exactly at the bottom
+        // and it never scrolls up; the safe-area inset below keeps it clear
+        // of the home-indicator without the negative offset.
+        bottom: '0',
         paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 50,
       }}

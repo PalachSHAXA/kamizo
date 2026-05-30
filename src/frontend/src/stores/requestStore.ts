@@ -964,7 +964,12 @@ export const useRequestStore = create<RequestState>()(
 
         set({ rescheduleRequests: mappedReschedules });
       } catch (error) {
-        useToastStore.getState().addToast('error', (error as Error).message || 'Ошибка');
+        // Silent: this runs on mount AND on a 15s background poll
+        // (ResidentDashboard). Surfacing a toast on every failed poll spammed
+        // the screen with a wall of identical "Превышено время ожидания"
+        // errors when the /api/reschedule-requests endpoint was slow. A
+        // background refresh must never interrupt the user — log only.
+        console.warn('fetchPendingReschedules failed (silent):', (error as Error).message);
       }
     },
 

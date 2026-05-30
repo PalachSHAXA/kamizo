@@ -233,6 +233,11 @@ export function ResidentDashboard() {
           context-aware vs the generic "Welcome" we had before.
           Names are normalized through formatName() because legacy DB
           imports often store full caps (ABDURAXMANOV → Abduraxmanov). */}
+      {/* Resident home HERO — redesign (Claude Design §01-glavnaya):
+          dark warm-stone gradient block with time-of-day greeting, first
+          name, a glass address pill and a live "active requests" chip.
+          All values are real (user + activeRequests). The app's existing
+          MobileHeader keeps the real tenant logo / menu / bell above this. */}
       {activeTab === 'home' && (() => {
         const h = new Date().getHours();
         const greetingRu =
@@ -247,34 +252,60 @@ export function ResidentDashboard() {
           : 'Hayrli kech';
         const fullName = formatName(user?.name);
         const firstName = fullName.split(' ')[0] || fullName;
+        const activeCount = activeRequests.length;
         return (
-          <div className="px-5 pt-2 pb-1.5 md:px-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[12px] font-semibold text-gray-400 tracking-wide">
+          <div
+            className="relative overflow-hidden text-white px-[18px] pt-3 pb-6 mb-3"
+            style={{
+              background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)',
+              borderBottomLeftRadius: 28,
+              borderBottomRightRadius: 28,
+            }}
+          >
+            {/* warm orange glow */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                opacity: 0.55,
+                background:
+                  'radial-gradient(90% 70% at 88% -10%, rgba(251,146,60,0.5) 0%, transparent 55%), radial-gradient(70% 60% at 0% 110%, rgba(217,119,6,0.18) 0%, transparent 60%)',
+              }}
+            />
+            <div className="relative flex items-end justify-between gap-3.5">
+              <div className="min-w-0">
+                <div className="text-[14px] font-semibold" style={{ color: 'rgba(244,240,232,0.7)' }}>
                   {language === 'ru' ? greetingRu : greetingUz} <span aria-hidden="true">👋</span>
                 </div>
-                {/* Greeting uses first name; profile page shows full name. This
-                    matches standard mobile-app conventions — the greeting is
-                    friendly, the profile is the authoritative view. */}
-                <div className="text-[22px] font-extrabold text-gray-900 tracking-tight leading-tight">
+                <div className="text-[28px] font-extrabold tracking-tight leading-[1.05] mt-0.5 truncate">
                   {firstName}
+                </div>
+                <div
+                  className="inline-flex items-center gap-1.5 mt-3.5 px-3 py-2 rounded-[13px] text-[13.5px] font-semibold"
+                  style={{
+                    background: 'rgba(244,240,232,0.12)',
+                    border: '1px solid rgba(244,240,232,0.14)',
+                    backdropFilter: 'blur(8px)',
+                  }}
+                >
+                  <MapPin className="w-[15px] h-[15px]" style={{ color: 'var(--brand-light, #FB923C)' }} />
+                  {formatAddress(user?.address, user?.apartment)}
+                </div>
+              </div>
+              <div
+                className="shrink-0 text-center px-3 py-2 rounded-[13px]"
+                style={{ background: 'rgba(249,115,22,0.18)', border: '1px solid rgba(249,115,22,0.3)' }}
+              >
+                <div className="text-[22px] font-extrabold leading-none tabular-nums" style={{ color: '#FDBA74' }}>
+                  {activeCount}
+                </div>
+                <div className="text-[10.5px] font-semibold mt-[3px] leading-tight" style={{ color: 'rgba(244,240,232,0.7)' }}>
+                  {language === 'ru' ? <>активные<br/>заявки</> : <>faol<br/>arizalar</>}
                 </div>
               </div>
             </div>
           </div>
         );
       })()}
-
-      {/* Address pill - only on home tab */}
-      {activeTab === 'home' && (
-        <div className="px-5 mb-3 md:px-0">
-          <div className="inline-flex items-center gap-1.5 bg-white rounded-[11px] px-3 py-[7px] shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
-            <MapPin className="w-3 h-3 text-primary-500" />
-            <span className="text-[12px] font-semibold text-gray-500">{formatAddress(user?.address, user?.apartment)}</span>
-          </div>
-        </div>
-      )}
 
       {/* Pending Approval Hero — rich card on home tab.
           Replaces the previous 12px purple pill with a real preview card:
