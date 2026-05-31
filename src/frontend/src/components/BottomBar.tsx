@@ -52,6 +52,10 @@ export function BottomBar() {
   const isDirectChatRole = role === 'resident' || role === 'tenant' || role === 'commercial_owner';
   if (location.pathname === '/chat' && isDirectChatRole) return null;
 
+  // Resident home renders the Claude-Design §01 screen with its OWN floating
+  // TabBar — hide the global bar there so there is exactly one bottom nav.
+  if (role === 'resident' && location.pathname === '/' && !location.search.includes('tab=requests')) return null;
+
   // Hide while any sheet/modal is open — prevents the bar from peeking under
   // the sheet's primary action (eg "Продолжить") on iOS PWA where bar is
   // anchored at bottom: -25px.

@@ -346,10 +346,18 @@ export function Layout() {
 
   const isSuperAdmin = user?.role === 'super_admin';
 
+  // Resident home renders the full Claude-Design §01 screen (own dark hero +
+  // own floating TabBar). Hide the global MobileHeader and make the content
+  // full-bleed there so there is exactly one header / one bottom nav.
+  const isResidentHome = user?.role === 'resident'
+    && location.pathname === '/'
+    && !location.search.includes('tab=requests');
+
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
   // channel info + actions), so we drop the generic mobile header there.
   const showMobileHeader = !isSuperAdmin
+    && !isResidentHome
     && location.pathname !== '/marketplace'
     && location.pathname !== '/profile'
     && location.pathname !== '/chat';
@@ -410,7 +418,7 @@ export function Layout() {
           <Header />
         </div>
 
-        <main id="main-content" role="main" className="px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content">
+        <main id="main-content" role="main" className={isResidentHome ? 'page-content' : 'px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content'}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={getDashboard()} />

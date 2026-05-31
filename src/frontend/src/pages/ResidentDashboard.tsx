@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { InstallAppBanner } from '../components/InstallAppSection';
 import {
-  ChevronRight, MapPin, CheckCircle2, Clock as ClockIcon
+  ChevronRight, CheckCircle2, Clock as ClockIcon
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -25,6 +25,7 @@ import {
   ApproveModal,
   RequestDetailsModal,
 } from './resident/components';
+import { ResidentHomeDesign } from './resident/design/ResidentHomeDesign';
 import type { ActiveTab, RequestsSubTab } from './resident/components';
 
 export function ResidentDashboard() {
@@ -227,83 +228,36 @@ export function ResidentDashboard() {
   };
 
   return (
-    <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0">
+    <div className={activeTab === 'home' ? '' : 'pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0'}>
       {/* Greeting - only on home tab. Time-of-day phrasing (Доброе утро /
           Добрый день / Добрый вечер / Доброй ночи) makes the welcome feel
           context-aware vs the generic "Welcome" we had before.
           Names are normalized through formatName() because legacy DB
           imports often store full caps (ABDURAXMANOV → Abduraxmanov). */}
-      {/* Resident home HERO — redesign (Claude Design §01-glavnaya):
-          dark warm-stone gradient block with time-of-day greeting, first
-          name, a glass address pill and a live "active requests" chip.
-          All values are real (user + activeRequests). The app's existing
-          MobileHeader keeps the real tenant logo / menu / bell above this. */}
+      {/* Resident home — full 1:1 port of Claude Design §01-glavnaya.
+          ResidentHomeDesign renders the whole screen (dark hero, swipe stack,
+          quick tiles, approval, reschedule, meeting, payment, announcements,
+          PWA + its own floating TabBar). The global MobileHeader and BottomBar
+          are hidden for residents on this route (see Layout / BottomBar) so
+          there is exactly one header and one bottom nav. */}
       {activeTab === 'home' && (() => {
-        const h = new Date().getHours();
-        const greetingRu =
-          h < 6  ? 'Доброй ночи'
-          : h < 12 ? 'Доброе утро'
-          : h < 18 ? 'Добрый день'
-          : 'Добрый вечер';
-        const greetingUz =
-          h < 6  ? 'Hayrli tun'
-          : h < 12 ? 'Hayrli tong'
-          : h < 18 ? 'Hayrli kun'
-          : 'Hayrli kech';
-        const fullName = formatName(user?.name);
-        const firstName = fullName.split(' ')[0] || fullName;
-        const activeCount = activeRequests.length;
+        const firstName = (formatName(user?.name).split(' ')[0]) || formatName(user?.name);
         return (
-          <div
-            className="relative overflow-hidden text-white px-[18px] pt-3 pb-6 mb-3"
-            style={{
-              background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)',
-              borderBottomLeftRadius: 28,
-              borderBottomRightRadius: 28,
-            }}
-          >
-            {/* warm orange glow */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                opacity: 0.55,
-                background:
-                  'radial-gradient(90% 70% at 88% -10%, rgba(251,146,60,0.5) 0%, transparent 55%), radial-gradient(70% 60% at 0% 110%, rgba(217,119,6,0.18) 0%, transparent 60%)',
-              }}
-            />
-            <div className="relative flex items-end justify-between gap-3.5">
-              <div className="min-w-0">
-                <div className="text-[14px] font-semibold" style={{ color: 'rgba(244,240,232,0.7)' }}>
-                  {language === 'ru' ? greetingRu : greetingUz} <span aria-hidden="true">👋</span>
-                </div>
-                <div className="text-[28px] font-extrabold tracking-tight leading-[1.05] mt-0.5 truncate">
-                  {firstName}
-                </div>
-                <div
-                  className="inline-flex items-center gap-1.5 mt-3.5 px-3 py-2 rounded-[13px] text-[13.5px] font-semibold"
-                  style={{
-                    background: 'rgba(244,240,232,0.12)',
-                    border: '1px solid rgba(244,240,232,0.14)',
-                    backdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <MapPin className="w-[15px] h-[15px]" style={{ color: 'var(--brand-light, #FB923C)' }} />
-                  {formatAddress(user?.address, user?.apartment)}
-                </div>
-              </div>
-              <div
-                className="shrink-0 text-center px-3 py-2 rounded-[13px]"
-                style={{ background: 'rgba(249,115,22,0.18)', border: '1px solid rgba(249,115,22,0.3)' }}
-              >
-                <div className="text-[22px] font-extrabold leading-none tabular-nums" style={{ color: '#FDBA74' }}>
-                  {activeCount}
-                </div>
-                <div className="text-[10.5px] font-semibold mt-[3px] leading-tight" style={{ color: 'rgba(244,240,232,0.7)' }}>
-                  {language === 'ru' ? <>активные<br/>заявки</> : <>faol<br/>arizalar</>}
-                </div>
-              </div>
-            </div>
-          </div>
+          <ResidentHomeDesign
+            language={language}
+            name={firstName}
+            apt={formatAddress(user?.address, user?.apartment)}
+            activeCount={activeRequests.length}
+            pendingApproval={pendingApproval}
+            pendingReschedules={pendingReschedules}
+            meeting={activeMeetings[0] || null}
+            announcements={latestAnnouncements}
+            onNewRequest={() => setShowAllServices(true)}
+            onTab={switchTab}
+            onMenu={() => window.dispatchEvent(new Event('open-sidebar'))}
+            onApprove={(req) => handleApproveClick(req)}
+            onOpenRequest={(req) => setSelectedRequest(req)}
+          />
         );
       })()}
 
@@ -312,7 +266,7 @@ export function ResidentDashboard() {
           shows the topmost waiting request (#, title, executor, work time)
           and a brand-coloured CTA that jumps straight into the Approve modal.
           Stacked count shown only when there are multiple. */}
-      {pendingApproval.length > 0 && activeTab === 'home' && (() => {
+      {false /* legacy home block — now inside ResidentHomeDesign */ && pendingApproval.length > 0 && (() => {
         const top = pendingApproval[0];
         const formatWorkDuration = (seconds?: number) => {
           if (!seconds) return null;
@@ -397,7 +351,7 @@ export function ResidentDashboard() {
       })()}
 
       {/* Pending Reschedule Requests Alert */}
-      {pendingReschedules.length > 0 && activeTab === 'home' && (
+      {false /* legacy — now inside ResidentHomeDesign */ && pendingReschedules.length > 0 && (
         <div className="px-3 mb-3 md:px-0">
           <div className="rounded-[18px] p-[11px_14px] flex items-center gap-[10px] border border-amber-200/60" style={{ background: 'linear-gradient(135deg, #FFF9E6, #FEF3C7)' }}>
             <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
@@ -433,8 +387,8 @@ export function ResidentDashboard() {
         </div>
       )}
 
-      {/* ===== HOME TAB ===== */}
-      {activeTab === 'home' && (
+      {/* ===== HOME TAB (legacy HomeTab — superseded by ResidentHomeDesign above) ===== */}
+      {false && (
         <HomeTab
           language={language}
           user={user}
@@ -624,7 +578,7 @@ export function ResidentDashboard() {
       {/* Install App — compact banner, full guide lives on /profile.
           Render only on the home tab: on the requests tab it crowded the
           list and the audit flagged it as a PWA-duplicate regression. */}
-      {activeTab === 'home' && (
+      {false /* PWA banner now inside ResidentHomeDesign */ && (
         <div className="px-3 md:px-0 pb-2">
           <InstallAppBanner language={language} />
         </div>
