@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Droplet, Zap, Flame, MoveVertical, Sparkles, Trash2, ShieldCheck, Bell,
   MoreHorizontal, Search, X as XIcon, ArrowRight, ArrowLeft, Camera, Send,
   Check, Phone, ChevronRight, Loader2,
 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { SERVICE_CATEGORIES } from '../../../types';
 import type { ExecutorSpecialization, RequestPriority, Request, User } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
@@ -29,7 +29,7 @@ const TONES: Record<string, Tone> = {
 type SvcCat = 'home' | 'building' | 'territory';
 interface NRService {
   category: ExecutorSpecialization;
-  Icon: ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  Icon: LucideIcon;
   label: string; labelUz: string;
   sub: string; subUz: string;
   cat: SvcCat; tone: string; tag?: string; tagUz?: string;
@@ -58,14 +58,17 @@ const NR_CATS: { id: 'all' | SvcCat; label: string; labelUz: string }[] = [
 // Time slots → mapped to real scheduledDate / scheduledTime on submit.
 const today = () => new Date().toISOString().split('T')[0];
 const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; };
-interface Slot { id: string; label: string; labelUz: string; sub: string; date?: string; time?: string }
+interface Slot { id: string; label: string; labelUz: string; sub: string; subUz: string; date?: string; time?: string }
 const NR_SLOTS: Slot[] = [
-  { id: 'asap',     label: 'Как можно скорее', labelUz: 'Imkon qadar tez', sub: '~2 ч' },
-  { id: 'today_pm', label: 'Сегодня 15–17',    labelUz: 'Bugun 15–17',     sub: '', date: today(),    time: '15:00-17:00' },
-  { id: 'tom_am',   label: 'Завтра 09–11',     labelUz: 'Ertaga 09–11',    sub: '', date: tomorrow(), time: '09:00-11:00' },
-  { id: 'tom_pm',   label: 'Завтра 13–15',     labelUz: 'Ertaga 13–15',    sub: '', date: tomorrow(), time: '13:00-15:00' },
+  { id: 'asap',     label: 'Как можно скорее', labelUz: 'Imkon qadar tez', sub: '~2 ч', subUz: '~2 soat' },
+  { id: 'today_pm', label: 'Сегодня 15–17',    labelUz: 'Bugun 15–17',     sub: '', subUz: '', date: today(),    time: '15:00-17:00' },
+  { id: 'tom_am',   label: 'Завтра 09–11',     labelUz: 'Ertaga 09–11',    sub: '', subUz: '', date: tomorrow(), time: '09:00-11:00' },
+  { id: 'tom_pm',   label: 'Завтра 13–15',     labelUz: 'Ertaga 13–15',    sub: '', subUz: '', date: tomorrow(), time: '13:00-15:00' },
 ];
 
+// Above the global BottomBar (zIndex 1000) so the sheet is never painted
+// behind the floating bottom nav on screens where the nav is visible.
+const ZTOP = 1100;
 const RX = 'var(--radius-xl, 28px)';
 const RL = 'var(--radius-lg, 20px)';
 const RM = 'var(--radius-md, 14px)';
@@ -87,6 +90,14 @@ export interface ResidentNewRequestFlowProps {
 export function ResidentNewRequestFlow({ open, language, user, onClose, onCreate, onGoToRequests }: ResidentNewRequestFlowProps) {
   const [step, setStep] = useState<'catalog' | 'form'>('catalog');
   const [category, setCategory] = useState<ExecutorSpecialization | null>(null);
+  // Lock background scroll while the sheet is open (prevents iOS scroll-chaining
+  // behind the 92vh overlay). Restores the previous value on close/unmount.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
   if (!open) return null;
   return step === 'catalog' ? (
     <ServiceSheet
@@ -123,7 +134,7 @@ function ServiceSheet({ language, onPick, onClose }: { language: string; onPick:
   const selSvc = NR_SERVICES.find(s => s.category === sel) || null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(28,25,23,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: ZTOP, background: 'rgba(28,25,23,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{
         width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column',
         background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX,
@@ -301,7 +312,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
   if (created) {
     const num = created.number ? `#${created.number}` : '';
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(28,25,23,0.5)', display: 'flex', alignItems: 'flex-end' }} onClick={onGoToRequests}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: ZTOP, background: 'rgba(28,25,23,0.5)', display: 'flex', alignItems: 'flex-end' }} onClick={onGoToRequests}>
         <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX, padding: '32px 24px calc(env(safe-area-inset-bottom, 0px) + 28px)', textAlign: 'center' }}>
           <div style={{ width: 80, height: 80, borderRadius: 999, background: 'var(--status-active-bg, rgba(21,160,110,0.12))', color: 'var(--status-active, #15A06E)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
             <Check size={42} strokeWidth={2.6} />
@@ -315,7 +326,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(28,25,23,0.5)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: ZTOP, background: 'rgba(28,25,23,0.5)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX, boxShadow: '0 -10px 40px rgba(28,25,23,0.25)', overflow: 'hidden' }}>
         {/* header */}
         <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 14px', borderBottom: '1px solid var(--border-c, #E6DFD2)', background: 'var(--surface, #fff)' }}>
@@ -368,7 +379,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
                 border: on ? '1.5px solid var(--brand, #F97316)' : '1px solid var(--border-c, #E6DFD2)',
               }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: on ? 'var(--brand-dark, #EA580C)' : 'var(--text-primary, #1C1917)', letterSpacing: '-0.01em' }}>{ru ? s.label : s.labelUz}</div>
-                {s.sub && <div style={{ fontSize: 11.5, color: 'var(--text-secondary, #6F6A62)', marginTop: 1 }}>{s.sub}</div>}
+                {(ru ? s.sub : s.subUz) && <div style={{ fontSize: 11.5, color: 'var(--text-secondary, #6F6A62)', marginTop: 1 }}>{ru ? s.sub : s.subUz}</div>}
               </button>;
             })}
           </div>
@@ -381,8 +392,8 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {photos.map((src, i) => (
               <div key={i} style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', position: 'relative', background: 'var(--surface-sunken, #EDE7DB)' }}>
-                <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <button onClick={() => setPhotos(photos.filter((_, j) => j !== i))} aria-label={ru ? 'Удалить фото' : 'Rasmni o\'chirish'} style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 999, background: 'rgba(0,0,0,0.55)', color: '#fff', border: 'none', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><XIcon size={12} strokeWidth={3} /></button>
+                <img src={src} alt={ru ? `Фото к заявке ${i + 1}` : `Arizaga rasm ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button onClick={() => setPhotos(photos.filter((_, j) => j !== i))} aria-label={ru ? 'Удалить фото' : 'Rasmni o\'chirish'} style={{ position: 'absolute', top: 3, right: 3, width: 26, height: 26, borderRadius: 999, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><XIcon size={13} strokeWidth={3} /></button>
               </div>
             ))}
             {photos.length < MAX_PHOTOS && (

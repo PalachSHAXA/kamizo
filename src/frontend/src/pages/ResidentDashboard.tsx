@@ -154,9 +154,6 @@ export function ResidentDashboard() {
   // Also consume window.__pendingOpenServices in case the event fired before this lazy component mounted.
   useEffect(() => {
     const openServices = () => {
-      setSelectedServiceId(null);
-      setServiceSearch('');
-      setServiceCatFilter('all');
       setShowAllServices(true);
       (window as unknown as Record<string, unknown>).__pendingOpenServices = false;
     };
@@ -410,8 +407,8 @@ export function ResidentDashboard() {
           Mounted on the FAB ('open-services'). Replaces the old
           ServiceBottomSheet + NewRequestModal pair with a single 1:1 flow,
           wired to real categories, real photo upload, and real addRequest. */}
-      <ResidentNewRequestFlow
-        open={showAllServices}
+      {showAllServices && <ResidentNewRequestFlow
+        open
         language={language}
         user={user}
         onClose={() => setShowAllServices(false)}
@@ -424,7 +421,7 @@ export function ResidentDashboard() {
           apartment: user?.apartment || '0',
         })}
         onGoToRequests={() => { setShowAllServices(false); switchTab('requests'); setRequestsSubTab('active'); }}
-      />
+      />}
 
       {/* ===== REQUESTS TAB ===== */}
       {activeTab === 'requests' && (
