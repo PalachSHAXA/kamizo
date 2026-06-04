@@ -257,3 +257,16 @@ cd src/frontend && npx tsc --noEmit
 ```
 
 Если задача мелкая (1 строка, опечатка) — пропускай шаги 2, 3, 7, 8, 9. Шаги 1, 4, 5, 6, 10-13 обязательны для любых изменений в коде.
+
+---
+
+## Git workflow (MANDATORY)
+- After EVERY change you make to the code, you MUST:
+  1. git add -A
+  2. git commit -m "<short descriptive message of what changed>"
+  3. git push
+- NEVER deploy without first committing and pushing.
+- Before any deploy, run: git add -A && git commit -m "deploy: <what changed>" && git push, THEN deploy.
+- Every deploy must correspond to a pushed commit, so nothing lives only in the local working directory.
+- If there are uncommitted changes at the start of a task, commit them first before doing anything else.
+
