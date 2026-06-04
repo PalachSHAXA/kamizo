@@ -6,10 +6,10 @@
 // gap above the iOS home indicator. Bump this suffix any time a release
 // needs to propagate urgently to existing installs.
 
-const SW_VERSION = '3.0.4';
-const STATIC_CACHE = 'kamizo-static-v16';
-const ASSET_CACHE = 'kamizo-assets-v16';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v16';
+const SW_VERSION = '3.0.5';
+const STATIC_CACHE = 'kamizo-static-v17';
+const ASSET_CACHE = 'kamizo-assets-v17';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v17';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

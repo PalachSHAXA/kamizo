@@ -344,7 +344,7 @@ export function ResidentVehiclesPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-5 pb-24 md:pb-0">
+    <div className="pb-24 md:pb-0">
       {/* Dark "Гараж" hero — 1:1 port of Claude Design §05-transport.
           Covered-car silhouette + big primary plate + brand/model + parking
           status, with a Гараж/Поиск toggle. Wired to the real primary
@@ -427,9 +427,11 @@ export function ResidentVehiclesPage() {
         );
       })()}
 
-      {/* My Vehicles Tab */}
-      {activeTab === 'my_vehicles' && (
-        <div className="space-y-3 px-3 md:px-0">
+      {/* My Vehicles Tab — body only when there ARE cars; the empty state is
+          owned by the dark hero above (covered car + "Добавить авто"), so we
+          don't render a second "Нет зарегистрированных авто" block here. */}
+      {activeTab === 'my_vehicles' && vehicles.length > 0 && (
+        <div className="space-y-3 px-3 md:px-0 pt-4">
           {/* Section header */}
           <div className="flex items-end justify-between px-1">
             <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
@@ -561,7 +563,7 @@ export function ResidentVehiclesPage() {
 
       {/* Search Tab */}
       {activeTab === 'search' && (
-        <div className="space-y-3 px-3 md:px-0">
+        <div className="space-y-3 px-3 md:px-0 pt-4">
           {/* Audit P0: residents who tapped into search had no visible way back
               to "Мой гараж". They had to clear the input or use the drawer.
               Now: a dedicated "← К моим авто" pill above the search card. */}
