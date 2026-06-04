@@ -12,7 +12,7 @@ import { useTenantStore } from '../stores/tenantStore';
 import { useFinanceStore } from '../stores/financeStore';
 import { useVehicleStore } from '../stores/vehicleStore';
 import { useGuestAccessStore } from '../stores/guestAccessStore';
-import type { Request, ExecutorSpecialization, RescheduleRequest } from '../types';
+import type { Request, RescheduleRequest } from '../types';
 import { formatAddress } from '../utils/formatAddress';
 import { formatName } from '../utils/formatName';
 import RescheduleModal from '../components/modals/RescheduleModal';
@@ -22,11 +22,10 @@ import { CancelRequestModal } from '../components/modals/CancelRequestModal';
 import {
   HomeTab,
   RequestsTab,
-  ServiceBottomSheet,
-  NewRequestModal,
   ApproveModal,
   RequestDetailsModal,
 } from './resident/components';
+import { ResidentNewRequestFlow } from './resident/components/ResidentNewRequestFlow';
 import { ResidentHomeDesign } from './resident/design/ResidentHomeDesign';
 import type { ActiveTab, RequestsSubTab } from './resident/components';
 
@@ -67,13 +66,8 @@ export function ResidentDashboard() {
   // All state declarations (must come before any useEffect)
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => tabParam === 'requests' ? 'requests' : 'home');
   const [showAllServices, setShowAllServices] = useState(false);
-  const [serviceSearch, setServiceSearch] = useState('');
-  const [serviceCatFilter, setServiceCatFilter] = useState<string>('all');
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [financeBalance, setFinanceBalance] = useState<Record<string, unknown> | null>(null);
   const [requestsSubTab, setRequestsSubTab] = useState<RequestsSubTab>('active');
-  const [showNewRequestModal, setShowNewRequestModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<ExecutorSpecialization | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -223,11 +217,6 @@ export function ResidentDashboard() {
     (a, b) => new Date(b.completedAt || b.cancelledAt || b.createdAt).getTime() -
               new Date(a.completedAt || a.cancelledAt || a.createdAt).getTime()
   ), [completedRequests, cancelledRequests]);
-
-  const handleCategorySelect = (category: ExecutorSpecialization) => {
-    setSelectedCategory(category);
-    setShowNewRequestModal(true);
-  };
 
   const handleApproveClick = (request: Request) => {
     setSelectedRequest(request);
@@ -417,24 +406,25 @@ export function ResidentDashboard() {
         />
       )}
 
-      {/* All Services Bottom Sheet (FAB menu) */}
-      {showAllServices && <ServiceBottomSheet
+      {/* New request flow — Claude Design §03: service catalog → form → success.
+          Mounted on the FAB ('open-services'). Replaces the old
+          ServiceBottomSheet + NewRequestModal pair with a single 1:1 flow,
+          wired to real categories, real photo upload, and real addRequest. */}
+      <ResidentNewRequestFlow
+        open={showAllServices}
         language={language}
-        serviceSearch={serviceSearch}
-        setServiceSearch={setServiceSearch}
-        serviceCatFilter={serviceCatFilter}
-        setServiceCatFilter={setServiceCatFilter}
-        selectedServiceId={selectedServiceId}
-        setSelectedServiceId={setSelectedServiceId}
-        onClose={() => { setShowAllServices(false); setSelectedServiceId(null); setServiceSearch(''); setServiceCatFilter('all'); }}
-        onSubmit={(id) => {
-          setShowAllServices(false);
-          handleCategorySelect(id as ExecutorSpecialization);
-          setSelectedServiceId(null);
-          setServiceSearch('');
-          setServiceCatFilter('all');
-        }}
-      />}
+        user={user}
+        onClose={() => setShowAllServices(false)}
+        onCreate={(data) => addRequest({
+          ...data,
+          residentId: user?.id || 'resident1',
+          residentName: user?.name || 'Житель',
+          residentPhone: user?.phone || '+998 90 000 00 00',
+          address: user?.address || 'Адрес не указан',
+          apartment: user?.apartment || '0',
+        })}
+        onGoToRequests={() => { setShowAllServices(false); switchTab('requests'); setRequestsSubTab('active'); }}
+      />
 
       {/* ===== REQUESTS TAB ===== */}
       {activeTab === 'requests' && (
@@ -460,31 +450,6 @@ export function ResidentDashboard() {
         />
       )}
 
-      {/* New Request Modal */}
-      {showNewRequestModal && selectedCategory && (
-        <NewRequestModal
-          category={selectedCategory}
-          user={user}
-          onClose={() => {
-            setShowNewRequestModal(false);
-            setSelectedCategory(null);
-          }}
-          onSubmit={(data) => {
-            addRequest({
-              ...data,
-              residentId: user?.id || 'resident1',
-              residentName: user?.name || 'Житель',
-              residentPhone: user?.phone || '+998 90 000 00 00',
-              address: user?.address || 'Адрес не указан',
-              apartment: user?.apartment || '0',
-            });
-            setShowNewRequestModal(false);
-            setSelectedCategory(null);
-            switchTab('requests');
-            setRequestsSubTab('active');
-          }}
-        />
-      )}
 
       {/* Approve Modal */}
       {showApproveModal && selectedRequest && (
