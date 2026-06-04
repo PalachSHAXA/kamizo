@@ -5,11 +5,10 @@
    global BottomBar is hidden for residents on this screen to avoid a double nav. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   IBell, IPin, IWrench, IQR, ICard, ICar, ILock, ICheck, IClock, IChevronR,
-  IUsers, IBolt, IUmbrella, IDownload, IHome, IDoc, IChat, IUser, IPlus, IStar, IPhone,
+  IUsers, IBolt, IUmbrella, IDownload, IStar, IPhone,
   SwipeCardStack,
 } from './kamizoDesign';
 
@@ -280,31 +279,11 @@ function PWABannerSection({ language, sectionStyle }: any) {
   );
 }
 
-function TabBar({ navigate, onNewRequest, onTab, language }: any) {
-  const left = [{ id: 'home', Icon: IHome, label: ru(language, 'Главная', 'Bosh'), active: true, onClick: () => onTab('home') }, { id: 'requests', Icon: IDoc, label: ru(language, 'Заявки', 'Arizalar'), onClick: () => onTab('requests') }];
-  const right = [{ id: 'chat', Icon: IChat, label: ru(language, 'Чат', 'Chat'), onClick: () => navigate('/chat') }, { id: 'profile', Icon: IUser, label: ru(language, 'Профиль', 'Profil'), onClick: () => navigate('/profile') }];
-  const item = (t: any) => (
-    <button key={t.id} onClick={t.onClick} style={{ background: t.active ? 'var(--brand-tint)' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 7, padding: t.active ? '9px 15px' : '9px 11px', color: t.active ? 'var(--brand-dark)' : 'var(--text-muted)' }}>
-      <t.Icon size={22} stroke={t.active ? 2.3 : 1.9} />{t.active && <span style={{ fontSize: 13, fontWeight: 750, whiteSpace: 'nowrap' }}>{t.label}</span>}
-    </button>
-  );
-  // Render into document.body so the bar escapes any ancestor that could
-  // become a containing block (transform / filter / backdrop-filter /
-  // perspective on the kz-screen or Layout chain would otherwise turn
-  // position:fixed into "fixed relative to that ancestor" and the bar would
-  // scroll with the content. Portaling guarantees the bar is fixed to the
-  // viewport.
-  const bar = (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, padding: '0 14px env(safe-area-inset-bottom, 0px)', pointerEvents: 'none' }}>
-      <div style={{ pointerEvents: 'auto', maxWidth: 480, margin: '0 auto', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px) saturate(180%)', WebkitBackdropFilter: 'blur(16px) saturate(180%)', border: '1px solid rgba(255,255,255,0.7)', borderRadius: 26, boxShadow: '0 10px 30px rgba(28,25,23,0.14), 0 2px 6px rgba(28,25,23,0.06)', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{left.map(item)}</div>
-        <button onClick={onNewRequest} aria-label={ru(language, 'Новая заявка', 'Yangi ariza')} style={{ width: 52, height: 52, borderRadius: 999, flex: '0 0 auto', background: 'linear-gradient(135deg, #FB923C, #EA580C)', border: 'none', cursor: 'pointer', display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 6px 16px rgba(249,115,22,0.45)' }}><IPlus size={25} stroke={2.6} /></button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{right.map(item)}</div>
-      </div>
-    </div>
-  );
-  return typeof document !== 'undefined' ? createPortal(bar, document.body) : bar;
-}
+// TabBar removed — the single shared `BottomBar` component in
+// src/components/BottomBar.tsx now renders the same floating-pill design
+// on every resident page (and every other role), portaled to document.body.
+// The Layout already mounts <BottomBar /> globally, so Resident Home
+// inherits it like every other route.
 
 interface Props {
   language: string;
@@ -461,7 +440,9 @@ export function ResidentHomeDesign(props: Props) {
           on already-installed PWAs. */}
       <PWABannerSection language={language} sectionStyle={section} />
 
-      <TabBar navigate={navigate} onNewRequest={onNewRequest} onTab={onTab} language={language} />
+      {/* No bottom navigation rendered here — the global BottomBar in
+          src/components/BottomBar.tsx is mounted by Layout for every
+          resident route and now owns the floating-pill design. */}
     </div>
   );
 }
