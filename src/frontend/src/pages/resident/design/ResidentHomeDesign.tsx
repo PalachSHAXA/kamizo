@@ -63,10 +63,11 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
         position: 'relative',
         background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)',
         borderRadius: '0 0 28px 28px',
-        // Hero starts BELOW the iOS status bar. The safe-area-inset-top zone
-        // above shows the light page background instead of the brown gradient.
-        marginTop: 'env(safe-area-inset-top, 0px)',
-        padding: '20px 18px 22px',
+        // Hero extends behind the iOS status bar so the brown fills the
+        // top safe-area as ONE continuous shape. paddingTop folds
+        // env(safe-area-inset-top) into the same element that paints the
+        // brown gradient, so there's no separate strip / no seam.
+        padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 18px 22px',
         overflow: 'hidden',
         color: 'var(--text-on-dark)',
       }}
@@ -334,15 +335,18 @@ export function ResidentHomeDesign(props: Props) {
   const [bell, setBell] = useState(false);
   void bell;
 
-  // System chrome (browser address bar / PWA tint) matches the page
-  // background, not the hero. The status-bar safe area is the LIGHT app bg;
-  // the hero card starts below it. We dynamically swap theme-color on mount
-  // and restore on unmount.
+  // System chrome (browser address bar / Android PWA tint) tinted the same
+  // dark brown as the hero so the status-bar safe area visually continues
+  // the hero with no seam. iOS PWA reads apple-mobile-web-app-status-bar-
+  // style=black-translucent in index.html to extend the web view behind
+  // the status bar; the hero's paddingTop: env(safe-area-inset-top) paints
+  // its gradient under the system text. We restore the previous theme-
+  // color on unmount so other pages keep their light tint.
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (!meta) return;
-    const prev = meta.getAttribute('content') || '#F7F8FA';
-    meta.setAttribute('content', '#F7F8FA');
+    const prev = meta.getAttribute('content') || '#34291F';
+    meta.setAttribute('content', '#34291F');
     return () => { meta.setAttribute('content', prev); };
   }, []);
 
