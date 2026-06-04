@@ -62,12 +62,12 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
       style={{
         position: 'relative',
         background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)',
-        borderRadius: '0 0 28px 28px',
-        // Hero extends behind the iOS status bar so the brown fills the
-        // top safe-area as ONE continuous shape. paddingTop folds
-        // env(safe-area-inset-top) into the same element that paints the
-        // brown gradient, so there's no separate strip / no seam.
-        padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 18px 22px',
+        // Floating rounded card: rounded on ALL corners with a light gap above
+        // (the status-bar area stays light, see theme-color below). The top
+        // margin clears the iOS status bar via safe-area + a small gap.
+        borderRadius: 28,
+        margin: 'calc(env(safe-area-inset-top, 0px) + 10px) 12px 0',
+        padding: '20px 18px 22px',
         overflow: 'hidden',
         color: 'var(--text-on-dark)',
       }}
@@ -349,8 +349,10 @@ export function ResidentHomeDesign(props: Props) {
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (!meta) return;
+    // Hero is now a floating rounded card with a light gap above it, so the
+    // status-bar area should be the light app background, not the brown.
     const prev = meta.getAttribute('content') || '#4A3B30';
-    meta.setAttribute('content', '#4A3B30');
+    meta.setAttribute('content', '#F4F0E8');
     return () => { meta.setAttribute('content', prev); };
   }, []);
 
