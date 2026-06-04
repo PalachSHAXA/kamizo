@@ -24,3 +24,11 @@ ROUTE_QUICK_REFERENCE.txt
 # Mobile build artifacts
 *.apk
 src/frontend/android/
+
+# IDE / local editor state
+.vscode/
+.idea/
+
+# Claude Code local backup/state files
+.claude/settings.json.bak
+.claude/settings.local.json
