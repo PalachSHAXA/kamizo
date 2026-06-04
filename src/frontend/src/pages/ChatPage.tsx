@@ -6,6 +6,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { chatApi } from '../services/api';
 import { AdminChannelList } from './chat/AdminChannelList';
 import { ChatView } from './chat/ChatView';
+import { ResidentChatView } from './chat/ResidentChatView';
 import { type ChatChannel } from './chat/chatUtils';
 // ─── Sound notification ──────────────────────────────────────────────────
 function useNotificationSound() {
@@ -133,17 +134,14 @@ export function ChatPage() {
     }
 
     if (residentChannel) {
+      // Resident view — Claude Design §10-chat handoff. Full-bleed kz-screen
+      // so the sticky header + composer pin correctly; the global floating
+      // BottomBar overlays the bottom and the composer reserves clearance.
       return (
-        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:max-w-2xl md:mx-auto overflow-hidden">
-          <div className="resident-chat-container bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden flex flex-col">
-            <ChatView
-              channelId={residentChannel.id}
-              channel={residentChannel}
-              onBack={() => navigate('/')}
-              hideBackOnDesktop
-            />
-          </div>
-        </div>
+        <ResidentChatView
+          channel={residentChannel}
+          onBack={() => navigate('/')}
+        />
       );
     }
 
