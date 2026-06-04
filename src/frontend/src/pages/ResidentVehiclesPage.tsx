@@ -49,35 +49,23 @@ function timeAgo(ts: number, lang: 'ru' | 'uz'): string {
   return new Date(ts).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
 }
 
-// Covered-car silhouette for the dark "Гараж" hero — ported 1:1 from the
-// Claude Design §05-transport (inline SVG, no image asset needed).
-function CoveredCarSVG() {
+// Covered-car illustration — handoff kamizo-vehicles.jsx lines 128-132
+// (`function CoveredCar`). The handoff uses the bundled
+// `kamizo-car-cover.png` (520×204, transparent bg) which we copied into
+// /public/images/. Renders as a side-profile sedan under a white cover
+// with a soft drop-shadow, sized to ~300 px wide.
+function CoveredCar() {
   return (
-    <svg viewBox="0 0 360 168" style={{ width: 296, height: 138 }}>
-      <defs>
-        <radialGradient id="kzDrapeGlow" cx="0.42" cy="0.28" r="0.75">
-          <stop offset="0" stopColor="#FFFFFF" />
-          <stop offset="0.7" stopColor="#E6E6E6" />
-          <stop offset="1" stopColor="#CFCFCF" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="182" cy="150" rx="166" ry="11" fill="rgba(0,0,0,0.55)" />
-      <path fill="url(#kzDrapeGlow)" d="M14 150 C8 132 12 116 28 110 L74 96 C86 70 108 56 136 51 C156 48 180 47 202 50 C236 55 262 70 280 92 L322 104 C342 110 350 126 346 146 C345 150 341 151 338 150 L300 150 C292 150 286 150 280 150 L86 150 C70 150 30 150 14 150 Z" />
-      <path fill="#FFFFFF" opacity="0.7" d="M96 78 C118 58 146 50 176 51 C160 70 124 84 88 96 C90 88 92 82 96 78 Z" />
-      <path fill="#FFFFFF" opacity="0.4" d="M30 116 C48 106 68 101 88 100 C72 110 50 118 30 124 Z" />
-      <g stroke="#C2C2C2" strokeWidth="2.4" fill="none" opacity="0.65" strokeLinecap="round">
-        <path d="M118 92 C122 112 120 132 118 148" />
-        <path d="M186 84 C188 108 188 130 188 148" />
-        <path d="M256 102 C262 122 264 136 262 148" />
-        <path d="M60 116 C58 130 56 140 54 148" />
-        <path d="M312 116 C316 130 318 140 320 148" />
-      </g>
-      <g stroke="#FFFFFF" strokeWidth="1.6" fill="none" opacity="0.55" strokeLinecap="round">
-        <path d="M152 84 C154 106 154 128 154 148" />
-        <path d="M222 90 C226 112 228 132 226 148" />
-      </g>
-      <path fill="#B9B9B9" opacity="0.5" d="M20 146 C120 152 260 152 340 146 L340 150 L20 150 Z" />
-    </svg>
+    <img
+      src="/images/kamizo-car-cover.png"
+      alt="Авто под чехлом"
+      style={{
+        width: 300,
+        height: 'auto',
+        display: 'block',
+        filter: 'drop-shadow(0 14px 26px rgba(0,0,0,0.45))',
+      }}
+    />
   );
 }
 
@@ -355,7 +343,17 @@ export function ResidentVehiclesPage() {
         return (
           <div
             className="relative overflow-hidden text-white"
-            style={{ background: 'radial-gradient(110% 80% at 80% 0%, rgba(217,119,6,0.22) 0%, transparent 55%), linear-gradient(180deg, #1C1917 0%, #0C0A09 100%)', paddingTop: 'calc(14px + env(safe-area-inset-top))' }}
+            style={{
+              background: 'radial-gradient(110% 80% at 80% 0%, rgba(217,119,6,0.22) 0%, transparent 55%), linear-gradient(180deg, #1C1917 0%, #0C0A09 100%)',
+              paddingTop: 'calc(14px + env(safe-area-inset-top))',
+              // Full-bleed: force the hero to the viewport edges regardless of
+              // any horizontal padding/margin on parent .page-content /
+              // .main-content / ResidentVehiclesPage wrappers. Same pattern
+              // ResidentHomeDesign.kz-screen uses.
+              width: '100vw',
+              marginLeft: 'calc(50% - 50vw)',
+              marginRight: 'calc(50% - 50vw)',
+            }}
           >
             {/* top bar */}
             <div className="relative px-4 pb-2 flex items-center justify-between">
@@ -386,7 +384,7 @@ export function ResidentVehiclesPage() {
             {activeTab === 'my_vehicles' && primaryVehicle && pp && (
               <div className="relative px-[22px] pb-[18px]">
                 <div className="flex flex-col items-center">
-                  <CoveredCarSVG />
+                  <CoveredCar />
                 </div>
                 <div className="relative mt-2.5">
                   <div className="text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5" style={{ color: '#FB923C' }}>
@@ -419,7 +417,7 @@ export function ResidentVehiclesPage() {
             {/* garage tab, empty */}
             {activeTab === 'my_vehicles' && !primaryVehicle && (
               <div className="relative px-[22px] pb-[18px] flex flex-col items-center">
-                <CoveredCarSVG />
+                <CoveredCar />
                 <button onClick={() => handleOpenModal()} className="mt-4 px-10 py-3.5 rounded-[16px] text-white text-[16px] font-bold inline-flex items-center gap-2" style={{ background: 'var(--brand, #F97316)', boxShadow: '0 8px 22px rgba(249,115,22,0.4)' }}>
                   <Plus className="w-5 h-5" strokeWidth={2.6} /> {language === 'ru' ? 'Добавить авто' : 'Avto qo\'shish'}
                 </button>
