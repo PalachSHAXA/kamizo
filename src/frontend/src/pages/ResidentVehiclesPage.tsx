@@ -49,37 +49,11 @@ function timeAgo(ts: number, lang: 'ru' | 'uz'): string {
   return new Date(ts).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
 }
 
-// Covered-car silhouette for the dark "Гараж" hero — ported 1:1 from the
-// Claude Design §05-transport (inline SVG, no image asset needed).
-function CoveredCarSVG() {
-  return (
-    <svg viewBox="0 0 360 168" style={{ width: 296, height: 138 }}>
-      <defs>
-        <radialGradient id="kzDrapeGlow" cx="0.42" cy="0.28" r="0.75">
-          <stop offset="0" stopColor="#FFFFFF" />
-          <stop offset="0.7" stopColor="#E6E6E6" />
-          <stop offset="1" stopColor="#CFCFCF" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="182" cy="150" rx="166" ry="11" fill="rgba(0,0,0,0.55)" />
-      <path fill="url(#kzDrapeGlow)" d="M14 150 C8 132 12 116 28 110 L74 96 C86 70 108 56 136 51 C156 48 180 47 202 50 C236 55 262 70 280 92 L322 104 C342 110 350 126 346 146 C345 150 341 151 338 150 L300 150 C292 150 286 150 280 150 L86 150 C70 150 30 150 14 150 Z" />
-      <path fill="#FFFFFF" opacity="0.7" d="M96 78 C118 58 146 50 176 51 C160 70 124 84 88 96 C90 88 92 82 96 78 Z" />
-      <path fill="#FFFFFF" opacity="0.4" d="M30 116 C48 106 68 101 88 100 C72 110 50 118 30 124 Z" />
-      <g stroke="#C2C2C2" strokeWidth="2.4" fill="none" opacity="0.65" strokeLinecap="round">
-        <path d="M118 92 C122 112 120 132 118 148" />
-        <path d="M186 84 C188 108 188 130 188 148" />
-        <path d="M256 102 C262 122 264 136 262 148" />
-        <path d="M60 116 C58 130 56 140 54 148" />
-        <path d="M312 116 C316 130 318 140 320 148" />
-      </g>
-      <g stroke="#FFFFFF" strokeWidth="1.6" fill="none" opacity="0.55" strokeLinecap="round">
-        <path d="M152 84 C154 106 154 128 154 148" />
-        <path d="M222 90 C226 112 228 132 226 148" />
-      </g>
-      <path fill="#B9B9B9" opacity="0.5" d="M20 146 C120 152 260 152 340 146 L340 150 L20 150 Z" />
-    </svg>
-  );
-}
+// Note: a previous PlateBig component (with brand-colored digit highlight)
+// was used by the dark vehicles hero. The hero is now a light card and we
+// render the plate via formatPlateDisplay directly, so PlateBig is removed.
+// If we re-introduce a colored plate hero, restore it from git history.
+
 
 export function ResidentVehiclesPage() {
   const { user } = useAuthStore();
@@ -344,94 +318,69 @@ export function ResidentVehiclesPage() {
   };
 
   return (
-    <div className="pb-24 md:pb-0">
-      {/* Dark "Гараж" hero — 1:1 port of Claude Design §05-transport.
-          Covered-car silhouette + big primary plate + brand/model + parking
-          status, with a Гараж/Поиск toggle. Wired to the real primary
-          vehicle. The global MobileHeader is hidden for residents on
-          /vehicles (see Layout) so this dark hero owns the top. */}
-      {(() => {
-        const pp = primaryVehicle ? parsePlateNumber(primaryVehicle.plateNumber, 'individual') : null;
-        return (
-          <div
-            className="relative overflow-hidden text-white"
-            style={{ background: 'radial-gradient(110% 80% at 80% 0%, rgba(217,119,6,0.22) 0%, transparent 55%), linear-gradient(180deg, #1C1917 0%, #0C0A09 100%)', paddingTop: 'calc(14px + env(safe-area-inset-top))' }}
-          >
-            {/* top bar */}
-            <div className="relative px-4 pb-2 flex items-center justify-between">
-              <button onClick={() => window.dispatchEvent(new Event('open-sidebar'))} aria-label="Меню" className="w-10 h-10 rounded-[12px] grid place-items-center" style={{ background: 'rgba(250,250,249,0.08)', border: '1px solid rgba(250,250,249,0.1)' }}>
-                <svg width="20" height="14" viewBox="0 0 20 14"><rect y="0" width="20" height="2.5" rx="1.25" fill="#FB923C"/><rect y="5.75" width="14" height="2.5" rx="1.25" fill="#FB923C"/><rect y="11.5" width="20" height="2.5" rx="1.25" fill="#FB923C"/></svg>
-              </button>
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: 'rgba(250,250,249,0.5)' }}>{garageLabel}</div>
-              <div className="w-10 h-10" />
+    <div className="space-y-4 md:space-y-5 pb-24 md:pb-0">
+      {/* Light header — matches the rest of the resident UI. Replaces the
+          dark hero + tab switcher. The page now has a single search bar
+          (tapping it routes to the search section) and "Add" button up top;
+          the activeTab state below reacts to whether the search input is
+          empty or filled, no more visible tab pills. */}
+      <div className="px-3 md:px-0 space-y-3">
+        {/* Sprint 38: brand-orange avatar + title + subtitle, matching
+            the Chat / Announcements / Meetings / Requests pattern. The
+            single-line garage label became the proper subtitle slot. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+              <Car className="w-5 h-5 text-white" />
             </div>
-
-            {/* garage tab: primary car hero */}
-            {activeTab === 'my_vehicles' && primaryVehicle && pp && (
-              <div className="relative px-[22px] pb-[18px]">
-                <div className="flex flex-col items-center">
-                  <CoveredCarSVG />
-                </div>
-                <div className="relative mt-2.5">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.14em] mb-2.5" style={{ color: '#FB923C' }}>
-                    {language === 'ru' ? 'Основной автомобиль' : 'Asosiy avtomobil'}
-                  </div>
-                  <div className="flex items-baseline gap-2.5" style={{ fontFamily: 'var(--font-num, "Inter Tight", monospace)', fontSize: 40, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1 }}>
-                    <span style={{ opacity: 0.5, fontSize: 22, fontWeight: 700, letterSpacing: '0.04em', alignSelf: 'center' }}>{pp.region}</span>
-                    <span style={{ color: '#FB923C' }}>{pp.letters1}</span>
-                    <span>{pp.digits}</span>
-                    <span style={{ color: '#FB923C' }}>{pp.letters2}</span>
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-3.5 whitespace-nowrap">
-                    <span className="text-[20px] font-bold tracking-tight">{primaryVehicle.brand} {primaryVehicle.model}</span>
-                    <span className="text-[13px]" style={{ color: 'rgba(250,250,249,0.5)' }}>{[primaryVehicle.year, primaryVehicle.color].filter(Boolean).join(' · ')}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* garage tab, empty */}
-            {activeTab === 'my_vehicles' && !primaryVehicle && (
-              <div className="relative px-[22px] pb-[18px] flex flex-col items-center">
-                <CoveredCarSVG />
-                <button onClick={() => handleOpenModal()} className="mt-4 px-10 py-3.5 rounded-[16px] text-white text-[16px] font-bold inline-flex items-center gap-2" style={{ background: 'var(--brand, #F97316)', boxShadow: '0 8px 22px rgba(249,115,22,0.4)' }}>
-                  <Plus className="w-5 h-5" strokeWidth={2.6} /> {language === 'ru' ? 'Добавить авто' : 'Avto qo\'shish'}
-                </button>
-                <div className="mt-3 text-[12.5px]" style={{ color: 'rgba(250,250,249,0.5)' }}>{language === 'ru' ? 'В гараже пока пусто' : 'Garaj hozircha bo\'sh'}</div>
-              </div>
-            )}
-
-            {/* search tab heading */}
-            {activeTab === 'search' && (
-              <div className="relative px-[22px] pt-3 pb-5">
-                <div className="text-[11px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: '#FB923C' }}>{language === 'ru' ? 'Найти владельца' : 'Egasini topish'}</div>
-                <div className="text-[24px] font-bold tracking-tight" style={{ maxWidth: 280 }}>{language === 'ru' ? 'Чьё это авто во дворе?' : 'Hovlidagi avto kimniki?'}</div>
-                <div className="text-[13px] mt-1.5" style={{ color: 'rgba(250,250,249,0.55)', maxWidth: 290 }}>{language === 'ru' ? 'Введите номер — найдём соседа среди жителей дома.' : 'Raqamni kiriting — uy aholisi orasidan topamiz.'}</div>
-              </div>
-            )}
-
-            {/* toggle capsule */}
-            <div className="relative mx-4 p-1 grid grid-cols-2 rounded-full" style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(250,250,249,0.08)' }}>
-              <button onClick={() => setActiveTab('my_vehicles')} className="py-[11px] px-3 rounded-full border-none cursor-pointer flex items-center justify-center gap-2 text-[13.5px] font-bold" style={activeTab === 'my_vehicles' ? { background: '#FAFAF9', color: '#1C1917' } : { background: 'transparent', color: 'rgba(250,250,249,0.7)' }}>
-                {language === 'ru' ? 'Мой гараж' : 'Garajim'}
-                <span className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-extrabold grid place-items-center" style={activeTab === 'my_vehicles' ? { background: '#1C1917', color: '#FB923C' } : { background: 'rgba(250,250,249,0.15)', color: 'rgba(250,250,249,0.7)' }}>{vehicles.length}</span>
-              </button>
-              <button onClick={() => setActiveTab('search')} className="py-[11px] px-3 rounded-full border-none cursor-pointer flex items-center justify-center gap-1.5 text-[13.5px] font-bold" style={activeTab === 'search' ? { background: '#FB923C', color: '#1C1917' } : { background: 'transparent', color: 'rgba(250,250,249,0.7)' }}>
-                <Search className="w-[14px] h-[14px]" strokeWidth={2.4} /> {language === 'ru' ? 'Поиск' : 'Qidiruv'}
-              </button>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-gray-900 leading-tight truncate">
+                {language === 'ru' ? 'Авто' : 'Avto'}
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                {garageLabel}
+              </p>
             </div>
-
-            {/* curve into light body */}
-            <div className="mt-[18px]" style={{ height: 24, background: 'var(--app-bg, #F4F0E8)', borderRadius: '24px 24px 0 0' }} />
           </div>
-        );
-      })()}
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-1.5 h-10 px-3.5 rounded-full text-[13px] font-bold text-white bg-gradient-to-br from-[#E8621A] to-[#F59E0B] active:scale-[0.97] transition-transform touch-manipulation shrink-0 shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            {language === 'ru' ? 'Добавить' : "Qo'shish"}
+          </button>
+        </div>
 
-      {/* My Vehicles Tab — body only when there ARE cars; the empty state is
-          owned by the dark hero above (covered car + "Добавить авто"), so we
-          don't render a second "Нет зарегистрированных авто" block here. */}
-      {activeTab === 'my_vehicles' && vehicles.length > 0 && (
-        <div className="space-y-3 px-3 md:px-0 pt-4">
+        {/* Top search bar — taps in to bring up the segmented plate input
+            below in the search section. Clear button returns to the
+            my-vehicles section. */}
+        <button
+          onClick={() => setActiveTab('search')}
+          className="w-full flex items-center gap-3 px-4 py-3 min-h-[52px] rounded-[16px] bg-white border border-gray-200 active:bg-gray-50 transition-colors touch-manipulation text-left shadow-[0_2px_8px_rgba(0,0,0,0.03)]"
+          aria-label={language === 'ru' ? 'Найти авто соседа' : "Qo'shni avtomobilini topish"}
+        >
+          <div
+            className="w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0"
+            style={{ background: 'rgba(var(--brand-rgb), 0.10)', color: 'rgb(var(--brand-rgb))' }}
+            aria-hidden="true"
+          >
+            <Search className="w-[16px] h-[16px]" strokeWidth={2.4} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold text-gray-700 truncate">
+              {language === 'ru' ? 'Найти авто по номеру' : "Avtoni raqam bo'yicha topish"}
+            </div>
+            <div className="text-[11px] text-gray-400 truncate">
+              {language === 'ru' ? 'Кто загородил выезд во дворе?' : "Hovlida chiqishni kim to'sib qo'ydi?"}
+            </div>
+          </div>
+        </button>
+
+      </div>
+
+      {/* My Vehicles Tab */}
+      {activeTab === 'my_vehicles' && (
+        <div className="space-y-3 px-3 md:px-0">
           {/* Section header */}
           <div className="flex items-end justify-between px-1">
             <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
@@ -563,7 +512,7 @@ export function ResidentVehiclesPage() {
 
       {/* Search Tab */}
       {activeTab === 'search' && (
-        <div className="space-y-3 px-3 md:px-0 pt-4">
+        <div className="space-y-3 px-3 md:px-0">
           {/* Audit P0: residents who tapped into search had no visible way back
               to "Мой гараж". They had to clear the input or use the drawer.
               Now: a dedicated "← К моим авто" pill above the search card. */}

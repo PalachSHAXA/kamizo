@@ -352,16 +352,12 @@ export function Layout() {
   const isResidentHome = user?.role === 'resident'
     && location.pathname === '/'
     && !location.search.includes('tab=requests');
-  // Resident vehicles also renders a full-screen Claude-Design §05 dark "Гараж"
-  // hero with its own top bar — hide the global header + go full-bleed there too.
-  const isResidentVehicles = user?.role === 'resident' && location.pathname === '/vehicles';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
   // channel info + actions), so we drop the generic mobile header there.
   const showMobileHeader = !isSuperAdmin
-    && !isResidentFullBleed
+    && !isResidentHome
     && location.pathname !== '/marketplace'
     && location.pathname !== '/profile'
     && location.pathname !== '/chat';
@@ -422,7 +418,7 @@ export function Layout() {
           <Header />
         </div>
 
-        <main id="main-content" role="main" className={isResidentFullBleed ? 'page-content' : 'px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content'}>
+        <main id="main-content" role="main" className={isResidentHome ? 'page-content' : 'px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content'}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={getDashboard()} />
