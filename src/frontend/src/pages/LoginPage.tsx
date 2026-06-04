@@ -318,6 +318,59 @@ export function LoginPage() {
           {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'} · Kamizo CRM
         </p>
 
+        {/* DEV bypass — visible only when running under `vite` (import.meta.env.DEV).
+            Stuffs a fake resident user + token directly into the zustand-persist
+            localStorage key so the app considers itself logged in and renders the
+            resident UI without an API round-trip. API calls will fail (token is
+            fake) so data lists are empty, but UI / layouts render fully — enough
+            to preview screens like /vehicles, /, /chat. Gone from production
+            bundles automatically via tree-shaking. */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 pt-6 border-t border-dashed border-amber-300">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 text-center mb-2">
+              DEV preview · только локально
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'dev-resident-farhod', name: 'Фарход (DEV)', login: 'dev-farhod', apt: '45', area: 65, route: '/vehicles' },
+                { id: 'dev-resident-aziza',  name: 'Aziza (DEV)',  login: 'dev-aziza',  apt: '12', area: 58, route: '/' },
+              ].map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => {
+                    const fakeUser = {
+                      id: u.id,
+                      login: u.login,
+                      phone: '+998 90 000 00 00',
+                      name: u.name,
+                      role: 'resident',
+                      address: 'ул. Навои, 25',
+                      apartment: u.apt,
+                      buildingId: 'dev-building-1',
+                      totalArea: u.area,
+                    };
+                    const fakeToken = 'dev-bypass-token-' + u.id;
+                    localStorage.setItem('uk-auth-storage', JSON.stringify({
+                      state: { user: fakeUser, token: fakeToken },
+                      version: 4,
+                    }));
+                    localStorage.setItem('auth_token', fakeToken);
+                    window.location.assign(u.route);
+                  }}
+                  className="px-3 py-2.5 rounded-xl text-[12px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 active:scale-[0.98] transition-all border border-amber-200 text-left leading-tight"
+                >
+                  {u.name}
+                  <span className="block text-[10px] font-normal text-amber-700 mt-0.5">→ {u.route}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-[10.5px] text-amber-700/70 text-center mt-2 leading-tight">
+              API запросы упадут (фейковый токен), но UI отрисуется. Хватит для preview визуала.
+            </p>
+          </div>
+        )}
+
         {/* Demo Accounts Section - only on demo tenants (is_demo flag) */}
         {tenant?.is_demo && (
           <div className="mt-6 pt-6 border-t border-gray-200">

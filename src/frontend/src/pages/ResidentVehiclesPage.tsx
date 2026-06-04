@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home, MoreHorizontal } from 'lucide-react';
+import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home, MoreHorizontal, Bell, Info } from 'lucide-react';
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -363,7 +363,23 @@ export function ResidentVehiclesPage() {
                 <svg width="20" height="14" viewBox="0 0 20 14"><rect y="0" width="20" height="2.5" rx="1.25" fill="#FB923C"/><rect y="5.75" width="14" height="2.5" rx="1.25" fill="#FB923C"/><rect y="11.5" width="20" height="2.5" rx="1.25" fill="#FB923C"/></svg>
               </button>
               <div className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: 'rgba(250,250,249,0.5)' }}>{garageLabel}</div>
-              <div className="w-10 h-10" />
+              {/* Bell — matches handoff (kamizo-vehicles.jsx lines 308-315):
+                  40x40 dark-glass tile + 8px orange dot at top-right. Routes
+                  to the resident announcements stream, which is where the
+                  global home bell also goes. */}
+              <button
+                onClick={() => window.location.assign('/announcements')}
+                aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
+                className="relative w-10 h-10 rounded-[12px] grid place-items-center text-white"
+                style={{ background: 'rgba(250,250,249,0.08)', border: '1px solid rgba(250,250,249,0.1)' }}
+              >
+                <Bell className="w-[19px] h-[19px]" strokeWidth={1.8} />
+                <span
+                  aria-hidden
+                  className="absolute"
+                  style={{ top: 5, right: 5, width: 8, height: 8, borderRadius: 999, background: '#FB923C', border: '1.5px solid #1C1917' }}
+                />
+              </button>
             </div>
 
             {/* garage tab: primary car hero */}
@@ -385,6 +401,16 @@ export function ResidentVehiclesPage() {
                   <div className="flex items-baseline gap-2 mt-3.5 whitespace-nowrap">
                     <span className="text-[20px] font-bold tracking-tight">{primaryVehicle.brand} {primaryVehicle.model}</span>
                     <span className="text-[13px]" style={{ color: 'rgba(250,250,249,0.5)' }}>{[primaryVehicle.year, primaryVehicle.color].filter(Boolean).join(' · ')}</span>
+                  </div>
+                  {/* Parking status row — handoff lines 331-334. Green dot +
+                      "На парковке" with the parking-spot suffix when we have
+                      one. We don't track a true last-seen timestamp, so the
+                      mock "сегодня, 09:14" from the design is replaced with
+                      the parking-spot label which is real data. */}
+                  <div className="inline-flex items-center gap-1.5 mt-2 text-[12px]" style={{ color: 'rgba(250,250,249,0.55)' }}>
+                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: '#22C55E' }} />
+                    {language === 'ru' ? 'На парковке' : 'Avtoturargohda'}
+                    {primaryVehicle.parkingSpot && <> · {language === 'ru' ? 'место' : 'joy'} {primaryVehicle.parkingSpot}</>}
                   </div>
                 </div>
               </div>
@@ -467,21 +493,27 @@ export function ResidentVehiclesPage() {
                 const isPrimary = primaryVehicle?.id === vehicle.id;
                 const formatted = formatPlateDisplay(vehicle.plateNumber);
                 return (
-                  <div key={vehicle.id} className="bg-white rounded-[16px] p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] relative">
-                    {/* Plate display block — black border like the design */}
+                  <div key={vehicle.id} className="rounded-[18px] p-[14px] relative" style={{ background: '#FFFFFF', border: '1px solid var(--border-c, #E6DFD2)', boxShadow: '0 4px 14px rgba(28,25,23,0.06)' }}>
+                    {/* Plate ribbon — handoff lines 452-477: light gradient,
+                        1.5 px ink border, 10 px radius, Inter Tight font,
+                        22/800 with 6 % tracking, ink color. */}
                     <button
                       onClick={() => handleOpenModal(vehicle)}
                       className="w-full text-left active:scale-[0.99] transition-transform touch-manipulation"
                     >
-                      <div className="flex items-stretch border-2 border-gray-900 rounded-[10px] overflow-hidden">
-                        <div className="flex-1 px-3 py-2.5 flex items-center justify-center">
-                          <span className="font-mono tracking-wider text-[20px] sm:text-[22px] font-extrabold text-gray-900 tabular-nums">
-                            {formatted}
-                          </span>
+                      <div
+                        className="flex items-stretch overflow-hidden"
+                        style={{ background: 'linear-gradient(180deg, #FAFAF9 0%, #F5F5F4 100%)', border: '1.5px solid #1C1917', borderRadius: 10 }}
+                      >
+                        <div
+                          className="flex-1 flex items-center justify-center"
+                          style={{ padding: '10px 12px', fontFamily: 'var(--font-num, "Inter Tight", monospace)', fontSize: 22, fontWeight: 800, letterSpacing: '0.06em', color: '#1C1917' }}
+                        >
+                          {formatted}
                         </div>
-                        <div className="flex flex-col items-center justify-center px-2 border-l-2 border-gray-900 bg-white">
-                          <UZFlag className="w-7 h-4" />
-                          <span className="text-[8px] font-bold text-gray-700 leading-none mt-0.5">UZ</span>
+                        <div className="flex flex-col items-center justify-center px-2" style={{ borderLeft: '1.5px solid #1C1917', background: '#FFFFFF' }}>
+                          <UZFlag className="w-[22px] h-4" />
+                          <span style={{ fontSize: 9, fontWeight: 800, color: '#1C1917', lineHeight: 1, marginTop: 1 }}>UZ</span>
                         </div>
                       </div>
                     </button>
@@ -833,14 +865,20 @@ export function ResidentVehiclesPage() {
             </div>
           )}
 
-          {/* Static disclaimer — kept visible so residents understand the
-              search scope (only their tenant, not city-wide). */}
+          {/* Static disclaimer — handoff lines 581-594. Orange-amber treatment
+              (amber-50 bg + amber-200 border + amber-800 text) over a 14 px
+              radius card, with a 28x28 white ℹ tile on the left at amber-700. */}
           <div
-            className="rounded-[14px] p-3 flex items-start gap-2.5 border"
-            style={{ background: '#FFF9E6', borderColor: '#FDE68A' }}
+            className="rounded-[14px] flex items-start gap-2.5 border"
+            style={{ background: 'var(--amber-50, #FFF3EA)', borderColor: 'var(--amber-200, #FED7AA)', padding: '12px 14px' }}
           >
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#B45309' }} />
-            <div className="text-[12px] leading-snug" style={{ color: '#92400E' }}>
+            <div
+              className="grid place-items-center shrink-0"
+              style={{ width: 28, height: 28, borderRadius: 8, background: '#FFFFFF', color: 'var(--amber-700, #C2410C)' }}
+            >
+              <Info className="w-3.5 h-3.5" />
+            </div>
+            <div className="text-[12px] leading-[1.45]" style={{ color: 'var(--amber-800, #9A3412)' }}>
               {language === 'ru'
                 ? 'Поиск работает только среди машин жителей. Если авто не найдено — обратитесь на пост охраны.'
                 : 'Qidiruv faqat aholilar avtomobillari orasida ishlaydi. Agar topilmasa, qo\'riqchi postiga murojaat qiling.'}
