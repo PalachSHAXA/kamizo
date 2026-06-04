@@ -270,3 +270,11 @@ cd src/frontend && npx tsc --noEmit
 - Every deploy must correspond to a pushed commit, so nothing lives only in the local working directory.
 - If there are uncommitted changes at the start of a task, commit them first before doing anything else.
 
+## Loss prevention (MANDATORY)
+- pull.rebase is set to false (merge, never rebase) to avoid dropping commits.
+- Before ANY git pull, git rebase, git reset, or wrangler deploy, FIRST run:
+  git branch backup/$(date +%Y%m%d-%H%M%S)
+- NEVER use git reset --hard or git push --force on main.
+- After every change: git add -A && git commit -m "..." && git push.
+- Every wrangler deploy must be preceded by a committed + pushed state.
+
