@@ -74,6 +74,19 @@ export function ResidentChatView({ channel, onBack }: Props) {
     return () => clearInterval(t);
   }, [fetchMessages]);
 
+  // Override the global theme-color (which is brown to match the Home
+  // hero) with the chat surface colour so the iOS PWA status-bar zone
+  // paints light over this screen instead of leaving a brown strip
+  // above the light header. Restored on unmount so Home goes back to
+  // brown automatically.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!meta) return;
+    const prev = meta.getAttribute('content') || '#FAFAF9';
+    meta.setAttribute('content', '#FAFAF9');
+    return () => { meta.setAttribute('content', prev); };
+  }, []);
+
   // Scroll the message list to the bottom when a new message arrives or
   // when the user sends one. Skip the scroll if the user has scrolled up
   // > 200 px (they're reading history) so we don't yank them around.
@@ -170,10 +183,11 @@ export function ResidentChatView({ channel, onBack }: Props) {
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div
         style={{
-          position: 'sticky',
-          top: 0,
+          // Locked at the top of the flex column. The parent kz-screen
+          // has overflow:hidden, only the messages region scrolls — so
+          // the header never moves with the message list.
+          flex: '0 0 auto',
           zIndex: 5,
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)',
           padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 12px',
           background: 'rgba(250,250,249,0.95)',
           backdropFilter: 'blur(14px)',
@@ -255,6 +269,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
           type="button"
           onClick={() => navigate('/?tab=requests')}
           style={{
+            flex: '0 0 auto',
             margin: '10px 16px 4px',
             padding: '10px 12px',
             background: 'rgba(255,243,234,1)', // --amber-50
@@ -306,9 +321,14 @@ export function ResidentChatView({ channel, onBack }: Props) {
       <div
         ref={listRef}
         style={{
-          flex: 1, overflowY: 'auto',
+          flex: 1,
+          // Vertical scroll only. The horizontal axis is locked so that
+          // pathological content (the long base64-encoded data URI a
+          // tester pasted) cannot push the chat sideways.
+          overflowY: 'auto', overflowX: 'hidden',
           padding: '12px 16px 8px',
           display: 'flex', flexDirection: 'column', gap: 8,
+          minWidth: 0,
         }}
       >
         {rows.map((row) => {
@@ -353,6 +373,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
               <div
                 style={{
                   maxWidth: '78%',
+                  minWidth: 0,
                   display: 'flex', flexDirection: 'column',
                   alignItems: me ? 'flex-end' : 'flex-start',
                 }}
@@ -371,7 +392,13 @@ export function ResidentChatView({ channel, onBack }: Props) {
                       ? '0 4px 10px -2px rgba(217,119,6,0.3)'
                       : '0 4px 14px rgba(28,25,23,0.06)',
                     whiteSpace: 'pre-wrap',
+                    // overflowWrap:anywhere breaks inside an unbroken token
+                    // (a long base64 data URI, a giant URL). wordBreak fallback
+                    // for the same reason — together they guarantee no
+                    // single character pushes the bubble past maxWidth.
+                    overflowWrap: 'anywhere',
                     wordBreak: 'break-word',
+                    maxWidth: '100%',
                   }}
                 >
                   {m.content}
@@ -430,10 +457,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
       <div
         style={{
           flex: '0 0 auto',
-          // Handoff uses padding-bottom: 28 here. We replace 28 with the
-          // safe-area + global BottomBar clearance so the input sits ABOVE
-          // the floating pill and clears the iOS home indicator.
-          padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 88px)',
+          // BottomBar is hidden on /chat, so the composer no longer
+          // reserves the pill's clearance. Only env(safe-area-inset-bottom)
+          // remains so the input rail clears the iOS home indicator.
+          padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 10px)',
           background: 'rgba(250,250,249,0.95)',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
