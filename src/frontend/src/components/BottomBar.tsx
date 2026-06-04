@@ -59,11 +59,12 @@ export function BottomBar() {
 
   if (role === 'super_admin') return null;
 
-  // /chat for direct-chat roles (resident / tenant / commercial_owner) opens
-  // straight into the UK thread, which has its own back-arrow header. An
-  // extra bottom bar there steals vertical space and feels boxed.
-  const isDirectChatRole = role === 'resident' || role === 'tenant' || role === 'commercial_owner';
-  if (location.pathname === '/chat' && isDirectChatRole) return null;
+  // NOTE: previous releases hid the bar on /chat for direct-chat roles
+  // (resident / tenant / commercial_owner). The §10-chat handoff requires
+  // the same shared app shell on every page — the global pill must stay
+  // visible on /chat too. ResidentChatView's composer reserves
+  // calc(env(safe-area-inset-bottom, 0px) + 88px) of bottom padding so the
+  // input rail sits above the pill and clears the iOS home indicator.
 
   // Hide while any sheet/modal is open — prevents the pill from peeking
   // under the sheet's primary action.
