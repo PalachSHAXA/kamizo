@@ -7,17 +7,35 @@
  * visual layer matches the handoff verbatim without inheriting any older
  * Tailwind treatments from ChatView.
  *
- * Layout / shell contract
- * -----------------------
- *   • The screen is full-bleed inside the global Layout's main area on
- *     /chat. The global floating-pill BottomBar (src/components/BottomBar)
- *     stays VISIBLE — the chat is the same app shell as Home / Vehicles.
- *   • The composer reserves bottom padding equal to the BottomBar height +
- *     env(safe-area-inset-bottom) so the input rail sits above the pill
- *     and above the iOS home indicator.
+ * Layout / shell contract — TRULY fixed header + composer
+ * --------------------------------------------------------
+ *   • The header (back / avatar / title / active-request chip) and the
+ *     composer (quick replies + input row) are PORTALED into document.body
+ *     and pinned with position:fixed. They cannot move on scroll because
+ *     they live outside the page's scroll container — any iOS PWA quirk
+ *     with overflow:hidden + sticky / overscroll bounce on flex columns
+ *     no longer affects them.
+ *   • The kz-screen wrapper is `position:fixed; inset:0; overflow:hidden;
+ *     overscroll-behavior:none` — the whole page is locked. The ONE
+ *     element that scrolls is the inner messages list, with
+ *     `overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:
+ *     touch; overscroll-behavior:contain`.
+ *   • Messages list padding-top / padding-bottom are sized dynamically
+ *     from the measured heights of the portaled header and composer
+ *     (ResizeObserver), so the first and last bubble always clear the
+ *     fixed bars even when the active-request chip is missing or when
+ *     the keyboard rises (iOS dvh adapts and the composer follows).
+ *   • Header padding-top folds env(safe-area-inset-top); composer
+ *     padding-bottom folds env(safe-area-inset-bottom). On iOS PWA the
+ *     fixed elements pin to the visual viewport so the keyboard
+ *     correctly pushes the composer above it.
+ *   • Theme-color is swapped to the chat surface (#FAFAF9) on mount so
+ *     the iOS PWA status-bar zone paints light, then restored on
+ *     unmount.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Camera, ChevronRight, FileText, MapPin, Phone, Plus, Send } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, Camera, ChevronRight, MapPin, Plus, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { chatApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -30,14 +48,13 @@ interface Props {
   onBack?: () => void;
 }
 
-// Map raw chat messages into the renderer's row schema. Each row is either
-// a date separator or a real message. The handoff also has typing/photo/
-// attached-request rows; we keep the renderer prepared for them so that
-// when backend ships structured payloads we only update the parser, not
-// the JSX.
 type Row =
   | { kind: 'date'; key: string; label: string }
   | { kind: 'msg'; msg: ChatMessage };
+
+// Max bytes per attached file. Above this we warn and skip — large
+// data URLs break HTTP POST limits on the API in front of D1.
+const MAX_ATTACH_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export function ResidentChatView({ channel, onBack }: Props) {
   const navigate = useNavigate();
@@ -51,8 +68,18 @@ export function ResidentChatView({ channel, onBack }: Props) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Resolve the active-request chip (most recent non-cancelled). The chip
-  // is the resident's quick handle on the request they're discussing.
+  // Fixed-bar refs + measured heights drive the scroll-area padding so
+  // first/last bubbles always clear the fixed header and composer.
+  const headerElRef = useRef<HTMLDivElement | null>(null);
+  const composerElRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(140);
+  const [composerHeight, setComposerHeight] = useState(120);
+
+  // Hidden file inputs — driven by the + (any file) and 📷 (camera) buttons.
+  const attachInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Resolve the active-request chip (most recent non-cancelled).
   const activeRequest = useMemo(() => {
     return requests
       .filter(r => r.residentId === user?.id && r.status !== 'cancelled')
@@ -76,9 +103,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
 
   // Override the global theme-color (which is brown to match the Home
   // hero) with the chat surface colour so the iOS PWA status-bar zone
-  // paints light over this screen instead of leaving a brown strip
-  // above the light header. Restored on unmount so Home goes back to
-  // brown automatically.
+  // paints light over this screen. Restored on unmount.
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (!meta) return;
@@ -87,9 +112,29 @@ export function ResidentChatView({ channel, onBack }: Props) {
     return () => { meta.setAttribute('content', prev); };
   }, []);
 
-  // Scroll the message list to the bottom when a new message arrives or
-  // when the user sends one. Skip the scroll if the user has scrolled up
-  // > 200 px (they're reading history) so we don't yank them around.
+  // Measure fixed bars and re-measure on resize, content change, or the
+  // active-request chip showing/hiding. Sized via offsetHeight so
+  // env(safe-area-inset-*) paddings are included in the value.
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (headerElRef.current) setHeaderHeight(headerElRef.current.offsetHeight);
+      if (composerElRef.current) setComposerHeight(composerElRef.current.offsetHeight);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (headerElRef.current) ro.observe(headerElRef.current);
+    if (composerElRef.current) ro.observe(composerElRef.current);
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
+  }, [activeRequest, draft]);
+
+  // Scroll the message list to the bottom when a new message arrives,
+  // unless the user is reading history (>200 px above the bottom).
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -105,17 +150,61 @@ export function ResidentChatView({ channel, onBack }: Props) {
     try {
       await chatApi.sendMessage(channel.id, text);
       await fetchMessages();
-      // Force-scroll to bottom after we sent — guarantees the new bubble
-      // is visible regardless of where the user was reading.
       requestAnimationFrame(() => {
         if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
       });
     } catch {
-      setDraft(text); // restore so the user can retry
+      setDraft(text);
     } finally {
       setSending(false);
     }
   }, [channel.id, draft, fetchMessages, sending]);
+
+  // Send a batch of files through the existing chat pipeline. Each file
+  // is base64-encoded and sent as a Markdown image reference so the
+  // same backend endpoint handles attachments as text — matching the
+  // existing pattern visible in the resident's history.
+  const sendFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0 || sending) return;
+    setSending(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_ATTACH_BYTES) {
+          // eslint-disable-next-line no-console
+          console.warn(`[chat] skipping ${file.name}: ${file.size} > ${MAX_ATTACH_BYTES}`);
+          continue;
+        }
+        try {
+          const dataUrl: string = await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result as string);
+            r.onerror = () => reject(r.error);
+            r.readAsDataURL(file);
+          });
+          const content = `![${file.name}](${dataUrl})`;
+          await chatApi.sendMessage(channel.id, content);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[chat] failed to send attachment', e);
+        }
+      }
+      await fetchMessages();
+      requestAnimationFrame(() => {
+        if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+      });
+    } finally {
+      setSending(false);
+    }
+  }, [channel.id, fetchMessages, sending]);
+
+  const handleAttachClick = () => attachInputRef.current?.click();
+  const handleCameraClick = () => cameraInputRef.current?.click();
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files;
+    // Reset so the same file can be picked again next time.
+    e.target.value = '';
+    sendFiles(f);
+  };
 
   // Group messages by day, inserting separator rows.
   const rows: Row[] = useMemo(() => {
@@ -135,9 +224,6 @@ export function ResidentChatView({ channel, onBack }: Props) {
 
   const isMe = (m: ChatMessage) => m.sender_id === user?.id;
 
-  // Status text the design shows beneath "Управляющая компания". The
-  // handoff hardcodes "На связи · отвечаем до 15 мин"; the resident-side
-  // expectation in production is the same.
   const statusText = language === 'ru' ? 'На связи · отвечаем до 15 мин' : 'Aloqada · 15 daq ichida javob';
 
   const activeRequestChip = activeRequest ? {
@@ -166,45 +252,32 @@ export function ResidentChatView({ channel, onBack }: Props) {
     ? ['Спасибо!', 'Подойдёт', 'Когда?', 'Не получается']
     : ['Rahmat!', 'Bo\'ladi', 'Qachon?', 'Bo\'lmadi'];
 
-  return (
+  // -----------------------------------------------------------------
+  // Portaled fixed header (back + avatar + title + active-request chip)
+  // -----------------------------------------------------------------
+  const headerEl = (
     <div
-      className="kz-screen"
+      ref={headerElRef}
       style={{
-        // 100dvh + flex column so header sticks, messages scroll, composer
-        // pins to the bottom of the chat surface, not the viewport. The
-        // outer ChatPage wrapper already removed Layout's page padding.
-        height: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#FAFAF9',
-        overflow: 'hidden',
+        position: 'fixed',
+        top: 0, left: 0, right: 0,
+        zIndex: 200,
+        background: 'rgba(250,250,249,0.95)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
       }}
     >
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <div
-        style={{
-          // Locked at the top of the flex column. The parent kz-screen
-          // has overflow:hidden, only the messages region scrolls — so
-          // the header never moves with the message list.
-          flex: '0 0 auto',
-          zIndex: 5,
-          padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 12px',
-          background: 'rgba(250,250,249,0.95)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          borderBottom: '1px solid rgba(0,0,0,0.06)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
+      <div style={{ padding: '10px 16px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           type="button"
           onClick={onBack || (() => navigate('/'))}
           aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
           className="icon-only"
           style={{
-            width: 36, height: 36, borderRadius: 999, background: 'transparent', border: 'none',
+            width: 36, height: 36, borderRadius: 999,
+            background: 'transparent', border: 'none',
             display: 'grid', placeItems: 'center', color: '#6F6A62', cursor: 'pointer',
             minWidth: 0, minHeight: 0,
           }}
@@ -237,47 +310,26 @@ export function ResidentChatView({ channel, onBack }: Props) {
           <div style={{ fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em', color: '#1C1917' }}>
             {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'}
           </div>
-          <div
-            style={{
-              fontSize: 11.5, color: '#15A06E', fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}
-          >
+          <div style={{ fontSize: 11.5, color: '#15A06E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
             <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: '#15A06E' }} />
             {statusText}
           </div>
         </div>
-
-        <button
-          type="button"
-          aria-label={language === 'ru' ? 'Позвонить' : 'Qo\'ng\'iroq'}
-          className="icon-only"
-          style={{
-            width: 36, height: 36, borderRadius: 999,
-            background: '#FFFFFF', border: '1px solid rgba(28,25,23,0.08)',
-            display: 'grid', placeItems: 'center', color: '#6F6A62', cursor: 'pointer',
-            minWidth: 0, minHeight: 0,
-          }}
-        >
-          <Phone style={{ width: 16, height: 16 }} />
-        </button>
+        {/* Call button removed per design follow-up. */}
       </div>
 
-      {/* ── Pinned active-request chip ────────────────────────────────── */}
       {activeRequestChip && (
         <button
           type="button"
           onClick={() => navigate('/?tab=requests')}
           style={{
-            flex: '0 0 auto',
-            margin: '10px 16px 4px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            width: 'calc(100% - 32px)',
+            margin: '0 16px 10px',
             padding: '10px 12px',
-            background: 'rgba(255,243,234,1)', // --amber-50
+            background: 'rgba(255,243,234,1)',
             borderRadius: 12,
-            border: '1px solid rgba(254,215,170,1)', // --amber-200
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
+            border: '1px solid rgba(254,215,170,1)',
             textAlign: 'left',
             cursor: 'pointer',
           }}
@@ -285,148 +337,67 @@ export function ResidentChatView({ channel, onBack }: Props) {
           <div
             style={{
               width: 28, height: 28, borderRadius: 8,
-              background: 'rgba(255,230,210,1)', // --amber-100
-              color: 'rgba(194,65,12,1)', // --amber-700
+              background: 'rgba(255,230,210,1)',
+              color: 'rgba(194,65,12,1)',
               display: 'grid', placeItems: 'center', flex: '0 0 auto',
             }}
           >
             <MapPin style={{ width: 14, height: 14 }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 11.5,
-                color: 'rgba(154,52,18,1)', // --amber-800
-                fontWeight: 600,
-                letterSpacing: '0.02em',
-                textTransform: 'uppercase',
-              }}
-            >
+            <div style={{ fontSize: 11.5, color: 'rgba(154,52,18,1)', fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
               {language === 'ru' ? 'Активная заявка' : 'Faol ariza'}
             </div>
-            <div
-              style={{
-                fontSize: 13, fontWeight: 600, color: '#1C1917', letterSpacing: '-0.01em',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}
-            >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#1C1917', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeRequestChip.id} · {activeRequestChip.title} · {activeRequestChip.status}
             </div>
           </div>
           <ChevronRight style={{ width: 16, height: 16, color: 'rgba(194,65,12,1)', flex: '0 0 auto' }} />
         </button>
       )}
+    </div>
+  );
 
-      {/* ── Messages list ─────────────────────────────────────────────── */}
-      <div
-        ref={listRef}
-        style={{
-          flex: 1,
-          // Vertical scroll only. The horizontal axis is locked so that
-          // pathological content (the long base64-encoded data URI a
-          // tester pasted) cannot push the chat sideways.
-          overflowY: 'auto', overflowX: 'hidden',
-          padding: '12px 16px 8px',
-          display: 'flex', flexDirection: 'column', gap: 8,
-          minWidth: 0,
-        }}
-      >
-        {rows.map((row) => {
-          if (row.kind === 'date') {
-            return (
-              <div key={row.key} style={{ textAlign: 'center', margin: '12px 0 6px' }}>
-                <span
-                  style={{
-                    fontSize: 11, color: '#A8A29E', fontWeight: 600,
-                    letterSpacing: '0.02em',
-                    padding: '4px 10px',
-                    background: '#EDE7DB', borderRadius: 999,
-                  }}
-                >
-                  {row.label}
-                </span>
-              </div>
-            );
-          }
-          const m = row.msg;
-          const me = isMe(m);
-          return (
-            <div
-              key={m.id}
-              style={{
-                display: 'flex', alignItems: 'flex-end', gap: 8,
-                flexDirection: me ? 'row-reverse' : 'row',
-              }}
-            >
-              {!me && (
-                <div
-                  style={{
-                    width: 28, height: 28, borderRadius: 999,
-                    background: 'linear-gradient(135deg, #FB923C, #EA580C)',
-                    color: '#fff', fontWeight: 700, fontSize: 10,
-                    display: 'grid', placeItems: 'center', flex: '0 0 auto',
-                  }}
-                >
-                  УК
-                </div>
-              )}
-              <div
-                style={{
-                  maxWidth: '78%',
-                  minWidth: 0,
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: me ? 'flex-end' : 'flex-start',
-                }}
-              >
-                <div
-                  style={{
-                    background: me
-                      ? 'linear-gradient(155deg, #FB923C 0%, #EA580C 100%)'
-                      : '#FFFFFF',
-                    color: me ? '#FFFFFF' : '#1C1917',
-                    border: me ? 'none' : '1px solid rgba(28,25,23,0.08)',
-                    borderRadius: me ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                    padding: '10px 13px',
-                    fontSize: 14, lineHeight: 1.4, letterSpacing: '-0.01em',
-                    boxShadow: me
-                      ? '0 4px 10px -2px rgba(217,119,6,0.3)'
-                      : '0 4px 14px rgba(28,25,23,0.06)',
-                    whiteSpace: 'pre-wrap',
-                    // overflowWrap:anywhere breaks inside an unbroken token
-                    // (a long base64 data URI, a giant URL). wordBreak fallback
-                    // for the same reason — together they guarantee no
-                    // single character pushes the bubble past maxWidth.
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'break-word',
-                    maxWidth: '100%',
-                  }}
-                >
-                  {m.content}
-                </div>
+  // -----------------------------------------------------------------
+  // Portaled fixed composer (quick replies + attach + input + camera + send)
+  // -----------------------------------------------------------------
+  const composerEl = (
+    <div
+      ref={composerElRef}
+      style={{
+        position: 'fixed',
+        bottom: 0, left: 0, right: 0,
+        zIndex: 200,
+        background: 'rgba(250,250,249,0.95)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        borderTop: '1px solid rgba(0,0,0,0.06)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
+    >
+      {/* Hidden file inputs driven by the + and 📷 buttons. */}
+      <input
+        ref={attachInputRef}
+        type="file"
+        accept="image/*,application/pdf,.doc,.docx,.txt"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
 
-                <div
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    marginTop: 3, padding: '0 4px',
-                  }}
-                >
-                  <span style={{ fontSize: 10.5, color: '#A8A29E', fontWeight: 500 }}>
-                    {formatMessageTime(m.created_at, language)}
-                    {me && m.management_read ? (language === 'ru' ? ' · прочитано' : ' · o\'qildi') : ''}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* ── Quick replies (horizontal scroll pills) ───────────────────── */}
+      {/* Quick replies — horizontal scroll pills */}
       <div
         style={{
-          padding: '0 16px 8px',
+          padding: '8px 16px 8px',
           display: 'flex', gap: 7, overflowX: 'auto',
-          flex: '0 0 auto',
           WebkitOverflowScrolling: 'touch',
         }}
       >
@@ -453,18 +424,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
         ))}
       </div>
 
-      {/* ── Composer ──────────────────────────────────────────────────── */}
+      {/* Composer row */}
       <div
         style={{
-          flex: '0 0 auto',
-          // BottomBar is hidden on /chat, so the composer no longer
-          // reserves the pill's clearance. Only env(safe-area-inset-bottom)
-          // remains so the input rail clears the iOS home indicator.
-          padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 10px)',
-          background: 'rgba(250,250,249,0.95)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          borderTop: '1px solid rgba(0,0,0,0.06)',
+          padding: '4px 12px 10px',
           display: 'flex',
           alignItems: 'flex-end',
           gap: 8,
@@ -472,7 +435,8 @@ export function ResidentChatView({ channel, onBack }: Props) {
       >
         <button
           type="button"
-          aria-label={language === 'ru' ? 'Прикрепить' : 'Biriktirish'}
+          onClick={handleAttachClick}
+          aria-label={language === 'ru' ? 'Прикрепить файл' : 'Faylni biriktirish'}
           className="icon-only"
           style={{
             width: 38, height: 38, borderRadius: 999,
@@ -494,6 +458,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
             padding: '8px 14px',
             display: 'flex', alignItems: 'center', gap: 8,
             minHeight: 38,
+            minWidth: 0,
           }}
         >
           <input
@@ -516,6 +481,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
           />
           <button
             type="button"
+            onClick={handleCameraClick}
             aria-label={language === 'ru' ? 'Камера' : 'Kamera'}
             className="icon-only"
             style={{
@@ -553,9 +519,129 @@ export function ResidentChatView({ channel, onBack }: Props) {
       </div>
     </div>
   );
-}
 
-// FileText is referenced in the handoff for the attached-request mini-card.
-// We re-export it via a no-op so future structured-attachment work can use
-// the same icon without an extra import.
-export const __ChatAttachmentIcon = FileText;
+  // -----------------------------------------------------------------
+  // Main surface — single scrolling area between the fixed bars.
+  // -----------------------------------------------------------------
+  return (
+    <>
+      {typeof document !== 'undefined' && createPortal(headerEl, document.body)}
+      {typeof document !== 'undefined' && createPortal(composerEl, document.body)}
+      <div
+        className="kz-screen"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: '#FAFAF9',
+          overflow: 'hidden',
+          overscrollBehavior: 'none',
+        }}
+      >
+        <div
+          ref={listRef}
+          style={{
+            height: '100%',
+            overflowY: 'auto', overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            paddingTop: `${headerHeight}px`,
+            paddingBottom: `${composerHeight}px`,
+          }}
+        >
+          <div
+            style={{
+              padding: '12px 16px 8px',
+              display: 'flex', flexDirection: 'column', gap: 8,
+              minWidth: 0,
+            }}
+          >
+            {rows.map((row) => {
+              if (row.kind === 'date') {
+                return (
+                  <div key={row.key} style={{ textAlign: 'center', margin: '12px 0 6px' }}>
+                    <span
+                      style={{
+                        fontSize: 11, color: '#A8A29E', fontWeight: 600,
+                        letterSpacing: '0.02em',
+                        padding: '4px 10px',
+                        background: '#EDE7DB', borderRadius: 999,
+                      }}
+                    >
+                      {row.label}
+                    </span>
+                  </div>
+                );
+              }
+              const m = row.msg;
+              const me = isMe(m);
+              return (
+                <div
+                  key={m.id}
+                  style={{
+                    display: 'flex', alignItems: 'flex-end', gap: 8,
+                    flexDirection: me ? 'row-reverse' : 'row',
+                  }}
+                >
+                  {!me && (
+                    <div
+                      style={{
+                        width: 28, height: 28, borderRadius: 999,
+                        background: 'linear-gradient(135deg, #FB923C, #EA580C)',
+                        color: '#fff', fontWeight: 700, fontSize: 10,
+                        display: 'grid', placeItems: 'center', flex: '0 0 auto',
+                      }}
+                    >
+                      УК
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      maxWidth: '78%',
+                      minWidth: 0,
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: me ? 'flex-end' : 'flex-start',
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: me
+                          ? 'linear-gradient(155deg, #FB923C 0%, #EA580C 100%)'
+                          : '#FFFFFF',
+                        color: me ? '#FFFFFF' : '#1C1917',
+                        border: me ? 'none' : '1px solid rgba(28,25,23,0.08)',
+                        borderRadius: me ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                        padding: '10px 13px',
+                        fontSize: 14, lineHeight: 1.4, letterSpacing: '-0.01em',
+                        boxShadow: me
+                          ? '0 4px 10px -2px rgba(217,119,6,0.3)'
+                          : '0 4px 14px rgba(28,25,23,0.06)',
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'anywhere',
+                        wordBreak: 'break-word',
+                        maxWidth: '100%',
+                      }}
+                    >
+                      {m.content}
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        marginTop: 3, padding: '0 4px',
+                      }}
+                    >
+                      <span style={{ fontSize: 10.5, color: '#A8A29E', fontWeight: 500 }}>
+                        {formatMessageTime(m.created_at, language)}
+                        {me && m.management_read ? (language === 'ru' ? ' · прочитано' : ' · o\'qildi') : ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
