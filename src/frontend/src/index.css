@@ -49,6 +49,30 @@
      indicator strip so .main-content padding-bottom never undershoots
      and clips widgets on devices with a notch. */
   --bottom-bar-h: calc(64px + env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px)));
+
+  /* ── Claude Design §01 tokens (ResidentHomeDesign + kamizoDesign) ──
+     Ported from the design handoff. These were referenced by inline styles
+     in resident/design/* but never declared, so var(--text-on-dark) was
+     resolving to the inherited document color — that's why "Фарход" and
+     "Kamizo" rendered in dark grey instead of warm white over the brown
+     hero. Add them once here so every consumer reads them correctly. */
+  --surface: #FFFFFF;
+  --surface-2: #F7F8FA;
+  --dark-surface: #2A2018;
+  --border-c: rgba(28, 25, 23, 0.08);
+  --border-strong: rgba(28, 25, 23, 0.18);
+  --hairline: rgba(28, 25, 23, 0.06);
+  --shadow-sm: 0 4px 14px rgba(28, 25, 23, 0.06);
+  --shadow-md: 0 10px 28px rgba(28, 25, 23, 0.12);
+  --sh-brand: 0 8px 22px rgba(249, 115, 22, 0.35);
+  --brand-tint: rgba(249, 115, 22, 0.12);
+  --brand-50: #FFF7ED;
+  --brand-100: #FFEDD5;
+  --brand-200: #FED7AA;
+  --brand-500: #F97316;
+  --text-on-dark: #F4F0E8;
+  --text-muted: #9CA3AF;
+  --stone-300: #D6D3D1;
 }
 
 * {

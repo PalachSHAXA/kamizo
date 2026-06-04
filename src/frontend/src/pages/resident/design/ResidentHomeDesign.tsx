@@ -4,7 +4,8 @@
    wired to real data via props. Includes the design's own floating TabBar — the
    global BottomBar is hidden for residents on this screen to avoid a double nav. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   IBell, IPin, IWrench, IQR, ICard, ICar, ILock, ICheck, IClock, IChevronR,
@@ -14,50 +15,122 @@ import {
 
 const ru = (language: string, r: string, u: string) => (language === 'ru' ? r : u);
 
-function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, unread }: any) {
+// City skyline silhouette — flat dark rectangles with little window squares,
+// painted behind the hero content so it reads as a city behind the greeting
+// (LEFT mockup §01-glavnaya). Pure SVG, no extra assets to load.
+function CityBackground() {
+  const buildings: [number, number, number, number][] = [
+    [0, 70, 38, 70], [40, 50, 44, 90], [86, 80, 30, 60],
+    [118, 30, 48, 110], [168, 64, 32, 76], [202, 44, 46, 96],
+    [250, 74, 30, 66], [282, 28, 48, 112], [332, 56, 36, 84],
+    [370, 44, 30, 96],
+  ];
+  const windows: [number, number][] = [];
+  buildings.forEach(([bx, by, bw, bh]) => {
+    const cols = Math.max(2, Math.floor(bw / 10));
+    const rows = Math.max(3, Math.floor(bh / 14));
+    const cellW = 6, cellH = 6;
+    const stepX = (bw - cols * cellW) / (cols + 1);
+    for (let c = 0; c < cols; c++) {
+      for (let r = 1; r < rows; r++) {
+        const wx = bx + stepX + c * (cellW + stepX);
+        const wy = by + r * 13;
+        if (wy + cellH < by + bh - 4) windows.push([wx, wy]);
+      }
+    }
+  });
   return (
-    <div style={{ position: 'relative', background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)', borderRadius: '0 0 28px 28px', padding: '52px 18px 26px', overflow: 'hidden', color: 'var(--text-on-dark)' }}>
+    <svg
+      viewBox="0 0 400 140"
+      preserveAspectRatio="none"
+      aria-hidden
+      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: '62%', opacity: 0.42, pointerEvents: 'none' }}
+    >
+      <g fill="#000">{buildings.map(([x, y, w, h], i) => <rect key={`b${i}`} x={x} y={y} width={w} height={h} />)}</g>
+      <g fill="rgba(255, 230, 200, 0.35)">{windows.map(([x, y], i) => <rect key={`w${i}`} x={x} y={y} width={5} height={5} rx={0.5} />)}</g>
+    </svg>
+  );
+}
+
+function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, unread, brand }: any) {
+  // Time-of-day greeting (per Claude Design §01-glavnaya).
+  const hour = new Date().getHours();
+  const greetRu = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+  const greetUz = hour < 6 ? 'Hayrli tun' : hour < 12 ? 'Hayrli tong' : hour < 18 ? 'Hayrli kun' : 'Hayrli kech';
+  return (
+    <div
+      style={{
+        position: 'relative',
+        background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)',
+        borderRadius: '0 0 28px 28px',
+        // Hero starts BELOW the iOS status bar. The safe-area-inset-top zone
+        // above shows the light page background instead of the brown gradient.
+        marginTop: 'env(safe-area-inset-top, 0px)',
+        padding: '20px 18px 22px',
+        overflow: 'hidden',
+        color: 'var(--text-on-dark)',
+      }}
+    >
       <div style={{ position: 'absolute', inset: 0, opacity: 0.55, background: 'radial-gradient(90% 70% at 88% -10%, rgba(251,146,60,0.5) 0%, transparent 55%), radial-gradient(70% 60% at 0% 110%, rgba(217,119,6,0.18) 0%, transparent 60%)' }} />
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+      <CityBackground />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
         <button onClick={onMenu} style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', display: 'grid', placeItems: 'center', cursor: 'pointer' }} aria-label="Меню">
           <svg width="22" height="15" viewBox="0 0 22 15"><rect y="0" width="22" height="3" rx="1.5" fill="#FDBA74"/><rect y="6" width="15" height="3" rx="1.5" fill="#FDBA74"/><rect y="12" width="22" height="3" rx="1.5" fill="#FDBA74"/></svg>
         </button>
-        <button onClick={onBell} style={{ position: 'relative', width: 44, height: 44, borderRadius: 14, background: bellOpen ? 'var(--brand)' : 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: bellOpen ? '#fff' : 'var(--text-on-dark)' }} aria-label="Уведомления">
+        {/* Centered Kamizo wordmark — bigger K tile (34) + bigger Kamizo (19) per LEFT mockup.
+            Every text node below has an EXPLICIT color (hex literals, not vars) so
+            inheritance from body{color:#1a1a1a} cannot turn the white text dark even if
+            the CSS bundle is the old cached one. */}
+        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', display: 'grid', placeItems: 'center', color: '#FDBA74', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em' }}>K</div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: '#F4F0E8', letterSpacing: '-0.01em' }}>{brand || 'Kamizo'}</div>
+        </div>
+        <button onClick={onBell} style={{ position: 'relative', width: 44, height: 44, borderRadius: 14, background: bellOpen ? 'var(--brand, #F97316)' : 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: bellOpen ? '#fff' : '#F4F0E8' }} aria-label="Уведомления">
           <IBell size={20} />
-          {unread > 0 && <span style={{ position: 'absolute', top: 8, right: 9, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: 'var(--status-critical)', color: '#fff', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', border: '2px solid #34291F' }}>{unread}</span>}
+          {unread > 0 && <span style={{ position: 'absolute', top: 8, right: 9, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: '#EF4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', border: '2px solid #34291F' }}>{unread}</span>}
         </button>
       </div>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(244,240,232,0.7)' }}>{ru(language, 'Добрый день', 'Hayrli kun')} 👋</div>
-          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 3 }}>{name}</div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 14, padding: '8px 13px', background: 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', backdropFilter: 'blur(8px)', borderRadius: 13, fontSize: 13.5, fontWeight: 600, color: 'var(--text-on-dark)' }}>
-            <IPin size={15} style={{ color: 'var(--brand-light)' }} />{apt}
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(244,240,232,0.78)' }}>{ru(language, greetRu, greetUz)} 👋</div>
+          {/* Name — EXPLICIT #F4F0E8 (warm white) instead of relying on inheritance
+              from the hero's color var. This is the line the user reported as "black". */}
+          <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 6, color: '#F4F0E8' }}>{name}</div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 16, padding: '9px 14px', background: 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', backdropFilter: 'blur(8px)', borderRadius: 14, fontSize: 13.5, fontWeight: 600, color: '#F4F0E8' }}>
+            <IPin size={15} style={{ color: '#FB923C' }} />{apt}
           </div>
         </div>
-        <div style={{ flex: '0 0 auto', padding: '8px 12px', borderRadius: 13, background: 'rgba(249,115,22,0.18)', border: '1px solid rgba(249,115,22,0.3)', textAlign: 'center' }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#FDBA74', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{activeCount}</div>
-          <div style={{ fontSize: 10.5, fontWeight: 600, color: 'rgba(244,240,232,0.7)', marginTop: 3 }}>{ru(language, 'активные', 'faol')}<br/>{ru(language, 'заявки', 'arizalar')}</div>
+        {/* Active-count chip — taller square card matching LEFT mockup: digit 34, ~88px wide. */}
+        <div style={{ flex: '0 0 auto', padding: '16px 18px', borderRadius: 18, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', textAlign: 'center', minWidth: 88, backdropFilter: 'blur(6px)' }}>
+          <div style={{ fontSize: 34, fontWeight: 800, color: '#FDBA74', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{activeCount}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(244,240,232,0.8)', marginTop: 6, lineHeight: 1.2 }}>{ru(language, 'активные', 'faol')}<br/>{ru(language, 'заявки', 'arizalar')}</div>
         </div>
       </div>
     </div>
   );
 }
 
-function QuickTiles({ onNewRequest, navigate, language }: any) {
+function QuickTiles({ onNewRequest, navigate, language, passCount = 0, vehicleCount = 0 }: any) {
   const tiles = [
     { Icon: IWrench, label: ru(language, 'Заявка', 'Ariza'), onClick: onNewRequest },
-    { Icon: IQR, label: ru(language, 'Пропуск', 'Ruxsat'), onClick: () => navigate('/guest-access') },
+    { Icon: IQR, label: ru(language, 'Пропуск', 'Ruxsat'), onClick: () => navigate('/guest-access'), badge: passCount },
     { Icon: ICard, label: ru(language, 'Оплата', 'To\'lov'), soon: true },
-    { Icon: ICar, label: ru(language, 'Авто', 'Avto'), onClick: () => navigate('/vehicles') },
+    { Icon: ICar, label: ru(language, 'Авто', 'Avto'), onClick: () => navigate('/vehicles'), badge: vehicleCount },
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
       {tiles.map((t, i) => (
         <button key={i} onClick={t.onClick} style={{ position: 'relative', background: 'var(--surface)', border: '1px solid var(--border-c)', borderRadius: 20, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ width: 46, height: 46, borderRadius: 999, background: 'var(--brand-tint)', color: 'var(--brand-dark)', display: 'grid', placeItems: 'center' }}><t.Icon size={22} stroke={1.9} /></div>
+          <div style={{ position: 'relative', width: 46, height: 46, borderRadius: 999, background: 'var(--brand-tint)', color: 'var(--brand-dark)', display: 'grid', placeItems: 'center' }}>
+            <t.Icon size={22} stroke={1.9} />
+            {t.badge > 0 && (
+              <span style={{ position: 'absolute', top: -4, right: -6, minWidth: 20, height: 20, padding: '0 6px', borderRadius: 999, background: 'var(--brand)', color: '#fff', fontSize: 11, fontWeight: 800, display: 'grid', placeItems: 'center', boxShadow: '0 2px 6px rgba(249,115,22,0.4)', border: '2px solid var(--surface)' }}>{t.badge}</span>
+            )}
+            {t.soon && (
+              <span style={{ position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 999, background: 'var(--surface)', color: 'var(--text-muted)', display: 'grid', placeItems: 'center', boxShadow: '0 2px 6px rgba(28,25,23,0.12)', border: '1px solid var(--border-c)' }}><ILock size={11} /></span>
+            )}
+          </div>
           <span style={{ fontSize: 12.5, fontWeight: 650, color: 'var(--text-primary)' }}>{t.label}</span>
-          {t.soon && <span style={{ position: 'absolute', top: 12, right: 12, color: 'var(--text-muted)' }}><ILock size={12} /></span>}
         </button>
       ))}
     </div>
@@ -65,6 +138,18 @@ function QuickTiles({ onNewRequest, navigate, language }: any) {
 }
 
 function ApprovalCard({ req, language, onApprove, onDetails }: any) {
+  // LEFT mockup shows "{executor} · работа заняла {duration}". Compose only when both are known.
+  const fmtDur = (sec?: number) => {
+    if (!sec) return null;
+    const m = Math.floor(sec / 60);
+    if (m < 60) return `${m} ${ru(language, 'мин', 'daq')}`;
+    const h = Math.floor(m / 60); const r = m % 60;
+    return r === 0 ? `${h} ${ru(language, 'ч', 'soat')}` : `${h} ${ru(language, 'ч', 'soat')} ${r} ${ru(language, 'мин', 'daq')}`;
+  };
+  const dur = fmtDur(req.workDuration);
+  const subtitle = req.executorName
+    ? (dur ? `${req.executorName} · ${ru(language, 'работа заняла', 'ish davom etdi')} ${dur}` : req.executorName)
+    : null;
   return (
     <div style={{ background: 'linear-gradient(135deg, #FFF3EA 0%, #FFE6D2 100%)', border: '1px solid var(--brand-200)', borderRadius: 20, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -72,7 +157,7 @@ function ApprovalCard({ req, language, onApprove, onDetails }: any) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '0.04em', color: 'var(--brand-dark)', textTransform: 'uppercase' }}>{ru(language, 'Ждёт вашей оценки', 'Bahoyingiz kutilmoqda')}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>{req.title} · #{req.number}</div>
-          {req.executorName && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{req.executorName}</div>}
+          {subtitle && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{subtitle}</div>}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -136,6 +221,39 @@ function AnnMini({ items, language, onOpen }: any) {
   );
 }
 
+// Hook returns false once we know the app is running as an installed PWA
+// (standalone display-mode, iOS navigator.standalone, or after 'appinstalled'
+// has fired in this session). Returns true otherwise — i.e. installation is
+// possible / hasn't happened yet — so the banner stays visible.
+function useShouldShowInstallPrompt(): boolean {
+  const detectInstalled = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    if (window.matchMedia?.('(display-mode: standalone)')?.matches) return true;
+    if (window.matchMedia?.('(display-mode: fullscreen)')?.matches) return true;
+    if (window.matchMedia?.('(display-mode: minimal-ui)')?.matches) return true;
+    if ((window.navigator as any).standalone === true) return true; // iOS Safari
+    if (sessionStorage.getItem('kamizo_pwa_installed') === '1') return true;
+    return false;
+  };
+  const [installed, setInstalled] = useState<boolean>(detectInstalled);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(display-mode: standalone)');
+    const onChange = () => setInstalled(detectInstalled());
+    mq.addEventListener?.('change', onChange);
+    const onInstalled = () => {
+      sessionStorage.setItem('kamizo_pwa_installed', '1');
+      setInstalled(true);
+    };
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      mq.removeEventListener?.('change', onChange);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+  return !installed;
+}
+
 function PWABanner({ language }: any) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 20, background: 'var(--surface-2)', border: '1px dashed var(--border-strong)' }}>
@@ -148,6 +266,19 @@ function PWABanner({ language }: any) {
   );
 }
 
+// Renders the section wrapper + banner only if the app is NOT installed.
+// When installed, returns null so the surrounding section margin collapses
+// and there's no empty gap above the BottomBar.
+function PWABannerSection({ language, sectionStyle }: any) {
+  const show = useShouldShowInstallPrompt();
+  if (!show) return null;
+  return (
+    <div style={sectionStyle}>
+      <PWABanner language={language} />
+    </div>
+  );
+}
+
 function TabBar({ navigate, onNewRequest, onTab, language }: any) {
   const left = [{ id: 'home', Icon: IHome, label: ru(language, 'Главная', 'Bosh'), active: true, onClick: () => onTab('home') }, { id: 'requests', Icon: IDoc, label: ru(language, 'Заявки', 'Arizalar'), onClick: () => onTab('requests') }];
   const right = [{ id: 'chat', Icon: IChat, label: ru(language, 'Чат', 'Chat'), onClick: () => navigate('/chat') }, { id: 'profile', Icon: IUser, label: ru(language, 'Профиль', 'Profil'), onClick: () => navigate('/profile') }];
@@ -156,8 +287,14 @@ function TabBar({ navigate, onNewRequest, onTab, language }: any) {
       <t.Icon size={22} stroke={t.active ? 2.3 : 1.9} />{t.active && <span style={{ fontSize: 13, fontWeight: 750, whiteSpace: 'nowrap' }}>{t.label}</span>}
     </button>
   );
-  return (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40, padding: '0 14px calc(14px + env(safe-area-inset-bottom))', pointerEvents: 'none' }}>
+  // Render into document.body so the bar escapes any ancestor that could
+  // become a containing block (transform / filter / backdrop-filter /
+  // perspective on the kz-screen or Layout chain would otherwise turn
+  // position:fixed into "fixed relative to that ancestor" and the bar would
+  // scroll with the content. Portaling guarantees the bar is fixed to the
+  // viewport.
+  const bar = (
+    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, padding: '0 14px env(safe-area-inset-bottom, 0px)', pointerEvents: 'none' }}>
       <div style={{ pointerEvents: 'auto', maxWidth: 480, margin: '0 auto', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px) saturate(180%)', WebkitBackdropFilter: 'blur(16px) saturate(180%)', border: '1px solid rgba(255,255,255,0.7)', borderRadius: 26, boxShadow: '0 10px 30px rgba(28,25,23,0.14), 0 2px 6px rgba(28,25,23,0.06)', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{left.map(item)}</div>
         <button onClick={onNewRequest} aria-label={ru(language, 'Новая заявка', 'Yangi ariza')} style={{ width: 52, height: 52, borderRadius: 999, flex: '0 0 auto', background: 'linear-gradient(135deg, #FB923C, #EA580C)', border: 'none', cursor: 'pointer', display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 6px 16px rgba(249,115,22,0.45)' }}><IPlus size={25} stroke={2.6} /></button>
@@ -165,6 +302,7 @@ function TabBar({ navigate, onNewRequest, onTab, language }: any) {
       </div>
     </div>
   );
+  return typeof document !== 'undefined' ? createPortal(bar, document.body) : bar;
 }
 
 interface Props {
@@ -177,26 +315,61 @@ interface Props {
   meeting: any | null;
   announcements: any[];
   unread?: number;
+  brand?: string;
+  passCount?: number;
+  vehicleCount?: number;
+  needsRegistration?: boolean;
+  registrationMissing?: string;
   onNewRequest: () => void;
   onTab: (tab: 'home' | 'requests') => void;
   onMenu: () => void;
+  onCompleteRegistration?: () => void;
   onApprove: (req: any) => void;
   onOpenRequest: (req: any) => void;
 }
 
 export function ResidentHomeDesign(props: Props) {
-  const { language, name, apt, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, onNewRequest, onTab, onMenu, onApprove, onOpenRequest } = props;
+  const { language, name, apt, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, brand, passCount = 0, vehicleCount = 0, needsRegistration = false, registrationMissing, onNewRequest, onTab, onMenu, onCompleteRegistration, onApprove, onOpenRequest } = props;
   const navigate = useNavigate();
   const [bell, setBell] = useState(false);
   void bell;
 
-  const cards = [
+  // System chrome (browser address bar / PWA tint) matches the page
+  // background, not the hero. The status-bar safe area is the LIGHT app bg;
+  // the hero card starts below it. We dynamically swap theme-color on mount
+  // and restore on unmount.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!meta) return;
+    const prev = meta.getAttribute('content') || '#F7F8FA';
+    meta.setAttribute('content', '#F7F8FA');
+    return () => { meta.setAttribute('content', prev); };
+  }, []);
+
+  // Card stack — LEFT mockup pins "Завершите регистрацию" first whenever the resident
+  // still has their seed password. The rest follows the Claude Design order.
+  const registrationCard = {
+    id: 'registration',
+    Icon: ICheck,
+    silhouette: 'check',
+    badge: ru(language, 'Важно', 'Muhim'),
+    title: ru(language, 'Завершите регистрацию', "Ro'yxatdan o'tishni tugating"),
+    sub: registrationMissing
+      ? ru(language, `Не заполнено: ${registrationMissing}`, `To'ldirilmagan: ${registrationMissing}`)
+      : ru(language, 'Не заполнено: пароль', "To'ldirilmagan: parol"),
+    cta: ru(language, 'Заполнить →', "To'ldirish →"),
+    gradient: 'linear-gradient(150deg, #2DD4BF 0%, #0E9488 100%)',
+    shadow: 'rgba(14,148,136,0.5)',
+    onClick: () => { if (onCompleteRegistration) onCompleteRegistration(); else navigate('/profile'); },
+  };
+  const baseCards = [
     { id: 'voting', Icon: IUsers, silhouette: 'people', badge: ru(language, 'Голосование', 'Ovoz'), title: ru(language, 'Идёт голосование', 'Ovoz berish'), sub: ru(language, 'Ваш голос важен', 'Ovozingiz muhim'), cta: ru(language, 'Проголосовать →', 'Ovoz berish →'), gradient: 'linear-gradient(150deg, #FB923C 0%, #EA580C 100%)', shadow: 'rgba(249,115,22,0.5)', onClick: () => navigate('/meetings') },
     { id: 'guest', Icon: IQR, silhouette: 'qr', badge: 'QR', title: ru(language, 'Гостевой пропуск', 'Mehmon ruxsati'), sub: ru(language, 'QR для гостя или доставки', 'Mehmon yoki yetkazib berish uchun'), cta: ru(language, 'Создать →', 'Yaratish →'), gradient: 'linear-gradient(150deg, #34D399 0%, #15A06E 100%)', shadow: 'rgba(21,160,110,0.5)', onClick: () => navigate('/guest-access') },
     { id: 'rate', Icon: IStar, silhouette: 'star', badge: ru(language, 'Оценка', 'Baho'), title: ru(language, 'Оцените УК', 'Boshqaruvni baholang'), sub: ru(language, 'Раз в месяц · 30 секунд', 'Oyiga bir marta'), cta: ru(language, 'Оценить →', 'Baholash →'), gradient: 'linear-gradient(150deg, #A78BFA 0%, #7C3AED 100%)', shadow: 'rgba(124,58,237,0.5)', onClick: () => navigate('/rate-employees') },
     { id: 'contacts', Icon: IPhone, silhouette: 'phone', badge: ru(language, 'Контакты', 'Kontaktlar'), title: ru(language, 'Полезные контакты', 'Foydali kontaktlar'), sub: ru(language, 'Экстренные службы и мастера', 'Favqulodda xizmatlar'), cta: ru(language, 'Открыть →', 'Ochish →'), gradient: 'linear-gradient(150deg, #60A5FA 0%, #2F77C2 100%)', shadow: 'rgba(47,119,194,0.5)', onClick: () => navigate('/useful-contacts') },
     { id: 'find-car', Icon: ICar, silhouette: 'car', badge: ru(language, 'Авто', 'Avto'), title: ru(language, 'Найти владельца авто', 'Avto egasini topish'), sub: ru(language, 'Поиск соседа по номеру', 'Raqam bo\'yicha qidirish'), cta: ru(language, 'Найти →', 'Topish →'), gradient: 'linear-gradient(150deg, #FBBF24 0%, #D97706 100%)', shadow: 'rgba(217,119,6,0.5)', onClick: () => navigate('/vehicles') },
   ];
+  const cards = needsRegistration ? [registrationCard, ...baseCards] : baseCards;
 
   const section: React.CSSProperties = { padding: '0 16px', marginTop: 16 };
   const secLabel: React.CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 4px', marginBottom: 10 };
@@ -206,15 +379,33 @@ export function ResidentHomeDesign(props: Props) {
   const reschedule = pendingReschedules && pendingReschedules.length > 0 ? pendingReschedules[0] : null;
 
   return (
-    <div className="kz-screen" style={{ minHeight: '100%', background: 'var(--app-bg)', paddingBottom: 110, margin: 0 }}>
-      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} onMenu={onMenu} onBell={() => setBell((b) => !b)} bellOpen={bell} />
+    <div
+      className="kz-screen"
+      style={{
+        minHeight: '100%',
+        background: 'var(--app-bg)',
+        // Pill (~68px) + safe-area-inset-bottom + breathing room. Without
+        // this, the last card (BalanceCard / PWA banner) is hidden behind
+        // the portal-mounted fixed TabBar.
+        paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
+        // Force full-bleed: parent main may carry horizontal padding on some
+        // breakpoints, and Layout's main-content padding-bottom is fine but we
+        // cannot risk an off-white sliver creeping in on either edge.
+        width: '100vw',
+        marginLeft: 'calc(50% - 50vw)',
+        marginRight: 'calc(50% - 50vw)',
+      }}
+    >
+      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} onMenu={onMenu} onBell={() => { setBell((b) => !b); navigate('/announcements'); }} bellOpen={bell} />
 
       <div style={{ ...section, marginTop: 18 }}>
         <SwipeCardStack cards={cards as any} height={210} />
       </div>
 
-      <div style={section}>
-        <QuickTiles onNewRequest={onNewRequest} navigate={navigate} language={language} />
+      {/* Quick tiles sit close to the carousel dots — overrides the shared
+          section's marginTop (16) with 6 so the gap matches the mockup. */}
+      <div style={{ ...section, marginTop: 6 }}>
+        <QuickTiles onNewRequest={onNewRequest} navigate={navigate} language={language} passCount={passCount} vehicleCount={vehicleCount} />
       </div>
 
       {topApproval && (
@@ -255,9 +446,10 @@ export function ResidentHomeDesign(props: Props) {
         </div>
       )}
 
-      <div style={section}>
-        <PWABanner language={language} />
-      </div>
+      {/* Wrapper renders only when the install banner is visible — otherwise
+          the section's marginTop would leave an empty gap above the TabBar
+          on already-installed PWAs. */}
+      <PWABannerSection language={language} sectionStyle={section} />
 
       <TabBar navigate={navigate} onNewRequest={onNewRequest} onTab={onTab} language={language} />
     </div>

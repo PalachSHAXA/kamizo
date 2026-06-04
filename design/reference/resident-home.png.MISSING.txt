@@ -1,0 +1,17 @@
+resident-home.png — pending manual save
+
+The binary PNG could not be written from this Claude Code session because the
+VS Code chat-attachment harness shows images visually but does not expose them
+on the filesystem. The reference markdown next to this file
+(`resident-home.md`) captures every layout, color, spacing, and component
+specification needed to apply or audit the design without the image.
+
+To complete the setup:
+
+1. Open the chat message thread that contained the mockup.
+2. Right-click the image → "Save Image As…" → save it to:
+   /Users/shokh/Desktop/apps fr prgramming/kamizo/design/reference/resident-home.png
+3. Delete this placeholder file.
+
+After that, both the binary PNG and the markdown spec coexist as the design
+source of truth for Resident Home.

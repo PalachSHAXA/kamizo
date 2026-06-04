@@ -10,6 +10,8 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { useFinanceStore } from '../stores/financeStore';
+import { useVehicleStore } from '../stores/vehicleStore';
+import { useGuestAccessStore } from '../stores/guestAccessStore';
 import type { Request, ExecutorSpecialization, RescheduleRequest } from '../types';
 import { formatAddress } from '../utils/formatAddress';
 import { formatName } from '../utils/formatName';
@@ -53,6 +55,11 @@ export function ResidentDashboard() {
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
   const getApartmentBalance = useFinanceStore((s) => s.getApartmentBalance);
   const generateReconciliation = useFinanceStore((s) => s.generateReconciliation);
+  // Counts for the QuickTiles badges on the home hero — read-only subscription,
+  // no extra fetch added. Badges only show when these screens were visited
+  // previously and their stores are populated.
+  const vehicleCount = useVehicleStore(s => s.vehicles.length);
+  const passCount = useGuestAccessStore(s => s.guestAccessCodes.length);
 
   // Read tab from URL params (e.g. /?tab=requests from bottom bar)
   const tabParam = searchParams.get('tab');
@@ -252,9 +259,15 @@ export function ResidentDashboard() {
             pendingReschedules={pendingReschedules}
             meeting={activeMeetings[0] || null}
             announcements={latestAnnouncements}
+            brand={tenantName}
+            passCount={passCount}
+            vehicleCount={vehicleCount}
+            needsRegistration={!user?.passwordChangedAt}
+            registrationMissing={language === 'ru' ? 'пароль' : 'parol'}
             onNewRequest={() => setShowAllServices(true)}
             onTab={switchTab}
             onMenu={() => window.dispatchEvent(new Event('open-sidebar'))}
+            onCompleteRegistration={() => window.location.assign('/profile')}
             onApprove={(req) => handleApproveClick(req)}
             onOpenRequest={(req) => setSelectedRequest(req)}
           />

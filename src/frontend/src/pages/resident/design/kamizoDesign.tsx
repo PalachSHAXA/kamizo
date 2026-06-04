@@ -149,9 +149,20 @@ export function SwipeCardStack({ cards, height = 230 }: { cards: SwipeCard[]; he
           );
         })}
       </div>
-      <div style={{ position: 'relative', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 14 }}>
+      <div style={{ position: 'relative', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 11, marginTop: 6 }}>
         {cards.map((_, i) => (
-          <button key={i} type="button" onClick={() => setActive(i)} aria-label={`Карточка ${i + 1}`} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 4px', margin: 0, lineHeight: 0 }}>
+          /* className="icon-only" + inline minWidth/minHeight: 0 to escape
+             the global `button:not(.icon-only){min-width:44px;min-height:44px}`
+             rule in index.css that was inflating each dot button to a 44 px
+             touch target and spreading the dots across the screen. */
+          <button
+            key={i}
+            type="button"
+            className="icon-only"
+            onClick={() => setActive(i)}
+            aria-label={`Карточка ${i + 1}`}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 0', margin: 0, lineHeight: 0, minWidth: 0, minHeight: 0, width: 'auto', height: 'auto' }}
+          >
             <span style={{ display: 'block', height: 7, borderRadius: 4, width: i === active ? 22 : 7, background: i === active ? 'var(--brand-500)' : 'var(--stone-300)', transition: 'all 0.35s cubic-bezier(0.34,1.4,0.64,1)' }} />
           </button>
         ))}
