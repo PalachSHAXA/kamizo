@@ -42,33 +42,6 @@ export interface RequestsTabProps {
   openNewRequest?: () => void;
 }
 
-export interface ServiceBottomSheetProps {
-  language: string;
-  serviceSearch: string;
-  setServiceSearch: (v: string) => void;
-  serviceCatFilter: string;
-  setServiceCatFilter: (v: string) => void;
-  selectedServiceId: string | null;
-  setSelectedServiceId: (v: string | null) => void;
-  onClose: () => void;
-  onSubmit: (id: string) => void;
-}
-
-export interface NewRequestModalProps {
-  category: ExecutorSpecialization;
-  user: Record<string, unknown> | null;
-  onClose: () => void;
-  onSubmit: (data: {
-    title: string;
-    description: string;
-    category: ExecutorSpecialization;
-    priority: RequestPriority;
-    scheduledDate?: string;
-    scheduledTime?: string;
-    photos?: string[];
-  }) => void;
-}
-
 export interface ApproveModalProps {
   request: Request;
   onClose: () => void;

@@ -69,6 +69,27 @@ const NR_SLOTS: Slot[] = [
 // Above the global BottomBar (zIndex 1000) so the sheet is never painted
 // behind the floating bottom nav on screens where the nav is visible.
 const ZTOP = 1100;
+// Trash removal needs structured fields (type + volume + explicit date/time)
+// rather than a free-text description — ported from the old NewRequestModal so
+// dispatch keeps the type/volume signal that drives truck sizing.
+const TRASH_TYPES = [
+  { id: 'construction', icon: '🧱', label: 'Строительный', labelUz: 'Qurilish',     sub: 'Кирпич, бетон, штукатурка', subUz: 'G\'isht, beton, shuvoq' },
+  { id: 'furniture',    icon: '🛋️', label: 'Старая мебель', labelUz: 'Eski mebel',  sub: 'Диваны, шкафы, кровати',    subUz: 'Divan, shkaf, krovat' },
+  { id: 'household',    icon: '🗑️', label: 'Бытовой',       labelUz: 'Maishiy',      sub: 'Обычные бытовые отходы',    subUz: 'Oddiy maishiy chiqindi' },
+  { id: 'appliances',   icon: '📺', label: 'Техника',        labelUz: 'Texnika',      sub: 'Холодильники, стиралки',    subUz: 'Muzlatgich, kir mashina' },
+  { id: 'garden',       icon: '🌿', label: 'Садовый',        labelUz: 'Bog\'',        sub: 'Ветки, листья, трава',      subUz: 'Shox, barg, o\'t' },
+  { id: 'mixed',        icon: '📦', label: 'Смешанный',      labelUz: 'Aralash',      sub: 'Разные виды мусора',        subUz: 'Turli chiqindilar' },
+];
+const TRASH_VOLUME = [
+  { id: 'small',  label: 'До 1 м³',      labelUz: '1 m³ gacha',     sub: '1-2 мешка',           subUz: '1-2 qop' },
+  { id: 'medium', label: '1-3 м³',       labelUz: '1-3 m³',         sub: 'Мешки, мелкая мебель', subUz: 'Qoplar, kichik mebel' },
+  { id: 'large',  label: '3-5 м³',       labelUz: '3-5 m³',         sub: 'Много, крупная мебель', subUz: 'Ko\'p, yirik mebel' },
+  { id: 'truck',  label: 'Более 5 м³',   labelUz: '5 m³ dan ortiq', sub: 'Полная машина',        subUz: 'To\'liq mashina' },
+];
+const TRASH_TIME_SLOTS = ['09:00-11:00', '11:00-13:00', '13:00-15:00', '15:00-17:00', '17:00-19:00'];
+const minDate = () => new Date().toISOString().split('T')[0];
+const maxDate = () => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; };
+
 const RX = 'var(--radius-xl, 28px)';
 const RL = 'var(--radius-lg, 20px)';
 const RM = 'var(--radius-md, 14px)';
@@ -251,6 +272,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
   const svc = NR_SERVICES.find(s => s.category === category) || NR_SERVICES[0];
   const catInfo = SERVICE_CATEGORIES.find(c => c.id === category);
   const tone = TONES[svc.tone] || TONES.brand;
+  const isTrash = category === 'trash';
   const [desc, setDesc] = useState('');
   const [priority, setPriority] = useState<RequestPriority>('medium');
   const [slotId, setSlotId] = useState('asap');
@@ -260,10 +282,17 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
   const [sending, setSending] = useState(false);
   const [created, setCreated] = useState<Request | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Trash-specific structured fields
+  const [trashType, setTrashType] = useState('');
+  const [trashVolume, setTrashVolume] = useState('');
+  const [trashDate, setTrashDate] = useState('');
+  const [trashTime, setTrashTime] = useState('');
 
   const MAX_PHOTOS = 5;
   const MAX_FILE_SIZE = 3 * 1024 * 1024;
-  const valid = desc.trim().length >= 8;
+  const valid = isTrash
+    ? !!(trashType && trashVolume && trashDate && trashTime)
+    : desc.trim().length >= 8;
 
   // Same FileReader/data-URL pipeline as NewRequestModal — photos are stored
   // as JSON data-URLs in requests.photos and shown to executor + management.
@@ -294,16 +323,40 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
     setTouched(true);
     if (!valid || sending) return;
     setSending(true);
-    const slot = NR_SLOTS.find(s => s.id === slotId);
-    const result = await onCreate({
-      title: ru ? svc.label : svc.labelUz,
-      description: desc.trim(),
-      category,
-      priority,
-      scheduledDate: slot?.date,
-      scheduledTime: slot?.time,
-      photos: photos.length > 0 ? photos : undefined,
-    }).catch(() => null);
+
+    let payload;
+    if (isTrash) {
+      const t = TRASH_TYPES.find(x => x.id === trashType);
+      const v = TRASH_VOLUME.find(x => x.id === trashVolume);
+      const typeLabel = t ? (ru ? t.label : t.labelUz) : trashType;
+      const volLabel = v ? (ru ? v.label : v.labelUz) : trashVolume;
+      let description = ru
+        ? `Тип мусора: ${typeLabel}\nОбъём: ${volLabel}`
+        : `Chiqindi turi: ${typeLabel}\nHajmi: ${volLabel}`;
+      if (desc.trim()) description += `\n\n${ru ? 'Дополнительно' : 'Qo\'shimcha'}: ${desc.trim()}`;
+      payload = {
+        title: `${ru ? 'Вывоз мусора' : 'Chiqindi olib ketish'}: ${typeLabel}`,
+        description,
+        category,
+        priority,
+        scheduledDate: trashDate || undefined,
+        scheduledTime: trashTime || undefined,
+        photos: photos.length > 0 ? photos : undefined,
+      };
+    } else {
+      const slot = NR_SLOTS.find(s => s.id === slotId);
+      payload = {
+        title: ru ? svc.label : svc.labelUz,
+        description: desc.trim(),
+        category,
+        priority,
+        scheduledDate: slot?.date,
+        scheduledTime: slot?.time,
+        photos: photos.length > 0 ? photos : undefined,
+      };
+    }
+
+    const result = await onCreate(payload).catch(() => null);
     setSending(false);
     if (result) setCreated(result);
     else setPhotoError(ru ? 'Не удалось создать заявку. Попробуйте ещё раз.' : 'Ariza yaratilmadi. Qayta urinib ko\'ring.');
@@ -345,6 +398,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
 
         {/* body */}
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+          {!isTrash && (<>
           <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Опишите проблему' : 'Muammoni tasvirlang'}</label>
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={ru ? 'Например: капает из-под раковины, под ней лужа со вчера' : 'Masalan: rakovina ostidan suv oqyapti'} style={{
             width: '100%', minHeight: 92, marginTop: 8, padding: '12px 14px', boxSizing: 'border-box',
@@ -353,6 +407,70 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
             fontSize: 14.5, color: 'var(--text-primary, #1C1917)', resize: 'none', outline: 'none', lineHeight: 1.4,
           }} />
           {touched && !valid && <div style={{ fontSize: 12, color: 'var(--status-critical, #E2483D)', marginTop: 4 }}>{ru ? 'Опишите проблему — минимум 8 символов' : 'Kamida 8 ta belgi yozing'}</div>}
+          </>)}
+
+          {isTrash && (<>
+          {/* trash type */}
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Тип мусора' : 'Chiqindi turi'} <span style={{ color: 'var(--status-critical, #E2483D)' }}>*</span></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {TRASH_TYPES.map(t => {
+              const on = trashType === t.id;
+              return <button key={t.id} onClick={() => setTrashType(t.id)} style={{
+                textAlign: 'left', padding: '11px 12px', borderRadius: RM, cursor: 'pointer',
+                background: on ? 'var(--brand-tint, #FFF3EA)' : 'var(--surface, #fff)',
+                border: on ? '1.5px solid var(--brand, #F97316)' : '1px solid var(--border-c, #E6DFD2)',
+              }}>
+                <div style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: on ? 'var(--brand-dark, #EA580C)' : 'var(--text-primary, #1C1917)' }}>{ru ? t.label : t.labelUz}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary, #6F6A62)', marginTop: 1, lineHeight: 1.25 }}>{ru ? t.sub : t.subUz}</div>
+              </button>;
+            })}
+          </div>
+
+          {/* trash volume */}
+          <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18, marginBottom: 8, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Объём' : 'Hajmi'} <span style={{ color: 'var(--status-critical, #E2483D)' }}>*</span></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {TRASH_VOLUME.map(v => {
+              const on = trashVolume === v.id;
+              return <button key={v.id} onClick={() => setTrashVolume(v.id)} style={{
+                textAlign: 'left', padding: '11px 13px', borderRadius: RM, cursor: 'pointer',
+                background: on ? 'var(--brand-tint, #FFF3EA)' : 'var(--surface, #fff)',
+                border: on ? '1.5px solid var(--brand, #F97316)' : '1px solid var(--border-c, #E6DFD2)',
+              }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: on ? 'var(--brand-dark, #EA580C)' : 'var(--text-primary, #1C1917)' }}>{ru ? v.label : v.labelUz}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-secondary, #6F6A62)', marginTop: 1 }}>{ru ? v.sub : v.subUz}</div>
+              </button>;
+            })}
+          </div>
+
+          {/* trash date + time */}
+          <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18, marginBottom: 8, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Дата вывоза' : 'Olib ketish sanasi'} <span style={{ color: 'var(--status-critical, #E2483D)' }}>*</span></div>
+          <input type="date" value={trashDate} min={minDate()} max={maxDate()} onChange={(e) => setTrashDate(e.target.value)} aria-label={ru ? 'Дата вывоза' : 'Olib ketish sanasi'} style={{
+            width: '100%', padding: '11px 13px', boxSizing: 'border-box', background: 'var(--surface, #fff)',
+            borderRadius: RS, border: '1px solid var(--border-c, #E6DFD2)', fontSize: 14.5, color: 'var(--text-primary, #1C1917)', outline: 'none',
+          }} />
+          <div style={{ fontSize: 13, fontWeight: 700, marginTop: 14, marginBottom: 8, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Время' : 'Vaqt'} <span style={{ color: 'var(--status-critical, #E2483D)' }}>*</span></div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {TRASH_TIME_SLOTS.map(slot => {
+              const on = trashTime === slot;
+              return <button key={slot} onClick={() => setTrashTime(slot)} style={{
+                padding: '9px 13px', borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: on ? 'var(--brand, #F97316)' : 'var(--surface, #fff)',
+                color: on ? '#fff' : 'var(--text-secondary, #6F6A62)',
+                border: on ? 'none' : '1px solid var(--border-c, #E6DFD2)', fontVariantNumeric: 'tabular-nums',
+              }}>{slot}</button>;
+            })}
+          </div>
+
+          {/* trash optional details — reuses `desc` */}
+          <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18, marginBottom: 8, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Дополнительно' : 'Qo\'shimcha'} <span style={{ fontWeight: 500, color: 'var(--text-muted, #A8A29E)' }}>({ru ? 'необязательно' : 'ixtiyoriy'})</span></div>
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={ru ? 'Этаж, место складирования, особые условия…' : 'Qavat, saqlash joyi, shartlar…'} style={{
+            width: '100%', minHeight: 72, padding: '12px 14px', boxSizing: 'border-box',
+            background: 'var(--surface, #fff)', borderRadius: RS, border: '1px solid var(--border-c, #E6DFD2)',
+            fontSize: 14.5, color: 'var(--text-primary, #1C1917)', resize: 'none', outline: 'none', lineHeight: 1.4,
+          }} />
+          {touched && !valid && <div style={{ fontSize: 12, color: 'var(--status-critical, #E2483D)', marginTop: 6 }}>{ru ? 'Выберите тип, объём, дату и время' : 'Tur, hajm, sana va vaqtni tanlang'}</div>}
+          </>)}
 
           {/* priority */}
           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18, marginBottom: 8, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Приоритет' : 'Ustuvorlik'}</div>
@@ -368,7 +486,8 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
             })}
           </div>
 
-          {/* time slots */}
+          {/* time slots — generic (trash uses its own date/time above) */}
+          {!isTrash && (<>
           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 18, marginBottom: 8, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Когда удобно' : 'Qachon qulay'}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {NR_SLOTS.map(s => {
@@ -383,6 +502,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
               </button>;
             })}
           </div>
+          </>)}
 
           {/* photos */}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 18, marginBottom: 8 }}>
