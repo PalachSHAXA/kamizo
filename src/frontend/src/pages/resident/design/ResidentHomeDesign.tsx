@@ -335,18 +335,22 @@ export function ResidentHomeDesign(props: Props) {
   const [bell, setBell] = useState(false);
   void bell;
 
-  // System chrome (browser address bar / Android PWA tint) tinted the same
-  // dark brown as the hero so the status-bar safe area visually continues
-  // the hero with no seam. iOS PWA reads apple-mobile-web-app-status-bar-
-  // style=black-translucent in index.html to extend the web view behind
-  // the status bar; the hero's paddingTop: env(safe-area-inset-top) paints
-  // its gradient under the system text. We restore the previous theme-
-  // color on unmount so other pages keep their light tint.
+  // System chrome (browser address bar / Android PWA tint) must match the
+  // hero's TOPMOST gradient stop, not the mid stop. The hero gradient is
+  // linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%) — the
+  // top edge is #4A3B30. Using #34291F here paints a visibly darker strip
+  // in the status-bar zone (the chrome bar) directly above a lighter hero
+  // top, creating a seam. We mirror the gradient's 0% stop instead. iOS
+  // PWA standalone with apple-mobile-web-app-status-bar-style=black-
+  // translucent renders the hero's own gradient under the status text;
+  // theme-color matching the same top color keeps Safari tabs, Android
+  // Chrome, and any installed PWA still on the old "default" style
+  // seamless too.
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (!meta) return;
-    const prev = meta.getAttribute('content') || '#34291F';
-    meta.setAttribute('content', '#34291F');
+    const prev = meta.getAttribute('content') || '#4A3B30';
+    meta.setAttribute('content', '#4A3B30');
     return () => { meta.setAttribute('content', prev); };
   }, []);
 
