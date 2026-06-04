@@ -261,20 +261,69 @@ cd src/frontend && npx tsc --noEmit
 ---
 
 ## Git workflow (MANDATORY)
-- After EVERY change you make to the code, you MUST:
-  1. git add -A
-  2. git commit -m "<short descriptive message of what changed>"
-  3. git push
-- NEVER deploy without first committing and pushing.
-- Before any deploy, run: git add -A && git commit -m "deploy: <what changed>" && git push, THEN deploy.
-- Every deploy must correspond to a pushed commit, so nothing lives only in the local working directory.
-- If there are uncommitted changes at the start of a task, commit them first before doing anything else.
+- After EVERY change you make to the code, you MUST commit + ship it (don't leave work only in the working tree).
+- **In the Cowork sandbox `git push`/`git pull`/merge DO NOT WORK** — the mounted `.git` blocks `unlink` (`Operation not permitted`) on lock files AND on existing tracked files during a merge checkout. So a local `git pull` that has to merge always fails, and stale `*.lock` files pile up. DO NOT fight this with `find .git -name "*.lock" -delete` (the sandbox can't delete them either).
+- **Primary ship mechanism in Cowork = push straight to `main` via the GitHub Git Data API** (server-side commit, no working tree, no merge, no locks). See `## Cowork deploy (API push)` below. This is the default — use it, don't ask the user to clear locks or push.
+- A normal local `git add/commit` still works for snapshotting (no unlink needed), but the authoritative push is the API method.
+- Deploy itself is automatic: pushing to `main` triggers `.github/workflows/deploy.yml`, which rebuilds the frontend from source and runs `wrangler deploy`. **You do not need to run `wrangler deploy` yourself** — and built artifacts in `cloudflare/public/` don't matter for prod (CI regenerates them from `src/frontend`).
+- The user's local Mac clone CAN merge normally; suggest an occasional `git pull` on the Mac to keep their working copy current (not required for shipping).
 
 ## Loss prevention (MANDATORY)
 - pull.rebase is set to false (merge, never rebase) to avoid dropping commits.
 - Before ANY git pull, git rebase, git reset, or wrangler deploy, FIRST run:
   git branch backup/$(date +%Y%m%d-%H%M%S)
 - NEVER use git reset --hard or git push --force on main.
-- After every change: git add -A && git commit -m "..." && git push.
-- Every wrangler deploy must be preceded by a committed + pushed state.
+- Every prod change must end up as a commit on `main` (via the API method below) so CI deploys it.
+
+---
+
+## Cowork deploy (API push) — DEFAULT SHIP PATH
+
+Sandbox `git push`/merge are blocked by the mount. Ship by writing your changed **source** files straight onto `main` with the GitHub Git Data API (the token is already embedded in the `origin` remote URL). CI then rebuilds + deploys.
+
+Steps (run from the repo root in bash):
+
+```bash
+cd <repo> && TOK=$(git remote get-url origin | sed -E 's#https://([^@]+)@.*#\1#') python3 - <<'PY'
+import os, json, base64, urllib.request
+TOK  = os.environ['TOK']
+REPO = 'PalachSHAXA/kamizo'
+API  = f'https://api.github.com/repos/{REPO}'
+
+def call(method, path, body=None):
+    req = urllib.request.Request(API+path,
+        data=json.dumps(body).encode() if body is not None else None, method=method)
+    req.add_header('Authorization', f'token {TOK}')
+    req.add_header('Accept', 'application/vnd.github+json')
+    with urllib.request.urlopen(req) as r: return json.load(r)
+
+# 1. current main HEAD + its tree (ALWAYS commit on top of LATEST main, never a stale base)
+ref  = call('GET', '/git/ref/heads/main'); main_sha = ref['object']['sha']
+base_tree = call('GET', f'/git/commits/{main_sha}')['tree']['sha']
+
+# 2. map of repo-path -> local file to ship (SOURCE files only; never built artifacts)
+files = {
+  'src/frontend/src/.../File.tsx': '/abs/path/in/sandbox/File.tsx',
+}
+tree = []
+for path, fp in files.items():
+    sha = call('POST', '/git/blobs',
+        {'content': base64.b64encode(open(fp,'rb').read()).decode(), 'encoding':'base64'})['sha']
+    tree.append({'path': path, 'mode':'100644', 'type':'blob', 'sha': sha})
+
+# 3. tree on top of main's tree -> commit -> move main
+new_tree = call('POST', '/git/trees', {'base_tree': base_tree, 'tree': tree})['sha']
+commit   = call('POST', '/git/commits',
+    {'message':'feat: ...', 'tree': new_tree, 'parents':[main_sha]})['sha']
+print(call('PATCH', '/git/refs/heads/main', {'sha': commit, 'force': False})['object']['sha'])
+PY
+```
+
+Rules for this method:
+- **Always re-read `main`'s HEAD/tree right before committing** (origin moves when colleagues push). `base_tree` = main's current tree means you only overwrite the files you list; everyone else's changes are preserved automatically — no merge, no conflicts.
+- **Ship only source** (`src/frontend/src/**`, `src/frontend/public/sw.js`, `cloudflare/src/**`, migrations, etc.). Never ship `cloudflare/public/**` build output — CI rebuilds it.
+- **Before shipping `sw.js`, read origin/main's current version** (`git show origin/main:src/frontend/public/sw.js`) and bump ABOVE it (colleagues may have bumped higher than your local). Never downgrade the cache version.
+- **Check for real overlap**: `comm -12 <(git diff --name-only $BASE HEAD|sort) <(git diff --name-only $BASE origin/main|sort)`. If a source file (not a build artifact / not just the sw.js version line) was changed by BOTH sides, that's a genuine conflict — fetch origin's version, merge the logic by hand into your blob before shipping, don't blindly overwrite.
+- After `PATCH` succeeds, confirm CI: `GET /actions/runs?per_page=1` until `completed/success`. Backend (`cloudflare/src/**`) still deploys to the VPS via rsync per the Деплой table — the API push covers main/CI/Cloudflare-static, not the VPS API.
+- VPS backend changes still go via the `rsync ... systemctl restart kamizo-api` path (the API push only updates the GitHub repo + Cloudflare static/CI).
 
