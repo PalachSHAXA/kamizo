@@ -21,6 +21,16 @@ setIOSPwaGap();
 // createRoot wipes #root children, so we tag the root with .app-mounted on
 // the next frame to trigger the CSS opacity + translateY transition defined
 // in index.css. This smooths the seam between the splash and the live UI.
+//
+// CRITICAL: once the transition is over, drop the `app-booting` class
+// entirely. While it was on, #root carried `transform: translateY(0)` AND
+// `will-change: opacity, transform` — both of which establish a containing
+// block for `position: fixed` descendants (per CSS spec). Modals like
+// `.modal-backdrop` (position:fixed; inset:0) then pin to #root instead of
+// the viewport, and on tall pages they end up centered in the *document*,
+// well below the viewport. Removing the class restores normal fixed
+// positioning. The class is a one-shot entrance hook anyway, not a
+// permanent state.
 const rootEl = document.getElementById('root')!
 rootEl.classList.add('app-booting')
 createRoot(rootEl).render(
@@ -29,5 +39,12 @@ createRoot(rootEl).render(
   </StrictMode>,
 )
 requestAnimationFrame(() => {
-  requestAnimationFrame(() => rootEl.classList.add('app-mounted'))
+  requestAnimationFrame(() => {
+    rootEl.classList.add('app-mounted')
+    // The CSS transition is 0.34s; 600ms safely covers it on slow devices
+    // and clears the lingering containing-block trigger.
+    window.setTimeout(() => {
+      rootEl.classList.remove('app-booting', 'app-mounted')
+    }, 600)
+  })
 })
