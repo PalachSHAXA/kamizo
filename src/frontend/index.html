@@ -208,6 +208,93 @@
         .kamizo-splash__title { opacity: 1; }
       }
     </style>
+    <script>
+      // ── Chunk-load crash guard ─────────────────────────────────────
+      // Attaches BEFORE /src/main.tsx so it can catch the very first
+      // module-import failure. When a previous-deploy hashed chunk
+      // (/assets/<name>-<hash>.js) 404s — because the deploy purged it
+      // and our SW just evicted it from the v(n-1) ASSET_CACHE in its
+      // activate handler — the browser raises one of:
+      //   • "Importing a module script failed"
+      //   • "Failed to fetch dynamically imported module"
+      //   • "error loading dynamically imported module"
+      //   • "Loading chunk N failed"
+      //   • a ChunkLoadError
+      // The right recovery is a one-shot hard reload after purging the
+      // SW caches and unregistering the (now-stale) SW. We do that here,
+      // guarded by a sessionStorage flag so a persistent failure
+      // (origin truly broken) cannot loop. If the same crash fires twice
+      // in one session, we surface it instead of reloading again.
+      (function installChunkLoadGuard() {
+        var RELOAD_KEY = 'kz_chunk_reload_attempted';
+        var PATTERNS = [
+          /Importing a module script failed/i,
+          /Failed to fetch dynamically imported module/i,
+          /error loading dynamically imported module/i,
+          /Loading chunk [\w-]+ failed/i,
+          /ChunkLoadError/i,
+          /Unable to preload CSS/i,
+        ];
+        function isChunkError(err) {
+          if (!err) return false;
+          var msg = (err && err.message) || String(err) || '';
+          var name = err && err.name;
+          if (name === 'ChunkLoadError') return true;
+          for (var i = 0; i < PATTERNS.length; i++) {
+            if (PATTERNS[i].test(msg)) return true;
+          }
+          return false;
+        }
+        function recover() {
+          // One-shot: never loop. If we already tried once this session,
+          // fall through to the browser's default handling.
+          try {
+            if (sessionStorage.getItem(RELOAD_KEY)) return;
+            sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+          } catch (_) { /* private mode: still attempt one reload */ }
+
+          var done = function () { window.location.reload(); };
+          var deadline = setTimeout(done, 1500); // hard cap — never wait forever
+
+          try {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+              // Tell the SW to drop every cache so the reload fetches
+              // fresh HTML + chunks from origin (no stale anything).
+              navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+            }
+            // Unregister stale SW(s) too — the next page load will
+            // re-register from the fresh index.html.
+            if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                Promise.all(regs.map(function (r) { return r.unregister().catch(function () {}); }))
+                  .then(function () { clearTimeout(deadline); done(); }, function () { clearTimeout(deadline); done(); });
+              }, function () { clearTimeout(deadline); done(); });
+            } else {
+              clearTimeout(deadline);
+              done();
+            }
+          } catch (_) {
+            clearTimeout(deadline);
+            done();
+          }
+        }
+        // A page that boots successfully should clear the one-shot flag
+        // so the NEXT genuine chunk crash can recover the same way.
+        window.addEventListener('load', function () {
+          try { sessionStorage.removeItem(RELOAD_KEY); } catch (_) {}
+        });
+        window.addEventListener('error', function (e) {
+          if (isChunkError(e && e.error) || isChunkError({ message: e && e.message })) {
+            recover();
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          if (isChunkError(e && e.reason)) {
+            recover();
+          }
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       // Register Service Worker

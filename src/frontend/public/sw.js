@@ -1,24 +1,33 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.0 — cache suffix bumped to v54 to evict every v53 (and
+// Version: 3.7.1 — cache suffix bumped to v55 to evict every v54 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • resident full-bleed pages (Home / Vehicles / Profile) now use the
-//     handoff's 16px horizontal padding instead of compounding to ~28px
-//     on mobile. .page-content's per-device mobile auto-padding is
-//     reset on a new .page-content-full-bleed modifier applied to
-//     <main>, so the Profile hero / 2-col quick tiles / section cards
-//     reach the same width as in the §07-profil handoff.
+//   • a runtime chunk-load crash guard in index.html that catches
+//     "Importing a module script failed" / "Failed to fetch
+//     dynamically imported module" / ChunkLoadError, posts CLEAR_CACHE
+//     to this SW, unregisters stale SWs, and force-reloads ONCE per
+//     sessionStorage flag — fixes the red toast users hit after a
+//     deploy when a still-running tab's lazy import races the v(n-1)
+//     ASSET_CACHE purge in our own activate handler.
 //
-// Carries forward v53's resident sidebar (§11-sidebar), v52's warm-beige
-// #F4F0E8 token, v51's overlay-hide registry, and v50's MIME-type self-
-// heal. Combined with skipWaiting() on install and clients.claim() on
-// activate, every device refetches the app shell on next open. Bump
-// this suffix any time a release needs to propagate urgently to
-// existing installs.
+// Caching strategy is unchanged and remains correct:
+//   • HTML / navigation requests   → network-first, cache only on
+//     success for offline fallback (offline.html / index.html).
+//   • /assets/<hash>.(js|css|woff) → cache-first, MIME-validated on
+//     read AND write (text/html under .js/.css URLs is evicted on
+//     read, never written).
+//   • images / fonts / icons       → stale-while-revalidate.
+//   • /api/*  /events*  /ws*       → passthrough, never cached.
+//   • activate                     → delete every cache not in the
+//     current valid-list, then clients.claim().
+// Combined with skipWaiting() on install + clients.claim() + the
+// controllerchange auto-reload in index.html, fresh users transition
+// seamlessly; the new runtime guard rescues the in-flight cases that
+// raced the cache purge.
 
-const SW_VERSION = '3.7.0';
-const STATIC_CACHE = 'kamizo-static-v54';
-const ASSET_CACHE = 'kamizo-assets-v54';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v54';
+const SW_VERSION = '3.7.1';
+const STATIC_CACHE = 'kamizo-static-v55';
+const ASSET_CACHE = 'kamizo-assets-v55';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v55';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
