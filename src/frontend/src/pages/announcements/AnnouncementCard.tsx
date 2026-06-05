@@ -11,6 +11,7 @@ import { StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
 import type { Announcement, AnnouncementPriority } from '../../types';
 import type { ReactNode } from 'react';
+import { plural } from '../../utils/plural';
 
 export function AnnouncementCard({
   announcement,

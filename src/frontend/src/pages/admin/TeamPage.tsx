@@ -15,7 +15,7 @@ import { StaffImportModal } from './team/StaffImportModal';
 import { AddStaffModal } from './team/AddStaffModal';
 import { MemberDetailsModal } from './team/MemberDetailsModal';
 import { StaffSection } from './team/StaffSection';
-import { type StaffMember } from './team/constants';
+import { type StaffMember, ROLE_LABELS_RU, ROLE_LABELS_UZ, ROLE_COLORS } from './team/constants';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';

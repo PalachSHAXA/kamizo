@@ -42,6 +42,39 @@ jobs:
           cd src/frontend
           npm run test
 
+      # Type-check the frontend before building. Vite/esbuild does NOT type
+      # check — without this step, missing-identifier bugs ship straight to
+      # prod and only show up as a runtime ReferenceError → ErrorBoundary
+      # fallback. The recent /guest-access crash (commits 38dd819, e87c755)
+      # was exactly this: a refactor dropped imports of `apiRequest`,
+      # `useLanguageStore`, `useAuthStore`, `VISITOR_TYPE_LABELS`, etc.;
+      # tsc flagged TS2304 the whole time, nobody ran it.
+      #
+      # Surface ALL tsc output to the log so existing type debt stays
+      # visible, but only HARD-FAIL on the runtime-crash classes:
+      #   • TS2304 — Cannot find name 'X'
+      #   • TS2552 — Cannot find name 'X'. Did you mean 'Y'?
+      # Every other TS error is type-only and doesn't crash at runtime, so
+      # we let it through instead of blocking the deploy queue on
+      # pre-existing tech debt in unrelated files.
+      - name: Type-check frontend (block on missing-identifier errors)
+        run: |
+          cd src/frontend
+          set +e
+          npx tsc -p tsconfig.app.json --noEmit > tsc.log 2>&1
+          status=$?
+          cat tsc.log
+          if grep -E "error TS(2304|2552):" tsc.log > /dev/null; then
+            echo ""
+            echo "::error::tsc found missing-identifier errors (TS2304/TS2552). These crash at runtime — blocking deploy."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo ""
+            echo "::warning::tsc reported type errors (no TS2304/TS2552), deploy continues. Clean these up — they will eventually catch a real bug."
+          fi
+          exit 0
+
       - name: Build frontend
         run: |
           cd src/frontend
@@ -99,6 +132,27 @@ jobs:
         run: |
           cd src/frontend
           npm run test
+
+      # Same gate as production — see the long comment on the equivalent
+      # step above. Block staging on TS2304/TS2552 so the bug doesn't
+      # even reach develop.
+      - name: Type-check frontend (block on missing-identifier errors)
+        run: |
+          cd src/frontend
+          set +e
+          npx tsc -p tsconfig.app.json --noEmit > tsc.log 2>&1
+          status=$?
+          cat tsc.log
+          if grep -E "error TS(2304|2552):" tsc.log > /dev/null; then
+            echo ""
+            echo "::error::tsc found missing-identifier errors (TS2304/TS2552). These crash at runtime — blocking deploy."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo ""
+            echo "::warning::tsc reported type errors (no TS2304/TS2552), deploy continues."
+          fi
+          exit 0
 
       - name: Build frontend
         run: |

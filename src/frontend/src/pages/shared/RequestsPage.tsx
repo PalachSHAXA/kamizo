@@ -13,6 +13,7 @@ import { formatAddress } from '../../utils/formatAddress';
 import { formatName } from '../../utils/formatName';
 import { ManagementRequestModal } from './components/ManagementRequestModal';
 import { CreateRequestModal } from './CreateRequestModal';
+import { TRASH_TYPES } from '../resident/components/ResidentNewRequestFlow';
 import type { ExecutorSpecialization, RequestPriority } from '../../types';
 
 export function RequestsPage() {

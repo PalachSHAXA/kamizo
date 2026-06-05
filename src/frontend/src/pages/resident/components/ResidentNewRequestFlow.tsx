@@ -75,7 +75,7 @@ const ZTOP = 1100;
 // Trash removal needs structured fields (type + volume + explicit date/time)
 // rather than a free-text description — ported from the old NewRequestModal so
 // dispatch keeps the type/volume signal that drives truck sizing.
-const TRASH_TYPES = [
+export const TRASH_TYPES = [
   { id: 'construction', icon: '🧱', label: 'Строительный', labelUz: 'Qurilish',     sub: 'Кирпич, бетон, штукатурка', subUz: 'G\'isht, beton, shuvoq' },
   { id: 'furniture',    icon: '🛋️', label: 'Старая мебель', labelUz: 'Eski mebel',  sub: 'Диваны, шкафы, кровати',    subUz: 'Divan, shkaf, krovat' },
   { id: 'household',    icon: '🗑️', label: 'Бытовой',       labelUz: 'Maishiy',      sub: 'Обычные бытовые отходы',    subUz: 'Oddiy maishiy chiqindi' },

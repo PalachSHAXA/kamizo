@@ -7,7 +7,7 @@ import { X } from 'lucide-react';
 import { useCRMStore } from '../../stores/crmStore';
 import { useExecutorStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
-import type { WorkOrder } from './types';
+import type { WorkOrder, WorkOrderType, WorkOrderPriority } from './types';
 
 export function WorkOrderFormModal({
   onClose,

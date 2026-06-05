@@ -12,7 +12,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { workOrdersApi } from '../services/api';
 import { WorkOrderDetailModal } from './work-orders/WorkOrderDetailModal';
 import { WorkOrderFormModal } from './work-orders/WorkOrderFormModal';
-import type { WorkOrder, WorkOrderStatus } from './work-orders/types';
+import type { WorkOrder, WorkOrderStatus, WorkOrderPriority } from './work-orders/types';
 
 // Map API snake_case fields to camelCase interface
 interface WorkOrderRaw {

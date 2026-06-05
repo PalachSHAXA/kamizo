@@ -12,6 +12,7 @@ import { EmployeeProfile } from './colleagues/EmployeeProfile';
 import { NewsFeed } from './colleagues/NewsFeed';
 import { TopColleagues } from './colleagues/TopColleagues';
 import { ThankModal } from './colleagues/ThankModal';
+import { safeFixed, safeAvgRating } from './colleagues/ratingUtils';
 import type { Employee, NewsItem, Rating, Thank } from './colleagues/types';
 
 // Функция для получения названия отдела по специализации
@@ -32,21 +33,6 @@ const getDepartmentName = (specialization: ExecutorSpecialization | undefined | 
     other: 'Общий отдел',
   };
   return departments[specialization as string] || 'Общий отдел';
-};
-
-// Safe numeric formatter — returns "0.0" for non-finite values instead of crashing
-const safeFixed = (n: number | undefined | null, digits = 1): string => {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return (0).toFixed(digits);
-  return n.toFixed(digits);
-};
-
-// Compute average safely — returns 0 if ratings object missing/invalid
-const safeAvgRating = (ratings: Employee['ratings'] | undefined): number => {
-  if (!ratings) return 0;
-  const values = Object.values(ratings).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-  if (values.length === 0) return 0;
-  const sum = values.reduce((a, b) => a + b, 0);
-  return sum / values.length;
 };
 
 // Функция для генерации аватара на основе имени

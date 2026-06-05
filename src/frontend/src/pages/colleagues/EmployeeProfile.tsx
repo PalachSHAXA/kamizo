@@ -6,6 +6,7 @@ import { useLanguageStore } from '../../stores/languageStore';
 import { Avatar } from './Avatar';
 import { StarRating } from './StarRating';
 import { getColleagueLabels } from './labels';
+import { safeFixed, safeAvgRating } from './ratingUtils';
 import type { Employee, Thank } from './types';
 
 export function EmployeeProfile({ employee, onBack, thanks }: {

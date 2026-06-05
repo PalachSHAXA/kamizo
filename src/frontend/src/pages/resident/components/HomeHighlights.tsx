@@ -231,10 +231,16 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
   // Sprint 5: gesture math factored out to useSwipeCarousel — same hook
   // is used by NewsWidget and (next) ServiceBottomSheet so all three
   // share threshold + drag-far behavior.
-  const { drag, dragging, handlers } = useSwipeCarousel({
+  // Bump dragFarThreshold from the default 8 to 30 px — gentle taps on
+  // mobile (the most common gesture) used to register as drags and the
+  // click was swallowed. 30 px lets a resting finger count as a tap but
+  // still rejects swipes. The hook's `draggedFar()` then drives the
+  // suppress-tap check on the card button below.
+  const { drag, dragging, draggedFar, handlers } = useSwipeCarousel({
     count: cards.length,
     activeIdx,
     onChange: setActiveIdx,
+    dragFarThreshold: 30,
   });
 
   return (
@@ -256,11 +262,9 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
             <button
               key={card.id}
               onClick={() => {
-                // Audit P0: threshold was 6px which made gentle taps on mobile
-                // (the most common gesture) register as drags and swallow the
-                // click — users thought the carousel was broken. 30px lets a
-                // resting finger count as a tap but still rejects swipes.
-                if (i === activeIdx && Math.abs(cur.current) < 30) card.onClick();
+                // Suppress the click if the user actually dragged past the
+                // 30 px tap-tolerance set on the carousel above.
+                if (i === activeIdx && !draggedFar()) card.onClick();
               }}
               className="absolute text-left text-white"
               style={{

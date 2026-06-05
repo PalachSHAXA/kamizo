@@ -1,9 +1,11 @@
 // Sprint 27: extracted from ColleaguesSection. Top-3 rated employees
 // across the platform with their avatar + average rating + badge.
 
+import { Component } from 'react';
 import { Award, Star, Users } from 'lucide-react';
 import { EmptyState } from '../../components/common';
 import { Avatar } from './Avatar';
+import { safeFixed, safeAvgRating } from './ratingUtils';
 import type { Employee } from './types';
 
 export function TopColleagues({ employees, isResidentView }: { employees: Employee[]; isResidentView: boolean }) {

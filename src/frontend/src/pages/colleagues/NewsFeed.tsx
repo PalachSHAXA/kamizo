@@ -3,6 +3,7 @@
 // changes.
 
 import { TrendingUp, MessageCircle } from 'lucide-react';
+import { useLanguageStore } from '../../stores/languageStore';
 import type { NewsItem } from './types';
 
 export function NewsFeed({ news }: { news: NewsItem[] }) {
