@@ -10,6 +10,7 @@ import { SERVICE_CATEGORIES } from '../../../types';
 import type { ExecutorSpecialization, RequestPriority, Request, User } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
 import { useModalPresence } from '../../../stores/modalStore';
+import { useIsMobile } from '../../../hooks/useBreakpoint';
 
 // New request flow — 1:1 port of Claude Design §03-novaya-zayavka, wired to
 // real data: catalog tiles map to real ExecutorSpecialization categories,
@@ -153,12 +154,20 @@ type DragHandlers = {
 // (via useModalPresence) hides the global BottomBar so the sticky action
 // button is never covered by the nav. The panel stays mounted across
 // catalog→form so there is no re-animation between steps.
+//
+// Desktop adaptation: mobile keeps the bottom-sheet pattern (slide-up,
+// swipe-down-to-dismiss, anchored to bottom-edge, rounded only on top).
+// At ≥md the same shell becomes a CENTERED MODAL with bounded width
+// (~720 px) and full-radius corners — without this, the sheet flat-out
+// covered the whole desktop main column with a dark backdrop including
+// over the global Sidebar.
 function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: (drag: DragHandlers, requestClose: () => void) => ReactNode }) {
   const [entered, setEntered] = useState(false);
   const [closing, setClosing] = useState(false);
   const [dragY, setDragY] = useState(0);
   const dragging = useRef(false);
   const startY = useRef(0);
+  const isMobile = useIsMobile();
   useModalPresence();
 
   useEffect(() => {
@@ -179,23 +188,56 @@ function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: 
     return () => document.removeEventListener('keydown', onKey);
   }, [requestClose]);
 
+  // Drag-to-dismiss is a touch gesture — meaningful only on the mobile sheet.
+  // On desktop the swipe-down grabber still renders (so the design stays
+  // consistent), but pointer dragging is a no-op there.
   const drag: DragHandlers = {
-    onTouchStart: (e) => { dragging.current = true; startY.current = e.touches[0].clientY; },
-    onTouchMove: (e) => { if (!dragging.current) return; const dy = e.touches[0].clientY - startY.current; setDragY(dy > 0 ? dy : 0); },
-    onTouchEnd: () => { dragging.current = false; if (dragY > 110) requestClose(); else setDragY(0); },
+    onTouchStart: (e) => { if (!isMobile) return; dragging.current = true; startY.current = e.touches[0].clientY; },
+    onTouchMove: (e) => { if (!isMobile || !dragging.current) return; const dy = e.touches[0].clientY - startY.current; setDragY(dy > 0 ? dy : 0); },
+    onTouchEnd: () => { if (!isMobile) return; dragging.current = false; if (dragY > 110) requestClose(); else setDragY(0); },
   };
 
   const shown = entered && !closing;
-  const translateY = shown ? `${dragY}px` : '100%';
+  // Mobile: slide-up from the bottom edge; closing slides back down.
+  // Desktop: fade + tiny scale; no translate, since the panel is centered.
+  const panelTransform = isMobile
+    ? `translateY(${shown ? `${dragY}px` : '100%'})`
+    : `scale(${shown ? 1 : 0.97})`;
   return (
-    <div onClick={requestClose} style={{ position: 'fixed', inset: 0, zIndex: ZTOP, display: 'flex', alignItems: 'flex-end', background: `rgba(28,25,23,${shown ? 0.5 : 0})`, backdropFilter: shown ? 'blur(2px)' : 'none', transition: 'background .25s ease' }}>
+    <div
+      onClick={requestClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: ZTOP,
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        background: `rgba(28,25,23,${shown ? 0.5 : 0})`,
+        backdropFilter: shown ? 'blur(2px)' : 'none',
+        transition: 'background .25s ease',
+        padding: isMobile ? 0 : 24,
+      }}
+    >
       <div onClick={(e) => e.stopPropagation()} style={{
-        width: '100%', maxHeight: '94vh', display: 'flex', flexDirection: 'column',
-        background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX,
-        boxShadow: '0 -10px 40px rgba(28,25,23,0.3)', overflow: 'hidden',
-        transform: `translateY(${translateY})`,
-        transition: dragging.current ? 'none' : 'transform .28s cubic-bezier(.32,.72,0,1)',
-        willChange: 'transform',
+        width: '100%',
+        maxWidth: isMobile ? '100%' : 720,
+        maxHeight: isMobile ? '94vh' : '88vh',
+        display: 'flex', flexDirection: 'column',
+        background: 'var(--app-bg, #F4F0E8)',
+        // Mobile: rounded only at the top (sheet anchored to bottom).
+        // Desktop: rounded all corners (free-floating modal).
+        borderTopLeftRadius: RX, borderTopRightRadius: RX,
+        borderBottomLeftRadius: isMobile ? 0 : RX,
+        borderBottomRightRadius: isMobile ? 0 : RX,
+        boxShadow: isMobile
+          ? '0 -10px 40px rgba(28,25,23,0.3)'
+          : '0 20px 60px rgba(28,25,23,0.35)',
+        overflow: 'hidden',
+        transform: panelTransform,
+        opacity: isMobile ? 1 : (shown ? 1 : 0),
+        transition: dragging.current
+          ? 'none'
+          : `transform .28s cubic-bezier(.32,.72,0,1), opacity .22s ease`,
+        willChange: 'transform, opacity',
       }}>
         {children(drag, requestClose)}
       </div>
