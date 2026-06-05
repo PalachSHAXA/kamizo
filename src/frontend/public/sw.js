@@ -1,20 +1,25 @@
 // Kamizo PWA Service Worker
-// Version: 3.6.3 — cache suffix bumped to v47 to evict every v46 (and
+// Version: 3.6.4 — cache suffix bumped to v48 to evict every v47 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • the resident Profile redesign (Claude Design §07-profil), and
-//   • a client-side controllerchange auto-reload + SKIP_WAITING handshake
-//     in index.html that fixes stale-PWA login failures
-//     ("Неверный логин или пароль" while the backend was healthy —
-//     installed PWAs were running months-old JS bundles whose auth flow
-//     predated the race-free CORS fix and multi-tenant login).
+//   • full-bleed beige background on the resident Profile page (and any
+//     other resident page added to isResidentFullBleed in future) — no
+//     more white side strips or white overscroll under content,
+//   • the brown theme-color (#4A3B30) now scoped to the resident Home
+//     hero only; every other page (Profile, Vehicles, Chat, etc.) gets
+//     the light app-bg in the status-bar zone via the default in
+//     index.html — fixes the brown chrome strip that was leaking
+//     across non-Home pages,
+//   • a working edit-profile bottom-sheet on the Profile hero pencil
+//     (name + phone fields), wired to authStore.updateProfile. The
+//     button used to silently toggle an off-screen phone-edit row.
 // Combined with skipWaiting() on install and clients.claim() on activate,
 // every device refetches the app shell on next open. Bump this suffix any
 // time a release needs to propagate urgently to existing installs.
 
-const SW_VERSION = '3.6.3';
-const STATIC_CACHE = 'kamizo-static-v47';
-const ASSET_CACHE = 'kamizo-assets-v47';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v47';
+const SW_VERSION = '3.6.4';
+const STATIC_CACHE = 'kamizo-static-v48';
+const ASSET_CACHE = 'kamizo-assets-v48';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v48';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
