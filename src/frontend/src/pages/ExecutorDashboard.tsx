@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { InstallAppBanner } from '../components/InstallAppSection';
 import {
   FileText, Clock, CheckCircle,
@@ -156,41 +156,86 @@ export function ExecutorDashboard() {
     return new Date(utcStr).getTime();
   }, []);
 
-  // Timer effect for in_progress requests (accounting for pauses).
+  // Local pause-tracking for the executor work timer.
   //
-  // Backend safety net: the Node API on the Tashkent VPS (UTC+5) used to
-  // parse SQLite's naive "YYYY-MM-DD HH:MM:SS" timestamps as local time
-  // when computing pause durations, which inflated total_paused_time by
-  // ~5 h per resume. The proper fix is on the server (commit 79f60ca4),
-  // but until that rsyncs to the VPS — and to repair already-corrupted
-  // rows even after — we sanity-check the number here. By definition
-  // `total_paused_time` cannot exceed the wall-clock since start: you
-  // can't have been paused for longer than the work has existed. If it
-  // does, the value is bogus; treat it as 0 and show wall-clock elapsed
-  // (slight overcount by the genuine pause interval — usually seconds —
-  // is far better than the bug's "0:00 forever").
+  // The Node API on the Tashkent VPS (UTC+5) used to parse SQLite's naive
+  // "YYYY-MM-DD HH:MM:SS" datetime strings as local time when computing
+  // `pause_duration` in the /resume handler. That inflated
+  // `total_paused_time` by ~5 h per resume — so after the first resume
+  // the server reported `total_paused_time = 18 000 s` even if the user
+  // had paused for only seconds. The earlier safety net (commit 184ecd25)
+  // zero'd the bogus value and showed wall-clock elapsed; but wall-clock
+  // includes the genuine pause interval, so a 1:46 task jumped to ~2:51
+  // after a one-minute pause. The user reported this drift directly.
+  //
+  // Real fix: stop trusting the server's `total_paused_time` for the live
+  // timer. Track pauses purely on the client by watching the `is_paused`
+  // edge transitions in the request stream. We only seed our local
+  // accumulator from the server on first sight, and only if the seed is
+  // physically plausible (≤ wall-clock since start). After that the
+  // accumulator grows by exactly the durations we observe locally —
+  // immune to whatever the backend writes.
+  const accumulatedPauseRef = useRef<Record<string, number>>({});
+  const pauseStartMsRef = useRef<Record<string, number>>({});
+
   useEffect(() => {
     const interval = setInterval(() => {
       const newTimers: Record<string, number> = {};
-      inProgressRequests.forEach(req => {
-        if (req.startedAt) {
-          const startTime = parseUTCDateTime(req.startedAt);
-          const rawTotalPaused = req.totalPausedTime || 0;
+      const activeIds = new Set<string>();
 
-          if (req.isPaused && req.pausedAt) {
-            // If currently paused, don't count time since pause
-            const pausedAt = parseUTCDateTime(req.pausedAt);
-            const wall = Math.floor((pausedAt - startTime) / 1000);
-            const totalPausedTime = rawTotalPaused > wall ? 0 : rawTotalPaused;
-            newTimers[req.id] = Math.max(0, wall - totalPausedTime);
-          } else {
-            // Active work - count all time minus paused time
-            const wall = Math.floor((Date.now() - startTime) / 1000);
-            const totalPausedTime = rawTotalPaused > wall ? 0 : rawTotalPaused;
-            newTimers[req.id] = Math.max(0, wall - totalPausedTime);
-          }
+      inProgressRequests.forEach(req => {
+        if (!req.startedAt) return;
+        activeIds.add(req.id);
+        const startTime = parseUTCDateTime(req.startedAt);
+        const wallNow = Math.floor((Date.now() - startTime) / 1000);
+
+        // First sight: seed from server only if the value is sane. A bogus
+        // (post-bug) value would be larger than wall-clock — physically
+        // impossible — so we drop it to 0 and rely on edge-detected pauses
+        // going forward.
+        if (accumulatedPauseRef.current[req.id] === undefined) {
+          const serverPaused = req.totalPausedTime || 0;
+          accumulatedPauseRef.current[req.id] = serverPaused <= wallNow ? serverPaused : 0;
+        }
+
+        const wasInPause = pauseStartMsRef.current[req.id] !== undefined;
+        const isInPause = !!(req.isPaused && req.pausedAt);
+
+        if (isInPause && !wasInPause) {
+          // Edge: active → paused. Anchor to the server's paused_at so the
+          // duration is correct even if we missed the exact moment of the
+          // click (page reloaded mid-pause, websocket lag, etc.).
+          pauseStartMsRef.current[req.id] = parseUTCDateTime(req.pausedAt!);
+        } else if (!isInPause && wasInPause) {
+          // Edge: paused → active. Bank the real pause duration locally.
+          const dur = Math.floor((Date.now() - pauseStartMsRef.current[req.id]) / 1000);
+          accumulatedPauseRef.current[req.id] += Math.max(0, dur);
+          delete pauseStartMsRef.current[req.id];
+        }
+
+        const pausedTotal = accumulatedPauseRef.current[req.id] || 0;
+
+        if (isInPause) {
+          // While paused, the displayed elapsed freezes at "wall until the
+          // pause moment minus prior pauses". paused_at comes from the
+          // server (parsed as UTC by parseUTCDateTime).
+          const pausedAt = parseUTCDateTime(req.pausedAt!);
+          const wallAtPause = Math.floor((pausedAt - startTime) / 1000);
+          newTimers[req.id] = Math.max(0, wallAtPause - pausedTotal);
+        } else {
+          newTimers[req.id] = Math.max(0, wallNow - pausedTotal);
         }
       });
+
+      // Prune refs for requests that left the in_progress set (completed,
+      // cancelled, reassigned) so the maps don't grow forever in a session.
+      Object.keys(accumulatedPauseRef.current).forEach(id => {
+        if (!activeIds.has(id)) {
+          delete accumulatedPauseRef.current[id];
+          delete pauseStartMsRef.current[id];
+        }
+      });
+
       setActiveTimers(newTimers);
     }, 1000);
 
