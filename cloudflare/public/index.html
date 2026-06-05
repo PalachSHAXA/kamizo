@@ -11,11 +11,14 @@
     <link rel="apple-touch-icon" sizes="192x192" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <!-- #4A3B30 matches the resident-home hero's gradient TOP stop
-         (linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)).
-         A darker value (e.g. the 55% stop #34291F) painted a visible seam
-         between the chrome/status-bar zone and the hero's top edge. -->
-    <meta name="theme-color" content="#4A3B30" />
+    <!-- Global default matches the app body / --app-bg (index.css :root) so
+         every page that doesn't paint its own top stripe gets a light
+         status-bar chrome. The resident Home hero (§01-glavnaya) overrides
+         this to its brown #4A3B30 on mount and restores it on unmount —
+         see src/pages/resident/design/ResidentHomeDesign.tsx — so the
+         brown tint only paints on Home, never leaks to Profile / Chat /
+         Vehicles / other pages. -->
+    <meta name="theme-color" content="#F7F8FA" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <!-- "black-translucent" lets the web view extend behind the iOS status
          bar so the resident-home hero paints its brown gradient under the
@@ -34,7 +37,7 @@
     <meta name="msapplication-TileColor" content="#F97316" />
     <meta name="msapplication-TileImage" content="/icons/favicon-128x128.png" />
     <title>kamizo - Управление жильём</title>
-    <script type="module" crossorigin src="/assets/index-C8vFElCh.js"></script>
+    <script type="module" crossorigin src="/assets/index-B7QicD16.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/charts-RPY68FIM.js">
     <link rel="stylesheet" crossorigin href="/assets/index-_LxcOuzr.css">
   </head>
