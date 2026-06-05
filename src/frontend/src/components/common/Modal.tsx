@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 
 interface ModalProps {
   isOpen: boolean;
@@ -23,6 +24,11 @@ export function Modal({
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const { language } = useLanguageStore();
   const closeLabel = language === 'ru' ? 'Закрыть' : 'Yopish';
+
+  // Hide the global BottomBar while this modal is open via the shared
+  // modal-presence registry (modalStore counter). One-line opt-in for
+  // every consumer of this wrapper.
+  useModalPresence(isOpen);
 
   const sizeClasses = {
     sm: 'max-w-sm',

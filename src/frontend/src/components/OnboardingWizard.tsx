@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Building2, Users, CheckCircle, ChevronRight, Loader2, Copy, Check } from 'lucide-react';
 import { useLanguageStore } from '../stores/languageStore';
+import { useModalPresence } from '../stores/modalStore';
 import { settingsApi } from '../services/api/settings';
 import { buildingsApi } from '../services/api/buildings';
 import { authApi } from '../services/api/auth';
@@ -14,6 +15,9 @@ interface OnboardingWizardProps {
 const TOTAL_STEPS = 4;
 
 export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) {
+  // Full-screen wizard — hide the global BottomBar while it's mounted.
+  useModalPresence();
+
   const { language } = useLanguageStore();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);

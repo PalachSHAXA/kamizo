@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RefreshCw, X, CheckCircle } from 'lucide-react';
 import { RESCHEDULE_REASON_LABELS } from '../../types';
+import { useModalPresence } from '../../stores/modalStore';
 import type { RescheduleRequest } from '../../types';
 
 interface RescheduleResponseModalProps {
@@ -18,6 +19,9 @@ export default function RescheduleResponseModal({
   onReject,
   language,
 }: RescheduleResponseModalProps) {
+  // Hide the global BottomBar while this modal is mounted.
+  useModalPresence();
+
   const [rejectNote, setRejectNote] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
 

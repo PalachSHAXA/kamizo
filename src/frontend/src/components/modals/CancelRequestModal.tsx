@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Ban, X } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import type { Request } from '../../types';
 
 interface CancelRequestModalProps {
@@ -11,6 +12,9 @@ interface CancelRequestModalProps {
 }
 
 export function CancelRequestModal({ isOpen, onClose, request, onCancel }: CancelRequestModalProps) {
+  // Hide the global BottomBar while open (shared modal-presence registry).
+  useModalPresence(isOpen);
+
   const [reason, setReason] = useState('');
   const { language } = useLanguageStore();
 

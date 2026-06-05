@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RefreshCw, X, Send } from 'lucide-react';
 import { RESCHEDULE_REASON_LABELS } from '../../types';
+import { useModalPresence } from '../../stores/modalStore';
 import type { Request, RescheduleReason } from '../../types';
 
 interface RescheduleModalProps {
@@ -19,6 +20,9 @@ export default function RescheduleModal({
   language,
   role = 'resident',
 }: RescheduleModalProps) {
+  // Hide the global BottomBar while this modal is mounted.
+  useModalPresence();
+
   const defaultReason: RescheduleReason = role === 'executor' ? 'busy_time' : 'not_at_home';
   const [proposedDate, setProposedDate] = useState('');
   const [proposedTime, setProposedTime] = useState('');

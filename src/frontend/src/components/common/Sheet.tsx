@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, Component } from 'react';
 import { X } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import { SHEET_SIZES, type SheetSize } from '../../theme/sizes';
 
 interface SheetProps {
@@ -59,6 +60,10 @@ export function Sheet({
   const sheetRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [entered, setEntered] = useState(false);
+
+  // Hide the global BottomBar while this sheet is open — same modal-presence
+  // registry the rest of the app uses.
+  useModalPresence(isOpen);
 
   // Enter animation flag — flipped on next frame after mount so the sheet
   // slides/fades in instead of popping.

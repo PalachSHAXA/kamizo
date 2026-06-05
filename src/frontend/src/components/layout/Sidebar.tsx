@@ -13,6 +13,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import { useRequestStore, useAnnouncementStore, useExecutorStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { useTenantStore } from '../../stores/tenantStore';
@@ -28,6 +29,11 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
+  // Drawer is an overlay — hide the global BottomBar while it's open via the
+  // shared modal-presence registry. Gated on isOpen so the bar reappears on
+  // close / backdrop tap / swipe-to-dismiss / unmount.
+  useModalPresence(isOpen);
+
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
   const { user } = useAuthStore();

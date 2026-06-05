@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Bell, AlertTriangle, Users, CheckCircle, Truck } from 'lucide-react';
+import { useModalPresence } from '../stores/modalStore';
 
 export type PopupType =
   | 'announcement_urgent'    // Срочное объявление
@@ -27,6 +28,10 @@ export function PopupNotification({
   actionLabel,
   autoClose = 0,
 }: PopupNotificationProps) {
+  // Full-screen overlay (fixed inset-0 z-110, backdrop) — hide the global
+  // BottomBar while it's mounted via the shared modal-presence registry.
+  useModalPresence();
+
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = useCallback(() => {
