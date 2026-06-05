@@ -5,6 +5,7 @@ const PRODUCTION_ORIGINS = [
   'https://app.kamizo.uz',
   'https://kamizo.uz',
   'https://www.kamizo.uz',
+  'https://kamizo.shaxzod.workers.dev',
 ];
 
 const DEV_ORIGINS = [
@@ -36,6 +37,9 @@ export function setCorsOrigin(request: Request): void {
     currentCorsOrigin = origin;
   } else if (/^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)?kamizo\.uz$/.test(origin)) {
     // Dynamic tenant subdomains (production only, RFC-compliant label check)
+    currentCorsOrigin = origin;
+  } else if (/^https:\/\/([a-z0-9-]+\.)?kamizo\.shaxzod\.workers\.dev$/.test(origin)) {
+    // Workers.dev tenant subdomains
     currentCorsOrigin = origin;
   } else if (devMode && /^http:\/\/localhost:\d+$/.test(origin)) {
     // Any localhost port in dev mode
