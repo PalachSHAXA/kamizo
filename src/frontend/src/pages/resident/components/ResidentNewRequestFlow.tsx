@@ -214,13 +214,20 @@ function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: 
         background: `rgba(28,25,23,${shown ? 0.5 : 0})`,
         backdropFilter: shown ? 'blur(2px)' : 'none',
         transition: 'background .25s ease',
-        padding: isMobile ? 0 : 24,
+        // Desktop: extra bottom padding so the sticky "Выберите услугу" CTA
+        // never hugs the bottom edge of the viewport (the modal is centered,
+        // and asymmetric padding nudges it ~36px higher than the geometric
+        // middle, which looks much calmer with a CTA pinned to the panel
+        // bottom).
+        padding: isMobile ? 0 : '24px 24px 72px 24px',
       }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{
         width: '100%',
         maxWidth: isMobile ? '100%' : 720,
-        maxHeight: isMobile ? '94vh' : '88vh',
+        // Cap shorter on desktop (was 88vh) so even when the panel is full
+        // of service cards there is ~10vh of breathing room around it.
+        maxHeight: isMobile ? '94vh' : '82vh',
         display: 'flex', flexDirection: 'column',
         background: 'var(--app-bg, #F4F0E8)',
         // Mobile: rounded only at the top (sheet anchored to bottom).
