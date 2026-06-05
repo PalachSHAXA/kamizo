@@ -623,21 +623,51 @@ export default {
     };
 
     // env.ASSETS is automatically provided by Cloudflare when using assets config
+    //
+    // SPA fallback rule: only navigation requests fall back to index.html.
+    // A missing file under /assets/, /icons/, /images/, or any URL with a
+    // file extension (.js, .css, .png, .woff2, …) MUST return 404 — never
+    // index.html. Otherwise the Service Worker / HTTP cache poisons that
+    // URL with a text/html response and the browser then refuses to apply
+    // it as CSS / execute it as a module forever (the bug behind the
+    // "MIME type 'text/html' is not a supported stylesheet" console errors).
+    const isAssetLikePath = (() => {
+      const p = url.pathname;
+      if (p.startsWith('/assets/') || p.startsWith('/icons/') || p.startsWith('/images/')) return true;
+      // Any path with a file extension in the last segment
+      const last = p.substring(p.lastIndexOf('/') + 1);
+      return last.includes('.');
+    })();
+
     try {
-      // Try to serve the requested asset
       const assetResponse = await env.ASSETS.fetch(request);
 
-      // If asset found, return it (with no-cache for HTML)
+      // Asset hit — serve as-is (HTML gets no-cache headers).
       if (assetResponse.status !== 404) {
         return withNoCacheIfHtml(assetResponse);
       }
 
-      // For 404 (file not found), serve index.html for SPA routing
+      // 404 from ASSETS. For asset-like paths, propagate the 404 honestly
+      // so browsers don't cache an HTML body under a JS/CSS URL.
+      if (isAssetLikePath) {
+        return new Response('Not Found', {
+          status: 404,
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8', 'Cache-Control': 'no-store' },
+        });
+      }
+
+      // Genuine SPA route (no extension, not /assets/) — serve index.html.
       const indexRequest = new Request(new URL('/', request.url).toString(), request);
       const indexResponse = await env.ASSETS.fetch(indexRequest);
       return withNoCacheIfHtml(indexResponse);
     } catch (e) {
-      // Fallback to index.html on any error
+      // Same rule on hard error: don't poison asset URLs with HTML.
+      if (isAssetLikePath) {
+        return new Response('Asset unavailable', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8', 'Cache-Control': 'no-store' },
+        });
+      }
       try {
         const indexRequest = new Request(new URL('/', request.url).toString(), request);
         const indexResponse = await env.ASSETS.fetch(indexRequest);
