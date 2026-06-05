@@ -9,9 +9,8 @@ import { generateQRCodeCanvas } from '../../components/LazyQRCode';
 import { useGuestAccessStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
-import { apiRequest } from '../../services/api';
 import {
-  type VisitLog, toneFor, safeVisitorLabel, safeAccessLabel, safeStatusLabel,
+  toneFor, safeVisitorLabel, safeAccessLabel, safeStatusLabel,
 } from './utils';
 
 export function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => void }) {

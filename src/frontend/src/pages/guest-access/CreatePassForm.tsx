@@ -8,10 +8,13 @@ import { useState } from 'react';
 import {
   X, ArrowLeft, ChevronRight, Calendar, Clock, Car, Package, User, Users,
 } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
 import { useGuestAccessStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
-import type { GuestAccessCode, VisitorType, AccessType } from '../../types';
-import type { QuickPreset } from './utils';
+import {
+  VISITOR_TYPE_LABELS, ACCESS_TYPE_LABELS,
+  type GuestAccessCode, type VisitorType, type AccessType,
+} from '../../types';
 
 export function CreatePassForm({
   onClose,
@@ -401,41 +404,4 @@ export function CreatePassForm({
     </div>
   );
 }
-
-// Quick-create tiles: 4 most-common visitor scenarios, one tap to start
-// the create flow with both visitor type and access duration pre-selected.
-type QuickPreset = {
-  visitor: VisitorType;
-  access: AccessType;
-  icon: React.ReactNode;
-  bg: string;
-  fg: string;
-  titleRu: string;
-  titleUz: string;
-  subRu: string;
-  subUz: string;
-};
-
-const QUICK_PRESETS: QuickPreset[] = [
-  {
-    visitor: 'guest', access: 'day',
-    icon: <Users className="w-4 h-4" />, bg: 'bg-emerald-50', fg: 'text-emerald-600',
-    titleRu: 'Гость', titleUz: 'Mehmon', subRu: 'до 24 ч', subUz: '24 soatgacha',
-  },
-  {
-    visitor: 'courier', access: 'single_use',
-    icon: <Package className="w-4 h-4" />, bg: 'bg-amber-50', fg: 'text-amber-600',
-    titleRu: 'Доставка', titleUz: 'Yetkazib berish', subRu: 'на 24 ч', subUz: '24 soat',
-  },
-  {
-    visitor: 'other', access: 'day',
-    icon: <User className="w-4 h-4" />, bg: 'bg-sky-50', fg: 'text-sky-600',
-    titleRu: 'Услуги', titleUz: 'Xizmatlar', subRu: 'мастер', subUz: 'usta',
-  },
-  {
-    visitor: 'taxi', access: 'single_use',
-    icon: <Car className="w-4 h-4" />, bg: 'bg-violet-50', fg: 'text-violet-600',
-    titleRu: 'Такси', titleUz: 'Taksi', subRu: '1 проезд', subUz: '1 marta',
-  },
-];
 

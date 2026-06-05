@@ -3,7 +3,36 @@
 // Семья) — taps fire onPick with a QuickPreset shape so the form
 // pre-fills.
 
+import { Users, Package, User, Car } from 'lucide-react';
+import { useLanguageStore } from '../../stores/languageStore';
 import type { QuickPreset } from './utils';
+
+// QUICK_PRESETS was originally declared in the parent file (back when the
+// page was 1300+ LOC). The sprint-21 split missed moving it, so the only
+// consumer (this component) read it as a free identifier and crashed at
+// runtime. Re-homed here with QuickCreateTiles, the single caller.
+const QUICK_PRESETS: QuickPreset[] = [
+  {
+    visitor: 'guest', access: 'day',
+    icon: <Users className="w-4 h-4" />, bg: 'bg-emerald-50', fg: 'text-emerald-600',
+    titleRu: 'Гость', titleUz: 'Mehmon', subRu: 'до 24 ч', subUz: '24 soatgacha',
+  },
+  {
+    visitor: 'courier', access: 'single_use',
+    icon: <Package className="w-4 h-4" />, bg: 'bg-amber-50', fg: 'text-amber-600',
+    titleRu: 'Доставка', titleUz: 'Yetkazib berish', subRu: 'на 24 ч', subUz: '24 soat',
+  },
+  {
+    visitor: 'other', access: 'day',
+    icon: <User className="w-4 h-4" />, bg: 'bg-sky-50', fg: 'text-sky-600',
+    titleRu: 'Услуги', titleUz: 'Xizmatlar', subRu: 'мастер', subUz: 'usta',
+  },
+  {
+    visitor: 'taxi', access: 'single_use',
+    icon: <Car className="w-4 h-4" />, bg: 'bg-violet-50', fg: 'text-violet-600',
+    titleRu: 'Такси', titleUz: 'Taksi', subRu: '1 проезд', subUz: '1 marta',
+  },
+];
 
 export function QuickCreateTiles({ onPick }: { onPick: (preset: QuickPreset) => void }) {
   const { language } = useLanguageStore();

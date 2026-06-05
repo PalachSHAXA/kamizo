@@ -5,6 +5,7 @@
 import { useRef, useEffect } from 'react';
 import { QrCode, X, Share2, Copy } from 'lucide-react';
 import { generateQRCodeCanvas } from '../../components/LazyQRCode';
+import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
 import type { GuestAccessCode } from '../../types';
 import { safeVisitorLabel, safeAccessLabel } from './utils';
