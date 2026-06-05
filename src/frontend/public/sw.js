@@ -1,29 +1,23 @@
 // Kamizo PWA Service Worker
-// Version: 3.6.6 — cache suffix bumped to v50 to evict every v49 (and
-// older) cache on the next SW lifecycle update.
+// Version: 3.6.7 — cache suffix bumped to v51 to evict every v50 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • the global BottomBar now hides on EVERY open overlay (modal /
+//     bottom-sheet / drawer / popup / wizard) via the shared
+//     useModalPresence registry — fixes the bar peeking under the
+//     resident Profile edit-sheet, the side Drawer, Cancel / Reschedule /
+//     RequestDetails / FeatureLocked / Onboarding / PopupNotification,
+//     and any consumer of common/Modal, common/Sheet, ui/Modal.
 //
-// This release fixes a permanent MIME-type breakage on installs that ever
-// loaded the app while the worker's SPA fallback was returning index.html
-// (text/html) under /assets/*.js and /assets/*.css URLs. The old SW happily
-// cached those text/html bodies cache-first, so the browser kept refusing
-// to apply them as CSS or execute them as modules forever ("Refused to
-// apply style … MIME type ('text/html') is not a supported stylesheet").
-//
-// Fix:
-//   1. Worker no longer falls back to index.html for /assets/* — it now
-//      returns 404 for missing assets (cloudflare/src/index.ts).
-//   2. This SW validates Content-Type on every hashed-asset cache hit and
-//      every cache write. Wrong-MIME responses (text/html under .js / .css
-//      URLs) are evicted on read and never cached on write, so a poisoned
-//      install self-heals on the next request.
-// Combined with skipWaiting() on install and clients.claim() on activate,
-// every device refetches the app shell on next open. Bump this suffix any
+// Carries forward v50's MIME-type self-heal (text/html bodies under
+// .js/.css URLs are evicted on read and never cached on write), plus
+// skipWaiting() on install and clients.claim() on activate so every
+// device refetches the app shell on next open. Bump this suffix any
 // time a release needs to propagate urgently to existing installs.
 
-const SW_VERSION = '3.6.6';
-const STATIC_CACHE = 'kamizo-static-v50';
-const ASSET_CACHE = 'kamizo-assets-v50';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v50';
+const SW_VERSION = '3.6.7';
+const STATIC_CACHE = 'kamizo-static-v51';
+const ASSET_CACHE = 'kamizo-assets-v51';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v51';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
