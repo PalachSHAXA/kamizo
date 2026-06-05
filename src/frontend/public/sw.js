@@ -1,33 +1,37 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.1 — cache suffix bumped to v55 to evict every v54 (and
+// Version: 3.7.2 — cache suffix bumped to v56 to evict every v55 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • a runtime chunk-load crash guard in index.html that catches
-//     "Importing a module script failed" / "Failed to fetch
-//     dynamically imported module" / ChunkLoadError, posts CLEAR_CACHE
-//     to this SW, unregisters stale SWs, and force-reloads ONCE per
-//     sessionStorage flag — fixes the red toast users hit after a
-//     deploy when a still-running tab's lazy import races the v(n-1)
-//     ASSET_CACHE purge in our own activate handler.
+//   • the resident passes / guest-access page redesign (Claude Design
+//     §06-propuska): sticky header, brown-gradient ticket hero with
+//     status pill + perforation + 3-button action row, 2x2 quick-
+//     create grid, "Недавние" and "История посещений" lists. Wired to
+//     the existing useGuestAccessStore + CreatePassForm + QRCodeDisplay;
+//     both modals now register with useModalPresence so the BottomBar
+//     hides while they're open.
+//   • carries forward v55's runtime chunk-load crash guard in
+//     index.html — listener catches "Importing a module script
+//     failed" / ChunkLoadError, purges caches via CLEAR_CACHE,
+//     unregisters stale SWs, and force-reloads once per sessionStorage
+//     flag. Fix for the red crash toast users were hitting when a
+//     still-running tab's lazy import raced the v(n-1) cache purge.
 //
-// Caching strategy is unchanged and remains correct:
-//   • HTML / navigation requests   → network-first, cache only on
-//     success for offline fallback (offline.html / index.html).
+// Caching strategy unchanged:
+//   • HTML / navigation requests   → network-first, cache on success
+//     for offline fallback.
 //   • /assets/<hash>.(js|css|woff) → cache-first, MIME-validated on
-//     read AND write (text/html under .js/.css URLs is evicted on
-//     read, never written).
+//     read AND write.
 //   • images / fonts / icons       → stale-while-revalidate.
 //   • /api/*  /events*  /ws*       → passthrough, never cached.
 //   • activate                     → delete every cache not in the
 //     current valid-list, then clients.claim().
 // Combined with skipWaiting() on install + clients.claim() + the
-// controllerchange auto-reload in index.html, fresh users transition
-// seamlessly; the new runtime guard rescues the in-flight cases that
-// raced the cache purge.
+// controllerchange auto-reload + chunk-load guard in index.html,
+// every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.1';
-const STATIC_CACHE = 'kamizo-static-v55';
-const ASSET_CACHE = 'kamizo-assets-v55';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v55';
+const SW_VERSION = '3.7.2';
+const STATIC_CACHE = 'kamizo-static-v56';
+const ASSET_CACHE = 'kamizo-assets-v56';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v56';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
