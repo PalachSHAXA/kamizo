@@ -402,6 +402,11 @@ function tenantNotFoundResponse(tenantSlug: string): Response {
 
 // ==================== MAIN HANDLER ====================
 
+// Static assets: hashed bundle chunks, styles, fonts, icons, manifest, sw.
+// Matches /assets/* and anything ending in a known static extension. Used to
+// short-circuit asset serving BEFORE the migration/tenant/CORS machinery.
+const STATIC_ASSET_RE = /^\/assets\/|\.(?:js|mjs|css|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|eot|json|webmanifest|map|wasm)$/i;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const response = await this._handleRequest(request, env);
@@ -416,6 +421,26 @@ export default {
   },
 
   async _handleRequest(request: Request, env: Env): Promise<Response> {
+    // ── Static-asset fast path ───────────────────────────────────────────
+    // run_worker_first=true means EVERY request (including ~20 concurrent JS
+    // chunks a page pulls on load) is routed through this worker. Running each
+    // asset through runMigrations() + a per-asset D1 tenant lookup before
+    // env.ASSETS.fetch() made that fetch intermittently throw under burst load
+    // → the catch below returned 503 → the browser's dynamic import() of that
+    // chunk failed → the whole app fell into the ErrorBoundary ("Упс! Что-то
+    // пошло не так") across app/tenant subdomains. Assets need none of that
+    // machinery, so serve them directly (with one retry) and skip it entirely.
+    try {
+      const assetPath = new URL(request.url).pathname;
+      if (request.method === 'GET' && STATIC_ASSET_RE.test(assetPath)) {
+        try {
+          return await env.ASSETS.fetch(request);
+        } catch {
+          return await env.ASSETS.fetch(request);
+        }
+      }
+    } catch { /* fall through to full handler */ }
+
     try {
     // Run DB migrations (only once per worker instance)
     try {
@@ -623,51 +648,21 @@ export default {
     };
 
     // env.ASSETS is automatically provided by Cloudflare when using assets config
-    //
-    // SPA fallback rule: only navigation requests fall back to index.html.
-    // A missing file under /assets/, /icons/, /images/, or any URL with a
-    // file extension (.js, .css, .png, .woff2, …) MUST return 404 — never
-    // index.html. Otherwise the Service Worker / HTTP cache poisons that
-    // URL with a text/html response and the browser then refuses to apply
-    // it as CSS / execute it as a module forever (the bug behind the
-    // "MIME type 'text/html' is not a supported stylesheet" console errors).
-    const isAssetLikePath = (() => {
-      const p = url.pathname;
-      if (p.startsWith('/assets/') || p.startsWith('/icons/') || p.startsWith('/images/')) return true;
-      // Any path with a file extension in the last segment
-      const last = p.substring(p.lastIndexOf('/') + 1);
-      return last.includes('.');
-    })();
-
     try {
+      // Try to serve the requested asset
       const assetResponse = await env.ASSETS.fetch(request);
 
-      // Asset hit — serve as-is (HTML gets no-cache headers).
+      // If asset found, return it (with no-cache for HTML)
       if (assetResponse.status !== 404) {
         return withNoCacheIfHtml(assetResponse);
       }
 
-      // 404 from ASSETS. For asset-like paths, propagate the 404 honestly
-      // so browsers don't cache an HTML body under a JS/CSS URL.
-      if (isAssetLikePath) {
-        return new Response('Not Found', {
-          status: 404,
-          headers: { 'Content-Type': 'text/plain;charset=UTF-8', 'Cache-Control': 'no-store' },
-        });
-      }
-
-      // Genuine SPA route (no extension, not /assets/) — serve index.html.
+      // For 404 (file not found), serve index.html for SPA routing
       const indexRequest = new Request(new URL('/', request.url).toString(), request);
       const indexResponse = await env.ASSETS.fetch(indexRequest);
       return withNoCacheIfHtml(indexResponse);
     } catch (e) {
-      // Same rule on hard error: don't poison asset URLs with HTML.
-      if (isAssetLikePath) {
-        return new Response('Asset unavailable', {
-          status: 503,
-          headers: { 'Content-Type': 'text/plain;charset=UTF-8', 'Cache-Control': 'no-store' },
-        });
-      }
+      // Fallback to index.html on any error
       try {
         const indexRequest = new Request(new URL('/', request.url).toString(), request);
         const indexResponse = await env.ASSETS.fetch(indexRequest);
