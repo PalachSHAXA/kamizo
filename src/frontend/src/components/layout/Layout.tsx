@@ -428,7 +428,7 @@ export function Layout() {
           <Header />
         </div>
 
-        <main id="main-content" role="main" className={isResidentFullBleed ? 'page-content' : 'px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content'}>
+        <main id="main-content" role="main" className={isResidentFullBleed ? 'page-content page-content-full-bleed' : 'px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content'}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={getDashboard()} />

@@ -756,6 +756,19 @@ p, li {
   margin-right: auto;
 }
 
+/* Full-bleed pages (resident Home / Vehicles / Profile) paint their own
+   horizontal padding to the design-handoff value (16px). The mobile
+   per-device-class auto-padding added below (lines ~1713+) on .page-content
+   would compound that to 24–28px, making cards visibly narrower than the
+   handoff. Reset both axes so the page sees the bare viewport width and
+   only the page's own inline 16px padding remains. Bottom padding for the
+   floating BottomBar comes from `#main-content:not(.chat-active)`, not
+   from .page-content, so dropping these resets here is safe. */
+.page-content.page-content-full-bleed {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
 /* Large desktop: more breathing room */
 @media (min-width: 1280px) {
   .page-content {
