@@ -1,23 +1,27 @@
 // Kamizo PWA Service Worker
-// Version: 3.6.7 — cache suffix bumped to v51 to evict every v50 (and
+// Version: 3.6.8 — cache suffix bumped to v52 to evict every v51 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • the global BottomBar now hides on EVERY open overlay (modal /
-//     bottom-sheet / drawer / popup / wizard) via the shared
-//     useModalPresence registry — fixes the bar peeking under the
-//     resident Profile edit-sheet, the side Drawer, Cancel / Reschedule /
-//     RequestDetails / FeatureLocked / Onboarding / PopupNotification,
-//     and any consumer of common/Modal, common/Sheet, ui/Modal.
+//   • the grey-overscroll fix: --app-bg moved from the cool #F7F8FA to
+//     the warm beige #F4F0E8 (Claude Design handoff value), with
+//     #root / .layout-root now painting it explicitly + html-level
+//     overscroll-behavior: none. No grey strip in any rubber-band /
+//     overlay-backdrop / safe-area zone on any page.
+//   • the fixed-shell hardening: .mobile-header now touch-action: none
+//     so a drag that starts on the header can't be hijacked into a
+//     page scroll. theme-color + splash bg + MobileHeader translucent
+//     fill all updated to match the warm beige.
 //
-// Carries forward v50's MIME-type self-heal (text/html bodies under
-// .js/.css URLs are evicted on read and never cached on write), plus
-// skipWaiting() on install and clients.claim() on activate so every
-// device refetches the app shell on next open. Bump this suffix any
-// time a release needs to propagate urgently to existing installs.
+// Carries forward v51's overlay-hide registry (BottomBar hides on any
+// open modal/sheet/drawer/popup via useModalPresence) and v50's MIME-
+// type self-heal. Combined with skipWaiting() on install and clients
+// .claim() on activate, every device refetches the app shell on next
+// open. Bump this suffix any time a release needs to propagate
+// urgently to existing installs.
 
-const SW_VERSION = '3.6.7';
-const STATIC_CACHE = 'kamizo-static-v51';
-const ASSET_CACHE = 'kamizo-assets-v51';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v51';
+const SW_VERSION = '3.6.8';
+const STATIC_CACHE = 'kamizo-static-v52';
+const ASSET_CACHE = 'kamizo-assets-v52';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v52';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
