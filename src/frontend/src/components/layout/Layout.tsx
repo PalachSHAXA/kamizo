@@ -366,7 +366,12 @@ export function Layout() {
   // specifies — no mobile per-device auto-padding compounding from .page-content.
   const isResidentPasses = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/guest-access';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses;
+  // Resident rate-employees (Claude Design §09-ocenka) — sticky in-page
+  // header + horizontally-scrolling employee row that needs the full mobile
+  // width without the .page-content per-device auto-padding compounding.
+  const isResidentRate = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/rate-employees';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +

@@ -1,5 +1,24 @@
-import { useState, useEffect } from 'react';
-import { Star, Users, Check, ThumbsUp, Send, MessageCircle, User, Briefcase, ChevronRight, Building2 } from 'lucide-react';
+// Resident "Оценка сотрудников" — Claude Design §09-ocenka handoff
+// (design/handoff/rating-handoff.md). Sticky header, horizontally-
+// scrolling employee row, selected-employee card with 5-star input,
+// quick tag chips, comment textarea, submit. UK rating is preserved
+// as a secondary action that opens the existing flow in a Modal
+// (common/Modal already registers with useModalPresence).
+//
+// Data wiring stays on the existing endpoints:
+//   - useExecutorStore.fetchExecutors / .executors
+//   - useRequestStore.fetchRequests / .requests
+//   - GET  /api/ratings        → which executors this resident has rated
+//   - POST /api/ratings        → submit a new rating
+//   - ukRatingsApi.getMyRating / submitRating for the UK rating
+//
+// The handoff is single-axis (1 overall star). The backend stores three
+// axes; we mirror the single rating to all three on submit so the
+// schema is preserved without inventing endpoints. Selected tag labels
+// are prepended to the comment as [Tag1][Tag2] so they survive too.
+
+import { useState, useEffect, useMemo } from 'react';
+import { Send, Star as StarIcon, Check, Building2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -9,42 +28,60 @@ import { apiRequest } from '../services/api/client';
 import type { Executor } from '../types';
 import { SPECIALIZATION_LABELS } from '../types';
 import { Modal } from '../components/common';
-import { pluralWithCount } from '../utils/plural';
 import { formatName } from '../utils/formatName';
 
-interface Rating {
-  quality: number;
-  speed: number;
-  politeness: number;
-  comment: string;
-}
+// ── design tokens used inline (kept literal so they survive any
+//    --token rename in the global stylesheet) ──────────────────────────
+const TEXT_PRIMARY = '#1C1917';
+const TEXT_SECONDARY = '#6F6A62';
+const TEXT_MUTED = '#A8A29E';
+const SURFACE = '#FFFFFF';
+const SURFACE_SUNKEN = '#EDE7DB';
+const BORDER = '#E6DFD2';
+const HAIRLINE = 'rgba(28,25,23,0.06)';
+const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+const SHADOW_MD = '0 4px 16px rgba(28,25,23,0.06)';
+const AMBER_400 = '#FBBF24';
+const AMBER_500 = '#F59E0B';
+const AMBER_600 = '#D97706';
+const AMBER_700 = '#B45309';
+const AMBER_800 = '#92400E';
+const AMBER_100 = '#FEF3C7';
+const STONE_50 = '#FBF8F2';
+const STONE_100 = '#F4F0E8';
+const STONE_200 = '#E6DFD2';
+const SUCCESS = '#15A06E';
+const STAR_EMPTY = '#D6D3D1';
+const STAR_GLOW = '0 8px 22px rgba(217,119,6,0.26)';
 
-interface EmployeeRating {
-  id: string;
-  executorId: string;
-  residentId: string;
-  quality: number;
-  speed: number;
-  politeness: number;
-  comment: string;
-  createdAt: string;
-}
+interface TagOption { id: string; ruLabel: string; uzLabel: string; }
+const TAG_OPTIONS: TagOption[] = [
+  { id: 'fast',     ruLabel: 'Быстро',           uzLabel: 'Tezkor' },
+  { id: 'polite',   ruLabel: 'Вежливый',         uzLabel: 'Xushmuomala' },
+  { id: 'pro',      ruLabel: 'Профессионально',  uzLabel: 'Professional' },
+  { id: 'clean',    ruLabel: 'Чисто',            uzLabel: 'Toza' },
+  { id: 'punctual', ruLabel: 'Пунктуально',      uzLabel: 'Vaqtida' },
+  { id: 'extra',    ruLabel: 'Помог с лишним',   uzLabel: 'Qoʻshimcha yordam' },
+];
 
-// Храним оценки в localStorage для демо
-const RATINGS_STORAGE_KEY = 'resident_employee_ratings';
+// Word-rating per star count (handoff)
+const RATING_WORDS_RU = ['', 'Очень плохо', 'Плохо', 'Нормально', 'Хорошо', 'Отлично'] as const;
+const RATING_WORDS_UZ = ['', 'Juda yomon', 'Yomon', 'Oʻrtacha', 'Yaxshi', "A'lo"] as const;
 
-const getRatingsFromStorage = (): EmployeeRating[] => {
-  try {
-    const stored = localStorage.getItem(RATINGS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+const getInitials = (name: string): string => {
+  const parts = formatName(name).trim().split(/\s+/);
+  if (!parts[0]) return '·';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
 };
 
-const getExecutorRating = (executorId: string, residentId: string): EmployeeRating | null => {
-  const ratings = getRatingsFromStorage();
-  return ratings.find(r => r.executorId === executorId && r.residentId === residentId) || null;
+const tagsToCommentPrefix = (tagIds: string[], lang: 'ru' | 'uz'): string => {
+  if (tagIds.length === 0) return '';
+  return tagIds
+    .map(id => TAG_OPTIONS.find(t => t.id === id))
+    .filter(Boolean)
+    .map(t => `[${lang === 'ru' ? t!.ruLabel : t!.uzLabel}]`)
+    .join('') + ' ';
 };
 
 export function ResidentRateEmployeesPage() {
@@ -54,19 +91,19 @@ export function ResidentRateEmployeesPage() {
   const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
   const fetchRequests = useRequestStore(s => s.fetchRequests);
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
 
-  const [selectedExecutor, setSelectedExecutor] = useState<Executor | null>(null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [ratings, setRatings] = useState<Rating>({
-    quality: 0,
-    speed: 0,
-    politeness: 0,
-    comment: ''
-  });
+  const [selectedExecutorId, setSelectedExecutorId] = useState<string | null>(null);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
   const [ratedExecutorIds, setRatedExecutorIds] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'employees' | 'uk'>('employees');
 
-  // UK rating state
+  // UK rating state — preserved from the previous implementation, now
+  // gated behind a Modal opened from a secondary button below the page.
+  const [showUkModal, setShowUkModal] = useState(false);
   const [ukRatingDone, setUkRatingDone] = useState(false);
   const [ukRatingLoading, setUkRatingLoading] = useState(true);
   const [ukOverall, setUkOverall] = useState(0);
@@ -77,19 +114,123 @@ export function ResidentRateEmployeesPage() {
   const [ukSubmitting, setUkSubmitting] = useState(false);
 
   useEffect(() => {
-    ukRatingsApi.getMyRating().then(res => {
-      if (res.rating) {
-        setUkRatingDone(true);
-        setUkOverall(res.rating.overall);
-        setUkCleanliness(res.rating.cleanliness || 0);
-        setUkResponsiveness(res.rating.responsiveness || 0);
-        setUkCommunication(res.rating.communication || 0);
-        setUkComment(res.rating.comment || '');
-      }
-    }).catch(() => {}).finally(() => setUkRatingLoading(false));
+    fetchExecutors();
+    fetchRequests();
+  }, [fetchExecutors, fetchRequests]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    apiRequest<{executor_id: string}[]>('/api/ratings')
+      .then(data => {
+        if (Array.isArray(data)) {
+          setRatedExecutorIds(data.map(r => r.executor_id));
+        }
+      })
+      .catch(() => { /* keep empty */ });
+  }, [user?.id]);
+
+  useEffect(() => {
+    ukRatingsApi.getMyRating()
+      .then(res => {
+        if (res.rating) {
+          setUkRatingDone(true);
+          const r = res.rating as Record<string, unknown>;
+          setUkOverall(Number(r.overall) || 0);
+          setUkCleanliness(Number(r.cleanliness) || 0);
+          setUkResponsiveness(Number(r.responsiveness) || 0);
+          setUkCommunication(Number(r.communication) || 0);
+          setUkComment(String(r.comment || ''));
+        }
+      })
+      .catch(() => { /* ignore */ })
+      .finally(() => setUkRatingLoading(false));
   }, []);
 
-  const handleUkRatingSubmit = async () => {
+  // Executors who have completed ≥1 request for THIS resident. Anything
+  // else is noise on the rate screen.
+  const workedForUser = useMemo(() => {
+    const userCompleted = requests.filter(r =>
+      r.residentId === user?.id && r.status === 'completed' && r.executorId,
+    );
+    const ids = new Set(userCompleted.map(r => r.executorId!));
+    return executors.filter(e => ids.has(e.id));
+  }, [executors, requests, user?.id]);
+
+  // Order: not-yet-rated first, then rated ones (handoff: rated chips
+  // show a green check badge; user can still re-tap to update).
+  const orderedExecutors = useMemo(() => {
+    return [...workedForUser].sort((a, b) => {
+      const aRated = ratedExecutorIds.includes(a.id);
+      const bRated = ratedExecutorIds.includes(b.id);
+      if (aRated === bRated) return a.name.localeCompare(b.name);
+      return aRated ? 1 : -1;
+    });
+  }, [workedForUser, ratedExecutorIds]);
+
+  // Auto-select the first unrated executor on first render once the list
+  // is non-empty, mirroring the handoff (one chip is always active).
+  useEffect(() => {
+    if (selectedExecutorId) return;
+    if (orderedExecutors.length === 0) return;
+    setSelectedExecutorId(orderedExecutors[0].id);
+  }, [orderedExecutors, selectedExecutorId]);
+
+  const selected = useMemo(() => {
+    return orderedExecutors.find(e => e.id === selectedExecutorId) || null;
+  }, [orderedExecutors, selectedExecutorId]);
+
+  // Last completed job by this executor for this resident — feeds the
+  // "Последняя работа" pill inside the selected-employee card.
+  const selectedLastJob = useMemo(() => {
+    if (!selected || !user?.id) return null;
+    const candidates = requests
+      .filter(r => r.residentId === user.id && r.executorId === selected.id && r.status === 'completed')
+      .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime());
+    return candidates[0] || null;
+  }, [selected, requests, user?.id]);
+
+  const selectExecutor = (id: string) => {
+    setSelectedExecutorId(id);
+    setRating(0);
+    setTagIds([]);
+    setComment('');
+  };
+
+  const toggleTag = (id: string) => {
+    setTagIds(curr => curr.includes(id) ? curr.filter(x => x !== id) : [...curr, id]);
+  };
+
+  const handleSubmit = async () => {
+    if (!selected || !user || rating === 0 || submitting) return;
+    setSubmitting(true);
+    try {
+      const prefix = tagsToCommentPrefix(tagIds, language === 'ru' ? 'ru' : 'uz');
+      const body = {
+        executor_id: selected.id,
+        // single-axis handoff → mirror to existing 3-axis schema
+        quality: rating,
+        speed: rating,
+        politeness: rating,
+        comment: (prefix + (comment || '').trim()).trim() || null,
+      };
+      await apiRequest('/api/ratings', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      setRatedExecutorIds(prev => prev.includes(selected.id) ? prev : [...prev, selected.id]);
+      addToast('success', language === 'ru' ? 'Отзыв отправлен. Спасибо!' : 'Fikr yuborildi. Rahmat!');
+      // Reset the form, keep the selection so user sees the green tick on the chip.
+      setRating(0);
+      setTagIds([]);
+      setComment('');
+    } catch (e) {
+      addToast('error', (e as Error).message || (language === 'ru' ? 'Не удалось сохранить оценку' : "Bahoni saqlab boʻlmadi"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUkSubmit = async () => {
     if (ukOverall === 0) return;
     setUkSubmitting(true);
     try {
@@ -101,587 +242,557 @@ export function ResidentRateEmployeesPage() {
         comment: ukComment || undefined,
       });
       setUkRatingDone(true);
+      addToast('success', language === 'ru' ? 'Оценка УК сохранена' : 'UK bahosi saqlandi');
+      setShowUkModal(false);
     } catch (e) {
-      console.error('Failed to submit UK rating', e);
+      addToast('error', (e as Error).message || (language === 'ru' ? 'Не удалось сохранить' : "Saqlab boʻlmadi"));
     } finally {
       setUkSubmitting(false);
     }
   };
 
-  // Fetch executors and requests from API on mount
-  useEffect(() => {
-    fetchExecutors();
-    fetchRequests();
-  }, [fetchExecutors, fetchRequests]);
+  return (
+    <div style={{
+      minHeight: '100%',
+      background: 'var(--app-bg)',
+      color: TEXT_PRIMARY,
+      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+      letterSpacing: '-0.01em',
+    }}>
+      {/* ── Sticky header ─────────────────────────────────────────────── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 5,
+        padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 20px 12px',
+        background: 'rgba(244,240,232,0.92)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${HAIRLINE}`,
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+          color: TEXT_MUTED, textTransform: 'uppercase',
+        }}>
+          {language === 'ru' ? 'Оценка сотрудников' : 'Xodimlarni baholash'}
+        </div>
+        <div style={{
+          fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 1,
+          color: TEXT_PRIMARY,
+        }}>
+          {language === 'ru' ? 'Спасибо, что делитесь' : 'Fikringiz uchun rahmat'}
+        </div>
+      </div>
 
-  // Load rated executors from API on mount
-  useEffect(() => {
-    if (user?.id) {
-      apiRequest<{executor_id: string}[]>('/api/ratings').then(data => {
-        if (Array.isArray(data)) {
-          setRatedExecutorIds(data.map((r: {executor_id: string}) => r.executor_id));
-        }
-      }).catch(() => {});
-    }
-  }, [user?.id]);
+      {/* ── Body ──────────────────────────────────────────────────────── */}
+      <div style={{ padding: '14px 16px' }}>
+        {orderedExecutors.length === 0 ? (
+          <EmptyState language={language} />
+        ) : (
+          <>
+            {/* Horizontally-scrolling employee row */}
+            <div style={{
+              display: 'flex', gap: 10, overflowX: 'auto', overflowY: 'hidden',
+              padding: '4px 4px 12px', margin: '-4px -4px 0',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+            }}>
+              {orderedExecutors.map(e => (
+                <EmployeeChip
+                  key={e.id}
+                  executor={e}
+                  isActive={selectedExecutorId === e.id}
+                  isRated={ratedExecutorIds.includes(e.id)}
+                  onClick={() => selectExecutor(e.id)}
+                />
+              ))}
+            </div>
 
-  // Get executors who worked on user's completed requests
-  const getExecutorsWhoWorkedForUser = (): string[] => {
-    const userCompletedRequests = requests.filter(r =>
-      r.residentId === user?.id &&
-      r.status === 'completed' &&
-      r.executorId
-    );
-    return [...new Set(userCompletedRequests.map(r => r.executorId!))];
-  };
+            {/* Selected employee card */}
+            {selected && (
+              <SelectedEmployeeCard
+                executor={selected}
+                lastJobSummary={selectedLastJob
+                  ? `${selectedLastJob.title || (language === 'ru' ? 'Заявка' : 'Ariza')} · ${formatRelativeDate(selectedLastJob.completedAt || selectedLastJob.createdAt, language === 'ru' ? 'ru' : 'uz')}`
+                  : null}
+                rating={rating}
+                onRatingChange={setRating}
+                tagIds={tagIds}
+                onToggleTag={toggleTag}
+                comment={comment}
+                onCommentChange={setComment}
+                onSubmit={handleSubmit}
+                submitting={submitting}
+                language={language}
+              />
+            )}
+          </>
+        )}
 
-  const workedForUserIds = getExecutorsWhoWorkedForUser();
-
-  // All executors, sorted by those who worked for user first
-  const allExecutors = [...executors].sort((a: Executor, b: Executor) => {
-    const aWorked = workedForUserIds.includes(a.id);
-    const bWorked = workedForUserIds.includes(b.id);
-    if (aWorked && !bWorked) return -1;
-    if (!aWorked && bWorked) return 1;
-    return a.name.localeCompare(b.name);
-  });
-
-  // Get completed requests count for an executor
-  const getExecutorRequestsCount = (executorId: string): number => {
-    return requests.filter(r =>
-      r.residentId === user?.id &&
-      r.executorId === executorId &&
-      r.status === 'completed'
-    ).length;
-  };
-
-  // Only show executors in "Rate" list if they actually completed >=1 request for this resident.
-  // "0 выполненных заявок" cards are confusing — resident has nothing to rate.
-  const unratedExecutors = allExecutors.filter(e =>
-    !ratedExecutorIds.includes(e.id) && getExecutorRequestsCount(e.id) > 0
-  );
-  const ratedExecutors = allExecutors.filter(e => ratedExecutorIds.includes(e.id));
-
-  const handleOpenRating = (executor: Executor) => {
-    setSelectedExecutor(executor);
-    setRatings({ quality: 0, speed: 0, politeness: 0, comment: '' });
-    setShowRatingModal(true);
-  };
-
-  const handleSubmitRating = async () => {
-    if (!selectedExecutor || !user) return;
-
-    // Sprint 60 P1: was swallowing API errors and still marking the executor
-    // as rated locally — resident thought they submitted but server had
-    // nothing. Now only mark on success, show toast on failure.
-    try {
-      await apiRequest('/api/ratings', {
-        method: 'POST',
-        body: JSON.stringify({
-          executor_id: selectedExecutor.id,
-          quality: ratings.quality || null,
-          speed: ratings.speed || null,
-          politeness: ratings.politeness || null,
-          comment: ratings.comment || null,
-        }),
-      });
-    } catch (e) {
-      useToastStore.getState().addToast('error', (e as Error).message || (language === 'ru' ? 'Не удалось сохранить оценку' : "Bahoni saqlab bo'lmadi"));
-      return;
-    }
-    setRatedExecutorIds(prev => {
-      if (!prev.includes(selectedExecutor.id)) {
-        return [...prev, selectedExecutor.id];
-      }
-      return prev;
-    });
-    setShowRatingModal(false);
-    setSelectedExecutor(null);
-  };
-
-  const StarRatingInput = ({
-    value,
-    onChange,
-    label
-  }: {
-    value: number;
-    onChange: (v: number) => void;
-    label: string;
-  }) => (
-    <div className="flex items-center justify-between gap-4 py-3 border-b border-gray-100 last:border-0">
-      <span className="text-sm font-medium text-gray-700">{label}</span>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
+        {/* Secondary action: rate the UK separately. Lives below the
+            primary rating UX so the handoff card stays intact at the top. */}
+        <div style={{
+          marginTop: 22, padding: '14px 14px',
+          background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 18,
+          boxShadow: SHADOW_SM,
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: 'rgba(47,119,194,0.12)', color: '#2F77C2',
+            display: 'grid', placeItems: 'center', flex: '0 0 auto',
+          }}>
+            <Building2 size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em',
+              color: TEXT_PRIMARY,
+            }}>
+              {language === 'ru' ? 'Оценить УК отдельно' : 'UK ni alohida baholash'}
+            </div>
+            <div style={{ fontSize: 11.5, color: TEXT_SECONDARY, marginTop: 1 }}>
+              {ukRatingLoading
+                ? (language === 'ru' ? 'Проверяем…' : 'Tekshirilmoqda…')
+                : ukRatingDone
+                  ? (language === 'ru' ? 'Можно обновить вашу оценку' : 'Bahoyingizni yangilashingiz mumkin')
+                  : (language === 'ru' ? 'Помогите улучшить обслуживание' : 'Xizmatni yaxshilashga yordam bering')}
+            </div>
+          </div>
           <button
-            key={star}
             type="button"
-            onClick={() => onChange(star)}
-            className="p-1 touch-manipulation"
+            onClick={() => setShowUkModal(true)}
+            disabled={ukRatingLoading}
+            style={{
+              padding: '8px 14px', borderRadius: 12,
+              background: ukRatingDone ? STONE_100 : 'rgba(47,119,194,0.12)',
+              color: ukRatingDone ? TEXT_SECONDARY : '#2F77C2',
+              border: 'none', fontSize: 13, fontWeight: 700,
+              cursor: ukRatingLoading ? 'default' : 'pointer',
+              opacity: ukRatingLoading ? 0.5 : 1,
+              flex: '0 0 auto',
+            }}
           >
-            <Star
-              className={`w-7 h-7 transition-all ${
-                star <= value
-                  ? 'text-yellow-400 fill-yellow-400'
-                  : 'text-gray-300 hover:text-yellow-300'
-              }`}
-            />
+            {ukRatingDone
+              ? (language === 'ru' ? 'Изменить' : "Oʻzgartirish")
+              : (language === 'ru' ? 'Оценить' : 'Baholash')}
           </button>
-        ))}
+        </div>
+      </div>
+
+      {/* UK rating Modal — common/Modal already calls useModalPresence,
+          so the BottomBar hides while it's open. */}
+      <Modal
+        isOpen={showUkModal}
+        onClose={() => setShowUkModal(false)}
+        title={language === 'ru' ? 'Оценка управляющей компании' : 'Boshqaruv kompaniyasini baholash'}
+        size="lg"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <UkStarRow
+            label={language === 'ru' ? 'Общая оценка' : 'Umumiy baho'}
+            value={ukOverall}
+            onChange={setUkOverall}
+            required
+          />
+          <UkStarRow
+            label={language === 'ru' ? 'Чистота и порядок' : 'Tozalik va tartib'}
+            value={ukCleanliness}
+            onChange={setUkCleanliness}
+          />
+          <UkStarRow
+            label={language === 'ru' ? 'Скорость реагирования' : 'Javob berish tezligi'}
+            value={ukResponsiveness}
+            onChange={setUkResponsiveness}
+          />
+          <UkStarRow
+            label={language === 'ru' ? 'Коммуникация' : 'Muloqot'}
+            value={ukCommunication}
+            onChange={setUkCommunication}
+          />
+          <textarea
+            value={ukComment}
+            onChange={(e) => setUkComment(e.target.value)}
+            placeholder={language === 'ru' ? 'Что можно улучшить?' : 'Nimani yaxshilash mumkin?'}
+            rows={3}
+            style={{
+              width: '100%', padding: '12px 14px',
+              borderRadius: 12, border: `1px solid ${BORDER}`,
+              fontSize: 14, color: TEXT_PRIMARY, background: STONE_50,
+              resize: 'none', outline: 'none', boxSizing: 'border-box',
+              fontFamily: 'inherit',
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleUkSubmit}
+            disabled={ukOverall === 0 || ukSubmitting}
+            style={{
+              marginTop: 4, padding: '14px',
+              borderRadius: 14, border: 'none',
+              background: ukOverall > 0 && !ukSubmitting ? AMBER_600 : STONE_200,
+              color: ukOverall > 0 && !ukSubmitting ? '#fff' : TEXT_MUTED,
+              fontSize: 14.5, fontWeight: 650 as unknown as number,
+              cursor: ukOverall > 0 && !ukSubmitting ? 'pointer' : 'not-allowed',
+              boxShadow: ukOverall > 0 && !ukSubmitting ? STAR_GLOW : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            <Send size={16} />
+            {ukSubmitting
+              ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
+              : ukRatingDone
+                ? (language === 'ru' ? 'Обновить оценку' : 'Bahoni yangilash')
+                : (language === 'ru' ? 'Отправить' : 'Yuborish')}
+          </button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── inner components ─────────────────────────────────────────────────
+
+function EmptyState({ language }: { language: 'ru' | 'uz' }) {
+  return (
+    <div style={{
+      background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 18,
+      padding: '40px 24px', textAlign: 'center', boxShadow: SHADOW_SM,
+    }}>
+      <div style={{
+        width: 60, height: 60, borderRadius: 999,
+        background: SURFACE_SUNKEN, color: TEXT_MUTED,
+        margin: '0 auto 12px',
+        display: 'grid', placeItems: 'center',
+      }}>
+        <StarIcon size={28} />
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 4 }}>
+        {language === 'ru' ? 'Пока некого оценивать' : 'Hozircha baholashga kim yoʻq'}
+      </div>
+      <div style={{ fontSize: 12.5, color: TEXT_SECONDARY, lineHeight: 1.5 }}>
+        {language === 'ru'
+          ? 'Когда сотрудник завершит вашу заявку, его карточка появится здесь.'
+          : 'Xodim arizangizni bajarganidan keyin uning kartochkasi bu yerda paydo boʻladi.'}
       </div>
     </div>
   );
+}
 
-  const averageRating = (r: Rating) => {
-    const total = r.quality + r.speed + r.politeness;
-    return total > 0 ? (total / 3).toFixed(1) : '0';
-  };
+function EmployeeChip({
+  executor, isActive, isRated, onClick,
+}: {
+  executor: Executor;
+  isActive: boolean;
+  isRated: boolean;
+  onClick: () => void;
+}) {
+  const initials = getInitials(executor.name);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flex: '0 0 auto', width: 110,
+        background: isActive ? SURFACE : 'transparent',
+        border: '1.5px solid',
+        borderColor: isActive ? AMBER_500 : BORDER,
+        borderRadius: 14, padding: 12,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        cursor: 'pointer',
+        boxShadow: isActive ? SHADOW_MD : 'none',
+        position: 'relative',
+      }}
+    >
+      <div style={{
+        width: 50, height: 50, borderRadius: 999,
+        background: isActive
+          ? 'linear-gradient(135deg, #FB923C, #EA580C)'
+          : STONE_200,
+        color: '#fff', fontWeight: 700, fontSize: 16,
+        display: 'grid', placeItems: 'center',
+        letterSpacing: '-0.01em',
+      }}>
+        {initials}
+      </div>
+      {isRated && (
+        <div style={{
+          position: 'absolute', top: 8, right: 8,
+          width: 16, height: 16, borderRadius: 999,
+          background: SUCCESS, color: '#fff',
+          display: 'grid', placeItems: 'center',
+        }}>
+          <Check size={10} strokeWidth={3.5} />
+        </div>
+      )}
+      <div style={{
+        fontSize: 12, fontWeight: 650 as unknown as number, letterSpacing: '-0.01em',
+        textAlign: 'center', lineHeight: 1.2,
+        color: TEXT_PRIMARY,
+        overflow: 'hidden', textOverflow: 'ellipsis',
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+      }}>
+        {formatName(executor.name)}
+      </div>
+      <div style={{
+        fontSize: 10.5, color: TEXT_MUTED,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        maxWidth: '100%',
+      }}>
+        {SPECIALIZATION_LABELS[executor.specialization] || executor.specialization}
+      </div>
+    </button>
+  );
+}
 
-  // Get average rating for a rated executor
-  const getExecutorAverageRating = (executorId: string): string => {
-    const rating = getExecutorRating(executorId, user?.id || '');
-    if (!rating) return '0';
-    const total = rating.quality + rating.speed + rating.politeness;
-    return (total / 3).toFixed(1);
-  };
+function SelectedEmployeeCard({
+  executor, lastJobSummary, rating, onRatingChange, tagIds, onToggleTag,
+  comment, onCommentChange, onSubmit, submitting, language,
+}: {
+  executor: Executor;
+  lastJobSummary: string | null;
+  rating: number;
+  onRatingChange: (n: number) => void;
+  tagIds: string[];
+  onToggleTag: (id: string) => void;
+  comment: string;
+  onCommentChange: (v: string) => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  language: 'ru' | 'uz';
+}) {
+  const initials = getInitials(executor.name);
+  const avg = (executor.rating || 0).toFixed(1);
+  const completedCount = executor.completedCount || 0;
+  const ratingWord = language === 'ru' ? RATING_WORDS_RU[rating] : RATING_WORDS_UZ[rating];
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
-          <Star className="w-5 h-5 text-white" />
+    <div style={{
+      background: SURFACE, borderRadius: 18,
+      border: `1px solid ${BORDER}`, boxShadow: SHADOW_MD,
+      padding: 18, marginTop: 4,
+    }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 999,
+          background: 'linear-gradient(135deg, #FB923C, #EA580C)',
+          color: '#fff', fontWeight: 700, fontSize: 19,
+          display: 'grid', placeItems: 'center',
+          flex: '0 0 auto',
+          letterSpacing: '-0.01em',
+        }}>
+          {initials}
         </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Оценки' : 'Baholar'}</h1>
-          <p className="text-xs text-gray-500 mt-0.5">{language === 'ru' ? 'Оцените работу сотрудников УК' : "UK xodimlari ishini baholang"}</p>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em',
+            color: TEXT_PRIMARY,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {formatName(executor.name)}
+          </div>
+          <div style={{ fontSize: 12.5, color: TEXT_MUTED }}>
+            {SPECIALIZATION_LABELS[executor.specialization] || executor.specialization}
+          </div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
+            fontSize: 12, fontWeight: 600, color: AMBER_700,
+          }}>
+            <StarIcon size={13} fill={AMBER_500} stroke={AMBER_500} strokeWidth={0} />
+            {avg}
+            {completedCount > 0 && (
+              <span style={{ color: TEXT_MUTED, fontWeight: 500 }}>
+                · {completedCount}{language === 'ru' ? ' выполнено' : ' bajarilgan'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveTab('employees')}
-          className={`px-4 py-2.5 rounded-[12px] text-[13px] font-bold transition-all touch-manipulation ${
-            activeTab === 'employees'
-              ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]'
-              : 'bg-white text-gray-500 shadow-[0_2px_10px_rgba(0,0,0,0.06)]'
-          }`}
-        >
-          <Users className="w-4 h-4 inline mr-1.5" />
-          {language === 'ru' ? 'Сотрудники' : 'Xodimlar'}
-        </button>
-        <button
-          onClick={() => setActiveTab('uk')}
-          className={`px-4 py-2.5 rounded-[12px] text-[13px] font-bold transition-all touch-manipulation ${
-            activeTab === 'uk'
-              ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]'
-              : 'bg-white text-gray-500 shadow-[0_2px_10px_rgba(0,0,0,0.06)]'
-          }`}
-        >
-          <Building2 className="w-4 h-4 inline mr-1.5" />
-          {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'}
-          {!ukRatingDone && !ukRatingLoading && (
-            <span className="ml-1.5 w-2 h-2 rounded-full bg-red-500 inline-block" />
-          )}
-        </button>
-      </div>
-
-      {/* UK Rating Tab */}
-      {activeTab === 'uk' && (
-        <div className="space-y-4">
-          {ukRatingLoading ? (
-            <div className="text-center text-gray-400 py-10">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</div>
-          ) : (
-            <>
-              <div className="bg-white rounded-[18px] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
-                <div className="text-center mb-5">
-                  <div className="w-14 h-14 rounded-[16px] bg-primary-50 flex items-center justify-center mx-auto mb-3">
-                    <Building2 className="w-7 h-7 text-primary-500" />
-                  </div>
-                  <h2 className="text-[18px] font-extrabold text-gray-900">
-                    {language === 'ru' ? 'Оцените управляющую компанию' : 'Boshqaruv kompaniyasini baholang'}
-                  </h2>
-                  <p className="text-[13px] text-gray-500 mt-1">
-                    {ukRatingDone
-                      ? (language === 'ru' ? 'Вы уже оценили в этом месяце. Можете обновить оценку.' : 'Siz bu oyda allaqachon baholadingiz. Bahoni yangilashingiz mumkin.')
-                      : (language === 'ru' ? 'Ваша оценка поможет улучшить качество обслуживания' : 'Bahoyingiz xizmat sifatini yaxshilashga yordam beradi')}
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {[
-                    { label: language === 'ru' ? 'Общая оценка' : 'Umumiy baho', value: ukOverall, set: setUkOverall, required: true },
-                    { label: language === 'ru' ? 'Чистота и порядок' : 'Tozalik va tartib', value: ukCleanliness, set: setUkCleanliness },
-                    { label: language === 'ru' ? 'Скорость реагирования' : 'Javob berish tezligi', value: ukResponsiveness, set: setUkResponsiveness },
-                    { label: language === 'ru' ? 'Коммуникация' : 'Muloqot', value: ukCommunication, set: setUkCommunication },
-                  ].map(cat => (
-                    <div key={cat.label} className="flex items-center justify-between gap-4 py-3 border-b border-gray-100 last:border-0">
-                      <span className="text-sm font-medium text-gray-700">
-                        {cat.label} {cat.required && <span className="text-primary-500">*</span>}
-                      </span>
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map(star => (
-                          <button
-                            key={star}
-                            onClick={() => cat.set(star)}
-                            className="p-1 touch-manipulation"
-                          >
-                            <Star
-                              className={`w-7 h-7 transition-all ${star <= cat.value ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-
-                  <textarea
-                    value={ukComment}
-                    onChange={e => setUkComment(e.target.value)}
-                    placeholder={language === 'ru' ? 'Что можно улучшить?' : 'Nimani yaxshilash mumkin?'}
-                    className="w-full bg-gray-50 rounded-[14px] p-3.5 text-[14px] text-gray-900 placeholder:text-gray-400 resize-none border-0 outline-none focus:ring-2 focus:ring-primary-200 transition-all"
-                    rows={3}
-                  />
-
-                  <button
-                    onClick={handleUkRatingSubmit}
-                    disabled={ukOverall === 0 || ukSubmitting}
-                    className={`w-full py-3.5 rounded-[14px] text-[15px] font-bold transition-all touch-manipulation ${
-                      ukOverall > 0 && !ukSubmitting
-                        ? 'bg-primary-500 text-white active:scale-[0.97] shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
-                        : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    {ukSubmitting
-                      ? (language === 'ru' ? 'Отправка...' : 'Yuborilmoqda...')
-                      : ukRatingDone
-                        ? (language === 'ru' ? 'Обновить оценку' : 'Bahoni yangilash')
-                        : (language === 'ru' ? 'Отправить оценку' : 'Bahoni yuborish')}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+      {/* Last-job pill */}
+      {lastJobSummary && (
+        <div style={{
+          padding: '10px 12px', background: STONE_100, borderRadius: 10,
+          fontSize: 12.5, color: TEXT_SECONDARY, marginBottom: 16,
+        }}>
+          <span style={{ color: TEXT_MUTED }}>
+            {language === 'ru' ? 'Последняя работа: ' : 'Oxirgi ish: '}
+          </span>
+          {lastJobSummary}
         </div>
       )}
 
-      {/* Employees Tab */}
-      {activeTab === 'employees' && (<>
-      {/* Info Card */}
-      <div className="glass-card p-4 bg-primary-50 border-primary-200">
-        <div className="flex items-start gap-3">
-          <ThumbsUp className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-primary-700">
+      {/* Stars */}
+      <div style={{ textAlign: 'center', marginBottom: 6 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 650 as unknown as number,
+          letterSpacing: '-0.01em', marginBottom: 10, color: TEXT_PRIMARY,
+        }}>
+          {language === 'ru' ? 'Как прошло?' : 'Qanday boʻldi?'}
+        </div>
+        <StarRow value={rating} onChange={onRatingChange} size={36} gap={10} />
+        {rating > 0 && (
+          <div style={{
+            marginTop: 6, fontSize: 12.5, color: AMBER_700, fontWeight: 600,
+          }}>
+            {ratingWord}
+          </div>
+        )}
+      </div>
+
+      {/* When stars > 0: tags + comment + submit */}
+      {rating > 0 && (
+        <>
+          <div style={{ marginTop: 16 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 600, color: TEXT_SECONDARY, marginBottom: 8,
+            }}>
+              {language === 'ru' ? 'Что особенно понравилось?' : 'Nimasi yoqdi?'}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+              {TAG_OPTIONS.map(t => {
+                const isOn = tagIds.includes(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => onToggleTag(t.id)}
+                    style={{
+                      padding: '7px 12px', borderRadius: 999,
+                      fontSize: 12.5, fontWeight: 600,
+                      background: isOn ? AMBER_100 : SURFACE,
+                      color: isOn ? AMBER_800 : TEXT_SECONDARY,
+                      border: '1px solid',
+                      borderColor: isOn ? AMBER_400 : BORDER,
+                      cursor: 'pointer', letterSpacing: '-0.01em',
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                    }}
+                  >
+                    {isOn && <Check size={11} strokeWidth={3} />}
+                    {language === 'ru' ? t.ruLabel : t.uzLabel}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <textarea
+              value={comment}
+              onChange={(e) => onCommentChange(e.target.value)}
+              placeholder={language === 'ru' ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}
+              style={{
+                width: '100%', minHeight: 70,
+                border: `1px solid ${BORDER}`, borderRadius: 12,
+                padding: '10px 12px', fontSize: 13.5,
+                fontFamily: 'inherit', color: TEXT_PRIMARY,
+                resize: 'none', outline: 'none', background: STONE_50,
+                boxSizing: 'border-box',
+              }}
+              rows={3}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={submitting}
+            style={{
+              width: '100%', marginTop: 12, padding: 14,
+              background: AMBER_600, color: '#fff', border: 'none',
+              borderRadius: 14, fontSize: 14.5, fontWeight: 650 as unknown as number,
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              opacity: submitting ? 0.5 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              boxShadow: STAR_GLOW,
+            }}
+          >
+            <Send size={15} />
+            {submitting
+              ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
+              : (language === 'ru' ? 'Отправить отзыв' : 'Fikrni yuborish')}
+          </button>
+          <div style={{ textAlign: 'center', marginTop: 8, fontSize: 11.5, color: TEXT_MUTED }}>
             {language === 'ru'
-              ? 'Оцените качество работы сотрудников, которые выполнили ваши заявки. Ваши отзывы помогут улучшить качество обслуживания.'
-              : 'Arizalaringizni bajargan xodimlarning ish sifatini baholang. Sizning fikrlaringiz xizmat sifatini yaxshilashga yordam beradi.'}
-          </p>
-        </div>
-      </div>
-
-      {/* Main Content - Two columns on desktop */}
-      <div className="grid md:grid-cols-2 xl:grid-cols-2 gap-4 md:gap-6">
-        {/* Left Side - Workers List */}
-        <div className="space-y-4">
-          {/* Unrated Workers */}
-          {unratedExecutors.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-primary-500" />
-                {language === 'ru' ? 'Ожидают оценки' : 'Baholash kutilmoqda'}
-                <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-sm">
-                  {unratedExecutors.length}
-                </span>
-              </h2>
-
-              {unratedExecutors.map((executor) => (
-                <div
-                  key={executor.id}
-                  className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-md transition-all border-2 border-yellow-200 bg-yellow-50"
-                  onClick={() => handleOpenRating(executor)}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {/* Avatar */}
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center flex-shrink-0">
-                        <User className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{formatName(executor.name)}</h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Briefcase className="w-3.5 h-3.5" />
-                          <span className="truncate">
-                            {SPECIALIZATION_LABELS[executor.specialization] || executor.specialization}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {pluralWithCount(
-                            language === 'ru' ? 'ru' : 'uz',
-                            getExecutorRequestsCount(executor.id),
-                            { one: 'выполненная заявка', few: 'выполненные заявки', many: 'выполненных заявок' },
-                            { one: 'ta bajarilgan ariza', other: 'ta bajarilgan ariza' }
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-yellow-700 font-medium hidden sm:inline">
-                        {language === 'ru' ? 'Оценить' : 'Baholash'}
-                      </span>
-                      <ChevronRight className="w-5 h-5 text-yellow-600" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Rated Workers */}
-          {ratedExecutors.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Check className="w-5 h-5 text-green-500" />
-                {language === 'ru' ? 'Уже оценены' : 'Allaqachon baholangan'}
-                <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-sm">
-                  {ratedExecutors.length}
-                </span>
-              </h2>
-
-              {ratedExecutors.map((executor) => (
-                <div
-                  key={executor.id}
-                  className="glass-card p-3 sm:p-4 rounded-lg sm:rounded-xl border border-green-100 bg-green-50/50 cursor-pointer hover:shadow-md transition-all"
-                  onClick={() => handleOpenRating(executor)}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {/* Avatar */}
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-green-500 flex items-center justify-center flex-shrink-0">
-                        <User className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{formatName(executor.name)}</h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Briefcase className="w-3.5 h-3.5" />
-                          <span className="truncate">
-                            {SPECIALIZATION_LABELS[executor.specialization] || executor.specialization}
-                          </span>
-                        </div>
-                        {/* Show rating */}
-                        <div className="flex items-center gap-1 mt-1">
-                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                          <span className="text-sm font-medium text-gray-700">{getExecutorAverageRating(executor.id)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-green-600">
-                      <Check className="w-5 h-5" />
-                      <span className="text-sm font-medium hidden sm:inline">
-                        {language === 'ru' ? 'Изменить' : 'O\'zgartirish'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Empty State */}
-          {allExecutors.length === 0 && (
-            <div className="glass-card p-8 text-center">
-              <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">
-                {language === 'ru'
-                  ? 'Пока нет сотрудников для оценки'
-                  : 'Hali baholash uchun xodimlar yo\'q'}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Right Side - Selected Worker Details (Desktop) */}
-        <div className="hidden md:block">
-          {selectedExecutor ? (
-            <div className="glass-card p-6 sticky top-0">
-              <div className="text-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center mx-auto mb-3">
-                  <User className="w-10 h-10 text-white" />
-                </div>
-                <h2 className="text-xl font-bold">{formatName(selectedExecutor.name)}</h2>
-                <p className="text-gray-600">
-                  {SPECIALIZATION_LABELS[selectedExecutor.specialization] || selectedExecutor.specialization}
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {pluralWithCount(
-                    language === 'ru' ? 'ru' : 'uz',
-                    getExecutorRequestsCount(selectedExecutor.id),
-                    { one: 'выполненная заявка', few: 'выполненные заявки', many: 'выполненных заявок' },
-                    { one: 'ta bajarilgan ariza', other: 'ta bajarilgan ariza' }
-                  )}
-                </p>
-              </div>
-
-              {/* Rating Inputs */}
-              <div className="space-y-1 mb-4">
-                <StarRatingInput
-                  label={language === 'ru' ? 'Качество работы' : 'Ish sifati'}
-                  value={ratings.quality}
-                  onChange={(v) => setRatings(prev => ({ ...prev, quality: v }))}
-                />
-                <StarRatingInput
-                  label={language === 'ru' ? 'Скорость выполнения' : 'Bajarish tezligi'}
-                  value={ratings.speed}
-                  onChange={(v) => setRatings(prev => ({ ...prev, speed: v }))}
-                />
-                <StarRatingInput
-                  label={language === 'ru' ? 'Вежливость' : 'Xushmuomalalik'}
-                  value={ratings.politeness}
-                  onChange={(v) => setRatings(prev => ({ ...prev, politeness: v }))}
-                />
-              </div>
-
-              {/* Average Score */}
-              {(ratings.quality > 0 || ratings.speed > 0 || ratings.politeness > 0) && (
-                <div className="flex items-center justify-center gap-2 py-3 bg-primary-50 rounded-xl mb-4">
-                  <Star className="w-6 h-6 text-primary-500 fill-primary-500" />
-                  <span className="text-xl font-bold text-primary-700">{averageRating(ratings)}</span>
-                  <span className="text-sm text-primary-600">/ 5</span>
-                </div>
-              )}
-
-              {/* Comment */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {language === 'ru' ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}
-                </label>
-                <textarea
-                  value={ratings.comment}
-                  onChange={(e) => setRatings(prev => ({ ...prev, comment: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none resize-none"
-                  rows={3}
-                  placeholder={language === 'ru'
-                    ? 'Поделитесь впечатлениями...'
-                    : 'Taassurotlaringiz bilan o\'rtoqlashing...'}
-                />
-              </div>
-
-              {/* Submit Button */}
-              <button
-                onClick={handleSubmitRating}
-                disabled={ratings.quality === 0 || ratings.speed === 0 || ratings.politeness === 0}
-                className="w-full py-4 px-4 min-h-[44px] touch-manipulation active:scale-95 rounded-xl font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-primary-400 to-primary-500 hover:from-primary-500 hover:to-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                <Send className="w-5 h-5" />
-                {ratedExecutorIds.includes(selectedExecutor.id)
-                  ? (language === 'ru' ? 'Обновить оценку' : 'Baholashni yangilash')
-                  : (language === 'ru' ? 'Отправить оценку' : 'Baholashni yuborish')
-                }
-              </button>
-            </div>
-          ) : (
-            <div className="glass-card p-8 text-center sticky top-0">
-              <Users className="w-16 h-16 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">
-                {language === 'ru'
-                  ? 'Выберите сотрудника слева для оценки'
-                  : 'Baholash uchun chap tomondan xodimni tanlang'}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      </>)}
-
-      {/* Rating Modal (Mobile) */}
-      {showRatingModal && selectedExecutor && (
-        <div className="md:hidden">
-        <Modal
-          isOpen={showRatingModal}
-          onClose={() => {
-            setShowRatingModal(false);
-            setSelectedExecutor(null);
-          }}
-          title={language === 'ru' ? 'Оценить сотрудника' : 'Xodimni baholash'}
-          size="lg"
-        >
-            {/* Content */}
-            <div className="space-y-4">
-              {/* Worker Info */}
-              <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center flex-shrink-0">
-                  <User className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-lg">{formatName(selectedExecutor.name)}</p>
-                  <p className="text-sm text-gray-600">
-                    {SPECIALIZATION_LABELS[selectedExecutor.specialization] || selectedExecutor.specialization}
-                  </p>
-                </div>
-              </div>
-
-              {/* Rating Inputs */}
-              <div className="space-y-1">
-                <StarRatingInput
-                  label={language === 'ru' ? 'Качество работы' : 'Ish sifati'}
-                  value={ratings.quality}
-                  onChange={(v) => setRatings(prev => ({ ...prev, quality: v }))}
-                />
-                <StarRatingInput
-                  label={language === 'ru' ? 'Скорость выполнения' : 'Bajarish tezligi'}
-                  value={ratings.speed}
-                  onChange={(v) => setRatings(prev => ({ ...prev, speed: v }))}
-                />
-                <StarRatingInput
-                  label={language === 'ru' ? 'Вежливость' : 'Xushmuomalalik'}
-                  value={ratings.politeness}
-                  onChange={(v) => setRatings(prev => ({ ...prev, politeness: v }))}
-                />
-              </div>
-
-              {/* Average Score */}
-              {(ratings.quality > 0 || ratings.speed > 0 || ratings.politeness > 0) && (
-                <div className="flex items-center justify-center gap-2 py-3 bg-primary-50 rounded-xl">
-                  <Star className="w-6 h-6 text-primary-500 fill-primary-500" />
-                  <span className="text-xl font-bold text-primary-700">{averageRating(ratings)}</span>
-                  <span className="text-sm text-primary-600">/ 5</span>
-                </div>
-              )}
-
-              {/* Comment */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {language === 'ru' ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}
-                </label>
-                <textarea
-                  value={ratings.comment}
-                  onChange={(e) => setRatings(prev => ({ ...prev, comment: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none resize-none"
-                  rows={3}
-                  placeholder={language === 'ru'
-                    ? 'Поделитесь впечатлениями...'
-                    : 'Taassurotlaringiz bilan o\'rtoqlashing...'}
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-gray-100 bg-white safe-area-bottom">
-              <button
-                onClick={handleSubmitRating}
-                disabled={ratings.quality === 0 || ratings.speed === 0 || ratings.politeness === 0}
-                className="w-full py-4 px-4 min-h-[44px] touch-manipulation active:scale-95 rounded-xl font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-primary-400 to-primary-500 hover:from-primary-500 hover:to-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                <Send className="w-5 h-5" />
-                {ratedExecutorIds.includes(selectedExecutor.id)
-                  ? (language === 'ru' ? 'Обновить оценку' : 'Baholashni yangilash')
-                  : (language === 'ru' ? 'Отправить оценку' : 'Baholashni yuborish')
-                }
-              </button>
-            </div>
-        </Modal>
-        </div>
+              ? 'Анонимно для сотрудника. Только средний балл публичный.'
+              : 'Xodim uchun anonim. Faqat oʻrtacha ball ochiq.'}
+          </div>
+        </>
       )}
     </div>
   );
+}
+
+function StarRow({
+  value, onChange, size = 28, gap = 6,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  size?: number;
+  gap?: number;
+}) {
+  return (
+    <div style={{ display: 'inline-flex', gap }}>
+      {[1, 2, 3, 4, 5].map(n => {
+        const filled = n <= value;
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            aria-label={`${n}/5`}
+            style={{
+              width: size + 4, height: size + 4,
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: filled ? AMBER_500 : STAR_EMPTY,
+              padding: 0, display: 'grid', placeItems: 'center',
+            }}
+          >
+            <svg
+              width={size} height={size} viewBox="0 0 24 24"
+              fill={filled ? 'currentColor' : 'none'}
+              stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round"
+            >
+              <path d="M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" />
+            </svg>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function UkStarRow({
+  label, value, onChange, required,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  required?: boolean;
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      padding: '8px 0',
+      borderBottom: `1px solid ${HAIRLINE}`,
+    }}>
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_PRIMARY }}>
+        {label}
+        {required && <span style={{ color: AMBER_600, marginLeft: 4 }}>*</span>}
+      </span>
+      <StarRow value={value} onChange={onChange} size={22} gap={4} />
+    </div>
+  );
+}
+
+// "вчера" / "сегодня" / "12 дек" — short relative date for the last-job pill.
+function formatRelativeDate(iso: string | undefined, lang: 'ru' | 'uz'): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const yesterday = new Date(now.getTime() - 86400000);
+  if (sameDay(d, now)) return lang === 'ru' ? 'сегодня' : 'bugun';
+  if (sameDay(d, yesterday)) return lang === 'ru' ? 'вчера' : 'kecha';
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' });
 }
