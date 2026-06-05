@@ -11,22 +11,22 @@
     <link rel="apple-touch-icon" sizes="192x192" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <!-- Global default matches the app body / --app-bg (index.css :root) so
-         every page that doesn't paint its own top stripe gets a light
-         status-bar chrome. The resident Home hero (§01-glavnaya) overrides
-         this to its brown #4A3B30 on mount and restores it on unmount —
-         see src/pages/resident/design/ResidentHomeDesign.tsx — so the
-         brown tint only paints on Home, never leaks to Profile / Chat /
-         Vehicles / other pages. -->
+    <!-- Global theme-color is the app body / --app-bg (index.css :root).
+         FINAL RULE: light/beige status-bar chrome on EVERY page — no
+         exceptions, including the resident Home. Pages MUST NOT override
+         this to a dark tint; the Home hero stays brown visually but starts
+         BELOW env(safe-area-inset-top) via its margin, so the status-bar
+         zone always paints the light app bg, never brown. -->
     <meta name="theme-color" content="#F7F8FA" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- "black-translucent" lets the web view extend behind the iOS status
-         bar so the resident-home hero paints its brown gradient under the
-         system text (clock / signal / battery sit on top of the hero with
-         no white strip). Pages that don't paint their own top stripe rely
-         on MobileHeader's padding-top: calc(env(safe-area-inset-top)+12px)
-         to keep content out of the notch. -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- "default" status-bar-style keeps the iOS PWA status bar as a
+         system strip with dark text on the light background (matching
+         theme-color). We previously used "black-translucent" to let the
+         Home hero paint brown behind the bar; the new rule is no brown
+         behind the status bar anywhere, so the web view no longer extends
+         behind it. MobileHeader's padding-top: calc(safe-area-inset-top
+         + 12px) still keeps content clear of the notch. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="kamizo" />
     <meta name="apple-mobile-web-app-title" content="kamizo" />
@@ -37,7 +37,7 @@
     <meta name="msapplication-TileColor" content="#F97316" />
     <meta name="msapplication-TileImage" content="/icons/favicon-128x128.png" />
     <title>kamizo - Управление жильём</title>
-    <script type="module" crossorigin src="/assets/index-B7QicD16.js"></script>
+    <script type="module" crossorigin src="/assets/index-B-hk2J8i.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/charts-RPY68FIM.js">
     <link rel="stylesheet" crossorigin href="/assets/index-_LxcOuzr.css">
   </head>
