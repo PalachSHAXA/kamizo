@@ -72,6 +72,11 @@ export function resolveCorsOrigin(request: Request): string {
   if (allowedOrigins.includes(origin)) return origin;
   // Dynamic tenant subdomains (production), RFC-compliant label check
   if (/^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)?kamizo\.uz$/.test(origin)) return origin;
+  // Workers.dev preview origin and any tenant-prefixed subdomain on it.
+  // Must match setCorsOrigin() above — otherwise the per-request authoritative
+  // resolver silently downgrades workers.dev callers to app.kamizo.uz and the
+  // browser blocks every API response with "Failed to fetch".
+  if (/^https:\/\/([a-z0-9-]+\.)?kamizo\.shaxzod\.workers\.dev$/.test(origin)) return origin;
   if (devMode && /^http:\/\/localhost:\d+$/.test(origin)) return origin;
   return 'https://app.kamizo.uz';
 }
