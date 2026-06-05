@@ -323,9 +323,9 @@ export function ResidentHomeDesign(props: Props) {
 
   // No theme-color override on Home — the rule is now: light/beige status
   // bar on EVERY page (no exceptions). The global default in index.html
-  // (#F7F8FA, matching --app-bg) handles it. The hero stays brown but
-  // starts BELOW env(safe-area-inset-top) via HomeHero's margin-top, so
-  // the status-bar zone always paints the light page background.
+  // (#F4F0E8 warm beige, matching --app-bg) handles it. The hero stays
+  // brown but starts BELOW env(safe-area-inset-top) via HomeHero's
+  // margin-top, so the status-bar zone always paints the light page bg.
 
   // Card stack — LEFT mockup pins "Завершите регистрацию" first whenever the resident
   // still has their seed password. The rest follows the Claude Design order.
