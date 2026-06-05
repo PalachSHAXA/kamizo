@@ -1,20 +1,23 @@
 // Kamizo PWA Service Worker
-// Version: 3.6.5 — cache suffix bumped to v49 to evict every v48 (and
+// Version: 3.6.7 — cache suffix bumped to v51 to evict every v50 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • FINAL rule for the status-bar zone: light/beige on EVERY page,
-//     no exceptions. The Home theme-color override (was #4A3B30) is
-//     removed, and apple-mobile-web-app-status-bar-style is now
-//     "default" instead of "black-translucent" so the iOS PWA bar
-//     no longer extends behind the webview — the Home hero stays
-//     brown but strictly BELOW env(safe-area-inset-top).
-// Combined with skipWaiting() on install and clients.claim() on activate,
-// every device refetches the app shell on next open. Bump this suffix any
+//   • the global BottomBar now hides on EVERY open overlay (modal /
+//     bottom-sheet / drawer / popup / wizard) via the shared
+//     useModalPresence registry — fixes the bar peeking under the
+//     resident Profile edit-sheet, the side Drawer, Cancel / Reschedule /
+//     RequestDetails / FeatureLocked / Onboarding / PopupNotification,
+//     and any consumer of common/Modal, common/Sheet, ui/Modal.
+//
+// Carries forward v50's MIME-type self-heal (text/html bodies under
+// .js/.css URLs are evicted on read and never cached on write), plus
+// skipWaiting() on install and clients.claim() on activate so every
+// device refetches the app shell on next open. Bump this suffix any
 // time a release needs to propagate urgently to existing installs.
 
-const SW_VERSION = '3.6.5';
-const STATIC_CACHE = 'kamizo-static-v49';
-const ASSET_CACHE = 'kamizo-assets-v49';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v49';
+const SW_VERSION = '3.6.7';
+const STATIC_CACHE = 'kamizo-static-v51';
+const ASSET_CACHE = 'kamizo-assets-v51';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v51';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
@@ -80,20 +83,53 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/') || url.pathname.includes('/events') || url.pathname.includes('/ws')) return;
 
   // Strategy 1: Cache-first for hashed assets (JS, CSS with hash in filename)
-  // These are immutable - once cached, always serve from cache
+  // These are immutable — once cached, always serve from cache.
+  //
+  // Hard rule: never trust a cached response whose Content-Type doesn't
+  // match the URL extension. A prior broken deploy could have cached
+  // text/html under a .js / .css URL (the worker's old SPA fallback did
+  // exactly this). Such a cached entry permanently breaks the page —
+  // browsers refuse to apply text/html as CSS or execute it as a module.
+  // Detect on read, evict, and refetch from the network. Same gate on
+  // write so we never poison the cache in the first place.
   if (url.pathname.startsWith('/assets/') && /\-[a-zA-Z0-9_-]{8,}\.(js|css|woff2?)$/.test(url.pathname)) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(ASSET_CACHE).then((cache) => cache.put(request, clone));
-          }
-          return response;
+    const expectsJs = /\.js$/.test(url.pathname);
+    const expectsCss = /\.css$/.test(url.pathname);
+    const expectsWoff = /\.woff2?$/.test(url.pathname);
+    const mimeOk = (ct) => {
+      const c = (ct || '').toLowerCase();
+      if (c.includes('text/html')) return false;
+      if (expectsJs)  return c.includes('javascript') || c.includes('ecmascript');
+      if (expectsCss) return c.includes('css');
+      if (expectsWoff) return c.includes('font') || c.includes('woff');
+      return true;
+    };
+
+    event.respondWith((async () => {
+      const cache = await caches.open(ASSET_CACHE);
+      const cached = await cache.match(request);
+      if (cached && mimeOk(cached.headers.get('Content-Type'))) {
+        return cached;
+      }
+      if (cached) {
+        // Poisoned entry — drop it and fall through to network.
+        await cache.delete(request);
+      }
+      try {
+        const response = await fetch(request);
+        if (response.ok && mimeOk(response.headers.get('Content-Type'))) {
+          cache.put(request, response.clone());
+        }
+        return response;
+      } catch (err) {
+        // Network failed and we have no usable cache — let the page see
+        // the failure rather than handing back a stale/wrong response.
+        return new Response('Asset fetch failed', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         });
-      })
-    );
+      }
+    })());
     return;
   }
 
