@@ -355,7 +355,13 @@ export function Layout() {
   // Resident vehicles also renders a full-screen Claude-Design §05 dark "Гараж"
   // hero with its own top bar — hide the global header + go full-bleed there too.
   const isResidentVehicles = user?.role === 'resident' && location.pathname === '/vehicles';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles;
+  // Resident profile (Claude Design §07-profil) paints its own hero and
+  // sections edge-to-edge. Without full-bleed, main's px-3 mobile padding
+  // exposed a 12px sliver of body bg around the page, reading as a "white
+  // strip" against the page's beige interior.
+  const isResidentProfile = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/profile';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +

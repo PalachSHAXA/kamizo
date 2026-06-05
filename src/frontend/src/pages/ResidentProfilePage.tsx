@@ -31,7 +31,11 @@ const TEXT_PRIMARY = '#1C1917';
 const TEXT_SECONDARY = '#6F6A62';
 const TEXT_MUTED = '#A8A29E';
 const TEXT_ON_DARK = '#F4F0E8';
-const APP_BG = '#F4F0E8';
+// Reuse the dashboard's --app-bg (set in index.css :root) so the page
+// background matches the body and there is no tonal seam between this
+// page and the surrounding shell (no perceived "white strips" on the
+// sides or below the scroll content).
+const APP_BG = 'var(--app-bg)';
 const BRAND_TINT = '#FFF3EA';
 const BRAND_DARK = '#EA580C';
 const STATUS_CRITICAL = '#E2483D';
@@ -83,6 +87,10 @@ export function ResidentProfilePage() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
+  // Hero pencil drives this — opens an edit-profile sheet with name + phone
+  // fields wired to authStore.updateProfile. The old behavior (silently
+  // toggling the off-screen phone-edit row) read as "button doesn't work".
+  const [showEditProfile, setShowEditProfile] = useState(false);
 
   // Generate the QR pass lazily, only the first time the sheet opens
   useEffect(() => {
@@ -149,6 +157,11 @@ export function ResidentProfilePage() {
     repeatPassword: 'Повторите новый пароль',
     passwordChanged: 'Пароль успешно изменён',
     phoneSaved: 'Телефон сохранён',
+    profileSaved: 'Профиль сохранён',
+    editProfileTitle: 'Редактировать профиль',
+    nameLabel: 'Имя',
+    namePlaceholder: 'Ваше имя',
+    nameRequired: 'Введите имя',
     wrongPassword: 'Неверный текущий пароль',
     passwordsNotMatch: 'Пароли не совпадают',
     passwordSameAsOld: 'Новый пароль должен отличаться от текущего',
@@ -199,6 +212,11 @@ export function ResidentProfilePage() {
     repeatPassword: 'Yangi parolni takrorlang',
     passwordChanged: "Parol muvaffaqiyatli oʼzgartirildi",
     phoneSaved: 'Telefon saqlandi',
+    profileSaved: 'Profil saqlandi',
+    editProfileTitle: 'Profilni tahrirlash',
+    nameLabel: 'Ism',
+    namePlaceholder: 'Ismingiz',
+    nameRequired: 'Ismni kiriting',
     wrongPassword: "Joriy parol notoʼgʼri",
     passwordsNotMatch: 'Parollar mos kelmaydi',
     passwordSameAsOld: 'Yangi parol joriy paroldan farq qilishi kerak',
@@ -386,7 +404,7 @@ export function ResidentProfilePage() {
             </div>
             <button
               type="button"
-              onClick={() => { setNewPhone(user.phone || ''); setEditingPhone(true); }}
+              onClick={() => setShowEditProfile(true)}
               aria-label={t.edit}
               style={{
                 width: 36,
@@ -610,6 +628,17 @@ export function ResidentProfilePage() {
           Kamizo · {t.versionLabel} {APP_VERSION}
         </div>
       </div>
+
+      {showEditProfile && (
+        <EditProfileModal
+          onClose={() => setShowEditProfile(false)}
+          initialName={user.name || ''}
+          initialPhone={user.phone || ''}
+          updateProfile={updateProfile}
+          t={t}
+          onSuccess={() => addToast('success', t.profileSaved)}
+        />
+      )}
 
       {showPasswordModal && (
         <PasswordModal
@@ -1185,6 +1214,174 @@ function PasswordField({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function EditProfileModal({
+  onClose, initialName, initialPhone, updateProfile, t, onSuccess,
+}: {
+  onClose: () => void;
+  initialName: string;
+  initialPhone: string;
+  updateProfile: (updates: { phone?: string; name?: string }) => Promise<boolean>;
+  t: {
+    editProfileTitle: string; nameLabel: string; namePlaceholder: string; nameRequired: string;
+    phone: string; cancel: string; save: string;
+  };
+  onSuccess: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [phone, setPhone] = useState(initialPhone);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setErr('');
+    const trimmedName = name.trim();
+    if (!trimmedName) { setErr(t.nameRequired); return; }
+    const updates: { name?: string; phone?: string } = {};
+    if (trimmedName !== initialName) updates.name = trimmedName;
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone !== initialPhone) updates.phone = trimmedPhone;
+    if (Object.keys(updates).length === 0) { onClose(); return; }
+    setBusy(true);
+    try {
+      const ok = await updateProfile(updates);
+      if (ok) {
+        onSuccess();
+        onClose();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ padding: '4px 4px 8px' }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_PRIMARY, marginBottom: 14 }}>
+          {t.editProfileTitle}
+        </div>
+
+        <FieldLabel>{t.nameLabel}</FieldLabel>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t.namePlaceholder}
+          autoFocus
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            border: `1px solid ${BORDER}`,
+            borderRadius: 14,
+            fontSize: 14,
+            color: TEXT_PRIMARY,
+            background: SURFACE,
+            outline: 'none',
+            marginBottom: 12,
+          }}
+        />
+
+        <FieldLabel>{t.phone}</FieldLabel>
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+998 90 100 00 11"
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            border: `1px solid ${BORDER}`,
+            borderRadius: 14,
+            fontSize: 14,
+            color: TEXT_PRIMARY,
+            background: SURFACE,
+            outline: 'none',
+          }}
+        />
+
+        {err && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '10px 12px',
+              background: 'rgba(226,72,61,0.08)',
+              color: STATUS_CRITICAL,
+              borderRadius: 12,
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <AlertCircle size={16} /> {err}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 14,
+              border: `1px solid ${BORDER}`,
+              background: SURFACE,
+              color: TEXT_SECONDARY,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {t.cancel}
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 14,
+              border: 'none',
+              background: BRAND_DARK,
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {t.save}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11.5,
+        fontWeight: 700,
+        color: TEXT_SECONDARY,
+        letterSpacing: '0.03em',
+        textTransform: 'uppercase',
+        marginBottom: 6,
+        paddingLeft: 4,
+      }}
+    >
+      {children}
     </div>
   );
 }

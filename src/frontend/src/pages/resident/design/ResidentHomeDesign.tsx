@@ -328,10 +328,12 @@ export function ResidentHomeDesign(props: Props) {
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (!meta) return;
-    // Hero is now a floating rounded card with a light gap above it, so the
-    // status-bar area should be the light app background, not the brown.
-    const prev = meta.getAttribute('content') || '#4A3B30';
-    meta.setAttribute('content', '#F4F0E8');
+    // Home keeps brown behind the status bar (matches the hero's gradient
+    // TOP stop #4A3B30). The global default in index.html is the light
+    // app background, so every other page reverts to light on unmount —
+    // no more brown leaking to Profile / Chat / Vehicles.
+    const prev = meta.getAttribute('content') || '#F7F8FA';
+    meta.setAttribute('content', '#4A3B30');
     return () => { meta.setAttribute('content', prev); };
   }, []);
 
