@@ -8,12 +8,16 @@ import { StatusBadge } from '../../components/common';
 import { generateQRCodeCanvas } from '../../components/LazyQRCode';
 import { useGuestAccessStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import { useToastStore } from '../../stores/toastStore';
 import {
   toneFor, safeVisitorLabel, safeAccessLabel, safeStatusLabel,
 } from './utils';
 
 export function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: () => void }) {
+  // Hide the global BottomBar while this modal is mounted.
+  useModalPresence();
+
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);

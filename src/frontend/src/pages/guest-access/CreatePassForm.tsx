@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useGuestAccessStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import {
   VISITOR_TYPE_LABELS, ACCESS_TYPE_LABELS,
   type GuestAccessCode, type VisitorType, type AccessType,
@@ -27,6 +28,9 @@ export function CreatePassForm({
   initialVisitorType?: VisitorType;
   initialAccessType?: AccessType;
 }) {
+  // Hide the global BottomBar while this sheet is mounted.
+  useModalPresence();
+
   const { user } = useAuthStore();
   const createGuestAccessCode = useGuestAccessStore(s => s.createGuestAccessCode);
   const { language } = useLanguageStore();

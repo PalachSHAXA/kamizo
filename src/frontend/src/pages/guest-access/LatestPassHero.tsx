@@ -1,14 +1,20 @@
-// Sprint 21: extracted from ResidentGuestAccessPage. The most recent
-// pass shown as a "hero" tile at the top of the page — large QR with
-// share / copy / collapse actions.
+// Resident pass hero — Claude Design §06-propuska ticket card.
+// Brown gradient ticket with side notches, perforation, status pill,
+// QR + meta block on top, 3-button action row below. Behaviour is
+// preserved from the previous implementation: handleShare uses
+// navigator.share with clipboard fallback, handleCopy writes qrToken
+// to clipboard, "Отозвать" defers to the existing ConfirmDialog
+// through onRevoke. Source of truth: design/handoff/passes-handoff.md.
 
 import { useRef, useEffect } from 'react';
-import { QrCode, X, Share2, Copy } from 'lucide-react';
+import { Share2, Copy, X, QrCode } from 'lucide-react';
 import { generateQRCodeCanvas } from '../../components/LazyQRCode';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
 import type { GuestAccessCode } from '../../types';
 import { safeVisitorLabel, safeAccessLabel } from './utils';
+
+const TEXT_ON_DARK = '#F4F0E8';
 
 export function LatestPassHero({
   code,
@@ -23,18 +29,13 @@ export function LatestPassHero({
   const addToast = useToastStore(s => s.addToast);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Render the real QR into the 108×108 holder (2× pixel ratio).
   useEffect(() => {
     if (canvasRef.current) {
-      // Render at 2× the displayed size so the QR stays crisp on retina;
-      // displayed at ~118px below. Previous 200×200 was overkill and pushed
-      // the action buttons against the screen edge on narrow phones.
-      // Render at 2× the displayed 96px so the QR stays crisp on retina
-      // without dominating the card. Bumped down from 118 → 96 because the
-      // wider QR squeezed the action stack on narrow phones.
       generateQRCodeCanvas(canvasRef.current, code.qrToken, {
-        width: 192,
+        width: 216,
         margin: 1,
-        color: { dark: '#0f172a', light: '#ffffff' },
+        color: { dark: '#1C1917', light: '#ffffff' },
       });
     }
   }, [code.qrToken]);
@@ -43,39 +44,58 @@ export function LatestPassHero({
   const accessLabel = safeAccessLabel(code.accessType);
   const isActive = code.status === 'active';
 
-  // Compact "until" text — just hours:minutes if today, else day+month
+  // Time-left text. "действует ещё N ч/мин" for active, status word for the rest.
   const validUntil = new Date(code.validUntil);
-  const isToday = validUntil.toDateString() === new Date().toDateString();
-  const untilText = isToday
-    ? validUntil.toLocaleTimeString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { hour: '2-digit', minute: '2-digit' })
-    : validUntil.toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  const msLeft = validUntil.getTime() - now.getTime();
+  let timeLeftText: string;
+  if (isActive && msLeft > 0) {
+    const totalMin = Math.max(1, Math.round(msLeft / 60000));
+    if (totalMin < 60) {
+      timeLeftText = language === 'ru'
+        ? `действует ещё ${totalMin} мин`
+        : `${totalMin} daq qoldi`;
+    } else {
+      const hours = Math.round(totalMin / 60);
+      timeLeftText = language === 'ru'
+        ? `действует ещё ${hours} ч`
+        : `${hours} soat qoldi`;
+    }
+  } else if (code.status === 'used') {
+    timeLeftText = language === 'ru' ? 'использован' : 'ishlatilgan';
+  } else if (code.status === 'revoked') {
+    timeLeftText = language === 'ru' ? 'отозван' : 'bekor qilingan';
+  } else {
+    timeLeftText = language === 'ru' ? 'истёк' : 'tugagan';
+  }
 
-  const statusColor =
-    code.status === 'active' ? '#22c55e' :
-    code.status === 'used' ? '#3b82f6' :
-    code.status === 'revoked' ? '#ef4444' :
-    '#9ca3af';
-  const statusText =
-    code.status === 'active' ? (language === 'ru' ? 'Активен' : 'Faol') :
-    code.status === 'used' ? (language === 'ru' ? 'Использован' : 'Ishlatilgan') :
-    code.status === 'revoked' ? (language === 'ru' ? 'Отозван' : 'Bekor qilingan') :
-    (language === 'ru' ? 'Истёк' : 'Tugagan');
+  // Status pill colours per handoff (green / blue / red).
+  const statusPill = isActive
+    ? { fg: '#86EFAC', bg: 'rgba(34,197,94,0.18)', dot: '#22C55E', label: language === 'ru' ? 'Активен' : 'Faol' }
+    : code.status === 'used'
+      ? { fg: '#93C5FD', bg: 'rgba(59,130,246,0.18)', dot: '#3B82F6', label: language === 'ru' ? 'Использован' : 'Ishlatilgan' }
+      : code.status === 'revoked'
+        ? { fg: '#FCA5A5', bg: 'rgba(226,72,61,0.18)', dot: '#E2483D', label: language === 'ru' ? 'Отозван' : 'Bekor' }
+        : { fg: '#FCA5A5', bg: 'rgba(226,72,61,0.18)', dot: '#E2483D', label: language === 'ru' ? 'Истёк' : 'Tugagan' };
 
-  // Subtitle line — the big white text under the visitor type label.
-  // Falls back to access type name when no visitor name (e.g. courier).
+  // Eyebrow + headline + meta block
   const headline = code.visitorName
     || (language === 'ru' ? visitorLabel.label : visitorLabel.labelUz);
-
-  // Meta line — access scope ("Подъезд + двор" style) + uses counter
   const accessText = language === 'ru' ? accessLabel.label : accessLabel.labelUz;
   const usesText = code.maxUses > 1
-    ? (language === 'ru' ? `Использовано: ${code.currentUses} из ${code.maxUses}` : `Ishlatilgan: ${code.currentUses} / ${code.maxUses}`)
+    ? (language === 'ru'
+      ? `Использовано: ${code.currentUses} из ${code.maxUses}`
+      : `Ishlatilgan: ${code.currentUses} / ${code.maxUses}`)
     : null;
 
+  // ─── handlers (unchanged from prior implementation) ─────────────────
   const handleShare = async () => {
+    const untilStr = validUntil.toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
     const text = language === 'ru'
-      ? `Пропуск Kamizo · ${language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}\n${code.residentAddress}, кв. ${code.residentApartment}\nДействует до ${untilText}\nКод: ${code.qrToken}`
-      : `Kamizo ruxsatnomasi · ${visitorLabel.labelUz}\n${code.residentAddress}, ${code.residentApartment}-xona\n${untilText} gacha amal qiladi\nKod: ${code.qrToken}`;
+      ? `Пропуск Kamizo · ${language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}\n${code.residentAddress}, кв. ${code.residentApartment}\nДействует до ${untilStr}\nКод: ${code.qrToken}`
+      : `Kamizo ruxsatnomasi · ${visitorLabel.labelUz}\n${code.residentAddress}, ${code.residentApartment}-xona\n${untilStr} gacha amal qiladi\nKod: ${code.qrToken}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: language === 'ru' ? 'Пропуск' : 'Ruxsatnoma', text });
@@ -86,7 +106,7 @@ export function LatestPassHero({
     }
     try {
       await navigator.clipboard.writeText(text);
-      addToast('success', language === 'ru' ? 'Данные пропуска скопированы' : 'Ma\'lumotlar nusxalandi');
+      addToast('success', language === 'ru' ? 'Данные пропуска скопированы' : "Ma'lumotlar nusxalandi");
     } catch {
       onOpen();
     }
@@ -100,106 +120,158 @@ export function LatestPassHero({
   };
 
   return (
-    <div className="px-3 md:px-0">
-      <div
-        className="relative rounded-[22px] overflow-hidden p-4 shadow-[0_12px_28px_rgba(var(--brand-rgb),0.32)]"
-        style={{
-          background: 'linear-gradient(135deg, #FB923C 0%, #F97316 45%, #EA580C 100%)',
-        }}
-      >
-        {/* Decorative orb in top-right corner — soft warm highlight */}
-        <div
-          className="absolute -top-12 -right-12 w-44 h-44 rounded-full opacity-50 pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.4), transparent 70%)', filter: 'blur(6px)' }}
-        />
+    <div style={{ position: 'relative', filter: 'drop-shadow(0 16px 32px rgba(28,25,23,0.22))' }}>
+      {/* Side notches — punched out of the ticket by painting the page bg */}
+      <div aria-hidden style={{
+        position: 'absolute', left: -9, top: '58%', width: 18, height: 18,
+        borderRadius: 999, background: 'var(--app-bg)', zIndex: 2,
+      }} />
+      <div aria-hidden style={{
+        position: 'absolute', right: -9, top: '58%', width: 18, height: 18,
+        borderRadius: 999, background: 'var(--app-bg)', zIndex: 2,
+      }} />
 
-        {/* Top row: status pill + until time */}
-        <div className="relative flex items-center justify-between mb-3">
-          <span
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/95 shadow-sm"
-            style={{ color: statusColor }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
-            {statusText}
-          </span>
-          <span className="text-[12px] font-semibold text-white/90">
-            {language === 'ru' ? 'до' : 'gacha'} {untilText}
-          </span>
-        </div>
+      <div style={{
+        borderRadius: 28,
+        overflow: 'hidden',
+        background: 'linear-gradient(160deg, #4A3B30 0%, #2A2018 100%)',
+        color: TEXT_ON_DARK,
+      }}>
+        {/* Top half: meta + QR row */}
+        <div style={{ position: 'relative', padding: '18px 18px 0' }}>
+          <div aria-hidden style={{
+            position: 'absolute', inset: 0, opacity: 0.4,
+            background: 'radial-gradient(90% 80% at 90% 0%, rgba(251,146,60,0.5), transparent 55%)',
+            pointerEvents: 'none',
+          }} />
 
-        {/* Body: smaller QR on the left + info on top-right + action buttons
-            stacked under the info on the right. The QR was shrunk to 92×92
-            so the right column has enough horizontal room (~150px+) to
-            host icon-only round buttons without truncation. */}
-        <div className="relative flex items-start gap-3.5">
-          <button
-            onClick={onOpen}
-            className="bg-white p-2 rounded-[14px] shrink-0 active:scale-[0.97] transition-transform touch-manipulation shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
-            aria-label={language === 'ru' ? 'Открыть QR' : 'QR-ni ochish'}
-          >
-            <canvas ref={canvasRef} className="w-[92px] h-[92px] block" />
-          </button>
+          {/* Status pill (left) + time-left text (right) */}
+          <div style={{
+            position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+              color: statusPill.fg, background: statusPill.bg,
+              padding: '4px 10px', borderRadius: 999,
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: 999,
+                background: statusPill.dot,
+                animation: isActive ? 'kzPulse 1.6s infinite' : 'none',
+              }} />
+              {statusPill.label}
+            </span>
+            <span style={{ fontSize: 12, color: 'rgba(244,240,232,0.7)', fontWeight: 600 }}>
+              {timeLeftText}
+            </span>
+          </div>
 
-          <div className="min-w-0 flex-1 flex flex-col">
-            {/* Info block */}
-            <div className="pt-0.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-white/70">
+          {/* QR + meta row */}
+          <div style={{
+            position: 'relative', marginTop: 14, marginBottom: 16,
+            display: 'flex', gap: 16, alignItems: 'center',
+          }}>
+            <button
+              type="button"
+              onClick={onOpen}
+              aria-label={language === 'ru' ? 'Открыть QR' : 'QR ni ochish'}
+              style={{
+                padding: 7, background: '#fff', borderRadius: 14,
+                flex: '0 0 auto', border: 'none', cursor: 'pointer',
+                display: 'block',
+              }}
+            >
+              <canvas ref={canvasRef} style={{ width: 108, height: 108, display: 'block' }} />
+            </button>
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em',
+                color: 'rgba(244,240,232,0.55)', textTransform: 'uppercase',
+              }}>
                 {language === 'ru' ? visitorLabel.label : visitorLabel.labelUz}
               </div>
-              <div className="text-[16px] leading-tight font-extrabold text-white mt-0.5 truncate">
+              <div style={{
+                fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15,
+                marginTop: 3, color: TEXT_ON_DARK,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
                 {headline}
               </div>
-              <div className="text-[11.5px] text-white/85 mt-1 truncate">{accessText}</div>
-              {code.visitorVehiclePlate && (
-                <div className="text-[11.5px] text-white/85 mt-0.5 font-mono tracking-wider truncate">
-                  {code.visitorVehiclePlate}
-                </div>
-              )}
-              {usesText && (
-                <div className="text-[10.5px] text-white/75 mt-0.5 truncate">{usesText}</div>
-              )}
-            </div>
-
-            {/* Action stack — icon-only square tiles right of the QR. Three
-                buttons fit the right column even on iPhone SE (375 → ~155px
-                available after gap+QR). aria-label carries the verbose
-                name; tooltip via title for desktop. */}
-            <div className="mt-2.5 flex items-center gap-1.5">
-              <button
-                onClick={handleShare}
-                aria-label={language === 'ru' ? 'Поделиться пропуском' : 'Ulashish'}
-                title={language === 'ru' ? 'Поделиться' : 'Ulashish'}
-                className="w-9 h-9 rounded-[11px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white flex items-center justify-center active:scale-[0.95] transition-all touch-manipulation border border-white/20 backdrop-blur-sm shrink-0"
-              >
-                <Share2 className="w-[16px] h-[16px]" strokeWidth={2.2} />
-              </button>
-              <button
-                onClick={handleCopy}
-                aria-label={language === 'ru' ? 'Скопировать код' : 'Kodni nusxalash'}
-                title={language === 'ru' ? 'Копировать код' : 'Kodni nusxalash'}
-                className="w-9 h-9 rounded-[11px] bg-white/18 hover:bg-white/24 active:bg-white/30 text-white flex items-center justify-center active:scale-[0.95] transition-all touch-manipulation border border-white/20 backdrop-blur-sm shrink-0"
-              >
-                <Copy className="w-[16px] h-[16px]" strokeWidth={2.2} />
-              </button>
-              <button
-                onClick={isActive ? onRevoke : onOpen}
-                aria-label={isActive ? (language === 'ru' ? 'Отозвать пропуск' : 'Bekor qilish') : (language === 'ru' ? 'Открыть QR' : 'QR ni ochish')}
-                title={isActive ? (language === 'ru' ? 'Отозвать' : 'Bekor') : (language === 'ru' ? 'Открыть' : 'Ochish')}
-                className={`w-9 h-9 rounded-[11px] flex items-center justify-center active:scale-[0.95] transition-all touch-manipulation border backdrop-blur-sm shrink-0 ${
-                  isActive
-                    ? 'bg-white/95 text-red-600 border-white/40 hover:bg-white'
-                    : 'bg-white/95 hover:bg-white border-white/40'
-                }`}
-                style={!isActive ? { color: 'rgb(var(--brand-rgb))' } : undefined}
-              >
-                {isActive ? <X className="w-[16px] h-[16px]" strokeWidth={2.2} /> : <QrCode className="w-[16px] h-[16px]" strokeWidth={2.2} />}
-              </button>
+              <div style={{
+                fontSize: 12.5, color: 'rgba(244,240,232,0.7)', marginTop: 8, lineHeight: 1.5,
+              }}>
+                {accessText}
+                {code.visitorVehiclePlate ? <><br/>{code.visitorVehiclePlate}</> : null}
+                {usesText ? <><br/>{usesText}</> : null}
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* Perforation */}
+        <div aria-hidden style={{
+          borderTop: '2px dashed rgba(244,240,232,0.22)',
+          margin: '0 14px',
+        }} />
+
+        {/* Action grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, padding: 14 }}>
+          <ActionButton
+            Icon={Share2}
+            label={language === 'ru' ? 'Поделиться' : 'Ulashish'}
+            onClick={handleShare}
+          />
+          <ActionButton
+            Icon={Copy}
+            label={language === 'ru' ? 'Код' : 'Kod'}
+            onClick={handleCopy}
+          />
+          {isActive ? (
+            <ActionButton
+              Icon={X}
+              label={language === 'ru' ? 'Отозвать' : 'Bekor'}
+              onClick={onRevoke}
+              danger
+            />
+          ) : (
+            <ActionButton
+              Icon={QrCode}
+              label={language === 'ru' ? 'Открыть' : 'Ochish'}
+              onClick={onOpen}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// Create pass form component
+function ActionButton({
+  Icon, label, onClick, danger,
+}: {
+  Icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: 10,
+        borderRadius: 14,
+        border: 'none',
+        cursor: 'pointer',
+        background: danger ? 'rgba(226,72,61,0.18)' : 'rgba(244,240,232,0.12)',
+        color: danger ? '#FCA5A5' : TEXT_ON_DARK,
+        fontSize: 12, fontWeight: 650 as unknown as number,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+      }}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
+  );
+}
