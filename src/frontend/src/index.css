@@ -57,7 +57,7 @@
      "Kamizo" rendered in dark grey instead of warm white over the brown
      hero. Add them once here so every consumer reads them correctly. */
   --surface: #FFFFFF;
-  --surface-2: #F7F8FA;
+  --surface-2: #F4F0E8;
   --dark-surface: #2A2018;
   --border-c: rgba(28, 25, 23, 0.08);
   --border-strong: rgba(28, 25, 23, 0.18);
@@ -90,14 +90,35 @@ html {
      causing iOS Safari elastic bounce that makes position:fixed elements appear to move. */
 }
 
-/* App-wide neutral background. Single source of truth — html and body share
-   it, .layout-root and #main-content are transparent so the layer extends
-   below the BottomBar into the iOS home-indicator zone (no white strip). */
+/* App-wide neutral background. Single source of truth. Aligned to the
+   Claude Design handoff palette (warm beige #F4F0E8) — the prior cool
+   #F7F8FA read as grey in iOS rubber-band zones, behind translucent
+   sheets and overlays, and on the chrome / safe-area strip. html, body,
+   #root, .layout-root all paint this colour so there is no transparent
+   layer where the browser's default grey can bleed through.
+   .main-content stays transparent so the layer extends below the
+   BottomBar into the iOS home-indicator zone (no white strip). */
 :root {
-  --app-bg: #F7F8FA;
+  --app-bg: #F4F0E8;
 }
 
 html {
+  background: var(--app-bg);
+  /* Kill rubber-band on the document scroller at every breakpoint. iOS 16+
+     respects this on html (body alone wasn't enough — Safari was still
+     bouncing into the chrome grey above the fixed header). */
+  overscroll-behavior: none;
+  -webkit-overscroll-behavior: none;
+}
+
+/* #root and .layout-root must paint the page bg, not be transparent.
+   A transparent #root was letting the OS / chrome grey leak through during
+   iOS PWA bounce, in the strip above the MobileHeader, and behind any
+   sheet whose backdrop is anything less than fully opaque. */
+#root {
+  background: var(--app-bg);
+}
+.layout-root {
   background: var(--app-bg);
 }
 
@@ -782,7 +803,10 @@ p, li {
        (The bottom-bar uses the opposite trick because the home-indicator
        region looks bad if bg-painted.) */
     padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
-    background: rgba(247, 248, 250, 0.92);
+    /* Translucent fill matching --app-bg (#F4F0E8 = rgb 244,240,232). The
+       prior value was the cool #F7F8FA, which painted a visible cooler
+       strip over the warm page bg behind it. */
+    background: rgba(244, 240, 232, 0.92);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid rgba(0, 0, 0, 0.04);
@@ -795,8 +819,12 @@ p, li {
     /* Force GPU compositing layer — prevents iOS Safari from re-painting the header during scroll */
     -webkit-transform: translate3d(0, 0, 0);
     transform: translate3d(0, 0, 0);
-    /* Prevent pull-to-refresh / drag on the header */
-    touch-action: manipulation;
+    /* Block ALL gestures on the header bar so a drag that starts on it
+       can't be hijacked into a page scroll. `manipulation` still allowed
+       scroll-pan, which is what made the header appear to move when the
+       user dragged on a header widget. `none` keeps tap/click working on
+       the inner buttons (they're fixed children, not the scroll target). */
+    touch-action: none;
     -webkit-user-select: none;
     user-select: none;
   }
