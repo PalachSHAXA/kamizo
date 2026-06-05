@@ -268,6 +268,17 @@ cd src/frontend && npx tsc --noEmit
 - Deploy itself is automatic: pushing to `main` triggers `.github/workflows/deploy.yml`, which rebuilds the frontend from source and runs `wrangler deploy`. **You do not need to run `wrangler deploy` yourself** — and built artifacts in `cloudflare/public/` don't matter for prod (CI regenerates them from `src/frontend`).
 - The user's local Mac clone CAN merge normally; suggest an occasional `git pull` on the Mac to keep their working copy current (not required for shipping).
 
+## Sync before push (MANDATORY)
+- BEFORE every git push, FIRST sync with the remote:
+  1. git fetch origin
+  2. Make a safety backup: git branch backup/$(date +%Y%m%d-%H%M%S)
+  3. git pull --no-rebase origin <current-branch>   (merge, never rebase — pull.rebase stays false)
+  4. If there are conflicts, STOP and show me the conflicts and your proposed resolution; do not push until resolved.
+  5. Only after a clean sync (and a passing build): git push
+- This applies to every branch, including main and all feature branches.
+- Never force-push. Never reset --hard on main.
+- The order is always: fetch → backup → pull (merge) → resolve if needed → build → push.
+
 ## Loss prevention (MANDATORY)
 - pull.rebase is set to false (merge, never rebase) to avoid dropping commits.
 - Before ANY git pull, git rebase, git reset, or wrangler deploy, FIRST run:
