@@ -5,7 +5,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, generateId, sqliteDatetimeToMs } from '../../utils/helpers';
 
 // Shared SELECT for work_orders with consistent JOINs and tenant filter on user joins.
 // extraWhere is appended to a base WHERE that already enforces wo.tenant_id = ?.
@@ -189,9 +189,12 @@ route('POST', '/api/work-orders/:id/status', async (request, env, params) => {
       `SELECT started_at FROM work_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
     ).bind(params!.id, ...(tenantId ? [tenantId] : [])).first() as any;
     if (wo?.started_at) {
-      const durationMinutes = Math.round((Date.now() - new Date(wo.started_at).getTime()) / 60000);
+      // started_at is a naked SQLite datetime — go through the UTC helper so
+      // the duration isn't shifted by the VPS local timezone (see comment
+      // in sqliteDatetimeToMs).
+      const durationMinutes = Math.round((Date.now() - sqliteDatetimeToMs(wo.started_at)) / 60000);
       updates.push('actual_duration = ?');
-      values.push(durationMinutes);
+      values.push(Math.max(0, durationMinutes));
     }
   }
 

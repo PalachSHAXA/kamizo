@@ -195,3 +195,21 @@ export function sanitizeFilename(name: string | null | undefined, maxLength = 12
   s = s.trim().slice(0, maxLength);
   return s.length > 0 ? s : null;
 }
+
+// Parse a SQLite datetime('now') string ("YYYY-MM-DD HH:MM:SS", stored in UTC,
+// with NO timezone marker) into UTC epoch ms. Naked `new Date(s)` on such a
+// string is treated as LOCAL time by V8 — on Cloudflare Workers locale is UTC
+// so it worked; on the Tashkent VPS Node runs in UTC+5 by default, so the
+// parse shifted every comparison by -5 h and made
+//   `(Date.now() - new Date(paused_at).getTime()) / 1000`
+// return ~18000 s extra. That blew up `total_paused_time`, the resident timer
+// in the executor UI then computed (elapsed − total_paused_time) < 0 and
+// clamped to 0 — the symptom of "the work timer froze at 0:00 after resume".
+// Always route SQLite datetimes through this helper before any math.
+export function sqliteDatetimeToMs(s: string | null | undefined): number {
+  if (!s || typeof s !== 'string') return 0;
+  // Already has explicit timezone — trust it as-is.
+  if (s.includes('Z') || /[+-]\d\d:?\d\d$/.test(s)) return new Date(s).getTime();
+  // Force UTC interpretation: convert "YYYY-MM-DD HH:MM:SS" → ISO-8601 UTC.
+  return new Date(s.replace(' ', 'T') + 'Z').getTime();
+}
