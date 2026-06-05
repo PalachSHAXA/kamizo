@@ -1,6 +1,7 @@
 import { useEffect, useRef, useId, type ReactNode, type MouseEvent } from 'react';
 import { X } from 'lucide-react';
 import { MODAL_SIZES, type ModalSize } from '../../theme/sizes';
+import { useModalPresence } from '../../stores/modalStore';
 
 export type { ModalSize };
 
@@ -56,6 +57,10 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const titleId = useId();
+
+  // Hide the global BottomBar while this modal is open via the shared
+  // modal-presence registry.
+  useModalPresence(open);
 
   // ESC handler + focus trap
   useEffect(() => {

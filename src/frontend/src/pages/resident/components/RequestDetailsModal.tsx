@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle, Star, RefreshCw } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { useModalPresence } from '../../../stores/modalStore';
 import { PRIORITY_LABELS, PRIORITY_LABELS_UZ } from '../../../types';
 import { RequestStatusTracker } from '../../../components/RequestStatusTracker';
 import type { RequestDetailsModalProps } from './types';
@@ -13,6 +14,9 @@ export function RequestDetailsModal({
   onReschedule,
   hasActiveReschedule
 }: RequestDetailsModalProps) {
+  // Hide the global BottomBar while this modal is mounted.
+  useModalPresence();
+
   const { language } = useLanguageStore();
   const [descExpanded, setDescExpanded] = useState(false);
   const isLongDesc = (request.description?.length || 0) > 100;

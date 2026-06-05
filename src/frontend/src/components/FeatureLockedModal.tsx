@@ -3,6 +3,7 @@ import { Lock, Sparkles, ArrowUpRight, MessageCircle } from 'lucide-react';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { useAuthStore } from '../stores/authStore';
+import { useModalPresence } from '../stores/modalStore';
 
 // Feature registry: key → { name, description, plan }
 const FEATURE_REGISTRY: Record<string, { ru: { name: string; desc: string }; uz: { name: string; desc: string }; plan: string }> = {
@@ -66,6 +67,9 @@ interface FeatureLockedModalProps {
 }
 
 export function FeatureLockedModal({ isOpen, onClose, featureName, featureKey }: FeatureLockedModalProps) {
+  // Hide the global BottomBar while open (shared modal-presence registry).
+  useModalPresence(isOpen);
+
   const { language } = useLanguageStore();
   const { config } = useTenantStore();
   const { user } = useAuthStore();

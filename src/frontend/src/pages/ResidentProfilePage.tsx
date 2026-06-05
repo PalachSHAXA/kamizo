@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useModalPresence } from '../stores/modalStore';
 import {
   FileText, QrCode, CreditCard, Star,
   Building2, Home, Users, Phone,
@@ -934,6 +935,12 @@ function PhoneEditRow({
 }
 
 function BottomSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  // Every sheet on this page (EditProfile / PasswordModal / QR pass /
+  // InstallApp) mounts through this wrapper; registering once here hides
+  // the global BottomBar while ANY of them is open. Decrements on unmount,
+  // which covers backdrop-tap / X / Escape / programmatic close.
+  useModalPresence();
+
   // Lock body scroll while the sheet is open so the user can't pull the page
   // behind the overlay; rolled back on unmount.
   useEffect(() => {
