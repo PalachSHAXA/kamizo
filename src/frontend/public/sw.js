@@ -1,25 +1,20 @@
 // Kamizo PWA Service Worker
-// Version: 3.6.4 — cache suffix bumped to v48 to evict every v47 (and
+// Version: 3.6.5 — cache suffix bumped to v49 to evict every v48 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • full-bleed beige background on the resident Profile page (and any
-//     other resident page added to isResidentFullBleed in future) — no
-//     more white side strips or white overscroll under content,
-//   • the brown theme-color (#4A3B30) now scoped to the resident Home
-//     hero only; every other page (Profile, Vehicles, Chat, etc.) gets
-//     the light app-bg in the status-bar zone via the default in
-//     index.html — fixes the brown chrome strip that was leaking
-//     across non-Home pages,
-//   • a working edit-profile bottom-sheet on the Profile hero pencil
-//     (name + phone fields), wired to authStore.updateProfile. The
-//     button used to silently toggle an off-screen phone-edit row.
+//   • FINAL rule for the status-bar zone: light/beige on EVERY page,
+//     no exceptions. The Home theme-color override (was #4A3B30) is
+//     removed, and apple-mobile-web-app-status-bar-style is now
+//     "default" instead of "black-translucent" so the iOS PWA bar
+//     no longer extends behind the webview — the Home hero stays
+//     brown but strictly BELOW env(safe-area-inset-top).
 // Combined with skipWaiting() on install and clients.claim() on activate,
 // every device refetches the app shell on next open. Bump this suffix any
 // time a release needs to propagate urgently to existing installs.
 
-const SW_VERSION = '3.6.4';
-const STATIC_CACHE = 'kamizo-static-v48';
-const ASSET_CACHE = 'kamizo-assets-v48';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v48';
+const SW_VERSION = '3.6.5';
+const STATIC_CACHE = 'kamizo-static-v49';
+const ASSET_CACHE = 'kamizo-assets-v49';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v49';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
