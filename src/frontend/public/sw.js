@@ -1,26 +1,24 @@
 // Kamizo PWA Service Worker
-// Version: 3.6.9 — cache suffix bumped to v53 to evict every v52 (and
+// Version: 3.7.0 — cache suffix bumped to v54 to evict every v53 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • the resident sidebar redesign (Claude Design §11-sidebar): dark
-//     stone header + stats strip, 4-tile quick-access grid, white
-//     "More" list with chevrons/badges, warm-beige footer profile card
-//     with logout. Every row routes to an existing destination through
-//     the lock-aware navigation we already use elsewhere, so locked
-//     features open the FeatureLockedModal instead of dead links.
-//     Staff drawers (admin / manager / director / executor / security
-//     / super-admin) are untouched and keep the existing role-aware
-//     list.
+//   • resident full-bleed pages (Home / Vehicles / Profile) now use the
+//     handoff's 16px horizontal padding instead of compounding to ~28px
+//     on mobile. .page-content's per-device mobile auto-padding is
+//     reset on a new .page-content-full-bleed modifier applied to
+//     <main>, so the Profile hero / 2-col quick tiles / section cards
+//     reach the same width as in the §07-profil handoff.
 //
-// Carries forward v52's warm-beige #F4F0E8 token, v51's overlay-hide
-// registry, and v50's MIME-type self-heal. Combined with skipWaiting()
-// on install and clients.claim() on activate, every device refetches
-// the app shell on next open. Bump this suffix any time a release needs
-// to propagate urgently to existing installs.
+// Carries forward v53's resident sidebar (§11-sidebar), v52's warm-beige
+// #F4F0E8 token, v51's overlay-hide registry, and v50's MIME-type self-
+// heal. Combined with skipWaiting() on install and clients.claim() on
+// activate, every device refetches the app shell on next open. Bump
+// this suffix any time a release needs to propagate urgently to
+// existing installs.
 
-const SW_VERSION = '3.6.9';
-const STATIC_CACHE = 'kamizo-static-v53';
-const ASSET_CACHE = 'kamizo-assets-v53';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v53';
+const SW_VERSION = '3.7.0';
+const STATIC_CACHE = 'kamizo-static-v54';
+const ASSET_CACHE = 'kamizo-assets-v54';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v54';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
