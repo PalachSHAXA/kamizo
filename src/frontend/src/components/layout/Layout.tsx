@@ -361,7 +361,12 @@ export function Layout() {
   // strip" against the page's beige interior.
   const isResidentProfile = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/profile';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile;
+  // Resident passes / guest access (Claude Design §06-propuska) has a sticky
+  // in-page header and a ticket-style hero that need the bare 16px the design
+  // specifies — no mobile per-device auto-padding compounding from .page-content.
+  const isResidentPasses = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/guest-access';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
