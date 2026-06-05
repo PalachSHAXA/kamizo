@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   Droplet, Zap, Flame, MoveVertical, Sparkles, Trash2, ShieldCheck, Bell,
   MoreHorizontal, Search, X as XIcon, ArrowRight, ArrowLeft, Camera, Send,
@@ -8,6 +9,7 @@ import type { LucideIcon } from 'lucide-react';
 import { SERVICE_CATEGORIES } from '../../../types';
 import type { ExecutorSpecialization, RequestPriority, Request, User } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
+import { useModalPresence } from '../../../stores/modalStore';
 
 // New request flow — 1:1 port of Claude Design §03-novaya-zayavka, wired to
 // real data: catalog tiles map to real ExecutorSpecialization categories,
@@ -111,36 +113,98 @@ export interface ResidentNewRequestFlowProps {
 export function ResidentNewRequestFlow({ open, language, user, onClose, onCreate, onGoToRequests }: ResidentNewRequestFlowProps) {
   const [step, setStep] = useState<'catalog' | 'form'>('catalog');
   const [category, setCategory] = useState<ExecutorSpecialization | null>(null);
-  // Lock background scroll while the sheet is open (prevents iOS scroll-chaining
-  // behind the 92vh overlay). Restores the previous value on close/unmount.
+  if (!open) return null;
+  return (
+    <SheetShell onDismiss={onClose}>
+      {(drag, requestClose) => (
+        step === 'catalog' ? (
+          <ServiceSheet
+            language={language}
+            drag={drag}
+            onClose={requestClose}
+            onPick={(c) => { setCategory(c); setStep('form'); }}
+          />
+        ) : (
+          <RequestForm
+            language={language}
+            user={user}
+            category={category!}
+            drag={drag}
+            onBack={() => setStep('catalog')}
+            onClose={requestClose}
+            onCreate={onCreate}
+            onGoToRequests={onGoToRequests}
+          />
+        )
+      )}
+    </SheetShell>
+  );
+}
+
+// Drag handlers spread onto a step's grabber so a downward swipe dismisses.
+type DragHandlers = {
+  onTouchStart: (e: React.TouchEvent) => void;
+  onTouchMove: (e: React.TouchEvent) => void;
+  onTouchEnd: () => void;
+};
+
+// Animated bottom-sheet chrome shared by every step: slides up on open, fades
+// the backdrop, supports swipe-down-to-dismiss, locks background scroll and
+// (via useModalPresence) hides the global BottomBar so the sticky action
+// button is never covered by the nav. The panel stays mounted across
+// catalog→form so there is no re-animation between steps.
+function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: (drag: DragHandlers, requestClose: () => void) => ReactNode }) {
+  const [entered, setEntered] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const dragging = useRef(false);
+  const startY = useRef(0);
+  useModalPresence();
+
   useEffect(() => {
-    if (!open) return;
+    const raf = requestAnimationFrame(() => setEntered(true));
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [open]);
-  if (!open) return null;
-  return step === 'catalog' ? (
-    <ServiceSheet
-      language={language}
-      onClose={onClose}
-      onPick={(c) => { setCategory(c); setStep('form'); }}
-    />
-  ) : (
-    <RequestForm
-      language={language}
-      user={user}
-      category={category!}
-      onBack={() => setStep('catalog')}
-      onClose={onClose}
-      onCreate={onCreate}
-      onGoToRequests={() => { onGoToRequests(); onClose(); }}
-    />
+    return () => { cancelAnimationFrame(raf); document.body.style.overflow = prev; };
+  }, []);
+
+  const requestClose = useCallback(() => {
+    setClosing(true);
+    window.setTimeout(onDismiss, 240);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [requestClose]);
+
+  const drag: DragHandlers = {
+    onTouchStart: (e) => { dragging.current = true; startY.current = e.touches[0].clientY; },
+    onTouchMove: (e) => { if (!dragging.current) return; const dy = e.touches[0].clientY - startY.current; setDragY(dy > 0 ? dy : 0); },
+    onTouchEnd: () => { dragging.current = false; if (dragY > 110) requestClose(); else setDragY(0); },
+  };
+
+  const shown = entered && !closing;
+  const translateY = shown ? `${dragY}px` : '100%';
+  return (
+    <div onClick={requestClose} style={{ position: 'fixed', inset: 0, zIndex: ZTOP, display: 'flex', alignItems: 'flex-end', background: `rgba(28,25,23,${shown ? 0.5 : 0})`, backdropFilter: shown ? 'blur(2px)' : 'none', transition: 'background .25s ease' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: '100%', maxHeight: '94vh', display: 'flex', flexDirection: 'column',
+        background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX,
+        boxShadow: '0 -10px 40px rgba(28,25,23,0.3)', overflow: 'hidden',
+        transform: `translateY(${translateY})`,
+        transition: dragging.current ? 'none' : 'transform .28s cubic-bezier(.32,.72,0,1)',
+        willChange: 'transform',
+      }}>
+        {children(drag, requestClose)}
+      </div>
+    </div>
   );
 }
 
 // ── Step 1: catalog ──────────────────────────────────────────
-function ServiceSheet({ language, onPick, onClose }: { language: string; onPick: (c: ExecutorSpecialization) => void; onClose: () => void }) {
+function ServiceSheet({ language, onPick, onClose, drag }: { language: string; onPick: (c: ExecutorSpecialization) => void; onClose: () => void; drag: DragHandlers }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<'all' | SvcCat>('all');
   const [sel, setSel] = useState<ExecutorSpecialization | null>(null);
@@ -155,22 +219,17 @@ function ServiceSheet({ language, onPick, onClose }: { language: string; onPick:
   const selSvc = NR_SERVICES.find(s => s.category === sel) || null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: ZTOP, background: 'rgba(28,25,23,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column',
-        background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX,
-        boxShadow: '0 -10px 40px rgba(28,25,23,0.3)', overflow: 'hidden',
-      }}>
+    <>
         {/* dark stone hero header */}
         <div style={{
           position: 'relative', overflow: 'hidden', flexShrink: 0,
           background: 'linear-gradient(155deg, #33302C 0%, #1C1917 70%)',
-          padding: 'calc(env(safe-area-inset-top, 0px) + 11px) 16px 15px', color: 'var(--text-on-dark, #F4F0E8)',
+          padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 16px 15px', color: 'var(--text-on-dark, #F4F0E8)',
           borderTopLeftRadius: RX, borderTopRightRadius: RX,
         }}>
           <div style={{ position: 'absolute', top: -70, right: -40, width: 200, height: 200, borderRadius: 999, background: 'radial-gradient(circle, rgba(249,115,22,0.35), transparent 70%)', pointerEvents: 'none' }} />
           <div style={{ position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <div {...drag} style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 12px', cursor: 'grab', touchAction: 'none' }}>
               <div style={{ width: 38, height: 5, borderRadius: 999, background: 'rgba(244,240,232,0.3)' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -257,16 +316,16 @@ function ServiceSheet({ language, onPick, onClose }: { language: string; onPick:
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>{sel && selSvc ? <>{ru ? 'Продолжить' : 'Davom etish'} · {ru ? selSvc.label : selSvc.labelUz} <ArrowRight size={17} strokeWidth={2.4} /></> : (ru ? 'Выберите услугу' : 'Xizmatni tanlang')}</button>
         </div>
-      </div>
-    </div>
+    </>
   );
 }
 
 // ── Step 2: form ─────────────────────────────────────────────
-function RequestForm({ language, user, category, onBack, onClose, onCreate, onGoToRequests }: {
+function RequestForm({ language, user, category, onBack, onClose, onCreate, onGoToRequests, drag }: {
   language: string; user: User | null; category: ExecutorSpecialization;
   onBack: () => void; onClose: () => void;
   onCreate: ResidentNewRequestFlowProps['onCreate']; onGoToRequests: () => void;
+  drag: DragHandlers;
 }) {
   const ru = language === 'ru';
   const svc = NR_SERVICES.find(s => s.category === category) || NR_SERVICES[0];
@@ -365,25 +424,25 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
   if (created) {
     const num = created.number ? `#${created.number}` : '';
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: ZTOP, background: 'rgba(28,25,23,0.5)', display: 'flex', alignItems: 'flex-end' }} onClick={onGoToRequests}>
-        <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX, padding: '32px 24px calc(env(safe-area-inset-bottom, 0px) + 28px)', textAlign: 'center' }}>
-          <div style={{ width: 80, height: 80, borderRadius: 999, background: 'var(--status-active-bg, rgba(21,160,110,0.12))', color: 'var(--status-active, #15A06E)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
-            <Check size={42} strokeWidth={2.6} />
-          </div>
-          <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary, #1C1917)' }}>{ru ? `Заявка ${num} создана` : `Ariza ${num} yaratildi`}</div>
-          <div style={{ fontSize: 14, color: 'var(--text-secondary, #6F6A62)', marginTop: 8, lineHeight: 1.45 }}>{ru ? 'Диспетчер назначит мастера в ближайшее время. Уведомим вас в приложении.' : 'Dispetcher tez orada usta tayinlaydi. Sizni ilovada xabardor qilamiz.'}</div>
-          <button onClick={onGoToRequests} style={{ width: '100%', marginTop: 22, padding: 14, borderRadius: RM, background: 'var(--brand, #F97316)', color: '#fff', border: 'none', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--sh-brand, 0 8px 22px rgba(249,115,22,0.26))' }}>{ru ? 'К моим заявкам' : 'Arizalarimga'}</button>
+      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 24px calc(env(safe-area-inset-bottom, 0px) + 28px)', textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '0 0 18px' }}>
+          <div style={{ width: 38, height: 5, borderRadius: 999, background: 'var(--border-strong, #D8CFBE)' }} />
         </div>
+        <div style={{ width: 80, height: 80, borderRadius: 999, background: 'var(--status-active-bg, rgba(21,160,110,0.12))', color: 'var(--status-active, #15A06E)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
+          <Check size={42} strokeWidth={2.6} />
+        </div>
+        <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary, #1C1917)' }}>{ru ? `Заявка ${num} создана` : `Ariza ${num} yaratildi`}</div>
+        <div style={{ fontSize: 14, color: 'var(--text-secondary, #6F6A62)', marginTop: 8, lineHeight: 1.45 }}>{ru ? 'Диспетчер назначит мастера в ближайшее время. Уведомим вас в приложении.' : 'Dispetcher tez orada usta tayinlaydi. Sizni ilovada xabardor qilamiz.'}</div>
+        <button onClick={onGoToRequests} style={{ width: '100%', marginTop: 22, padding: 14, borderRadius: RM, background: 'var(--brand, #F97316)', color: '#fff', border: 'none', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--sh-brand, 0 8px 22px rgba(249,115,22,0.26))' }}>{ru ? 'К моим заявкам' : 'Arizalarimga'}</button>
       </div>
     );
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: ZTOP, background: 'rgba(28,25,23,0.5)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '94vh', display: 'flex', flexDirection: 'column', background: 'var(--app-bg, #F4F0E8)', borderTopLeftRadius: RX, borderTopRightRadius: RX, boxShadow: '0 -10px 40px rgba(28,25,23,0.25)', overflow: 'hidden' }}>
+    <>
         {/* header */}
-        <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 14px', borderBottom: '1px solid var(--border-c, #E6DFD2)', background: 'var(--surface, #fff)' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+        <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 16px 14px', borderBottom: '1px solid var(--border-c, #E6DFD2)', background: 'var(--surface, #fff)' }}>
+          <div {...drag} style={{ display: 'flex', justifyContent: 'center', padding: '0 0 10px', cursor: 'grab', touchAction: 'none' }}>
             <div style={{ width: 38, height: 5, borderRadius: 999, background: 'var(--border-strong, #D8CFBE)' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -393,6 +452,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
               <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary, #1C1917)' }}>{ru ? (catInfo?.name || svc.label) : (catInfo?.nameUz || svc.labelUz)}</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary, #6F6A62)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatAddress(user?.address, user?.apartment)}</div>
             </div>
+            <button onClick={onClose} aria-label={ru ? 'Закрыть' : 'Yopish'} style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--surface-sunken, #EDE7DB)', border: 'none', display: 'grid', placeItems: 'center', color: 'var(--text-secondary, #6F6A62)', cursor: 'pointer', flex: '0 0 auto' }}><XIcon size={18} /></button>
           </div>
         </div>
 
@@ -537,7 +597,6 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
             {sending ? <><Loader2 size={16} className="animate-spin" /> {ru ? 'Отправляем…' : 'Yuborilmoqda…'}</> : <><Send size={16} /> {ru ? 'Отправить заявку' : 'Arizani yuborish'}</>}
           </button>
         </div>
-      </div>
-    </div>
+    </>
   );
 }
