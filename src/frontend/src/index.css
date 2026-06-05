@@ -1438,6 +1438,14 @@ a.btn-secondary:active,
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+/* kzPulse — used by status dots in the resident sidebar (Claude Design
+   §11-sidebar handoff). Matches the keyframe in the prototype's inline
+   style block so the visual cadence is identical. */
+@keyframes kzPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.85); }
+}
 .animate-qr-scan {
   animation: qrScan 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

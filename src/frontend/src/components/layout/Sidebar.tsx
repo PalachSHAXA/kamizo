@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -8,19 +8,20 @@ import {
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
   X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock, CreditCard,
   FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck,
-  ChevronDown
+  ChevronDown, ChevronRight, Globe, Send, Check
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useModalPresence } from '../../stores/modalStore';
-import { useRequestStore, useAnnouncementStore, useExecutorStore } from '../../stores/dataStore';
+import { useRequestStore, useAnnouncementStore, useExecutorStore, useVehicleStore, useGuestAccessStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { AppLogo } from '../common/AppLogo';
 import { chatApi } from '../../services/api';
 import { FeatureLockedModal } from '../FeatureLockedModal';
 import { ConfirmDialog } from '../common';
+import { formatName } from '../../utils/formatName';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -34,6 +35,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   // close / backdrop tap / swipe-to-dismiss / unmount.
   useModalPresence(isOpen);
 
+  const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
   const { user } = useAuthStore();
@@ -46,6 +48,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { hasFeature, config } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';
   const isMobile = useIsMobile();
+  const vehicles = useVehicleStore(s => s.vehicles);
+  const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
   const [lockedFeatureKey, setLockedFeatureKey] = useState<string | null>(null);
   // Collapsible sidebar sections — persisted per session
@@ -570,6 +574,391 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Resident-style drawer (Claude Design §11-sidebar handoff).
+  // Source: design/handoff/sidebar-handoff.md. Renders for residents,
+  // tenants, and commercial owners. All staff roles keep the existing
+  // role-aware list below.
+  // ─────────────────────────────────────────────────────────────────────
+  const isResidentRole = user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner';
+
+  if (isResidentRole) {
+    // ── counts wired to real stores ──
+    const activeRequestCount = badges['/'] || 0;
+    const unreadAnnouncementCount = badges['/announcements'] || 0;
+    const vehicleCount = vehicles.filter(v => v.residentId === user!.id).length;
+    const activeGuestPassCount = guestAccessCodes.filter(
+      c => c.residentId === user!.id && c.status === 'active'
+    ).length;
+    const hasUnreadChat = chatUnreadCount > 0;
+    const isMeetingActive = meetingStatus === 'voting';
+
+    // ── header values from user / tenant ──
+    const displayName = formatName(user?.name) || user?.name || '';
+    const initials = (() => {
+      const parts = displayName.trim().split(/\s+/);
+      if (!parts[0]) return '·';
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    })();
+    const buildingLabel = user?.building || user?.address || '—';
+    const apartmentLabel = user?.apartment ? `${language === 'ru' ? 'Кв.' : 'Kv.'} ${user.apartment}` : '';
+    const headerSubtitle = apartmentLabel ? `${buildingLabel} · ${apartmentLabel}` : buildingLabel;
+    const verified = Boolean(user?.contractSignedAt);
+    const contractNumber = user?.contractNumber || '—';
+    const langLabel = language === 'ru' ? 'Русский' : "O'zbekcha";
+
+    // ── navigation: lock-aware, closes drawer after navigate ──
+    const go = (path: string) => {
+      if (isPathLocked(path)) {
+        setLockedFeatureName(getFeatureName(path));
+        setLockedFeatureKey(getFeatureKey(path));
+        onClose();
+        return;
+      }
+      navigate(path);
+      onClose();
+    };
+
+    const TEXT_ON_DARK = '#F4F0E8';
+
+    return createPortal(
+      <>
+        {/* ── Backdrop ── */}
+        <div
+          onClick={onClose}
+          aria-hidden="true"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: 'rgba(28,25,23,0.45)',
+            backdropFilter: 'blur(2px)',
+            WebkitBackdropFilter: 'blur(2px)',
+            opacity: isOpen ? 1 : 0,
+            pointerEvents: isOpen ? 'auto' : 'none',
+            transition: 'opacity 0.22s var(--ease-emphasized, cubic-bezier(0.2,0,0,1))',
+          }}
+        />
+
+        {/* ── Drawer panel ── */}
+        <aside
+          role="navigation"
+          aria-label={language === 'ru' ? 'Главное меню' : 'Asosiy menyu'}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 61,
+            width: 326, maxWidth: '90vw',
+            background: 'var(--app-bg)',
+            boxShadow: '0 0 50px rgba(28,25,23,0.22)',
+            transform: isOpen ? `translateX(-${swipeOffset}px)` : 'translateX(-100%)',
+            transition: swipeOffset > 0 ? 'none' : 'transform 0.28s var(--ease-emphasized, cubic-bezier(0.2,0,0,1))',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}
+        >
+          {/* ── Dark stone header ── */}
+          <div style={{
+            position: 'relative',
+            padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 18px 20px',
+            background: 'var(--dark-surface, #2A2018)',
+            color: TEXT_ON_DARK,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute', inset: 0, opacity: 0.18,
+              background: 'radial-gradient(120% 90% at 95% 0%, #FB923C 0%, transparent 55%)',
+              pointerEvents: 'none',
+            }} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 50, height: 50, borderRadius: 15,
+                background: 'linear-gradient(135deg, #FB923C, #EA580C)', color: '#fff',
+                display: 'grid', placeItems: 'center', flex: '0 0 auto',
+                boxShadow: '0 6px 16px rgba(249,115,22,0.4)',
+              }}>
+                <Building2 size={23} strokeWidth={2.2} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em',
+                  color: '#FDBA74', textTransform: 'uppercase',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  ТСЖ «{tenantName}»
+                </div>
+                <div style={{
+                  fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 2,
+                  color: TEXT_ON_DARK,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {headerSubtitle}
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                aria-label={language === 'ru' ? 'Закрыть меню' : 'Menyuni yopish'}
+                style={{
+                  width: 32, height: 32, borderRadius: 999,
+                  background: 'rgba(244,240,232,0.12)',
+                  border: '1px solid rgba(244,240,232,0.14)',
+                  display: 'grid', placeItems: 'center',
+                  color: TEXT_ON_DARK, cursor: 'pointer',
+                  flex: '0 0 auto',
+                }}
+              >
+                <CloseIcon size={16} />
+              </button>
+            </div>
+
+            {/* ── Stats strip ── */}
+            <div style={{ position: 'relative', display: 'flex', marginTop: 16 }}>
+              {[
+                { v: user?.totalArea ? String(user.totalArea) : '—', l: language === 'ru' ? 'м² площадь' : "m² maydon" },
+                { v: String(vehicleCount), l: language === 'ru' ? 'авто' : 'avto' },
+                { v: '—', l: language === 'ru' ? 'рейтинг УК' : 'UK reytingi' },
+              ].map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1, textAlign: 'center',
+                    borderRight: i < 2 ? '1px solid rgba(244,240,232,0.12)' : 'none',
+                  }}
+                >
+                  <div style={{
+                    fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em',
+                    fontVariantNumeric: 'tabular-nums',
+                    color: TEXT_ON_DARK,
+                  }}>
+                    {s.v}
+                  </div>
+                  <div style={{
+                    fontSize: 10.5, color: 'rgba(244,240,232,0.6)', marginTop: 1,
+                  }}>
+                    {s.l}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Body (scrollable) ── */}
+          <div style={{
+            flex: 1, overflowY: 'auto', overflowX: 'hidden',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            padding: '16px 16px 12px',
+          }}>
+            {/* Section: Quick access */}
+            <SectionLabel>{language === 'ru' ? 'Быстрый доступ' : 'Tezkor kirish'}</SectionLabel>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <QuickTile
+                Icon={FileText}
+                fg="#EA580C"
+                bg="var(--brand-tint, #FFF3EA)"
+                label={language === 'ru' ? 'Заявки' : 'Arizalar'}
+                sub={
+                  activeRequestCount > 0
+                    ? (language === 'ru' ? `${activeRequestCount} в работе` : `${activeRequestCount} ishda`)
+                    : (language === 'ru' ? 'нет активных' : "faol yo'q")
+                }
+                onClick={() => go('/?tab=requests')}
+              />
+              <QuickTile
+                Icon={Vote}
+                fg="#0E9AAB"
+                bg="rgba(14,154,171,0.12)"
+                label={language === 'ru' ? 'Собрания' : "Yig'ilishlar"}
+                sub={
+                  isMeetingActive
+                    ? (language === 'ru' ? 'голосование' : "ovoz berish")
+                    : (language === 'ru' ? 'нет активных' : "faol yo'q")
+                }
+                dot={isMeetingActive ? '#0E9AAB' : undefined}
+                onClick={() => go('/meetings')}
+              />
+              <QuickTile
+                Icon={QrCode}
+                fg="#15A06E"
+                bg="var(--status-active-bg, rgba(21,160,110,0.12))"
+                label={language === 'ru' ? 'Пропуска' : 'Ruxsatlar'}
+                sub={
+                  activeGuestPassCount > 0
+                    ? (language === 'ru' ? `${activeGuestPassCount} активный` : `${activeGuestPassCount} faol`)
+                    : (language === 'ru' ? 'нет активных' : "faol yo'q")
+                }
+                onClick={() => go('/guest-access')}
+              />
+              <QuickTile
+                Icon={Car}
+                fg="#6366F1"
+                bg="rgba(99,102,241,0.12)"
+                label={language === 'ru' ? 'Транспорт' : 'Transport'}
+                sub={
+                  vehicleCount > 0
+                    ? (language === 'ru' ? `${vehicleCount} авто` : `${vehicleCount} avto`)
+                    : (language === 'ru' ? 'нет авто' : "avto yo'q")
+                }
+                onClick={() => go('/vehicles')}
+              />
+            </div>
+
+            {/* Section: More */}
+            <div style={{ paddingTop: 18 }}>
+              <SectionLabel>{language === 'ru' ? 'Ещё' : 'Yana'}</SectionLabel>
+            </div>
+            <div style={{
+              background: 'var(--surface, #fff)',
+              border: '1px solid var(--border-c, #E6DFD2)',
+              borderRadius: 20,
+              boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))',
+              overflow: 'hidden',
+            }}>
+              <NavRow
+                Icon={Megaphone}
+                label={language === 'ru' ? 'Объявления' : "E'lonlar"}
+                badge={unreadAnnouncementCount > 0 ? unreadAnnouncementCount : undefined}
+                onClick={() => go('/announcements')}
+                isLast={false}
+              />
+              <NavRow
+                Icon={CreditCard}
+                label={language === 'ru' ? 'Оплата' : "To'lov"}
+                sub={language === 'ru' ? 'Начисления' : 'Hisob-kitob'}
+                onClick={() => go('/finance/charges')}
+                isLast={false}
+              />
+              <NavRow
+                Icon={Star}
+                label={language === 'ru' ? 'Оценить сотрудников' : 'Xodimlarni baholash'}
+                onClick={() => go('/rate-employees')}
+                isLast={false}
+              />
+              <NavRow
+                Icon={Phone}
+                label={language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar'}
+                onClick={() => go('/useful-contacts')}
+                isLast={false}
+              />
+              <NavRow
+                Icon={Send}
+                label={language === 'ru' ? 'Чат с УК' : 'UK bilan chat'}
+                dot={hasUnreadChat}
+                onClick={() => go('/chat')}
+                isLast={false}
+              />
+              <NavRow
+                Icon={ScrollText}
+                label={language === 'ru' ? 'Договор' : 'Shartnoma'}
+                sub={contractNumber !== '—' ? `№ ${contractNumber}` : (language === 'ru' ? 'Не привязан' : "Bog'lanmagan")}
+                onClick={() => go('/contract')}
+                isLast={false}
+              />
+              <NavRow
+                Icon={Globe}
+                label={language === 'ru' ? 'Язык' : 'Til'}
+                sub={langLabel}
+                onClick={() => go('/profile')}
+                isLast={true}
+              />
+            </div>
+          </div>
+
+          {/* ── Footer profile card ── */}
+          <div style={{
+            padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)',
+            background: 'var(--surface-2, #F4F0E8)',
+            borderTop: '1px solid var(--border-c, #E6DFD2)',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 11,
+              background: 'var(--surface, #fff)',
+              border: '1px solid var(--border-c, #E6DFD2)',
+              borderRadius: 20,
+              padding: '10px 12px',
+              boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))',
+            }}>
+              <button
+                onClick={() => go('/profile')}
+                aria-label={language === 'ru' ? 'Открыть профиль' : 'Profilni ochish'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 11,
+                  flex: 1, minWidth: 0,
+                  background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: 42, height: 42, borderRadius: 999,
+                  background: 'linear-gradient(135deg, #FB923C, #EA580C)',
+                  color: '#fff', fontWeight: 800, fontSize: 14,
+                  display: 'grid', placeItems: 'center',
+                  flex: '0 0 auto',
+                  letterSpacing: '-0.01em',
+                }}>
+                  {initials}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 750 as unknown as number,
+                    letterSpacing: '-0.01em', color: 'var(--text-primary, #1C1917)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {displayName || (language === 'ru' ? 'Профиль' : 'Profil')}
+                  </div>
+                  {verified && (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 11, fontWeight: 700,
+                      color: 'var(--status-active, #15A06E)', marginTop: 2,
+                    }}>
+                      <Check size={11} strokeWidth={3} />
+                      {language === 'ru' ? 'Верифицирован' : 'Tasdiqlangan'}
+                    </div>
+                  )}
+                </div>
+              </button>
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                aria-label={language === 'ru' ? 'Выйти' : 'Chiqish'}
+                style={{
+                  width: 38, height: 38, borderRadius: 12,
+                  background: 'var(--status-critical-bg, rgba(226,72,61,0.12))',
+                  border: 'none', cursor: 'pointer',
+                  color: 'var(--status-critical, #E2483D)',
+                  display: 'grid', placeItems: 'center', flex: '0 0 auto',
+                }}
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <FeatureLockedModal
+          isOpen={!!lockedFeatureName}
+          onClose={() => { setLockedFeatureName(null); setLockedFeatureKey(null); }}
+          featureName={lockedFeatureName || undefined}
+          featureKey={lockedFeatureKey || undefined}
+        />
+
+        <ConfirmDialog
+          isOpen={showLogoutConfirm}
+          tone="primary"
+          icon={<LogOut className="w-6 h-6" />}
+          title={language === 'ru' ? 'Выйти из аккаунта?' : 'Akkauntdan chiqasizmi?'}
+          description={language === 'ru'
+            ? 'Вам потребуется снова ввести логин и пароль при следующем входе'
+            : 'Keyingi safar login va parol qayta kiritish kerak bo\'ladi'}
+          confirmLabel={language === 'ru' ? 'Выйти' : 'Chiqish'}
+          cancelLabel={language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={() => { setShowLogoutConfirm(false); onClose(); onLogout(); }}
+        />
+      </>,
+      document.body,
+    );
+  }
+
   return createPortal(
     <>
       {/* Mobile overlay — rendered at document.body level to avoid scroll/stacking issues */}
@@ -734,5 +1123,169 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       />
     </>,
     document.body
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Helpers for the resident drawer (Claude Design §11-sidebar handoff).
+// Kept local so they only carry the one styling shape we need; the rest
+// of the app uses different list primitives and shouldn't share these.
+// ─────────────────────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em',
+      color: 'var(--text-secondary, #6F6A62)', textTransform: 'uppercase',
+      padding: '0 2px 8px',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function QuickTile({
+  Icon, fg, bg, label, sub, dot, onClick,
+}: {
+  Icon: React.ElementType;
+  fg: string;
+  bg: string;
+  label: string;
+  sub: string;
+  dot?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        background: 'var(--surface, #fff)',
+        border: '1px solid var(--border-c, #E6DFD2)',
+        borderRadius: 20,
+        padding: 13,
+        textAlign: 'left',
+        cursor: 'pointer',
+        boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))',
+        display: 'flex', flexDirection: 'column', gap: 9,
+        minWidth: 0,
+      }}
+    >
+      <div style={{
+        width: 40, height: 40, borderRadius: 12,
+        background: bg, color: fg,
+        display: 'grid', placeItems: 'center',
+        flex: '0 0 auto',
+      }}>
+        <Icon size={20} />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em',
+          display: 'flex', alignItems: 'center', gap: 6,
+          color: 'var(--text-primary, #1C1917)',
+        }}>
+          {label}
+          {dot && (
+            <span
+              aria-hidden
+              style={{
+                width: 6, height: 6, borderRadius: 999,
+                background: dot,
+                animation: 'kzPulse 1.6s infinite',
+              }}
+            />
+          )}
+        </div>
+        <div style={{
+          fontSize: 11.5, color: 'var(--text-secondary, #6F6A62)', marginTop: 1,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {sub}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function NavRow({
+  Icon, label, sub, badge, dot, onClick, isLast,
+}: {
+  Icon: React.ElementType;
+  label: string;
+  sub?: string;
+  badge?: number;
+  dot?: boolean;
+  onClick: () => void;
+  isLast: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '11px 14px',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        textAlign: 'left',
+        borderBottom: isLast ? 'none' : '1px solid var(--hairline, rgba(28,25,23,0.06))',
+        minWidth: 0,
+      }}
+    >
+      <div style={{
+        width: 32, height: 32, borderRadius: 9,
+        background: '#EDE7DB',
+        color: 'var(--text-secondary, #6F6A62)',
+        display: 'grid', placeItems: 'center',
+        flex: '0 0 auto',
+      }}>
+        <Icon size={17} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 650 as unknown as number, letterSpacing: '-0.01em',
+          display: 'flex', alignItems: 'center', gap: 6,
+          color: 'var(--text-primary, #1C1917)',
+        }}>
+          {label}
+          {dot && (
+            <span
+              aria-hidden
+              style={{
+                width: 6, height: 6, borderRadius: 999,
+                background: 'var(--status-active, #15A06E)',
+                animation: 'kzPulse 1.6s infinite',
+              }}
+            />
+          )}
+        </div>
+        {sub && (
+          <div style={{
+            fontSize: 11.5, color: 'var(--text-secondary, #6F6A62)', marginTop: 1,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {sub}
+          </div>
+        )}
+      </div>
+      {typeof badge === 'number' ? (
+        <span style={{
+          minWidth: 20, height: 20, padding: '0 6px',
+          borderRadius: 999,
+          background: 'var(--brand, #F97316)',
+          color: '#fff', fontSize: 11, fontWeight: 800,
+          display: 'grid', placeItems: 'center',
+          flex: '0 0 auto',
+        }}>
+          {badge}
+        </span>
+      ) : (
+        <ChevronRight size={15} style={{ color: 'var(--text-muted, #A8A29E)', flex: '0 0 auto' }} />
+      )}
+    </button>
   );
 }
