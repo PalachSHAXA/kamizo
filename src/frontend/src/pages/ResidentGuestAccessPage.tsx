@@ -1,18 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  QrCode, Clock, ChevronRight, History, CheckCircle2, XCircle,
+  QrCode, History, CheckCircle2, XCircle,
 } from 'lucide-react';
-import { EmptyState, StatusBadge, ConfirmDialog } from '../components/common';
+import { EmptyState, ConfirmDialog } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestAccessStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { useToastStore } from '../stores/toastStore';
+import { apiRequest } from '../services/api';
 import type { GuestAccessCode, VisitorType, AccessType } from '../types';
 import { QRCodeDisplay } from './guest-access/QRCodeDisplay';
 import { LatestPassHero } from './guest-access/LatestPassHero';
 import { CreatePassForm } from './guest-access/CreatePassForm';
 import { QuickCreateTiles } from './guest-access/QuickCreateTiles';
-import { toneFor, safeVisitorLabel, safeAccessLabel, safeStatusLabel } from './guest-access/utils';
+import { safeVisitorLabel, safeAccessLabel, type VisitLog } from './guest-access/utils';
 
 export function ResidentGuestAccessPage() {
   const { user } = useAuthStore();
