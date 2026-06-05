@@ -62,8 +62,9 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
         position: 'relative',
         background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)',
         // Floating rounded card: rounded on ALL corners with a light gap above
-        // (the status-bar area stays light, see theme-color below). The top
-        // margin clears the iOS status bar via safe-area + a small gap.
+        // so the status-bar zone paints the light page bg (--app-bg), not the
+        // brown gradient. margin-top = env(safe-area-inset-top) + 10px keeps
+        // the brown strictly BELOW the iOS status bar / notch.
         borderRadius: 28,
         margin: 'calc(env(safe-area-inset-top, 0px) + 10px) 12px 0',
         padding: '20px 18px 22px',
@@ -314,28 +315,11 @@ export function ResidentHomeDesign(props: Props) {
   const [bell, setBell] = useState(false);
   void bell;
 
-  // System chrome (browser address bar / Android PWA tint) must match the
-  // hero's TOPMOST gradient stop, not the mid stop. The hero gradient is
-  // linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%) — the
-  // top edge is #4A3B30. Using #34291F here paints a visibly darker strip
-  // in the status-bar zone (the chrome bar) directly above a lighter hero
-  // top, creating a seam. We mirror the gradient's 0% stop instead. iOS
-  // PWA standalone with apple-mobile-web-app-status-bar-style=black-
-  // translucent renders the hero's own gradient under the status text;
-  // theme-color matching the same top color keeps Safari tabs, Android
-  // Chrome, and any installed PWA still on the old "default" style
-  // seamless too.
-  useEffect(() => {
-    const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
-    if (!meta) return;
-    // Home keeps brown behind the status bar (matches the hero's gradient
-    // TOP stop #4A3B30). The global default in index.html is the light
-    // app background, so every other page reverts to light on unmount —
-    // no more brown leaking to Profile / Chat / Vehicles.
-    const prev = meta.getAttribute('content') || '#F7F8FA';
-    meta.setAttribute('content', '#4A3B30');
-    return () => { meta.setAttribute('content', prev); };
-  }, []);
+  // No theme-color override on Home — the rule is now: light/beige status
+  // bar on EVERY page (no exceptions). The global default in index.html
+  // (#F7F8FA, matching --app-bg) handles it. The hero stays brown but
+  // starts BELOW env(safe-area-inset-top) via HomeHero's margin-top, so
+  // the status-bar zone always paints the light page background.
 
   // Card stack — LEFT mockup pins "Завершите регистрацию" first whenever the resident
   // still has their seed password. The rest follows the Claude Design order.

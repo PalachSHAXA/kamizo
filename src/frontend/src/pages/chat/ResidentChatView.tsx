@@ -101,9 +101,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
     return () => clearInterval(t);
   }, [fetchMessages]);
 
-  // Override the global theme-color (which is brown to match the Home
-  // hero) with the chat surface colour so the iOS PWA status-bar zone
-  // paints light over this screen. Restored on unmount.
+  // Defensive theme-color override: the global default (index.html) is
+  // already the light app bg, so this is belt-and-braces — sets the chat
+  // surface colour explicitly in case any future page mounts before this
+  // one and forgets to restore. Restored on unmount.
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (!meta) return;
