@@ -1,742 +1,1190 @@
-import { useState, useEffect, useMemo } from 'react';
-import {
-  Key, MapPin, Home, Phone, Save, Eye, EyeOff, Edit3,
-  AlertCircle, Shield, Loader2, X, FileText, CheckCircle,
-  Building2, Ruler, QrCode, Globe,
-  Download, User as UserIcon, Sparkles, ChevronRight, LogOut
-} from 'lucide-react';
+import { useState, useMemo, useEffect, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  FileText, QrCode, CreditCard, Star,
+  Building2, Home, Users, Phone,
+  Key, ShieldCheck, Globe, Bell, Download,
+  Check, Pencil, ChevronRight, LogOut,
+  X, Loader2, Eye, EyeOff, AlertCircle, Save,
+} from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
-import { generateQRCode } from '../components/LazyQRCode';
-import { generateContractDocx } from '../utils/contractGenerator';
-import { formatPhone } from '../utils/formatPhone';
+import { useRequestStore } from '../stores/dataStore';
 import { formatName } from '../utils/formatName';
-import { ContractPreview } from '../components/ContractPreview';
+import { formatPhone } from '../utils/formatPhone';
 import { InstallAppSection } from '../components/InstallAppSection';
+import { generateQRCode } from '../components/LazyQRCode';
+
+// ─── Page implements Claude Design §07-profil. Source of truth lives in
+//     design/handoff/profile-handoff.md. Visual structure (hero / tiles /
+//     sections / logout / version) follows that spec; data + interactions
+//     stay wired to the existing authStore, requestStore and InstallApp /
+//     QR utilities. Do not redesign here without updating the handoff. ───
+
+// ── shared visual helpers ───────────────────────────────────────────────
+const SURFACE = '#FFFFFF';
+const SURFACE_SUNKEN = '#EDE7DB';
+const BORDER = '#E6DFD2';
+const HAIRLINE = 'rgba(28,25,23,0.06)';
+const TEXT_PRIMARY = '#1C1917';
+const TEXT_SECONDARY = '#6F6A62';
+const TEXT_MUTED = '#A8A29E';
+const TEXT_ON_DARK = '#F4F0E8';
+const APP_BG = '#F4F0E8';
+const BRAND_TINT = '#FFF3EA';
+const BRAND_DARK = '#EA580C';
+const STATUS_CRITICAL = '#E2483D';
+const STATUS_ACTIVE = '#15A06E';
+const STATUS_ACTIVE_BG = 'rgba(21,160,110,0.12)';
+const STATUS_INFO_BG = 'rgba(47,119,194,0.12)';
+const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+
+const getInitials = (name: string): string => {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0 || !parts[0]) return '·';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+};
+
+const formatJoinDate = (iso: string | undefined, lang: 'ru' | 'uz'): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const month = d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long' });
+  const year = d.getFullYear();
+  return lang === 'ru' ? `с ${month} ${year}` : `${month} ${year} dan`;
+};
+
+const maskPhone = (raw: string | undefined): string => {
+  const pretty = formatPhone(raw || '');
+  if (!pretty) return '';
+  // formatPhone → "+998 90 100 00 11" → "+998 (90) ··· 00 11"
+  const parts = pretty.split(' ');
+  if (parts.length !== 5) return pretty;
+  return `${parts[0]} (${parts[1]}) ··· ${parts[3]} ${parts[4]}`;
+};
+
+const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) || '2.4.1';
 
 export function ResidentProfilePage() {
-  const { user, changePassword, updateProfile, markContractSigned, logout } = useAuthStore();
+  const navigate = useNavigate();
+  const { user, changePassword, updateProfile, logout } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
-  const navigate = useNavigate();
+  const getRequestsByResident = useRequestStore(s => s.getRequestsByResident);
 
-  const handleLogout = () => {
-    const msg = language === 'ru' ? 'Выйти из аккаунта?' : 'Akkauntdan chiqmoqchimisiz?';
-    if (confirm(msg)) {
-      logout();
-      navigate('/login', { replace: true });
-    }
-  };
-
-  // Check if user is a rental user (tenant/commercial_owner) - they have simplified profile
-  const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
-
+  // ── modal / inline-edit state ────────────────────────────────────────
   const [editingPhone, setEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState(user?.phone || '');
-  const [phoneLoading, setPhoneLoading] = useState(false);
-  const [editingPassword, setEditingPassword] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [showContract, setShowContract] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [phoneSaving, setPhoneSaving] = useState(false);
 
-  // Generate QR code with resident data
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrUrl, setQrUrl] = useState('');
+
+  // Generate the QR pass lazily, only the first time the sheet opens
   useEffect(() => {
-    const generateQR = async () => {
-      if (!user) return;
-
-      // Compact format with Cyrillic - no decorative symbols
-      const residentData = [
+    if (!showQrModal || !user || qrUrl) return;
+    let cancelled = false;
+    (async () => {
+      const text = [
         `ФИО: ${user.name}`,
         `Логин: ${user.login}`,
         user.address ? `Адрес: ${user.address}` : null,
         user.apartment ? `Кв: ${user.apartment}` : null,
         user.phone ? `Тел: ${user.phone}` : null,
       ].filter(Boolean).join('\n');
-
-      const url = await generateQRCode(residentData, {
+      const url = await generateQRCode(text, {
         width: 300,
         margin: 2,
         errorCorrectionLevel: 'M',
-        color: { dark: '#1f2937', light: '#ffffff' },
+        color: { dark: '#1C1917', light: '#ffffff' },
       });
-      setQrCodeUrl(url);
-    };
+      if (!cancelled) setQrUrl(url);
+    })();
+    return () => { cancelled = true; };
+  }, [showQrModal, user, qrUrl]);
 
-    generateQR();
-  }, [user]);
+  const t = useMemo(() => language === 'ru' ? {
+    role_resident: 'Собственник',
+    role_tenant: 'Арендатор',
+    role_commercial: 'Владелец',
+    verified: 'Верифицирован',
+    statRequests: 'заявок',
+    statRating: 'рейтинг',
+    statPoints: 'баллов',
+    tileContract: 'Договор',
+    tileQR: 'QR пропуск',
+    tilePayment: 'Оплата',
+    tileBonus: 'Бонусы',
+    qrActive: 'Активен',
+    sectionHome: 'Дом и квартира',
+    sectionSecurity: 'Безопасность',
+    sectionApp: 'Приложение',
+    address: 'Адрес',
+    apartment: 'Квартира',
+    household: 'Состав семьи',
+    phone: 'Телефон',
+    changePass: 'Сменить пароль',
+    twoFA: 'Двухфакторная защита',
+    twoFAValue: 'Включена',
+    appLanguage: 'Язык',
+    langName: 'Русский',
+    notifications: 'Уведомления',
+    notifValue: 'Все',
+    installApp: 'Установить как приложение',
+    logout: 'Выйти из аккаунта',
+    logoutConfirm: 'Выйти из аккаунта?',
+    notSet: 'Не указан',
+    save: 'Сохранить',
+    cancel: 'Отмена',
+    edit: 'Изменить',
+    passwordTitle: 'Сменить пароль',
+    currentPassword: 'Текущий пароль',
+    newPassword: 'Новый пароль',
+    confirmPassword: 'Подтвердите пароль',
+    minChars: 'Минимум 4 символа',
+    repeatPassword: 'Повторите новый пароль',
+    passwordChanged: 'Пароль успешно изменён',
+    phoneSaved: 'Телефон сохранён',
+    wrongPassword: 'Неверный текущий пароль',
+    passwordsNotMatch: 'Пароли не совпадают',
+    passwordSameAsOld: 'Новый пароль должен отличаться от текущего',
+    enterCurrentPassword: 'Введите текущий пароль',
+    passwordTooShort: 'Пароль должен быть минимум 4 символа',
+    passwordError: 'Ошибка при смене пароля',
+    qrSubtitle: 'QR-код для пропуска и подписания документов',
+    versionLabel: 'версия',
+  } : {
+    role_resident: 'Egasi',
+    role_tenant: 'Ijarachi',
+    role_commercial: 'Egasi',
+    verified: 'Tasdiqlangan',
+    statRequests: 'ariza',
+    statRating: 'reyting',
+    statPoints: 'ball',
+    tileContract: 'Shartnoma',
+    tileQR: 'QR ruxsat',
+    tilePayment: "To'lov",
+    tileBonus: 'Bonuslar',
+    qrActive: 'Faol',
+    sectionHome: 'Uy va kvartira',
+    sectionSecurity: 'Xavfsizlik',
+    sectionApp: 'Ilova',
+    address: 'Manzil',
+    apartment: 'Kvartira',
+    household: 'Oila tarkibi',
+    phone: 'Telefon',
+    changePass: "Parolni o'zgartirish",
+    twoFA: 'Ikki bosqichli himoya',
+    twoFAValue: 'Yoqilgan',
+    appLanguage: 'Til',
+    langName: "O'zbekcha",
+    notifications: 'Bildirishnomalar',
+    notifValue: 'Hammasi',
+    installApp: 'Ilova sifatida oʼrnatish',
+    logout: 'Akkauntdan chiqish',
+    logoutConfirm: 'Akkauntdan chiqmoqchimisiz?',
+    notSet: "Ko'rsatilmagan",
+    save: 'Saqlash',
+    cancel: 'Bekor qilish',
+    edit: "O'zgartirish",
+    passwordTitle: "Parolni o'zgartirish",
+    currentPassword: 'Joriy parol',
+    newPassword: 'Yangi parol',
+    confirmPassword: 'Parolni tasdiqlang',
+    minChars: 'Kamida 4 ta belgi',
+    repeatPassword: 'Yangi parolni takrorlang',
+    passwordChanged: "Parol muvaffaqiyatli oʼzgartirildi",
+    phoneSaved: 'Telefon saqlandi',
+    wrongPassword: "Joriy parol notoʼgʼri",
+    passwordsNotMatch: 'Parollar mos kelmaydi',
+    passwordSameAsOld: 'Yangi parol joriy paroldan farq qilishi kerak',
+    enterCurrentPassword: 'Joriy parolni kiriting',
+    passwordTooShort: "Parol kamida 4 ta belgidan iborat boʼlishi kerak",
+    passwordError: "Parolni oʼzgartirishda xatolik",
+    qrSubtitle: 'Hujjatlarni imzolash va ruxsat uchun QR',
+    versionLabel: 'versiya',
+  }, [language]);
 
-  // Translations
-  const t = useMemo(() => ({
-    // Page header
-    myProfile: language === 'ru' ? 'Мой профиль' : 'Mening profilim',
-    personalData: language === 'ru' ? 'Ваши личные данные и договор' : 'Shaxsiy ma\'lumotlaringiz va shartnoma',
+  if (!user) return null;
 
-    // Sections
-    personalInfo: language === 'ru' ? 'Личные данные' : 'Shaxsiy ma\'lumotlar',
-    contractInfo: language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma',
-    security: language === 'ru' ? 'Безопасность' : 'Xavfsizlik',
+  const displayName = formatName(user.name) || user.name || user.login;
+  const initials = getInitials(displayName);
+  const roleLabel = user.role === 'tenant' ? t.role_tenant
+    : user.role === 'commercial_owner' ? t.role_commercial
+    : t.role_resident;
+  const joinedSince = formatJoinDate(user.createdAt, language);
+  const subtitle = joinedSince ? `${roleLabel} · ${joinedSince}` : roleLabel;
+  const verified = Boolean(user.contractSignedAt);
 
-    // Personal data labels
-    resident: language === 'ru' ? 'Житель' : 'Aholi',
-    tenant: language === 'ru' ? 'Арендатор' : 'Ijarachi',
-    commercialOwner: language === 'ru' ? 'Владелец' : 'Egasi',
-    personalAccount: language === 'ru' ? 'Логин для входа' : 'Tizimga kirish logini',
-    loginHint: language === 'ru' ? 'Логин для входа' : 'Kirish logini',
-    cannotChange: language === 'ru' ? 'Нельзя изменить' : 'O\'zgartirib bo\'lmaydi',
-    address: language === 'ru' ? 'Адрес' : 'Manzil',
-    apartment: language === 'ru' ? 'Квартира' : 'Kvartira',
-    area: language === 'ru' ? 'Площадь' : 'Maydon',
-    phone: language === 'ru' ? 'Телефон' : 'Telefon',
-    notSpecified: language === 'ru' ? 'Не указан' : 'Ko\'rsatilmagan',
-    branch: language === 'ru' ? 'Филиал' : 'Filial',
-    building: language === 'ru' ? 'Дом' : 'Uy',
+  const requestCount = getRequestsByResident(user.id).length;
+  const stats: Array<{ v: string; l: string }> = [
+    { v: String(requestCount), l: t.statRequests },
+    { v: '—', l: t.statRating },
+    { v: '—', l: t.statPoints },
+  ];
 
-    // Contract labels
-    contractNumber: language === 'ru' ? 'Номер договора' : 'Shartnoma raqami',
-    contractType: language === 'ru' ? 'Тип договора' : 'Shartnoma turi',
-    contractStart: language === 'ru' ? 'Дата начала' : 'Boshlanish sanasi',
-    contractEnd: language === 'ru' ? 'Дата окончания' : 'Tugash sanasi',
-    indefinite: language === 'ru' ? 'Бессрочный' : 'Muddatsiz',
-    contractStatus: language === 'ru' ? 'Статус договора' : 'Shartnoma holati',
-    active: language === 'ru' ? 'Действующий' : 'Amalda',
-    pending: language === 'ru' ? 'Ожидает подписания' : 'Imzo kutilmoqda',
-    yourQrCode: language === 'ru' ? 'Ваш QR-код' : 'Sizning QR-kodingiz',
-    qrHint: language === 'ru' ? 'Уникальный идентификатор для подписания документов' : 'Hujjatlarni imzolash uchun noyob identifikator',
-    viewContract: language === 'ru' ? 'Посмотреть договор' : 'Shartnomani ko\'rish',
-    hideContract: language === 'ru' ? 'Скрыть' : 'Yashirish',
-    downloadContract: language === 'ru' ? 'Скачать договор' : 'Shartnomani yuklash',
-    downloading: language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...',
+  const tiles: Array<{
+    Icon: typeof FileText;
+    label: string;
+    sub: string;
+    fg: string;
+    bg: string;
+    onClick?: () => void;
+  }> = [
+    {
+      Icon: FileText,
+      label: t.tileContract,
+      sub: user.contractNumber || (user.contractSignedAt ? '№ —' : '—'),
+      fg: '#EA580C',
+      bg: BRAND_TINT,
+      onClick: () => navigate('/contract'),
+    },
+    {
+      Icon: QrCode,
+      label: t.tileQR,
+      sub: t.qrActive,
+      fg: STATUS_ACTIVE,
+      bg: STATUS_ACTIVE_BG,
+      onClick: () => setShowQrModal(true),
+    },
+    {
+      Icon: CreditCard,
+      label: t.tilePayment,
+      sub: '—',
+      fg: '#2F77C2',
+      bg: STATUS_INFO_BG,
+      onClick: () => navigate('/finance/charges'),
+    },
+    {
+      Icon: Star,
+      label: t.tileBonus,
+      sub: '—',
+      fg: '#7C3AED',
+      bg: 'rgba(124,58,237,0.12)',
+    },
+  ];
 
-    // Contract types
-    typeStandard: language === 'ru' ? 'Стандартный' : 'Standart',
-    typeCommercial: language === 'ru' ? 'Коммерческий' : 'Tijorat',
-    typeTemporary: language === 'ru' ? 'Временный' : 'Vaqtinchalik',
-
-    // Security
-    password: language === 'ru' ? 'Пароль' : 'Parol',
-    currentPassword: language === 'ru' ? 'Текущий пароль' : 'Joriy parol',
-    newPassword: language === 'ru' ? 'Новый пароль' : 'Yangi parol',
-    confirmPassword: language === 'ru' ? 'Подтвердите пароль' : 'Parolni tasdiqlang',
-    minChars: language === 'ru' ? 'Минимум 4 символа' : 'Kamida 4 ta belgi',
-    repeatPassword: language === 'ru' ? 'Повторите новый пароль' : 'Yangi parolni takrorlang',
-    passwordChanged: language === 'ru' ? 'Пароль успешно изменён' : 'Parol muvaffaqiyatli o\'zgartirildi',
-    wrongPassword: language === 'ru' ? 'Неверный текущий пароль' : 'Joriy parol noto\'g\'ri',
-    passwordsNotMatch: language === 'ru' ? 'Пароли не совпадают' : 'Parollar mos kelmaydi',
-    passwordSameAsOld: language === 'ru' ? 'Новый пароль должен отличаться от текущего' : 'Yangi parol joriy paroldan farq qilishi kerak',
-    enterCurrentPassword: language === 'ru' ? 'Введите текущий пароль' : 'Joriy parolni kiriting',
-    passwordTooShort: language === 'ru' ? 'Пароль должен быть минимум 4 символа' : 'Parol kamida 4 ta belgidan iborat bo\'lishi kerak',
-    passwordError: language === 'ru' ? 'Ошибка при смене пароля' : 'Parolni o\'zgartirishda xatolik',
-
-    // Actions
-    save: language === 'ru' ? 'Сохранить' : 'Saqlash',
-    cancel: language === 'ru' ? 'Отмена' : 'Bekor qilish',
-    phoneSaved: language === 'ru' ? 'Телефон сохранён' : 'Telefon saqlandi',
-
-    // Info
-    loginInfo: language === 'ru'
-      ? 'Это ваш логин для входа в систему. Храните его в надёжном месте.'
-      : 'Bu sizning tizimga kirish loginingiz. Uni xavfsiz joyda saqlang.',
-    loginInfoTitle: language === 'ru' ? 'Данные для входа:' : 'Kirish ma\'lumotlari:',
-
-    // Language switcher
-    languageTitle: language === 'ru' ? 'Язык интерфейса' : 'Interfeys tili',
-    languageRu: 'Русский',
-    languageUz: 'O\'zbekcha',
-    changePassword: language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish',
-  }), [language]);
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
-
-  const getContractTypeLabel = (type?: string) => {
-    switch (type) {
-      case 'commercial': return t.typeCommercial;
-      case 'temporary': return t.typeTemporary;
-      default: return t.typeStandard;
-    }
-  };
-
-  if (!user) {
-    return null;
-  }
-
+  // ── action handlers ──────────────────────────────────────────────────
   const handleSavePhone = async () => {
-    if (!newPhone.trim()) return;
-
-    setPhoneLoading(true);
+    const trimmed = newPhone.trim();
+    if (!trimmed || trimmed === user.phone) {
+      setEditingPhone(false);
+      return;
+    }
+    setPhoneSaving(true);
     try {
-      const success = await updateProfile({ phone: newPhone.trim() });
-      if (success) {
+      const ok = await updateProfile({ phone: trimmed });
+      if (ok) {
         setEditingPhone(false);
-        setSuccessMessage(t.phoneSaved);
-        setTimeout(() => setSuccessMessage(''), 3000);
+        addToast('success', t.phoneSaved);
       }
-    } catch {
-      // Error handled by store
     } finally {
-      setPhoneLoading(false);
+      setPhoneSaving(false);
     }
   };
 
-  const handleSavePassword = async () => {
-    setPasswordError('');
-
-    if (!currentPassword.trim()) {
-      setPasswordError(t.enterCurrentPassword);
-      return;
-    }
-
-    if (newPassword.length < 4) {
-      setPasswordError(t.passwordTooShort);
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError(t.passwordsNotMatch);
-      return;
-    }
-
-    if (currentPassword === newPassword) {
-      setPasswordError(t.passwordSameAsOld);
-      return;
-    }
-
-    setPasswordLoading(true);
-    try {
-      const success = await changePassword(currentPassword, newPassword);
-      if (success) {
-        setEditingPassword(false);
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        setSuccessMessage(t.passwordChanged);
-        setTimeout(() => setSuccessMessage(''), 3000);
-      } else {
-        setPasswordError(t.wrongPassword);
-      }
-    } catch (error: unknown) {
-      const errorMessage = (error as Error)?.message || '';
-      if (errorMessage.includes('incorrect') || errorMessage.includes('неверный')) {
-        setPasswordError(t.wrongPassword);
-      } else {
-        setPasswordError(t.passwordError);
-      }
-    } finally {
-      setPasswordLoading(false);
+  const handleLogout = () => {
+    if (typeof window !== 'undefined' && window.confirm(t.logoutConfirm)) {
+      logout();
+      navigate('/login', { replace: true });
     }
   };
 
-  const handleDownloadContract = async () => {
-    if (!user || !qrCodeUrl || isDownloading) return;
-
-    // Contract is now a passive preview/download — no auto-mark-as-signed
-    // because the document doesn't carry a binding e-signature flow yet,
-    // and silently flipping a "signed" flag misled both parties about the
-    // contract's legal state. Once a real signing flow ships, restore the
-    // markContractSigned() call here.
-    setIsDownloading(true);
-    try {
-      await generateContractDocx(user, qrCodeUrl, language);
-    } catch (error) {
-      console.error('Error generating contract:', error);
-      addToast('error', language === 'ru' ? 'Ошибка при генерации договора' : 'Shartnoma yaratishda xatolik');
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const roleLabel = user.role === 'tenant' ? t.tenant : user.role === 'commercial_owner' ? t.commercialOwner : t.resident;
-
+  // ── render: hero / tiles / sections / logout / version ───────────────
   return (
-    <div className="max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 -mx-4 -mt-4 md:mx-auto md:mt-0">
-      {/* User Card */}
-      <div className="relative overflow-hidden bg-white">
-        <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at top right, rgb(var(--brand-rgb)), transparent 70%)' }} />
-        <div className="relative px-5 pb-5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
-          <div className="flex items-center gap-4">
-            {/* Sprint 39: rounded-full circular avatar matches the
-                Chat / Announcements / Meetings / Vehicles / Useful
-                Contacts header avatars. Same explicit brand gradient
-                so the colour stays stable across pages. */}
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
-              <UserIcon className="w-6 h-6 text-white" />
+    <div
+      style={{
+        minHeight: '100%',
+        background: APP_BG,
+        color: TEXT_PRIMARY,
+        paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+        letterSpacing: '-0.01em',
+      }}
+    >
+      {/* ── Hero — premium dark card ─────────────────────────────────── */}
+      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px 0' }}>
+        <div
+          style={{
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: 28,
+            background: 'linear-gradient(160deg, #4A3B30 0%, #2A2018 100%)',
+            color: TEXT_ON_DARK,
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              opacity: 0.4,
+              background: 'radial-gradient(90% 80% at 90% 0%, rgba(251,146,60,0.45), transparent 55%)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              style={{
+                width: 66,
+                height: 66,
+                borderRadius: 999,
+                background: 'linear-gradient(135deg, #FB923C, #EA580C)',
+                color: '#FFFFFF',
+                fontWeight: 800,
+                fontSize: 23,
+                display: 'grid',
+                placeItems: 'center',
+                flex: '0 0 auto',
+                boxShadow: '0 6px 16px rgba(249,115,22,0.4)',
+                letterSpacing: '-0.02em',
+              }}
+              aria-hidden
+            >
+              {initials}
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{formatName(user.name)}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 bg-primary-50 text-primary-600 rounded-full text-xs font-semibold">
-                  {roleLabel}
-                </span>
-                {/* Contract status badge intentionally removed — until a
-                    real e-signature flow ships, "active vs pending" was
-                    misleading and the orange pulse made the profile feel
-                    like it had outstanding work. */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 20,
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                  color: TEXT_ON_DARK,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {displayName}
               </div>
-              {user.address && (
-                <div className="flex items-center gap-1 mt-1.5">
-                  <MapPin className="w-3 h-3 text-gray-400" />
-                  <span className="text-[12px] text-gray-500 truncate">{user.address}{user.apartment ? `, ${t.apartment.toLowerCase()} ${user.apartment}` : ''}</span>
+              <div style={{ fontSize: 12.5, color: 'rgba(244,240,232,0.6)', marginTop: 2 }}>
+                {subtitle}
+              </div>
+              {verified && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    marginTop: 7,
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    background: 'rgba(34,197,94,0.18)',
+                    color: '#86EFAC',
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  <Check size={11} strokeWidth={3} /> {t.verified}
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => { setNewPhone(user.phone || ''); setEditingPhone(true); }}
+              aria-label={t.edit}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 999,
+                background: 'rgba(244,240,232,0.12)',
+                border: '1px solid rgba(244,240,232,0.14)',
+                display: 'grid',
+                placeItems: 'center',
+                color: TEXT_ON_DARK,
+                cursor: 'pointer',
+                flex: '0 0 auto',
+                padding: 0,
+              }}
+            >
+              <Pencil size={16} />
+            </button>
+          </div>
+          {/* stats strip */}
+          <div style={{ position: 'relative', display: 'flex', marginTop: 18 }}>
+            {stats.map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  borderRight: i < stats.length - 1 ? '1px solid rgba(244,240,232,0.12)' : 'none',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 19,
+                    fontWeight: 800,
+                    letterSpacing: '-0.02em',
+                    fontVariantNumeric: 'tabular-nums',
+                    color: TEXT_ON_DARK,
+                  }}
+                >
+                  {s.v}
+                </div>
+                <div style={{ fontSize: 10.5, color: 'rgba(244,240,232,0.6)', marginTop: 1 }}>
+                  {s.l}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Success Message */}
-      {successMessage && (
-        <div className="mx-4 mt-3 p-3 bg-green-50 text-green-700 rounded-[14px] flex items-center gap-2 animate-fade-in">
-          <CheckCircle className="w-5 h-5" />
-          {successMessage}
+      {/* ── Quick tiles — 2-col grid ─────────────────────────────────── */}
+      <div style={{ padding: '16px 16px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {tiles.map((tile, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={tile.onClick}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 11,
+              padding: 13,
+              background: SURFACE,
+              border: `1px solid ${BORDER}`,
+              borderRadius: 20,
+              boxShadow: SHADOW_SM,
+              cursor: tile.onClick ? 'pointer' : 'default',
+              textAlign: 'left',
+              minWidth: 0,
+              color: TEXT_PRIMARY,
+            }}
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: tile.bg,
+                color: tile.fg,
+                display: 'grid',
+                placeItems: 'center',
+                flex: '0 0 auto',
+              }}
+              aria-hidden
+            >
+              <tile.Icon size={20} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.01em', color: TEXT_PRIMARY }}>
+                {tile.label}
+              </div>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: TEXT_SECONDARY,
+                  marginTop: 1,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {tile.sub}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Settings sections ───────────────────────────────────────── */}
+      <div style={{ padding: '20px 16px 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Дом и квартира */}
+        <SettingsSection title={t.sectionHome}>
+          <SettingsRow
+            icon={<Building2 size={17} />}
+            label={t.address}
+            value={user.address || t.notSet}
+            chevron
+          />
+          <SettingsRow
+            icon={<Home size={17} />}
+            label={t.apartment}
+            value={
+              user.apartment
+                ? `${language === 'ru' ? 'Кв.' : 'Kv.'} ${user.apartment}${user.totalArea ? ` · ${user.totalArea} ${language === 'ru' ? 'м²' : 'm²'}` : ''}`
+                : '—'
+            }
+            chevron
+          />
+          <SettingsRow
+            icon={<Users size={17} />}
+            label={t.household}
+            value="—"
+            chevron
+          />
+        </SettingsSection>
+
+        {/* Безопасность */}
+        <SettingsSection title={t.sectionSecurity}>
+          {editingPhone ? (
+            <PhoneEditRow
+              value={newPhone}
+              onChange={setNewPhone}
+              onSave={handleSavePhone}
+              onCancel={() => { setEditingPhone(false); setNewPhone(user.phone || ''); }}
+              loading={phoneSaving}
+              labelText={t.phone}
+              saveText={t.save}
+              cancelText={t.cancel}
+            />
+          ) : (
+            <SettingsRow
+              icon={<Phone size={17} />}
+              label={t.phone}
+              value={user.phone ? maskPhone(user.phone) : t.notSet}
+              editable
+              onClick={() => { setNewPhone(user.phone || ''); setEditingPhone(true); }}
+            />
+          )}
+          <SettingsRow
+            icon={<Key size={17} />}
+            label={t.changePass}
+            chevron
+            onClick={() => setShowPasswordModal(true)}
+          />
+          <SettingsRow
+            icon={<ShieldCheck size={17} />}
+            label={t.twoFA}
+            badge={t.twoFAValue}
+          />
+        </SettingsSection>
+
+        {/* Приложение */}
+        <SettingsSection title={t.sectionApp}>
+          <SettingsRow
+            icon={<Globe size={17} />}
+            label={t.appLanguage}
+            value={t.langName}
+            chevron
+            onClick={() => setLanguage(language === 'ru' ? 'uz' : 'ru')}
+          />
+          <SettingsRow
+            icon={<Bell size={17} />}
+            label={t.notifications}
+            value={t.notifValue}
+            chevron
+          />
+          <SettingsRow
+            icon={<Download size={17} />}
+            label={t.installApp}
+            chevron
+            accent
+            onClick={() => setShowInstallModal(true)}
+          />
+        </SettingsSection>
+
+        {/* Logout */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            background: SURFACE,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 14,
+            padding: 14,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            color: STATUS_CRITICAL,
+            fontSize: 14,
+            fontWeight: 700,
+            boxShadow: SHADOW_SM,
+            width: '100%',
+          }}
+        >
+          <LogOut size={16} /> {t.logout}
+        </button>
+
+        {/* Version label */}
+        <div style={{ textAlign: 'center', fontSize: 11, color: TEXT_MUTED, marginTop: 2 }}>
+          Kamizo · {t.versionLabel} {APP_VERSION}
         </div>
+      </div>
+
+      {showPasswordModal && (
+        <PasswordModal
+          onClose={() => setShowPasswordModal(false)}
+          changePassword={changePassword}
+          t={t}
+          onSuccess={() => addToast('success', t.passwordChanged)}
+        />
       )}
 
-      <div className="px-4 mt-4 space-y-4">
-        {/* Personal Info Section */}
-        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
-          <div className="px-4 pt-4 pb-2">
-            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-              <UserIcon className="w-4 h-4 text-primary-500" />
-              {t.personalInfo}
-            </h2>
-          </div>
+      {showInstallModal && (
+        <BottomSheet onClose={() => setShowInstallModal(false)}>
+          <InstallAppSection
+            language={language}
+            roleContext={user.role}
+            onHideForever={() => setShowInstallModal(false)}
+          />
+        </BottomSheet>
+      )}
 
-          <div className="divide-y divide-gray-50">
-            {/* Login (Л/С) */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="w-9 h-9 bg-primary-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
-                <Key className="w-4 h-4 text-primary-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-400 font-medium">{t.personalAccount}</div>
-                <div className="font-mono font-bold text-[14px] text-gray-900">{user.login}</div>
-              </div>
-              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{t.cannotChange}</span>
+      {showQrModal && (
+        <BottomSheet onClose={() => setShowQrModal(false)}>
+          <div style={{ padding: '4px 4px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 4 }}>
+              {t.tileQR}
             </div>
-
-            {/* Address */}
-            {user.address && (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="w-9 h-9 bg-green-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-4 h-4 text-green-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-gray-400 font-medium">{t.address}</div>
-                  <div className="font-medium text-[14px] text-gray-900 break-words leading-snug">{user.address}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Apartment & Area row */}
-            {(user.apartment || user.totalArea) && (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="flex gap-4 flex-1">
-                  {user.apartment && (
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 bg-purple-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
-                        <Home className="w-4 h-4 text-purple-600" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400 font-medium">{t.apartment}</div>
-                        <div className="font-bold text-[14px] text-gray-900">{user.apartment}</div>
-                      </div>
-                    </div>
-                  )}
-                  {user.totalArea && (
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 bg-cyan-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
-                        <Ruler className="w-4 h-4 text-cyan-600" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400 font-medium">{t.area}</div>
-                        <div className="font-bold text-[14px] text-gray-900">{user.totalArea} m²</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Branch */}
-            {user.branch && (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="w-9 h-9 bg-amber-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
-                  <Building2 className="w-4 h-4 text-amber-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-gray-400 font-medium">{t.branch}</div>
-                  <div className="font-bold text-[14px] text-gray-900">{user.branch}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Phone - Editable */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="w-9 h-9 bg-primary-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
-                <Phone className="w-4 h-4 text-primary-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-400 font-medium">{t.phone}</div>
-                {!editingPhone ? (
-                  <div className="font-medium text-[14px] text-gray-900 font-mono tabular-nums">
-                    {user.phone ? formatPhone(user.phone) : t.notSpecified}
-                  </div>
-                ) : (
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    placeholder="+998 90 123 45 67"
-                    className="w-full py-1 text-[14px] font-medium text-gray-900 border-b-2 border-primary-400 outline-none bg-transparent"
-                    maxLength={13}
-                    autoFocus
-                  />
-                )}
-              </div>
-              {!editingPhone ? (
-                <button
-                  onClick={() => {
-                    setNewPhone(user.phone || '');
-                    setEditingPhone(true);
-                  }}
-                  className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center active:bg-gray-100 rounded-[10px] transition-colors touch-manipulation"
-                >
-                  <Edit3 className="w-4 h-4 text-gray-400" />
-                </button>
+            <div style={{ fontSize: 12.5, color: TEXT_SECONDARY, marginBottom: 16 }}>
+              {t.qrSubtitle}
+            </div>
+            <div
+              style={{
+                background: SURFACE,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 20,
+                padding: 20,
+                display: 'grid',
+                placeItems: 'center',
+                minHeight: 260,
+              }}
+            >
+              {qrUrl ? (
+                <img src={qrUrl} alt="QR" style={{ width: 240, height: 240, display: 'block' }} />
               ) : (
-                <div className="flex gap-1">
-                  <button
-                    onClick={handleSavePhone}
-                    disabled={phoneLoading}
-                    className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center active:bg-green-50 rounded-[10px] transition-colors disabled:opacity-50 touch-manipulation"
-                  >
-                    {phoneLoading ? (
-                      <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4 text-green-600" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setEditingPhone(false)}
-                    disabled={phoneLoading}
-                    className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center active:bg-gray-100 rounded-[10px] transition-colors disabled:opacity-50 touch-manipulation"
-                  >
-                    <X className="w-4 h-4 text-gray-400" />
-                  </button>
-                </div>
+                <Loader2 size={28} className="animate-spin" style={{ color: TEXT_MUTED }} />
               )}
             </div>
           </div>
-        </div>
+        </BottomSheet>
+      )}
+    </div>
+  );
+}
 
-        {/* Language Switcher Section */}
-        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
-          <div className="px-4 pt-4 pb-3">
-            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-              <Globe className="w-4 h-4 text-primary-500" />
-              {t.languageTitle}
-            </h2>
-          </div>
-          <div className="px-4 pb-4">
-            <div className="flex gap-2.5">
-              <button
-                onClick={() => setLanguage('ru')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-[12px] font-medium transition-all touch-manipulation ${
-                  language === 'ru'
-                    ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
-                    : 'bg-gray-50 text-gray-600 active:bg-gray-100'
-                }`}
-              >
-                <span className="text-[16px]">🇷🇺</span>
-                <span className="text-[14px] font-semibold">{t.languageRu}</span>
-              </button>
-              <button
-                onClick={() => setLanguage('uz')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-[12px] font-medium transition-all touch-manipulation ${
-                  language === 'uz'
-                    ? 'bg-primary-500 text-white shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]'
-                    : 'bg-gray-50 text-gray-600 active:bg-gray-100'
-                }`}
-              >
-                <span className="text-[16px]">🇺🇿</span>
-                <span className="text-[14px] font-semibold">{t.languageUz}</span>
-              </button>
-            </div>
-          </div>
-        </div>
+// ─── presentational sub-components ──────────────────────────────────────
 
-        {/* Contract Section - only for residents, not rental users */}
-        {!isRentalUser && (
-          <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
-            <div className="px-4 pt-4 pb-2">
-              <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-yellow-500" />
-                {t.contractInfo}
-              </h2>
-            </div>
+function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: '0.06em',
+          color: TEXT_SECONDARY,
+          textTransform: 'uppercase',
+          padding: '0 4px',
+          marginBottom: 8,
+        }}
+      >
+        {title}
+      </div>
+      <div
+        style={{
+          background: SURFACE,
+          borderRadius: 20,
+          border: `1px solid ${BORDER}`,
+          boxShadow: SHADOW_SM,
+          overflow: 'hidden',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
-            <div className="px-4 pb-4">
-              <div className="space-y-3">
-                {/* Contract Number + Type — moved into one row, no
-                    status column (signing flow removed). */}
-                <div className="flex gap-3">
-                  <div className="flex-1 p-3 bg-yellow-50 rounded-[12px]">
-                    <div className="text-xs text-gray-400 mb-0.5">{t.contractNumber}</div>
-                    <div className="font-mono font-bold text-[13px] text-gray-900">
-                      {user.contractNumber || `ДОГ-${new Date().getFullYear()}-${user.login}`}
-                    </div>
-                  </div>
-                  <div className="flex-1 p-3 bg-gray-50 rounded-[12px]">
-                    <div className="text-xs text-gray-400 mb-0.5">{t.contractType}</div>
-                    <div className="font-medium text-[13px] text-gray-900">{getContractTypeLabel(user.contractType)}</div>
-                  </div>
-                </div>
-
-                {/* Contract End Date */}
-                <div className="p-3 bg-gray-50 rounded-[12px]">
-                  <div className="text-xs text-gray-400 mb-0.5">{t.contractEnd}</div>
-                  <div className="font-medium text-[13px] text-gray-900 flex items-center gap-1">
-                    {user.contractEndDate ? formatDate(user.contractEndDate) : (
-                      <>
-                        <Sparkles className="w-3 h-3 text-green-500" />
-                        {t.indefinite}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* QR Code */}
-                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-[14px] border border-dashed border-gray-200">
-                  {qrCodeUrl ? (
-                    <img src={qrCodeUrl} alt="QR Code" className="w-20 h-20 rounded-[8px]" />
-                  ) : (
-                    <div className="w-20 h-20 bg-gray-100 rounded-[8px] animate-pulse" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-gray-900 flex items-center gap-1.5">
-                      <QrCode className="w-3.5 h-3.5 text-gray-500" />
-                      {t.yourQrCode}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">{t.qrHint}</p>
-                    <div className="mt-1.5" title={user.id}>
-                      <span className="text-xs text-gray-400">ID:</span>
-                      <span className="font-mono text-xs font-bold text-gray-500 ml-1 select-all">
-                        {user.id.length > 16
-                          ? `${user.id.slice(0, 8)}…${user.id.slice(-4)}`
-                          : user.id}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contract Actions */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    onClick={() => setShowContract(!showContract)}
-                    className="flex items-center justify-center gap-2 px-3 py-3 min-h-[44px] bg-gray-50 active:bg-gray-100 rounded-[12px] text-[13px] font-semibold text-gray-600 transition-colors touch-manipulation"
-                  >
-                    {showContract ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    {showContract ? t.hideContract : t.viewContract}
-                  </button>
-                  <button
-                    onClick={handleDownloadContract}
-                    disabled={isDownloading || !qrCodeUrl}
-                    className="flex items-center justify-center gap-2 px-3 py-3 min-h-[44px] bg-primary-500 active:bg-primary-600 disabled:bg-gray-200 rounded-[12px] text-[13px] font-semibold text-white disabled:text-gray-400 transition-colors touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)]"
-                  >
-                    {isDownloading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Download className="w-4 h-4" />
-                    )}
-                    {isDownloading ? t.downloading : t.downloadContract}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Contract Preview - Full Document */}
-            {showContract && (
-              <div className="px-4 pb-4">
-                <ContractPreview user={user} qrCodeUrl={qrCodeUrl} language={language} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Security Section */}
-        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
-          <div className="px-4 pt-4 pb-2">
-            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-red-500" />
-              {t.security}
-            </h2>
-          </div>
-
-          <div className="px-4 pb-4">
-            {!editingPassword ? (
-              <button
-                onClick={() => setEditingPassword(true)}
-                className="w-full flex items-center gap-3 p-3 bg-gray-50 rounded-[12px] active:bg-gray-100 transition-colors touch-manipulation"
-              >
-                <div className="w-9 h-9 bg-red-50 rounded-[10px] flex items-center justify-center flex-shrink-0">
-                  <Key className="w-4 h-4 text-red-500" />
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="text-[14px] font-semibold text-gray-900">{t.changePassword}</div>
-                  <div className="text-xs text-gray-400">••••••••</div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300" />
-              </button>
-            ) : (
-              <div className="space-y-3">
-                {/* Current Password */}
-                <div>
-                  <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
-                    {t.currentPassword}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showCurrentPassword ? 'text' : 'password'}
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-gray-50 rounded-[12px] text-[14px] outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white border border-transparent focus:border-primary-300"
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 touch-manipulation"
-                    >
-                      {showCurrentPassword ? (
-                        <EyeOff className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* New Password */}
-                <div>
-                  <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
-                    {t.newPassword}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-gray-50 rounded-[12px] text-[14px] outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white border border-transparent focus:border-primary-300"
-                      placeholder={t.minChars}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 touch-manipulation"
-                    >
-                      {showNewPassword ? (
-                        <EyeOff className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirm Password */}
-                <div>
-                  <label className="block text-[12px] font-medium text-gray-500 mb-1.5">
-                    {t.confirmPassword}
-                  </label>
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-gray-50 rounded-[12px] text-[14px] outline-none focus:ring-2 focus:ring-primary-500/20 focus:bg-white border border-transparent focus:border-primary-300"
-                    placeholder={t.repeatPassword}
-                  />
-                </div>
-
-                {/* Error Message */}
-                {passwordError && (
-                  <div className="p-2.5 bg-red-50 text-red-600 text-[13px] rounded-[10px] flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    {passwordError}
-                  </div>
-                )}
-
-                {/* Buttons */}
-                <div className="flex gap-2.5 pt-1">
-                  <button
-                    onClick={() => {
-                      setEditingPassword(false);
-                      setCurrentPassword('');
-                      setNewPassword('');
-                      setConfirmPassword('');
-                      setPasswordError('');
-                    }}
-                    disabled={passwordLoading}
-                    className="flex-1 py-3 min-h-[44px] bg-gray-50 active:bg-gray-100 rounded-[12px] text-[14px] font-semibold text-gray-600 transition-colors touch-manipulation"
-                  >
-                    {t.cancel}
-                  </button>
-                  <button
-                    onClick={handleSavePassword}
-                    disabled={passwordLoading}
-                    className="flex-1 py-3 min-h-[44px] bg-primary-500 active:bg-primary-600 rounded-[12px] text-[14px] font-semibold text-white flex items-center justify-center gap-2 transition-colors touch-manipulation shadow-[0_4px_12px_rgba(var(--brand-rgb),0.25)]"
-                  >
-                    {passwordLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                    {t.save}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Install App Section */}
-        <InstallAppSection language={language} onHideForever={() => {}} />
-
-        {/* Info Note - only for residents */}
-        {!isRentalUser && (
-          <div className="p-4 bg-primary-50 rounded-[14px] text-[13px] text-primary-700">
-            <p className="font-semibold mb-1">{t.loginInfoTitle}</p>
-            <p className="text-primary-600">{t.loginInfo}</p>
-          </div>
-        )}
-
-        {/* Logout button — residents expect to find it at the bottom of profile */}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 py-3 min-h-[48px] bg-white hover:bg-red-50 active:bg-red-100 border border-gray-200 rounded-[14px] text-red-600 font-semibold text-[14px] transition-colors touch-manipulation"
+function SettingsRow({
+  icon, label, value, chevron, editable, badge, accent, onClick, isLast,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: string;
+  chevron?: boolean;
+  editable?: boolean;
+  badge?: string;
+  accent?: boolean;
+  onClick?: () => void;
+  isLast?: boolean;
+}) {
+  const rowStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '13px 14px',
+    borderBottom: isLast ? 'none' : `1px solid ${HAIRLINE}`,
+    cursor: onClick ? 'pointer' : 'default',
+    background: 'transparent',
+    border: 'none',
+    width: '100%',
+    textAlign: 'left',
+    minWidth: 0,
+  };
+  return (
+    <div role={onClick ? 'button' : undefined} onClick={onClick} style={rowStyle}>
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 10,
+          background: accent ? BRAND_TINT : SURFACE_SUNKEN,
+          color: accent ? BRAND_DARK : TEXT_SECONDARY,
+          display: 'grid',
+          placeItems: 'center',
+          flex: '0 0 auto',
+        }}
+        aria-hidden
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 650 as unknown as number,
+            letterSpacing: '-0.01em',
+            color: accent ? BRAND_DARK : TEXT_PRIMARY,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
         >
-          <LogOut className="w-4 h-4" />
-          {language === 'ru' ? 'Выйти из аккаунта' : 'Akkauntdan chiqish'}
+          {label}
+        </div>
+        {value && !badge && (
+          <div
+            style={{
+              fontSize: 12,
+              color: TEXT_SECONDARY,
+              marginTop: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {value}
+          </div>
+        )}
+      </div>
+      {badge && (
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            color: STATUS_ACTIVE,
+            background: STATUS_ACTIVE_BG,
+            padding: '3px 9px',
+            borderRadius: 999,
+            flex: '0 0 auto',
+          }}
+        >
+          {badge}
+        </span>
+      )}
+      {editable && !badge && <Pencil size={15} style={{ color: TEXT_MUTED, flex: '0 0 auto' }} />}
+      {chevron && !badge && <ChevronRight size={16} style={{ color: TEXT_MUTED, flex: '0 0 auto' }} />}
+    </div>
+  );
+}
+
+function PhoneEditRow({
+  value, onChange, onSave, onCancel, loading, labelText, saveText, cancelText,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  loading: boolean;
+  labelText: string;
+  saveText: string;
+  cancelText: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        padding: '13px 14px',
+        borderBottom: `1px solid ${HAIRLINE}`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            background: SURFACE_SUNKEN,
+            color: TEXT_SECONDARY,
+            display: 'grid',
+            placeItems: 'center',
+            flex: '0 0 auto',
+          }}
+        >
+          <Phone size={17} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: TEXT_SECONDARY,
+              letterSpacing: '0.02em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {labelText}
+          </div>
+          <input
+            type="tel"
+            autoFocus
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="+998 90 100 00 11"
+            style={{
+              width: '100%',
+              border: 'none',
+              outline: 'none',
+              padding: '4px 0 0',
+              fontSize: 14,
+              fontWeight: 600,
+              color: TEXT_PRIMARY,
+              background: 'transparent',
+            }}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, paddingLeft: 46 }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={loading}
+          style={{
+            flex: 1,
+            padding: '9px 14px',
+            borderRadius: 12,
+            border: `1px solid ${BORDER}`,
+            background: SURFACE,
+            color: TEXT_SECONDARY,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {cancelText}
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={loading}
+          style={{
+            flex: 1,
+            padding: '9px 14px',
+            borderRadius: 12,
+            border: 'none',
+            background: BRAND_DARK,
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saveText}
         </button>
       </div>
     </div>
   );
 }
 
+function BottomSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  // Lock body scroll while the sheet is open so the user can't pull the page
+  // behind the overlay; rolled back on unmount.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        background: 'rgba(28,25,23,0.45)',
+        backdropFilter: 'blur(2px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SURFACE,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          padding: '14px 16px calc(24px + env(safe-area-inset-bottom, 0px))',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 -12px 32px rgba(28,25,23,0.18)',
+          animation: 'kz-sheet-up 0.22s cubic-bezier(0.2,0,0,1) both',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+          <div style={{ width: 38, height: 4, borderRadius: 2, background: '#D8CFBE' }} />
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            width: 32,
+            height: 32,
+            borderRadius: 999,
+            background: SURFACE_SUNKEN,
+            color: TEXT_SECONDARY,
+            border: 'none',
+            display: 'grid',
+            placeItems: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <X size={16} />
+        </button>
+        {children}
+      </div>
+      <style>{`
+        @keyframes kz-sheet-up {
+          from { transform: translateY(40px); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function PasswordModal({
+  onClose,
+  changePassword,
+  t,
+  onSuccess,
+}: {
+  onClose: () => void;
+  changePassword: (current: string, next: string) => Promise<boolean>;
+  t: {
+    passwordTitle: string; currentPassword: string; newPassword: string;
+    confirmPassword: string; minChars: string; repeatPassword: string;
+    cancel: string; save: string;
+    wrongPassword: string; passwordsNotMatch: string; passwordSameAsOld: string;
+    enterCurrentPassword: string; passwordTooShort: string; passwordError: string;
+  };
+  onSuccess: () => void;
+}) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNext, setShowNext] = useState(false);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setErr('');
+    if (!current.trim()) { setErr(t.enterCurrentPassword); return; }
+    if (next.length < 4) { setErr(t.passwordTooShort); return; }
+    if (next !== confirm) { setErr(t.passwordsNotMatch); return; }
+    if (current === next) { setErr(t.passwordSameAsOld); return; }
+    setBusy(true);
+    try {
+      const ok = await changePassword(current, next);
+      if (ok) {
+        onSuccess();
+        onClose();
+      } else {
+        setErr(t.wrongPassword);
+      }
+    } catch (e) {
+      const msg = (e as Error)?.message || '';
+      setErr(/incorrect|wrong|неверный/i.test(msg) ? t.wrongPassword : t.passwordError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ padding: '4px 4px 8px' }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_PRIMARY, marginBottom: 14 }}>
+          {t.passwordTitle}
+        </div>
+        <PasswordField
+          label={t.currentPassword}
+          value={current}
+          onChange={setCurrent}
+          visible={showCurrent}
+          onToggle={() => setShowCurrent(v => !v)}
+          placeholder="••••••••"
+        />
+        <PasswordField
+          label={t.newPassword}
+          value={next}
+          onChange={setNext}
+          visible={showNext}
+          onToggle={() => setShowNext(v => !v)}
+          placeholder={t.minChars}
+        />
+        <PasswordField
+          label={t.confirmPassword}
+          value={confirm}
+          onChange={setConfirm}
+          visible={showNext}
+          placeholder={t.repeatPassword}
+        />
+        {err && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '10px 12px',
+              background: 'rgba(226,72,61,0.08)',
+              color: STATUS_CRITICAL,
+              borderRadius: 12,
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <AlertCircle size={16} /> {err}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 14,
+              border: `1px solid ${BORDER}`,
+              background: SURFACE,
+              color: TEXT_SECONDARY,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {t.cancel}
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 14,
+              border: 'none',
+              background: BRAND_DARK,
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {t.save}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+function PasswordField({
+  label, value, onChange, visible, onToggle, placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  visible: boolean;
+  onToggle?: () => void;
+  placeholder: string;
+}) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div
+        style={{
+          fontSize: 11.5,
+          fontWeight: 700,
+          color: TEXT_SECONDARY,
+          letterSpacing: '0.03em',
+          textTransform: 'uppercase',
+          marginBottom: 6,
+          paddingLeft: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ position: 'relative' }}>
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            width: '100%',
+            padding: '12px 44px 12px 14px',
+            border: `1px solid ${BORDER}`,
+            borderRadius: 14,
+            fontSize: 14,
+            color: TEXT_PRIMARY,
+            background: SURFACE,
+            outline: 'none',
+          }}
+        />
+        {onToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label="toggle visibility"
+            style={{
+              position: 'absolute',
+              right: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 32,
+              height: 32,
+              borderRadius: 10,
+              border: 'none',
+              background: 'transparent',
+              color: TEXT_MUTED,
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
