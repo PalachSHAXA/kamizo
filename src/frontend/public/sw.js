@@ -1,27 +1,26 @@
 // Kamizo PWA Service Worker
-// Version: 3.6.8 — cache suffix bumped to v52 to evict every v51 (and
+// Version: 3.6.9 — cache suffix bumped to v53 to evict every v52 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • the grey-overscroll fix: --app-bg moved from the cool #F7F8FA to
-//     the warm beige #F4F0E8 (Claude Design handoff value), with
-//     #root / .layout-root now painting it explicitly + html-level
-//     overscroll-behavior: none. No grey strip in any rubber-band /
-//     overlay-backdrop / safe-area zone on any page.
-//   • the fixed-shell hardening: .mobile-header now touch-action: none
-//     so a drag that starts on the header can't be hijacked into a
-//     page scroll. theme-color + splash bg + MobileHeader translucent
-//     fill all updated to match the warm beige.
+//   • the resident sidebar redesign (Claude Design §11-sidebar): dark
+//     stone header + stats strip, 4-tile quick-access grid, white
+//     "More" list with chevrons/badges, warm-beige footer profile card
+//     with logout. Every row routes to an existing destination through
+//     the lock-aware navigation we already use elsewhere, so locked
+//     features open the FeatureLockedModal instead of dead links.
+//     Staff drawers (admin / manager / director / executor / security
+//     / super-admin) are untouched and keep the existing role-aware
+//     list.
 //
-// Carries forward v51's overlay-hide registry (BottomBar hides on any
-// open modal/sheet/drawer/popup via useModalPresence) and v50's MIME-
-// type self-heal. Combined with skipWaiting() on install and clients
-// .claim() on activate, every device refetches the app shell on next
-// open. Bump this suffix any time a release needs to propagate
-// urgently to existing installs.
+// Carries forward v52's warm-beige #F4F0E8 token, v51's overlay-hide
+// registry, and v50's MIME-type self-heal. Combined with skipWaiting()
+// on install and clients.claim() on activate, every device refetches
+// the app shell on next open. Bump this suffix any time a release needs
+// to propagate urgently to existing installs.
 
-const SW_VERSION = '3.6.8';
-const STATIC_CACHE = 'kamizo-static-v52';
-const ASSET_CACHE = 'kamizo-assets-v52';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v52';
+const SW_VERSION = '3.6.9';
+const STATIC_CACHE = 'kamizo-static-v53';
+const ASSET_CACHE = 'kamizo-assets-v53';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v53';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
