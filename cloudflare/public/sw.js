@@ -1,19 +1,18 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.2 — cache suffix bumped to v56 to evict every v55 (and
+// Version: 3.7.3 — cache suffix bumped to v57 to evict every v56 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • the resident passes / guest-access page redesign (Claude Design
-//     §06-propuska): sticky header, brown-gradient ticket hero with
-//     status pill + perforation + 3-button action row, 2x2 quick-
-//     create grid, "Недавние" and "История посещений" lists. Wired to
-//     the existing useGuestAccessStore + CreatePassForm + QRCodeDisplay;
-//     both modals now register with useModalPresence so the BottomBar
-//     hides while they're open.
-//   • carries forward v55's runtime chunk-load crash guard in
-//     index.html — listener catches "Importing a module script
-//     failed" / ChunkLoadError, purges caches via CLEAR_CACHE,
-//     unregisters stale SWs, and force-reloads once per sessionStorage
-//     flag. Fix for the red crash toast users were hitting when a
-//     still-running tab's lazy import raced the v(n-1) cache purge.
+//   • the resident "Оценка сотрудников" page redesign (Claude Design
+//     §09-ocenka): sticky header, horizontally-scrolling employee
+//     chip row with green check on rated chips, selected-employee
+//     card with avatar + role + amber rating + last-job pill +
+//     centered "Как прошло?" 5-star input + word-rating + tag chips
+//     + comment + amber submit, secondary "Оценить УК отдельно" card
+//     that opens the existing UK rating UI inside a common/Modal
+//     (already wired to useModalPresence so the BottomBar hides
+//     while open). Single-axis handoff is mapped onto the existing
+//     3-axis schema (quality = speed = politeness = rating); selected
+//     tag labels prepended to the comment as [Tag1][Tag2] so they
+//     survive the round trip.
 //
 // Caching strategy unchanged:
 //   • HTML / navigation requests   → network-first, cache on success
@@ -25,13 +24,13 @@
 //   • activate                     → delete every cache not in the
 //     current valid-list, then clients.claim().
 // Combined with skipWaiting() on install + clients.claim() + the
-// controllerchange auto-reload + chunk-load guard in index.html,
+// controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.2';
-const STATIC_CACHE = 'kamizo-static-v56';
-const ASSET_CACHE = 'kamizo-assets-v56';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v56';
+const SW_VERSION = '3.7.3';
+const STATIC_CACHE = 'kamizo-static-v57';
+const ASSET_CACHE = 'kamizo-assets-v57';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v57';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
