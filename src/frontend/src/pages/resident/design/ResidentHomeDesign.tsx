@@ -11,6 +11,7 @@ import {
   IUsers, IBolt, IUmbrella, IDownload, IStar, IPhone,
   SwipeCardStack,
 } from './kamizoDesign';
+import { useIsMobile } from '../../../hooks/useBreakpoint';
 
 const ru = (language: string, r: string, u: string) => (language === 'ru' ? r : u);
 
@@ -314,6 +315,11 @@ export function ResidentHomeDesign(props: Props) {
   const navigate = useNavigate();
   const [bell, setBell] = useState(false);
   void bell;
+  // Mobile uses width:100vw + negative auto margins to break out of any
+  // ancestor padding. On desktop that breaks out PAST the sidebar too — the
+  // hero ends up covering the global navigation. Drop the break-out for ≥md;
+  // main-content's own width/margin already manages the column on desktop.
+  const isMobile = useIsMobile();
 
   // No theme-color override on Home — the rule is now: light/beige status
   // bar on EVERY page (no exceptions). The global default in index.html
@@ -363,12 +369,13 @@ export function ResidentHomeDesign(props: Props) {
         // this, the last card (BalanceCard / PWA banner) is hidden behind
         // the portal-mounted fixed TabBar.
         paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
-        // Force full-bleed: parent main may carry horizontal padding on some
-        // breakpoints, and Layout's main-content padding-bottom is fine but we
-        // cannot risk an off-white sliver creeping in on either edge.
-        width: '100vw',
-        marginLeft: 'calc(50% - 50vw)',
-        marginRight: 'calc(50% - 50vw)',
+        // Mobile: break out of any horizontal padding on parent main so the
+        // hero reaches the edges. Desktop: stay inside main-content's column
+        // — otherwise the hero spans the whole viewport and slides under the
+        // 272px Sidebar.
+        width: isMobile ? '100vw' : '100%',
+        marginLeft: isMobile ? 'calc(50% - 50vw)' : 0,
+        marginRight: isMobile ? 'calc(50% - 50vw)' : 0,
       }}
     >
       <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} onMenu={onMenu} onBell={() => { setBell((b) => !b); navigate('/announcements'); }} bellOpen={bell} />

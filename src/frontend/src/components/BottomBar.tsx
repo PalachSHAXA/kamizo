@@ -7,6 +7,7 @@ import { useRequestStore, useNotificationStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { useModalStore } from '../stores/modalStore';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import { FeatureLockedModal } from './FeatureLockedModal';
 
 /**
@@ -49,11 +50,18 @@ export function BottomBar() {
   const getUnreadCount = useNotificationStore(s => s.getUnreadCount);
   const { hasFeature, config } = useTenantStore();
   const modalCount = useModalStore((s) => s.count);
+  // Floating pill is a MOBILE-ONLY navigation surface (Claude Design §01).
+  // On desktop the Sidebar + Header already handle navigation, and the pill
+  // visibly overlaps page content while adding nothing — so the whole bar
+  // sits this one out at ≥ md. Was rendering everywhere after the unify-
+  // BottomBar refactor (f7062d4) which never added the md gate.
+  const isMobile = useIsMobile();
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
   const [lockedFeatureKey, setLockedFeatureKey] = useState<string | null>(null);
   const hasTenant = !!config?.tenant;
 
   if (!user) return null;
+  if (!isMobile) return null;
 
   const role = user.role;
 

@@ -41,6 +41,7 @@ import { chatApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useRequestStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useIsMobile } from '../../hooks/useBreakpoint';
 import { formatDateSeparator, formatMessageTime, type ChatChannel, type ChatMessage } from './chatUtils';
 
 interface Props {
@@ -61,6 +62,13 @@ export function ResidentChatView({ channel, onBack }: Props) {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const requests = useRequestStore(s => s.requests);
+  // Desktop renders the chat as a normal flex column inside the main-content
+  // column (header → scrollable list → composer). Mobile keeps the Claude
+  // Design §10-chat shell: portaled fixed header + portaled fixed composer
+  // pinned to the visual viewport so the iOS keyboard pushes the composer
+  // correctly. Toggling on this single flag is enough — every fixed/inset
+  // style that bleeds across the sidebar on desktop is gated through it.
+  const isMobile = useIsMobile();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -225,6 +233,37 @@ export function ResidentChatView({ channel, onBack }: Props) {
 
   const isMe = (m: ChatMessage) => m.sender_id === user?.id;
 
+  // Image attachments are sent through chatApi.sendMessage as Markdown:
+  // `![filename](data:image/…;base64,…)`. Without parsing, the bubble would
+  // render the entire base64 payload as plain text — producing the giant
+  // unreadable block the user saw in the bottom of the chat. Detect the
+  // pattern and render an <img>; fall back to plain text otherwise.
+  const IMG_MD = /^!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[^)]+|https?:\/\/[^)\s]+)\)\s*$/;
+  const renderContent = (raw: string) => {
+    const m = raw.match(IMG_MD);
+    if (m) {
+      const alt = m[1] || '';
+      const src = m[2];
+      return (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          style={{
+            display: 'block',
+            maxWidth: '100%',
+            maxHeight: 320,
+            width: 'auto',
+            height: 'auto',
+            borderRadius: 12,
+            objectFit: 'cover',
+          }}
+        />
+      );
+    }
+    return raw;
+  };
+
   const statusText = language === 'ru' ? 'На связи · отвечаем до 15 мин' : 'Aloqada · 15 daq ichida javob';
 
   const activeRequestChip = activeRequest ? {
@@ -260,14 +299,20 @@ export function ResidentChatView({ channel, onBack }: Props) {
     <div
       ref={headerElRef}
       style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0,
-        zIndex: 200,
+        // Mobile: portaled & pinned to the visual viewport (iOS PWA keyboard
+        // handling). Desktop: a normal flow element at the top of the chat
+        // column, so it cannot overlap the global sidebar or Desktop Header.
+        position: isMobile ? 'fixed' : 'relative',
+        top: isMobile ? 0 : undefined,
+        left: isMobile ? 0 : undefined,
+        right: isMobile ? 0 : undefined,
+        zIndex: isMobile ? 200 : 1,
         background: 'rgba(250,250,249,0.95)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid rgba(0,0,0,0.06)',
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : 0,
+        flex: '0 0 auto',
       }}
     >
       <div style={{ padding: '10px 16px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -366,14 +411,19 @@ export function ResidentChatView({ channel, onBack }: Props) {
     <div
       ref={composerElRef}
       style={{
-        position: 'fixed',
-        bottom: 0, left: 0, right: 0,
-        zIndex: 200,
+        // Same desktop ↔ mobile split as the header — the portaled fixed
+        // pinning is only useful on the visual-viewport-aware mobile shell.
+        position: isMobile ? 'fixed' : 'relative',
+        bottom: isMobile ? 0 : undefined,
+        left: isMobile ? 0 : undefined,
+        right: isMobile ? 0 : undefined,
+        zIndex: isMobile ? 200 : 1,
         background: 'rgba(250,250,249,0.95)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         borderTop: '1px solid rgba(0,0,0,0.06)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 0,
+        flex: '0 0 auto',
       }}
     >
       {/* Hidden file inputs driven by the + and 📷 buttons. */}
@@ -526,27 +576,53 @@ export function ResidentChatView({ channel, onBack }: Props) {
   // -----------------------------------------------------------------
   return (
     <>
-      {typeof document !== 'undefined' && createPortal(headerEl, document.body)}
-      {typeof document !== 'undefined' && createPortal(composerEl, document.body)}
+      {/* Mobile only: portal the fixed bars to <body> so they escape any
+          ancestor with transform/filter that would downgrade position:fixed.
+          On desktop the chat is a normal flex column, so the bars sit
+          naturally above/below the message list — no portal, no overlap with
+          the global Sidebar / Desktop Header. */}
+      {isMobile && typeof document !== 'undefined' && createPortal(headerEl, document.body)}
+      {isMobile && typeof document !== 'undefined' && createPortal(composerEl, document.body)}
       <div
         className="kz-screen"
-        style={{
+        style={isMobile ? {
           position: 'fixed',
           inset: 0,
           background: '#FAFAF9',
           overflow: 'hidden',
           overscrollBehavior: 'none',
+        } : {
+          // Desktop: bounded card inside main-content. Height matches the
+          // existing .resident-chat-container CSS (viewport minus mobile-
+          // header-h fallback + safe-area) so the composer hugs the bottom
+          // without being clipped by the home-indicator zone.
+          position: 'relative',
+          background: '#FAFAF9',
+          overflow: 'hidden',
+          border: '1px solid rgba(0,0,0,0.06)',
+          borderRadius: 22,
+          display: 'flex',
+          flexDirection: 'column',
+          height: 'calc(100dvh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
+          maxWidth: 960,
+          margin: '0 auto',
+          width: '100%',
         }}
       >
+        {!isMobile && headerEl}
         <div
           ref={listRef}
-          style={{
+          style={isMobile ? {
             height: '100%',
             overflowY: 'auto', overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',
             overscrollBehavior: 'contain',
             paddingTop: `${headerHeight}px`,
             paddingBottom: `${composerHeight}px`,
+          } : {
+            flex: 1, minHeight: 0,
+            overflowY: 'auto', overflowX: 'hidden',
+            overscrollBehavior: 'contain',
           }}
         >
           <div
@@ -622,7 +698,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
                         maxWidth: '100%',
                       }}
                     >
-                      {m.content}
+                      {renderContent(m.content)}
                     </div>
 
                     <div
@@ -642,6 +718,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
             })}
           </div>
         </div>
+        {!isMobile && composerEl}
       </div>
     </>
   );

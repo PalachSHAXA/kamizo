@@ -6,6 +6,7 @@ import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useVehicleStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
 import { SearchPlateInput, PlateNumberInput, UZFlag, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
@@ -78,6 +79,9 @@ export function ResidentVehiclesPage() {
   const searchVehiclesByPlate = useVehicleStore(s => s.searchVehiclesByPlate);
   const { language } = useLanguageStore();
   const [searchParams] = useSearchParams();
+  // Same desktop guard as ResidentHomeDesign — the 100vw break-out for the
+  // dark Garage hero slips under the global Sidebar on ≥md viewports.
+  const isMobile = useIsMobile();
 
   // Fetch vehicles from D1 database on mount (run once using ref to prevent duplicates)
   // Only fetch when user is authenticated to prevent 401 errors
@@ -349,10 +353,12 @@ export function ResidentVehiclesPage() {
               // Full-bleed: force the hero to the viewport edges regardless of
               // any horizontal padding/margin on parent .page-content /
               // .main-content / ResidentVehiclesPage wrappers. Same pattern
-              // ResidentHomeDesign.kz-screen uses.
-              width: '100vw',
-              marginLeft: 'calc(50% - 50vw)',
-              marginRight: 'calc(50% - 50vw)',
+              // ResidentHomeDesign.kz-screen uses. Gated on isMobile so the
+              // desktop hero stays inside main-content's column instead of
+              // sliding under the 272px Sidebar.
+              width: isMobile ? '100vw' : '100%',
+              marginLeft: isMobile ? 'calc(50% - 50vw)' : 0,
+              marginRight: isMobile ? 'calc(50% - 50vw)' : 0,
             }}
           >
             {/* top bar */}
