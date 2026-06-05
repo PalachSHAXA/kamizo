@@ -156,24 +156,38 @@ export function ExecutorDashboard() {
     return new Date(utcStr).getTime();
   }, []);
 
-  // Timer effect for in_progress requests (accounting for pauses)
+  // Timer effect for in_progress requests (accounting for pauses).
+  //
+  // Backend safety net: the Node API on the Tashkent VPS (UTC+5) used to
+  // parse SQLite's naive "YYYY-MM-DD HH:MM:SS" timestamps as local time
+  // when computing pause durations, which inflated total_paused_time by
+  // ~5 h per resume. The proper fix is on the server (commit 79f60ca4),
+  // but until that rsyncs to the VPS — and to repair already-corrupted
+  // rows even after — we sanity-check the number here. By definition
+  // `total_paused_time` cannot exceed the wall-clock since start: you
+  // can't have been paused for longer than the work has existed. If it
+  // does, the value is bogus; treat it as 0 and show wall-clock elapsed
+  // (slight overcount by the genuine pause interval — usually seconds —
+  // is far better than the bug's "0:00 forever").
   useEffect(() => {
     const interval = setInterval(() => {
       const newTimers: Record<string, number> = {};
       inProgressRequests.forEach(req => {
         if (req.startedAt) {
           const startTime = parseUTCDateTime(req.startedAt);
-          const totalPausedTime = req.totalPausedTime || 0;
+          const rawTotalPaused = req.totalPausedTime || 0;
 
           if (req.isPaused && req.pausedAt) {
             // If currently paused, don't count time since pause
             const pausedAt = parseUTCDateTime(req.pausedAt);
-            const elapsed = Math.floor((pausedAt - startTime) / 1000) - totalPausedTime;
-            newTimers[req.id] = Math.max(0, elapsed);
+            const wall = Math.floor((pausedAt - startTime) / 1000);
+            const totalPausedTime = rawTotalPaused > wall ? 0 : rawTotalPaused;
+            newTimers[req.id] = Math.max(0, wall - totalPausedTime);
           } else {
             // Active work - count all time minus paused time
-            const elapsed = Math.floor((Date.now() - startTime) / 1000) - totalPausedTime;
-            newTimers[req.id] = Math.max(0, elapsed);
+            const wall = Math.floor((Date.now() - startTime) / 1000);
+            const totalPausedTime = rawTotalPaused > wall ? 0 : rawTotalPaused;
+            newTimers[req.id] = Math.max(0, wall - totalPausedTime);
           }
         }
       });
