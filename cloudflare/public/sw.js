@@ -1,15 +1,20 @@
 // Kamizo PWA Service Worker
-// Version: 2.9.0 — cache suffix bumped to v12 so the activate handler
-// deletes every v10 cache on the next SW lifecycle update. This forces
-// every tenant's PWA users to re-fetch the BottomBar bundle after
-// pulling the bar -25px below the viewport edge to close the residual
-// gap above the iOS home indicator. Bump this suffix any time a release
-// needs to propagate urgently to existing installs.
+// Version: 3.6.3 — cache suffix bumped to v47 to evict every v46 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • the resident Profile redesign (Claude Design §07-profil), and
+//   • a client-side controllerchange auto-reload + SKIP_WAITING handshake
+//     in index.html that fixes stale-PWA login failures
+//     ("Неверный логин или пароль" while the backend was healthy —
+//     installed PWAs were running months-old JS bundles whose auth flow
+//     predated the race-free CORS fix and multi-tenant login).
+// Combined with skipWaiting() on install and clients.claim() on activate,
+// every device refetches the app shell on next open. Bump this suffix any
+// time a release needs to propagate urgently to existing installs.
 
-const SW_VERSION = '3.5.2';
-const STATIC_CACHE = 'kamizo-static-v43';
-const ASSET_CACHE = 'kamizo-assets-v43';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v43';
+const SW_VERSION = '3.6.3';
+const STATIC_CACHE = 'kamizo-static-v47';
+const ASSET_CACHE = 'kamizo-assets-v47';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v47';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

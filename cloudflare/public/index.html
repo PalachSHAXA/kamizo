@@ -34,9 +34,9 @@
     <meta name="msapplication-TileColor" content="#F97316" />
     <meta name="msapplication-TileImage" content="/icons/favicon-128x128.png" />
     <title>kamizo - Управление жильём</title>
-    <script type="module" crossorigin src="/assets/index-B1KJXQsa.js"></script>
+    <script type="module" crossorigin src="/assets/index-C8vFElCh.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/charts-RPY68FIM.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BgPSEo1v.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-_LxcOuzr.css">
   </head>
   <body>
     <div id="root">
@@ -211,12 +211,33 @@
     <script>
       // Register Service Worker
       if ('serviceWorker' in navigator) {
+        // Auto-reload once when a NEW service worker takes control of this page.
+        // Only attach when there is ALREADY a controller — that guarantees this
+        // is an update event (replacing an existing SW), not a first install.
+        // Without this guard the listener would fire on the very first visit
+        // and force an unnecessary reload of a fresh page.
+        if (navigator.serviceWorker.controller) {
+          let hasReloaded = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (hasReloaded) return;
+            hasReloaded = true;
+            window.location.reload();
+          });
+        }
+
         window.addEventListener('load', async () => {
           try {
             const registration = await navigator.serviceWorker.register('/sw.js', {
               scope: '/'
             });
             console.log('[App] Service Worker registered:', registration.scope);
+
+            // If a worker is already waiting at registration time, activate it
+            // immediately — otherwise it could sit in 'waiting' until every tab
+            // closes, leaving the user on the stale bundle indefinitely.
+            if (registration.waiting) {
+              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
 
             // Check for updates
             registration.addEventListener('updatefound', () => {
@@ -225,8 +246,11 @@
 
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New service worker available, prompt user to refresh
-                  console.log('[App] New version available');
+                  // New SW is ready. Ask it to take over now — combined with
+                  // the controllerchange listener above this delivers the new
+                  // bundle to the user without a manual refresh.
+                  console.log('[App] New version available — activating');
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
             });
