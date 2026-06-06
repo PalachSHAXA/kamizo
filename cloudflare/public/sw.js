@@ -1,4 +1,17 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.13 — cache suffix bumped to v67 to evict every v66 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Smooth opacity-only page transitions on every route change
+//     (BottomBar taps, sidebar nav, any pathname change). ~220ms
+//     ease-out fade via the existing .page-transition class wired to a
+//     Suspense-internal wrapper keyed by location.pathname. No
+//     transform / filter / perspective is applied, so routed pages'
+//     internal position:fixed elements (sticky action bars, modals)
+//     stay anchored to the viewport throughout the fade. The fixed
+//     MobileHeader and portaled BottomBar are siblings/portals — not
+//     animated. Honors prefers-reduced-motion.
+//
+// Previous notes (v66) preserved below:
 // Version: 3.7.12 — cache suffix bumped to v66 to evict every v65 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident "Оплата" page (09-oplata) full Claude Design port at
@@ -142,10 +155,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.12';
-const STATIC_CACHE = 'kamizo-static-v66';
-const ASSET_CACHE = 'kamizo-assets-v66';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v66';
+const SW_VERSION = '3.7.13';
+const STATIC_CACHE = 'kamizo-static-v67';
+const ASSET_CACHE = 'kamizo-assets-v67';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v67';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
