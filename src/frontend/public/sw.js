@@ -1,4 +1,20 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.11 — cache suffix bumped to v65 to evict every v64 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Sidebar: drop the hardcoded "ТСЖ «...»" prefix; use the real УК
+//     name from /api/tenant/config; render the УК logo (when present)
+//     as the avatar chip; resolve the resident's ЖК name + address
+//     from useBuildingStore (lazy-loaded fetchBuildingById) instead of
+//     the bare user.building number.
+//   • Profile: new "Управляющая компания" card under the action tiles
+//     showing real УК logo + name, with a "Жилой комплекс" sub-row
+//     bound to the real building name + address. Tap navigates to
+//     /contract.
+//   • No new endpoints; existing tenantStore + buildingStore reads only.
+//     Backend gaps documented in commit message (legal-form prefix,
+//     УК physical address, resident-readable УК rating).
+//
+// Previous notes (v64) preserved below:
 // Version: 3.7.10 — cache suffix bumped to v64 to evict every v63 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident /contract page (14-dogovor) full Claude Design port:
@@ -105,10 +121,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.10';
-const STATIC_CACHE = 'kamizo-static-v64';
-const ASSET_CACHE = 'kamizo-assets-v64';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v64';
+const SW_VERSION = '3.7.11';
+const STATIC_CACHE = 'kamizo-static-v65';
+const ASSET_CACHE = 'kamizo-assets-v65';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v65';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
