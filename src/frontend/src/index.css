@@ -1426,9 +1426,39 @@ a.btn-secondary:active,
   animation: fade-in 0.2s ease;
 }
 
-/* Smooth page transitions */
+/* Smooth resident-app page transitions ──────────────────────────────
+   Applied to a Suspense-internal wrapper keyed by location.pathname so
+   the routed content re-mounts and animates on every navigation. iOS-
+   style: quick opacity fade only.
+
+   IMPORTANT — opacity-ONLY by design. Do not add transform / filter /
+   perspective here. The wrapper lives inside the routed <main> and is
+   therefore an ancestor of every routed page; routed pages frequently
+   contain position:fixed elements (sticky action bars, full-screen
+   modals, popups). A transform on this wrapper would create a new
+   containing block and re-anchor those fixed descendants to the
+   wrapper instead of the viewport for the duration of the animation,
+   which causes them to jump/clip. Fade-only animation has no such
+   side-effect.
+
+   The fixed/portaled chrome (MobileHeader, BottomBar, impersonation
+   banner) all live OUTSIDE this wrapper, so they're not animated and
+   not affected either way.
+
+   --ease-emphasized is the Material-style decel curve already defined
+   at :root. */
 .page-transition {
-  animation: fade-in 0.2s ease;
+  animation: fade-in 0.22s var(--ease-emphasized, ease-out);
+  /* GPU-promote opacity only — no transform — to avoid the containing-
+     block side-effect described above while still keeping the fade
+     smooth on weak iOS PWAs. */
+  will-change: opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 @keyframes fadeIn {
