@@ -371,7 +371,13 @@ export function Layout() {
   // width without the .page-content per-device auto-padding compounding.
   const isResidentRate = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/rate-employees';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate;
+  // Resident useful-contacts (Claude Design §08-kontakty) — sticky in-page
+  // header + category chips + emergency strip + partner promo cards. Page
+  // paints its own 16px sides so .page-content's per-device mobile padding
+  // would compound; full-bleed gates the modifier.
+  const isResidentContacts = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/useful-contacts';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
