@@ -12,6 +12,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { useRequestStore } from '../stores/dataStore';
+import { useTenantStore } from '../stores/tenantStore';
+import { useBuildingStore } from '../stores/buildingStore';
 import { formatName } from '../utils/formatName';
 import { formatPhone } from '../utils/formatPhone';
 import { InstallAppSection } from '../components/InstallAppSection';
@@ -78,6 +80,21 @@ export function ResidentProfilePage() {
   const { language, setLanguage } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const getRequestsByResident = useRequestStore(s => s.getRequestsByResident);
+  // УК (управляющая компания) identity for the new "Управляющая
+  // компания" card. Logo + name come from /api/tenant/config (already
+  // populated by the auth bootstrap); the ЖК card pulls the real
+  // building name/address from buildingStore (lazy-loaded once on mount
+  // when the user has a buildingId).
+  const tenantConfig = useTenantStore(s => s.config?.tenant);
+  const fetchBuildingById = useBuildingStore(s => s.fetchBuildingById);
+  const residentBuilding = useBuildingStore(s =>
+    user?.buildingId ? s.buildings.find(b => b.id === user.buildingId) : undefined
+  );
+  useEffect(() => {
+    if (user?.buildingId && !residentBuilding) {
+      fetchBuildingById(user.buildingId);
+    }
+  }, [user?.buildingId, residentBuilding, fetchBuildingById]);
 
   // ── modal / inline-edit state ────────────────────────────────────────
   const [editingPhone, setEditingPhone] = useState(false);
@@ -171,6 +188,9 @@ export function ResidentProfilePage() {
     passwordError: 'Ошибка при смене пароля',
     qrSubtitle: 'QR-код для пропуска и подписания документов',
     versionLabel: 'версия',
+    sectionUk: 'Управляющая компания',
+    ukEyebrow: 'Управляющая компания',
+    ukBuildingLine: 'Жилой комплекс',
   } : {
     role_resident: 'Egasi',
     role_tenant: 'Ijarachi',
@@ -226,6 +246,9 @@ export function ResidentProfilePage() {
     passwordError: "Parolni oʼzgartirishda xatolik",
     qrSubtitle: 'Hujjatlarni imzolash va ruxsat uchun QR',
     versionLabel: 'versiya',
+    sectionUk: 'Boshqaruv kompaniyasi',
+    ukEyebrow: 'Boshqaruv kompaniyasi',
+    ukBuildingLine: 'Turar-joy majmuasi',
   }, [language]);
 
   if (!user) return null;
@@ -513,6 +536,25 @@ export function ResidentProfilePage() {
         ))}
       </div>
 
+      {/* ── Управляющая компания ──────────────────────────────────────
+          Real УК identity from /api/tenant/config (logo + name) + the
+          resident's ЖК (real building name + address) when buildingId
+          resolves through buildingStore. Falls back gracefully when
+          fields are missing — the only currently-missing pieces are
+          the УК's legal-form prefix (ТСЖ/УК/ХУЖМШ) and a public УК
+          rating endpoint; both noted in design/feature notes. */}
+      <div style={{ padding: '20px 16px 0' }}>
+        <ManagementCompanyCard
+          tenantName={tenantConfig?.name || 'Kamizo'}
+          tenantLogo={tenantConfig?.logo || null}
+          ukLabel={t.ukEyebrow}
+          buildingName={residentBuilding?.name || user.building || null}
+          buildingAddress={residentBuilding?.address || user.address || null}
+          jkLabel={t.ukBuildingLine}
+          onClick={() => navigate('/contract')}
+        />
+      </div>
+
       {/* ── Settings sections ───────────────────────────────────────── */}
       <div style={{ padding: '20px 16px 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         {/* Дом и квартира */}
@@ -694,6 +736,128 @@ export function ResidentProfilePage() {
 }
 
 // ─── presentational sub-components ──────────────────────────────────────
+
+// Tappable "Управляющая компания" card. Visible at the top of the
+// resident profile under the action tiles. Shows the УК logo + name
+// from the real tenant config and (when available) the resident's ЖК
+// name + address from buildingStore. Falls back to clean initials and
+// the raw `user.building` / `user.address` strings when the optional
+// fields are missing.
+function ManagementCompanyCard({
+  tenantName, tenantLogo, ukLabel,
+  buildingName, buildingAddress, jkLabel,
+  onClick,
+}: {
+  tenantName: string;
+  tenantLogo: string | null;
+  ukLabel: string;
+  buildingName: string | null;
+  buildingAddress: string | null;
+  jkLabel: string;
+  onClick?: () => void;
+}) {
+  const initials = (() => {
+    const parts = tenantName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '·';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return ((parts[0][0] || '') + (parts[1][0] || '')).toUpperCase();
+  })();
+
+  const hasBuilding = !!(buildingName || buildingAddress);
+  const buildingLine = buildingName && buildingAddress && buildingName !== buildingAddress
+    ? `${buildingName} · ${buildingAddress}`
+    : (buildingName || buildingAddress || '');
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'block', width: '100%', textAlign: 'left',
+        background: SURFACE, border: `1px solid ${BORDER}`,
+        borderRadius: 20, boxShadow: SHADOW_SM,
+        padding: 14, cursor: onClick ? 'pointer' : 'default',
+        font: 'inherit', color: 'inherit',
+      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {tenantLogo ? (
+          <div style={{
+            width: 50, height: 50, borderRadius: 14,
+            background: '#FFFFFF', border: `1px solid ${BORDER}`,
+            display: 'grid', placeItems: 'center', flex: '0 0 auto',
+            overflow: 'hidden',
+          }}>
+            <img
+              src={tenantLogo}
+              alt={tenantName}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          </div>
+        ) : (
+          <div style={{
+            width: 50, height: 50, borderRadius: 14,
+            background: 'linear-gradient(135deg, #FB923C, #EA580C)',
+            color: '#fff', fontWeight: 800, fontSize: 17,
+            display: 'grid', placeItems: 'center', flex: '0 0 auto',
+            letterSpacing: '-0.02em',
+            boxShadow: '0 6px 16px rgba(249,115,22,0.32)',
+          }}>
+            {initials}
+          </div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em',
+            color: BRAND_DARK, textTransform: 'uppercase',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {ukLabel}
+          </div>
+          <div style={{
+            fontSize: 15.5, fontWeight: 700, letterSpacing: '-0.01em', color: TEXT_PRIMARY,
+            marginTop: 2,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {tenantName}
+          </div>
+        </div>
+        {onClick && (
+          <ChevronRight size={18} style={{ color: TEXT_MUTED, flex: '0 0 auto' }} />
+        )}
+      </div>
+
+      {hasBuilding && (
+        <div style={{
+          marginTop: 12, paddingTop: 12,
+          borderTop: `1px solid ${HAIRLINE}`,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: BRAND_TINT, color: BRAND_DARK,
+            display: 'grid', placeItems: 'center', flex: '0 0 auto',
+          }}>
+            <Building2 size={15} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em',
+              color: TEXT_MUTED, textTransform: 'uppercase',
+            }}>
+              {jkLabel}
+            </div>
+            <div style={{
+              fontSize: 13.5, fontWeight: 600, color: TEXT_PRIMARY,
+              marginTop: 1, lineHeight: 1.35,
+              wordBreak: 'break-word',
+            }}>
+              {buildingLine}
+            </div>
+          </div>
+        </div>
+      )}
+    </button>
+  );
+}
 
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
