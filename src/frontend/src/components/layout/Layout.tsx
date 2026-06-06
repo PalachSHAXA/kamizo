@@ -383,7 +383,13 @@ export function Layout() {
   // full-bleed gates the modifier and hides the global MobileHeader.
   const isResidentAnnouncements = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/announcements';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements;
+  // Resident meetings list (Claude Design §05-sobraniya) — sticky in-page
+  // header + legal-weight note + meeting cards with quorum bar / closed
+  // results grid. Page paints its own 16-px sides; full-bleed gates the
+  // modifier and hides the global MobileHeader.
+  const isResidentMeetings = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/meetings';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
