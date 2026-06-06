@@ -21,6 +21,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { financeApi } from '../../services/api/finance';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
+import { ResidentFinancePage } from './ResidentFinancePage';
 
 /* ─── helpers ──────────────────────────────────────────── */
 
@@ -45,7 +46,19 @@ const paymentTypeIcon: Record<string, React.ReactNode> = {
 
 /* ─── component ────────────────────────────────────────── */
 
+// Residents (and commercial_owner-style tenants) see the Claude Design
+// §09-oplata redesign — sticky header, dark balance card, accordion
+// charges list, real getCharges/getPayments wiring. Staff (admin /
+// director / manager) keep the full filter + payments UX in StaffChargesPage.
 export default function ChargesPage() {
+  const userRole = useAuthStore((s) => s.user?.role);
+  if (userRole === 'resident' || userRole === 'tenant' || userRole === 'commercial_owner') {
+    return <ResidentFinancePage />;
+  }
+  return <StaffChargesPage />;
+}
+
+function StaffChargesPage() {
   const language = useLanguageStore((s) => s.language);
   const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
 
