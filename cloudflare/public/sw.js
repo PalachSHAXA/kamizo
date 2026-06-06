@@ -1,4 +1,18 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.6 — cache suffix bumped to v60 to evict every v59 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident "Объявления" (06-obyavleniya) full Claude Design port:
+//     sticky in-page header (building eyebrow + Объявления title +
+//     ink/surface filter chips), feed of cards with brand-tint unread
+//     bg + 8px brand-orange dot, urgent variant (4px red stripe + cover
+//     + Важно badge), priority-mapped category pill, line-clamp
+//     preview that expands in-card with attachments + Читать/Свернуть
+//     chevron toggle. Wiring kept (fetchAnnouncements,
+//     getAnnouncementsForResidents, markAnnouncementAsViewed).
+//   • Layout: /announcements added to isResidentFullBleed (page paints
+//     its own 16-px sides, global MobileHeader hidden on this route).
+//
+// Previous notes (v59) preserved below:
 // Version: 3.7.5 — cache suffix bumped to v59 to evict every v58 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • BottomBar active-tab fix: on secondary resident pages opened
@@ -23,10 +37,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.5';
-const STATIC_CACHE = 'kamizo-static-v59';
-const ASSET_CACHE = 'kamizo-assets-v59';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v59';
+const SW_VERSION = '3.7.6';
+const STATIC_CACHE = 'kamizo-static-v60';
+const ASSET_CACHE = 'kamizo-assets-v60';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v60';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
