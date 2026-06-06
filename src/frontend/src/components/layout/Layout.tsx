@@ -377,7 +377,13 @@ export function Layout() {
   // would compound; full-bleed gates the modifier.
   const isResidentContacts = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/useful-contacts';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts;
+  // Resident announcements (Claude Design §06-obyavleniya) — sticky in-page
+  // header + filter chips + announcement feed. Page paints its own 16-px
+  // sides so .page-content's per-device mobile padding would compound;
+  // full-bleed gates the modifier and hides the global MobileHeader.
+  const isResidentAnnouncements = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/announcements';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
