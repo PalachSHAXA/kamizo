@@ -1,4 +1,21 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.7 — cache suffix bumped to v61 to evict every v60 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident per-meeting voting flow (03-golosovanie) full Claude
+//     Design port: sticky topbar, dark amber-stone hero with
+//     Кворум/Осталось/Бюджет stats + quorum bar, agenda cards with
+//     live За/Против/Воздерж buttons + result bar, objection +
+//     counter-proposal reveal on Against (≥ 20 chars), optional
+//     comment on For/Abstain, sticky bottom summary card with
+//     "Подписать и отправить все голоса", post-vote ballot receipt,
+//     and "Как считают голоса" bottom sheet. OTP card from the
+//     prototype is intentionally NOT shipped — chat1 retracted it;
+//     verification stays on the existing QRSignatureModal.
+//   • Modal-presence: voting overlay now registers with
+//     useModalPresence(true) so the global BottomBar hides while it's
+//     open and is restored on close.
+//
+// Previous notes (v60) preserved below:
 // Version: 3.7.6 — cache suffix bumped to v60 to evict every v59 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident "Объявления" (06-obyavleniya) full Claude Design port:
@@ -37,10 +54,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.6';
-const STATIC_CACHE = 'kamizo-static-v60';
-const ASSET_CACHE = 'kamizo-assets-v60';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v60';
+const SW_VERSION = '3.7.7';
+const STATIC_CACHE = 'kamizo-static-v61';
+const ASSET_CACHE = 'kamizo-assets-v61';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v61';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
