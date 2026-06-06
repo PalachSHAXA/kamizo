@@ -1,4 +1,25 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.12 — cache suffix bumped to v66 to evict every v65 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident "Оплата" page (09-oplata) full Claude Design port at
+//     /finance/charges (resident roles only — staff keep the existing
+//     filter page). Sticky header (Кв./ЖК + Оплата), dark balance card
+//     with state-aware gradient (clear/due/overdue), charges accordion
+//     wired to real financeApi.getCharges, inline payments history
+//     via financeApi.getPayments (both auto-filtered by user.id on the
+//     server). Empty state, skeleton, error fallback.
+//   • LOCKED actions (no backend yet; tap shows info toast — no fake
+//     success): "Оплатить {N} сум" (no online gateway) and "Акт сверки"
+//     (server returns JSON only, no PDF renderer).
+//   • Sections omitted because no resident endpoint exists yet: per-
+//     charge sub-item breakdown and "Куда идут средства дома" expense
+//     pie.
+//   • Layout: /finance/charges added to isResidentFullBleed only for
+//     resident-family roles so the page paints its own 16-px sides and
+//     hides the global MobileHeader. Staff still see the original
+//     chrome.
+//
+// Previous notes (v65) preserved below:
 // Version: 3.7.11 — cache suffix bumped to v65 to evict every v64 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Sidebar: drop the hardcoded "ТСЖ «...»" prefix; use the real УК
@@ -121,10 +142,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.11';
-const STATIC_CACHE = 'kamizo-static-v65';
-const ASSET_CACHE = 'kamizo-assets-v65';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v65';
+const SW_VERSION = '3.7.12';
+const STATIC_CACHE = 'kamizo-static-v66';
+const ASSET_CACHE = 'kamizo-assets-v66';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v66';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
