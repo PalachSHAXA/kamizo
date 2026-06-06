@@ -1,0 +1,134 @@
+/* Kamizo design tokens — FOUNDATION: beige + orange + dark stone */
+:root {
+  /* ── Accent / brand (orange, per-tenant overridable) ── */
+  --brand:        #F97316;
+  --brand-light:  #FB923C;
+  --brand-dark:   #EA580C;
+  --brand-rgb:    249, 115, 22;
+  --brand-tint:   #FFF3EA;
+
+  /* Brand shade scale (kept for components that used --brand-NNN) */
+  --brand-50:  #FFF3EA;
+  --brand-100: #FFE6D2;
+  --brand-200: #FED7AA;
+  --brand-300: #FDBA74;
+  --brand-400: #FB923C;
+  --brand-500: #F97316;
+  --brand-600: #EA580C;
+  --brand-700: #C2410C;
+  --brand-800: #9A3412;
+  --brand-900: #7C2D12;
+
+  /* Amber aliases → brand (legacy screens still resolve) */
+  --amber-50:  #FFF3EA;
+  --amber-100: #FFE6D2;
+  --amber-200: #FED7AA;
+  --amber-300: #FDBA74;
+  --amber-400: #FB923C;
+  --amber-500: #F97316;
+  --amber-600: #EA580C;
+  --amber-700: #C2410C;
+  --amber-800: #9A3412;
+  --amber-900: #7C2D12;
+
+  /* ── Surfaces (beige / cream) ── */
+  --app-bg:         #F4F0E8;
+  --surface:        #FFFFFF;
+  --surface-2:      #FBF8F2;
+  --surface-sunken: #EDE7DB;
+  --border-c:       #E6DFD2;
+  --border-strong:  #D8CFBE;
+
+  /* ── Dark stone ── */
+  --ink:          #1C1917;
+  --ink-soft:     #292524;
+  --dark-surface: #211E1B;
+
+  /* ── Stone scale (legacy) mapped to warm neutrals ── */
+  --stone-50:  #FBF8F2;
+  --stone-100: #F4F0E8;
+  --stone-150: #EDE7DB;
+  --stone-200: #E6DFD2;
+  --stone-300: #D8CFBE;
+  --stone-400: #A8A29E;
+  --stone-500: #6F6A62;
+  --stone-600: #57534E;
+  --stone-700: #44403C;
+  --stone-800: #292524;
+  --stone-900: #1C1917;
+
+  /* ── Text (warm gray scale) ── */
+  --text-primary:   #1C1917;
+  --text-secondary: #6F6A62;
+  --text-muted:     #A8A29E;
+  --text-on-dark:   #F4F0E8;
+
+  /* ── Semantic statuses ── */
+  --status-active:   #15A06E;  --status-active-bg:   rgba(21,160,110,0.12);
+  --status-pending:  #F59E0B;  --status-pending-bg:  rgba(245,158,11,0.12);
+  --status-expired:  #8A857C;  --status-expired-bg:  rgba(138,133,124,0.12);
+  --status-critical: #E2483D;  --status-critical-bg: rgba(226,72,61,0.12);
+  --status-info:     #2F77C2;  --status-info-bg:     rgba(47,119,194,0.12);
+
+  /* Legacy semantic aliases */
+  --success: #15A06E;  --success-bg: rgba(21,160,110,0.12);
+  --warn: #F59E0B;     --warn-bg: rgba(245,158,11,0.12);
+  --danger: #E2483D;   --danger-bg: rgba(226,72,61,0.12);
+  --info: #2F77C2;     --info-bg: rgba(47,119,194,0.12);
+
+  /* ── Surfaces (legacy aliases used across screens) ── */
+  --bg: var(--app-bg);
+  --bg-elevated: var(--surface);
+  --border: var(--border-c);
+  --hairline: rgba(28,25,23,0.06);
+
+  /* Text aliases */
+  --text: var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-muted);
+  --text-inverse: #FFFFFF;
+
+  /* ── Radii ── */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 24px;
+  --r-2xl: 28px;
+  --r-pill: 9999px;
+
+  /* ── Shadows (soft, warm) ── */
+  --shadow-sm: 0 1px 2px rgba(28,25,23,0.04);
+  --shadow-md: 0 4px 16px rgba(28,25,23,0.06);
+  --shadow-lg: 0 12px 32px rgba(28,25,23,0.08);
+  --sh-1: var(--shadow-sm);
+  --sh-2: var(--shadow-md);
+  --sh-3: var(--shadow-lg);
+  --sh-amber: 0 8px 22px rgba(249,115,22,0.26);
+  --sh-brand: 0 8px 22px rgba(249,115,22,0.26);
+
+  /* ── Motion ── */
+  --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 0.18s;
+  --duration-base: 0.22s;
+
+  /* ── Type ── */
+  --font: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-num: "Manrope", -apple-system, system-ui, sans-serif;
+}
+
+/* Inside an iOS phone screen */
+.kz-screen {
+  font-family: var(--font);
+  color: var(--text-primary);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+.kz-screen *::-webkit-scrollbar { display: none; }
+.kz-screen * { scrollbar-width: none; }

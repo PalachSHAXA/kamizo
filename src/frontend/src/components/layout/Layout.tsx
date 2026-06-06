@@ -395,7 +395,13 @@ export function Layout() {
   // bleed gates the modifier and hides the global MobileHeader.
   const isResidentContract = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/contract';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract;
+  // Resident finance (Claude Design §09-oplata) — only for residents:
+  // sticky header + dark balance card + charges list. Staff hitting the
+  // same /finance/charges URL keep the existing chrome (their UI is the
+  // complex filter page).
+  const isResidentFinance = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/finance/charges';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
