@@ -1,11 +1,105 @@
+// Resident "Объявления" — Claude Design §06-obyavleniya handoff
+// (design/handoff/announcements-handoff.md). Sticky in-page header
+// (building eyebrow + title + Все/Непрочитанные chips), feed of
+// announcement cards with optional cover, category pill, brand-orange
+// unread dot, urgent red stripe + "Важно" badge, expandable preview,
+// and attachment download chips.
+//
+// Data wiring stays on the existing endpoints:
+//   - useAnnouncementStore.fetchAnnouncements
+//   - useAnnouncementStore.getAnnouncementsForResidents(login, building, entrance, floor, branch, apartment)
+//   - useAnnouncementStore.markAnnouncementAsViewed(announcementId, userId)
+//
+// The expansion is in-card (matches the handoff); there is no modal,
+// so useModalPresence is not needed here.
+
 import { useState, useEffect } from 'react';
-import { Megaphone, AlertTriangle, AlertCircle, Info, ChevronRight, Check, Download, FileText, File } from 'lucide-react';
-import { EmptyState } from '../components/common';
+import { Megaphone, AlertTriangle, ChevronDown, FileText, File, Download } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { formatName } from '../utils/formatName';
 import type { Announcement, AnnouncementPriority } from '../types';
+
+// ── shared visual tokens (kept literal so the page renders correctly
+//    even if a global token gets renamed) ─────────────────────────────
+const APP_BG = '#F4F0E8';
+const TEXT_PRIMARY = '#1C1917';
+const TEXT_SECONDARY = '#6F6A62';
+const TEXT_MUTED = '#A8A29E';
+const SURFACE = '#FFFFFF';
+const SURFACE_SUNKEN = '#EDE7DB';
+const BORDER = '#E6DFD2';
+const HAIRLINE = 'rgba(28,25,23,0.06)';
+const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+const INK = '#1C1917';
+const TEXT_ON_DARK = '#F4F0E8';
+const BRAND = '#F97316';
+const BRAND_DARK = '#EA580C';
+const BRAND_TINT = '#FFF3EA';
+const BRAND_200 = '#FED7AA';
+const STATUS_CRITICAL = '#E2483D';
+const STATUS_CRITICAL_BG = 'rgba(226,72,61,0.12)';
+const STATUS_INFO = '#3B82F6';
+const STATUS_INFO_BG = 'rgba(59,130,246,0.10)';
+const STATUS_ACTIVE = '#15A06E';
+const STATUS_ACTIVE_BG = 'rgba(21,160,110,0.12)';
+const RADIUS_LG = 16;
+const RADIUS_SM = 10;
+
+interface PriorityVisuals {
+  label: string;
+  catFg: string;
+  catBg: string;
+}
+
+const priorityVisuals = (priority: AnnouncementPriority, lang: 'ru' | 'uz'): PriorityVisuals => {
+  switch (priority) {
+    case 'urgent':
+      return {
+        label: lang === 'ru' ? 'Срочно' : 'Shoshilinch',
+        catFg: STATUS_CRITICAL,
+        catBg: STATUS_CRITICAL_BG,
+      };
+    case 'important':
+      return {
+        label: lang === 'ru' ? 'Важно' : 'Muhim',
+        catFg: STATUS_INFO,
+        catBg: STATUS_INFO_BG,
+      };
+    default:
+      return {
+        label: lang === 'ru' ? 'Информация' : "Ma'lumot",
+        catFg: STATUS_ACTIVE,
+        catBg: STATUS_ACTIVE_BG,
+      };
+  }
+};
+
+// Relative date — matches the handoff's "2 ч назад / вчера / 3 дня назад"
+// idiom without dragging in a heavy i18n lib.
+const formatRelativeDate = (dateStr: string, lang: 'ru' | 'uz'): string => {
+  const safe = dateStr.endsWith?.('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z';
+  const diff = Date.now() - new Date(safe).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return lang === 'ru' ? 'только что' : 'hozir';
+  if (mins < 60) return lang === 'ru' ? `${mins} мин назад` : `${mins} min oldin`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return lang === 'ru' ? `${hrs} ч назад` : `${hrs} soat oldin`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return lang === 'ru' ? 'вчера' : 'kecha';
+  if (days < 7) return lang === 'ru' ? `${days} дн назад` : `${days} kun oldin`;
+  return new Date(safe).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', {
+    day: 'numeric',
+    month: 'short',
+  });
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (!bytes || bytes < 1024) return `${bytes || 0} Б`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+};
 
 export function ResidentAnnouncementsPage() {
   const { user } = useAuthStore();
@@ -16,6 +110,7 @@ export function ResidentAnnouncementsPage() {
   const markAnnouncementAsViewed = useAnnouncementStore(s => s.markAnnouncementAsViewed);
   const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const { language } = useLanguageStore();
+  const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Start with 'all' so first-time users don't see an empty "Unread (0)" tab.
   // Switch to 'unread' automatically only if data loads with real unread items
@@ -23,12 +118,10 @@ export function ResidentAnnouncementsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [userPickedFilter, setUserPickedFilter] = useState(false);
 
-  // Fetch announcements on component mount
   useEffect(() => {
     fetchAnnouncements();
   }, [fetchAnnouncements]);
 
-  // Get user's targeting info
   const userLogin = user?.login || '';
   const userBuilding = user?.buildingId || '';
   const userEntrance = user?.entrance || '';
@@ -36,13 +129,13 @@ export function ResidentAnnouncementsPage() {
   const userBranch = user?.branch || '';
   const userApartment = user?.apartment || '';
 
-  const announcements = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
+  const announcements = getAnnouncementsForResidents(
+    userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment
+  );
 
-  const filteredAnnouncements = filter === 'unread'
-    ? announcements.filter(a => !a.viewedBy?.includes(user?.id || ''))
-    : announcements;
-
-  const unreadCount = announcements.filter(a => !a.viewedBy?.includes(user?.id || '')).length;
+  const isUnread = (a: Announcement) => !a.viewedBy?.includes(user?.id || '');
+  const filteredAnnouncements = filter === 'unread' ? announcements.filter(isUnread) : announcements;
+  const unreadCount = announcements.filter(isUnread).length;
 
   // Auto-switch to 'unread' once when data first arrives with unread items.
   // Never override user's explicit choice.
@@ -53,230 +146,378 @@ export function ResidentAnnouncementsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unreadCount]);
 
-  const handleExpand = (announcement: Announcement) => {
-    if (expandedId === announcement.id) {
+  const handleExpand = (a: Announcement) => {
+    if (expandedId === a.id) {
       setExpandedId(null);
     } else {
-      setExpandedId(announcement.id);
-      // Mark as viewed when expanded
-      if (user?.id && !announcement.viewedBy?.includes(user.id)) {
-        markAnnouncementAsViewed(announcement.id, user.id);
+      setExpandedId(a.id);
+      if (user?.id && !a.viewedBy?.includes(user.id)) {
+        markAnnouncementAsViewed(a.id, user.id);
       }
     }
   };
 
-  const getPriorityStyles = (priority: AnnouncementPriority) => {
-    switch (priority) {
-      case 'urgent':
-        return {
-          bg: 'bg-red-50 border-red-200',
-          badge: 'bg-red-100 text-red-700',
-          icon: <AlertTriangle className="w-5 h-5 text-red-500" />,
-          label: language === 'ru' ? 'Срочно' : 'Shoshilinch'
-        };
-      case 'important':
-        return {
-          bg: 'bg-amber-50 border-amber-200',
-          badge: 'bg-amber-100 text-amber-700',
-          icon: <AlertCircle className="w-5 h-5 text-amber-500" />,
-          label: language === 'ru' ? 'Важно' : 'Muhim'
-        };
-      default:
-        return {
-          bg: 'bg-blue-50 border-blue-200',
-          badge: 'bg-blue-100 text-blue-700',
-          icon: <Info className="w-5 h-5 text-blue-500" />,
-          label: language === 'ru' ? 'Информация' : 'Ma\'lumot'
-        };
-    }
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const eyebrow = user?.building
+    ? (lang === 'ru' ? `Дом ${user.building}` : `${user.building}-uy`)
+    : (lang === 'ru' ? 'Объявления дома' : "Uy e'lonlari");
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
-      {/* Header — chat-style: brand-orange avatar + title + unread chip */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm">
-            <Megaphone className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg md:text-xl xl:text-2xl font-bold">
-              {language === 'ru' ? 'Объявления' : "E'lonlar"}
-            </h1>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {unreadCount > 0
-                ? `${unreadCount} ${language === 'ru' ? 'новых' : 'yangi'}`
-                : language === 'ru' ? 'Все прочитано' : "Hammasi o'qilgan"}
-            </p>
-          </div>
+    <div style={{
+      minHeight: '100%',
+      background: APP_BG,
+      color: TEXT_PRIMARY,
+      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+      letterSpacing: '-0.01em',
+    }}>
+      {/* ── Sticky header ─────────────────────────────────────────────── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 5,
+        padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
+        background: 'rgba(244,240,232,0.92)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        borderBottom: `1px solid ${HAIRLINE}`,
+      }}>
+        <div style={{
+          fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
+          color: TEXT_SECONDARY, textTransform: 'uppercase',
+        }}>
+          {eyebrow}
         </div>
-      </div>
-
-      {/* Filter — Sprint 34: brand-orange active state with white text
-          (was bg-primary-500 text-gray-900 which read as a yellow chip
-          with black text — off-brand). */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => { setFilter('all'); setUserPickedFilter(true); }}
-          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all active:scale-[0.97] touch-manipulation ${
-            filter === 'all'
-              ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-sm'
-              : 'bg-white/70 text-gray-600 hover:bg-white'
-          }`}
-        >
-          {language === 'ru' ? 'Все' : 'Hammasi'} · {announcements.length}
-        </button>
-        <button
-          onClick={() => { setFilter('unread'); setUserPickedFilter(true); }}
-          className={`px-4 py-2 min-h-[40px] rounded-full font-semibold text-sm transition-all active:scale-[0.97] touch-manipulation ${
-            filter === 'unread'
-              ? 'bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white shadow-sm'
-              : 'bg-white/70 text-gray-600 hover:bg-white'
-          }`}
-        >
-          {language === 'ru' ? 'Новые' : 'Yangi'} · {unreadCount}
-        </button>
-      </div>
-
-      {/* Announcements List */}
-      {filteredAnnouncements.length === 0 ? (
-        <EmptyState
-          icon={<Megaphone className="w-12 h-12" />}
-          title={filter === 'unread'
-            ? (language === 'ru' ? 'Нет новых объявлений' : 'Yangi e\'lonlar yo\'q')
-            : (language === 'ru' ? 'Объявлений пока нет' : 'E\'lonlar yo\'q')}
-          description={language === 'ru' ? 'Новые объявления появятся здесь' : 'Yangi e\'lonlar bu yerda paydo bo\'ladi'}
-        />
-      ) : (
-        <div key={filter} className="space-y-3 stagger-children">
-          {filteredAnnouncements.map((announcement) => {
-            const isUnread = !announcement.viewedBy?.includes(user?.id || '');
-            const isExpanded = expandedId === announcement.id;
-            const styles = getPriorityStyles(announcement.priority);
-
+        <div style={{
+          fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
+          marginTop: 2, color: TEXT_PRIMARY,
+        }}>
+          {lang === 'ru' ? 'Объявления' : "E'lonlar"}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          {([
+            { id: 'all', label: `${lang === 'ru' ? 'Все' : 'Hammasi'} · ${announcements.length}` },
+            { id: 'unread', label: `${lang === 'ru' ? 'Непрочитанные' : "O'qilmagan"} · ${unreadCount}` },
+          ] as const).map(f => {
+            const on = filter === f.id;
             return (
-              <div
-                key={announcement.id}
-                className={`glass-card relative overflow-hidden p-3 sm:p-4 md:p-5 cursor-pointer transition-all touch-manipulation active:scale-[0.99] ${styles.bg} ${
-                  isUnread ? 'shadow-md' : ''
-                }`}
-                onClick={() => handleExpand(announcement)}
+              <button
+                key={f.id}
+                onClick={() => { setFilter(f.id); setUserPickedFilter(true); }}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 999,
+                  fontSize: 13,
+                  fontWeight: 650,
+                  background: on ? INK : SURFACE,
+                  color: on ? TEXT_ON_DARK : TEXT_SECONDARY,
+                  border: `1px solid ${on ? INK : BORDER}`,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
               >
-                {/* Sprint 34: left accent bar for unread (was a full
-                    yellow ring around the whole card — too loud). The
-                    accent uses brand orange so unread reads as a "this
-                    is fresh from УК" cue, not a warning. */}
-                {isUnread && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#E8621A] to-[#F59E0B]" />
-                )}
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
-                    {styles.icon}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    {/* Header */}
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      {isUnread && (
-                        <span className="px-2 py-0.5 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white text-[11px] font-bold">
-                          {language === 'ru' ? 'Новое' : 'Yangi'}
-                        </span>
-                      )}
-                      <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${styles.badge}`}>
-                        {styles.label}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="font-semibold text-base text-gray-900 mb-1">
-                      {announcement.title}
-                    </h3>
-
-                    {/* Content */}
-                    <p className={`text-gray-600 text-sm ${isExpanded ? '' : 'line-clamp-2'}`}>
-                      {announcement.content}
-                    </p>
-
-                    {/* Attachments */}
-                    {announcement.attachments && announcement.attachments.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {/* Image previews */}
-                        {announcement.attachments.filter(a => a.type.startsWith('image/')).length > 0 && (
-                          <div className="flex gap-2 overflow-x-auto pb-1">
-                            {announcement.attachments.filter(a => a.type.startsWith('image/')).map((attachment, index) => (
-                              <a
-                                key={`img-${index}`}
-                                href={attachment.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-shrink-0 rounded-xl overflow-hidden border border-gray-200 hover:border-primary-400 transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <img src={attachment.url} alt={attachment.name} loading="lazy" decoding="async" className="h-32 w-auto max-w-[200px] object-cover" />
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                        {/* Non-image files */}
-                        {announcement.attachments.filter(a => !a.type.startsWith('image/')).length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {announcement.attachments.filter(a => !a.type.startsWith('image/')).map((attachment, index) => (
-                              <a
-                                key={`file-${index}`}
-                                href={attachment.url}
-                                download={attachment.name}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-3 py-2 bg-white/80 hover:bg-white rounded-lg text-sm text-gray-700 transition-colors border border-gray-200"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {attachment.type.includes('pdf') ? (
-                                  <FileText className="w-4 h-4 text-red-500" />
-                                ) : (
-                                  <File className="w-4 h-4 text-gray-500" />
-                                )}
-                                <span className="truncate max-w-[150px]">{attachment.name}</span>
-                                <Download className="w-4 h-4 text-gray-400" />
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Meta */}
-                    <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
-                      <span>{formatDate(announcement.createdAt)}</span>
-                      <span>{formatName(announcement.authorName)}</span>
-                      {!isUnread && (
-                        <span className="flex items-center gap-1 text-green-600">
-                          <Check className="w-3 h-3" />
-                          {language === 'ru' ? 'Прочитано' : 'O\'qilgan'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <ChevronRight className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${
-                    isExpanded ? 'rotate-90' : ''
-                  }`} />
-                </div>
-              </div>
+                {f.label}
+              </button>
             );
           })}
         </div>
+      </div>
+
+      {/* ── Feed ──────────────────────────────────────────────────────── */}
+      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {filteredAnnouncements.length === 0 ? (
+          <EmptyState lang={lang} filter={filter} />
+        ) : (
+          filteredAnnouncements.map(a => (
+            <AnnouncementCard
+              key={a.id}
+              announcement={a}
+              unread={isUnread(a)}
+              expanded={expandedId === a.id}
+              lang={lang}
+              onToggle={() => handleExpand(a)}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Subcomponents
+// ─────────────────────────────────────────────────────────────────────────
+
+interface CardProps {
+  announcement: Announcement;
+  unread: boolean;
+  expanded: boolean;
+  lang: 'ru' | 'uz';
+  onToggle: () => void;
+}
+
+function AnnouncementCard({ announcement: a, unread, expanded, lang, onToggle }: CardProps) {
+  const urgent = a.priority === 'urgent';
+  const vis = priorityVisuals(a.priority, lang);
+  const imageAttachments = (a.attachments || []).filter(x => x.type.startsWith('image/'));
+  const fileAttachments = (a.attachments || []).filter(x => !x.type.startsWith('image/'));
+
+  return (
+    <div style={{
+      position: 'relative',
+      background: unread ? BRAND_TINT : SURFACE,
+      borderRadius: RADIUS_LG,
+      border: `1px solid ${urgent ? STATUS_CRITICAL_BG : (unread ? BRAND_200 : BORDER)}`,
+      boxShadow: SHADOW_SM,
+      overflow: 'hidden',
+      opacity: unread ? 1 : 0.94,
+    }}>
+      {urgent && <div style={{ height: 4, background: STATUS_CRITICAL }} />}
+
+      {/* Cover — rendered only for urgent items (the API has no cover field;
+          this keeps the layout faithful while staying within the schema) */}
+      {urgent && (
+        <div style={{
+          position: 'relative',
+          height: 96,
+          background: 'linear-gradient(135deg, #C2410C, #7C2D12)',
+          display: 'grid',
+          placeItems: 'center',
+          overflow: 'hidden',
+        }}>
+          <AlertTriangle size={42} style={{ color: 'rgba(255,255,255,0.55)' }} />
+        </div>
       )}
+
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 15,
+          color: 'inherit',
+          font: 'inherit',
+        }}
+      >
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {urgent && (
+            <span style={{
+              fontSize: 9.5,
+              fontWeight: 800,
+              letterSpacing: '0.04em',
+              color: STATUS_CRITICAL,
+              background: STATUS_CRITICAL_BG,
+              padding: '2px 7px',
+              borderRadius: 999,
+              textTransform: 'uppercase',
+            }}>
+              {lang === 'ru' ? 'Важно' : 'Muhim'}
+            </span>
+          )}
+          <span style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            color: vis.catFg,
+            background: vis.catBg,
+            padding: '3px 9px',
+            borderRadius: 999,
+          }}>
+            {vis.label}
+          </span>
+          <span style={{
+            fontSize: 11.5,
+            color: TEXT_MUTED,
+            marginLeft: 'auto',
+          }}>
+            {formatRelativeDate(a.createdAt, lang)}
+          </span>
+          {unread && (
+            <span style={{
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              background: BRAND,
+              flex: '0 0 auto',
+            }} />
+          )}
+        </div>
+
+        {/* Title */}
+        <div style={{
+          fontSize: 16,
+          fontWeight: 700,
+          letterSpacing: '-0.015em',
+          lineHeight: 1.3,
+          marginTop: 9,
+          color: TEXT_PRIMARY,
+        }}>
+          {a.title}
+        </div>
+
+        {/* Body / preview */}
+        <div style={{
+          fontSize: 13.5,
+          color: TEXT_SECONDARY,
+          marginTop: 5,
+          lineHeight: 1.45,
+          ...(expanded ? {} : {
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical' as const,
+            overflow: 'hidden',
+          }),
+        }}>
+          {a.content}
+        </div>
+
+        {/* Attachments (expanded only) */}
+        {expanded && imageAttachments.length > 0 && (
+          <div style={{
+            marginTop: 12,
+            display: 'flex',
+            gap: 8,
+            overflowX: 'auto',
+            paddingBottom: 4,
+            WebkitOverflowScrolling: 'touch',
+          }}>
+            {imageAttachments.map((att, i) => (
+              <a
+                key={`img-${i}`}
+                href={att.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: '0 0 auto',
+                  borderRadius: RADIUS_SM,
+                  overflow: 'hidden',
+                  border: `1px solid ${BORDER}`,
+                  display: 'block',
+                  background: SURFACE_SUNKEN,
+                }}
+              >
+                <img
+                  src={att.url}
+                  alt={att.name}
+                  loading="lazy"
+                  decoding="async"
+                  style={{ height: 128, width: 'auto', maxWidth: 220, objectFit: 'cover', display: 'block' }}
+                />
+              </a>
+            ))}
+          </div>
+        )}
+
+        {expanded && fileAttachments.length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {fileAttachments.map((att, i) => (
+              <a
+                key={`file-${i}`}
+                href={att.url}
+                download={att.name}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: RADIUS_SM,
+                  background: SURFACE_SUNKEN,
+                  border: `1px solid ${BORDER}`,
+                  textDecoration: 'none',
+                  color: TEXT_PRIMARY,
+                }}
+              >
+                {att.type.includes('pdf')
+                  ? <FileText size={16} style={{ color: STATUS_CRITICAL, flex: '0 0 auto' }} />
+                  : <File size={16} style={{ color: BRAND_DARK, flex: '0 0 auto' }} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 12.5,
+                    fontWeight: 650,
+                    color: TEXT_PRIMARY,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    {att.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 1 }}>
+                    {formatFileSize(att.size)}
+                  </div>
+                </div>
+                <Download size={16} style={{ color: TEXT_SECONDARY, flex: '0 0 auto' }} />
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Footer row */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: 11,
+          fontSize: 11.5,
+          color: TEXT_MUTED,
+        }}>
+          <span style={{
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            minWidth: 0,
+          }}>
+            {formatName(a.authorName)}
+          </span>
+          <span style={{
+            marginLeft: 'auto',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            fontWeight: 650,
+            color: BRAND_DARK,
+            flex: '0 0 auto',
+          }}>
+            {expanded
+              ? (lang === 'ru' ? 'Свернуть' : "Yopish")
+              : (lang === 'ru' ? 'Читать' : "O'qish")}
+            <ChevronDown
+              size={13}
+              style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+            />
+          </span>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function EmptyState({ lang, filter }: { lang: 'ru' | 'uz'; filter: 'all' | 'unread' }) {
+  const title = filter === 'unread'
+    ? (lang === 'ru' ? 'Всё прочитано' : "Hammasi o'qilgan")
+    : (lang === 'ru' ? 'Объявлений пока нет' : "E'lonlar yo'q");
+  const sub = filter === 'unread'
+    ? (lang === 'ru' ? 'Новых объявлений нет' : "Yangi e'lonlar yo'q")
+    : (lang === 'ru' ? 'Новые объявления появятся здесь' : "Yangi e'lonlar bu yerda paydo bo'ladi");
+  return (
+    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+      <div style={{
+        width: 72,
+        height: 72,
+        borderRadius: 999,
+        background: SURFACE_SUNKEN,
+        color: TEXT_MUTED,
+        display: 'grid',
+        placeItems: 'center',
+        margin: '0 auto 16px',
+      }}>
+        <Megaphone size={32} />
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}>{title}</div>
+      <div style={{ fontSize: 13.5, color: TEXT_SECONDARY, marginTop: 6 }}>{sub}</div>
     </div>
   );
 }
