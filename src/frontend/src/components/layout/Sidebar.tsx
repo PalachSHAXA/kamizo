@@ -17,6 +17,7 @@ import { useModalPresence } from '../../stores/modalStore';
 import { useRequestStore, useAnnouncementStore, useExecutorStore, useVehicleStore, useGuestAccessStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { useTenantStore } from '../../stores/tenantStore';
+import { useBuildingStore } from '../../stores/buildingStore';
 import { AppLogo } from '../common/AppLogo';
 import { chatApi } from '../../services/api';
 import { FeatureLockedModal } from '../FeatureLockedModal';
@@ -47,6 +48,19 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const { meetings } = useMeetingStore();
   const { hasFeature, config } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';
+  const tenantLogo = config?.tenant?.logo || null;
+  // Resident's building (ЖК) — fetched lazily on first render of the
+  // resident-role drawer. Falls back to the user's building number /
+  // address when the building hasn't loaded yet or the API failed.
+  const fetchBuildingById = useBuildingStore(s => s.fetchBuildingById);
+  const residentBuilding = useBuildingStore(s =>
+    user?.buildingId ? s.buildings.find(b => b.id === user.buildingId) : undefined
+  );
+  useEffect(() => {
+    if (user?.buildingId && !residentBuilding) {
+      fetchBuildingById(user.buildingId);
+    }
+  }, [user?.buildingId, residentBuilding, fetchBuildingById]);
   const isMobile = useIsMobile();
   const vehicles = useVehicleStore(s => s.vehicles);
   const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
@@ -601,7 +615,14 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
       return (parts[0][0] + parts[1][0]).toUpperCase();
     })();
-    const buildingLabel = user?.building || user?.address || '—';
+    // Prefer the building's real name (ЖК) from the buildings API, then
+    // its address, then the legacy single-string fields on the user
+    // record (user.building is the bare number, e.g. "12A").
+    const buildingLabel = residentBuilding?.name
+      || residentBuilding?.address
+      || user?.building
+      || user?.address
+      || '—';
     const apartmentLabel = user?.apartment ? `${language === 'ru' ? 'Кв.' : 'Kv.'} ${user.apartment}` : '';
     const headerSubtitle = apartmentLabel ? `${buildingLabel} · ${apartmentLabel}` : buildingLabel;
     const verified = Boolean(user?.contractSignedAt);
@@ -670,21 +691,42 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
               pointerEvents: 'none',
             }} />
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 50, height: 50, borderRadius: 15,
-                background: 'linear-gradient(135deg, #FB923C, #EA580C)', color: '#fff',
-                display: 'grid', placeItems: 'center', flex: '0 0 auto',
-                boxShadow: '0 6px 16px rgba(249,115,22,0.4)',
-              }}>
-                <Building2 size={23} strokeWidth={2.2} />
-              </div>
+              {/* When the УК has uploaded a logo we render it as a 50px chip;
+                  otherwise fall back to the orange Building2 gradient. */}
+              {tenantLogo ? (
+                <div style={{
+                  width: 50, height: 50, borderRadius: 15,
+                  background: '#FFFFFF', display: 'grid', placeItems: 'center',
+                  flex: '0 0 auto', overflow: 'hidden',
+                  boxShadow: '0 6px 16px rgba(28,25,23,0.25)',
+                }}>
+                  <img
+                    src={tenantLogo}
+                    alt={tenantName}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+              ) : (
+                <div style={{
+                  width: 50, height: 50, borderRadius: 15,
+                  background: 'linear-gradient(135deg, #FB923C, #EA580C)', color: '#fff',
+                  display: 'grid', placeItems: 'center', flex: '0 0 auto',
+                  boxShadow: '0 6px 16px rgba(249,115,22,0.4)',
+                }}>
+                  <Building2 size={23} strokeWidth={2.2} />
+                </div>
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Eyebrow = real УК name (was hardcoded "ТСЖ «...»"). The
+                    legal-form prefix isn't in the tenants table, so we drop
+                    it rather than show a wrong one — tenants are not all
+                    ТСЖ. */}
                 <div style={{
                   fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em',
                   color: '#FDBA74', textTransform: 'uppercase',
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
-                  ТСЖ «{tenantName}»
+                  {tenantName}
                 </div>
                 <div style={{
                   fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 2,
@@ -711,6 +753,10 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             </div>
 
             {/* ── Stats strip ── */}
+            {/* Resident-facing УК rating is not exposed by the backend yet
+                — /api/uk-ratings/summary is admin-only. We keep the slot
+                with a dash so the layout is stable and only fill it once a
+                public endpoint lands. */}
             <div style={{ position: 'relative', display: 'flex', marginTop: 16 }}>
               {[
                 { v: user?.totalArea ? String(user.totalArea) : '—', l: language === 'ru' ? 'м² площадь' : "m² maydon" },
