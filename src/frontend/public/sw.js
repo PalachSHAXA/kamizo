@@ -1,13 +1,14 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.4 — cache suffix bumped to v58 to evict every v57 (and
+// Version: 3.7.5 — cache suffix bumped to v59 to evict every v58 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • the resident "Полезные контакты" page redesign (Claude Design
-//     §08-kontakty): sticky header + category chips, 4-tile
-//     emergency strip (UZ national 102/101/103/104 as tel: links),
-//     featured + regular partner promo cards from /api/ads with
-//     per-category gradient icon boxes, and a "Стать партнёром" CTA
-//     opening a mailto: composer. Detail view registers with
-//     useModalPresence so the BottomBar hides while it's open.
+//   • BottomBar active-tab fix: on secondary resident pages opened
+//     from the sidebar (/useful-contacts, /rate-employees, /meetings,
+//     /announcements, /guest-access, /vehicles, /contract, /finance/*,
+//     /marketplace, …) the "Главная" tab now lights up via a fallback
+//     in BottomBar.isActive. Strict matches still win first
+//     (Заявки/Чат/Профиль keep their own active state on their owned
+//     routes, including sub-routes via prefix match), so two tabs are
+//     never active at once.
 //
 // Caching strategy unchanged:
 //   • HTML / navigation requests   → network-first, cache on success
@@ -22,10 +23,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.4';
-const STATIC_CACHE = 'kamizo-static-v58';
-const ASSET_CACHE = 'kamizo-assets-v58';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v58';
+const SW_VERSION = '3.7.5';
+const STATIC_CACHE = 'kamizo-static-v59';
+const ASSET_CACHE = 'kamizo-assets-v59';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v59';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
