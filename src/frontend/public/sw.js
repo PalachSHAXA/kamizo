@@ -1,4 +1,23 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.9 — cache suffix bumped to v63 to evict every v62 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident request-details bottom sheet (02d-detali-zayavki) full
+//     Claude Design port: dim backdrop + 2-px blur, warm-beige sheet,
+//     orange-gradient status card (56-px category chip + #UK-S-{N} +
+//     centred status title + 4-step icon progress with brand-orange
+//     halo + connector fill + submitted timestamp), contextual action
+//     button (Принять работу / Отменить заявку). Details card with
+//     description Ещё/Свернуть toggle, priority pill, scrollable photo
+//     thumbs (open in new tab), rating + feedback for completed,
+//     executor row with tel: phone button. Active-reschedule banner +
+//     amber "Перенести на другое время" button preserved.
+//   • Modal-presence: BottomBar hides while sheet is open (existing
+//     useModalPresence kept).
+//   • Wiring unchanged: onApprove / onCancel / onReschedule still emit
+//     to the parent which opens existing ApproveModal /
+//     CancelRequestModal / RescheduleModal.
+//
+// Previous notes (v62) preserved below:
 // Version: 3.7.8 — cache suffix bumped to v62 to evict every v61 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident "Собрания" list (05-sobraniya) full Claude Design port:
@@ -72,10 +91,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.8';
-const STATIC_CACHE = 'kamizo-static-v62';
-const ASSET_CACHE = 'kamizo-assets-v62';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v62';
+const SW_VERSION = '3.7.9';
+const STATIC_CACHE = 'kamizo-static-v63';
+const ASSET_CACHE = 'kamizo-assets-v63';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v63';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
