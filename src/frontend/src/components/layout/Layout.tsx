@@ -389,7 +389,13 @@ export function Layout() {
   // modifier and hides the global MobileHeader.
   const isResidentMeetings = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/meetings';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings;
+  // Resident contract (Claude Design §14-dogovor) — sticky in-page header
+  // + dark hero card + accordion conditions + two-column requisites +
+  // sticky bottom action bar. Page paints its own 16-px sides; full-
+  // bleed gates the modifier and hides the global MobileHeader.
+  const isResidentContract = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
+    && location.pathname === '/contract';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
