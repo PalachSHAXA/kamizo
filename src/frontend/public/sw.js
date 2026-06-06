@@ -1,18 +1,13 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.3 — cache suffix bumped to v57 to evict every v56 (and
+// Version: 3.7.4 — cache suffix bumped to v58 to evict every v57 (and
 // older) cache on the next SW lifecycle update. This release ships:
-//   • the resident "Оценка сотрудников" page redesign (Claude Design
-//     §09-ocenka): sticky header, horizontally-scrolling employee
-//     chip row with green check on rated chips, selected-employee
-//     card with avatar + role + amber rating + last-job pill +
-//     centered "Как прошло?" 5-star input + word-rating + tag chips
-//     + comment + amber submit, secondary "Оценить УК отдельно" card
-//     that opens the existing UK rating UI inside a common/Modal
-//     (already wired to useModalPresence so the BottomBar hides
-//     while open). Single-axis handoff is mapped onto the existing
-//     3-axis schema (quality = speed = politeness = rating); selected
-//     tag labels prepended to the comment as [Tag1][Tag2] so they
-//     survive the round trip.
+//   • the resident "Полезные контакты" page redesign (Claude Design
+//     §08-kontakty): sticky header + category chips, 4-tile
+//     emergency strip (UZ national 102/101/103/104 as tel: links),
+//     featured + regular partner promo cards from /api/ads with
+//     per-category gradient icon boxes, and a "Стать партнёром" CTA
+//     opening a mailto: composer. Detail view registers with
+//     useModalPresence so the BottomBar hides while it's open.
 //
 // Caching strategy unchanged:
 //   • HTML / navigation requests   → network-first, cache on success
@@ -27,10 +22,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.3';
-const STATIC_CACHE = 'kamizo-static-v57';
-const ASSET_CACHE = 'kamizo-assets-v57';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v57';
+const SW_VERSION = '3.7.4';
+const STATIC_CACHE = 'kamizo-static-v58';
+const ASSET_CACHE = 'kamizo-assets-v58';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v58';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
