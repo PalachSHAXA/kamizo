@@ -1,4 +1,18 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.10 — cache suffix bumped to v64 to evict every v63 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident /contract page (14-dogovor) full Claude Design port:
+//     sticky in-page header (back + "Договор"), dark amber-stone hero
+//     with Действует/На подписании badge + Номер/Дата stats, "Условия"
+//     accordion (4 condensed RU/UZ sections), two-column "Реквизиты
+//     сторон" (UK + Собственник cards). Sticky bottom action bar:
+//     "Скачать договор" wires to existing generateContractDocx; the
+//     "Подписать" CTA is shipped visually but locked (no self-serve
+//     signing endpoint yet — tap shows an info toast).
+//   • Layout: /contract added to isResidentFullBleed (page paints its
+//     own 16-px sides, global MobileHeader hidden on this route).
+//
+// Previous notes (v63) preserved below:
 // Version: 3.7.9 — cache suffix bumped to v63 to evict every v62 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident request-details bottom sheet (02d-detali-zayavki) full
@@ -91,10 +105,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.9';
-const STATIC_CACHE = 'kamizo-static-v63';
-const ASSET_CACHE = 'kamizo-assets-v63';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v63';
+const SW_VERSION = '3.7.10';
+const STATIC_CACHE = 'kamizo-static-v64';
+const ASSET_CACHE = 'kamizo-assets-v64';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v64';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
