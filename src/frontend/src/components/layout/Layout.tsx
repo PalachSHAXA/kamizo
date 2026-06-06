@@ -470,6 +470,21 @@ export function Layout() {
 
         <main id="main-content" role="main" className={isResidentFullBleed ? 'page-content page-content-full-bleed' : 'px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content'}>
           <Suspense fallback={<PageLoader />}>
+            {/* Re-mount the routed subtree on every pathname change so
+                the .page-transition CSS animation (opacity-only fade,
+                ~220ms ease-out) fires on every navigation. The wrapper
+                is intentionally INSIDE <main> + INSIDE <Suspense>:
+                  - It's NOT an ancestor of the portaled BottomBar
+                    (createPortal → document.body) or the sibling
+                    MobileHeader → those stay rock-still during the
+                    fade.
+                  - The animation is opacity-only, never transform, so
+                    routed pages that contain their own position:fixed
+                    overlays (e.g. ResidentContractPage's sticky bottom
+                    bar) keep being anchored to the viewport, not to
+                    this wrapper.
+                Honors prefers-reduced-motion via the CSS rule. */}
+            <div key={location.pathname} className="page-transition">
             <Routes>
               <Route path="/" element={getDashboard()} />
               {/* Requests page - not accessible by super_admin (they manage tenants, not individual requests) */}
@@ -646,6 +661,7 @@ export function Layout() {
               {/* 404 — catch all unmatched routes */}
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
+            </div>
           </Suspense>
         </main>
       </div>
