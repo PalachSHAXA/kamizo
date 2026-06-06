@@ -199,11 +199,43 @@ export function BottomBar() {
   const tabs = getTabs();
   const currentPath = location.pathname;
 
+  // ownsRoute — "this tab strictly matches the current route".
+  // Used twice: once for the tab being checked, and once for every OTHER
+  // tab when deciding whether `home` gets the fallback active state.
+  // Rules:
+  //   - resident-special: home is owned by exactly '/' WITHOUT `tab=`;
+  //     requests is owned by '/' WITH `tab=requests` (it uses a query
+  //     param, not a path).
+  //   - general: a tab whose path is a real route owns that route AND
+  //     any sub-route (so /chat/<channel-id> still highlights Чат).
+  const ownsRoute = (t: Tab): boolean => {
+    if (t.isFab) return false;
+    if (t.id === 'requests' && t.path === '/?tab=requests') {
+      return currentPath === '/' && location.search.includes('tab=requests');
+    }
+    if (t.id === 'home' && t.path === '/') {
+      return currentPath === '/' && !location.search.includes('tab=');
+    }
+    if (!t.path) return false;
+    return currentPath === t.path || currentPath.startsWith(t.path + '/');
+  };
+
   const isActive = (tab: Tab) => {
     if (tab.isFab) return false;
-    if (tab.id === 'home' && tab.path === '/') return currentPath === '/' && !location.search.includes('tab=');
-    if (tab.id === 'requests' && tab.path === '/?tab=requests') return currentPath === '/' && location.search.includes('tab=requests');
-    return currentPath === tab.path;
+    // Strict match wins first — Заявки / Чат / Профиль (and their sub-
+    // routes) keep their own active state on their owned routes.
+    if (ownsRoute(tab)) return true;
+    // Fallback: only the `home` tab activates when nothing else owns the
+    // current route. This is the "secondary page opened from the sidebar"
+    // case — /useful-contacts, /rate-employees, /meetings, /announcements,
+    // /guest-access, /vehicles, /contract, /finance/*, /marketplace, etc.
+    // For non-resident roles the same rule applies to whichever tab is
+    // labelled `home` in their tab list. Guard against two-active-at-once
+    // by requiring no other non-home tab to own the route.
+    if (tab.id === 'home') {
+      return !tabs.some(t => t.id !== 'home' && ownsRoute(t));
+    }
+    return false;
   };
 
   const isTabLocked = (tab: Tab): boolean => {
