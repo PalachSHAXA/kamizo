@@ -1,4 +1,22 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.8 — cache suffix bumped to v62 to evict every v61 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident "Собрания" list (05-sobraniya) full Claude Design port:
+//     sticky in-page header (Собрания собственников eyebrow +
+//     Голосование title), legal-weight note (m² → ≥X% quorum), meeting
+//     cards with status pill (Идёт / Опрос даты / Предстоит /
+//     Завершено), QuorumBar with 50% threshold marker for active
+//     meetings and 3-cell За/Против/Возд. result grid for closed
+//     family, CTA footer with solid brand pill for voting_open
+//     ("Голосовать"/"Изменить голос") and text-link for others
+//     ("Протокол"/"Подробнее"). Empty state restyled.
+//   • Reconsideration banner + new-request popup + 30 s polling
+//     preserved (audio notification kept).
+//   • Layout: /meetings added to isResidentFullBleed (page paints its
+//     own 16-px sides, global MobileHeader hidden on this route).
+//   • Card tap opens the existing MeetingVotingModal (§03) — unchanged.
+//
+// Previous notes (v61) preserved below:
 // Version: 3.7.7 — cache suffix bumped to v61 to evict every v60 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident per-meeting voting flow (03-golosovanie) full Claude
@@ -54,10 +72,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.7';
-const STATIC_CACHE = 'kamizo-static-v61';
-const ASSET_CACHE = 'kamizo-assets-v61';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v61';
+const SW_VERSION = '3.7.8';
+const STATIC_CACHE = 'kamizo-static-v62';
+const ASSET_CACHE = 'kamizo-assets-v62';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v62';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
