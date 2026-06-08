@@ -83,9 +83,14 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
             Every text node below has an EXPLICIT color (hex literals, not vars) so
             inheritance from body{color:#1a1a1a} cannot turn the white text dark even if
             the CSS bundle is the old cached one. */}
-        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none' }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', display: 'grid', placeItems: 'center', color: '#FDBA74', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em' }}>K</div>
-          <div style={{ fontSize: 19, fontWeight: 700, color: '#F4F0E8', letterSpacing: '-0.01em' }}>{brand || 'Kamizo'}</div>
+        {/* `whiteSpace: 'nowrap'` on both wrapper and label so multi-word
+             УК names ("Kamizo Demo", "Sky Park Tashkent") stay on a
+             single line. The absolute-positioned wrapper still
+             shrink-to-fits content, but text inside it can no longer
+             break at the inter-word space and stack vertically. */}
+        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', display: 'grid', placeItems: 'center', color: '#FDBA74', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', flex: '0 0 auto' }}>K</div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: '#F4F0E8', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{brand || 'Kamizo'}</div>
         </div>
         <button onClick={onBell} style={{ position: 'relative', width: 44, height: 44, borderRadius: 14, background: bellOpen ? 'var(--brand, #F97316)' : 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: bellOpen ? '#fff' : '#F4F0E8' }} aria-label="Уведомления">
           <IBell size={20} />

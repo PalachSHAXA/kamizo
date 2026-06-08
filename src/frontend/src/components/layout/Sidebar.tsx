@@ -677,13 +677,22 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}
         >
-          {/* ── Dark stone header ── */}
+          {/* ── Dark stone header ──
+              Bottom corners rounded so the brown block reads as a
+              floating card on the warm beige drawer surface (matches
+              the card radius family used across the app). Top corners
+              stay square because the header runs flush with the
+              drawer's top edge (safe-area + status bar). Only this
+              block changes — the inner quick-access tiles + ЕЩЁ list +
+              the bottom white profile/logout card are untouched. */}
           <div style={{
             position: 'relative',
             padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 18px 20px',
             background: 'var(--dark-surface, #2A2018)',
             color: TEXT_ON_DARK,
             overflow: 'hidden',
+            borderBottomLeftRadius: 22,
+            borderBottomRightRadius: 22,
           }}>
             <div style={{
               position: 'absolute', inset: 0, opacity: 0.18,

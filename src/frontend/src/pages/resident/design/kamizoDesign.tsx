@@ -126,7 +126,14 @@ export function SwipeCardStack({ cards, height = 230 }: { cards: SwipeCard[]; he
                 transition: dragRef.current.active ? 'none' : 'all 0.45s cubic-bezier(0.34,1.4,0.64,1)',
                 zIndex: 10 - absD,
                 boxShadow: absD === 0 ? `0 18px 44px -10px ${card.shadow}` : '0 8px 20px rgba(0,0,0,0.12)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                // Stack the avatar+title+sub block followed by the CTA
+                // pill at flex-start. `space-between` was pushing the
+                // CTA to the bottom edge of the 200-px tall card, which
+                // on the registration card read as "detached" — well
+                // below the "Не заполнено" line. flex-start with an
+                // explicit 16-px marginTop on the CTA (line 147) settles
+                // the button directly under the sub like the handoff.
+                display: 'flex', flexDirection: 'column', justifyContent: 'flex-start',
                 pointerEvents: absD === 0 ? 'auto' : 'none', overflow: 'hidden', cursor: 'pointer',
               }}
             >
@@ -143,7 +150,7 @@ export function SwipeCardStack({ cards, height = 230 }: { cards: SwipeCard[]; he
                 {card.sub && <div style={{ fontSize: 13.5, opacity: 0.88, marginTop: 8, lineHeight: 1.35, maxWidth: '85%' }}>{card.sub}</div>}
               </div>
               {card.cta && (
-                <div style={{ position: 'relative', alignSelf: 'flex-start', background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(10px)', padding: '10px 18px', borderRadius: 14, fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{card.cta}</div>
+                <div style={{ position: 'relative', alignSelf: 'flex-start', marginTop: 16, background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(10px)', padding: '10px 18px', borderRadius: 14, fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{card.cta}</div>
               )}
             </button>
           );
