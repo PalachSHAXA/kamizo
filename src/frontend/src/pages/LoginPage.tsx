@@ -45,7 +45,15 @@ const hexToRgba = (hex: string, alpha: number) => {
 };
 
 export function LoginPage() {
-  const { login, isLoading: authLoading, error: authError } = useAuthStore();
+  const {
+    login,
+    isLoading: authLoading,
+    error: authError,
+    pendingTwoFactor,
+    verify2FA,
+    resend2FA,
+    cancel2FA,
+  } = useAuthStore();
   const { language, setLanguage, t } = useLanguageStore();
   const { config: tenantConfig, isConfigFetched } = useTenantStore();
   const tenant = tenantConfig?.tenant;
@@ -202,7 +210,21 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Login Form */}
+        {/* 2FA-on-login code-entry screen.
+            Only mounts when the backend (TWO_FA_ENABLED='1') returned
+            twoFactorRequired=true. Flag-off deployments never see this. */}
+        {pendingTwoFactor ? (
+          <TwoFactorCodeForm
+            pending={pendingTwoFactor}
+            language={language}
+            isLoading={authLoading}
+            errorText={authError}
+            onSubmit={(code, rememberDevice) => verify2FA(code, rememberDevice)}
+            onResend={() => resend2FA()}
+            onBack={cancel2FA}
+            brandColor={brandColor || '#f97316'}
+          />
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="login-field" className="block text-xs font-bold uppercase tracking-[1px] text-gray-800 mb-1.5">{t('auth.login')}</label>
@@ -312,6 +334,7 @@ export function LoginPage() {
             {authLoading ? (language === 'ru' ? 'Вход...' : 'Kirish...') : (language === 'ru' ? 'Войти' : 'Kirish')}
           </button>
         </form>
+        )}
 
         {/* Footer text */}
         <p className="text-center text-xs text-gray-300 mt-4">
@@ -941,5 +964,213 @@ export function LoginPage() {
             </div>
       </Modal>
     </div>
+  );
+}
+
+// ── 2FA code-entry sub-component ────────────────────────────────────
+// Mounted ONLY when the backend returned twoFactorRequired=true. Six
+// boxed digits, 5-minute countdown, resend with cooldown, "вернуться"
+// back to login. Never logs or shows the code in production — the
+// `pending.devCode` field is only present when the server's MockProvider
+// has TWO_FA_DEV_MODE on (DEV builds only).
+interface TwoFactorPendingProp {
+  pendingToken: string;
+  phoneMasked: string;
+  expiresAtMs: number;
+  resendCooldownSec: number;
+  devCode?: string;
+}
+
+function TwoFactorCodeForm({
+  pending, language, isLoading, errorText, onSubmit, onResend, onBack, brandColor,
+}: {
+  pending: TwoFactorPendingProp;
+  language: Language;
+  isLoading: boolean;
+  errorText: string | null;
+  onSubmit: (code: string, rememberDevice: boolean) => Promise<boolean>;
+  onResend: () => Promise<{ ok: boolean; retryAfterSec?: number }>;
+  onBack: () => void;
+  brandColor: string;
+}) {
+  const [digits, setDigits] = useState<string[]>(() => ['', '', '', '', '', '']);
+  const [rememberDevice, setRememberDevice] = useState(true);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendIn, setResendIn] = useState<number>(pending.resendCooldownSec);
+  const [expiresIn, setExpiresIn] = useState<number>(() => Math.max(0, Math.ceil((pending.expiresAtMs - Date.now()) / 1000)));
+  const refs = useRef<Array<HTMLInputElement | null>>([]);
+
+  // Ticking countdowns — recompute every second.
+  useEffect(() => {
+    refs.current[0]?.focus();
+  }, []);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setResendIn(s => (s > 0 ? s - 1 : 0));
+      setExpiresIn(Math.max(0, Math.ceil((pending.expiresAtMs - Date.now()) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [pending.expiresAtMs]);
+
+  const code = digits.join('');
+  const filled = code.length === 6 && /^\d{6}$/.test(code);
+
+  const setDigitAt = (i: number, v: string) => {
+    const cleaned = v.replace(/\D/g, '');
+    if (cleaned.length === 0) {
+      setDigits(prev => { const next = [...prev]; next[i] = ''; return next; });
+      return;
+    }
+    // Allow paste of full code into any cell.
+    if (cleaned.length >= 6) {
+      const next = cleaned.slice(0, 6).split('');
+      while (next.length < 6) next.push('');
+      setDigits(next);
+      refs.current[5]?.focus();
+      return;
+    }
+    setDigits(prev => {
+      const next = [...prev];
+      next[i] = cleaned[0];
+      return next;
+    });
+    if (i < 5) refs.current[i + 1]?.focus();
+  };
+
+  const onKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !digits[i] && i > 0) {
+      refs.current[i - 1]?.focus();
+    }
+  };
+
+  const submit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!filled || isLoading) return;
+    setLocalError(null);
+    const ok = await onSubmit(code, rememberDevice);
+    if (!ok) {
+      // Refocus first cell so a retry is one tap away.
+      setDigits(['', '', '', '', '', '']);
+      refs.current[0]?.focus();
+    }
+  };
+
+  const resend = async () => {
+    if (resending || resendIn > 0) return;
+    setResending(true);
+    setLocalError(null);
+    const res = await onResend();
+    setResending(false);
+    if (res.ok) {
+      // Server tells us the new cooldown.
+      setResendIn(pending.resendCooldownSec);
+    } else if (res.retryAfterSec) {
+      setResendIn(res.retryAfterSec);
+    }
+  };
+
+  const fmtMSS = (s: number) => {
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div>
+        <h3 className="text-[18px] font-extrabold text-gray-900 leading-tight">
+          {language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
+        </h3>
+        <p className="text-[13px] text-gray-500 mt-1.5 leading-snug">
+          {language === 'ru' ? 'Мы отправили код в SMS на ' : 'SMS-kod yuborildi: '}
+          <strong className="text-gray-800">{pending.phoneMasked}</strong>
+        </p>
+      </div>
+
+      <div className="flex justify-between gap-2" role="group" aria-label={language === 'ru' ? 'Код из SMS' : 'SMS-kod'}>
+        {digits.map((d, i) => (
+          <input
+            key={i}
+            ref={el => { refs.current[i] = el; }}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={6}
+            autoComplete="one-time-code"
+            value={d}
+            onChange={(e) => setDigitAt(i, e.target.value)}
+            onKeyDown={(e) => onKeyDown(i, e)}
+            aria-label={`${language === 'ru' ? 'Цифра' : 'Raqam'} ${i + 1}`}
+            className="w-11 sm:w-12 h-14 text-center text-[22px] font-extrabold rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all tabular-nums"
+          />
+        ))}
+      </div>
+
+      {(localError || errorText) && (
+        <div className="flex items-center gap-2 text-[12.5px] text-red-600">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{localError || errorText}</span>
+        </div>
+      )}
+
+      <label className="flex items-center gap-2 text-[13px] text-gray-700 select-none cursor-pointer">
+        <input
+          type="checkbox"
+          checked={rememberDevice}
+          onChange={(e) => setRememberDevice(e.target.checked)}
+          className="w-4 h-4 accent-orange-500"
+        />
+        {language === 'ru' ? 'Запомнить устройство на 30 дней' : "30 kun davomida qurilmani eslab qolish"}
+      </label>
+
+      <button
+        type="submit"
+        disabled={!filled || isLoading}
+        className="w-full py-3 rounded-xl font-bold text-white text-[14px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        style={{ background: brandColor }}
+      >
+        {isLoading
+          ? (language === 'ru' ? 'Проверка...' : 'Tekshirilmoqda...')
+          : (language === 'ru' ? 'Подтвердить' : 'Tasdiqlash')}
+      </button>
+
+      <div className="flex items-center justify-between text-[12.5px]">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-gray-500 hover:text-gray-800 underline-offset-2 hover:underline"
+        >
+          {language === 'ru' ? '← Вернуться' : '← Ortga'}
+        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-gray-400 tabular-nums" aria-live="polite">
+            {expiresIn > 0
+              ? (language === 'ru' ? `Код истечёт через ${fmtMSS(expiresIn)}` : `Kod ${fmtMSS(expiresIn)} dan keyin tugaydi`)
+              : (language === 'ru' ? 'Код истёк' : 'Kod tugadi')}
+          </span>
+          <button
+            type="button"
+            onClick={resend}
+            disabled={resending || resendIn > 0}
+            className="text-orange-600 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed"
+          >
+            {resending
+              ? (language === 'ru' ? 'Отправляем...' : 'Yuborilmoqda...')
+              : resendIn > 0
+                ? (language === 'ru' ? `Повторить через ${resendIn}с` : `${resendIn}s dan keyin`)
+                : (language === 'ru' ? 'Отправить заново' : 'Qayta yuborish')}
+          </button>
+        </div>
+      </div>
+
+      {/* Dev-only: show the just-issued code so the engineer can finish
+          the flow without a real SMS. NEVER rendered in production because
+          the backend only sets pending.devCode when TWO_FA_DEV_MODE='1'. */}
+      {pending.devCode && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-[12px] px-3 py-2">
+          DEV: code is <span className="font-mono font-bold">{pending.devCode}</span>
+        </div>
+      )}
+    </form>
   );
 }

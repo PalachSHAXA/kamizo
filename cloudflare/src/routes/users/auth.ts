@@ -10,6 +10,17 @@ import { isExecutorRole, isSuperAdmin } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 import { validateBody } from '../../validation/validate';
 import { loginSchema } from '../../validation/schemas';
+import { createSmsProvider, isTwoFaEnabled, type SmsSendResult } from '../../utils/sms';
+import {
+  TWO_FA_CONSTANTS,
+  generate6DigitCode,
+  generateOpaqueToken,
+  sha256Hex,
+  normalisePhone,
+  isTrustedDevice,
+  checkSendQuota,
+  recordSend,
+} from '../../utils/twoFactor';
 
 export function registerAuthRoutes() {
 
@@ -36,9 +47,20 @@ route('POST', '/api/auth/login', async (request, env) => {
     });
   }
 
-  const { data: body, errors: validationErrors } = await validateBody<{ login: string; password: string }>(request, loginSchema);
+  const { data: body, errors: validationErrors } = await validateBody<{
+    login: string;
+    password: string;
+    // Optional fields used ONLY by the 2FA flow. If TWO_FA_ENABLED is
+    // off, these are silently ignored — the schema accepts unknown
+    // fields and the original {user, token} response shape is
+    // identical to before.
+    deviceToken?: string;
+    lang?: 'ru' | 'uz';
+  }>(request, loginSchema);
   if (validationErrors) return error(validationErrors, 400);
   const { login, password } = body;
+  const clientDeviceToken = typeof body.deviceToken === 'string' ? body.deviceToken : undefined;
+  const clientLang: 'ru' | 'uz' = body.lang === 'uz' ? 'uz' : 'ru';
 
   // Trim password to match frontend behavior (prevents whitespace mismatch)
   const trimmedPassword = password.trim();
@@ -150,17 +172,120 @@ route('POST', '/api/auth/login', async (request, env) => {
     'X-RateLimit-Reset': rateLimit.resetAt.toString()
   };
 
-  // Issue JWT token (7 days)
-  const jwtToken = await createJWT(
-    { userId: user.id, role: user.role, tenantId: user.tenant_id || undefined },
-    env.JWT_SECRET,
-    7 * 24 * 60 * 60
-  );
+  // ────────────────────────────────────────────────────────────────────
+  // 2FA-on-login gate — DEFAULT-OFF.
+  //
+  // When TWO_FA_ENABLED is not '1'/'true', we fall straight through to
+  // the legacy issueJwt() path below — response shape, headers, and
+  // status code are IDENTICAL to the pre-2FA build.
+  //
+  // When the flag IS on:
+  //   1. If the request carried a trusted-device token for THIS user,
+  //      skip the SMS step and issue the JWT immediately.
+  //   2. Otherwise: stamp a pending-login row (hashed code, 5-min TTL),
+  //      send the SMS via the configured provider (Mock by default;
+  //      Eskiz once secrets land), respond with
+  //      { twoFactorRequired: true, pendingToken, ... } and NO jwt.
+  // ────────────────────────────────────────────────────────────────────
+  const issueJwt = async () => {
+    const jwtToken = await createJWT(
+      { userId: user.id, role: user.role, tenantId: user.tenant_id || undefined },
+      env.JWT_SECRET,
+      7 * 24 * 60 * 60
+    );
+    return new Response(JSON.stringify({ user, token: jwtToken }), {
+      status: 200,
+      headers,
+    });
+  };
 
-  return new Response(JSON.stringify({ user, token: jwtToken }), {
-    status: 200,
-    headers
-  });
+  if (!isTwoFaEnabled(env)) {
+    return issueJwt();
+  }
+
+  // Trusted device fast-path. Failures here are silent — they just
+  // fall through to the SMS path, never blocking login.
+  try {
+    const td = await isTrustedDevice(env, user.id, clientDeviceToken);
+    if (td.trusted) {
+      return issueJwt();
+    }
+  } catch { /* fall through */ }
+
+  // User has no phone on file → 2FA cannot proceed. Don't lock them
+  // out: fall back to the legacy path. (Once registration enforces a
+  // phone for residents this can become an error instead.)
+  const phone = normalisePhone(userWithHash.phone);
+  if (!phone) {
+    return issueJwt();
+  }
+
+  // Per-phone send quota / cooldown. Returns clear `retry_after` so
+  // the UI can render "повторно через NN с".
+  const quota = await checkSendQuota(env, phone);
+  if (!quota.allowed) {
+    return new Response(JSON.stringify({
+      error: quota.reason === 'cooldown' ? 'sms_cooldown'
+           : quota.reason === 'hourly_cap' ? 'sms_hourly_cap'
+           : 'sms_daily_cap',
+      retry_after_sec: quota.retryAfterSec,
+    }), { status: 429, headers });
+  }
+
+  // Stamp the pending-login row, send the SMS, persist quota only on
+  // successful provider call.
+  const code = generate6DigitCode();
+  const codeHash = await sha256Hex(code);
+  const pendingToken = generateOpaqueToken(TWO_FA_CONSTANTS.PENDING_TOKEN_BYTES);
+  const rowId = generateId();
+  const nowIso = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const expiresIso = new Date(Date.now() + TWO_FA_CONSTANTS.CODE_TTL_SECONDS * 1000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+
+  await env.DB.prepare(
+    `INSERT INTO login_otp (id, pending_token, user_id, tenant_id, phone, code_hash, attempt_count, created_at, expires_at, ip, user_agent)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
+  ).bind(
+    rowId, pendingToken, user.id, user.tenant_id || null, phone, codeHash,
+    nowIso, expiresIso,
+    request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || null,
+    (request.headers.get('User-Agent') || '').slice(0, 255),
+  ).run();
+
+  const provider = createSmsProvider(env);
+  let sendResult: SmsSendResult;
+  try {
+    sendResult = await provider.sendCode(phone, code, clientLang);
+  } catch (e) {
+    sendResult = { ok: false, provider: provider.name, error: (e as Error).message || 'send failed' };
+  }
+
+  if (!sendResult.ok) {
+    // Roll back the pending row so the client can retry cleanly.
+    await env.DB.prepare(`DELETE FROM login_otp WHERE id = ?`).bind(rowId).run().catch(() => {});
+    return new Response(JSON.stringify({ error: 'sms_send_failed' }), { status: 502, headers });
+  }
+
+  // Commit the send-quota bump only after a confirmed send.
+  await recordSend(env, phone);
+
+  // Mask the phone tail so the UI can show "···47 12" — never the full
+  // number — without a second lookup.
+  const tail = phone.length >= 4 ? phone.slice(-4) : phone;
+  const phoneMasked = `···${tail.slice(0, 2)} ${tail.slice(2)}`;
+
+  return new Response(JSON.stringify({
+    twoFactorRequired: true,
+    pendingToken,
+    phoneMasked,
+    expiresInSec: TWO_FA_CONSTANTS.CODE_TTL_SECONDS,
+    resendCooldownSec: TWO_FA_CONSTANTS.RESEND_COOLDOWN_SECONDS,
+    // dev_code is ONLY present when the MockProvider opts in via
+    // TWO_FA_DEV_MODE. The Eskiz provider never sets it. Production
+    // with missing Eskiz creds (Mock without dev mode) also never
+    // sets it.
+    ...(sendResult.provider === 'mock' && sendResult.devCode ? { dev_code: sendResult.devCode } : {}),
+  }), { status: 200, headers });
 });
 
 // Auth: Register (protected - only admin/manager can create users)
