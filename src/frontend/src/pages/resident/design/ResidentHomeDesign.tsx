@@ -386,7 +386,13 @@ export function ResidentHomeDesign(props: Props) {
       <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} onMenu={onMenu} onBell={() => { setBell((b) => !b); navigate('/announcements'); }} bellOpen={bell} />
 
       <div style={{ ...section, marginTop: 18 }}>
-        <SwipeCardStack cards={cards as any} height={210} />
+        {/* Card height bumped 210 → 250 so the densest card
+            (registration: 2-line title + sub + "Заполнить →") fits
+            without the CTA pill being clipped by overflow:hidden.
+            SwipeCardStack also tightens the internal rhythm (smaller
+            avatar/title/CTA) so every carousel card has comfortable
+            breathing room below the button. */}
+        <SwipeCardStack cards={cards as any} height={250} />
       </div>
 
       {/* Quick tiles sit close to the carousel dots — overrides the shared

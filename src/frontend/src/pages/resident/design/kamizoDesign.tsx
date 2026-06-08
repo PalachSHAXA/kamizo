@@ -78,7 +78,15 @@ interface SwipeCard {
   gradient: string; shadow: string; onClick?: () => void;
 }
 
-export function SwipeCardStack({ cards, height = 230 }: { cards: SwipeCard[]; height?: number }) {
+// Default card-stack height was 230 — chosen before the registration
+// card existed. The registration card is the densest (2-line title +
+// "Не заполнено: пароль" sub + "Заполнить →" CTA), and at 230 it
+// clipped the CTA below the card's `overflow:hidden` line. Bump the
+// default to 250 (renders ~240 px tall) and tighten the internal
+// rhythm (smaller avatar, tighter title leading, smaller CTA padding)
+// so every card — registration + voting + guest + rate + contacts +
+// find-car — has at least ~16 px breathing room below the CTA.
+export function SwipeCardStack({ cards, height = 250 }: { cards: SwipeCard[]; height?: number }) {
   const [active, setActive] = useState(0);
   const [, setDrag] = useState(0);
   const dragRef = useRef({ startX: 0, cur: 0, active: false, moved: 0 });
@@ -120,7 +128,7 @@ export function SwipeCardStack({ cards, height = 230 }: { cards: SwipeCard[]; he
               onClick={() => { if (i === active && dragRef.current.moved < 6) card.onClick?.(); }}
               style={{
                 position: 'absolute', left: 0, right: 0, top: 0, height: height - 10, borderRadius: 26,
-                background: card.gradient, color: '#fff', textAlign: 'left', padding: 22, border: 'none',
+                background: card.gradient, color: '#fff', textAlign: 'left', padding: 20, border: 'none',
                 transform: `translateX(${diff * 32 + d}px) translateZ(${-absD * 56}px) rotateY(${diff * -5 + (i === active ? drag * 0.05 : 0)}deg) scale(${1 - absD * 0.06})`,
                 opacity: absD > 2 ? 0 : 1 - absD * 0.2,
                 transition: dragRef.current.active ? 'none' : 'all 0.45s cubic-bezier(0.34,1.4,0.64,1)',
@@ -143,14 +151,14 @@ export function SwipeCardStack({ cards, height = 230 }: { cards: SwipeCard[]; he
                 <div style={{ position: 'absolute', top: 18, right: 18, background: 'rgba(255,255,255,0.25)', backdropFilter: 'blur(10px)', padding: '5px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{card.badge}</div>
               )}
               <div style={{ position: 'relative' }}>
-                <div style={{ width: 52, height: 52, borderRadius: 999, border: '2.5px solid rgba(255,255,255,0.55)', display: 'grid', placeItems: 'center', marginBottom: 16 }}>
-                  <Ic size={26} stroke={2.4} />
+                <div style={{ width: 48, height: 48, borderRadius: 999, border: '2.5px solid rgba(255,255,255,0.55)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
+                  <Ic size={24} stroke={2.4} />
                 </div>
-                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.05, textWrap: 'pretty' }}>{card.title}</div>
-                {card.sub && <div style={{ fontSize: 13.5, opacity: 0.88, marginTop: 8, lineHeight: 1.35, maxWidth: '85%' }}>{card.sub}</div>}
+                <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.12, textWrap: 'pretty' }}>{card.title}</div>
+                {card.sub && <div style={{ fontSize: 13, opacity: 0.88, marginTop: 6, lineHeight: 1.35, maxWidth: '85%' }}>{card.sub}</div>}
               </div>
               {card.cta && (
-                <div style={{ position: 'relative', alignSelf: 'flex-start', marginTop: 16, background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(10px)', padding: '10px 18px', borderRadius: 14, fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{card.cta}</div>
+                <div style={{ position: 'relative', alignSelf: 'flex-start', marginTop: 14, background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(10px)', padding: '9px 16px', borderRadius: 14, fontSize: 13.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{card.cta}</div>
               )}
             </button>
           );
