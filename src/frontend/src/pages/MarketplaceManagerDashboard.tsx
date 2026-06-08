@@ -6,6 +6,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { apiRequest } from '../services/api';
+import { API_URL } from '../services/api/client';
 import { useToastStore } from '../stores/toastStore';
 import { StockModal } from './marketplace-mgr/StockModal';
 import { DeleteProductConfirm } from './marketplace-mgr/DeleteProductConfirm';
@@ -156,7 +157,7 @@ export function MarketplaceManagerDashboard() {
       formData.append('image', file);
 
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/marketplace/admin/upload-image', {
+      const response = await fetch(`${API_URL}/api/marketplace/admin/upload-image`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

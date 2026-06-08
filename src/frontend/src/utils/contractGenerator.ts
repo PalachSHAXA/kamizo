@@ -113,11 +113,15 @@ export async function generateContractDocx(
   // Generate UK company QR code
   const ukQrCodeDataUrl = await generateUKQRCode();
 
-  // Fetch the template: try tenant's custom template first, fallback to default
+  // Fetch the template: try tenant's custom template first, fallback to default.
+  // Use the absolute API base so the request works inside a Capacitor WKWebView
+  // (whose origin is capacitor://localhost) — a relative '/api/...' would
+  // resolve to the local bundle and 404.
   let arrayBuffer: ArrayBuffer;
   try {
     const token = localStorage.getItem('auth_token');
-    const customResponse = await fetch('/api/contract/template', {
+    const { API_URL } = await import('../services/api/client');
+    const customResponse = await fetch(`${API_URL}/api/contract/template`, {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
     });
     if (customResponse.ok) {

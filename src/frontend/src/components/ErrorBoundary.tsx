@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { API_URL } from '../services/api/client';
 
 /**
  * Production-Grade Error Boundary
@@ -101,7 +102,7 @@ export class ErrorBoundary extends Component<Props, State> {
     // reportFrontendError(error, { componentStack: errorInfo.componentStack });
     try {
       // Send to backend monitoring endpoint
-      await fetch('/api/admin/monitoring/frontend-error', {
+      await fetch(`${API_URL}/api/admin/monitoring/frontend-error`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -322,7 +323,7 @@ export function useErrorReporter() {
 
     // Send to monitoring
     if (import.meta.env.PROD) {
-      fetch('/api/admin/monitoring/frontend-error', {
+      fetch(`${API_URL}/api/admin/monitoring/frontend-error`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

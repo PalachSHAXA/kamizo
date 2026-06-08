@@ -23,7 +23,10 @@ ROUTE_QUICK_REFERENCE.txt
 
 # Mobile build artifacts
 *.apk
-src/frontend/android/
+
+# Capacitor native projects (android/ and ios/) ship their own
+# Capacitor-managed .gitignore files; we commit the project skeleton
+# and let those exclude build/, Pods/, .gradle/, DerivedData, etc.
 
 # IDE / local editor state
 .vscode/
