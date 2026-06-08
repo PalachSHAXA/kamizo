@@ -129,7 +129,24 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen min-h-dvh flex items-center justify-center px-4 py-8 sm:p-4 relative overflow-hidden bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50">
+    // Mobile app-shell in index.css locks body/#root/.layout-root to
+    // height:100dvh; overflow:hidden so the resident shell (fixed bars +
+    // single scrollable .main-content) works. /login renders outside
+    // <Layout>, so it inherits the page-lock with no scroll container.
+    // Make this div the scroll region itself: definite viewport height +
+    // overflow-y:auto, with m-auto-on-flex-child centering so the card
+    // centers when it fits the viewport and scrolls when it overflows.
+    <div
+      className="relative bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
+      style={{
+        minHeight: '100dvh',
+        height: '100dvh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
       {/* Decorative elements */}
       <div
         className={`absolute top-20 left-20 w-72 h-72 rounded-full blur-3xl ${!tenant ? 'bg-primary-200/20' : ''}`}
@@ -140,7 +157,18 @@ export function LoginPage() {
         style={tenant ? { backgroundColor: hexToRgba(brandColor2 || brandColor, 0.2) } : undefined}
       />
 
-      <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 p-6 sm:p-8 md:p-10 w-full max-w-[400px] relative z-10">
+      {/* Centering wrapper: flex + min-h-full + m-auto on child = card sits
+          centered when content fits the viewport, top-aligned and scrollable
+          when it doesn't. Safe-area-inset padding keeps the logo off the
+          notch and the last demo-login button above the home indicator. */}
+      <div
+        className="flex min-h-full px-4 sm:p-4"
+        style={{
+          paddingTop: 'max(2rem, env(safe-area-inset-top))',
+          paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+        }}
+      >
+        <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 p-6 sm:p-8 md:p-10 w-full max-w-[400px] relative z-10 m-auto">
         {/* Logo + Language switcher row */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
@@ -410,6 +438,7 @@ export function LoginPage() {
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* Public Offer Modal */}
