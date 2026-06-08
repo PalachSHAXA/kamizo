@@ -1,4 +1,21 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.15 — cache suffix bumped to v69 to evict every v68 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Home swipe cards: card height bumped 210 → 250 + internal
+//     rhythm tightened (smaller avatar/title/CTA, padding 22 → 20) so
+//     the densest carousel card (registration) no longer clips its
+//     "Заполнить →" CTA below `overflow:hidden`. Every card now has
+//     ~25 px breathing room under the CTA. Carousel dots strip stays
+//     in place (sibling div + marginTop:6).
+//   • Drawer panel: rounded right edge corners
+//     (borderTopRightRadius / borderBottomRightRadius: 24). Left edge
+//     stays flush with the viewport. The brown header's
+//     borderBottomLeft/RightRadius from v68 is preserved; the panel's
+//     overflow:hidden clips the brown header's top-right corner
+//     against the rounded panel edge so it reads as one coherent
+//     floating card.
+//
+// Previous notes (v68) preserved below:
 // Version: 3.7.14 — cache suffix bumped to v68 to evict every v67 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident home hero: multi-word УК names ("Kamizo Demo", "Sky
@@ -173,10 +190,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.14';
-const STATIC_CACHE = 'kamizo-static-v68';
-const ASSET_CACHE = 'kamizo-assets-v68';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v68';
+const SW_VERSION = '3.7.15';
+const STATIC_CACHE = 'kamizo-static-v69';
+const ASSET_CACHE = 'kamizo-assets-v69';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v69';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
