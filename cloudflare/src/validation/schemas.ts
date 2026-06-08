@@ -20,6 +20,12 @@ export type Schema = Record<string, FieldRule>;
 export const loginSchema: Schema = {
   login: { required: true, type: 'string', minLength: 1, maxLength: 100, label: 'Login' },
   password: { required: true, type: 'string', minLength: 1, maxLength: 200, label: 'Password' },
+  // Optional explicit workspace identifier for callers without a tenant
+  // subdomain (native shell, apex `app.kamizo.uz`, API tooling). Must match
+  // a row in `tenants.slug`; format mirrors getTenantSlug() — lowercase
+  // [a-z0-9-]. Ignored when the request already resolves a tenant from
+  // hostname/Origin.
+  tenantSlug: { type: 'string', minLength: 1, maxLength: 64, pattern: /^[a-z0-9-]+$/, label: 'tenantSlug' },
 };
 
 // ── Requests ──────────────────────────────────────────

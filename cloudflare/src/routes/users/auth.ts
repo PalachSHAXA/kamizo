@@ -36,67 +36,125 @@ route('POST', '/api/auth/login', async (request, env) => {
     });
   }
 
-  const { data: body, errors: validationErrors } = await validateBody<{ login: string; password: string }>(request, loginSchema);
+  const { data: body, errors: validationErrors } = await validateBody<{ login: string; password: string; tenantSlug?: string }>(request, loginSchema);
   if (validationErrors) return error(validationErrors, 400);
-  const { login, password } = body;
+  const { login, password, tenantSlug: bodyTenantSlug } = body;
 
   // Trim password to match frontend behavior (prevents whitespace mismatch)
   const trimmedPassword = password.trim();
-
-  // Fetch user with password hash
-  // On subdomain: find users of that specific tenant (or super_admin)
-  // On main domain: search ALL matching users and verify password against each —
-  //   this prevents multi-tenant login collision where LIMIT 1 picks the wrong user
-  const tenantId = getTenantId(request);
+  const trimmedLogin = login.trim();
   const userFields = 'id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id';
 
+  // Sprint 66 P1/F9 timing-attack guard. The previous "search all tenants
+  // then verify against each candidate" code leaked timing because the
+  // no-match path skipped PBKDF2 entirely. Keep one constant-cost verify
+  // on every no-match branch so the response-time delta cannot be used
+  // to enumerate which tenant a login lives in.
+  const DUMMY_HASH = '50000:1234567890abcdef1234567890abcdef:abcdefabcdefabcdefabcdefabcdefab';
+
+  // ────────────────────────────────────────────────────────────────
+  // STEP 1: resolve tenant.
+  //
+  // Login MUST be scoped to a single tenant before we compare any
+  // password hash. The previous implementation fell back to a global
+  // cross-tenant search when no tenant could be resolved — that
+  // returned the FIRST candidate whose hash matched, which silently
+  // logged users in as the wrong identity whenever the same login
+  // string existed in multiple tenants (e.g. demo-resident1 lives on
+  // 2 tenants; `director` on 11). That global fallback is removed.
+  //
+  // Resolution priority:
+  //   1. Host-derived tenant (subdomain `demo.kamizo.uz` or the VPS
+  //      Origin-header fallback for `api.kamizo.uz`). Populated by
+  //      index.ts via setTenantForRequest() before the handler runs.
+  //   2. Body field `tenantSlug` — explicit override for callers
+  //      without a usable Origin (native Capacitor shell, apex
+  //      `app.kamizo.uz`, curl/Postman). Looked up in `tenants` and
+  //      must point at an active row.
+  //   3. None — only `super_admin` accounts (which are designed to
+  //      be tenant-less) are reachable. Everyone else gets a clear
+  //      "specify your workspace" error instead of being silently
+  //      routed to some other tenant's user row.
+  // ────────────────────────────────────────────────────────────────
+  let tenantId: string | null = getTenantId(request);
+  let tenantResolvedFromBody = false;
+
+  if (!tenantId && typeof bodyTenantSlug === 'string' && bodyTenantSlug.trim()) {
+    const slug = bodyTenantSlug.trim().toLowerCase();
+    const tenant = await env.DB.prepare(
+      'SELECT id FROM tenants WHERE slug = ? AND is_active = 1'
+    ).bind(slug).first() as { id: string } | null;
+    if (tenant) {
+      tenantId = tenant.id;
+      tenantResolvedFromBody = true;
+    } else {
+      // Caller asked for a workspace that doesn't exist (or is disabled).
+      // Burn one PBKDF2 to keep the response time matched to the real
+      // verify path, then reject with a specific message — knowing the
+      // slug is invalid isn't sensitive (slugs are public subdomains).
+      await verifyPassword(trimmedPassword, DUMMY_HASH).catch(() => false);
+      return bilingualError(
+        'Управляющая компания не найдена. Проверьте поддомен.',
+        "Boshqaruv kompaniyasi topilmadi. Subdomenni tekshiring.",
+        401
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // STEP 2: scoped user lookup. Never iterates across tenants.
+  // ────────────────────────────────────────────────────────────────
   let userWithHash: any = null;
 
   if (tenantId) {
-    // Subdomain: single-tenant lookup (fast path)
+    // Tenant-scoped: this tenant's user with that login, OR a global
+    // super_admin (the only role allowed to log in across tenants).
     userWithHash = await env.DB.prepare(
-      `SELECT ${userFields} FROM users WHERE login = ? AND is_active = 1 AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
-    ).bind(login.trim(), tenantId).first() as any;
-
-    if (!userWithHash) {
-      return error('Invalid credentials', 401);
-    }
-    const isValid = await verifyPassword(trimmedPassword, userWithHash.password_hash);
-    if (!isValid) {
-      return error('Invalid credentials', 401);
-    }
+      `SELECT ${userFields} FROM users
+       WHERE login = ? AND is_active = 1
+         AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
+    ).bind(trimmedLogin, tenantId).first() as any;
   } else {
-    // Main domain (no subdomain): fetch ALL users with this login and try password against each.
-    // This fixes the multi-tenant collision where LIMIT 1 could pick the wrong tenant's user.
-    const { results: candidates } = await env.DB.prepare(
-      `SELECT ${userFields} FROM users WHERE login = ? AND is_active = 1 ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END LIMIT 10`
-    ).bind(login.trim()).all();
-
-    // Sprint 66 P1/F9: timing-attack guard. Non-matching logins used to
-    // return after 0 PBKDF2 calls (instant); a match against 1-of-10
-    // candidates ran up to ~250ms of PBKDF2. The response-time delta
-    // leaked "login exists in at least one tenant" vs "doesn't". Always
-    // run one verifyPassword against a dummy hash so both branches pay
-    // the same constant cost on the no-match path.
-    const DUMMY_HASH = '50000:1234567890abcdef1234567890abcdef:abcdefabcdefabcdefabcdefabcdefab';
-    if (!candidates || candidates.length === 0) {
-      await verifyPassword(trimmedPassword, DUMMY_HASH).catch(() => false);
-      return error('Invalid credentials', 401);
-    }
-
-    // Try password against each candidate until one matches
-    for (const candidate of candidates) {
-      const isValid = await verifyPassword(trimmedPassword, (candidate as any).password_hash);
-      if (isValid) {
-        userWithHash = candidate;
-        break;
-      }
-    }
-
-    if (!userWithHash) {
-      return error('Invalid credentials', 401);
-    }
+    // No tenant context anywhere. Only super_admin rows (by design
+    // tenant-less) are reachable. Regular users MUST come in via a
+    // tenant subdomain or supply tenantSlug.
+    userWithHash = await env.DB.prepare(
+      `SELECT ${userFields} FROM users
+       WHERE login = ? AND is_active = 1
+         AND role = 'super_admin'
+         AND (tenant_id IS NULL OR tenant_id = '')`
+    ).bind(trimmedLogin).first() as any;
   }
+
+  // ────────────────────────────────────────────────────────────────
+  // STEP 3: verify password (with the timing-attack guard).
+  // ────────────────────────────────────────────────────────────────
+  if (!userWithHash) {
+    // Burn one PBKDF2 cycle on every no-match branch so the response
+    // time matches the real verify path.
+    await verifyPassword(trimmedPassword, DUMMY_HASH).catch(() => false);
+
+    if (!tenantId) {
+      // Apex / no-tenant path with no super_admin match. Tell the
+      // caller the policy (instead of a misleading "Invalid creds")
+      // so a real user on app.kamizo.uz can recover by going to
+      // their subdomain. Generic for super_admin attackers — we
+      // still 401, and rate-limiting (5/min) caps enumeration.
+      return bilingualError(
+        'Не удалось определить вашу управляющую компанию. Войдите по адресу {название}.kamizo.uz или передайте поле tenantSlug.',
+        "Boshqaruv kompaniyangizni aniqlay olmadik. {nomi}.kamizo.uz orqali kiring yoki tenantSlug maydonini yuboring.",
+        401
+      );
+    }
+
+    return error('Invalid credentials', 401);
+  }
+
+  const isValid = await verifyPassword(trimmedPassword, userWithHash.password_hash);
+  if (!isValid) {
+    return error('Invalid credentials', 401);
+  }
+  void tenantResolvedFromBody; // reserved for future audit logging
 
   // Auto-migrate legacy or old-format password hashes to current iteration count
   const parts = userWithHash.password_hash.split(':');
