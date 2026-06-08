@@ -675,6 +675,15 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             transform: isOpen ? `translateX(-${swipeOffset}px)` : 'translateX(-100%)',
             transition: swipeOffset > 0 ? 'none' : 'transform 0.28s var(--ease-emphasized, cubic-bezier(0.2,0,0,1))',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            // Round the right edge of the drawer (its outer edge once
+            // it's slid in from the left). Left edge stays square
+            // because it's flush with the viewport. The brown header
+            // inside keeps its own borderBottomLeft/RightRadius — the
+            // overflow:hidden on this panel clips the brown header's
+            // top-right corner against the panel's rounded edge so the
+            // visual reads as one coherent floating card.
+            borderTopRightRadius: 24,
+            borderBottomRightRadius: 24,
           }}
         >
           {/* ── Dark stone header ──
