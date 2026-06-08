@@ -1,4 +1,22 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.14 — cache suffix bumped to v68 to evict every v67 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident home hero: multi-word УК names ("Kamizo Demo", "Sky
+//     Park Tashkent") stay on a single line (whiteSpace:nowrap on the
+//     absolute-centered wordmark wrapper + label; K-chip pinned
+//     flex:0 0 auto).
+//   • Resident home swipe cards: "Заполнить →" / "Проголосовать →" /
+//     etc. CTA pills sit directly under the sub line with a 16-px
+//     rhythm. Card flex column switched from space-between to
+//     flex-start + CTA marginTop:16 — fixes the "detached at bottom
+//     edge" look across all five carousel cards.
+//   • Resident drawer: brown stone header (K logo, УК name, building,
+//     stats, X) now has rounded bottom corners (22 px) so it reads as
+//     a floating card on the warm beige drawer surface. Top corners
+//     stay square (header flush with safe-area). Inner tiles + ЕЩЁ
+//     list + bottom profile/logout card unchanged.
+//
+// Previous notes (v67) preserved below:
 // Version: 3.7.13 — cache suffix bumped to v67 to evict every v66 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Smooth opacity-only page transitions on every route change
@@ -155,10 +173,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.13';
-const STATIC_CACHE = 'kamizo-static-v67';
-const ASSET_CACHE = 'kamizo-assets-v67';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v67';
+const SW_VERSION = '3.7.14';
+const STATIC_CACHE = 'kamizo-static-v68';
+const ASSET_CACHE = 'kamizo-assets-v68';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v68';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
