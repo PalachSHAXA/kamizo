@@ -15,6 +15,16 @@ export interface Env {
   ASSETS: Fetcher;
   RATE_LIMITER: KVNamespace;
   CONNECTION_MANAGER: DurableObjectNamespace;
+
+  // ── 2FA-on-login (Eskiz.uz) ───────────────────────────────────────
+  // All optional; defaults keep the legacy single-step login intact.
+  // Set with `wrangler secret put NAME` (Eskiz creds) or `[vars]` (flags).
+  TWO_FA_ENABLED?: string;       // '1' | 'true' to flip the feature on; anything else = OFF
+  TWO_FA_DEV_MODE?: string;      // '1' | 'true' → MockProvider returns dev_code in response (DEV only)
+  ESKIZ_EMAIL?: string;          // Eskiz dashboard email
+  ESKIZ_PASSWORD?: string;       // Eskiz dashboard password
+  ESKIZ_FROM?: string;           // approved sender id / nickname; falls back to "4546"
+  ESKIZ_API_BASE?: string;       // override for testing; defaults to https://notify.eskiz.uz/api
 }
 
 export interface User {
