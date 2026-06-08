@@ -1,4 +1,16 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.16 — cache suffix bumped to v70 to evict every v69 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • LoginPage scroll fix: /login is rendered outside <Layout>, so it
+//     inherited the resident shell's body/#root height:100dvh;
+//     overflow:hidden lock and clipped its tall content (welcome +
+//     form + offer + the demo-login grid) at both ends with no way to
+//     scroll. The outer div is now its own scroll region
+//     (height:100dvh + overflow-y:auto) with safe-area-inset padding
+//     and a `m-auto`-on-flex-child centering pattern so the card
+//     centers when it fits and scrolls when it doesn't.
+//
+// Previous notes (v69) preserved below:
 // Version: 3.7.15 — cache suffix bumped to v69 to evict every v68 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Home swipe cards: card height bumped 210 → 250 + internal
@@ -191,9 +203,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v69';
-const ASSET_CACHE = 'kamizo-assets-v69';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v69';
+const STATIC_CACHE = 'kamizo-static-v70';
+const ASSET_CACHE = 'kamizo-assets-v70';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v70';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
