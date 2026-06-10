@@ -2,16 +2,81 @@
 
 import { apiRequest, transformUser, markLoggedIn } from './client';
 
+/** A workspace candidate returned by the disambiguation flow. */
+export interface TenantPickEntry {
+  slug: string;
+  name: string;
+  logo: string | null;
+}
+
+/**
+ * Login result discriminated union.
+ *
+ * The backend (cloudflare/src/routes/users/auth.ts) returns either:
+ *   • { user, token }                                — credentials matched
+ *     exactly one row → caller logs in.
+ *   • { needs_tenant_pick: true, tenants: [...] }    — credentials matched
+ *     2+ tenant rows (same phone-login registered in multiple ЖК); the
+ *     caller must show a picker and re-submit with `tenantSlug`.
+ * Any 4xx/5xx throws via apiRequest.
+ */
+export type LoginResult =
+  | { kind: 'success'; user: Record<string, unknown>; token: string }
+  | { kind: 'picker'; tenants: TenantPickEntry[] };
+
+interface LoginSuccessResponse {
+  user: Record<string, unknown>;
+  token: string;
+}
+
+interface LoginPickerResponse {
+  needs_tenant_pick: true;
+  tenants: TenantPickEntry[];
+}
+
+type LoginResponse = LoginSuccessResponse | LoginPickerResponse;
+
+function isPickerResponse(r: LoginResponse): r is LoginPickerResponse {
+  return (r as LoginPickerResponse).needs_tenant_pick === true;
+}
+
 export const authApi = {
-  login: async (login: string, password: string) => {
-    const data = await apiRequest<{ user: Record<string, unknown>; token: string }>('/api/auth/login', {
+  /**
+   * Log in with login + password. Pass `tenantSlug` on the re-submit
+   * after the user picks a workspace from the picker.
+   *
+   * The token is persisted (localStorage + markLoggedIn) ONLY on the
+   * success branch. The picker branch just hands the tenant list back
+   * to the caller — no session state is touched, so cancelling the
+   * picker leaves the app exactly as it was before submit.
+   */
+  login: async (
+    login: string,
+    password: string,
+    tenantSlug?: string,
+  ): Promise<LoginResult> => {
+    const body: { login: string; password: string; tenantSlug?: string } = {
+      login,
+      password,
+    };
+    if (tenantSlug) body.tenantSlug = tenantSlug;
+
+    const data = await apiRequest<LoginResponse>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ login, password }),
+      body: JSON.stringify(body),
     });
+
+    if (isPickerResponse(data)) {
+      return { kind: 'picker', tenants: data.tenants ?? [] };
+    }
+
     localStorage.setItem('auth_token', data.token);
     markLoggedIn(); // 10s grace period before 401s can force logout
-    // Transform user fields from snake_case to camelCase
-    return { ...data, user: transformUser(data.user) };
+    return {
+      kind: 'success',
+      user: transformUser(data.user),
+      token: data.token,
+    };
   },
 
   logout: () => {
