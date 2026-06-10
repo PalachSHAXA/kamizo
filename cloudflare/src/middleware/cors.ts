@@ -8,6 +8,19 @@ const PRODUCTION_ORIGINS = [
   'https://kamizo.shaxzod.workers.dev',
 ];
 
+// Capacitor native WebView origins. The Android shell serves bundled
+// assets from https://localhost; the iOS shell uses capacitor://localhost.
+// We must allow both: without them the WebView's CORS check rejects the
+// real (200 + JWT) login response and the app surfaces a false "Неверный
+// логин или пароль" because authStore can't distinguish a CORS rejection
+// from an invalid-credentials error. The rest of the pipeline (tenant
+// resolution, auth, rate limit) is untouched — this opens the door, not
+// the safe.
+const NATIVE_ORIGINS = [
+  'https://localhost',
+  'capacitor://localhost',
+];
+
 const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -34,6 +47,12 @@ let currentCorsOrigin = 'https://app.kamizo.uz';
 export function setCorsOrigin(request: Request): void {
   const origin = request.headers.get('Origin') || '';
   if (allowedOrigins.includes(origin)) {
+    currentCorsOrigin = origin;
+  } else if (NATIVE_ORIGINS.includes(origin)) {
+    // Capacitor native shells (Android https://localhost, iOS
+    // capacitor://localhost). Echo the origin verbatim so the WebView's
+    // CORS check passes; the request itself still goes through the same
+    // auth + tenant-resolution path as any browser caller.
     currentCorsOrigin = origin;
   } else if (/^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)?kamizo\.uz$/.test(origin)) {
     // Dynamic tenant subdomains (production only, RFC-compliant label check)
@@ -70,6 +89,10 @@ export function getCurrentCorsOrigin() {
 export function resolveCorsOrigin(request: Request): string {
   const origin = request.headers.get('Origin') || '';
   if (allowedOrigins.includes(origin)) return origin;
+  // Capacitor native shells. Must match setCorsOrigin() above — and
+  // applied via index.ts on EVERY response, including OPTIONS preflight,
+  // so the WebView accepts the round-trip end-to-end.
+  if (NATIVE_ORIGINS.includes(origin)) return origin;
   // Dynamic tenant subdomains (production), RFC-compliant label check
   if (/^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)?kamizo\.uz$/.test(origin)) return origin;
   // Workers.dev preview origin and any tenant-prefixed subdomain on it.
