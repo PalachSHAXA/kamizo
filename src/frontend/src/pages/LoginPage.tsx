@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ComponentType } from 'react';
-import { Eye, EyeOff, AlertCircle, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Check, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
@@ -45,7 +45,7 @@ const hexToRgba = (hex: string, alpha: number) => {
 };
 
 export function LoginPage() {
-  const { login, isLoading: authLoading, error: authError } = useAuthStore();
+  const { login, isLoading: authLoading, error: authError, pickerTenants, clearPicker } = useAuthStore();
   const { language, setLanguage, t } = useLanguageStore();
   const { config: tenantConfig, isConfigFetched } = useTenantStore();
   const tenant = tenantConfig?.tenant;
@@ -101,6 +101,10 @@ export function LoginPage() {
     setShowOfferModal(false);
   };
 
+  // Track which workspace row is in-flight, so we can show a spinner on
+  // that exact row while the second login round-trip runs.
+  const [pickingSlug, setPickingSlug] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -111,14 +115,47 @@ export function LoginPage() {
     }
 
     try {
-      const success = await login(loginValue, password);
-      if (!success) {
+      const outcome = await login(loginValue, password);
+      if (outcome === 'error') {
         setError(language === 'ru' ? 'Неверный логин или пароль' : 'Login yoki parol noto\'g\'ri');
       }
-      // No need to navigate - App component will re-render with Layout when user is set
+      // outcome === 'picker' → the workspace picker render below opens
+      //   (driven by store.pickerTenants); password stays in this
+      //   component's useState for the re-submit.
+      // outcome === 'success' → App re-renders with Layout when user is set.
     } catch {
       setError(language === 'ru' ? 'Ошибка при входе' : 'Kirishda xatolik');
     }
+  };
+
+  // Tap on a workspace row: re-submit login + chosen slug. The password
+  // never left this component (and the form-cleared backend never logs
+  // it) — the second request reuses the same in-memory password.
+  const handleSelectTenant = async (slug: string) => {
+    if (pickingSlug) return; // ignore double-taps
+    setPickingSlug(slug);
+    setError('');
+    try {
+      const outcome = await login(loginValue, password, slug);
+      if (outcome === 'error') {
+        setError(language === 'ru' ? 'Неверный логин или пароль' : 'Login yoki parol noto\'g\'ri');
+      }
+      // outcome === 'success' → App re-renders.
+      // outcome === 'picker' should NOT happen here (the slug pinned a
+      // single tenant), but if it ever did, the picker just re-renders.
+    } catch {
+      setError(language === 'ru' ? 'Ошибка при входе' : 'Kirishda xatolik');
+    } finally {
+      setPickingSlug(null);
+    }
+  };
+
+  // Cancel the picker → drop the tenant list, password stays in the
+  // form input so the user can edit & retry without retyping.
+  const handleCancelPicker = () => {
+    clearPicker();
+    setPickingSlug(null);
+    setError('');
   };
 
   const displayError = error || authError;
@@ -969,6 +1006,135 @@ export function LoginPage() {
               </div>
             </div>
       </Modal>
+
+      {/* Tenant-picker overlay.
+          Mounted when authStore.pickerTenants is non-null — i.e. the
+          backend returned needs_tenant_pick=true. Covers the entire
+          login viewport with the same warm gradient as the form so it
+          reads as one continuous flow, not a popup. The form card
+          stays mounted underneath (so the password value, agreed-to-
+          terms checkbox, etc. survive a cancel), it's just visually
+          hidden by this layer.
+
+          Password lifecycle: it lives only in the LoginPage's `password`
+          useState; nothing in this overlay reads or echoes it. On
+          successful re-submit the page unmounts as App routes away;
+          on cancel the form re-appears with the value intact so the
+          user can edit and retry without re-typing. On unmount React
+          discards the state. */}
+      {pickerTenants && pickerTenants.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
+          style={{
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            height: '100dvh',
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={language === 'ru' ? 'Выбор управляющей компании' : 'Boshqaruv kompaniyasini tanlash'}
+        >
+          <div
+            className="flex min-h-full px-4 sm:p-4"
+            style={{
+              paddingTop: 'max(2rem, env(safe-area-inset-top))',
+              paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+            }}
+          >
+            <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 p-6 sm:p-8 w-full max-w-[400px] m-auto">
+              {/* Header: back arrow + title */}
+              <div className="flex items-center gap-3 mb-2">
+                <button
+                  onClick={handleCancelPicker}
+                  type="button"
+                  aria-label={language === 'ru' ? 'Назад' : 'Ortga'}
+                  className="w-10 h-10 grid place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 active:bg-gray-100 touch-manipulation"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <h1 className="text-[18px] font-bold text-gray-900 leading-tight" style={{ letterSpacing: '-0.01em' }}>
+                  {language === 'ru' ? 'Выберите компанию' : 'Kompaniyani tanlang'}
+                </h1>
+              </div>
+
+              {/* Subtitle */}
+              <p className="text-sm text-gray-600 mb-6 leading-snug">
+                {language === 'ru'
+                  ? 'Ваш логин зарегистрирован в нескольких управляющих компаниях. Выберите, в какую войти.'
+                  : 'Login bir nechta boshqaruv kompaniyasida ro\'yxatdan o\'tgan. Qaysi biriga kirishni tanlang.'}
+              </p>
+
+              {/* Tenant list */}
+              <div className="flex flex-col gap-2">
+                {pickerTenants.map((t) => {
+                  const busy = pickingSlug === t.slug;
+                  const disabled = !!pickingSlug; // disable all rows while one is in-flight
+                  return (
+                    <button
+                      key={t.slug}
+                      onClick={() => handleSelectTenant(t.slug)}
+                      type="button"
+                      disabled={disabled}
+                      className="flex items-center gap-3 p-3 border border-gray-200 rounded-2xl bg-white hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation text-left transition-colors"
+                    >
+                      {/* Logo or initial-letter chip */}
+                      {t.logo ? (
+                        <img
+                          src={t.logo}
+                          alt=""
+                          className="w-11 h-11 flex-shrink-0 rounded-xl object-cover border border-gray-100"
+                        />
+                      ) : (
+                        <div
+                          className="w-11 h-11 flex-shrink-0 rounded-xl grid place-items-center text-white font-bold text-base"
+                          style={{ background: 'linear-gradient(135deg, #F97316, #EA580C)' }}
+                        >
+                          {t.name.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                      {/* Name + secondary line (the slug, helps disambiguate when names collide) */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[15px] font-semibold text-gray-900 leading-tight truncate">
+                          {t.name}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5 truncate">
+                          {t.slug}.kamizo.uz
+                        </div>
+                      </div>
+                      {/* Trailing icon: spinner while this row is in-flight, otherwise chevron */}
+                      {busy ? (
+                        <Loader2 className="w-5 h-5 text-gray-400 animate-spin flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Error / status row */}
+              {displayError && (
+                <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{displayError}</span>
+                </div>
+              )}
+
+              {/* Cancel link as a softer secondary action */}
+              <button
+                onClick={handleCancelPicker}
+                type="button"
+                disabled={!!pickingSlug}
+                className="w-full mt-5 text-sm font-medium text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation py-2"
+              >
+                {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
