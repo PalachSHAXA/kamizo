@@ -1,29 +1,44 @@
 // Resident "Договор" — Claude Design §14-dogovor handoff
 // (design/handoff/contract-handoff.md). Header (back + title), dark
 // gradient hero card with status badge + Номер/Дата stats, accordion
-// of contract conditions, two-column requisites, sticky bottom action
-// bar with a single full-width "Скачать PDF" CTA.
+// of contract conditions, two-column requisites, and an in-flow
+// full-width "Скачать PDF" CTA at the bottom that scrolls with the
+// page.
 //
-//   • Скачать PDF — generateContractPdf renders a REAL text PDF from
-//     the canonical contract content (utils/contractContent), embedding
-//     Roboto Cyrillic + jsPDF lazy-loaded. Selectable text, crisp at any
-//     zoom, page-break safe. The handoff at screens/14-dogovor.html →
-//     kamizo-contract.jsx line 73 specifies the literal label "Скачать
-//     PDF" and Download icon.
-//   • The handoff (kamizo-contract.jsx line 74) ALSO specifies a second
-//     orange "Подписать" pill when !signed. We intentionally omit it
-//     until the legal flow lands: there is no self-serve signing
-//     backend, so the button could only show an info-toast pointing
-//     the resident at the УК offline — that's worse UX than a clean
-//     single-CTA bar. The omission is noted at the JSX site so the
-//     pill can be restored verbatim when the backend ships.
+// Surface decisions that diverge from the bare handoff:
+//   • The global BottomBar is hidden on this route via the existing
+//     modalStore-presence registry (useModalPresence). Same mechanism
+//     bottom sheets, the new-request flow, and the request-details
+//     sheet use today — mount pushes the count, unmount pops it, and
+//     BottomBar.tsx already returns null while count > 0 (see
+//     BottomBar.tsx line 80). No change to BottomBar; no new route
+//     allowlist; navigation reappears the moment the user leaves
+//     /contract. The contract page is content-heavy and reads like a
+//     document, so the floating tab pill adds nothing and visibly
+//     competes with the requisites cards.
+//   • Скачать PDF is an IN-FLOW button at the end of the scrollable
+//     content, not a position:fixed sticky bar. With the BottomBar
+//     hidden there's nothing else competing for the bottom of the
+//     viewport, so the lifted-action-bar workaround (bottom:
+//     env(safe-area) + 76 px; zIndex 1001) is no longer needed and
+//     was removed. The button scrolls together with the requisites.
+//   • The handoff (kamizo-contract.jsx line 74) specifies a second
+//     orange "Подписать" pill when !signed. We continue to omit it:
+//     there is no self-serve signing backend, and shipping a dead
+//     CTA is worse UX. The restoration path is documented inline.
+//
+// Скачать PDF — generateContractPdf renders a REAL text PDF from the
+// canonical contract content (utils/contractContent), embedding Roboto
+// Cyrillic + jsPDF lazy-loaded. Selectable text, crisp at any zoom,
+// page-break safe. The handoff at screens/14-dogovor.html →
+// kamizo-contract.jsx line 73 specifies the literal label and Download
+// icon.
 //
 // All wiring uses existing helpers/stores:
 //   - useAuthStore().user
 //   - generateContractPdf(user, language, fileName) from utils/contractGenerator
-//     (it generates its own QR codes internally, so the page doesn't need
-//     to feed one in)
 //   - useToastStore for the download-error notice
+//   - useModalPresence from stores/modalStore — hides BottomBar
 
 import { useMemo, useState } from 'react';
 import {
@@ -33,6 +48,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
+import { useModalPresence } from '../stores/modalStore';
 import { formatName } from '../utils/formatName';
 import { generateContractPdf } from '../utils/contractGenerator';
 
@@ -127,6 +143,14 @@ const SECTIONS: Section[] = [
 ];
 
 export function ResidentContractPage() {
+  // Treat /contract as a modal-class surface so the existing
+  // modalStore-presence registry hides the BottomBar for the lifetime
+  // of this component. BottomBar.tsx reads useModalStore().count and
+  // returns null while count > 0; useModalPresence push/pops the count
+  // on mount/unmount (see stores/modalStore.ts). Reused as-is; no new
+  // mechanism introduced.
+  useModalPresence();
+
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
@@ -184,11 +208,13 @@ export function ResidentContractPage() {
     <div style={{
       minHeight: '100%',
       background: APP_BG, color: TEXT_PRIMARY,
-      // Reserve room for BOTH the lifted sticky action bar (~76 px above
-      // the BottomBar pill) AND the BottomBar pill itself (~60 px tall
-      // sitting at safe-area-inset-bottom). 180 px clears both with a
-      // small gap so the last requisite card isn't visually crowded.
-      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 180px)',
+      // BottomBar is hidden on this route (useModalPresence above) and
+      // the action button is in-flow, not fixed, so the previous 180 px
+      // bottom reservation for a sticky bar + BottomBar pill is gone.
+      // Keep a comfortable margin past the home indicator so the
+      // "Скачать PDF" button isn't crowded against the screen edge
+      // when scrolled to the end.
+      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 32px)',
       letterSpacing: '-0.01em',
     }}>
       {/* Header */}
@@ -356,47 +382,35 @@ export function ResidentContractPage() {
             ]}
           />
         </div>
-      </div>
 
-      {/* Sticky bottom action bar.
-          The global BottomBar is a position:fixed floating pill at bottom:0
-          with zIndex 1000. The handoff specifies this action bar also at
-          bottom:0, but that puts it directly under the BottomBar pill —
-          which is exactly the regression: the Download/Sign buttons are in
-          the DOM but invisible because BottomBar paints on top. Lift this
-          bar above the pill: the pill's top edge sits at roughly
-          env(safe-area-inset-bottom) + 60 px, so bottom of 76 px (+ safe
-          area) leaves a small visual gap. zIndex 1001 keeps it above the
-          BottomBar in any sub-pixel edge case. */}
-      <div style={{
-        position: 'fixed',
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)',
-        left: 0, right: 0, zIndex: 1001,
-        padding: '12px 16px',
-        background: 'rgba(244,240,232,0.95)',
-        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-        borderTop: `1px solid ${BORDER_C}`,
-        borderBottom: `1px solid ${BORDER_C}`,
-        display: 'flex', gap: 10,
-      }}>
-        {/* Handoff (kamizo-contract.jsx lines 73–74) specifies a second
-            orange "Подписать" pill when !signed. We omit it: there is no
-            self-serve signing backend, so the button could only show an
-            info-toast pointing the resident at the УК offline — that's
-            worse UX than a clean single-CTA bar. When the legal flow
-            lands, restore the pill verbatim and switch this button back
-            to flex: signed ? 1 : '0 0 auto' per the handoff. */}
+        {/* In-flow download action.
+            Lives inside the page's scroll content, after the requisites,
+            so it scrolls with the document rather than pinning to the
+            viewport. The previous fixed/sticky-bar approach (bottom:
+            calc(safe-area) + 76px, zIndex 1001) is gone — with the
+            BottomBar hidden via useModalPresence at the top of this
+            component, nothing else competes for the viewport bottom and
+            the workaround for the BottomBar overlap is no longer needed.
+            Handoff styling preserved: white surface, 1 px var(--border-
+            strong), radius var(--radius-md), 14 × 18 padding, font 14.5
+            / 700, Download icon + label. The handoff's optional second
+            orange "Подписать" pill (kamizo-contract.jsx line 74) stays
+            omitted until a self-serve signing backend lands. */}
         <button
           onClick={handleDownload}
           disabled={isDownloading}
           style={{
-            flex: 1,
-            padding: '14px 18px', borderRadius: RADIUS_MD,
-            background: SURFACE, border: `1px solid ${BORDER_STRONG}`,
-            color: TEXT_PRIMARY, fontSize: 14.5, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            width: '100%',
+            marginTop: 24,
+            padding: '14px 18px',
+            borderRadius: RADIUS_MD,
+            background: SURFACE,
+            border: `1px solid ${BORDER_STRONG}`,
+            color: TEXT_PRIMARY,
+            fontSize: 14.5, fontWeight: 700,
             cursor: isDownloading ? 'default' : 'pointer',
             opacity: isDownloading ? 0.7 : 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             font: 'inherit',
           }}>
           <Download size={17} />
