@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_URL } from '../services/api/client';
 import {
   Users, Calendar, AlertCircle,
   FileText,
@@ -115,7 +116,7 @@ export function MeetingDetailsModal({
     setDownloadingProtocol(true);
     try {
       // Fetch protocol data from backend
-      const response = await fetch(`/api/meetings/${meeting.id}/protocol/data`);
+      const response = await fetch(`${API_URL}/api/meetings/${meeting.id}/protocol/data`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch protocol data');
