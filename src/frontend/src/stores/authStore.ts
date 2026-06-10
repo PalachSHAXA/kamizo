@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '../types';
 import { authApi, usersApi } from '../services/api';
+import type { TenantPickEntry } from '../services/api/auth';
 import { useToastStore } from './toastStore';
 
 interface MockUserData {
@@ -9,14 +10,34 @@ interface MockUserData {
   user: User;
 }
 
+/**
+ * Login attempt outcome.
+ *   'success' — user logged in; component should let App re-render.
+ *   'picker'  — backend asked the caller to pick a workspace. Read
+ *               state.pickerTenants and call login() again with a
+ *               tenantSlug.
+ *   'error'   — credentials rejected / network issue. state.error holds
+ *               the message to display.
+ */
+export type LoginOutcome = 'success' | 'picker' | 'error';
+
 interface AuthState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   error: string | null;
+  /**
+   * Populated when the backend returns needs_tenant_pick=true. UI shows
+   * a workspace picker; the user picks a slug; the caller re-submits
+   * login() with `tenantSlug`. Cleared on success, on error, or by
+   * clearPicker().
+   */
+  pickerTenants: TenantPickEntry[] | null;
   // Legacy compatibility - to be removed after full migration
   additionalUsers: Record<string, MockUserData>;
-  login: (loginStr: string, password: string) => Promise<boolean>;
+  login: (loginStr: string, password: string, tenantSlug?: string) => Promise<LoginOutcome>;
+  /** Dismiss the picker without resubmitting (user cancelled). */
+  clearPicker: () => void;
   logout: () => void;
   register: (userData: {
     login: string;
@@ -57,25 +78,43 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isLoading: false,
       error: null,
+      pickerTenants: null,
       additionalUsers: {},
 
-      login: async (loginStr: string, password: string) => {
+      login: async (loginStr: string, password: string, tenantSlug?: string) => {
         const normalizedLogin = loginStr.trim();
         const normalizedPassword = password.trim();
-        set({ isLoading: true, error: null });
+        // Clear any leftover picker state from a previous attempt so the
+        // UI doesn't briefly show stale options if this call comes back
+        // 'success' or 'error' instead of 'picker'.
+        set({ isLoading: true, error: null, pickerTenants: null });
 
-        // API login (all users are in database)
         try {
-          const data = await authApi.login(normalizedLogin, normalizedPassword);
+          const result = await authApi.login(normalizedLogin, normalizedPassword, tenantSlug);
+
+          if (result.kind === 'picker') {
+            // Backend confirmed credentials are valid for 2+ tenants and is
+            // asking the user which workspace to land in. Do NOT mutate
+            // user/token — the user isn't authenticated to any workspace
+            // until they pick one and we re-submit.
+            set({
+              isLoading: false,
+              error: null,
+              pickerTenants: result.tenants,
+            });
+            return 'picker';
+          }
+
           // Sync token to localStorage immediately so apiRequest can use it
-          localStorage.setItem('auth_token', data.token);
+          localStorage.setItem('auth_token', result.token);
           set({
-            user: data.user,
-            token: data.token,
+            user: result.user as unknown as User,
+            token: result.token,
             isLoading: false,
-            error: null
+            error: null,
+            pickerTenants: null,
           });
-          return true;
+          return 'success';
         } catch (apiError: unknown) {
           // Login failed
           const rawMessage = apiError instanceof Error ? apiError.message : '';
@@ -93,10 +132,15 @@ export const useAuthStore = create<AuthState>()(
                     : rawMessage;
           set({
             isLoading: false,
-            error: message
+            error: message,
+            pickerTenants: null,
           });
-          return false;
+          return 'error';
         }
+      },
+
+      clearPicker: () => {
+        set({ pickerTenants: null });
       },
 
       logout: () => {

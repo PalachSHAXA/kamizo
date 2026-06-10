@@ -32,6 +32,7 @@
     "docxtemplater": "^3.67.6",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
+    "jspdf": "^4.2.1",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.562.0",
     "pizzip": "^3.2.0",

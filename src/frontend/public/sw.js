@@ -1,4 +1,90 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.21 — cache suffix bumped to v75 to evict every v74 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Tenant-picker step in the login flow. When a resident's login
+//     is registered in 2+ tenants AND the password verifies against
+//     2+ of them, the backend now returns { needs_tenant_pick: true,
+//     tenants: [{ slug, name, logo }] } instead of a JWT. The login
+//     page now mounts a full-viewport workspace picker overlay, the
+//     user taps a workspace, the page re-submits login with the
+//     chosen tenantSlug, and the existing scoped path issues the
+//     JWT. Wires up the disambiguation backend deployed earlier
+//     today; specifically unblocks the unified mobile app (which has
+//     no subdomain to resolve from).
+//   • Password lives only in the LoginPage's local useState — never
+//     logged, never persisted. Survives a picker cancel so the user
+//     can edit and retry without retyping.
+//
+// Previous notes (v74) preserved below:
+// Version: 3.7.20 — cache suffix bumped to v74 to evict every v73 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident /contract route now hides the floating BottomBar for
+//     the lifetime of the page. Uses the existing modalStore-presence
+//     registry (useModalPresence) — same mechanism every bottom sheet
+//     and full-screen modal already uses; BottomBar.tsx reads
+//     useModalStore().count and returns null while > 0. No change to
+//     BottomBar itself; bar reappears on route leave.
+//   • Скачать PDF button is now an in-flow element at the end of the
+//     scrollable content (after the requisites grid), not a
+//     position:fixed sticky bar. With BottomBar hidden, the lifted-
+//     bar workaround (bottom: calc(safe-area) + 76 px; zIndex 1001;
+//     backdrop blur) is gone. The button scrolls with the content,
+//     full-width, same handoff styling, same text-PDF handler.
+//   • Page-root paddingBottom retuned 180 → 32 px (+ safe-area) since
+//     there's no fixed bar to reserve for anymore.
+//
+// Previous notes (v73) preserved below:
+// Version: 3.7.19 — cache suffix bumped to v73 to evict every v72 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident contract sticky action bar is now a single full-width
+//     Скачать PDF button. The handoff (kamizo-contract.jsx line 74)
+//     also specifies a second orange "Подписать" pill when !signed,
+//     but the project has no self-serve signing backend yet — the
+//     button could only show an info-toast directing the resident to
+//     contact the УК offline, which is worse UX than a clean single
+//     CTA. The pill is omitted with a documented restoration path so
+//     it can return verbatim when the legal flow lands.
+//
+// Previous notes (v72) preserved below:
+// Version: 3.7.18 — cache suffix bumped to v72 to evict every v71 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident contract Скачать PDF button now produces a REAL text
+//     PDF (selectable text, crisp at any zoom, clean page breaks),
+//     not the previous image-based PDF. Generated client-side by
+//     jsPDF's text API from the canonical contract data
+//     (utils/contractContent.ts), with Roboto Regular + Medium
+//     embedded for full Cyrillic glyph coverage. Page-break safety:
+//     every block is measured before drawing, section headings carry
+//     a widow guard, and the requisites/signature block stays as a
+//     single unit. Both fonts and jsPDF are lazy-loaded only when
+//     the user actually taps Скачать PDF — zero impact on initial
+//     bundle (main index.js unchanged at 438.91 kB).
+//
+// Previous notes (v71) preserved below:
+// Version: 3.7.17 — cache suffix bumped to v71 to evict every v70 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Contract page (resident) action bar visibility fix: Скачать
+//     договор / Подписать buttons were in the DOM but invisible because
+//     the page's own sticky bar (position:fixed; bottom:0; zIndex:20)
+//     sat directly under the global BottomBar pill (zIndex:1000). The
+//     action bar is now lifted to bottom: env(safe-area-inset-bottom)
+//     + 76 px with zIndex:1001, leaving the BottomBar pill below it
+//     with a clean visual gap. Scroll container's paddingBottom bumped
+//     120 → 180 px so the final Собственник requisite card clears both.
+//
+// Previous notes (v70) preserved below:
+// Version: 3.7.16 — cache suffix bumped to v70 to evict every v69 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • LoginPage scroll fix: /login is rendered outside <Layout>, so it
+//     inherited the resident shell's body/#root height:100dvh;
+//     overflow:hidden lock and clipped its tall content (welcome +
+//     form + offer + the demo-login grid) at both ends with no way to
+//     scroll. The outer div is now its own scroll region
+//     (height:100dvh + overflow-y:auto) with safe-area-inset padding
+//     and a `m-auto`-on-flex-child centering pattern so the card
+//     centers when it fits and scrolls when it doesn't.
+//
+// Previous notes (v69) preserved below:
 // Version: 3.7.15 — cache suffix bumped to v69 to evict every v68 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Home swipe cards: card height bumped 210 → 250 + internal
@@ -191,9 +277,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v69';
-const ASSET_CACHE = 'kamizo-assets-v69';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v69';
+const STATIC_CACHE = 'kamizo-static-v75';
+const ASSET_CACHE = 'kamizo-assets-v75';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v75';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
