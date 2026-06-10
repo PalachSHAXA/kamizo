@@ -1,4 +1,21 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.21 — cache suffix bumped to v75 to evict every v74 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Tenant-picker step in the login flow. When a resident's login
+//     is registered in 2+ tenants AND the password verifies against
+//     2+ of them, the backend now returns { needs_tenant_pick: true,
+//     tenants: [{ slug, name, logo }] } instead of a JWT. The login
+//     page now mounts a full-viewport workspace picker overlay, the
+//     user taps a workspace, the page re-submits login with the
+//     chosen tenantSlug, and the existing scoped path issues the
+//     JWT. Wires up the disambiguation backend deployed earlier
+//     today; specifically unblocks the unified mobile app (which has
+//     no subdomain to resolve from).
+//   • Password lives only in the LoginPage's local useState — never
+//     logged, never persisted. Survives a picker cancel so the user
+//     can edit and retry without retyping.
+//
+// Previous notes (v74) preserved below:
 // Version: 3.7.20 — cache suffix bumped to v74 to evict every v73 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident /contract route now hides the floating BottomBar for
@@ -260,9 +277,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v74';
-const ASSET_CACHE = 'kamizo-assets-v74';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v74';
+const STATIC_CACHE = 'kamizo-static-v75';
+const ASSET_CACHE = 'kamizo-assets-v75';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v75';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
