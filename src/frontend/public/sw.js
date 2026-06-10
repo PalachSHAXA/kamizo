@@ -1,4 +1,22 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.20 — cache suffix bumped to v74 to evict every v73 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident /contract route now hides the floating BottomBar for
+//     the lifetime of the page. Uses the existing modalStore-presence
+//     registry (useModalPresence) — same mechanism every bottom sheet
+//     and full-screen modal already uses; BottomBar.tsx reads
+//     useModalStore().count and returns null while > 0. No change to
+//     BottomBar itself; bar reappears on route leave.
+//   • Скачать PDF button is now an in-flow element at the end of the
+//     scrollable content (after the requisites grid), not a
+//     position:fixed sticky bar. With BottomBar hidden, the lifted-
+//     bar workaround (bottom: calc(safe-area) + 76 px; zIndex 1001;
+//     backdrop blur) is gone. The button scrolls with the content,
+//     full-width, same handoff styling, same text-PDF handler.
+//   • Page-root paddingBottom retuned 180 → 32 px (+ safe-area) since
+//     there's no fixed bar to reserve for anymore.
+//
+// Previous notes (v73) preserved below:
 // Version: 3.7.19 — cache suffix bumped to v73 to evict every v72 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident contract sticky action bar is now a single full-width
@@ -242,9 +260,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v73';
-const ASSET_CACHE = 'kamizo-assets-v73';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v73';
+const STATIC_CACHE = 'kamizo-static-v74';
+const ASSET_CACHE = 'kamizo-assets-v74';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v74';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
