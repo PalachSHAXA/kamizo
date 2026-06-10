@@ -2,22 +2,28 @@
 // (design/handoff/contract-handoff.md). Header (back + title), dark
 // gradient hero card with status badge + Номер/Дата stats, accordion
 // of contract conditions, two-column requisites, sticky bottom action
-// bar:
+// bar with a single full-width "Скачать PDF" CTA.
+//
 //   • Скачать PDF — generateContractPdf renders a REAL text PDF from
 //     the canonical contract content (utils/contractContent), embedding
 //     Roboto Cyrillic + jsPDF lazy-loaded. Selectable text, crisp at any
 //     zoom, page-break safe. The handoff at screens/14-dogovor.html →
 //     kamizo-contract.jsx line 73 specifies the literal label "Скачать
 //     PDF" and Download icon.
-//   • Подписать — locked info toast since there's no self-serve signing
-//     endpoint yet (per the handoff's locked-actions section).
+//   • The handoff (kamizo-contract.jsx line 74) ALSO specifies a second
+//     orange "Подписать" pill when !signed. We intentionally omit it
+//     until the legal flow lands: there is no self-serve signing
+//     backend, so the button could only show an info-toast pointing
+//     the resident at the УК offline — that's worse UX than a clean
+//     single-CTA bar. The omission is noted at the JSX site so the
+//     pill can be restored verbatim when the backend ships.
 //
 // All wiring uses existing helpers/stores:
 //   - useAuthStore().user
 //   - generateContractPdf(user, language, fileName) from utils/contractGenerator
 //     (it generates its own QR codes internally, so the page doesn't need
 //     to feed one in)
-//   - useToastStore for the locked-action notice
+//   - useToastStore for the download-error notice
 
 import { useMemo, useState } from 'react';
 import {
@@ -40,10 +46,8 @@ const TEXT_MUTED = '#A8A29E';
 const TEXT_ON_DARK = '#F4F0E8';
 const BORDER_C = 'rgba(28,25,23,0.08)';
 const BORDER_STRONG = '#D6D3D1';
-const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
 const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
-const SHADOW_BRAND = '0 8px 22px rgba(249,115,22,0.32)';
 const RADIUS_XL = 22;
 const RADIUS_LG = 16;
 const RADIUS_MD = 12;
@@ -174,15 +178,6 @@ export function ResidentContractPage() {
     } finally {
       setIsDownloading(false);
     }
-  };
-
-  // Locked: no self-serve signing endpoint yet. Until the legal flow
-  // lands, signing runs through the УК offline — we surface that as an
-  // info toast instead of breaking the flow.
-  const handleSign = () => {
-    addToast('info', lang === 'ru'
-      ? 'Подписание договора пока проходит через УК. Свяжитесь с управляющей компанией.'
-      : 'Shartnomani imzolash hozircha BK orqali amalga oshiriladi. Boshqaruv kompaniyasiga murojaat qiling.');
   };
 
   return (
@@ -384,11 +379,18 @@ export function ResidentContractPage() {
         borderBottom: `1px solid ${BORDER_C}`,
         display: 'flex', gap: 10,
       }}>
+        {/* Handoff (kamizo-contract.jsx lines 73–74) specifies a second
+            orange "Подписать" pill when !signed. We omit it: there is no
+            self-serve signing backend, so the button could only show an
+            info-toast pointing the resident at the УК offline — that's
+            worse UX than a clean single-CTA bar. When the legal flow
+            lands, restore the pill verbatim and switch this button back
+            to flex: signed ? 1 : '0 0 auto' per the handoff. */}
         <button
           onClick={handleDownload}
           disabled={isDownloading}
           style={{
-            flex: signed ? 1 : '0 0 auto',
+            flex: 1,
             padding: '14px 18px', borderRadius: RADIUS_MD,
             background: SURFACE, border: `1px solid ${BORDER_STRONG}`,
             color: TEXT_PRIMARY, fontSize: 14.5, fontWeight: 700,
@@ -402,18 +404,6 @@ export function ResidentContractPage() {
             ? (lang === 'ru' ? 'Готовим...' : 'Tayyorlanmoqda...')
             : (lang === 'ru' ? 'Скачать PDF' : 'Yuklab olish PDF')}
         </button>
-        {!signed && (
-          <button
-            onClick={handleSign}
-            style={{
-              flex: 1, padding: 14, borderRadius: RADIUS_MD,
-              background: BRAND, border: 'none', color: '#fff',
-              fontSize: 14.5, fontWeight: 700, cursor: 'pointer',
-              boxShadow: SHADOW_BRAND, font: 'inherit',
-            }}>
-            {lang === 'ru' ? 'Подписать' : 'Imzolash'}
-          </button>
-        )}
       </div>
     </div>
   );
