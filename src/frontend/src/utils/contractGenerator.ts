@@ -283,3 +283,86 @@ export async function generateContractDocx(
   const fileName = `Договор_${user.name?.replace(/\s+/g, '_') || 'resident'}.docx`;
   downloadBlob(blob, fileName);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// PDF generation
+//
+// The §14-dogovor handoff calls the download button "Скачать PDF". We
+// produce a real PDF client-side from the same canonical contract layout
+// (ContractPreview.tsx) — html2canvas rasterises the rendered React node
+// and jsPDF splits it across A4 pages. The browser's native fonts render
+// Cyrillic correctly, so no embedded TTF is needed.
+//
+// Why this approach over jsPDF text primitives:
+//   - ContractPreview is the authoritative resident contract text, kept
+//     in sync with the DOCX template. Capturing it means the PDF stays
+//     identical to the on-screen preview without duplicating clause text.
+//   - jsPDF.text() requires a Cyrillic-capable embedded font (+~80–200 KB)
+//     plus per-clause manual layout — much more code and bundle weight
+//     for the same end result.
+//
+// Caller is responsible for rendering ContractPreview into an off-screen
+// container and passing the DOM node. Off-screen (not display:none) is
+// required so html2canvas can read computed styles + box dimensions.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Capture a DOM node and produce a multi-page A4 PDF download.
+ * @param node The rendered ContractPreview DOM node (off-screen but laid out).
+ * @param fileName Final download name. e.g. `Kamizo-dogovor-45.pdf`.
+ */
+export async function generateContractPdf(
+  node: HTMLElement,
+  fileName: string,
+): Promise<void> {
+  // Lazy-load the heavy deps so a user who never taps the download button
+  // doesn't pay for them on the initial bundle.
+  const [{ default: html2canvas }, { default: jsPDFCtor }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
+
+  // Rasterise at 2× pixel density so the PDF stays sharp on retina-class
+  // print preview. Background is white so transparent regions of the React
+  // tree don't show through as black on some Android PDF viewers.
+  const canvas = await html2canvas(node, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    logging: false,
+    // Capture the full scrollable content, not just the viewport-visible
+    // region of the off-screen container.
+    windowWidth: node.scrollWidth,
+    windowHeight: node.scrollHeight,
+  });
+
+  // A4 page in mm. jsPDF coordinate system: top-left origin, mm units.
+  const pdf = new jsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();   // 210
+  const pageH = pdf.internal.pageSize.getHeight();  // 297
+
+  // Project the captured pixel canvas onto the page so the WIDTH fills
+  // the page. Height becomes (canvas.h / canvas.w) * pageW; if that's
+  // taller than one A4 page, slice into multiple pages by shifting the
+  // image vertically and adding a fresh page each time.
+  const imgW = pageW;
+  const imgH = (canvas.height * imgW) / canvas.width;
+
+  // Use JPEG for the on-page image — substantially smaller blob than PNG
+  // for full-width contract pages, with no perceptible quality loss at
+  // print resolution.
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+  let y = 0;
+  while (y < imgH) {
+    if (y > 0) pdf.addPage();
+    // jsPDF doesn't crop images itself — we draw the full image and
+    // shift its top edge upward by `y` so the next page's slice lands
+    // at the page's origin. White A4 fills around it.
+    pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH, undefined, 'FAST');
+    y += pageH;
+  }
+
+  const blob = pdf.output('blob');
+  downloadBlob(blob, fileName);
+}

@@ -2,16 +2,25 @@
 // (design/handoff/contract-handoff.md). Header (back + title), dark
 // gradient hero card with status badge + Номер/Дата stats, accordion
 // of contract conditions, two-column requisites, sticky bottom action
-// bar (Скачать договор → real generateContractDocx; Подписать → locked
-// info toast since there's no self-serve signing endpoint yet).
+// bar:
+//   • Скачать PDF — generateContractPdf captures the canonical
+//     <ContractPreview> layout off-screen and exports a real multi-page
+//     A4 PDF (jsPDF + html2canvas, both lazy-loaded). The handoff at
+//     screens/14-dogovor.html → kamizo-contract.jsx line 73 specifies
+//     the literal label "Скачать PDF" and Download icon.
+//   • Подписать — locked info toast since there's no self-serve signing
+//     endpoint yet (per the handoff's locked-actions section).
 //
 // All wiring uses existing helpers/stores:
 //   - useAuthStore().user
-//   - generateContractDocx(user, qrCodeUrl, language) from utils/contractGenerator
+//   - generateContractPdf(node, fileName) from utils/contractGenerator
 //   - generateQRCode(text, opts) from components/LazyQRCode
+//   - ContractPreview (the canonical contract layout — same component
+//     other surfaces use; rendered in a hidden off-screen container so
+//     html2canvas can read computed styles + box dimensions)
 //   - useToastStore for the locked-action notice
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Check, ChevronDown, Download, FileText,
 } from 'lucide-react';
@@ -20,8 +29,9 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { formatName } from '../utils/formatName';
-import { generateContractDocx } from '../utils/contractGenerator';
+import { generateContractPdf } from '../utils/contractGenerator';
 import { generateQRCode } from '../components/LazyQRCode';
+import { ContractPreview } from '../components/ContractPreview';
 
 // ── visual tokens (literal so a global rename can't silently break
 //    this surface) ────────────────────────────────────────────────────
@@ -174,11 +184,30 @@ export function ResidentContractPage() {
     }
   };
 
+  // Off-screen container for the canonical <ContractPreview> render —
+  // html2canvas captures from here on download. Kept off-screen rather
+  // than display:none so layout (heights, line wraps, column widths) is
+  // real; display:none would zero out box dimensions and produce a blank
+  // PDF page.
+  const pdfSourceRef = useRef<HTMLDivElement>(null);
+
   const handleDownload = async () => {
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      await generateContractDocx(user, qrCodeUrl, lang);
+      const node = pdfSourceRef.current;
+      if (!node) {
+        // Defensive — the off-screen container is always mounted while
+        // the page is visible, but if React hasn't committed yet we
+        // fail with a clear error instead of a silent no-op.
+        throw new Error('Contract preview not ready yet');
+      }
+      // Filename per task spec: Kamizo-dogovor-{apartment}.pdf, falling
+      // back to login when no apartment is set.
+      const slug = (user.apartment ? String(user.apartment) : user.login || 'resident')
+        .replace(/[^A-Za-zА-Яа-я0-9_-]+/g, '-');
+      const fileName = `Kamizo-dogovor-${slug}.pdf`;
+      await generateContractPdf(node, fileName);
     } catch (e) {
       const msg = (e instanceof Error ? e.message : null)
         || (lang === 'ru'
@@ -414,7 +443,7 @@ export function ResidentContractPage() {
           <Download size={17} />
           {isDownloading
             ? (lang === 'ru' ? 'Готовим...' : 'Tayyorlanmoqda...')
-            : (lang === 'ru' ? 'Скачать договор' : 'Shartnomani yuklab olish')}
+            : (lang === 'ru' ? 'Скачать PDF' : 'Yuklab olish PDF')}
         </button>
         {!signed && (
           <button
@@ -428,6 +457,31 @@ export function ResidentContractPage() {
             {lang === 'ru' ? 'Подписать' : 'Imzolash'}
           </button>
         )}
+      </div>
+
+      {/* Off-screen PDF source.
+          ContractPreview is the canonical full-text contract used across
+          the app. We render a real, laid-out copy here so html2canvas
+          can rasterise it on download. Positioning trick: left:-10000px
+          (rather than display:none) keeps box-model + line wrapping real
+          — display:none collapses dimensions and breaks the capture.
+          Fixed 760 px width approximates A4 aspect at print resolution
+          so the resulting PDF has predictable column widths regardless
+          of viewport. aria-hidden + tabIndex:-1 keep AT and keyboard
+          focus out of the off-screen clone. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          top: 0, left: -10000,
+          width: 760,
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      >
+        <div ref={pdfSourceRef}>
+          <ContractPreview user={user} qrCodeUrl={qrCodeUrl} language={lang} />
+        </div>
       </div>
     </div>
   );
