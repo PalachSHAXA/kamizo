@@ -1,4 +1,18 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.22 — cache suffix bumped to v76 to evict every v75 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • LoginPage inputs now carry autoCapitalize="none", autoCorrect=
+//     "off", and spellCheck={false} on BOTH the login and password
+//     fields. The deployed disambiguation backend is case-sensitive
+//     end-to-end (curl confirmed: capital "D" or "K" → 401, lowercase
+//     → 200), so a phone user typing "demo-resident2" would have the
+//     Android/iOS keyboard silently upper-case it to "Demo-resident2"
+//     and see only "Неверный логин или пароль" with no clue why. Fix
+//     applies to the same WebView engine that backs the native
+//     Capacitor Android + iOS apps, so the PWA AND the native shells
+//     both stop failing for real mobile users on the first attempt.
+//
+// Previous notes (v75) preserved below:
 // Version: 3.7.21 — cache suffix bumped to v75 to evict every v74 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Tenant-picker step in the login flow. When a resident's login
@@ -277,9 +291,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v75';
-const ASSET_CACHE = 'kamizo-assets-v75';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v75';
+const STATIC_CACHE = 'kamizo-static-v76';
+const ASSET_CACHE = 'kamizo-assets-v76';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v76';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
