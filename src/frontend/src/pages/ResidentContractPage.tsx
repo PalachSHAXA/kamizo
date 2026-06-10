@@ -203,7 +203,11 @@ export function ResidentContractPage() {
     <div style={{
       minHeight: '100%',
       background: APP_BG, color: TEXT_PRIMARY,
-      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)',
+      // Reserve room for BOTH the lifted sticky action bar (~76 px above
+      // the BottomBar pill) AND the BottomBar pill itself (~60 px tall
+      // sitting at safe-area-inset-bottom). 180 px clears both with a
+      // small gap so the last requisite card isn't visually crowded.
+      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 180px)',
       letterSpacing: '-0.01em',
     }}>
       {/* Header */}
@@ -373,13 +377,25 @@ export function ResidentContractPage() {
         </div>
       </div>
 
-      {/* Sticky bottom action bar */}
+      {/* Sticky bottom action bar.
+          The global BottomBar is a position:fixed floating pill at bottom:0
+          with zIndex 1000. The handoff specifies this action bar also at
+          bottom:0, but that puts it directly under the BottomBar pill —
+          which is exactly the regression: the Download/Sign buttons are in
+          the DOM but invisible because BottomBar paints on top. Lift this
+          bar above the pill: the pill's top edge sits at roughly
+          env(safe-area-inset-bottom) + 60 px, so bottom of 76 px (+ safe
+          area) leaves a small visual gap. zIndex 1001 keeps it above the
+          BottomBar in any sub-pixel edge case. */}
       <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
-        padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)',
+        position: 'fixed',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)',
+        left: 0, right: 0, zIndex: 1001,
+        padding: '12px 16px',
         background: 'rgba(244,240,232,0.95)',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderTop: `1px solid ${BORDER_C}`,
+        borderBottom: `1px solid ${BORDER_C}`,
         display: 'flex', gap: 10,
       }}>
         <button
