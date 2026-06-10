@@ -1,4 +1,19 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.18 — cache suffix bumped to v72 to evict every v71 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident contract Скачать PDF button now produces a REAL text
+//     PDF (selectable text, crisp at any zoom, clean page breaks),
+//     not the previous image-based PDF. Generated client-side by
+//     jsPDF's text API from the canonical contract data
+//     (utils/contractContent.ts), with Roboto Regular + Medium
+//     embedded for full Cyrillic glyph coverage. Page-break safety:
+//     every block is measured before drawing, section headings carry
+//     a widow guard, and the requisites/signature block stays as a
+//     single unit. Both fonts and jsPDF are lazy-loaded only when
+//     the user actually taps Скачать PDF — zero impact on initial
+//     bundle (main index.js unchanged at 438.91 kB).
+//
+// Previous notes (v71) preserved below:
 // Version: 3.7.17 — cache suffix bumped to v71 to evict every v70 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Contract page (resident) action bar visibility fix: Скачать
@@ -215,9 +230,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v71';
-const ASSET_CACHE = 'kamizo-assets-v71';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v71';
+const STATIC_CACHE = 'kamizo-static-v72';
+const ASSET_CACHE = 'kamizo-assets-v72';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v72';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
