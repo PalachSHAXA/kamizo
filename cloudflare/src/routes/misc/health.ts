@@ -71,12 +71,21 @@ function buildConfigResponse(tenant: Record<string, unknown>) {
 
 route('GET', '/api/tenant/config', async (request, env) => {
   // 1. Origin / subdomain path (browser PWA, VPS [node-port] patch).
+  //    Caveat: getUser() in the auth middleware ALSO calls
+  //    setTenantForRequest(request, { id: tenant_id }) — a "stub" tenant
+  //    with ONLY the id field — purely for downstream multi-tenant
+  //    row filtering. That stub satisfies a naive truthy check but has
+  //    no name/slug/color, so we'd return a half-empty config object
+  //    (the original bug). We discriminate by looking for `name`,
+  //    which only the full SELECT * row from index.ts has.
   const fromOrigin = getTenantForRequest(request);
-  if (fromOrigin) {
+  if (fromOrigin && (fromOrigin as { name?: unknown }).name) {
     return buildConfigResponse(fromOrigin);
   }
 
-  // 2. JWT fallback (Capacitor native shell).
+  // 2. JWT fallback (Capacitor native shell, or any browser request
+  //    where only the auth-middleware stub was set). For both we fetch
+  //    the full tenant row keyed on the JWT's tenantId.
   const authHeader = request.headers.get('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
