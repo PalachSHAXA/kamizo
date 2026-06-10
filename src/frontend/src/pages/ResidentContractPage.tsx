@@ -2,16 +2,24 @@
 // (design/handoff/contract-handoff.md). Header (back + title), dark
 // gradient hero card with status badge + Номер/Дата stats, accordion
 // of contract conditions, two-column requisites, sticky bottom action
-// bar (Скачать договор → real generateContractDocx; Подписать → locked
-// info toast since there's no self-serve signing endpoint yet).
+// bar:
+//   • Скачать PDF — generateContractPdf renders a REAL text PDF from
+//     the canonical contract content (utils/contractContent), embedding
+//     Roboto Cyrillic + jsPDF lazy-loaded. Selectable text, crisp at any
+//     zoom, page-break safe. The handoff at screens/14-dogovor.html →
+//     kamizo-contract.jsx line 73 specifies the literal label "Скачать
+//     PDF" and Download icon.
+//   • Подписать — locked info toast since there's no self-serve signing
+//     endpoint yet (per the handoff's locked-actions section).
 //
 // All wiring uses existing helpers/stores:
 //   - useAuthStore().user
-//   - generateContractDocx(user, qrCodeUrl, language) from utils/contractGenerator
-//   - generateQRCode(text, opts) from components/LazyQRCode
+//   - generateContractPdf(user, language, fileName) from utils/contractGenerator
+//     (it generates its own QR codes internally, so the page doesn't need
+//     to feed one in)
 //   - useToastStore for the locked-action notice
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowLeft, Check, ChevronDown, Download, FileText,
 } from 'lucide-react';
@@ -20,8 +28,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { formatName } from '../utils/formatName';
-import { generateContractDocx } from '../utils/contractGenerator';
-import { generateQRCode } from '../components/LazyQRCode';
+import { generateContractPdf } from '../utils/contractGenerator';
 
 // ── visual tokens (literal so a global rename can't silently break
 //    this surface) ────────────────────────────────────────────────────
@@ -123,37 +130,11 @@ export function ResidentContractPage() {
   const navigate = useNavigate();
 
   const [openId, setOpenId] = useState<string | null>('s1');
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Generate the resident QR lazily — used by the DOCX export so the
-  // signature block carries the resident's personal QR.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const generate = async () => {
-      const text = [
-        `ФИО: ${user.name || 'Собственник'}`,
-        `Л/С: ${user.login}`,
-        user.address ? `Адрес: ${user.address}` : null,
-        user.apartment ? `Кв: ${user.apartment}` : null,
-        user.phone ? `Тел: ${user.phone}` : null,
-      ].filter(Boolean).join('\n');
-      try {
-        const url = await generateQRCode(text, {
-          width: 300,
-          margin: 1,
-          errorCorrectionLevel: 'M',
-          color: { dark: '#000000', light: '#ffffff' },
-        });
-        if (!cancelled) setQrCodeUrl(url);
-      } catch {
-        // QR generation failure is non-fatal — DOCX still renders.
-      }
-    };
-    generate();
-    return () => { cancelled = true; };
-  }, [user]);
+  // generateContractPdf builds its own QR codes from the same contract
+  // data internally, so the page no longer needs a separate resident QR
+  // state — the visible hero card uses an icon, not a QR.
 
   const signed = !!user?.contractSignedAt;
   const contractNumber = useMemo(() => {
@@ -178,7 +159,12 @@ export function ResidentContractPage() {
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      await generateContractDocx(user, qrCodeUrl, lang);
+      // Filename per task spec: Kamizo-dogovor-{apartment}.pdf, falling
+      // back to login when no apartment is set.
+      const slug = (user.apartment ? String(user.apartment) : user.login || 'resident')
+        .replace(/[^A-Za-zА-Яа-я0-9_-]+/g, '-');
+      const fileName = `Kamizo-dogovor-${slug}.pdf`;
+      await generateContractPdf(user, lang, fileName);
     } catch (e) {
       const msg = (e instanceof Error ? e.message : null)
         || (lang === 'ru'
@@ -414,7 +400,7 @@ export function ResidentContractPage() {
           <Download size={17} />
           {isDownloading
             ? (lang === 'ru' ? 'Готовим...' : 'Tayyorlanmoqda...')
-            : (lang === 'ru' ? 'Скачать договор' : 'Shartnomani yuklab olish')}
+            : (lang === 'ru' ? 'Скачать PDF' : 'Yuklab olish PDF')}
         </button>
         {!signed && (
           <button
