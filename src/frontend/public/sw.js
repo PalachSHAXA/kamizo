@@ -1,4 +1,16 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.17 — cache suffix bumped to v71 to evict every v70 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Contract page (resident) action bar visibility fix: Скачать
+//     договор / Подписать buttons were in the DOM but invisible because
+//     the page's own sticky bar (position:fixed; bottom:0; zIndex:20)
+//     sat directly under the global BottomBar pill (zIndex:1000). The
+//     action bar is now lifted to bottom: env(safe-area-inset-bottom)
+//     + 76 px with zIndex:1001, leaving the BottomBar pill below it
+//     with a clean visual gap. Scroll container's paddingBottom bumped
+//     120 → 180 px so the final Собственник requisite card clears both.
+//
+// Previous notes (v70) preserved below:
 // Version: 3.7.16 — cache suffix bumped to v70 to evict every v69 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • LoginPage scroll fix: /login is rendered outside <Layout>, so it
@@ -203,9 +215,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v70';
-const ASSET_CACHE = 'kamizo-assets-v70';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v70';
+const STATIC_CACHE = 'kamizo-static-v71';
+const ASSET_CACHE = 'kamizo-assets-v71';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v71';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
