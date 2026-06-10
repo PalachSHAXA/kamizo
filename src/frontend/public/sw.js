@@ -1,4 +1,16 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.19 — cache suffix bumped to v73 to evict every v72 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident contract sticky action bar is now a single full-width
+//     Скачать PDF button. The handoff (kamizo-contract.jsx line 74)
+//     also specifies a second orange "Подписать" pill when !signed,
+//     but the project has no self-serve signing backend yet — the
+//     button could only show an info-toast directing the resident to
+//     contact the УК offline, which is worse UX than a clean single
+//     CTA. The pill is omitted with a documented restoration path so
+//     it can return verbatim when the legal flow lands.
+//
+// Previous notes (v72) preserved below:
 // Version: 3.7.18 — cache suffix bumped to v72 to evict every v71 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident contract Скачать PDF button now produces a REAL text
@@ -230,9 +242,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v72';
-const ASSET_CACHE = 'kamizo-assets-v72';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v72';
+const STATIC_CACHE = 'kamizo-static-v73';
+const ASSET_CACHE = 'kamizo-assets-v73';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v73';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
