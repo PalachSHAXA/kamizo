@@ -8,6 +8,7 @@ import { invalidateOnChange } from '../../cache';
 import { metricsAggregator, healthCheck, AlertManager, logAnalyticsEvent } from '../../monitoring';
 import { json, error } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
+import { verifyJWT } from '../../utils/crypto';
 
 export function registerHealthRoutes() {
 
@@ -20,34 +21,94 @@ route('GET', '/api/health', async (_request, env) => {
 });
 
 // Tenant Config (returns current tenant's configuration)
-// PUBLIC: no auth required
-route('GET', '/api/tenant/config', async (request, _env) => {
-  const tenant = getTenantForRequest(request);
-  if (!tenant) {
-    return json({ tenant: null, features: [] });
+// PUBLIC: no auth required, BUT optionally honours a Bearer JWT.
+//
+// Resolution order:
+//   1. Origin/subdomain — set by index.ts via setTenantForRequest()
+//      before this handler runs. This is the browser PWA path
+//      (demo.kamizo.uz → tenant 'demo'). Unchanged behaviour for
+//      every caller that has a usable Origin.
+//   2. JWT fallback — for the unified Capacitor native app, whose
+//      WebView origin is https://localhost (Android) /
+//      capacitor://localhost (iOS). getTenantSlug() can't extract a
+//      slug from those, so without this fallback every native
+//      caller saw { tenant: null, features: [] } and the Sidebar /
+//      BottomBar / feature gating defaulted to "no tenant" — making
+//      the app feel locked to a generic / demo experience.
+//
+// Strict isolation guarantees:
+//   • Only the JWT's OWN tenantId is exposed. We don't accept a
+//     tenantId from query/body — only what the verifier extracts
+//     from the cryptographically-signed token payload.
+//   • If the JWT is invalid / expired / has no tenantId, we return
+//     the same { tenant: null, features: [] } shape as the
+//     no-Origin case. No leak about WHY the lookup failed.
+//   • A token's tenantId still has to match an active tenant row —
+//     we filter on is_active = 1 to refuse stale/disabled workspaces.
+function buildConfigResponse(tenant: Record<string, unknown>) {
+  let features: string[] = [];
+  try {
+    features = JSON.parse((tenant.features as string) || '[]');
+  } catch {
+    features = [];
+  }
+  return json({
+    tenant: {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      color: tenant.color,
+      color_secondary: tenant.color_secondary,
+      plan: tenant.plan,
+      logo: tenant.logo || null,
+      is_demo: tenant.is_demo === 1 || tenant.is_demo === true,
+      show_useful_contacts_banner: tenant.show_useful_contacts_banner !== 0 ? 1 : 0,
+      show_marketplace_banner: tenant.show_marketplace_banner !== 0 ? 1 : 0,
+    },
+    features
+  });
+}
+
+route('GET', '/api/tenant/config', async (request, env) => {
+  // 1. Origin / subdomain path (browser PWA, VPS [node-port] patch).
+  //    Caveat: getUser() in the auth middleware ALSO calls
+  //    setTenantForRequest(request, { id: tenant_id }) — a "stub" tenant
+  //    with ONLY the id field — purely for downstream multi-tenant
+  //    row filtering. That stub satisfies a naive truthy check but has
+  //    no name/slug/color, so we'd return a half-empty config object
+  //    (the original bug). We discriminate by looking for `name`,
+  //    which only the full SELECT * row from index.ts has.
+  const fromOrigin = getTenantForRequest(request);
+  if (fromOrigin && (fromOrigin as { name?: unknown }).name) {
+    return buildConfigResponse(fromOrigin);
   }
 
-  try {
-    const features = JSON.parse((tenant.features as string) || '[]');
-    return json({
-      tenant: {
-        id: tenant.id,
-        name: tenant.name,
-        slug: tenant.slug,
-        color: tenant.color,
-        color_secondary: tenant.color_secondary,
-        plan: tenant.plan,
-        logo: tenant.logo || null,
-        is_demo: tenant.is_demo === 1 || tenant.is_demo === true,
-        show_useful_contacts_banner: tenant.show_useful_contacts_banner !== 0 ? 1 : 0,
-        show_marketplace_banner: tenant.show_marketplace_banner !== 0 ? 1 : 0,
-      },
-      features
-    });
-  } catch (err) {
-    createRequestLogger(request).error('Error parsing tenant features', err);
-    return json({ tenant: null, features: [] });
+  // 2. JWT fallback (Capacitor native shell, or any browser request
+  //    where only the auth-middleware stub was set). For both we fetch
+  //    the full tenant row keyed on the JWT's tenantId.
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      const payload = await verifyJWT(token, env.JWT_SECRET);
+      if (payload?.tenantId) {
+        const tenant = await env.DB.prepare(
+          'SELECT * FROM tenants WHERE id = ? AND is_active = 1'
+        ).bind(payload.tenantId).first() as Record<string, unknown> | null;
+        if (tenant) {
+          return buildConfigResponse(tenant);
+        }
+      }
+    } catch (err) {
+      createRequestLogger(request).error('JWT-fallback tenant config lookup failed', err);
+      // Fall through to the no-tenant response. Don't surface the
+      // error — same shape as the pre-login case.
+    }
   }
+
+  // 3. Nothing matched. Same response as before this change for
+  //    every existing caller that didn't have an Origin slug.
+  return json({ tenant: null, features: [] });
 });
 
 // Metrics Dashboard (Admin only)

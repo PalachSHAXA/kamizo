@@ -5,8 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { apiRequest } from '../services/api';
-import { API_URL } from '../services/api/client';
+import { apiRequest, API_URL } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
 import { StockModal } from './marketplace-mgr/StockModal';
 import { DeleteProductConfirm } from './marketplace-mgr/DeleteProductConfirm';

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { API_URL, getToken } from '../services/api/client';
 
 export interface TenantConfig {
   tenant: {
@@ -35,8 +36,21 @@ export const useTenantStore = create<TenantState>()(
       fetchConfig: async () => {
         set({ isLoading: true, error: null });
         try {
-          const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
-          const response = await fetch(`${API_URL}/api/tenant/config`);
+          // API_URL is hardcoded to https://api.kamizo.uz in client.ts —
+          // critical for the Capacitor native app whose WebView origin
+          // is https://localhost / capacitor://localhost. The previous
+          // `window.location.origin` fallback resolved to the bundled-
+          // asset host and 404'd in native, leaving every UK card blank
+          // and feature-gating defaulting to "allow all".
+          //
+          // Include the JWT when present so the backend's JWT-fallback
+          // path can resolve the user's tenant when the Origin header
+          // doesn't (i.e. unified mobile app, where Origin is
+          // https://localhost rather than a tenant subdomain).
+          const token = getToken();
+          const headers: HeadersInit = {};
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+          const response = await fetch(`${API_URL}/api/tenant/config`, { headers });
 
           if (!response.ok) {
             throw new Error('Failed to fetch tenant config');

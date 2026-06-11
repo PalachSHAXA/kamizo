@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { AlertCircle, CheckCircle, Clock, Database, Server, Wifi, X, BarChart, TrendingUp, Activity, Zap, Users, FileText, RefreshCw } from 'lucide-react';
+import { API_URL } from '../../services/api/client';
 import {
   LineChart, Line, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell

@@ -280,6 +280,16 @@ export function LoginPage() {
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
               aria-label={language === 'ru' ? 'Логин' : 'Login'}
               autoComplete="username"
+              // Mobile soft keyboards (Android GBoard, iOS, Samsung) default
+              // to autoCapitalize="sentences" on type=text, which silently
+              // upper-cases the first character of the login. Both fields
+              // are case-sensitive end-to-end (server returns 401 for
+              // "Demo-resident2" vs "demo-resident2"), so a phone user who
+              // doesn't notice the capital sees only "Неверный логин или
+              // пароль" with no clue why. Force the keyboard off:
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
             />
           </div>
@@ -296,6 +306,15 @@ export function LoginPage() {
                 className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
                 aria-label={language === 'ru' ? 'Пароль' : 'Parol'}
                 autoComplete="current-password"
+                // type=password defaults to autoCapitalize=off on most
+                // browsers, BUT when the user taps the eye icon the field
+                // flips to type=text and some Android keyboards happily
+                // start capitalizing — leading to "Kamizo" being silently
+                // sent instead of "kamizo". Force the keyboard off in
+                // both modes:
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
               />
               <button

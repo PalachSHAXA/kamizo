@@ -114,6 +114,18 @@ export const useAuthStore = create<AuthState>()(
             error: null,
             pickerTenants: null,
           });
+          // Refresh tenant config now that we have a valid JWT. App.tsx
+          // calls fetchConfig() on mount, but in the unified mobile app
+          // that initial call lands BEFORE login (no JWT → backend can't
+          // pick a tenant from Origin: https://localhost) and returns
+          // null. After a successful login we have the JWT in
+          // localStorage; the JWT-fallback path in the tenant/config
+          // endpoint can now resolve the user's REAL workspace. Fire
+          // and forget — failure here shouldn't block login. Lazy
+          // import dodges a circular store dep (auth → tenant → auth).
+          import('./tenantStore').then(({ useTenantStore }) => {
+            void useTenantStore.getState().fetchConfig();
+          }).catch(() => { /* non-critical */ });
           return 'success';
         } catch (apiError: unknown) {
           // Login failed

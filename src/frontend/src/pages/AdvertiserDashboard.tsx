@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { CouponsModal } from './advertiser/CouponsModal';
+import { API_URL } from '../services/api/client';
 
 interface Branch {
   id: string;
@@ -162,7 +163,12 @@ export function AdvertiserDashboard() {
     target_buildings: [] as string[]
   });
 
-  const API_BASE = import.meta.env.VITE_API_URL || '';
+  // API_URL (https://api.kamizo.uz) from services/api/client.ts is the
+  // single source of truth for cross-origin API routing. Native shells
+  // (Capacitor) need an absolute URL; the previous '' fallback resolved
+  // to the WebView origin. Aliased to API_BASE to keep the existing call
+  // sites and useCallback deps stable.
+  const API_BASE = API_URL;
 
   const fetchData = useCallback(async () => {
     setLoading(true);

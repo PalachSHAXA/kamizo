@@ -4,6 +4,7 @@ import { useRequestStore, useExecutorStore, useAnnouncementStore } from '../stor
 import { useMeetingStore } from '../stores/meetingStore';
 import { useToastStore } from '../stores/toastStore';
 import { pushNotifications } from '../services/pushNotifications';
+import { WS_URL } from '../services/api/client';
 
 // Global event emitter for chat messages
 type ChatMessageListener = (message: Record<string, unknown>) => void;
@@ -172,8 +173,11 @@ export function useWebSocketSync() {
 
     connectingRef.current = true;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${t}`;
+    // Use the centralised WS_URL (wss://api.kamizo.uz) — same single
+    // source of truth API_URL uses. window.location.host would resolve
+    // to localhost inside the Capacitor WebView, so the prior pattern
+    // never connected in the native app.
+    const wsUrl = `${WS_URL}/api/ws?token=${t}`;
 
     try {
       const ws = new WebSocket(wsUrl);
