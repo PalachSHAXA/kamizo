@@ -2,6 +2,7 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import QRCode from 'qrcode';
 import type { User } from '../types';
+import { API_URL } from '../services/api/client';
 
 // Import the template as a URL
 import templateUrl from '../assets/dogovor.docx?url';
@@ -113,11 +114,13 @@ export async function generateContractDocx(
   // Generate UK company QR code
   const ukQrCodeDataUrl = await generateUKQRCode();
 
-  // Fetch the template: try tenant's custom template first, fallback to default
+  // Fetch the template: try tenant's custom template first, fallback to default.
+  // Use the absolute API_URL — relative '/api/...' would resolve to
+  // capacitor://localhost / https://localhost in the native shell.
   let arrayBuffer: ArrayBuffer;
   try {
     const token = localStorage.getItem('auth_token');
-    const customResponse = await fetch('/api/contract/template', {
+    const customResponse = await fetch(`${API_URL}/api/contract/template`, {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
     });
     if (customResponse.ok) {

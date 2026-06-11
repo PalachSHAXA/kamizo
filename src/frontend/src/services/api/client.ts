@@ -1,11 +1,20 @@
 // API Client - Core infrastructure for all API modules
 
 // Cross-origin API endpoint hosted in Tashkent (PDN compliance).
-// Empty string = same-origin (legacy Cloudflare Worker setup).
-// Set to https://api.kamizo.uz to route all data through UZ-located VPS.
-// Backend resolves tenant via Origin header when host = api.kamizo.uz
-// (see [node-port] patch in cloudflare/src/index.ts).
+// Single source of truth for everything that needs to reach the backend.
+// Importing API_URL here (instead of deriving from window.location) is
+// what makes the unified mobile app work: Capacitor's WebView origin is
+// https://localhost (Android) / capacitor://localhost (iOS), so any
+// hostname-derived URL would 404 against the bundled-asset host. Always
+// import this constant; never use window.location.origin / .host for
+// API or WebSocket routing.
 export const API_URL = 'https://api.kamizo.uz';
+
+// WebSocket sibling — same authority, wss scheme. Used by
+// useWebSocketSync for live updates. Same rationale as API_URL: native
+// shells have no usable hostname, so we hardcode the prod authority and
+// reach it directly. The token is appended at call sites.
+export const WS_URL = 'wss://api.kamizo.uz';
 
 // Pull the user-facing error string in the active language.
 // Backend may return:

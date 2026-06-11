@@ -1,7 +1,7 @@
 // Meetings API (simple + full OSS workflow), Schedule Votes, Agenda Votes,
 // Reconsideration, OTP, Building Settings, Voting Units, Eligible Voters, Agenda Comments
 
-import { apiRequest, apiRequestWrapped, cachedGet, invalidateCache, CACHE_TTL } from './client';
+import { apiRequest, apiRequestWrapped, cachedGet, invalidateCache, CACHE_TTL, API_URL } from './client';
 
 // Meetings API (simple)
 export const meetingsApi = {
@@ -234,7 +234,7 @@ export const meetingsFullApi = {
   // Get protocol as HTML (for PDF export)
   getProtocolHtml: async (meetingId: string): Promise<string> => {
     const token = localStorage.getItem('auth_token');
-    const response = await fetch(`/api/meetings/${meetingId}/protocol/html`, {
+    const response = await fetch(`${API_URL}/api/meetings/${meetingId}/protocol/html`, {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
     });
     return response.text();

@@ -20,6 +20,7 @@ import { useTenantStore } from '../stores/tenantStore';
 import { useToastStore } from '../stores/toastStore';
 import { useModalPresence } from '../stores/modalStore';
 import { useBackGuard } from '../hooks/useBackGuard';
+import { API_URL } from '../services/api/client';
 
 // ── shared visual tokens (kept literal so the page renders correctly
 //    even if a global token gets renamed) ─────────────────────────────
@@ -144,7 +145,13 @@ export default function ResidentUsefulContactsPage() {
   // Intercept browser/hardware back when a detail view is open.
   useBackGuard(!!selectedAd, () => { setSelectedAd(null); setUserCoupon(null); });
 
-  const API_BASE = import.meta.env.VITE_API_URL || '';
+  // API_URL (https://api.kamizo.uz) is the single source of truth from
+  // services/api/client.ts. The previous `VITE_API_URL || ''` fallback
+  // produced an empty string which made the fetches RELATIVE — that
+  // resolves to the WebView's bundled-asset host in the Capacitor
+  // native shell and 404s. Aliased to API_BASE to keep the existing
+  // call sites and useCallback deps stable.
+  const API_BASE = API_URL;
 
   const fetchCategories = useCallback(async () => {
     try {
