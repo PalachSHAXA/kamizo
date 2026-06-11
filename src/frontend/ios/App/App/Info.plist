@@ -47,5 +47,17 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- WKWebView's <input type="file" accept="image/*" capture="environment">
+	     opens the iOS camera + photo library picker. Both require a
+	     usage-description string on iOS 10+ — without them the app
+	     crashes the moment a resident taps "Добавить фото". Same picker
+	     is used by chat / marketplace / announcements / meetings, so
+	     these two keys cover every <input type="file"> the app uses.
+	     Bilingual (ru + uz, the app's two locales) so App Store review
+	     and the permission prompt itself read native to the user. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Kamizo использует камеру для добавления фото в заявки, объявления и чат. / Kamizo arizalar, e'lonlar va chatga rasm qo'shish uchun kameradan foydalanadi.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Kamizo использует галерею для прикрепления фото к заявкам, объявлениям и чату. / Kamizo arizalar, e'lonlar va chatga rasm biriktirish uchun galereyadan foydalanadi.</string>
 </dict>
 </plist>

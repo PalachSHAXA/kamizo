@@ -32,4 +32,22 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Photo attachment on the resident "new request" flow uses
+         <input type="file" accept="image/*" capture="environment">.
+         Without CAMERA the WebView silently refuses to open the camera
+         path of the system file picker, and without READ_MEDIA_IMAGES
+         (API 33+) / READ_EXTERNAL_STORAGE (API ≤32) the gallery side of
+         the chooser is empty. Same chooser is used by chat / marketplace
+         / announcements / meeting attachments — fixing it here covers
+         every <input type="file"> in the app. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- Camera preferred but not required (some emulators / cheap
+         tablets ship without one). `required=false` lets the APK install
+         everywhere; runtime falls back to gallery picker. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>
