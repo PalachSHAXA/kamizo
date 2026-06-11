@@ -637,7 +637,15 @@ export default {
         newHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         newHeaders.set('Pragma', 'no-cache');
         newHeaders.set('Expires', '0');
-        newHeaders.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.cloudflare.com; media-src 'self' data: blob:; connect-src 'self' wss://*.kamizo.uz https://*.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+        // connect-src must include https://*.kamizo.uz so the PWA can
+        // reach https://api.kamizo.uz (login, tenant config, every
+        // /api/*). The prior policy only listed wss://*.kamizo.uz —
+        // WebSocket worked, every HTTP fetch was silently blocked by
+        // the browser before reaching the network. Manifests visible in
+        // dev tools: "Refused to connect ... violates the document's
+        // Content Security Policy". Native Capacitor isn't affected
+        // (it doesn't load the Cloudflare-served HTML).
+        newHeaders.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.cloudflare.com; media-src 'self' data: blob:; connect-src 'self' https://*.kamizo.uz wss://*.kamizo.uz https://*.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
         return new Response(response.body, {
           status: response.status,
           statusText: response.statusText,
