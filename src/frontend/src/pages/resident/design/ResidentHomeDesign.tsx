@@ -52,7 +52,7 @@ function CityBackground() {
   );
 }
 
-function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, unread, brand }: any) {
+function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, unread, brand, logo }: any) {
   // Time-of-day greeting (per Claude Design §01-glavnaya).
   const hour = new Date().getHours();
   const greetRu = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
@@ -89,7 +89,19 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
              shrink-to-fits content, but text inside it can no longer
              break at the inter-word space and stack vertically. */}
         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', display: 'grid', placeItems: 'center', color: '#FDBA74', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', flex: '0 0 auto' }}>K</div>
+          {logo ? (
+            // Real УК logo from tenants.logo (data:image/…;base64,…) routed
+            // through useTenantStore. White inner background mirrors the
+            // sidebar chip so transparent PNGs read on the dark hero.
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#FFFFFF', display: 'grid', placeItems: 'center', overflow: 'hidden', flex: '0 0 auto', border: '1px solid rgba(249,115,22,0.4)' }}>
+              <img src={logo} alt={brand || 'Kamizo'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
+          ) : (
+            // No logo on file — letter-chip from the УК name (first letter)
+            // instead of a hardcoded "K", so a brand-new tenant without a
+            // logo doesn't impersonate the Kamizo brandmark.
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', display: 'grid', placeItems: 'center', color: '#FDBA74', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', flex: '0 0 auto' }}>{(brand || 'K').trim().charAt(0).toUpperCase()}</div>
+          )}
           <div style={{ fontSize: 19, fontWeight: 700, color: '#F4F0E8', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{brand || 'Kamizo'}</div>
         </div>
         <button onClick={onBell} style={{ position: 'relative', width: 44, height: 44, borderRadius: 14, background: bellOpen ? 'var(--brand, #F97316)' : 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: bellOpen ? '#fff' : '#F4F0E8' }} aria-label="Уведомления">
@@ -103,9 +115,15 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
           {/* Name — EXPLICIT #F4F0E8 (warm white) instead of relying on inheritance
               from the hero's color var. This is the line the user reported as "black". */}
           <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 6, color: '#F4F0E8' }}>{name}</div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 16, padding: '9px 14px', background: 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', backdropFilter: 'blur(8px)', borderRadius: 14, fontSize: 13.5, fontWeight: 600, color: '#F4F0E8' }}>
-            <IPin size={15} style={{ color: '#FB923C' }} />{apt}
-          </div>
+          {/* Hide the whole pin+address chip when there's no address —
+              otherwise residents whose row has no address/apartment yet
+              (or admin-created stub accounts) see a floating pin icon
+              chip with empty text. */}
+          {apt && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 16, padding: '9px 14px', background: 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', backdropFilter: 'blur(8px)', borderRadius: 14, fontSize: 13.5, fontWeight: 600, color: '#F4F0E8' }}>
+              <IPin size={15} style={{ color: '#FB923C' }} />{apt}
+            </div>
+          )}
         </div>
         {/* Active-count chip — taller square card matching LEFT mockup: digit 34, ~88px wide. */}
         <div style={{ flex: '0 0 auto', padding: '16px 18px', borderRadius: 18, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', textAlign: 'center', minWidth: 88, backdropFilter: 'blur(6px)' }}>
@@ -303,6 +321,10 @@ interface Props {
   announcements: any[];
   unread?: number;
   brand?: string;
+  /** Tenant logo data URL (data:image/…;base64,…). Null/undefined when
+      the УК hasn't uploaded one; HomeHero falls back to a letter chip
+      derived from `brand`. */
+  logo?: string | null;
   passCount?: number;
   vehicleCount?: number;
   needsRegistration?: boolean;
@@ -316,7 +338,7 @@ interface Props {
 }
 
 export function ResidentHomeDesign(props: Props) {
-  const { language, name, apt, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, brand, passCount = 0, vehicleCount = 0, needsRegistration = false, registrationMissing, onNewRequest, onTab, onMenu, onCompleteRegistration, onApprove, onOpenRequest } = props;
+  const { language, name, apt, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, brand, logo = null, passCount = 0, vehicleCount = 0, needsRegistration = false, registrationMissing, onNewRequest, onTab, onMenu, onCompleteRegistration, onApprove, onOpenRequest } = props;
   const navigate = useNavigate();
   const [bell, setBell] = useState(false);
   void bell;
@@ -383,7 +405,7 @@ export function ResidentHomeDesign(props: Props) {
         marginRight: isMobile ? 'calc(50% - 50vw)' : 0,
       }}
     >
-      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} onMenu={onMenu} onBell={() => { setBell((b) => !b); navigate('/announcements'); }} bellOpen={bell} />
+      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} logo={logo} onMenu={onMenu} onBell={() => { setBell((b) => !b); navigate('/announcements'); }} bellOpen={bell} />
 
       <div style={{ ...section, marginTop: 18 }}>
         {/* Card height bumped 210 → 250 so the densest card

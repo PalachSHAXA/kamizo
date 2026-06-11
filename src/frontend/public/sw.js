@@ -1,4 +1,17 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.24 — cache suffix bumped to v78 to evict every v77 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident home hero: real УК logo (data-URL from tenants.logo)
+//     now renders instead of a hardcoded "K" letter chip — every tenant
+//     sees their own branding above the greeting. Falls back to a chip
+//     with the first letter of the УК name when no logo is uploaded
+//     (not the Kamizo brandmark, to avoid impersonation).
+//   • Resident home hero: the pin+address chip is hidden when the
+//     resident's row has no address/apartment (was rendering a floating
+//     orphan pin icon with empty text for stub accounts and any
+//     resident imported without an apartments row).
+//
+// Previous notes (v77) preserved below:
 // Version: 3.7.23 — cache suffix bumped to v77 to evict every v76 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Unified tenant-agnostic native app: tenantStore.fetchConfig now
@@ -305,9 +318,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v77';
-const ASSET_CACHE = 'kamizo-assets-v77';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v77';
+const STATIC_CACHE = 'kamizo-static-v78';
+const ASSET_CACHE = 'kamizo-assets-v78';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v78';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
