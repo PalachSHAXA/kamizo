@@ -7,7 +7,6 @@ import {
 } from '../../components/LazyCharts';
 import { useRequestStore, useExecutorStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
-import { API_URL } from '../../services/api/client';
 import type { Request } from '../../types';
 
 interface HealthCheck {
