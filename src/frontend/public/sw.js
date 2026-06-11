@@ -1,4 +1,18 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.23 — cache suffix bumped to v77 to evict every v76 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Unified tenant-agnostic native app: tenantStore.fetchConfig now
+//     hits the hardcoded API_URL (https://api.kamizo.uz) instead of
+//     window.location.origin (which resolved to https://localhost in
+//     Capacitor and 404'd), AND sends Authorization: Bearer <jwt> so
+//     the backend's JWT-fallback can pick the user's REAL tenant when
+//     the Origin header is the WebView shell. authStore.login() now
+//     re-fires fetchConfig() after a successful login so the in-memory
+//     config reflects the actual workspace (not the pre-login null).
+//     11 ad-hoc raw fetches across pages/hooks now route through
+//     API_URL too — no more bundled-host derivations.
+//
+// Previous notes (v76) preserved below:
 // Version: 3.7.22 — cache suffix bumped to v76 to evict every v75 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • LoginPage inputs now carry autoCapitalize="none", autoCorrect=
@@ -291,9 +305,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v76';
-const ASSET_CACHE = 'kamizo-assets-v76';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v76';
+const STATIC_CACHE = 'kamizo-static-v77';
+const ASSET_CACHE = 'kamizo-assets-v77';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v77';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
