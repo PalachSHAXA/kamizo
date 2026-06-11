@@ -52,6 +52,10 @@ export function ResidentDashboard() {
   const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
   const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
+  // Tenant logo is a data-URL (data:image/…;base64,…) when uploaded,
+  // otherwise null. ResidentHomeDesign renders an <img> chip when set
+  // and a letter-from-tenantName chip otherwise — no hardcoded "K".
+  const tenantLogo = useTenantStore((s) => s.config?.tenant?.logo) || null;
   const getApartmentBalance = useFinanceStore((s) => s.getApartmentBalance);
   const generateReconciliation = useFinanceStore((s) => s.generateReconciliation);
   // Counts for the QuickTiles badges on the home hero — read-only subscription,
@@ -246,6 +250,7 @@ export function ResidentDashboard() {
             meeting={activeMeetings[0] || null}
             announcements={latestAnnouncements}
             brand={tenantName}
+            logo={tenantLogo}
             passCount={passCount}
             vehicleCount={vehicleCount}
             needsRegistration={!user?.passwordChangedAt}
