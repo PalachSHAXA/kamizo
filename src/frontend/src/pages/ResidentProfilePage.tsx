@@ -26,26 +26,35 @@ import { generateQRCode } from '../components/LazyQRCode';
 //     QR utilities. Do not redesign here without updating the handoff. ───
 
 // ── shared visual helpers ───────────────────────────────────────────────
-const SURFACE = '#FFFFFF';
-const SURFACE_SUNKEN = '#EDE7DB';
-const BORDER = '#E6DFD2';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#6F6A62';
-const TEXT_MUTED = '#A8A29E';
+//
+// Tokens reference CSS custom properties with the EXISTING hex as the
+// fallback. That keeps the light look pixel-identical for every real
+// user (no .profile-dark class on the root → fallback wins), and lets
+// the test-account-only dark pilot in the JSX below override the same
+// properties on a single ancestor with a one-line className toggle.
+// Removing the experiment = drop the `<style>` block + remove the
+// `dark-profile` className; nothing else touched.
+const SURFACE = 'var(--rpp-surface, #FFFFFF)';
+const SURFACE_SUNKEN = 'var(--rpp-surface-sunken, #EDE7DB)';
+const BORDER = 'var(--rpp-border, #E6DFD2)';
+const HAIRLINE = 'var(--rpp-hairline, rgba(28,25,23,0.06))';
+const TEXT_PRIMARY = 'var(--rpp-text-primary, #1C1917)';
+const TEXT_SECONDARY = 'var(--rpp-text-secondary, #6F6A62)';
+const TEXT_MUTED = 'var(--rpp-text-muted, #A8A29E)';
 const TEXT_ON_DARK = '#F4F0E8';
 // Reuse the dashboard's --app-bg (set in index.css :root) so the page
 // background matches the body and there is no tonal seam between this
 // page and the surrounding shell (no perceived "white strips" on the
-// sides or below the scroll content).
-const APP_BG = 'var(--app-bg)';
-const BRAND_TINT = '#FFF3EA';
+// sides or below the scroll content). `--rpp-bg` is undefined in the
+// light path so this falls back to the global --app-bg verbatim.
+const APP_BG = 'var(--rpp-bg, var(--app-bg))';
+const BRAND_TINT = 'var(--rpp-brand-tint, #FFF3EA)';
 const BRAND_DARK = '#EA580C';
 const STATUS_CRITICAL = '#E2483D';
 const STATUS_ACTIVE = '#15A06E';
 const STATUS_ACTIVE_BG = 'rgba(21,160,110,0.12)';
 const STATUS_INFO_BG = 'rgba(47,119,194,0.12)';
-const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+const SHADOW_SM = 'var(--rpp-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 
 const getInitials = (name: string): string => {
   const parts = name.trim().split(/\s+/);
@@ -82,6 +91,28 @@ export function ResidentProfilePage() {
   // contract status …) appear without forcing the resident to log out
   // and back in. Cheap — one GET per profile visit.
   useEffect(() => { void refreshUser(); }, [refreshUser]);
+
+  // ── Dark-theme PILOT for test accounts only ────────────────────────
+  //
+  // Visual evaluation before deciding on a full dark mode. Scope is
+  // hardcoded to the resident profile screen + only triggers when the
+  // logged-in user's login starts with "test-" (test-myhelper,
+  // test-director-moon, …). Real residents see zero change. To remove
+  // the experiment: delete (a) this isDarkPilot/themeMeta block, (b)
+  // the inline <style> tag below, (c) the `rpp-dark` className on the
+  // root <div>, and (d) the `var(--rpp-…, …)` fallback in the token
+  // constants near the top of the file — nothing else touched.
+  const isDarkPilot = (user?.login || '').startsWith('test-');
+  // Capacitor / PWA status-bar chrome: paint it dark on this screen and
+  // restore on unmount so the rest of the app keeps its warm beige
+  // status bar. Touches one DOM meta — no plugin work needed.
+  useEffect(() => {
+    if (!isDarkPilot) return;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const prev = meta?.getAttribute('content') || '#F4F0E8';
+    meta?.setAttribute('content', '#1A1612');
+    return () => { meta?.setAttribute('content', prev); };
+  }, [isDarkPilot]);
   const { language, setLanguage } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const getRequestsByResident = useRequestStore(s => s.getRequestsByResident);
@@ -348,6 +379,7 @@ export function ResidentProfilePage() {
   // ── render: hero / tiles / sections / logout / version ───────────────
   return (
     <div
+      className={isDarkPilot ? 'rpp-dark' : undefined}
       style={{
         minHeight: '100%',
         background: APP_BG,
@@ -356,6 +388,30 @@ export function ResidentProfilePage() {
         letterSpacing: '-0.01em',
       }}
     >
+      {/* Dark-theme PILOT (test accounts only). Single block of CSS
+          custom-property overrides keyed off the .rpp-dark class above.
+          Every visual token in the page reads through
+          `var(--rpp-<token>, <light-fallback>)`, so without the class
+          NOTHING changes; with it, only this screen flips. Brand
+          orange (BRAND_DARK) stays as-is — only its tint depth bumps
+          to keep contrast on dark surfaces. Removing the experiment =
+          delete this style block + remove the className above. */}
+      {isDarkPilot && (
+        <style>{`
+          .rpp-dark {
+            --rpp-bg: #1A1612;
+            --rpp-surface: #25201A;
+            --rpp-surface-sunken: #2C2620;
+            --rpp-border: rgba(244,240,232,0.10);
+            --rpp-hairline: rgba(244,240,232,0.08);
+            --rpp-text-primary: #F4F0E8;
+            --rpp-text-secondary: #B8B2A8;
+            --rpp-text-muted: #8C8779;
+            --rpp-brand-tint: rgba(234,88,12,0.18);
+            --rpp-shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+          }
+        `}</style>
+      )}
       {/* ── Hero — premium dark card ─────────────────────────────────── */}
       <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px 0' }}>
         <div
