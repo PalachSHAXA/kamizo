@@ -4,10 +4,11 @@ import { useModalPresence } from '../stores/modalStore';
 import {
   FileText, QrCode, CreditCard, Star,
   Building2, Home, Users, Phone,
-  Key, ShieldCheck, Globe, Bell, Download,
+  Key, ShieldCheck, Globe, Bell, Download, Moon,
   Check, Pencil, ChevronRight, LogOut,
   X, Loader2, Eye, EyeOff, AlertCircle, Save,
 } from 'lucide-react';
+import { ThemeToggle } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
@@ -28,12 +29,11 @@ import { generateQRCode } from '../components/LazyQRCode';
 // ── shared visual helpers ───────────────────────────────────────────────
 //
 // Tokens reference CSS custom properties with the EXISTING hex as the
-// fallback. That keeps the light look pixel-identical for every real
-// user (no .profile-dark class on the root → fallback wins), and lets
-// the test-account-only dark pilot in the JSX below override the same
-// properties on a single ancestor with a one-line className toggle.
-// Removing the experiment = drop the `<style>` block + remove the
-// `dark-profile` className; nothing else touched.
+// fallback. That keeps the light look pixel-identical for every user
+// who hasn't opted into dark mode. When the user enables dark via the
+// ThemeProvider (sets `html.dark`), index.css's `html.dark` block
+// overrides the same --rpp-* tokens with their dark equivalents — the
+// whole page flips without any per-component branching.
 const SURFACE = 'var(--rpp-surface, #FFFFFF)';
 const SURFACE_SUNKEN = 'var(--rpp-surface-sunken, #EDE7DB)';
 const BORDER = 'var(--rpp-border, #E6DFD2)';
@@ -92,39 +92,12 @@ export function ResidentProfilePage() {
   // and back in. Cheap — one GET per profile visit.
   useEffect(() => { void refreshUser(); }, [refreshUser]);
 
-  // ── Dark-theme PILOT for test accounts only ────────────────────────
-  //
-  // Visual evaluation before deciding on a full dark mode. Scope is
-  // hardcoded to the resident profile screen + only triggers when the
-  // logged-in user's login starts with "test-" (test-myhelper,
-  // test-director-moon, …). Real residents see zero change. To remove
-  // the experiment: delete (a) this isDarkPilot/themeMeta block, (b)
-  // the inline <style> tag below, (c) the `rpp-dark` className on the
-  // root <div>, and (d) the `var(--rpp-…, …)` fallback in the token
-  // constants near the top of the file — nothing else touched.
-  const isDarkPilot = (user?.login || '').startsWith('test-');
-  // Lift the `rpp-dark` class to <html> (documentElement) so BOTH the
-  // page AND the BottomBar (which createPortal-s itself directly into
-  // document.body, outside the React tree — see BottomBar.tsx) inherit
-  // the same set of CSS custom properties via the cascade. One class,
-  // two surfaces, no per-component gate duplication. Cleanup on unmount
-  // restores the bar to light the instant the user navigates away
-  // (no flash on transition either direction — class flips before the
-  // next route's first paint because React unmounts the page first).
-  // Capacitor / PWA status-bar chrome is flipped in the same effect so
-  // the OS status bar doesn't lag a frame behind the page background.
-  useEffect(() => {
-    if (!isDarkPilot) return;
-    const html = document.documentElement;
-    html.classList.add('rpp-dark');
-    const meta = document.querySelector('meta[name="theme-color"]');
-    const prev = meta?.getAttribute('content') || '#F4F0E8';
-    meta?.setAttribute('content', '#1A1612');
-    return () => {
-      html.classList.remove('rpp-dark');
-      meta?.setAttribute('content', prev);
-    };
-  }, [isDarkPilot]);
+  // Dark mode graduated from the test-account pilot to a real, app-wide
+  // theme. The page's CSS-var tokens (--rpp-* + globals) now resolve
+  // via the `html.dark` class that ThemeProvider sets/unsets based on
+  // the user's persisted choice. No per-page gate, no test-account
+  // check — the toggle that drives it lives in the "Приложение"
+  // settings section below.
   const { language, setLanguage } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const getRequestsByResident = useRequestStore(s => s.getRequestsByResident);
@@ -210,6 +183,7 @@ export function ResidentProfilePage() {
     langName: 'Русский',
     notifications: 'Уведомления',
     notifValue: 'Все',
+    darkMode: 'Тёмная тема',
     installApp: 'Установить как приложение',
     logout: 'Выйти из аккаунта',
     logoutConfirm: 'Выйти из аккаунта?',
@@ -270,6 +244,7 @@ export function ResidentProfilePage() {
     langName: "O'zbekcha",
     notifications: 'Bildirishnomalar',
     notifValue: 'Hammasi',
+    darkMode: 'Tungi rejim',
     installApp: 'Ilova sifatida oʼrnatish',
     logout: 'Akkauntdan chiqish',
     logoutConfirm: 'Akkauntdan chiqmoqchimisiz?',
@@ -399,44 +374,11 @@ export function ResidentProfilePage() {
         letterSpacing: '-0.01em',
       }}
     >
-      {/* Dark-theme PILOT (test accounts only). Single block of CSS
-          custom-property overrides keyed off the .rpp-dark class on the
-          <html> element (set by the useEffect above). Every visual
-          token in the page AND in the BottomBar reads through
-          `var(--…, <light-fallback>)`, so without the class NOTHING
-          changes; with it, both surfaces flip. Brand orange stays
-          as-is — only its tint depth bumps to keep contrast on dark.
-          Removing the experiment = delete this style block + the
-          isDarkPilot effect above + the `var(--rpp-…, …)` fallback
-          wrappers in the token constants. */}
-      {isDarkPilot && (
-        <style>{`
-          .rpp-dark {
-            /* page tokens — consumed by ResidentProfilePage constants */
-            --rpp-bg: #1A1612;
-            --rpp-surface: #25201A;
-            --rpp-surface-sunken: #2C2620;
-            --rpp-border: rgba(244,240,232,0.10);
-            --rpp-hairline: rgba(244,240,232,0.08);
-            --rpp-text-primary: #F4F0E8;
-            --rpp-text-secondary: #B8B2A8;
-            --rpp-text-muted: #8C8779;
-            --rpp-brand-tint: rgba(234,88,12,0.18);
-            --rpp-shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
-
-            /* BottomBar tokens — pill background keeps backdrop-blur
-               transparency so the dark page bg ghosts through, just like
-               the light bar does over its beige page; border, inactive
-               icon/label, badge ring and shadow all step into the same
-               warm-dark family. Active orange + orange FAB stay verbatim. */
-            --bb-pill-bg: rgba(37,32,26,0.92);
-            --bb-pill-border: rgba(244,240,232,0.10);
-            --bb-inactive-fg: #B8B2A8;
-            --bb-badge-ring: #25201A;
-            --bb-shadow: 0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.40);
-          }
-        `}</style>
-      )}
+      {/* Dark-theme tokens (--rpp-* page vars + --bb-* bottombar vars) now
+          live in src/frontend/src/index.css under `html.dark`, driven by
+          ThemeProvider. Every visual token in this page and the BottomBar
+          reads through `var(--…, <light-fallback>)`, so the page renders
+          identically in light mode for non-opted users. */}
       {/* ── Hero — premium dark card ─────────────────────────────────── */}
       <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px 0' }}>
         <div
@@ -762,6 +704,11 @@ export function ResidentProfilePage() {
             chevron
           />
           <SettingsRow
+            icon={<Moon size={17} />}
+            label={t.darkMode}
+            rightSlot={<ThemeToggle ariaLabel={t.darkMode} />}
+          />
+          <SettingsRow
             icon={<Download size={17} />}
             label={t.installApp}
             chevron
@@ -1019,7 +966,7 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 }
 
 function SettingsRow({
-  icon, label, value, chevron, editable, badge, accent, onClick, isLast,
+  icon, label, value, chevron, editable, badge, accent, onClick, isLast, rightSlot,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -1030,6 +977,7 @@ function SettingsRow({
   accent?: boolean;
   onClick?: () => void;
   isLast?: boolean;
+  rightSlot?: React.ReactNode;
 }) {
   const rowStyle: CSSProperties = {
     display: 'flex',
@@ -1105,8 +1053,9 @@ function SettingsRow({
           {badge}
         </span>
       )}
-      {editable && !badge && <Pencil size={15} style={{ color: TEXT_MUTED, flex: '0 0 auto' }} />}
-      {chevron && !badge && <ChevronRight size={16} style={{ color: TEXT_MUTED, flex: '0 0 auto' }} />}
+      {rightSlot}
+      {editable && !badge && !rightSlot && <Pencil size={15} style={{ color: TEXT_MUTED, flex: '0 0 auto' }} />}
+      {chevron && !badge && !rightSlot && <ChevronRight size={16} style={{ color: TEXT_MUTED, flex: '0 0 auto' }} />}
     </div>
   );
 }
