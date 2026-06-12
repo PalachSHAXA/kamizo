@@ -151,6 +151,8 @@ export function ResidentProfilePage() {
     sectionApp: 'Приложение',
     address: 'Адрес',
     apartment: 'Квартира',
+    personalAccount: 'Лицевой счёт',
+    personalAccountCopied: 'Скопировано',
     household: 'Состав семьи',
     phone: 'Телефон',
     changePass: 'Сменить пароль',
@@ -209,6 +211,8 @@ export function ResidentProfilePage() {
     sectionApp: 'Ilova',
     address: 'Manzil',
     apartment: 'Kvartira',
+    personalAccount: 'Hisob raqami',
+    personalAccountCopied: 'Nusxalandi',
     household: 'Oila tarkibi',
     phone: 'Telefon',
     changePass: "Parolni o'zgartirish",
@@ -574,6 +578,44 @@ export function ResidentProfilePage() {
                 : '—'
             }
             chevron
+          />
+          {/* Лицевой счёт — read-only on the resident side; set by УК
+              management via PATCH /api/users/:id/personal-account.
+              Tap-to-copy when populated so the resident can paste it
+              into a bank app; empty → "—" (same fallback the other
+              optional rows already use). Sits between «Квартира» and
+              «Состав семьи» per design. */}
+          <SettingsRow
+            icon={<FileText size={17} />}
+            label={t.personalAccount}
+            value={user.personalAccount || '—'}
+            onClick={user.personalAccount ? () => {
+              const acct = user.personalAccount!;
+              const showCopied = () => useToastStore.getState().addToast('success', t.personalAccountCopied);
+              if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(acct).then(showCopied).catch(() => {
+                  // execCommand fallback for older WebViews where the
+                  // async clipboard API is missing or blocked.
+                  const ta = document.createElement('textarea');
+                  ta.value = acct;
+                  ta.style.position = 'fixed';
+                  ta.style.opacity = '0';
+                  document.body.appendChild(ta);
+                  ta.select();
+                  try { document.execCommand('copy'); showCopied(); } catch { /* swallow */ }
+                  document.body.removeChild(ta);
+                });
+              } else {
+                const ta = document.createElement('textarea');
+                ta.value = acct;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); showCopied(); } catch { /* swallow */ }
+                document.body.removeChild(ta);
+              }
+            } : undefined}
           />
           <SettingsRow
             icon={<Users size={17} />}

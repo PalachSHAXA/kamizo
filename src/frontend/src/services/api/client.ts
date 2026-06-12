@@ -260,6 +260,7 @@ export function transformUser(user: Record<string, unknown>): Record<string, unk
     contractSignedAt: user.contract_signed_at || user.contractSignedAt,
     buildingId: user.building_id || user.buildingId,
     totalArea: user.total_area || user.totalArea,
+    personalAccount: user.personal_account || user.personalAccount,
     signatureKey: user.signature_key || user.signatureKey,
     // Keep original fields too for backward compatibility
   };

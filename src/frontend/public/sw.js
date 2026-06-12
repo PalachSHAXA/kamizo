@@ -1,4 +1,17 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.28 — cache suffix bumped to v82 to evict every v81 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident profile: new row "Лицевой счёт" / "Hisob raqami"
+//     inside the «Дом и квартира» card, between Квартира and Состав
+//     семьи. Read-only on the resident side (set by УК management
+//     via PATCH /api/users/:id/personal-account); tap-to-copy with a
+//     "Скопировано" / "Nusxalandi" toast when populated, "—" when
+//     not. Migration 049 adds a nullable users.personal_account
+//     column — the existing personal_accounts table was empty for
+//     every real resident so the simpler per-user column avoids
+//     a four-way JOIN through apartments for the read path.
+//
+// Previous notes (v81) preserved below:
 // Version: 3.7.27 — cache suffix bumped to v81 to evict every v80 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident chat: photos sent by manager / director now render as
@@ -354,9 +367,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v81';
-const ASSET_CACHE = 'kamizo-assets-v81';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v81';
+const STATIC_CACHE = 'kamizo-static-v82';
+const ASSET_CACHE = 'kamizo-assets-v82';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v82';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
