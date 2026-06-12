@@ -145,9 +145,15 @@ export function CreateMeetingWizard({
   };
 
   const handleCreate = async () => {
-    // If no specific building selected, use first building in branch
-    const effectiveBuildingId = formData.buildingId || (buildingsForBranch.length > 0 ? buildingsForBranch[0].id : '');
-    const effectiveBuildingAddress = formData.buildingAddress || (buildingsForBranch.length > 0 ? buildingsForBranch[0].address : '');
+    // Treat the empty selection as an explicit "Весь комплекс" intent —
+    // the backend now routes it as a tenant-wide meeting that fans out
+    // to every active resident of the УК. The previous fallback that
+    // silently substituted `buildingsForBranch[0].id` masked the user's
+    // choice (could land on a 0-resident building) and on tenants with
+    // zero buildings the wizard sent buildingId='' which the backend
+    // rejected with HTTP 400 — the click on "Опубликовать" looked dead.
+    const effectiveBuildingId = formData.buildingId; // '' = whole tenant
+    const effectiveBuildingAddress = formData.buildingAddress;
     if (!user || !selectedBranchCode || isSubmitting) return;
 
     setIsSubmitting(true);

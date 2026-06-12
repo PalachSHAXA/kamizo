@@ -162,16 +162,21 @@ route('POST', '/api/meetings/:id/open-voting', async (request, env, params) => {
   invalidateCache('meetings:');
   const updated = await getMeetingWithDetails(env, params.id, tenantId);
 
-  if (meeting?.building_id) {
-    const { results: residents } = await env.DB.prepare(`SELECT id FROM users WHERE role = ? AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind('resident', meeting.building_id, ...(tenantId ? [tenantId] : [])).all();
-    // Open-voting previously only fired sendPushNotification. Native
-    // push isn't wired yet (no FCM/APNs config), so the bell icon never
-    // updated when a manager opened voting on an existing meeting —
-    // residents had no way to know voting was open. Insert the in-app
-    // row alongside push, mirroring crud-mutate.ts:118 on meeting
-    // create.
+  {
+    // Whole-tenant meetings (NULL/empty building_id) fan out to every
+    // active resident of the tenant; building-scoped meetings fan out
+    // to that building's residents. Without the whole-tenant branch
+    // the bell icon never updated for "Весь комплекс" meetings.
+    const isWholeTenant = !meeting?.building_id;
+    const { results: residents } = (isWholeTenant && tenantId)
+      ? await env.DB.prepare(`SELECT id FROM users WHERE tenant_id = ? AND role = 'resident' AND is_active = 1`).bind(tenantId).all()
+      : meeting?.building_id
+        ? await env.DB.prepare(`SELECT id FROM users WHERE role = ? AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind('resident', meeting.building_id, ...(tenantId ? [tenantId] : [])).all()
+        : { results: [] as any[] };
     const openVotingTitle = '\u{1F5F3}\u{FE0F} Голосование открыто!';
-    const openVotingBody = `Голосование на собрании жильцов дома ${meeting.building_address || ''} началось. Примите участие!`;
+    const openVotingBody = isWholeTenant
+      ? 'Голосование на собрании жильцов УК началось. Примите участие!'
+      : `Голосование на собрании жильцов дома ${meeting.building_address || ''} началось. Примите участие!`;
     for (const resident of residents as any[]) {
       const notifId = generateId();
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'), ?)`)

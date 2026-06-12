@@ -42,6 +42,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useRequestStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useIsMobile } from '../../hooks/useBreakpoint';
+import { MessageContent } from '../../components/common';
 import { formatDateSeparator, formatMessageTime, type ChatChannel, type ChatMessage } from './chatUtils';
 
 interface Props {
@@ -245,36 +246,15 @@ export function ResidentChatView({ channel, onBack }: Props) {
 
   const isMe = (m: ChatMessage) => m.sender_id === user?.id;
 
-  // Image attachments are sent through chatApi.sendMessage as Markdown:
-  // `![filename](data:image/…;base64,…)`. Without parsing, the bubble would
-  // render the entire base64 payload as plain text — producing the giant
-  // unreadable block the user saw in the bottom of the chat. Detect the
-  // pattern and render an <img>; fall back to plain text otherwise.
-  const IMG_MD = /^!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[^)]+|https?:\/\/[^)\s]+)\)\s*$/;
-  const renderContent = (raw: string) => {
-    const m = raw.match(IMG_MD);
-    if (m) {
-      const alt = m[1] || '';
-      const src = m[2];
-      return (
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          style={{
-            display: 'block',
-            maxWidth: '100%',
-            maxHeight: 320,
-            width: 'auto',
-            height: 'auto',
-            borderRadius: 12,
-            objectFit: 'cover',
-          }}
-        />
-      );
-    }
-    return raw;
-  };
+  // Rendering chat content — both directions — runs through the shared
+  // <MessageContent /> in components/common/MessageContent.tsx. The
+  // local regex here used to require the WHOLE message to be a single
+  // markdown image (^…$), so the manager's "${text}\n\n![file](data:…)"
+  // composition fell through to raw text and the resident saw the full
+  // base64 string in the bubble. The shared component parses mixed
+  // content (text + image + attachment, multi-image) into <img> +
+  // lightbox + <p>, with the same data:image/<mime>;base64,… +
+  // https:// allowlist (no javascript: URLs).
 
   const statusText = language === 'ru' ? 'На связи · отвечаем до 15 мин' : 'Aloqada · 15 daq ichida javob';
 
@@ -710,7 +690,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
                         maxWidth: '100%',
                       }}
                     >
-                      {renderContent(m.content)}
+                      <MessageContent content={m.content} isOwn={me} language={language} />
                     </div>
 
                     <div

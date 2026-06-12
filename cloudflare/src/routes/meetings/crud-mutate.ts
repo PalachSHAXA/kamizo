@@ -19,45 +19,93 @@ route('POST', '/api/meetings', async (request, env) => {
     try { body = await request.json(); } catch (e: any) { log.error('JSON parse error', e); return error('Invalid JSON body', 400); }
 
     const id = generateId();
-    const buildingId = body.building_id || body.buildingId;
-    if (!buildingId) return error('building_id is required', 400);
+    // Two scopes:
+    //   building-scoped: client picked a specific building.id
+    //   whole-tenant:   client sent empty/null → "Весь комплекс" intent
+    // The previous code rejected the second case with HTTP 400
+    // "building_id is required"; the wizard then silently swallowed the
+    // error (MeetingsPage.onCreate only console.error'd) and the
+    // director's click on "Опубликовать" looked like a no-op.
+    const rawBuildingId = (body.building_id ?? body.buildingId);
+    const buildingId: string = typeof rawBuildingId === 'string' ? rawBuildingId.trim() : '';
+    const isWholeTenant = buildingId === '';
 
     const tenantId = getTenantId(request);
 
-    // Refuse to create a meeting on a building with zero active
-    // residents — the meeting would be invisible to everyone (the
-    // resident-facing /api/meetings list filters by building_id, and
-    // the notification fan-out at the bottom of this handler is also
-    // building-scoped). Proven by the `choko` "wefwe" meeting on
-    // building "w" (0 residents) that 6 manual open-voting retries
-    // could not deliver. Bilingual so the manager sees a native
-    // message regardless of their UI locale.
-    const residentCheck = await env.DB.prepare(
-      `SELECT COUNT(*) as count FROM users WHERE building_id = ? AND role = 'resident' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
-    ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as { count: number } | null;
-    if ((residentCheck?.count ?? 0) === 0) {
-      return bilingualError(
-        'В выбранном здании нет жителей — собрание никто не увидит. Добавьте жильцов или выберите другое здание.',
-        "Tanlangan binoda yashovchilar yo'q — yig'ilishni hech kim ko'rmaydi. Yashovchilarni qo'shing yoki boshqa bino tanlang.",
-        400
-      );
+    // Eligibility guard — refuse to create a meeting nobody can ever
+    // see. Building-scoped: building must have ≥1 active resident
+    // (proven by choko "w" with 0 residents where open-voting failed
+    // 6 times). Whole-tenant: tenant must have ≥1 active resident
+    // (counts even residents whose `building_id` is NULL — those are
+    // legit unlinked residents who should still receive УК-wide
+    // announcements).
+    if (isWholeTenant) {
+      // Whole-tenant requires a resolved tenant. Cross-tenant /
+      // super-admin contexts can't pick "all residents of all UKs".
+      if (!tenantId) {
+        return bilingualError(
+          'Невозможно назначить собрание для всех жильцов: тенант не определён. Войдите через поддомен УК.',
+          "Yig'ilishni barcha aholiga belgilab bo'lmaydi: tenant aniqlanmagan. UK subdomeni orqali kiring.",
+          400
+        );
+      }
+      const tenantResidents = await env.DB.prepare(
+        `SELECT COUNT(*) as count FROM users WHERE tenant_id = ? AND role = 'resident' AND is_active = 1`
+      ).bind(tenantId).first() as { count: number } | null;
+      if ((tenantResidents?.count ?? 0) === 0) {
+        return bilingualError(
+          'В этой УК нет ни одного жителя — собрание никто не увидит.',
+          "Bu UKda yashovchilar yo'q — yig'ilishni hech kim ko'rmaydi.",
+          400
+        );
+      }
+    } else {
+      const residentCheck = await env.DB.prepare(
+        `SELECT COUNT(*) as count FROM users WHERE building_id = ? AND role = 'resident' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
+      ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as { count: number } | null;
+      if ((residentCheck?.count ?? 0) === 0) {
+        return bilingualError(
+          'В выбранном здании нет жителей — собрание никто не увидит. Добавьте жильцов или выберите другое здание.',
+          "Tanlangan binoda yashovchilar yo'q — yig'ilishni hech kim ko'rmaydi. Yashovchilarni qo'shing yoki boshqa bino tanlang.",
+          400
+        );
+      }
     }
 
-    const settings = await env.DB.prepare('SELECT * FROM meeting_building_settings WHERE building_id = ?').bind(buildingId).first() as any;
+    // Per-building settings only exist for specific buildings. Whole-
+    // tenant meetings fall back to the platform defaults (same numbers
+    // the per-building defaults use).
+    const settings = isWholeTenant
+      ? null
+      : await env.DB.prepare('SELECT * FROM meeting_building_settings WHERE building_id = ?').bind(buildingId).first() as any;
     const votingUnit = settings?.voting_unit || 'apartment';
     const quorumPercent = settings?.default_quorum_percent || 50;
     const requireModeration = settings?.require_moderation !== 0;
 
-    const areaResult = await env.DB.prepare(`
-      SELECT COALESCE(SUM(total_area), 0) as total_area, COUNT(*) as total_count
-      FROM users WHERE building_id = ? AND role = 'resident' AND total_area > 0 ${tenantId ? 'AND tenant_id = ?' : ''}
-    `).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
+    // Aggregate eligible voters: building-scoped sums the building's
+    // residents; whole-tenant sums every resident of the tenant
+    // (including building_id-NULL ones).
+    const areaResult = isWholeTenant
+      ? await env.DB.prepare(`
+          SELECT COALESCE(SUM(total_area), 0) as total_area, COUNT(*) as total_count
+          FROM users WHERE tenant_id = ? AND role = 'resident' AND is_active = 1 AND total_area > 0
+        `).bind(tenantId).first() as any
+      : await env.DB.prepare(`
+          SELECT COALESCE(SUM(total_area), 0) as total_area, COUNT(*) as total_count
+          FROM users WHERE building_id = ? AND role = 'resident' AND total_area > 0 ${tenantId ? 'AND tenant_id = ?' : ''}
+        `).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
     const totalArea = areaResult?.total_area || 0;
     const totalEligibleCount = areaResult?.total_count || 0;
 
-    const countResult = await env.DB.prepare(
-      `SELECT COUNT(*) as count FROM meetings WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-    ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
+    // Meeting numbering: building-scoped continues per-building;
+    // whole-tenant numbers per-tenant across all empty-building rows.
+    const countResult = isWholeTenant
+      ? await env.DB.prepare(
+          `SELECT COUNT(*) as count FROM meetings WHERE (building_id IS NULL OR building_id = '') AND tenant_id = ?`
+        ).bind(tenantId).first() as any
+      : await env.DB.prepare(
+          `SELECT COUNT(*) as count FROM meetings WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+        ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
     const meetingNumber = (countResult?.count || 0) + 1;
 
     const organizerType = body.organizer_type || body.organizerType || 'uk';
@@ -122,16 +170,24 @@ route('POST', '/api/meetings', async (request, env) => {
 
     // Notify eligible residents that a meeting has been created and voting/poll is open.
     // initialStatus drives whether voters are notified — schedule_poll_open or voting_open both qualify.
-    if (buildingId && (initialStatus === 'schedule_poll_open' || initialStatus === 'voting_open')) {
+    if ((initialStatus === 'schedule_poll_open' || initialStatus === 'voting_open')) {
       try {
-        const { results: residents } = await env.DB.prepare(
-          `SELECT id FROM users WHERE role = ? AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-        ).bind('resident', buildingId, ...(tenantId ? [tenantId] : [])).all();
+        // Building-scoped: residents of that building. Whole-tenant:
+        // every active resident of the tenant (building_id IS NULL ok).
+        const { results: residents } = isWholeTenant
+          ? await env.DB.prepare(
+              `SELECT id FROM users WHERE tenant_id = ? AND role = 'resident' AND is_active = 1`
+            ).bind(tenantId).all()
+          : await env.DB.prepare(
+              `SELECT id FROM users WHERE role = ? AND building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+            ).bind('resident', buildingId, ...(tenantId ? [tenantId] : [])).all();
 
         const meetingTitleRu = initialStatus === 'voting_open' ? '\u{1F5F3}\u{FE0F} Открыто голосование' : '\u{1F4E2} Новое собрание объявлено';
         const meetingBodyRu = initialStatus === 'voting_open'
           ? 'Новое собрание собственников. Проголосуйте.'
-          : `Назначено собрание жильцов дома ${body.building_address || body.buildingAddress || ''}. Примите участие в выборе даты!`;
+          : (isWholeTenant
+              ? 'Назначено собрание жильцов УК. Примите участие в выборе даты!'
+              : `Назначено собрание жильцов дома ${body.building_address || body.buildingAddress || ''}. Примите участие в выборе даты!`);
 
         for (const resident of residents as any[]) {
           const notifId = generateId();
