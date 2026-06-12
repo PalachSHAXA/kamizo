@@ -73,6 +73,44 @@
   --text-on-dark: #F4F0E8;
   --text-muted: #9CA3AF;
   --stone-300: #D6D3D1;
+
+  /* Chat surface tokens (light). v87 follow-up — chat components inline
+     hex strings directly, bypassing both the CSS-var token system and
+     the Tailwind safety-net, so dark mode was leaving every chat surface
+     light. Each chat token reads through `var(--chat-…, <light-hex>)`
+     so light-mode is byte-identical (fallback wins if a consumer is
+     unaware of the var). html.dark overrides below flip them all. */
+  --chat-page-bg: #FAFAF9;
+  --chat-page-gradient: linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%);
+  --chat-strip-bg: rgba(250,250,249,0.95);
+  --chat-strip-border: rgba(0,0,0,0.06);
+  --chat-bubble-in-bg: #FFFFFF;
+  --chat-bubble-in-border: rgba(28,25,23,0.08);
+  --chat-bubble-in-text: #1C1917;
+  --chat-bubble-in-shadow: 0 4px 14px rgba(28,25,23,0.06);
+  --chat-chip-bg: #FFFFFF;
+  --chat-chip-border: rgba(28,25,23,0.08);
+  --chat-chip-text: #6F6A62;
+  --chat-input-bg: #FFFFFF;
+  --chat-input-border: rgba(28,25,23,0.08);
+  --chat-input-text: #1C1917;
+  --chat-input-placeholder: #A8A29E;
+  --chat-icon-muted: #6F6A62;
+  --chat-icon-disabled: #A8A29E;
+  --chat-date-bg: #EDE7DB;
+  --chat-date-text: #A8A29E;
+  --chat-timestamp: #A8A29E;
+  --chat-send-off-bg: #E6DFD2;
+  --chat-send-off-text: #6F6A62;
+  --chat-header-text: #1C1917;
+  --chat-status-online: #15A06E;
+  --chat-online-ring: #FAFAF9;
+  --chat-request-chip-bg: rgba(255,243,234,1);
+  --chat-request-chip-border: rgba(254,215,170,1);
+  --chat-request-chip-icon-bg: rgba(255,230,210,1);
+  --chat-request-chip-icon-fg: rgba(194,65,12,1);
+  --chat-request-chip-eyebrow: rgba(154,52,18,1);
+  --chat-request-chip-title: #1C1917;
 }
 
 * {
@@ -203,6 +241,40 @@ html.dark {
   --bb-inactive-fg: #B8B2A8;
   --bb-badge-ring: #25201A;
   --bb-shadow: 0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.40);
+
+  /* Chat surface tokens — dark equivalents. Outgoing orange gradient
+     and white-on-orange text stay verbatim (brand identity). */
+  --chat-page-bg: #1A1612;
+  --chat-page-gradient: linear-gradient(180deg, #1F1A14 0%, #1A1612 100%);
+  --chat-strip-bg: rgba(26,22,18,0.95);
+  --chat-strip-border: rgba(244,240,232,0.08);
+  --chat-bubble-in-bg: #2C2620;
+  --chat-bubble-in-border: rgba(244,240,232,0.08);
+  --chat-bubble-in-text: #F4F0E8;
+  --chat-bubble-in-shadow: 0 4px 14px rgba(0,0,0,0.40);
+  --chat-chip-bg: #2C2620;
+  --chat-chip-border: rgba(244,240,232,0.10);
+  --chat-chip-text: #C7BFAF;
+  --chat-input-bg: #2C2620;
+  --chat-input-border: rgba(244,240,232,0.10);
+  --chat-input-text: #F4F0E8;
+  --chat-input-placeholder: #8C8779;
+  --chat-icon-muted: #C7BFAF;
+  --chat-icon-disabled: #8C8779;
+  --chat-date-bg: rgba(244,240,232,0.08);
+  --chat-date-text: #B8B2A8;
+  --chat-timestamp: #8C8779;
+  --chat-send-off-bg: #3A332B;
+  --chat-send-off-text: #8C8779;
+  --chat-header-text: #F4F0E8;
+  --chat-status-online: #34D399;
+  --chat-online-ring: #1A1612;
+  --chat-request-chip-bg: rgba(234,88,12,0.14);
+  --chat-request-chip-border: rgba(234,88,12,0.30);
+  --chat-request-chip-icon-bg: rgba(234,88,12,0.22);
+  --chat-request-chip-icon-fg: #FB923C;
+  --chat-request-chip-eyebrow: #FB923C;
+  --chat-request-chip-title: #F4F0E8;
 }
 
 /* Tailwind safety-net — overrides for the most common utility classes
@@ -256,6 +328,23 @@ html.dark .bg-white\/10 { background-color: rgba(37,32,26,0.40) !important; }
 html.dark .bg-white\/20 { background-color: rgba(37,32,26,0.55) !important; }
 html.dark .border-gray-200\/50 { border-color: rgba(244,240,232,0.10) !important; }
 html.dark .border-white\/10 { border-color: rgba(244,240,232,0.10) !important; }
+
+/* Chat-specific utility classes used by MessageBubble + ChatComposer.
+   These don't appear in the global safety-net above because they're
+   rare elsewhere, but inside chat they're load-bearing. */
+html.dark .bg-orange-50 { background-color: rgba(234,88,12,0.14) !important; }
+html.dark .bg-orange-100 { background-color: rgba(234,88,12,0.20) !important; }
+html.dark .border-orange-100 { border-color: rgba(234,88,12,0.30) !important; }
+html.dark .text-orange-300 { color: #FB923C !important; }
+html.dark .text-orange-500 { color: #FB923C !important; }
+html.dark .text-gray-400 { color: #8C8779 !important; }
+html.dark .text-gray-300 { color: #6B665C !important; }
+html.dark .bg-black\/\[0\.04\] { background-color: rgba(244,240,232,0.06) !important; }
+html.dark .border-black\/\[0\.04\] { border-color: rgba(244,240,232,0.06) !important; }
+html.dark .border-black\/\[0\.03\] { border-color: rgba(244,240,232,0.05) !important; }
+html.dark .ring-orange-200 { --tw-ring-color: rgba(234,88,12,0.40) !important; }
+html.dark .text-white\/85 { color: rgba(244,240,232,0.85) !important; }
+html.dark .focus\:bg-white:focus { background-color: #2C2620 !important; }
 
 /* Glass-card surfaces in dark — replace warm white with warm dark and
    warm-orange shadow with deeper black. Brand orange accents in child

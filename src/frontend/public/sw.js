@@ -1,4 +1,26 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.33 — cache suffix bumped to v87 to evict every v86 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-mode follow-up #2: chat surfaces (resident chat header,
+//     active-request chip, composer strip, quick-reply chips, attach +
+//     camera + send buttons, incoming message bubbles, date separator
+//     pills, timestamps, manager chat gradient page bg) now flip to the
+//     warm dark palette under html.dark. Root cause was inline
+//     style={{ background: '#FFFFFF', color: '#1C1917', … }} hex
+//     literals in ResidentChatView / MessageBubble / ChatComposer /
+//     ChatView — neither the CSS-var token system nor the Tailwind
+//     safety-net could reach them. Fix: every chat hex now reads
+//     through `var(--chat-…, <existing-light-hex>)`, with light values
+//     in :root and dark overrides in html.dark. Outgoing orange-gradient
+//     bubble + white-on-orange text stay verbatim. Tailwind safety-net
+//     extended with chat-relevant utilities (bg-orange-50/100,
+//     border-orange-100, text-orange-300/500, bg-black/[0.04],
+//     border-black/[0.03], text-gray-400/300, focus:bg-white,
+//     ring-orange-200, text-white/85). Light mode is byte-identical
+//     for any user who hasn't opted in (every var falls back to the
+//     prior hex). Image rendering path from v81 is unchanged.
+//
+// Previous notes (v86) preserved below:
 // Version: 3.7.32 — cache suffix bumped to v86 to evict every v85 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-mode follow-up: MobileHeader (top tenant chip + menu + bell
@@ -427,9 +449,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v86';
-const ASSET_CACHE = 'kamizo-assets-v86';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v86';
+const STATIC_CACHE = 'kamizo-static-v87';
+const ASSET_CACHE = 'kamizo-assets-v87';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v87';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

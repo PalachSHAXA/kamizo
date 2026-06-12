@@ -101,7 +101,10 @@ function MessageBubbleImpl({
       >
         {showSender && !isOwn && (
           <div className="flex items-center gap-1.5 mb-1 px-1">
-            <span className="text-[12px] font-semibold text-gray-700">
+            <span
+              className="text-[12px] font-semibold"
+              style={{ color: 'var(--chat-bubble-in-text, #374151)' }}
+            >
               {formatName(message.sender_name)}
             </span>
             {renderRoleBadge(message.sender_role)}
@@ -112,15 +115,22 @@ function MessageBubbleImpl({
           className={`px-3.5 py-2 ${
             isOwn
               ? `text-white ${ownShape} shadow-[0_3px_12px_rgba(232,98,26,0.18)]`
-              : `bg-white text-gray-900 ${otherShape} shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-black/[0.04]`
+              : `${otherShape} shadow-[0_2px_8px_rgba(0,0,0,0.04)]`
           } ${message.status === 'sending' ? 'opacity-60' : ''}`}
-          style={isOwn ? { background: 'linear-gradient(135deg, #E8621A 0%, #F59E0B 100%)' } : undefined}
+          style={
+            isOwn
+              ? { background: 'linear-gradient(135deg, #E8621A 0%, #F59E0B 100%)' }
+              : {
+                  background: 'var(--chat-bubble-in-bg, #FFFFFF)',
+                  color: 'var(--chat-bubble-in-text, #1C1917)',
+                  border: '1px solid var(--chat-bubble-in-border, rgba(0,0,0,0.04))',
+                }
+          }
         >
           <MessageContent content={message.content} isOwn={isOwn} language={language} />
           <div
-            className={`flex items-center justify-end gap-1 mt-1 ${
-              isOwn ? 'text-white/85' : 'text-gray-500'
-            }`}
+            className={`flex items-center justify-end gap-1 mt-1 ${isOwn ? 'text-white/85' : ''}`}
+            style={isOwn ? undefined : { color: 'var(--chat-timestamp, #6B7280)' }}
           >
             <span className="text-[11px] font-medium">{formatTime(message.created_at, language)}</span>
             {isOwn && message.status === 'sending' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
