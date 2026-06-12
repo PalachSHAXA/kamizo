@@ -76,7 +76,12 @@ const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) || 
 
 export function ResidentProfilePage() {
   const navigate = useNavigate();
-  const { user, changePassword, updateProfile, logout } = useAuthStore();
+  const { user, changePassword, updateProfile, logout, refreshUser } = useAuthStore();
+  // Pull a fresh /api/users/me on mount so manager-set fields the
+  // resident can't edit themselves (personal_account, building link,
+  // contract status …) appear without forcing the resident to log out
+  // and back in. Cheap — one GET per profile visit.
+  useEffect(() => { void refreshUser(); }, [refreshUser]);
   const { language, setLanguage } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const getRequestsByResident = useRequestStore(s => s.getRequestsByResident);

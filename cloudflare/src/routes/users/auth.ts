@@ -43,7 +43,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   // Trim password to match frontend behavior (prevents whitespace mismatch)
   const trimmedPassword = password.trim();
   const trimmedLogin = login.trim();
-  const userFields = 'id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, tenant_id';
+  const userFields = 'id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id';
 
   // Sprint 66 P1/F9 timing-attack guard. The previous "search all tenants
   // then verify against each candidate" code leaked timing because the
