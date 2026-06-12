@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useCRMStore } from '../stores/crmStore';
+import { useToastStore } from '../stores/toastStore';
 import type { Meeting, MeetingStatus } from '../types';
 import { MEETING_STATUS_LABELS } from '../types';
 import { MeetingCard } from './MeetingCard';
@@ -193,7 +194,16 @@ export function MeetingsPage() {
               await fetchMeetings(); // Refresh the list
               setShowCreateModal(false);
             } catch (err) {
-              console.error('Failed to create meeting:', err);
+              // The error came from meetingStore.createMeeting, which rethrows
+              // the API's `error` field. Surface it as a toast so the
+              // director sees WHY publish failed — previously this was
+              // just console.error and the click on "Опубликовать" looked
+              // like a no-op (silent fail).
+              const raw = err instanceof Error ? err.message : '';
+              const fallback = language === 'ru'
+                ? 'Не удалось создать собрание. Попробуйте ещё раз или измените настройки.'
+                : "Yig'ilishni yaratib bo'lmadi. Qaytadan urinib ko'ring yoki sozlamalarni o'zgartiring.";
+              useToastStore.getState().addToast('error', raw && raw !== 'Failed to create meeting' ? raw : fallback);
             }
           }}
           language={language}

@@ -20,17 +20,26 @@ route('GET', '/api/meetings', async (request, env) => {
   const tenantId = getTenantId(request);
 
   const authUser = await getUser(request, env);
-  // Resident-like roles (resident, tenant, commercial_owner) see meetings only for
-  // their own building — prevents cross-building data leaks.
+  // Resident-like roles (resident, tenant, commercial_owner) see meetings:
+  //   - announced specifically for THEIR building, AND
+  //   - announced for the WHOLE TENANT (building_id NULL/empty —
+  //     produced by the wizard when "Весь комплекс" is chosen).
+  // Residents without any building_id assigned (data-entry gap / fresh
+  // imports) still get the whole-tenant ones rather than seeing an
+  // empty list and missing every УК-wide notice.
   const isResidentLike = authUser?.role === 'resident' || authUser?.role === 'tenant' || authUser?.role === 'commercial_owner';
+  // Resident scope mode: 'own_or_tenant_wide' for residents with a
+  // building_id, 'tenant_wide_only' for unlinked residents, or null for
+  // management/admins where the existing building filter from the URL
+  // still applies.
+  let residentScope: 'own_or_tenant_wide' | 'tenant_wide_only' | null = null;
   if (isResidentLike && authUser?.building_id) {
-    buildingId = authUser.building_id;
+    residentScope = 'own_or_tenant_wide';
   } else if (isResidentLike && !authUser?.building_id) {
-    // Tenant without building assigned — return empty rather than all buildings
-    return json({ meetings: [] });
+    residentScope = 'tenant_wide_only';
   }
 
-  const cacheKey = `meetings:${buildingId || 'all'}:${status || 'all'}:${organizerId || 'all'}:${onlyActive ? 'active' : 'all'}:${tenantId || 'no-tenant'}`;
+  const cacheKey = `meetings:${residentScope || ''}:${buildingId || 'all'}:${authUser?.building_id || 'no-bld'}:${status || 'all'}:${organizerId || 'all'}:${onlyActive ? 'active' : 'all'}:${tenantId || 'no-tenant'}`;
   const cached = getCached<any>(cacheKey);
   if (cached) {
     return json({ meetings: cached });
@@ -40,7 +49,15 @@ route('GET', '/api/meetings', async (request, env) => {
   const params: any[] = [];
 
   if (tenantId) { query += ' AND tenant_id = ?'; params.push(tenantId); }
-  if (buildingId) { query += ' AND building_id = ?'; params.push(buildingId); }
+  if (residentScope === 'own_or_tenant_wide') {
+    // Own building OR whole-tenant (NULL/empty building_id).
+    query += " AND (building_id = ? OR building_id IS NULL OR building_id = '')";
+    params.push(authUser!.building_id);
+  } else if (residentScope === 'tenant_wide_only') {
+    query += " AND (building_id IS NULL OR building_id = '')";
+  } else if (buildingId) {
+    query += ' AND building_id = ?'; params.push(buildingId);
+  }
   if (status) { query += ' AND status = ?'; params.push(status); }
   if (organizerId) { query += ' AND organizer_id = ?'; params.push(organizerId); }
 

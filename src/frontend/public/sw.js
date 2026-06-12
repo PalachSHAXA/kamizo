@@ -1,4 +1,15 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.26 — cache suffix bumped to v80 to evict every v79 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Meeting create wizard: "Опубликовать" no longer silently does
+//     nothing when the director picks "Весь комплекс" or the tenant
+//     has zero buildings. Wizard sends empty building_id as an
+//     explicit whole-tenant intent; backend accepts it and fans the
+//     meeting + bell notifications out to every active resident of
+//     the УК (including unlinked ones). On any failure MeetingsPage
+//     shows a Russian toast — no more silent no-op clicks.
+//
+// Previous notes (v79) preserved below:
 // Version: 3.7.25 — cache suffix bumped to v79 to evict every v78 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • ResidentChatView attach: snapshot picked File objects into a
@@ -329,9 +340,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v79';
-const ASSET_CACHE = 'kamizo-assets-v79';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v79';
+const STATIC_CACHE = 'kamizo-static-v80';
+const ASSET_CACHE = 'kamizo-assets-v80';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v80';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
