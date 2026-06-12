@@ -1,4 +1,18 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.27 — cache suffix bumped to v81 to evict every v80 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Resident chat: photos sent by manager / director now render as
+//     <img> instead of leaking the raw "![file](data:image/...;base64,
+//     iVBOR...)" markdown into the bubble. ResidentChatView used a
+//     strict whole-string regex that didn't match the manager's
+//     "${text}\n\n![…]" composition; switched to the shared
+//     <MessageContent /> already used by MessageBubble (handles mixed
+//     text + image + attachment with the same data:image allowlist
+//     and lightbox).
+//   • Channel list previews collapse photo markdown to "📷 Фото" /
+//     "📷 Rasm" instead of showing base64 in the last-message slot.
+//
+// Previous notes (v80) preserved below:
 // Version: 3.7.26 — cache suffix bumped to v80 to evict every v79 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Meeting create wizard: "Опубликовать" no longer silently does
@@ -340,9 +354,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v80';
-const ASSET_CACHE = 'kamizo-assets-v80';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v80';
+const STATIC_CACHE = 'kamizo-static-v81';
+const ASSET_CACHE = 'kamizo-assets-v81';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v81';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
