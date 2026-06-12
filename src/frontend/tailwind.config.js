@@ -1,5 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Class-based dark mode: opt-in via `html.dark`. ThemeProvider sets/
+  // unsets the class based on the user choice persisted in localStorage
+  // (key 'kamizo:theme'). System auto-detection deliberately disabled
+  // this iteration.
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",

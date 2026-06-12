@@ -1,12 +1,13 @@
 import { useState, useMemo, type ComponentType } from 'react';
 import {
   Key, Phone, Save, Eye, EyeOff, Edit3,
-  Shield, Loader2, X, Globe,
+  Shield, Loader2, X, Globe, Moon,
   User as UserIcon, Wrench, Briefcase, ShieldCheck, Radio, Store, Megaphone, Crown, CheckCircle
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { InstallAppSection } from '../components/InstallAppSection';
+import { ThemeToggle } from '../components/common';
 import { formatName } from '../utils/formatName';
 
 const ROLE_CONFIG: Record<string, { labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string; bgColor: string }> = {
@@ -63,6 +64,9 @@ export function StaffProfilePage() {
     phone: language === 'ru' ? 'Телефон' : 'Telefon',
     notSpecified: language === 'ru' ? 'Не указан' : 'Ko\'rsatilmagan',
     languageTitle: language === 'ru' ? 'Язык интерфейса' : 'Interfeys tili',
+    appearanceTitle: language === 'ru' ? 'Оформление' : 'Mavzu',
+    darkMode: language === 'ru' ? 'Тёмная тема' : 'Tungi rejim',
+    darkModeHint: language === 'ru' ? 'Светлая или тёмная цветовая схема' : 'Yorug\' yoki tungi mavzu',
     security: language === 'ru' ? 'Безопасность' : 'Xavfsizlik',
     changePassword: language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish',
     currentPassword: language === 'ru' ? 'Текущий пароль' : 'Joriy parol',
@@ -273,6 +277,23 @@ export function StaffProfilePage() {
               <span className="text-xl">🇺🇿</span>
               <span className="font-medium text-sm">O'zbekcha</span>
             </button>
+          </div>
+        </div>
+
+        {/* Appearance / Dark mode */}
+        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
+          <div className="px-4 pt-4 pb-3">
+            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+              <Moon className="w-4 h-4 text-primary-500" />
+              {t.appearanceTitle}
+            </h2>
+          </div>
+          <div className="px-4 pb-4 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-medium text-gray-900">{t.darkMode}</div>
+              <div className="text-[12px] text-gray-500 mt-0.5">{t.darkModeHint}</div>
+            </div>
+            <ThemeToggle ariaLabel={t.darkMode} />
           </div>
         </div>
 

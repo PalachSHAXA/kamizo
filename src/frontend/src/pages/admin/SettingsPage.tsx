@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard } from 'lucide-react';
+import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useTenantStore } from '../../stores/tenantStore';
-import { Modal } from '../../components/common';
+import { Modal, ThemeToggle } from '../../components/common';
 import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
 
@@ -477,6 +477,25 @@ export function SettingsPage() {
                 <div className="text-2xl mb-1">🇺🇿</div>
                 <div className="font-medium">O'zbekcha</div>
               </button>
+            </div>
+          </div>
+
+          {/* Appearance / Dark mode */}
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
+            <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
+              <Moon className="w-5 h-5 text-gray-400" />
+              {language === 'ru' ? 'Оформление' : 'Mavzu'}
+            </h2>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm md:text-base font-medium text-gray-900">
+                  {language === 'ru' ? 'Тёмная тема' : 'Tungi rejim'}
+                </div>
+                <div className="text-xs md:text-sm text-gray-500 mt-0.5">
+                  {language === 'ru' ? 'Светлая или тёмная цветовая схема' : 'Yorug\' yoki tungi mavzu'}
+                </div>
+              </div>
+              <ThemeToggle ariaLabel={language === 'ru' ? 'Тёмная тема' : 'Tungi rejim'} />
             </div>
           </div>
 

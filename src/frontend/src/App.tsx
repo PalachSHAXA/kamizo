@@ -16,6 +16,7 @@ import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { SWUpdateBanner } from './components/SWUpdateBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Toast from './components/Toast';
+import { ThemeProvider } from './components/common/ThemeProvider';
 
 // Handle auto_auth parameter from super admin impersonation
 // Must run before React mounts to set localStorage before zustand rehydrates
@@ -145,6 +146,7 @@ function App() {
 
   return (
     <>
+      <ThemeProvider />
       <ErrorBoundary>
         <BrowserRouter>
           <Routes>
