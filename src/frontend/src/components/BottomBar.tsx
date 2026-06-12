@@ -309,7 +309,11 @@ export function BottomBar() {
           alignItems: 'center',
           gap: 7,
           padding: active ? '9px 15px' : '9px 11px',
-          color: active ? '#EA580C' : '#9CA3AF',
+          // Inactive icon/label reads from --bb-inactive-fg, which is
+          // undefined when no `.rpp-dark` ancestor is on <html> — the
+          // existing light gray (#9CA3AF) is the fallback. Active orange
+          // stays as the canonical brand value across both themes.
+          color: active ? '#EA580C' : 'var(--bb-inactive-fg, #9CA3AF)',
           opacity: locked ? 0.4 : 1,
           minWidth: 0,
           minHeight: 0,
@@ -341,7 +345,10 @@ export function BottomBar() {
               fontWeight: 800,
               display: 'grid',
               placeItems: 'center',
-              border: '2px solid #FFFFFF',
+              // Badge ring "cuts" the unread chip into the pill — match
+              // the pill colour (`--bb-badge-ring` in dark mode, `#FFFFFF`
+              // in light) so the chip never floats on a contrasting halo.
+              border: '2px solid var(--bb-badge-ring, #FFFFFF)',
             }}
           >
             {tab.badge > 9 ? '9+' : tab.badge}
@@ -397,12 +404,19 @@ export function BottomBar() {
           pointerEvents: 'auto',
           maxWidth: 480,
           margin: '0 auto',
-          background: 'rgba(255,255,255,0.92)',
+          // Pill chrome reads from the same CSS-var family that the
+          // ResidentProfilePage dark-pilot defines. Without a `.rpp-dark`
+          // ancestor on <html> all three fall back to the original light
+          // values, so every page still gets the milky-white floating
+          // pill it had before. The dark pilot keeps the 0.92 alpha so
+          // the backdrop-filter blur still has something to look at —
+          // a fully opaque dark bg would void the glass effect.
+          background: 'var(--bb-pill-bg, rgba(255,255,255,0.92))',
           backdropFilter: 'blur(16px) saturate(180%)',
           WebkitBackdropFilter: 'blur(16px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.7)',
+          border: '1px solid var(--bb-pill-border, rgba(255,255,255,0.7))',
           borderRadius: 26,
-          boxShadow: '0 10px 30px rgba(28,25,23,0.14), 0 2px 6px rgba(28,25,23,0.06)',
+          boxShadow: 'var(--bb-shadow, 0 10px 30px rgba(28,25,23,0.14), 0 2px 6px rgba(28,25,23,0.06))',
           padding: '8px 10px',
           display: 'flex',
           alignItems: 'center',
