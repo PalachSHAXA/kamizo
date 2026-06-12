@@ -299,10 +299,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
         left: isMobile ? 0 : undefined,
         right: isMobile ? 0 : undefined,
         zIndex: isMobile ? 200 : 1,
-        background: 'rgba(250,250,249,0.95)',
+        background: 'var(--chat-strip-bg, rgba(250,250,249,0.95))',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        borderBottom: '1px solid var(--chat-strip-border, rgba(0,0,0,0.06))',
         paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : 0,
         flex: '0 0 auto',
       }}
@@ -316,7 +316,8 @@ export function ResidentChatView({ channel, onBack }: Props) {
           style={{
             width: 36, height: 36, borderRadius: 999,
             background: 'transparent', border: 'none',
-            display: 'grid', placeItems: 'center', color: '#6F6A62', cursor: 'pointer',
+            display: 'grid', placeItems: 'center',
+            color: 'var(--chat-icon-muted, #6F6A62)', cursor: 'pointer',
             minWidth: 0, minHeight: 0,
           }}
         >
@@ -339,17 +340,18 @@ export function ResidentChatView({ channel, onBack }: Props) {
             style={{
               position: 'absolute', bottom: -1, right: -1,
               width: 12, height: 12, borderRadius: 999,
-              background: '#22C55E', border: '2px solid #FAFAF9',
+              background: 'var(--chat-status-online, #22C55E)',
+              border: '2px solid var(--chat-online-ring, #FAFAF9)',
             }}
           />
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em', color: '#1C1917' }}>
+          <div style={{ fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em', color: 'var(--chat-header-text, #1C1917)' }}>
             {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'}
           </div>
-          <div style={{ fontSize: 11.5, color: '#15A06E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: '#15A06E' }} />
+          <div style={{ fontSize: 11.5, color: 'var(--chat-status-online, #15A06E)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--chat-status-online, #15A06E)' }} />
             {statusText}
           </div>
         </div>
@@ -365,9 +367,9 @@ export function ResidentChatView({ channel, onBack }: Props) {
             width: 'calc(100% - 32px)',
             margin: '0 16px 10px',
             padding: '10px 12px',
-            background: 'rgba(255,243,234,1)',
+            background: 'var(--chat-request-chip-bg, rgba(255,243,234,1))',
             borderRadius: 12,
-            border: '1px solid rgba(254,215,170,1)',
+            border: '1px solid var(--chat-request-chip-border, rgba(254,215,170,1))',
             textAlign: 'left',
             cursor: 'pointer',
           }}
@@ -375,22 +377,22 @@ export function ResidentChatView({ channel, onBack }: Props) {
           <div
             style={{
               width: 28, height: 28, borderRadius: 8,
-              background: 'rgba(255,230,210,1)',
-              color: 'rgba(194,65,12,1)',
+              background: 'var(--chat-request-chip-icon-bg, rgba(255,230,210,1))',
+              color: 'var(--chat-request-chip-icon-fg, rgba(194,65,12,1))',
               display: 'grid', placeItems: 'center', flex: '0 0 auto',
             }}
           >
             <MapPin style={{ width: 14, height: 14 }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11.5, color: 'rgba(154,52,18,1)', fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11.5, color: 'var(--chat-request-chip-eyebrow, rgba(154,52,18,1))', fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
               {language === 'ru' ? 'Активная заявка' : 'Faol ariza'}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#1C1917', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--chat-request-chip-title, #1C1917)', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeRequestChip.id} · {activeRequestChip.title} · {activeRequestChip.status}
             </div>
           </div>
-          <ChevronRight style={{ width: 16, height: 16, color: 'rgba(194,65,12,1)', flex: '0 0 auto' }} />
+          <ChevronRight style={{ width: 16, height: 16, color: 'var(--chat-request-chip-icon-fg, rgba(194,65,12,1))', flex: '0 0 auto' }} />
         </button>
       )}
     </div>
@@ -410,10 +412,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
         left: isMobile ? 0 : undefined,
         right: isMobile ? 0 : undefined,
         zIndex: isMobile ? 200 : 1,
-        background: 'rgba(250,250,249,0.95)',
+        background: 'var(--chat-strip-bg, rgba(250,250,249,0.95))',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        borderTop: '1px solid rgba(0,0,0,0.06)',
+        borderTop: '1px solid var(--chat-strip-border, rgba(0,0,0,0.06))',
         paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 0,
         flex: '0 0 auto',
       }}
@@ -456,8 +458,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
             style={{
               flex: '0 0 auto',
               padding: '7px 12px', borderRadius: 999,
-              background: '#FFFFFF', border: '1px solid rgba(28,25,23,0.08)',
-              fontSize: 12.5, fontWeight: 600, color: '#6F6A62',
+              background: 'var(--chat-chip-bg, #FFFFFF)',
+              border: '1px solid var(--chat-chip-border, rgba(28,25,23,0.08))',
+              fontSize: 12.5, fontWeight: 600,
+              color: 'var(--chat-chip-text, #6F6A62)',
               cursor: 'pointer', letterSpacing: '-0.01em',
               minWidth: 0, minHeight: 0,
             }}
@@ -483,8 +487,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
           className="icon-only"
           style={{
             width: 38, height: 38, borderRadius: 999,
-            background: '#FFFFFF', border: '1px solid rgba(28,25,23,0.08)',
-            display: 'grid', placeItems: 'center', color: '#6F6A62',
+            background: 'var(--chat-chip-bg, #FFFFFF)',
+            border: '1px solid var(--chat-chip-border, rgba(28,25,23,0.08))',
+            display: 'grid', placeItems: 'center',
+            color: 'var(--chat-icon-muted, #6F6A62)',
             cursor: 'pointer', flex: '0 0 auto',
             minWidth: 0, minHeight: 0,
           }}
@@ -495,8 +501,8 @@ export function ResidentChatView({ channel, onBack }: Props) {
         <div
           style={{
             flex: 1,
-            background: '#FFFFFF',
-            border: '1px solid rgba(28,25,23,0.08)',
+            background: 'var(--chat-input-bg, #FFFFFF)',
+            border: '1px solid var(--chat-input-border, rgba(28,25,23,0.08))',
             borderRadius: 22,
             padding: '8px 14px',
             display: 'flex', alignItems: 'center', gap: 8,
@@ -517,7 +523,8 @@ export function ResidentChatView({ channel, onBack }: Props) {
             placeholder={language === 'ru' ? 'Сообщение для УК…' : 'УКga xabar…'}
             style={{
               flex: 1, border: 'none', outline: 'none', background: 'transparent',
-              fontSize: 14, color: '#1C1917',
+              fontSize: 14,
+              color: 'var(--chat-input-text, #1C1917)',
               fontFamily: 'inherit',
               minWidth: 0,
             }}
@@ -528,7 +535,8 @@ export function ResidentChatView({ channel, onBack }: Props) {
             aria-label={language === 'ru' ? 'Камера' : 'Kamera'}
             className="icon-only"
             style={{
-              background: 'transparent', border: 'none', color: '#A8A29E',
+              background: 'transparent', border: 'none',
+              color: 'var(--chat-icon-disabled, #A8A29E)',
               cursor: 'pointer', padding: 0,
               display: 'grid', placeItems: 'center',
               minWidth: 0, minHeight: 0,
@@ -546,10 +554,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
           className="icon-only"
           style={{
             width: 38, height: 38, borderRadius: 999,
-            background: draft.trim() ? '#EA580C' : '#E6DFD2',
+            background: draft.trim() ? '#EA580C' : 'var(--chat-send-off-bg, #E6DFD2)',
             border: 'none',
             display: 'grid', placeItems: 'center',
-            color: draft.trim() ? '#FFFFFF' : '#6F6A62',
+            color: draft.trim() ? '#FFFFFF' : 'var(--chat-send-off-text, #6F6A62)',
             cursor: draft.trim() ? 'pointer' : 'not-allowed',
             flex: '0 0 auto',
             boxShadow: draft.trim() ? '0 8px 22px rgba(249,115,22,0.35)' : 'none',
@@ -580,7 +588,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
         style={isMobile ? {
           position: 'fixed',
           inset: 0,
-          background: '#FAFAF9',
+          background: 'var(--chat-page-bg, #FAFAF9)',
           overflow: 'hidden',
           overscrollBehavior: 'none',
         } : {
@@ -589,9 +597,9 @@ export function ResidentChatView({ channel, onBack }: Props) {
           // header-h fallback + safe-area) so the composer hugs the bottom
           // without being clipped by the home-indicator zone.
           position: 'relative',
-          background: '#FAFAF9',
+          background: 'var(--chat-page-bg, #FAFAF9)',
           overflow: 'hidden',
-          border: '1px solid rgba(0,0,0,0.06)',
+          border: '1px solid var(--chat-strip-border, rgba(0,0,0,0.06))',
           borderRadius: 22,
           display: 'flex',
           flexDirection: 'column',
@@ -630,10 +638,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
                   <div key={row.key} style={{ textAlign: 'center', margin: '12px 0 6px' }}>
                     <span
                       style={{
-                        fontSize: 11, color: '#A8A29E', fontWeight: 600,
+                        fontSize: 11, color: 'var(--chat-date-text, #A8A29E)', fontWeight: 600,
                         letterSpacing: '0.02em',
                         padding: '4px 10px',
-                        background: '#EDE7DB', borderRadius: 999,
+                        background: 'var(--chat-date-bg, #EDE7DB)', borderRadius: 999,
                       }}
                     >
                       {row.label}
@@ -675,15 +683,15 @@ export function ResidentChatView({ channel, onBack }: Props) {
                       style={{
                         background: me
                           ? 'linear-gradient(155deg, #FB923C 0%, #EA580C 100%)'
-                          : '#FFFFFF',
-                        color: me ? '#FFFFFF' : '#1C1917',
-                        border: me ? 'none' : '1px solid rgba(28,25,23,0.08)',
+                          : 'var(--chat-bubble-in-bg, #FFFFFF)',
+                        color: me ? '#FFFFFF' : 'var(--chat-bubble-in-text, #1C1917)',
+                        border: me ? 'none' : '1px solid var(--chat-bubble-in-border, rgba(28,25,23,0.08))',
                         borderRadius: me ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                         padding: '10px 13px',
                         fontSize: 14, lineHeight: 1.4, letterSpacing: '-0.01em',
                         boxShadow: me
                           ? '0 4px 10px -2px rgba(217,119,6,0.3)'
-                          : '0 4px 14px rgba(28,25,23,0.06)',
+                          : 'var(--chat-bubble-in-shadow, 0 4px 14px rgba(28,25,23,0.06))',
                         whiteSpace: 'pre-wrap',
                         overflowWrap: 'anywhere',
                         wordBreak: 'break-word',
@@ -699,7 +707,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
                         marginTop: 3, padding: '0 4px',
                       }}
                     >
-                      <span style={{ fontSize: 10.5, color: '#A8A29E', fontWeight: 500 }}>
+                      <span style={{ fontSize: 10.5, color: 'var(--chat-timestamp, #A8A29E)', fontWeight: 500 }}>
                         {formatMessageTime(m.created_at, language)}
                         {me && m.management_read ? (language === 'ru' ? ' · прочитано' : ' · o\'qildi') : ''}
                       </span>

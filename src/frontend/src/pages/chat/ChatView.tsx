@@ -582,7 +582,7 @@ export function ChatView({
         aria-label={language === 'ru' ? 'Сообщения чата' : 'Chat xabarlari'}
         style={{
           overscrollBehaviorY: 'contain',
-          background: 'linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%)',
+          background: 'var(--chat-page-gradient, linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%))',
         }}
       >
         {isLoading ? (

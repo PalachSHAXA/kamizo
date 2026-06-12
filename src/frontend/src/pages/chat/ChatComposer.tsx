@@ -93,8 +93,9 @@ export function ChatComposer({
 
   return (
     <div
-      className="bg-white flex-shrink-0"
+      className="flex-shrink-0"
       style={{
+        background: 'var(--chat-strip-bg, #FFFFFF)',
         paddingBottom: keyboardOffset > 0 ? '0px' : 'max(12px, env(safe-area-inset-bottom, 12px))',
         boxShadow: '0 -2px 12px rgba(0,0,0,0.04), 0 -1px 0 rgba(0,0,0,0.04)',
       }}
