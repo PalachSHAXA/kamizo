@@ -103,15 +103,27 @@ export function ResidentProfilePage() {
   // root <div>, and (d) the `var(--rpp-…, …)` fallback in the token
   // constants near the top of the file — nothing else touched.
   const isDarkPilot = (user?.login || '').startsWith('test-');
-  // Capacitor / PWA status-bar chrome: paint it dark on this screen and
-  // restore on unmount so the rest of the app keeps its warm beige
-  // status bar. Touches one DOM meta — no plugin work needed.
+  // Lift the `rpp-dark` class to <html> (documentElement) so BOTH the
+  // page AND the BottomBar (which createPortal-s itself directly into
+  // document.body, outside the React tree — see BottomBar.tsx) inherit
+  // the same set of CSS custom properties via the cascade. One class,
+  // two surfaces, no per-component gate duplication. Cleanup on unmount
+  // restores the bar to light the instant the user navigates away
+  // (no flash on transition either direction — class flips before the
+  // next route's first paint because React unmounts the page first).
+  // Capacitor / PWA status-bar chrome is flipped in the same effect so
+  // the OS status bar doesn't lag a frame behind the page background.
   useEffect(() => {
     if (!isDarkPilot) return;
+    const html = document.documentElement;
+    html.classList.add('rpp-dark');
     const meta = document.querySelector('meta[name="theme-color"]');
     const prev = meta?.getAttribute('content') || '#F4F0E8';
     meta?.setAttribute('content', '#1A1612');
-    return () => { meta?.setAttribute('content', prev); };
+    return () => {
+      html.classList.remove('rpp-dark');
+      meta?.setAttribute('content', prev);
+    };
   }, [isDarkPilot]);
   const { language, setLanguage } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
@@ -379,7 +391,6 @@ export function ResidentProfilePage() {
   // ── render: hero / tiles / sections / logout / version ───────────────
   return (
     <div
-      className={isDarkPilot ? 'rpp-dark' : undefined}
       style={{
         minHeight: '100%',
         background: APP_BG,
@@ -389,16 +400,19 @@ export function ResidentProfilePage() {
       }}
     >
       {/* Dark-theme PILOT (test accounts only). Single block of CSS
-          custom-property overrides keyed off the .rpp-dark class above.
-          Every visual token in the page reads through
-          `var(--rpp-<token>, <light-fallback>)`, so without the class
-          NOTHING changes; with it, only this screen flips. Brand
-          orange (BRAND_DARK) stays as-is — only its tint depth bumps
-          to keep contrast on dark surfaces. Removing the experiment =
-          delete this style block + remove the className above. */}
+          custom-property overrides keyed off the .rpp-dark class on the
+          <html> element (set by the useEffect above). Every visual
+          token in the page AND in the BottomBar reads through
+          `var(--…, <light-fallback>)`, so without the class NOTHING
+          changes; with it, both surfaces flip. Brand orange stays
+          as-is — only its tint depth bumps to keep contrast on dark.
+          Removing the experiment = delete this style block + the
+          isDarkPilot effect above + the `var(--rpp-…, …)` fallback
+          wrappers in the token constants. */}
       {isDarkPilot && (
         <style>{`
           .rpp-dark {
+            /* page tokens — consumed by ResidentProfilePage constants */
             --rpp-bg: #1A1612;
             --rpp-surface: #25201A;
             --rpp-surface-sunken: #2C2620;
@@ -409,6 +423,17 @@ export function ResidentProfilePage() {
             --rpp-text-muted: #8C8779;
             --rpp-brand-tint: rgba(234,88,12,0.18);
             --rpp-shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+
+            /* BottomBar tokens — pill background keeps backdrop-blur
+               transparency so the dark page bg ghosts through, just like
+               the light bar does over its beige page; border, inactive
+               icon/label, badge ring and shadow all step into the same
+               warm-dark family. Active orange + orange FAB stay verbatim. */
+            --bb-pill-bg: rgba(37,32,26,0.92);
+            --bb-pill-border: rgba(244,240,232,0.10);
+            --bb-inactive-fg: #B8B2A8;
+            --bb-badge-ring: #25201A;
+            --bb-shadow: 0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.40);
           }
         `}</style>
       )}
