@@ -1,4 +1,15 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.32 — cache suffix bumped to v86 to evict every v85 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-mode follow-up: MobileHeader (top tenant chip + menu + bell
+//     row, visible on every authenticated screen) now flips to the warm
+//     dark surface under `html.dark`. The v85 verification pass caught
+//     a beige strip floating above every dark page because
+//     `.mobile-header` painted `rgba(244,240,232,0.92)` directly without
+//     going through --app-bg. One CSS rule added; everything else from
+//     the v85 sweep stays as-is. No JS changes, no schema changes.
+//
+// Previous notes (v85) preserved below:
 // Version: 3.7.31 — cache suffix bumped to v85 to evict every v84 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Full dark mode. The test-account `.rpp-dark` pilot is gone;
@@ -416,9 +427,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v85';
-const ASSET_CACHE = 'kamizo-assets-v85';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v85';
+const STATIC_CACHE = 'kamizo-static-v86';
+const ASSET_CACHE = 'kamizo-assets-v86';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v86';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

@@ -989,7 +989,10 @@ p, li {
     padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
     /* Translucent fill matching --app-bg (#F4F0E8 = rgb 244,240,232). The
        prior value was the cool #F7F8FA, which painted a visible cooler
-       strip over the warm page bg behind it. */
+       strip over the warm page bg behind it. Dark-mode override sits in
+       the `html.dark .mobile-header` rule below so the header tracks the
+       global theme — without it a light beige strip floats above every
+       dark page (verification pass after v85 caught this on every screen). */
     background: rgba(244, 240, 232, 0.92);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -1011,6 +1014,14 @@ p, li {
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+  }
+
+  /* Dark-mode override — header tracks the page bg. Without this a beige
+     strip floats above every dark page (the tenant chip + bell row was
+     the most-visible "still light" surface in the v85 verification pass). */
+  html.dark .mobile-header {
+    background: rgba(37, 32, 26, 0.92);
+    border-bottom-color: rgba(244, 240, 232, 0.06);
   }
 
   /* When mobile header is visible, push content down by header height + impersonation banner */
