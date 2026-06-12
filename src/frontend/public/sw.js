@@ -1,4 +1,19 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.30 — cache suffix bumped to v84 to evict every v83 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-profile PILOT extension: the floating BottomBar flips to
+//     the dark palette while the resident profile is mounted for a
+//     test account, and back to light the moment the user navigates
+//     away. The `.rpp-dark` class is now applied to <html> by the
+//     ResidentProfilePage useEffect (BottomBar createPortal-s itself
+//     directly into document.body — outside the React tree — so a
+//     class on the page wrapper would never reach it). BottomBar's
+//     pill background / border / shadow / inactive icon colour /
+//     unread badge ring all read through `var(--bb-…, <light-fallback>)`,
+//     gated by the SAME class — no duplicate test-account check in
+//     the bar component. Brand orange + orange FAB stay verbatim.
+//
+// Previous notes (v83) preserved below:
 // Version: 3.7.29 — cache suffix bumped to v83 to evict every v82 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-theme PILOT for the resident PROFILE screen, gated to
@@ -382,9 +397,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v83';
-const ASSET_CACHE = 'kamizo-assets-v83';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v83';
+const STATIC_CACHE = 'kamizo-static-v84';
+const ASSET_CACHE = 'kamizo-assets-v84';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v84';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
