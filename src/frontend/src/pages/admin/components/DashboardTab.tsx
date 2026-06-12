@@ -495,10 +495,12 @@ export function DashboardTab({
               {tenant.logo ? (
                 <img src={tenant.logo} alt={tenant.name} className="w-10 h-10 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
               ) : (
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm"
-                  style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
-                >
+                // Logo placeholder — Kamizo orange across every tenant
+                // so the list reads as one product, not a swatch board
+                // (tenants without an uploaded logo are visually equal).
+                // tenant.color / color_secondary stay in the row's data
+                // payload + the super-admin edit form; just not in chrome.
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm bg-gradient-to-br from-primary-400 to-primary-600">
                   {tenant.name[0]}
                 </div>
               )}
