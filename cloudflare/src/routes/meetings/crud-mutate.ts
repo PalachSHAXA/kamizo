@@ -1,7 +1,7 @@
 // POST /api/meetings, PATCH /api/meetings/:id, DELETE /api/meetings/:id
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error, generateId, sendPushNotification, createRequestLogger, isManagement
+  invalidateCache, json, error, bilingualError, generateId, sendPushNotification, createRequestLogger, isManagement
 } from './helpers';
 
 export function registerMeetingMutateRoutes() {
@@ -23,6 +23,26 @@ route('POST', '/api/meetings', async (request, env) => {
     if (!buildingId) return error('building_id is required', 400);
 
     const tenantId = getTenantId(request);
+
+    // Refuse to create a meeting on a building with zero active
+    // residents — the meeting would be invisible to everyone (the
+    // resident-facing /api/meetings list filters by building_id, and
+    // the notification fan-out at the bottom of this handler is also
+    // building-scoped). Proven by the `choko` "wefwe" meeting on
+    // building "w" (0 residents) that 6 manual open-voting retries
+    // could not deliver. Bilingual so the manager sees a native
+    // message regardless of their UI locale.
+    const residentCheck = await env.DB.prepare(
+      `SELECT COUNT(*) as count FROM users WHERE building_id = ? AND role = 'resident' AND is_active = 1 ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as { count: number } | null;
+    if ((residentCheck?.count ?? 0) === 0) {
+      return bilingualError(
+        'В выбранном здании нет жителей — собрание никто не увидит. Добавьте жильцов или выберите другое здание.',
+        "Tanlangan binoda yashovchilar yo'q — yig'ilishni hech kim ko'rmaydi. Yashovchilarni qo'shing yoki boshqa bino tanlang.",
+        400
+      );
+    }
+
     const settings = await env.DB.prepare('SELECT * FROM meeting_building_settings WHERE building_id = ?').bind(buildingId).first() as any;
     const votingUnit = settings?.voting_unit || 'apartment';
     const quorumPercent = settings?.default_quorum_percent || 50;
