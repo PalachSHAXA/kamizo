@@ -36,23 +36,16 @@ const KAMIZO_DEMO_ACCOUNTS: DemoAccount[] = [
   { login: 'demo-tenant', role: 'tenant', labelRu: 'Арендатор', labelUz: 'Ijarachi', icon: Home, color: 'bg-yellow-700' },
 ];
 
-// Convert hex color to rgba string
-const hexToRgba = (hex: string, alpha: number) => {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
 export function LoginPage() {
   const { login, isLoading: authLoading, error: authError, pickerTenants, clearPicker } = useAuthStore();
   const { language, setLanguage, t } = useLanguageStore();
   const { config: tenantConfig, isConfigFetched } = useTenantStore();
   const tenant = tenantConfig?.tenant;
 
-  // Tenant brand colors
-  const brandColor = tenant?.color || '';
-  const brandColor2 = tenant?.color_secondary || '';
+  // Tenant identity is logo + name only — UI chrome is uniform Kamizo
+  // orange across all tenants. tenant.color / color_secondary are still
+  // fetched by tenantStore and still editable in the super-admin form,
+  // just no longer painted on the login surface.
 
   const [loginValue, setLoginValue] = useState('');
   const [password, setPassword] = useState('');
@@ -184,15 +177,9 @@ export function LoginPage() {
         WebkitOverflowScrolling: 'touch',
       }}
     >
-      {/* Decorative elements */}
-      <div
-        className={`absolute top-20 left-20 w-72 h-72 rounded-full blur-3xl ${!tenant ? 'bg-primary-200/20' : ''}`}
-        style={tenant ? { backgroundColor: hexToRgba(brandColor, 0.15) } : undefined}
-      />
-      <div
-        className={`absolute bottom-20 right-20 w-96 h-96 rounded-full blur-3xl ${!tenant ? 'bg-primary-100/30' : ''}`}
-        style={tenant ? { backgroundColor: hexToRgba(brandColor2 || brandColor, 0.2) } : undefined}
-      />
+      {/* Decorative elements — Kamizo orange across every tenant */}
+      <div className="absolute top-20 left-20 w-72 h-72 rounded-full blur-3xl bg-primary-200/20" />
+      <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full blur-3xl bg-primary-100/30" />
 
       {/* Centering wrapper: flex + min-h-full + m-auto on child = card sits
           centered when content fits the viewport, top-aligned and scrollable
@@ -214,16 +201,18 @@ export function LoginPage() {
                 {tenant.logo ? (
                   <img src={tenant.logo} alt={tenant.name} className="w-10 h-10 flex-shrink-0 rounded-xl object-cover" />
                 ) : (
-                  <div
-                    className="w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center text-white font-bold text-base"
-                    style={{ background: `linear-gradient(135deg, ${tenant.color}, ${tenant.color_secondary})` }}
-                  >
+                  // Placeholder used only when the tenant has no uploaded
+                  // logo. Unified on Kamizo orange so every tenant chip
+                  // looks identical — tenant identity is carried by name
+                  // text (and a real uploaded logo when present), not by
+                  // the chip colour.
+                  <div className="w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center text-white font-bold text-base bg-gradient-to-br from-primary-400 to-primary-600">
                     {tenant.name[0]}
                   </div>
                 )}
                 <div>
                   <h2 className="text-[15px] font-bold leading-tight" style={{ color: '#1a1a1a' }}>{tenant.name}</h2>
-                  <p className="text-sm font-bold uppercase tracking-wider mt-0.5" style={{ color: tenant.color }}>{tenant.is_demo ? 'DEMO' : (tenant.slug?.toUpperCase() || '')}</p>
+                  <p className="text-sm font-bold uppercase tracking-wider mt-0.5 text-primary-500">{tenant.is_demo ? 'DEMO' : (tenant.slug?.toUpperCase() || '')}</p>
                 </div>
               </>
             ) : (
@@ -245,10 +234,9 @@ export function LoginPage() {
                 onClick={() => setLanguage(lang.code)}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-sm font-semibold transition-all touch-manipulation ${
                   language === lang.code
-                    ? 'text-white shadow-sm'
+                    ? 'bg-primary-500 text-white shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
-                style={language === lang.code ? { backgroundColor: tenant ? brandColor : '#f97316' } : undefined}
               >
                 <span className="text-[12px]">{lang.flag}</span>
                 <span className="text-[12px]">{lang.label}</span>
@@ -350,7 +338,7 @@ export function LoginPage() {
               <div
                 className={`rounded border-[1.5px] flex items-center justify-center transition-all ${
                   agreedToTerms
-                    ? (tenant ? 'border-transparent' : 'bg-primary-500 border-primary-500')
+                    ? 'bg-primary-500 border-primary-500'
                     : 'border-gray-300 bg-white'
                 }`}
                 style={{
@@ -361,7 +349,6 @@ export function LoginPage() {
                   maxWidth: 18,
                   maxHeight: 18,
                   marginTop: 2,
-                  ...(agreedToTerms && tenant ? { backgroundColor: brandColor, borderColor: brandColor } : {}),
                 }}
               >
                 {agreedToTerms && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
@@ -372,8 +359,7 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowOfferModal(true)}
-                className="underline font-medium touch-manipulation"
-                style={{ color: tenant ? brandColor : 'var(--color-primary-600)' }}
+                className="underline font-medium touch-manipulation text-primary-600"
               >
                 {language === 'ru' ? 'публичной оферты' : 'ommaviy oferta'}
               </button>
@@ -387,11 +373,8 @@ export function LoginPage() {
             className={`w-full text-center py-3.5 min-h-[48px] text-[15px] font-semibold rounded-xl transition-all active:scale-[0.98] touch-manipulation ${
               !agreedToTerms
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : tenant
-                  ? 'text-white shadow-lg'
-                  : 'bg-primary-500 text-white shadow-lg shadow-primary-200/50 hover:bg-primary-600'
+                : 'bg-primary-500 text-white shadow-lg shadow-primary-200/50 hover:bg-primary-600'
             }`}
-            style={agreedToTerms && tenant ? { background: `linear-gradient(135deg, ${brandColor}, ${brandColor2 || brandColor})`, boxShadow: `0 8px 24px ${hexToRgba(brandColor, 0.35)}` } : undefined}
           >
             {authLoading ? (language === 'ru' ? 'Вход...' : 'Kirish...') : (language === 'ru' ? 'Войти' : 'Kirish')}
           </button>
@@ -476,12 +459,16 @@ export function LoginPage() {
                         setShowOfferModal(true);
                       }
                     }}
-                    className="flex items-center gap-2 px-2.5 py-2 min-h-[40px] sm:min-h-[44px] bg-gray-50 hover:bg-gray-100 active:bg-gray-200 rounded-xl transition-colors touch-manipulation text-left"
-                    style={isDemoTenant ? { backgroundColor: hexToRgba(brandColor || '#f97316', 0.08) } : undefined}
+                    className={`flex items-center gap-2 px-2.5 py-2 min-h-[40px] sm:min-h-[44px] rounded-xl transition-colors touch-manipulation text-left ${
+                      isDemoTenant
+                        ? 'bg-primary-50 hover:bg-primary-100/70'
+                        : 'bg-gray-50 hover:bg-gray-100 active:bg-gray-200'
+                    }`}
                   >
                     <div
-                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${!isDemoTenant ? account.color : ''}`}
-                      style={isDemoTenant ? { background: `linear-gradient(135deg, ${brandColor || '#f97316'}, ${brandColor2 || brandColor || '#fb923c'})` } : undefined}
+                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        isDemoTenant ? 'bg-gradient-to-br from-primary-400 to-primary-600' : account.color
+                      }`}
                     >
                       <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
@@ -1014,10 +1001,9 @@ export function LoginPage() {
                     disabled={!canAcceptOffer}
                     className={`flex-1 sm:flex-none px-6 py-3 sm:py-2.5 min-h-[44px] rounded-xl font-medium transition-colors touch-manipulation text-sm sm:text-base ${
                       canAcceptOffer
-                        ? (tenant ? 'text-white' : 'bg-orange-400 hover:bg-orange-500 active:bg-orange-600 text-gray-900')
+                        ? 'bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white'
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     }`}
-                    style={canAcceptOffer && tenant ? { backgroundColor: brandColor } : undefined}
                   >
                     {language === 'ru' ? 'Принять' : 'Qabul qilish'}
                   </button>

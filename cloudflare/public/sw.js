@@ -1,4 +1,27 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.34 — cache suffix bumped to v88 to evict every v87 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Brand unification: every chrome / UI element now resolves to the
+//     KAMIZO orange palette regardless of which tenant the user is on.
+//     Previously App.tsx ran a useEffect that called
+//     root.style.setProperty('--brand', tenant.color) plus every
+//     --brand-{50..900} shade — so any `bg-primary-500`, `text-primary-600`,
+//     `var(--brand)` consumer across the app painted in the tenant's
+//     color. That single bridge is removed; the static Kamizo orange
+//     palette in :root (with html.dark overrides) is now the only
+//     source. LoginPage stops piping brandColor / brandColor2 into the
+//     language switcher, terms checkbox, offer-modal accept button,
+//     submit button gradient, tenant-chip placeholder, slug label,
+//     demo-account chips, and the two decorative blur blobs — they all
+//     now use bg-primary-*. DashboardTab tenant-list placeholder
+//     gradient also unified. Tenant identity is carried by logo
+//     (uploaded img) + name + content; tenant.color / color_secondary
+//     stay in the API response, in the DB column (tenants.color), and
+//     in the super-admin TenantFormModal edit form for future
+//     reuse — they just don't paint chrome anymore. Light + dark both
+//     unaffected by this change for non-overridden tokens.
+//
+// Previous notes (v87) preserved below:
 // Version: 3.7.33 — cache suffix bumped to v87 to evict every v86 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-mode follow-up #2: chat surfaces (resident chat header,
@@ -449,9 +472,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v87';
-const ASSET_CACHE = 'kamizo-assets-v87';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v87';
+const STATIC_CACHE = 'kamizo-static-v88';
+const ASSET_CACHE = 'kamizo-assets-v88';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v88';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
