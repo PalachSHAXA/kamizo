@@ -74,8 +74,15 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
   invalidateCache('meetings:');
   const updated = await getMeetingWithDetails(env, params.id, tenantId);
 
-  if (meeting?.building_id) {
-    const { results: residents } = await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all();
+  {
+    // Whole-tenant meetings (NULL/empty building_id) fan out to the
+    // whole tenant; building-scoped meetings to that building only.
+    const isWholeTenant = !meeting?.building_id;
+    const { results: residents } = (isWholeTenant && tenantId)
+      ? await env.DB.prepare(`SELECT id FROM users WHERE tenant_id = ? AND role = 'resident' AND is_active = 1`).bind(tenantId).all()
+      : meeting?.building_id
+        ? await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all()
+        : { results: [] as any[] };
     const quorumStatus = quorumReached ? 'Кворум достигнут!' : 'Кворум не достигнут.';
     // Mirror crud-mutate / open-voting: write the in-app row alongside
     // the push so the bell icon updates even without FCM/APNs.
@@ -109,13 +116,21 @@ route('POST', '/api/meetings/:id/publish-results', async (request, env, params) 
   invalidateCache('meetings:');
   const updated = await getMeetingWithDetails(env, params.id, tenantId);
 
-  if (meeting?.building_id) {
-    const { results: residents } = await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all();
+  {
+    // Whole-tenant: every active resident of the tenant.
+    const isWholeTenant = !meeting?.building_id;
+    const { results: residents } = (isWholeTenant && tenantId)
+      ? await env.DB.prepare(`SELECT id FROM users WHERE tenant_id = ? AND role = 'resident' AND is_active = 1`).bind(tenantId).all()
+      : meeting?.building_id
+        ? await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all()
+        : { results: [] as any[] };
     // Mirror open-voting / close-voting: write the in-app row alongside
     // the push so residents see "Результаты опубликованы" in the bell
     // even without FCM/APNs.
     const publishTitle = '\u{1F4CA} Результаты голосования опубликованы';
-    const publishBody = `Результаты собрания жильцов ${meeting.building_address || ''} доступны для просмотра.`;
+    const publishBody = isWholeTenant
+      ? 'Результаты собрания жильцов УК доступны для просмотра.'
+      : `Результаты собрания жильцов ${meeting.building_address || ''} доступны для просмотра.`;
     for (const resident of (residents || []) as any[]) {
       const notifId = generateId();
       env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'), ?)`)
