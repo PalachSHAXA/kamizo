@@ -2,7 +2,7 @@
 
 import {
   route, getUser, getTenantId, requireFeature,
-  invalidateCache, json, error, isManagement,
+  invalidateCache, json, error, generateId, isManagement,
   sendPushNotification, getMeetingWithDetails
 } from './helpers';
 
@@ -77,8 +77,16 @@ route('POST', '/api/meetings/:id/close-voting', async (request, env, params) => 
   if (meeting?.building_id) {
     const { results: residents } = await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all();
     const quorumStatus = quorumReached ? 'Кворум достигнут!' : 'Кворум не достигнут.';
+    // Mirror crud-mutate / open-voting: write the in-app row alongside
+    // the push so the bell icon updates even without FCM/APNs.
+    const closeTitle = '\u{1F5F3}\u{FE0F} Голосование завершено';
+    const closeBody = `Голосование по собранию жильцов завершено. ${quorumStatus} Участие: ${participationPercent.toFixed(1)}%`;
     for (const resident of (residents || []) as any[]) {
-      sendPushNotification(env, resident.id, { title: '\u{1F5F3}\u{FE0F} Голосование завершено', body: `Голосование по собранию жильцов завершено. ${quorumStatus} Участие: ${participationPercent.toFixed(1)}%`, type: 'meeting', tag: `meeting-closed-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch((err) => { console.error('fire-and-forget failed:', err); });
+      const notifId = generateId();
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(notifId, resident.id, closeTitle, closeBody, JSON.stringify({ meetingId: params.id, url: '/meetings' }), tenantId)
+        .run().catch((err) => { console.error('close-voting in-app notification insert failed:', err); });
+      sendPushNotification(env, resident.id, { title: closeTitle, body: closeBody, type: 'meeting', tag: `meeting-closed-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });
@@ -103,8 +111,17 @@ route('POST', '/api/meetings/:id/publish-results', async (request, env, params) 
 
   if (meeting?.building_id) {
     const { results: residents } = await env.DB.prepare('SELECT id FROM users WHERE role = ? AND building_id = ?').bind('resident', meeting.building_id).all();
+    // Mirror open-voting / close-voting: write the in-app row alongside
+    // the push so residents see "Результаты опубликованы" in the bell
+    // even without FCM/APNs.
+    const publishTitle = '\u{1F4CA} Результаты голосования опубликованы';
+    const publishBody = `Результаты собрания жильцов ${meeting.building_address || ''} доступны для просмотра.`;
     for (const resident of (residents || []) as any[]) {
-      sendPushNotification(env, resident.id, { title: '\u{1F4CA} Результаты голосования опубликованы', body: `Результаты собрания жильцов ${meeting.building_address || ''} доступны для просмотра.`, type: 'meeting', tag: `meeting-results-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch((err) => { console.error('fire-and-forget failed:', err); });
+      const notifId = generateId();
+      env.DB.prepare(`INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, 'meeting', ?, ?, ?, 0, datetime('now'), ?)`)
+        .bind(notifId, resident.id, publishTitle, publishBody, JSON.stringify({ meetingId: params.id, url: '/meetings' }), tenantId)
+        .run().catch((err) => { console.error('publish-results in-app notification insert failed:', err); });
+      sendPushNotification(env, resident.id, { title: publishTitle, body: publishBody, type: 'meeting', tag: `meeting-results-${params.id}`, data: { meetingId: params.id, url: '/meetings' }, requireInteraction: false }).catch((err) => { console.error('fire-and-forget failed:', err); });
     }
   }
   return json({ meeting: updated });
