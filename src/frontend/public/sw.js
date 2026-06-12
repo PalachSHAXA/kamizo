@@ -1,4 +1,15 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.25 — cache suffix bumped to v79 to evict every v78 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • ResidentChatView attach: snapshot picked File objects into a
+//     plain File[] BEFORE resetting input.value, so the live FileList
+//     reference doesn't drop to length 0 before the async send loop
+//     starts iterating. Symptom: tapping the paperclip / camera on
+//     the resident chat picked the file but nothing was attached —
+//     no preview, no upload, no error. Manager flow unaffected
+//     (already used the safe `.files?.[0]` extract pattern).
+//
+// Previous notes (v78) preserved below:
 // Version: 3.7.24 — cache suffix bumped to v78 to evict every v77 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident home hero: real УК logo (data-URL from tenants.logo)
@@ -318,9 +329,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v78';
-const ASSET_CACHE = 'kamizo-assets-v78';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v78';
+const STATIC_CACHE = 'kamizo-static-v79';
+const ASSET_CACHE = 'kamizo-assets-v79';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v79';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
