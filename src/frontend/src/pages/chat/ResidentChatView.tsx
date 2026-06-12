@@ -173,11 +173,15 @@ export function ResidentChatView({ channel, onBack }: Props) {
   // is base64-encoded and sent as a Markdown image reference so the
   // same backend endpoint handles attachments as text — matching the
   // existing pattern visible in the resident's history.
-  const sendFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0 || sending) return;
+  //
+  // Accepts a plain File[] (not FileList) so the caller can snapshot
+  // the picked files BEFORE resetting the underlying <input>. See
+  // handleFileChange below for the trap.
+  const sendFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0 || sending) return;
     setSending(true);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         if (file.size > MAX_ATTACH_BYTES) {
           // eslint-disable-next-line no-console
           console.warn(`[chat] skipping ${file.name}: ${file.size} > ${MAX_ATTACH_BYTES}`);
@@ -209,10 +213,18 @@ export function ResidentChatView({ channel, onBack }: Props) {
   const handleAttachClick = () => attachInputRef.current?.click();
   const handleCameraClick = () => cameraInputRef.current?.click();
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files;
-    // Reset so the same file can be picked again next time.
+    // Snapshot the picked File objects BEFORE resetting the input.
+    // HTMLInputElement.files is a *live* FileList tied to the element's
+    // state — once we do `e.target.value = ''` the FileList we just
+    // captured drops to length 0 (the manager-side ChatComposer
+    // dodges this by extracting `e.target.files?.[0]` into a `File`
+    // variable first). The async sendFiles below then iterated an
+    // empty list, so the resident's chat silently swallowed every
+    // attach: no upload, no preview, no error. Capture as a plain
+    // File[] up front so the reset can run immediately for re-pick.
+    const picked: File[] = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = '';
-    sendFiles(f);
+    void sendFiles(picked);
   };
 
   // Group messages by day, inserting separator rows.
