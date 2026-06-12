@@ -346,6 +346,28 @@ html.dark .ring-orange-200 { --tw-ring-color: rgba(234,88,12,0.40) !important; }
 html.dark .text-white\/85 { color: rgba(244,240,232,0.85) !important; }
 html.dark .focus\:bg-white:focus { background-color: #2C2620 !important; }
 
+/* Colored info panels — meeting wizard's "Онлайн-подключение" + similar
+   tinted notice cards. Map the pastel light bg to a low-alpha tint of
+   the same hue so panels still read as "informational blue" / "warning
+   amber" but sit readably on the dark page; vivid foreground colors
+   (text-blue-600, text-amber-700, etc.) stay intact. */
+html.dark .bg-blue-50 { background-color: rgba(59,130,246,0.12) !important; }
+html.dark .bg-blue-100 { background-color: rgba(59,130,246,0.18) !important; }
+html.dark .border-blue-100 { border-color: rgba(59,130,246,0.30) !important; }
+html.dark .border-blue-200 { border-color: rgba(59,130,246,0.36) !important; }
+html.dark .bg-amber-50 { background-color: rgba(245,158,11,0.14) !important; }
+html.dark .bg-amber-100 { background-color: rgba(245,158,11,0.20) !important; }
+html.dark .border-amber-100 { border-color: rgba(245,158,11,0.30) !important; }
+html.dark .border-amber-200 { border-color: rgba(245,158,11,0.36) !important; }
+html.dark .bg-green-50 { background-color: rgba(16,185,129,0.14) !important; }
+html.dark .bg-green-100 { background-color: rgba(16,185,129,0.20) !important; }
+html.dark .border-green-100 { border-color: rgba(16,185,129,0.30) !important; }
+html.dark .bg-red-50 { background-color: rgba(239,68,68,0.14) !important; }
+html.dark .bg-red-100 { background-color: rgba(239,68,68,0.20) !important; }
+html.dark .border-red-100 { border-color: rgba(239,68,68,0.30) !important; }
+html.dark .bg-yellow-50 { background-color: rgba(234,179,8,0.14) !important; }
+html.dark .bg-yellow-100 { background-color: rgba(234,179,8,0.20) !important; }
+
 /* Glass-card surfaces in dark — replace warm white with warm dark and
    warm-orange shadow with deeper black. Brand orange accents in child
    elements stay untouched. */
