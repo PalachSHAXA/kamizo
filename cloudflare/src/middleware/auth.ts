@@ -79,7 +79,7 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
     || ((payload as { tenantId?: string }).tenantId ?? null);
 
   let result = await env.DB.prepare(
-    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id, is_active FROM users WHERE id = ? ${lookupTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
+    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, is_active FROM users WHERE id = ? ${lookupTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
   ).bind(...[userId, ...(lookupTenantId ? [lookupTenantId] : [])]).first();
 
   // Super admin fallback: super admins have no tenant_id, so the tenanted
@@ -89,7 +89,7 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   // user's role is super_admin — other roles must stay tenant-scoped.
   if (!result && lookupTenantId) {
     const fallback = await env.DB.prepare(
-      `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, tenant_id, is_active FROM users WHERE id = ? AND is_active = 1 LIMIT 1`
+      `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, is_active FROM users WHERE id = ? AND is_active = 1 LIMIT 1`
     ).bind(userId).first() as any;
     if (fallback && fallback.role === 'super_admin') {
       result = fallback;

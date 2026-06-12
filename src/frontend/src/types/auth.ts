@@ -17,6 +17,7 @@ export interface User {
   entrance?: string; // подъезд
   floor?: string; // этаж
   totalArea?: number; // площадь квартиры в кв.м
+  personalAccount?: string; // лицевой счёт (УК-assigned billing identifier; read-only on resident profile, set by management)
 
   // Contract fields (for residents)
   qrCode?: string; // уникальный QR-код для подписания договора
