@@ -111,7 +111,24 @@ export function formatDateSeparator(dateStr: string, lang: string): string {
   return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/** Last-message preview that ignores stale numeric counts and empty strings. */
+/** Markdown-image embed used by the chat composer to attach a photo:
+ *   ![filename](data:image/png;base64,...)  or  ![file](https://…)
+ * Photos can sit alone or next to free text in the same message — strip
+ * the embed and fall back to "📷 Фото" only when nothing readable
+ * remains, so a channel list never shows the raw base64 string. */
+const INLINE_IMG_RE = /!\[[^\]]*\]\((?:data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+|https?:\/\/[^\s)]+)\)/g;
+
+function summarizeContent(raw: string, lang: string): string {
+  const hasImage = /!\[[^\]]*\]\((?:data:image\/|https?:\/\/)/.test(raw);
+  const stripped = raw.replace(INLINE_IMG_RE, '').trim();
+  if (stripped) return hasImage ? `📷 ${stripped}` : stripped;
+  if (hasImage) return lang === 'ru' ? '📷 Фото' : '📷 Rasm';
+  return raw;
+}
+
+/** Last-message preview that ignores stale numeric counts and empty
+ *  strings, and collapses inline-image markdown to a "📷 Фото" label so
+ *  the channel list never bleeds base64. */
 export function getLastMessagePreview(channel: ChatChannel, lang: string): string {
   if (
     channel.last_message_at &&
@@ -119,7 +136,7 @@ export function getLastMessagePreview(channel: ChatChannel, lang: string): strin
     typeof channel.last_message === 'string' &&
     channel.last_message.trim().length > 0
   ) {
-    return channel.last_message;
+    return summarizeContent(channel.last_message, lang);
   }
   return lang === 'ru' ? 'Нет сообщений' : "Xabar yo'q";
 }
