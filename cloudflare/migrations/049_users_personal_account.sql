@@ -1,0 +1,15 @@
+-- 049: add personal_account (лицевой счёт) to users
+--
+-- The resident profile screen exposes "Лицевой счёт" as a row in the
+-- "Дом и квартира" card. The existing `personal_accounts` table key on
+-- `apartment_id` and was empty for every real resident (0/2346 myhelper,
+-- 0/40 choko, …) — so even with a JOIN there'd be no data to display
+-- and managers would still need a separate UI to populate it. Storing
+-- the УК-assigned account number directly on the user keeps the read
+-- path (resident profile → GET /api/users/me) one column, and lets the
+-- manager edit it via the existing per-field admin endpoints
+-- (mirroring PATCH /api/users/:id/name).
+--
+-- D1 does NOT support `IF NOT EXISTS` for `ALTER TABLE ADD COLUMN`,
+-- so it's written without it; this migration must run exactly once.
+ALTER TABLE users ADD COLUMN personal_account TEXT;

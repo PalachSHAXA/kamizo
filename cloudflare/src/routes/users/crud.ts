@@ -119,6 +119,44 @@ route('PATCH', '/api/users/:id/name', async (request, env, params) => {
   return json({ success: true, name: name.trim() });
 });
 
+// Users: Admin set personal-account (лицевой счёт)
+//
+// The resident profile screen shows this as read-only — only management
+// (admin/director/manager) can set or clear it. Mirrors the per-field
+// PATCH /api/users/:id/name pattern: tenant + rank gated, accepts an
+// empty/null value to clear, trims input.
+route('PATCH', '/api/users/:id/personal-account', async (request, env, params) => {
+  const authUser = await getUser(request, env);
+  if (!isManagement(authUser)) {
+    return error('Manager access required', 403);
+  }
+
+  const body = await request.json() as { personal_account?: string | null; personalAccount?: string | null };
+  const raw = body.personal_account ?? body.personalAccount ?? null;
+  // Allow null/empty to clear; trim and cap length so we don't store
+  // junk if a manager pastes a whole receipt.
+  const value: string | null = (typeof raw === 'string' && raw.trim()) ? raw.trim().slice(0, 64) : null;
+
+  const tenantId = getTenantId(request);
+  const target = await env.DB.prepare(
+    `SELECT id, role FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as { id: string; role: string } | null;
+  if (!target) return error('User not found', 404);
+  if (!canActOnRole(authUser, target)) {
+    return error('Cannot edit a peer or higher-ranked user', 403);
+  }
+
+  const result = await env.DB.prepare(
+    `UPDATE users SET personal_account = ?, updated_at = datetime('now') WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(value, params.id, ...(tenantId ? [tenantId] : [])).run();
+
+  if (!result.meta.changes) {
+    return error('User not found', 404);
+  }
+
+  return json({ success: true, personal_account: value });
+});
+
 // Users: List all users (admin/manager only)
 route('GET', '/api/users', async (request, env) => {
   const authUser = await getUser(request, env);
