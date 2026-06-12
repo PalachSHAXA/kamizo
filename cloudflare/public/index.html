@@ -37,9 +37,26 @@
     <meta name="msapplication-TileColor" content="#F97316" />
     <meta name="msapplication-TileImage" content="/icons/favicon-128x128.png" />
     <title>kamizo - Управление жильём</title>
-    <script type="module" crossorigin src="/assets/index-Bwqv6mvZ.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/charts-RPY68FIM.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-B1lLcg-Q.css">
+    <!-- Pre-paint theme application — runs BEFORE the React bundle loads
+         so a dark-mode user never sees a flash of light first. Mirrors
+         the storage-key + class name used by stores/themeStore.ts; keep
+         them in sync. We don't import the module here on purpose: this
+         is the only blocking script in <head>, kept tiny and synchronous. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('kamizo:theme');
+          if (t === 'dark') {
+            document.documentElement.classList.add('dark');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#1A1612');
+          }
+        } catch (e) { /* private mode / blocked storage — default light */ }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-C9yt8GX0.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/charts-BFe3Y058.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-BxdhCmmx.css">
   </head>
   <body>
     <div id="root">

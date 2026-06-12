@@ -8,3 +8,5 @@ export { StatusBadge, StatusStat } from './StatusBadge';
 export { MessageContent } from './MessageContent';
 export { Sheet, SheetErrorBoundary } from './Sheet';
 export { ConfirmDialog } from './ConfirmDialog';
+export { ThemeToggle } from './ThemeToggle';
+export { ThemeProvider } from './ThemeProvider';

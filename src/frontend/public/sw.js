@@ -1,4 +1,23 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.31 — cache suffix bumped to v85 to evict every v84 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Full dark mode. The test-account `.rpp-dark` pilot is gone;
+//     `html.dark` is now the global theme signal, set/unset by
+//     ThemeProvider based on a localStorage-persisted user choice
+//     (`kamizo:theme`). A pre-paint inline script in index.html applies
+//     the saved theme BEFORE React mounts so opted-in users never see a
+//     light flash. Toggle lives on the resident profile (Приложение
+//     section) and on the manager Settings page (Оформление section).
+//     index.css's `html.dark` block re-points the same `--rpp-*`,
+//     `--bb-*`, `--app-bg`, `--surface*`, `--text-*` and status-bg
+//     tokens the pilot used, plus a Tailwind safety-net so unconverted
+//     screens (bg-white / bg-gray-{50..900} / text-gray-{300..900} /
+//     shadows / modal backdrops / inputs) still render USABLE on dark.
+//     Brand orange / orange FAB stay verbatim. Capacitor / PWA status
+//     bar follows via the live-updated theme-color meta. Light mode is
+//     pixel-identical to before for any user who hasn't opted in.
+//
+// Previous notes (v84) preserved below:
 // Version: 3.7.30 — cache suffix bumped to v84 to evict every v83 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-profile PILOT extension: the floating BottomBar flips to
@@ -397,9 +416,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v84';
-const ASSET_CACHE = 'kamizo-assets-v84';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v84';
+const STATIC_CACHE = 'kamizo-static-v85';
+const ASSET_CACHE = 'kamizo-assets-v85';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v85';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

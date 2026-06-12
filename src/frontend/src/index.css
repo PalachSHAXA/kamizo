@@ -122,6 +122,177 @@ html {
   background: var(--app-bg);
 }
 
+/* ─────────────────────────────────────────────────────────
+   ── DARK MODE ────────────────────────────────────────────
+   ─────────────────────────────────────────────────────────
+   Class-based theme: `html.dark` opts in. Set by ThemeProvider
+   on mount based on localStorage['kamizo:theme'], and a pre-paint
+   inline script in index.html does the same before React boots so
+   we never flash light first.
+
+   Strategy — three layers:
+
+   1. CSS-variable overrides. EVERY existing token from :root above is
+      reassigned here for dark — page bg, surfaces, borders, hairlines,
+      shadows, brand tint, text hierarchy, status backgrounds (the
+      foreground status colors stay the same hue, only the chip
+      backgrounds need a deeper alpha to be visible on dark). The bulk
+      of the app already consumes these via `var(--…)`, so the bulk of
+      the app flips automatically.
+
+   2. Per-page palettes inherited from the dark-profile pilot
+      (`--rpp-*`, `--bb-*`) — those were already wired during the
+      pilot phase. They're now nested under the global `html.dark`
+      so the toggle drives them, not the test-account login check.
+
+   3. Tailwind utility safety-net. The app uses bg-white / bg-gray-50 /
+      bg-gray-100 / text-gray-{500-900} extensively across pages this
+      pass didn't manually convert (admin tables, finance reports,
+      contract docs, work-orders, the marketplace, etc). Those
+      utility classes get overridden under `html.dark` so unconverted
+      screens are still READABLE — same layout, dark surface, light
+      text, no invisible content. Designers can later polish each one
+      individually without breaking anything during rollout. */
+html.dark {
+  --app-bg: #1A1612;
+
+  /* surfaces */
+  --surface: #25201A;
+  --surface-2: #2C2620;
+  --dark-surface: #1A1612;   /* hero gradient base — matches new page bg */
+  --border-c: rgba(244, 240, 232, 0.10);
+  --border-strong: rgba(244, 240, 232, 0.18);
+  --hairline: rgba(244, 240, 232, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --sh-brand: 0 8px 22px rgba(249, 115, 22, 0.45);
+  --brand-tint: rgba(234, 88, 12, 0.18);
+
+  /* text hierarchy */
+  --text-primary:   #F4F0E8;
+  --text-secondary: #B8B2A8;
+  --text-disabled:  #6B665C;
+  --text-muted:     #8C8779;
+  --text-on-dark:   #F4F0E8;  /* unchanged */
+  --text-on-disabled: #4A4540;
+
+  /* status backgrounds — bump alpha so chips read on dark
+     (foreground hue itself stays the same — same green/red/amber/blue) */
+  --status-active-bg:   rgba(16, 185, 129, 0.18);
+  --status-pending-bg:  rgba(245, 158, 11, 0.20);
+  --status-expired-bg:  rgba(107, 114, 128, 0.22);
+  --status-critical-bg: rgba(239, 68, 68, 0.20);
+  --status-info-bg:     rgba(59, 130, 246, 0.20);
+
+  /* ResidentProfilePage tokens (pilot graduates to global)
+     — still scoped under `--rpp-*` so the page constants don't churn */
+  --rpp-bg: #1A1612;
+  --rpp-surface: #25201A;
+  --rpp-surface-sunken: #2C2620;
+  --rpp-border: rgba(244,240,232,0.10);
+  --rpp-hairline: rgba(244,240,232,0.08);
+  --rpp-text-primary: #F4F0E8;
+  --rpp-text-secondary: #B8B2A8;
+  --rpp-text-muted: #8C8779;
+  --rpp-brand-tint: rgba(234,88,12,0.18);
+  --rpp-shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+
+  /* BottomBar tokens (pilot graduates to global) */
+  --bb-pill-bg: rgba(37,32,26,0.92);
+  --bb-pill-border: rgba(244,240,232,0.10);
+  --bb-inactive-fg: #B8B2A8;
+  --bb-badge-ring: #25201A;
+  --bb-shadow: 0 10px 30px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.40);
+}
+
+/* Tailwind safety-net — overrides for the most common utility classes
+   used across unconverted screens. Keeps a sensible dark surface +
+   light text everywhere even when a component still ships hardcoded
+   light hex inline. Polished surface-by-surface in follow-up PRs. */
+html.dark body { color: var(--text-primary); background: var(--app-bg); }
+
+html.dark .bg-white { background-color: #25201A !important; }
+html.dark .bg-gray-50 { background-color: #2A241D !important; }
+html.dark .bg-gray-100 { background-color: #2C2620 !important; }
+html.dark .bg-gray-200 { background-color: #3A332B !important; }
+html.dark .bg-gray-800 { background-color: #25201A !important; }
+html.dark .bg-gray-900 { background-color: #1A1612 !important; }
+
+html.dark .text-white { color: #F4F0E8 !important; }
+html.dark .text-gray-900 { color: #F4F0E8 !important; }
+html.dark .text-gray-800 { color: #E5DECF !important; }
+html.dark .text-gray-700 { color: #D6CDC0 !important; }
+html.dark .text-gray-600 { color: #C7BFAF !important; }
+html.dark .text-gray-500 { color: #B8B2A8 !important; }
+html.dark .text-gray-400 { color: #8C8779 !important; }
+html.dark .text-gray-300 { color: #6B665C !important; }
+
+html.dark .border-gray-100,
+html.dark .border-gray-200 { border-color: rgba(244,240,232,0.10) !important; }
+html.dark .border-gray-300 { border-color: rgba(244,240,232,0.14) !important; }
+html.dark .divide-gray-100 > * + *,
+html.dark .divide-gray-200 > * + * { border-color: rgba(244,240,232,0.10) !important; }
+
+/* shadow utility softening — Tailwind shadows tuned for light bg are
+   invisible on dark. Use a single warm-dark shadow family. */
+html.dark .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.35) !important; }
+html.dark .shadow,
+html.dark .shadow-md { box-shadow: 0 4px 12px rgba(0,0,0,0.45) !important; }
+html.dark .shadow-lg { box-shadow: 0 10px 28px rgba(0,0,0,0.55) !important; }
+html.dark .shadow-xl { box-shadow: 0 16px 40px rgba(0,0,0,0.60) !important; }
+
+/* Modal backdrops — bumped opacity so the dark page underneath doesn't
+   bleed through and leave the overlay floating in a confusing gradient. */
+html.dark .bg-black\/50 { background-color: rgba(0,0,0,0.65) !important; }
+html.dark .bg-black\/60 { background-color: rgba(0,0,0,0.72) !important; }
+
+/* Translucent white surfaces (modal panels, glass cards) — without these
+   the bg-white/90 / bg-white/95 panes stay nearly opaque white over the
+   dark backdrop. Map them to the same warm dark surface as bg-white. */
+html.dark .bg-white\/90 { background-color: rgba(37,32,26,0.95) !important; }
+html.dark .bg-white\/95 { background-color: rgba(37,32,26,0.97) !important; }
+html.dark .bg-white\/80 { background-color: rgba(37,32,26,0.90) !important; }
+html.dark .bg-white\/10 { background-color: rgba(37,32,26,0.40) !important; }
+html.dark .bg-white\/20 { background-color: rgba(37,32,26,0.55) !important; }
+html.dark .border-gray-200\/50 { border-color: rgba(244,240,232,0.10) !important; }
+html.dark .border-white\/10 { border-color: rgba(244,240,232,0.10) !important; }
+
+/* Glass-card surfaces in dark — replace warm white with warm dark and
+   warm-orange shadow with deeper black. Brand orange accents in child
+   elements stay untouched. */
+html.dark .glass-card {
+  background: rgba(37, 32, 26, 0.85) !important;
+  border-color: rgba(244, 240, 232, 0.08) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45), 0 2px 6px 0 rgba(0, 0, 0, 0.30) !important;
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html.dark .glass-card {
+    background: rgba(37, 32, 26, 0.55) !important;
+  }
+}
+@media (hover: hover) {
+  html.dark .glass-card:hover {
+    background: rgba(44, 38, 32, 0.65) !important;
+    box-shadow: 0 16px 48px 0 rgba(0, 0, 0, 0.55), 0 4px 12px 0 rgba(0, 0, 0, 0.40) !important;
+  }
+}
+html.dark .glass-card-solid {
+  background: var(--surface) !important;
+  border-color: var(--border-c) !important;
+}
+
+/* Inputs — light placeholders on light bg become invisible on dark
+   without an override. Tailwind-styled inputs already use these tokens. */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color: var(--text-primary);
+  background-color: var(--surface);
+  border-color: var(--border-c);
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: var(--text-disabled); }
+
 /* ── First-paint entrance ──────────────────────────────────
    #root is tagged .app-booting in main.tsx and gets .app-mounted on the
    next animation frame after createRoot.render(). This produces a soft
