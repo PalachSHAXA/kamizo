@@ -1,4 +1,19 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.29 — cache suffix bumped to v83 to evict every v82 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-theme PILOT for the resident PROFILE screen, gated to
+//     test accounts only (login starts with "test-"). Visual eval
+//     before deciding on a full dark mode. Implemented as CSS
+//     custom-property overrides on a single `.rpp-dark` className,
+//     with `var(--rpp-…, <light-fallback>)` on every page token —
+//     real users see zero change because the fallback wins. Brand
+//     orange stays as-is. Status-bar `theme-color` meta is flipped
+//     to the dark bg while on this page and restored on unmount.
+//     Removing the experiment = drop the inline <style> block + one
+//     className + the var() fallback wrappers. No other surfaces
+//     touched (chat, home, payments are unchanged for test users).
+//
+// Previous notes (v82) preserved below:
 // Version: 3.7.28 — cache suffix bumped to v82 to evict every v81 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Resident profile: new row "Лицевой счёт" / "Hisob raqami"
@@ -367,9 +382,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v82';
-const ASSET_CACHE = 'kamizo-assets-v82';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v82';
+const STATIC_CACHE = 'kamizo-static-v83';
+const ASSET_CACHE = 'kamizo-assets-v83';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v83';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
