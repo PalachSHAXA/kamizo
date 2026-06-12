@@ -161,12 +161,24 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
 
   const { content } = await request.json() as { content: string };
   if (!content) return error('Content required');
-  // Sprint 64 P0: cap inline-image messages tighter — D1 row limit is ~1MB.
-  // Was 2MB, also no MIME-type validation. Now: 1MB cap + strict image MIME.
-  const PHOTO_PREFIX_RE = /^data:image\/(png|jpe?g|webp);base64,/i;
-  if (content.startsWith('data:')) {
-    if (!PHOTO_PREFIX_RE.test(content)) return error('Only PNG/JPEG/WebP inline images allowed', 400);
-    if (content.length > 1_000_000) return error('Inline image too large (max 1MB)', 400);
+  // The chat composer (ResidentChatView/ChatView) wraps the picked
+  // photo as Markdown — `![filename](data:image/...;base64,...)` — and
+  // can optionally prefix free text. The previous `startsWith('data:')`
+  // check assumed a bare data URL, so the Markdown-wrapped form fell
+  // through to the 5000-char text cap and got rejected with
+  // "Message too long (max 5000 characters)" — that surfaced in the
+  // bubble as "Не отправлено. Повторить?" for every photo on mobile,
+  // for both manager and resident.
+  //
+  // Detect inline images anywhere in the content (bare, Markdown-wrapped,
+  // text-then-image, multi-image) and gate by the image cap; otherwise
+  // apply the text cap. 8MB matches the frontend MAX_ATTACH_BYTES (5MB
+  // raw ≈ 6.7MB base64 + Markdown wrapper), well below nginx's 25MB
+  // edge limit. D1 row limit no longer applies — backend runs on VPS
+  // SQLite (better-sqlite3 TEXT column has no row-size ceiling).
+  const INLINE_IMG_RE = /data:image\/(png|jpe?g|webp);base64,/i;
+  if (INLINE_IMG_RE.test(content)) {
+    if (content.length > 8_000_000) return error('Inline image too large (max 8MB encoded)', 400);
   } else if (content.length > 5000) {
     return error('Message too long (max 5000 characters)', 400);
   }

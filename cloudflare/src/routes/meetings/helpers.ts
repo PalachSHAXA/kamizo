@@ -26,8 +26,15 @@ export async function getMeetingWithDetails(env: Env, meetingId: string, tenantI
   ).bind(meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!meeting) return null;
 
+  // Column is `item_order` in the schema; every other meetings-route
+  // file (crud-list, crud-detail, protocol-html, protocol-doc, voting,
+  // protocol) uses item_order. The stray `order_index` here crashed
+  // getMeetingWithDetails — open-voting in particular relied on the
+  // SELECT that ran AFTER the status UPDATE, so the status flipped to
+  // voting_open but the route 500'd before the push loop, and no
+  // resident ever got notified that voting had opened.
   const { results: agendaItems } = await env.DB.prepare(
-    'SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ORDER BY order_index ASC'
+    'SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ORDER BY item_order ASC'
   ).bind(meetingId).all();
 
   // Load ALL votes for this meeting in one query, then group by agenda_item_id
@@ -50,8 +57,13 @@ export async function getMeetingWithDetails(env: Env, meetingId: string, tenantI
     }
   }
 
+  // Same family of fix: column is `date_time` in meeting_schedule_options
+  // (see crud-mutate INSERT, workflow.ts confirm-schedule SELECT). The
+  // earlier `proposed_date` here would have crashed every consumer that
+  // needed the schedule options panel populated (meeting detail card,
+  // date-picker page, post-confirm protocol).
   const { results: scheduleOptions } = await env.DB.prepare(
-    'SELECT * FROM meeting_schedule_options WHERE meeting_id = ? ORDER BY proposed_date ASC'
+    'SELECT * FROM meeting_schedule_options WHERE meeting_id = ? ORDER BY date_time ASC'
   ).bind(meetingId).all();
 
   meeting.agenda_items = agendaItems || [];

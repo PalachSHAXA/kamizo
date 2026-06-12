@@ -1,0 +1,15 @@
+-- 048: add last_used_at to push_subscriptions
+--
+-- notifications.ts (routes/notifications.ts:319, :325, :720, :865) reads
+-- and writes a `last_used_at` column it expects on push_subscriptions —
+-- on every subscribe (INSERT + ON CONFLICT UPDATE), on every successful
+-- send (UPDATE), and on the GET endpoint that lists a user's
+-- subscriptions. The column was never created. Every POST /api/push/
+-- subscribe came back 500 ("table push_subscriptions has no column
+-- named last_used_at"), so no resident ever got a push subscription
+-- saved — which is why test residents had `subs = 0` and meeting
+-- notifications never reached anyone.
+--
+-- D1 does NOT support `IF NOT EXISTS` for `ALTER TABLE ADD COLUMN`,
+-- so it's written without it; this migration must run exactly once.
+ALTER TABLE push_subscriptions ADD COLUMN last_used_at TEXT;
