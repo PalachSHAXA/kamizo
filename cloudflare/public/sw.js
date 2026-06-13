@@ -1,4 +1,23 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.37 — cache suffix bumped to v91 to evict every v90 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Revert of the v90 monochrome black/white Switch redesign. The
+//     v89 styled Switch (brand-orange track when ON, warm-gray track
+//     when OFF, white knob, smooth slide; clearly visible in both
+//     light and dark themes) is restored as the canonical control.
+//     This is a `git revert` of 30fdfa79 — preserves git history,
+//     leaves every v89 call-site (ResidentProfile / StaffProfile /
+//     admin/SettingsPage theme toggles, admin/SettingsPage module +
+//     notification-channel rows, AdminDashboard platform-ad
+//     show-to-residents control, trainings/AdminPanel anonymous-flag
+//     settings) untouched at the React level — they re-pick up the
+//     v89 visuals automatically because the Switch component file is
+//     reverted in place. SW v89 is skipped in the cache namespace
+//     because the deployed bundle from v90 already claimed it; v91
+//     is the first eviction wave that contains the orange bundle
+//     again.
+//
+// Previous notes (v89) preserved below:
 // Version: 3.7.35 — cache suffix bumped to v89 to evict every v88 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Unified Switch component (src/components/ui/Switch.tsx) replaces
@@ -497,9 +516,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v89';
-const ASSET_CACHE = 'kamizo-assets-v89';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v89';
+const STATIC_CACHE = 'kamizo-static-v91';
+const ASSET_CACHE = 'kamizo-assets-v91';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v91';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
