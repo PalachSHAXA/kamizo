@@ -52,18 +52,20 @@ import { useModalPresence } from '../stores/modalStore';
 import { formatName } from '../utils/formatName';
 import { generateContractPdf } from '../utils/contractGenerator';
 
-// ── visual tokens (literal so a global rename can't silently break
-//    this surface) ────────────────────────────────────────────────────
-const APP_BG = '#F4F0E8';
-const SURFACE = '#FFFFFF';
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#6F6A62';
-const TEXT_MUTED = '#A8A29E';
+// ── visual tokens — each reads through `var(--themed-…, <light-hex>)`
+//    so light mode is byte-identical (fallback wins when the var is
+//    undefined) and html.dark in index.css fills the vars with the
+//    warm-dark equivalents. ─────────────────────────────────────────
+const APP_BG = 'var(--themed-app-bg, #F4F0E8)';
+const SURFACE = 'var(--themed-surface, #FFFFFF)';
+const TEXT_PRIMARY = 'var(--themed-text-primary, #1C1917)';
+const TEXT_SECONDARY = 'var(--themed-text-secondary, #6F6A62)';
+const TEXT_MUTED = 'var(--themed-text-muted, #A8A29E)';
 const TEXT_ON_DARK = '#F4F0E8';
-const BORDER_C = 'rgba(28,25,23,0.08)';
-const BORDER_STRONG = '#D6D3D1';
+const BORDER_C = 'var(--themed-border-c, rgba(28,25,23,0.08))';
+const BORDER_STRONG = 'var(--themed-border-strong, #D6D3D1)';
 const BRAND_DARK = '#EA580C';
-const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+const SHADOW_SM = 'var(--themed-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 const RADIUS_XL = 22;
 const RADIUS_LG = 16;
 const RADIUS_MD = 12;
@@ -243,12 +245,15 @@ export function ResidentContractPage() {
       </div>
 
       <div style={{ padding: '8px 16px 0' }}>
-        {/* Dark hero */}
+        {/* Dark hero — intentionally dark in light mode. In dark mode
+            the page bg is already dark, so this lifts to a slightly
+            elevated warm-dark via --themed-accent-hero-bg so the
+            silhouette stays distinct from the surrounding page. */}
         <div style={{
           position: 'relative', overflow: 'hidden',
           borderRadius: RADIUS_XL, padding: 20,
-          background: 'linear-gradient(160deg, #4A3B30 0%, #2A2018 100%)',
-          color: TEXT_ON_DARK,
+          background: 'var(--themed-accent-hero-bg, linear-gradient(160deg, #4A3B30 0%, #2A2018 100%))',
+          color: 'var(--themed-accent-hero-text, #F4F0E8)',
         }}>
           <div style={{
             position: 'absolute', inset: 0, opacity: 0.4,

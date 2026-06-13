@@ -23,27 +23,27 @@ import type { Announcement, AnnouncementPriority } from '../types';
 
 // ── shared visual tokens (kept literal so the page renders correctly
 //    even if a global token gets renamed) ─────────────────────────────
-const APP_BG = '#F4F0E8';
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#6F6A62';
-const TEXT_MUTED = '#A8A29E';
-const SURFACE = '#FFFFFF';
-const SURFACE_SUNKEN = '#EDE7DB';
-const BORDER = '#E6DFD2';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
-const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
-const INK = '#1C1917';
+const APP_BG = 'var(--themed-app-bg, #F4F0E8)';
+const TEXT_PRIMARY = 'var(--themed-text-primary, #1C1917)';
+const TEXT_SECONDARY = 'var(--themed-text-secondary, #6F6A62)';
+const TEXT_MUTED = 'var(--themed-text-muted, #A8A29E)';
+const SURFACE = 'var(--themed-surface, #FFFFFF)';
+const SURFACE_SUNKEN = 'var(--themed-surface-sunken, #EDE7DB)';
+const BORDER = 'var(--themed-border-c, #E6DFD2)';
+const HAIRLINE = 'var(--themed-hairline, rgba(28,25,23,0.06))';
+const SHADOW_SM = 'var(--themed-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
+const INK = 'var(--themed-text-primary, #1C1917)';
 const TEXT_ON_DARK = '#F4F0E8';
 const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
-const BRAND_TINT = '#FFF3EA';
-const BRAND_200 = '#FED7AA';
+const BRAND_TINT = 'var(--themed-brand-tint, #FFF3EA)';
+const BRAND_200 = 'var(--themed-brand-200, #FED7AA)';
 const STATUS_CRITICAL = '#E2483D';
-const STATUS_CRITICAL_BG = 'rgba(226,72,61,0.12)';
+const STATUS_CRITICAL_BG = 'var(--themed-status-critical-bg, rgba(226,72,61,0.12))';
 const STATUS_INFO = '#3B82F6';
-const STATUS_INFO_BG = 'rgba(59,130,246,0.10)';
+const STATUS_INFO_BG = 'var(--themed-status-info-bg, rgba(59,130,246,0.10))';
 const STATUS_ACTIVE = '#15A06E';
-const STATUS_ACTIVE_BG = 'rgba(21,160,110,0.12)';
+const STATUS_ACTIVE_BG = 'var(--themed-status-active-bg, rgba(21,160,110,0.12))';
 const RADIUS_LG = 16;
 const RADIUS_SM = 10;
 
@@ -173,7 +173,7 @@ export function ResidentAnnouncementsPage() {
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
-        background: 'rgba(244,240,232,0.92)',
+        background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         borderBottom: `1px solid ${HAIRLINE}`,

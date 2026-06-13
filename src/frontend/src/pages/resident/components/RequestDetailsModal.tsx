@@ -21,33 +21,36 @@ import { useModalPresence } from '../../../stores/modalStore';
 import type { ExecutorSpecialization, RequestPriority, RequestStatus } from '../../../types';
 import type { RequestDetailsModalProps } from './types';
 
-// ── design tokens (kept literal so a global rename can't silently
-//    break this surface) ────────────────────────────────────────────
-const APP_BG = '#F4F0E8';
-const SURFACE = '#FFFFFF';
-const SURFACE_SUNKEN = '#EDE7DB';
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#6F6A62';
-const TEXT_MUTED = '#A8A29E';
-const BORDER_C = 'rgba(28,25,23,0.08)';
-const BORDER_STRONG = '#D6D3D1';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
+// ── design tokens — each reads through `var(--themed-…, <light-hex>)`.
+//    Light mode is byte-identical (fallback wins when the var is
+//    undefined); html.dark in index.css fills the vars with warm-dark
+//    equivalents so the whole sheet flips. Brand orange + status hues
+//    stay verbatim across themes. ─────────────────────────────────
+const APP_BG = 'var(--themed-app-bg, #F4F0E8)';
+const SURFACE = 'var(--themed-surface, #FFFFFF)';
+const SURFACE_SUNKEN = 'var(--themed-surface-sunken, #EDE7DB)';
+const TEXT_PRIMARY = 'var(--themed-text-primary, #1C1917)';
+const TEXT_SECONDARY = 'var(--themed-text-secondary, #6F6A62)';
+const TEXT_MUTED = 'var(--themed-text-muted, #A8A29E)';
+const BORDER_C = 'var(--themed-border-c, rgba(28,25,23,0.08))';
+const BORDER_STRONG = 'var(--themed-border-strong, #D6D3D1)';
+const HAIRLINE = 'var(--themed-hairline, rgba(28,25,23,0.06))';
 const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
-const BRAND_TINT = '#FFF3EA';
+const BRAND_TINT = 'var(--themed-brand-tint, #FFF3EA)';
 const STATUS_ACTIVE = '#15A06E';
 const STATUS_CRITICAL = '#E2483D';
-const STATUS_CRITICAL_BG = 'rgba(226,72,61,0.12)';
+const STATUS_CRITICAL_BG = 'var(--themed-status-critical-bg, rgba(226,72,61,0.12))';
 const STATUS_EXPIRED = '#6B7280';
-const STATUS_EXPIRED_BG = 'rgba(107,114,128,0.12)';
+const STATUS_EXPIRED_BG = 'var(--themed-status-expired-bg, rgba(107,114,128,0.12))';
 const STATUS_PENDING = '#B45309';
-const STATUS_PENDING_BG = 'rgba(180,83,9,0.12)';
-const AMBER_50 = '#FEF3C7';
-const AMBER_100 = '#FDE68A';
-const AMBER_700 = '#92400E';
+const STATUS_PENDING_BG = 'var(--themed-status-pending-bg, rgba(180,83,9,0.12))';
+const AMBER_50 = 'var(--themed-amber-50, #FEF3C7)';
+const AMBER_100 = 'var(--themed-amber-100, #FDE68A)';
+const AMBER_700 = 'var(--themed-amber-700, #92400E)';
 const AMBER_STAR = '#FBBF24';
-const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
-const SHADOW_MD = '0 14px 36px -10px rgba(28,25,23,0.18)';
+const SHADOW_SM = 'var(--themed-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
+const SHADOW_MD = 'var(--themed-shadow-md, 0 14px 36px -10px rgba(28,25,23,0.18))';
 const SHADOW_BRAND = '0 8px 22px rgba(249,115,22,0.32)';
 const RADIUS_XL = 22;
 const RADIUS_LG = 16;
@@ -456,11 +459,12 @@ export function RequestDetailsModal({
         {hasActiveReschedule && (
           <div style={{
             margin: '12px 16px 0', padding: 12, borderRadius: RADIUS_MD,
-            background: '#FFF7ED', border: '1px solid #FED7AA',
+            background: 'var(--themed-brand-tint, #FFF7ED)',
+            border: '1px solid var(--themed-brand-200, #FED7AA)',
             display: 'flex', gap: 10, alignItems: 'center',
           }}>
-            <RefreshCw size={16} style={{ color: '#9A3412', flex: '0 0 auto' }} />
-            <div style={{ fontSize: 13, color: '#9A3412', lineHeight: 1.4 }}>
+            <RefreshCw size={16} style={{ color: 'var(--themed-amber-700, #9A3412)', flex: '0 0 auto' }} />
+            <div style={{ fontSize: 13, color: 'var(--themed-amber-700, #9A3412)', lineHeight: 1.4 }}>
               {lang === 'ru'
                 ? 'Ожидается ответ на запрос о переносе'
                 : 'Ko\'chirish so\'roviga javob kutilmoqda'}
