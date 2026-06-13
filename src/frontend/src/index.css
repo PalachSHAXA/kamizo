@@ -58,6 +58,7 @@
      hero. Add them once here so every consumer reads them correctly. */
   --surface: #FFFFFF;
   --surface-2: #F4F0E8;
+  --surface-sunken: #EDE7DB;
   --dark-surface: #2A2018;
   --border-c: rgba(28, 25, 23, 0.08);
   --border-strong: rgba(28, 25, 23, 0.18);
@@ -209,6 +210,7 @@ html.dark {
   /* surfaces */
   --surface: #25201A;
   --surface-2: #2C2620;
+  --surface-sunken: #2C2620;
   --dark-surface: #1A1612;   /* hero gradient base — matches new page bg */
   --border-c: rgba(244, 240, 232, 0.10);
   --border-strong: rgba(244, 240, 232, 0.18);
@@ -294,6 +296,52 @@ html.dark {
      surface. Knob shadow deepens for the darker plate. */
   --switch-off-bg: #5C544A;
   --switch-knob-shadow: 0 1px 4px rgba(0,0,0,0.55);
+
+  /* --themed-* — shared dark equivalents for resident pages that ship
+     their own hardcoded design-token const block at the top of the
+     file (ResidentAnnouncementsPage, ResidentContractPage,
+     ResidentMeetingsPage, ResidentRequestDetailsModal). Defined ONLY
+     under html.dark so the component's `var(--themed-X, <light-hex>)`
+     pattern leaves light mode byte-identical (fallback always wins
+     when the var is undefined). Values mirror the global --surface /
+     --text-* family so the surfaces match the rest of the app's
+     dark-mode look. */
+  --themed-app-bg: #1A1612;
+  --themed-surface: #25201A;
+  --themed-surface-2: #2C2620;
+  --themed-surface-sunken: #2C2620;
+  --themed-text-primary: #F4F0E8;
+  --themed-text-secondary: #B8B2A8;
+  --themed-text-muted: #8C8779;
+  --themed-text-on-dark: #F4F0E8;
+  --themed-border-c: rgba(244,240,232,0.10);
+  --themed-border-strong: rgba(244,240,232,0.18);
+  --themed-hairline: rgba(244,240,232,0.08);
+  --themed-shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+  --themed-shadow-md: 0 14px 36px -10px rgba(0,0,0,0.55);
+  --themed-brand-tint: rgba(234,88,12,0.18);
+  --themed-brand-200: rgba(234,88,12,0.40);
+  /* Status backgrounds — colored chips need bumped alpha to read on dark. */
+  --themed-status-active-bg: rgba(21,160,110,0.20);
+  --themed-status-critical-bg: rgba(226,72,61,0.22);
+  --themed-status-expired-bg: rgba(107,114,128,0.22);
+  --themed-status-pending-bg: rgba(180,83,9,0.24);
+  --themed-status-info-bg: rgba(59,130,246,0.20);
+  /* Translucent sticky-header strip (Announcements, Meetings) — dark
+     equivalent of rgba(244,240,232,0.92). */
+  --themed-strip-bg: rgba(26,22,18,0.92);
+  /* Amber (reschedule banner) — dark equivalent */
+  --themed-amber-50: rgba(251,191,36,0.14);
+  --themed-amber-100: rgba(251,191,36,0.28);
+  --themed-amber-700: #FCD34D;
+  /* "Dark accent" hero card token pair — used by surfaces that were
+     designed as dark accents on a light page (ResidentContractPage
+     hero "Договор управления", request-details orange gradient
+     wrapper). In dark mode the page bg is already dark, so the accent
+     would otherwise disappear; lift the accent surface to a slightly
+     elevated warm-dark so the silhouette stays distinct. */
+  --themed-accent-hero-bg: linear-gradient(160deg, #3A2E22 0%, #25201A 100%);
+  --themed-accent-hero-text: #F4F0E8;
 }
 
 /* Tailwind safety-net — overrides for the most common utility classes

@@ -25,31 +25,33 @@ import { useLanguageStore } from '../stores/languageStore';
 import type { Meeting, MeetingStatus, VoteChoice } from '../types';
 import { MeetingVotingModal } from './meetings/MeetingVotingModal';
 
-// ── visual tokens (literal so a global rename can't silently break
-//    this surface) ────────────────────────────────────────────────────
-const APP_BG = '#F4F0E8';
-const SURFACE = '#FFFFFF';
-const SURFACE_2 = '#FAF6EE';
-const SURFACE_SUNKEN = '#EDE7DB';
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#6F6A62';
-const TEXT_MUTED = '#A8A29E';
-const BORDER_C = 'rgba(28,25,23,0.08)';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
+// ── visual tokens — each reads through `var(--themed-…, <light-hex>)`
+//    so light mode is byte-identical (fallback wins when the var is
+//    undefined) and html.dark in index.css fills the vars with the
+//    warm-dark equivalents. ─────────────────────────────────────────
+const APP_BG = 'var(--themed-app-bg, #F4F0E8)';
+const SURFACE = 'var(--themed-surface, #FFFFFF)';
+const SURFACE_2 = 'var(--themed-surface-2, #FAF6EE)';
+const SURFACE_SUNKEN = 'var(--themed-surface-sunken, #EDE7DB)';
+const TEXT_PRIMARY = 'var(--themed-text-primary, #1C1917)';
+const TEXT_SECONDARY = 'var(--themed-text-secondary, #6F6A62)';
+const TEXT_MUTED = 'var(--themed-text-muted, #A8A29E)';
+const BORDER_C = 'var(--themed-border-c, rgba(28,25,23,0.08))';
+const HAIRLINE = 'var(--themed-hairline, rgba(28,25,23,0.06))';
 const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
-const BRAND_TINT = '#FFF3EA';
-const BRAND_200 = '#FED7AA';
+const BRAND_TINT = 'var(--themed-brand-tint, #FFF3EA)';
+const BRAND_200 = 'var(--themed-brand-200, #FED7AA)';
 const STATUS_ACTIVE = '#15A06E';
-const STATUS_ACTIVE_BG = 'rgba(21,160,110,0.12)';
+const STATUS_ACTIVE_BG = 'var(--themed-status-active-bg, rgba(21,160,110,0.12))';
 const STATUS_INFO = '#3B82F6';
-const STATUS_INFO_BG = 'rgba(59,130,246,0.10)';
+const STATUS_INFO_BG = 'var(--themed-status-info-bg, rgba(59,130,246,0.10))';
 const STATUS_PENDING = '#B45309';
-const STATUS_PENDING_BG = 'rgba(180,83,9,0.12)';
+const STATUS_PENDING_BG = 'var(--themed-status-pending-bg, rgba(180,83,9,0.12))';
 const STATUS_EXPIRED = '#6B7280';
-const STATUS_EXPIRED_BG = 'rgba(107,114,128,0.12)';
+const STATUS_EXPIRED_BG = 'var(--themed-status-expired-bg, rgba(107,114,128,0.12))';
 const STATUS_CRITICAL = '#E2483D';
-const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+const SHADOW_SM = 'var(--themed-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 const SHADOW_BRAND = '0 8px 22px rgba(249,115,22,0.26)';
 const RADIUS_LG = 16;
 const RADIUS_MD = 12;
@@ -217,7 +219,7 @@ export function ResidentMeetingsPage() {
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px',
-        background: 'rgba(244,240,232,0.92)',
+        background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderBottom: `1px solid ${HAIRLINE}`,
       }}>

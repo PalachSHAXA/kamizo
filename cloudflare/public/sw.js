@@ -1,4 +1,29 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.38 — cache suffix bumped to v92 to evict every v91 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-mode pass 2: four resident surfaces that shipped their own
+//     hardcoded design-token const block at the top of the file
+//     (RequestDetailsModal, ResidentAnnouncementsPage,
+//     ResidentContractPage, ResidentMeetingsPage) now flip to the
+//     warm-dark palette under html.dark. Root cause: each file
+//     declared `const SURFACE = '#FFFFFF'`, `const TEXT_PRIMARY =
+//     '#1C1917'`, etc., as literal hex — bypassing the global CSS
+//     vars + the Tailwind safety-net. Fix mirrors the v85
+//     ResidentProfilePage pilot pattern: every const now reads
+//     through `var(--themed-…, <literal-light-hex>)`, with a shared
+//     --themed-* family defined ONLY under html.dark in index.css so
+//     light mode is byte-identical (fallback always wins). New
+//     accent-hero token pair (--themed-accent-hero-bg / -text) gives
+//     the "intentionally dark" ResidentContractPage hero card a
+//     slightly lifted warm-dark in dark mode so it doesn't collapse
+//     into the dark page bg. Sticky-header rgba(244,240,232,0.92)
+//     strips on Announcements + Meetings flip via --themed-strip-bg.
+//     Reschedule-banner amber hex in RequestDetailsModal flips via
+//     --themed-amber-*. Global --surface-sunken added (was only
+//     scoped to --rpp-* before) so the requests-list segment tab
+//     control flips automatically. No JS behaviour change.
+//
+// Previous notes (v91) preserved below:
 // Version: 3.7.37 — cache suffix bumped to v91 to evict every v90 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Revert of the v90 monochrome black/white Switch redesign. The
@@ -516,9 +541,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v91';
-const ASSET_CACHE = 'kamizo-assets-v91';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v91';
+const STATIC_CACHE = 'kamizo-static-v92';
+const ASSET_CACHE = 'kamizo-assets-v92';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v92';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
