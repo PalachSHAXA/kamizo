@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { EmptyState } from '../components/common';
+import { Switch } from '../components/ui';
 import { plural, pluralWithCount } from '../utils/plural';
 import { InstallAppBanner } from '../components/InstallAppSection';
 import {
@@ -10,7 +11,7 @@ import {
   Users, FileText, Clock, CheckCircle, AlertTriangle,
   RefreshCw, UserCheck, ShoppingBag, Download, Calendar,
   Package, Banknote, Star, TrendingUp, Briefcase, Activity,
-  Megaphone, Building2, Eye, ToggleLeft, ToggleRight
+  Megaphone, Building2, Eye
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import type { User } from '../types/auth';
@@ -1193,21 +1194,17 @@ export function AdminDashboard() {
                           <h3 className="font-bold text-gray-900 text-sm truncate">{ad.title}</h3>
                           <p className="text-xs text-gray-400 mt-0.5">{ad.category_name}</p>
                         </div>
-                        {/* Toggle switch */}
-                        <button
-                          onClick={() => handleTogglePlatformAd(ad.id, (user as User & { tenant_id?: string })?.tenant_id ?? '', ad.tenant_enabled)}
-                          disabled={togglingAdId === ad.id}
-                          className="flex-shrink-0 flex items-center gap-2 transition-colors"
-                          title={ad.tenant_enabled ? (language === 'ru' ? 'Показывается жильцам — нажмите чтобы скрыть' : 'Ko\'rinmoqda — yashirish uchun bosing') : (language === 'ru' ? 'Скрыто от жильцов — нажмите чтобы показать' : 'Yashirin — ko\'rsatish uchun bosing')}
-                        >
-                          {togglingAdId === ad.id ? (
-                            <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
-                          ) : ad.tenant_enabled ? (
-                            <ToggleRight className="w-8 h-8 text-emerald-500" />
-                          ) : (
-                            <ToggleLeft className="w-8 h-8 text-gray-300" />
-                          )}
-                        </button>
+                        {/* Show-to-residents on/off */}
+                        {togglingAdId === ad.id ? (
+                          <RefreshCw className="w-5 h-5 animate-spin text-gray-400 flex-shrink-0" />
+                        ) : (
+                          <Switch
+                            checked={!!ad.tenant_enabled}
+                            disabled={togglingAdId === ad.id}
+                            ariaLabel={ad.tenant_enabled ? (language === 'ru' ? 'Показывается жильцам — выключить' : 'Koʻrinmoqda — oʻchirish') : (language === 'ru' ? 'Скрыто от жильцов — включить' : 'Yashirin — yoqish')}
+                            onChange={() => handleTogglePlatformAd(ad.id, (user as User & { tenant_id?: string })?.tenant_id ?? '', ad.tenant_enabled)}
+                          />
+                        )}
                       </div>
 
                       {ad.description && (

@@ -111,6 +111,18 @@
   --chat-request-chip-icon-fg: rgba(194,65,12,1);
   --chat-request-chip-eyebrow: rgba(154,52,18,1);
   --chat-request-chip-title: #1C1917;
+
+  /* Switch (canonical on/off control — components/ui/Switch.tsx).
+     ON track resolves through --brand by default for the Kamizo orange
+     unification; theming can override --switch-on-bg later for a paid
+     accent feature without rewriting the component. OFF track is a
+     warm stone-400 gray with enough luminance gap from the white knob
+     to read as "off" on a white SettingsRow surface; on dark surfaces
+     the html.dark override lifts it further. */
+  --switch-on-bg: var(--brand, #F97316);
+  --switch-off-bg: #A8A29E;
+  --switch-knob: #FFFFFF;
+  --switch-knob-shadow: 0 1px 3px rgba(28,25,23,0.28);
 }
 
 * {
@@ -275,6 +287,13 @@ html.dark {
   --chat-request-chip-icon-fg: #FB923C;
   --chat-request-chip-eyebrow: #FB923C;
   --chat-request-chip-title: #F4F0E8;
+
+  /* Switch — dark equivalents. OFF track on dark needs more luminance
+     than the page bg so the pill silhouette is visible; #5C544A is a
+     warm-gray that reads as "off, neutral" without bleeding into the
+     surface. Knob shadow deepens for the darker plate. */
+  --switch-off-bg: #5C544A;
+  --switch-knob-shadow: 0 1px 4px rgba(0,0,0,0.55);
 }
 
 /* Tailwind safety-net — overrides for the most common utility classes
@@ -403,6 +422,15 @@ html.dark select {
 }
 html.dark input::placeholder,
 html.dark textarea::placeholder { color: var(--text-disabled); }
+
+/* Canonical Switch (components/ui/Switch.tsx) — focus-visible ring in
+   brand orange. Everything else (track / knob / colors / transitions)
+   lives inline on the element so the component file is self-contained. */
+.kz-switch:focus { outline: none; }
+.kz-switch:focus-visible {
+  outline: 2px solid var(--brand, #F97316);
+  outline-offset: 2px;
+}
 
 /* ── First-paint entrance ──────────────────────────────────
    #root is tagged .app-booting in main.tsx and gets .app-mounted on the

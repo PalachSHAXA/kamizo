@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { Modal, ThemeToggle } from '../../components/common';
+import { Switch } from '../../components/ui';
 import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
 
@@ -768,26 +769,23 @@ export function SettingsPage() {
                       <div className="text-sm font-semibold text-gray-900">{language === 'ru' ? mod.label.ru : mod.label.uz}</div>
                       <div className="text-xs text-gray-500">{language === 'ru' ? mod.desc.ru : mod.desc.uz}</div>
                     </div>
-                    <button
-                      disabled={togglingFeature === mod.key}
-                      onClick={async () => {
-                        setTogglingFeature(mod.key);
-                        try {
-                          await apiRequest('/api/tenant/features', { method: 'PATCH', body: JSON.stringify({ feature: mod.key, enabled: !enabled }) });
-                          await fetchConfig();
-                        } catch { /* toggle may fail */ }
-                        setTogglingFeature(null);
-                      }}
-                      className="flex-shrink-0 transition-colors"
-                    >
-                      {togglingFeature === mod.key ? (
-                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                      ) : enabled ? (
-                        <ToggleRight className="w-8 h-8 text-green-500" />
-                      ) : (
-                        <ToggleLeft className="w-8 h-8 text-gray-300" />
-                      )}
-                    </button>
+                    {togglingFeature === mod.key ? (
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400 flex-shrink-0" />
+                    ) : (
+                      <Switch
+                        checked={enabled}
+                        disabled={togglingFeature === mod.key}
+                        ariaLabel={language === 'ru' ? `${mod.label.ru}: ${enabled ? 'включён' : 'выключен'}` : `${mod.label.uz}: ${enabled ? 'yoqilgan' : 'oʻchirilgan'}`}
+                        onChange={async () => {
+                          setTogglingFeature(mod.key);
+                          try {
+                            await apiRequest('/api/tenant/features', { method: 'PATCH', body: JSON.stringify({ feature: mod.key, enabled: !enabled }) });
+                            await fetchConfig();
+                          } catch { /* toggle may fail */ }
+                          setTogglingFeature(null);
+                        }}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -805,52 +803,50 @@ export function SettingsPage() {
               {language === 'ru' ? 'Каналы уведомлений' : 'Bildirishnoma kanallari'}
             </h2>
             <div className="space-y-3">
-              <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
+              <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Push-уведомления' : 'Push-bildirishnomalar'}</div>
                   <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'В приложении и браузере' : 'Ilova va brauzerda'}</div>
                 </div>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={pushNotifications}
-                  onChange={(e) => setPushNotifications(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
+                  onChange={setPushNotifications}
+                  ariaLabel={language === 'ru' ? 'Push-уведомления' : 'Push-bildirishnomalar'}
                 />
-              </label>
-              <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
+              </div>
+              <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'SMS-уведомления' : 'SMS-bildirishnomalar'}</div>
                   <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'На телефон' : 'Telefonga'}</div>
                 </div>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={smsNotifications}
-                  onChange={(e) => setSmsNotifications(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
+                  onChange={setSmsNotifications}
+                  ariaLabel={language === 'ru' ? 'SMS-уведомления' : 'SMS-bildirishnomalar'}
                 />
-              </label>
-              <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
+              </div>
+              <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Email-уведомления' : 'Email-bildirishnomalar'}</div>
                   <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'На почту' : 'Emailga'}</div>
                 </div>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={emailNotifications}
-                  onChange={(e) => setEmailNotifications(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
+                  onChange={setEmailNotifications}
+                  ariaLabel={language === 'ru' ? 'Email-уведомления' : 'Email-bildirishnomalar'}
                 />
-              </label>
-              <label className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl cursor-pointer touch-manipulation active:bg-white/50">
+              </div>
+              <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}</div>
                   <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Через Telegram' : 'Telegram orqali'}</div>
                 </div>
-                <input
-                  type="checkbox"
-                  className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500 flex-shrink-0"
+                <Switch
+                  checked={false}
+                  onChange={() => { /* Telegram-бот wiring TBD */ }}
+                  ariaLabel={language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}
                 />
-              </label>
+              </div>
             </div>
           </div>
 
