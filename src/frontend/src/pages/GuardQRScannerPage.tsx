@@ -26,7 +26,7 @@ interface ScanLog {
 }
 
 type ScanResult = {
-  status: 'success' | 'expired' | 'used' | 'revoked' | 'invalid' | 'not_yet_valid';
+  status: 'success' | 'expired' | 'used' | 'revoked' | 'invalid' | 'not_yet_valid' | 'cross_tenant';
   code?: GuestAccessCode;
   message: string;
 };
@@ -88,6 +88,16 @@ export function GuardQRScannerPage() {
           case 'revoked': status = 'revoked'; message = language === 'ru' ? 'Пропуск отменён' : 'Ruxsatnoma bekor qilingan'; break;
           case 'already_used': case 'max_uses_reached': status = 'used'; message = language === 'ru' ? 'Пропуск уже использован' : 'Ruxsatnoma ishlatilgan'; break;
           case 'not_yet_valid': status = 'not_yet_valid'; message = language === 'ru' ? 'Пропуск ещё не действителен' : 'Ruxsatnoma hali amal qilmaydi'; break;
+          case 'cross_tenant':
+            // Foreign-tenant pass — distinct status so the UI shows a red
+            // "wrong УК" banner instead of the generic "invalid". Backend
+            // intentionally doesn't return code details for this branch
+            // (no tenant-name leak); we ignore serverResult.code here too.
+            status = 'cross_tenant';
+            message = language === 'ru'
+              ? 'Пропуск принадлежит другой УК. Доступ запрещён.'
+              : "Ruxsatnoma boshqa boshqaruv kompaniyasiga tegishli. Kirish taqiqlanadi.";
+            break;
           default: status = 'invalid'; message = language === 'ru' ? 'Недействительный QR-код' : "Noto'g'ri QR-kod";
         }
         setScanResult({ status, code: serverResult.code || null, message });
