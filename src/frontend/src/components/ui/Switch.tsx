@@ -1,16 +1,16 @@
 // Switch — single canonical on/off control for the entire app.
 //
-// Reference design: pill track, white knob, brand-orange when on, neutral
-// gray when off, smooth slide. Replaces the broken ResidentProfilePage
-// theme toggle (oversized knob, near-invisible track) and a handful of
-// ad-hoc lucide-ToggleLeft/Right + checkbox-styled-as-switch markups
-// scattered across the resident, manager, and staff sides.
+// Reference design: solid BLACK pill track in BOTH states, WHITE knob,
+// state difference expressed by knob position only (left=off, right=on).
+// Intentionally monochrome — the Kamizo brand orange is reserved for
+// buttons / tabs / accents and for the keyboard focus ring on this
+// component, never for the fill itself.
 //
-// Tokens only — no hardcoded brand hex. The active track reads through
-// the unified --brand variable so the switch tracks the Kamizo-orange
-// unification from SW v88. The OFF track + focus ring read through
-// --switch-* tokens declared in index.css so light + dark both look
-// correct without component-level branching.
+// Tokens only — no hardcoded hex. --switch-track / --switch-knob /
+// --switch-knob-shadow are declared in index.css with light + dark
+// values (dark lifts the track a touch off pure black so the silhouette
+// stays visible on the warm-dark page bg without becoming a coloured
+// chip).
 //
 // API:
 //   <Switch checked onChange ariaLabel [disabled] [size] />
@@ -82,14 +82,11 @@ export function Switch({ checked, onChange, ariaLabel, disabled, size = 'md', id
         width: trackW,
         height: trackH,
         borderRadius: 999,
-        background: checked
-          ? 'var(--switch-on-bg, var(--brand, #F97316))'
-          : 'var(--switch-off-bg, #D6D3D1)',
+        background: 'var(--switch-track, #0B0A09)',
         border: 'none',
         padding: 0,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.55 : 1,
-        transition: 'background 180ms ease',
         flex: '0 0 auto',
         outlineOffset: 2,
       }}
@@ -104,7 +101,7 @@ export function Switch({ checked, onChange, ariaLabel, disabled, size = 'md', id
           height: knob,
           borderRadius: 999,
           background: 'var(--switch-knob, #FFFFFF)',
-          boxShadow: 'var(--switch-knob-shadow, 0 1px 3px rgba(0,0,0,0.22))',
+          boxShadow: 'var(--switch-knob-shadow, 0 1px 3px rgba(0,0,0,0.30))',
           transition: 'left 180ms cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}
       />
