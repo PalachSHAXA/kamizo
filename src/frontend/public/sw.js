@@ -1,4 +1,23 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.39 — cache suffix bumped to v93 to evict every v92 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Tenant isolation for the QR pass scanner. Backend /api/guest-codes/
+//     validate + /:id/use now do a 2-stage lookup: SELECT * WHERE id = ?
+//     (unfiltered), and if the row exists but its tenant_id differs from
+//     the scanning staff's tenant_id, return HTTP 403 with
+//     {error:'cross_tenant', message:'Пропуск принадлежит другой УК.
+//     Доступ запрещён.'} — no foreign-tenant name or PII leaked. The
+//     guest_access_logs row is action='denied_cross_tenant' and a parallel
+//     row lands in the new security_audit_log table for ops review.
+//     Frontend GuardQRScannerPage handles the new error code: the result
+//     overlay still uses the red-icon "denied" pattern; the message is
+//     the bilingual "wrong УК" text; the Allow-entry button is
+//     suppressed (it only renders for status='success'); no visitor card
+//     renders (server doesn't return code details for this branch).
+//     Helpers: recordBelongsToCaller() + auditCrossTenantAttempt() added
+//     to middleware/tenant.ts so future routes have a one-liner to call.
+//
+// Previous notes (v92) preserved below:
 // Version: 3.7.38 — cache suffix bumped to v92 to evict every v91 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-mode pass 2: four resident surfaces that shipped their own
@@ -541,9 +560,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v92';
-const ASSET_CACHE = 'kamizo-assets-v92';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v92';
+const STATIC_CACHE = 'kamizo-static-v93';
+const ASSET_CACHE = 'kamizo-assets-v93';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v93';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

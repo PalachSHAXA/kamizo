@@ -2,7 +2,7 @@
 
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantId, requireFeature } from '../../middleware/tenant';
+import { getTenantId, requireFeature, auditCrossTenantAttempt } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 
 // Sprint 65 P0: only scanner roles may validate/burn passes. Was open
@@ -108,15 +108,42 @@ route('POST', '/api/guest-codes/validate', async (request, env) => {
     return json({ valid: false, error: 'invalid', message: 'Malformed token' });
   }
 
-  // Tenant-scoped lookup. No "insert from token" fallback — forged tokens
-  // (id not in DB) return 404 / invalid.
+  // Sprint 81 P0: 2-stage lookup so a real-but-foreign pass returns
+  // an explicit `cross_tenant` denial instead of being indistinguishable
+  // from a forged code. The 403 response does NOT reveal the foreign
+  // tenant's name or any owner detail — the guard just learns "this
+  // pass belongs to a different УК". Defense-in-depth audit log lands
+  // in security_audit_log via auditCrossTenantAttempt().
+  //
+  // Stage 1: unfiltered lookup by id. Super-admins (no tenantId) and
+  // legit same-tenant scans both fall through to the regular flow
+  // below. Stage 2 only fires when caller IS scoped AND the code's
+  // tenant differs.
   const code = await env.DB.prepare(
-    `SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`,
-  ).bind(codeId, ...(tenantId ? [tenantId] : [])).first() as any;
+    `SELECT * FROM guest_access_codes WHERE id = ?`,
+  ).bind(codeId).first() as any;
 
   if (!code) {
     await logScan(env, { codeId, user: authUser, action: 'invalid', tenantId });
     return json({ valid: false, error: 'invalid', message: 'Code not found' });
+  }
+
+  if (tenantId && code.tenant_id && code.tenant_id !== tenantId) {
+    await logScan(env, { codeId, user: authUser, action: 'denied_cross_tenant', tenantId });
+    await auditCrossTenantAttempt(env, {
+      staffId: authUser.id,
+      staffName: authUser.name,
+      staffRole: authUser.role,
+      staffTenantId: tenantId,
+      resourceType: 'guest_code',
+      resourceId: codeId,
+      resourceTenantId: code.tenant_id,
+    });
+    return json({
+      valid: false,
+      error: 'cross_tenant',
+      message: 'Пропуск принадлежит другой УК. Доступ запрещён.',
+    }, 403);
   }
 
   const now = new Date();
@@ -181,10 +208,32 @@ route('POST', '/api/guest-codes/:id/use', async (request, env, params) => {
   }
 
   const tenantId = getTenantId(request);
+  // Sprint 81 P0: 2-stage lookup so /use mirrors /validate — a foreign
+  // pass returns 403 cross_tenant, not 404 (otherwise a guard who
+  // bypassed the FE validate step and went straight to /use would see
+  // "Not found" instead of the clear cross-tenant denial).
   const code = await env.DB.prepare(
-    `SELECT * FROM guest_access_codes WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+    `SELECT * FROM guest_access_codes WHERE id = ?`
+  ).bind(params.id).first() as any;
   if (!code) return error('Not found', 404);
+
+  if (tenantId && code.tenant_id && code.tenant_id !== tenantId) {
+    await logScan(env, { codeId: params.id, user: authUser, action: 'denied_cross_tenant', tenantId });
+    await auditCrossTenantAttempt(env, {
+      staffId: authUser.id,
+      staffName: authUser.name,
+      staffRole: authUser.role,
+      staffTenantId: tenantId,
+      resourceType: 'guest_code',
+      resourceId: params.id,
+      resourceTenantId: code.tenant_id,
+    });
+    return json({
+      valid: false,
+      error: 'cross_tenant',
+      message: 'Пропуск принадлежит другой УК. Доступ запрещён.',
+    }, 403);
+  }
 
   // Atomic increment + flip status. The CASE WHEN inside SET means we
   // only need one round-trip. Filter on `status='active'` and
