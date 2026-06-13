@@ -206,7 +206,12 @@ export function ResidentAnnouncementsPage() {
                   fontSize: 13,
                   fontWeight: 650,
                   background: on ? INK : SURFACE,
-                  color: on ? TEXT_ON_DARK : TEXT_SECONDARY,
+                  // Selected pill's foreground reads through --themed-pill-fg
+                  // so it flips dark in dark mode (where INK has flipped to
+                  // light beige) and stays the original light-beige in light
+                  // mode via fallback. Unselected pill keeps the muted
+                  // secondary text colour from the page tokens.
+                  color: on ? 'var(--themed-pill-fg, #F4F0E8)' : TEXT_SECONDARY,
                   border: `1px solid ${on ? INK : BORDER}`,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',

@@ -628,7 +628,11 @@ function CategoryChip({ label, active, onClick }: { label: string; active: boole
         flex: '0 0 auto',
         padding: '8px 15px', borderRadius: 999,
         background: active ? INK : SURFACE_SUNKEN,
-        color: active ? TEXT_ON_DARK : TEXT_SECONDARY,
+        // Active chip's foreground reads through --themed-pill-fg so the
+        // dark+selected combo (beige bg from inverted INK) gets dark text
+        // for legibility. Light mode falls back to the literal #F4F0E8
+        // (light beige) the file declared, so light is byte-identical.
+        color: active ? 'var(--themed-pill-fg, #F4F0E8)' : TEXT_SECONDARY,
         border: 'none', cursor: 'pointer',
         fontSize: 13, fontWeight: 650 as unknown as number,
         whiteSpace: 'nowrap',
