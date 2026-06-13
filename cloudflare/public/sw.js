@@ -1,20 +1,4 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.36 — cache suffix bumped to v90 to evict every v89 (and
-// older) cache on the next SW lifecycle update. This release ships:
-//   • Switch component restyled to match the reference design exactly:
-//     solid BLACK pill track in BOTH states, white knob, state
-//     expressed by knob position only (left=off, right=on). The
-//     previous Kamizo-orange ON fill is gone — brand orange now only
-//     paints the keyboard focus ring (a11y). Track lifts to a near-
-//     black charcoal under html.dark so the silhouette still reads on
-//     the warm-dark page bg. Tokens: --switch-track (light #0B0A09,
-//     dark #1F1B17), --switch-knob (#FFFFFF), --switch-knob-shadow.
-//     No behaviour change; the v89 Switch swap-in sites (ResidentProfile
-//     ThemeToggle, admin/SettingsPage modules + notification channels,
-//     AdminDashboard platform-ads, trainings/AdminPanel anonymous
-//     flags) all pick up the new look automatically.
-//
-// Previous notes (v89) preserved below:
 // Version: 3.7.35 — cache suffix bumped to v89 to evict every v88 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Unified Switch component (src/components/ui/Switch.tsx) replaces
@@ -513,9 +497,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v90';
-const ASSET_CACHE = 'kamizo-assets-v90';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v90';
+const STATIC_CACHE = 'kamizo-static-v89';
+const ASSET_CACHE = 'kamizo-assets-v89';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v89';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
