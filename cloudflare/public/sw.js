@@ -1,4 +1,21 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.40 — cache suffix bumped to v94 to evict every v93 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-mode pill fix: SELECTED pill / chip toggles on
+//     ResidentAnnouncementsPage and ResidentUsefulContactsPage rendered
+//     invisible in dark mode (beige bg + beige text). Root cause:
+//     after the v92 themed-token pass, INK = var(--themed-text-primary)
+//     correctly flipped from dark to light beige under html.dark — but
+//     the text color was a literal '#F4F0E8' (same light beige), so
+//     the pill became "beige on beige". Per spec, the SELECTED pill's
+//     beige bg in dark mode IS the intended highlight; only the text
+//     needed to invert. Introduces --themed-pill-fg (= #1C1917 under
+//     html.dark, undefined in :root so the existing `#F4F0E8`
+//     fallback wins in light mode — light is pixel-identical).
+//     UNSELECTED pills (which use --themed-surface[-sunken] +
+//     --themed-text-secondary) are unaffected.
+//
+// Previous notes (v93) preserved below:
 // Version: 3.7.39 — cache suffix bumped to v93 to evict every v92 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Tenant isolation for the QR pass scanner. Backend /api/guest-codes/
@@ -560,9 +577,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v93';
-const ASSET_CACHE = 'kamizo-assets-v93';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v93';
+const STATIC_CACHE = 'kamizo-static-v94';
+const ASSET_CACHE = 'kamizo-assets-v94';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v94';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

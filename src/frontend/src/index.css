@@ -342,6 +342,19 @@ html.dark {
      elevated warm-dark so the silhouette stays distinct. */
   --themed-accent-hero-bg: linear-gradient(160deg, #3A2E22 0%, #25201A 100%);
   --themed-accent-hero-text: #F4F0E8;
+
+  /* Pill / chip toggles where the SELECTED state uses --themed-text-
+     primary as its background (the "INK" pattern in ResidentAnnouncements
+     Page + ResidentUsefulContactsPage). In light mode INK is dark
+     (#1C1917) and the text on top is light beige (#F4F0E8) — high
+     contrast. In dark mode INK flips to #F4F0E8 (light beige) so the
+     pill becomes a beige "highlight" sitting on the dark page; the
+     text on top must flip the opposite way to stay legible. This token
+     is defined ONLY under html.dark — light mode falls back to the
+     literal #F4F0E8 the components ship with so light is pixel-
+     identical. UNSELECTED pills stay on --themed-surface / --themed-
+     surface-sunken with --themed-text-secondary and are unaffected. */
+  --themed-pill-fg: #1C1917;
 }
 
 /* Tailwind safety-net — overrides for the most common utility classes
