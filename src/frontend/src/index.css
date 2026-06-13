@@ -113,16 +113,15 @@
   --chat-request-chip-title: #1C1917;
 
   /* Switch (canonical on/off control — components/ui/Switch.tsx).
-     ON track resolves through --brand by default for the Kamizo orange
-     unification; theming can override --switch-on-bg later for a paid
-     accent feature without rewriting the component. OFF track is a
-     warm stone-400 gray with enough luminance gap from the white knob
-     to read as "off" on a white SettingsRow surface; on dark surfaces
-     the html.dark override lifts it further. */
-  --switch-on-bg: var(--brand, #F97316);
-  --switch-off-bg: #A8A29E;
+     Per design reference: monochrome — track stays SOLID BLACK in both
+     states, knob stays SOLID WHITE; state difference is expressed by
+     knob position only (left=off, right=on). Brand orange is reserved
+     for the keyboard focus ring on .kz-switch (a11y), never the fill.
+     html.dark override lifts the track a touch off pure black so the
+     pill silhouette still reads against the warm-dark page bg. */
+  --switch-track: #0B0A09;
   --switch-knob: #FFFFFF;
-  --switch-knob-shadow: 0 1px 3px rgba(28,25,23,0.28);
+  --switch-knob-shadow: 0 1px 3px rgba(0,0,0,0.30);
 }
 
 * {
@@ -288,12 +287,11 @@ html.dark {
   --chat-request-chip-eyebrow: #FB923C;
   --chat-request-chip-title: #F4F0E8;
 
-  /* Switch — dark equivalents. OFF track on dark needs more luminance
-     than the page bg so the pill silhouette is visible; #5C544A is a
-     warm-gray that reads as "off, neutral" without bleeding into the
-     surface. Knob shadow deepens for the darker plate. */
-  --switch-off-bg: #5C544A;
-  --switch-knob-shadow: 0 1px 4px rgba(0,0,0,0.55);
+  /* Switch — dark theme. Pure #0B0A09 would vanish into the warm-dark
+     page surface, so lift to a near-black charcoal that keeps the
+     monochrome character (no orange tint) while staying visible. */
+  --switch-track: #1F1B17;
+  --switch-knob-shadow: 0 1px 4px rgba(0,0,0,0.60);
 }
 
 /* Tailwind safety-net — overrides for the most common utility classes
