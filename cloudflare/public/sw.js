@@ -1,4 +1,29 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.35 — cache suffix bumped to v89 to evict every v88 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Unified Switch component (src/components/ui/Switch.tsx) replaces
+//     every on/off control across resident, manager, and staff sides.
+//     Pill track, white knob, brand-orange when on, neutral gray when
+//     off, smooth slide. Tokens-only — --switch-on-bg falls back to
+//     --brand so it tracks the Kamizo orange unification, --switch-off-bg
+//     and --switch-knob-shadow have light + dark values in index.css so
+//     the pill is legible on both white surfaces and dark surfaces.
+//     accessible (role=switch, aria-checked, Space/Enter, focus-visible
+//     ring). The previous ResidentProfilePage ThemeToggle was visually
+//     broken — OFF track was rgba(28,25,23,0.16) (~16% opacity warm
+//     dark) and disappeared on the dark page bg, making the knob look
+//     oversized and unmoored; the refactored ThemeToggle now delegates
+//     to Switch. Migrated sites: ThemeToggle (ResidentProfilePage,
+//     StaffProfilePage, admin/SettingsPage), admin/SettingsPage module
+//     on/off (was lucide ToggleLeft/ToggleRight icons), admin/Settings
+//     Page notification channels Push/SMS/Email/Telegram (were styled
+//     checkboxes), AdminDashboard platform-ad show-to-residents toggle
+//     (was lucide icons), trainings/AdminPanel anonymous flags +
+//     notifyAllOnNewProposal (4 styled checkboxes). Multi-select grids,
+//     filter chips, agree-to-terms checkboxes, event-subscription
+//     checkboxes left as checkboxes per spec.
+//
+// Previous notes (v88) preserved below:
 // Version: 3.7.34 — cache suffix bumped to v88 to evict every v87 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Brand unification: every chrome / UI element now resolves to the
@@ -472,9 +497,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v88';
-const ASSET_CACHE = 'kamizo-assets-v88';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v88';
+const STATIC_CACHE = 'kamizo-static-v89';
+const ASSET_CACHE = 'kamizo-assets-v89';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v89';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

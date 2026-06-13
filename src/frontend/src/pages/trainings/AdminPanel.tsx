@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, CheckCircle, Settings } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useTrainingStore } from '../../stores/trainingStore';
+import { Switch } from '../../components/ui';
 import type { TrainingProposal } from '../../types';
 
 export const AdminPanel = ({
@@ -225,22 +226,38 @@ export const AdminPanel = ({
                 <input type="number" value={settings.voteThreshold} onChange={(e) => updateSettings({ voteThreshold: parseInt(e.target.value) })} min={1} max={50} className="w-32 px-3 py-2 border border-gray-300 rounded-lg" />
               </div>
               <div className="space-y-3">
-                <label className="flex items-center gap-3">
-                  <input type="checkbox" checked={settings.allowAnonymousProposals} onChange={(e) => updateSettings({ allowAnonymousProposals: e.target.checked })} className="w-4 h-4 text-primary-600" />
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-700">{language === 'ru' ? 'Разрешить анонимные предложения' : 'Anonim takliflarga ruxsat berish'}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input type="checkbox" checked={settings.allowAnonymousVotes} onChange={(e) => updateSettings({ allowAnonymousVotes: e.target.checked })} className="w-4 h-4 text-primary-600" />
+                  <Switch
+                    checked={settings.allowAnonymousProposals}
+                    onChange={(v) => updateSettings({ allowAnonymousProposals: v })}
+                    ariaLabel={language === 'ru' ? 'Разрешить анонимные предложения' : 'Anonim takliflarga ruxsat berish'}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-700">{language === 'ru' ? 'Разрешить анонимное голосование' : 'Anonim ovoz berishga ruxsat berish'}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input type="checkbox" checked={settings.allowAnonymousFeedback} onChange={(e) => updateSettings({ allowAnonymousFeedback: e.target.checked })} className="w-4 h-4 text-primary-600" />
+                  <Switch
+                    checked={settings.allowAnonymousVotes}
+                    onChange={(v) => updateSettings({ allowAnonymousVotes: v })}
+                    ariaLabel={language === 'ru' ? 'Разрешить анонимное голосование' : 'Anonim ovoz berishga ruxsat berish'}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-700">{language === 'ru' ? 'Разрешить анонимные отзывы' : 'Anonim sharhlarga ruxsat berish'}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input type="checkbox" checked={settings.notifyAllOnNewProposal} onChange={(e) => updateSettings({ notifyAllOnNewProposal: e.target.checked })} className="w-4 h-4 text-primary-600" />
+                  <Switch
+                    checked={settings.allowAnonymousFeedback}
+                    onChange={(v) => updateSettings({ allowAnonymousFeedback: v })}
+                    ariaLabel={language === 'ru' ? 'Разрешить анонимные отзывы' : 'Anonim sharhlarga ruxsat berish'}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm text-gray-700">{language === 'ru' ? 'Уведомлять всех о новых предложениях' : 'Yangi takliflar haqida barchaga xabar berish'}</span>
-                </label>
+                  <Switch
+                    checked={settings.notifyAllOnNewProposal}
+                    onChange={(v) => updateSettings({ notifyAllOnNewProposal: v })}
+                    ariaLabel={language === 'ru' ? 'Уведомлять всех о новых предложениях' : 'Yangi takliflar haqida barchaga xabar berish'}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
