@@ -1,4 +1,37 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.42 — cache suffix bumped to v96 to evict every v95 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-mode pass 3 (Commit A + Commit B in one wave):
+//     - Modal shell — `.modal-content` (used by Create-Request,
+//       request-detail and assign-executor modals) now flips under
+//       html.dark instead of staying rgba(255,255,255,0.95). Closes the
+//       user-reported "labels invisible in dark Создать заявку modal"
+//       plus #32 + #33 in one CSS rule.
+//     - Pill-family Tailwind safety-net extended: `primary-50/100/200`,
+//       `border-primary-100/200/300/400` now have dark equivalents.
+//       Fixes the selected-pill bug on MeetingCreateModal format pill,
+//       AnnouncementsPage target-type pills, and StaffProfilePage
+//       language switcher.
+//     - Icon/chip Tailwind safety-net extended:
+//       slate/indigo/emerald/pink/rose/purple/cyan/teal/violet/sky/
+//       lime/stone + gray-200 + white/{10,15,20,30,60} + gray-50/60.
+//       Fixes staff-profile role icon chips, manager dashboard
+//       refresh button, manager team action cluster (#19 + #24 share
+//       the .btn-secondary class, now themed), manager chat-list "1
+//       диалог" stripe, security passes filter button, executor
+//       request date chip — all in one block of rules.
+//     - .btn-secondary CSS class has a new `html.dark` override so
+//       every secondary button across the app (dashboard refresh,
+//       team page action cluster, residents action row, super-admin
+//       pages) themes consistently.
+//   • Added DESIGN.md at the repo root documenting the three root
+//     causes that recur (modal shells, pill-family safety-net gaps,
+//     per-component const blocks of hardcoded hex). New PRs should
+//     check it before adding light backgrounds.
+//   • Light mode is byte-identical for every change — every dark rule
+//     is scoped under html.dark, no light selectors touched.
+//
+// Previous notes (v95) preserved below:
 // Version: 3.7.41 — cache suffix bumped to v95 to evict every v94 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-mode drawer fix: the manager / staff slide-over drawer
@@ -598,9 +631,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v95';
-const ASSET_CACHE = 'kamizo-assets-v95';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v95';
+const STATIC_CACHE = 'kamizo-static-v96';
+const ASSET_CACHE = 'kamizo-assets-v96';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v96';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

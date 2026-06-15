@@ -466,6 +466,54 @@ html.dark .border-red-100 { border-color: rgba(239,68,68,0.30) !important; }
 html.dark .bg-yellow-50 { background-color: rgba(234,179,8,0.14) !important; }
 html.dark .bg-yellow-100 { background-color: rgba(234,179,8,0.20) !important; }
 
+/* Role / status icon-chip families used across StaffProfilePage role
+   chips, manager dashboard KPI cards, and miscellaneous "tinted square"
+   icon containers. v92 covered blue/amber/green/red/yellow but slate /
+   indigo / emerald / pink / rose / purple / cyan / teal / violet / sky /
+   lime / stone were left out — those map to literal pastels in :root
+   only, so the chips render as bright light pastels on the dark page.
+   Re-tint each at the same low alpha so the chip reads as "subtle
+   status colour on dark". Foreground text-<colour>-* values stay vivid. */
+html.dark .bg-slate-50 { background-color: rgba(100,116,139,0.16) !important; }
+html.dark .bg-slate-100 { background-color: rgba(100,116,139,0.22) !important; }
+html.dark .bg-indigo-50 { background-color: rgba(99,102,241,0.14) !important; }
+html.dark .bg-indigo-100 { background-color: rgba(99,102,241,0.20) !important; }
+html.dark .bg-emerald-50 { background-color: rgba(16,185,129,0.14) !important; }
+html.dark .bg-emerald-100 { background-color: rgba(16,185,129,0.20) !important; }
+html.dark .bg-pink-50 { background-color: rgba(236,72,153,0.14) !important; }
+html.dark .bg-pink-100 { background-color: rgba(236,72,153,0.20) !important; }
+html.dark .bg-rose-50 { background-color: rgba(244,63,94,0.14) !important; }
+html.dark .bg-rose-100 { background-color: rgba(244,63,94,0.20) !important; }
+html.dark .bg-purple-50 { background-color: rgba(168,85,247,0.14) !important; }
+html.dark .bg-purple-100 { background-color: rgba(168,85,247,0.20) !important; }
+html.dark .bg-cyan-50 { background-color: rgba(6,182,212,0.14) !important; }
+html.dark .bg-cyan-100 { background-color: rgba(6,182,212,0.20) !important; }
+html.dark .bg-teal-50 { background-color: rgba(20,184,166,0.14) !important; }
+html.dark .bg-teal-100 { background-color: rgba(20,184,166,0.20) !important; }
+html.dark .bg-violet-50 { background-color: rgba(139,92,246,0.14) !important; }
+html.dark .bg-violet-100 { background-color: rgba(139,92,246,0.20) !important; }
+html.dark .bg-sky-50 { background-color: rgba(14,165,233,0.14) !important; }
+html.dark .bg-sky-100 { background-color: rgba(14,165,233,0.20) !important; }
+html.dark .bg-lime-50 { background-color: rgba(132,204,22,0.14) !important; }
+html.dark .bg-lime-100 { background-color: rgba(132,204,22,0.20) !important; }
+html.dark .bg-stone-50 { background-color: #2A241D !important; }
+html.dark .bg-stone-100 { background-color: #2C2620 !important; }
+html.dark .bg-stone-200 { background-color: #3A332B !important; }
+html.dark .bg-gray-200 { background-color: #3A332B !important; }
+
+/* Translucent fills used by various accent-context tiles + chip
+   strips. The first group are tiles SITTING ON dark accent gradients
+   (Sidebar resident header quick-tiles, hero quick-stats) — they need
+   to stay LIGHTish in dark. The bg-white\/60 group is the bug —
+   it's used on PAGE surfaces (manager Chat list "1 диалог" stripe,
+   etc.) and needs to flip to dark. */
+html.dark .bg-white\/10 { background-color: rgba(244,240,232,0.06) !important; }
+html.dark .bg-white\/15 { background-color: rgba(244,240,232,0.08) !important; }
+html.dark .bg-white\/20 { background-color: rgba(244,240,232,0.10) !important; }
+html.dark .bg-white\/30 { background-color: rgba(244,240,232,0.16) !important; }
+html.dark .bg-white\/60 { background-color: rgba(37,32,26,0.85) !important; }
+html.dark .bg-gray-50\/60 { background-color: rgba(44,38,32,0.65) !important; }
+
 /* Glass-card surfaces in dark — replace warm white with warm dark and
    warm-orange shadow with deeper black. Brand orange accents in child
    elements stay untouched. */
@@ -836,9 +884,20 @@ p, li {
   touch-action: manipulation;
 }
 
+/* Dark mode for .btn-secondary — covers the manager dashboard refresh
+   button (#19) and any other secondary button that uses this class. */
+html.dark .btn-secondary {
+  background: rgba(244, 240, 232, 0.06);
+  color: var(--text-primary);
+  border-color: rgba(244, 240, 232, 0.10);
+}
+
 @media (hover: hover) {
   .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.6);
+  }
+  html.dark .btn-secondary:hover {
+    background: rgba(244, 240, 232, 0.10);
   }
 }
 
