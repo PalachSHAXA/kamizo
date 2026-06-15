@@ -91,9 +91,11 @@ async function applyNativeStatusBar(theme: Theme): Promise<void> {
  *    2. <meta name="theme-color"> — Android Chrome system bar + iOS
  *       Safari PWA status bar background
  *    3. <meta name="apple-mobile-web-app-status-bar-style"> — iOS PWA
- *       only; flipped from "default" (light icons) to "black-translucent"
- *       (light icons on top of whatever the webview paints, so our dark
- *       --app-bg shows continuously to the notch)
+ *       only; flipped from "default" (light bar + dark icons) to "black"
+ *       (solid black bar + light icons). "black" beats "black-translucent"
+ *       because a translucent bar shows webview content through, so any
+ *       momentary light surface bleeds through and the user sees a literal
+ *       white bar — exactly the bug this code prevents.
  *    4. Capacitor StatusBar plugin — native iOS + Android shells
  */
 export function applyTheme(theme: Theme): void {
@@ -105,18 +107,21 @@ export function applyTheme(theme: Theme): void {
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   themeColorMeta?.setAttribute('content', theme === 'dark' ? SURFACE_DARK : SURFACE_LIGHT);
 
-  // iOS PWA standalone — the system reads this at LAUNCH, but a few
-  // tab-mode contexts honour live changes, and our pre-paint script in
-  // index.html mirrors this for next-launch correctness. The Home hero
-  // already starts below env(safe-area-inset-top), so "black-translucent"
-  // (webview extends to y=0) does not hide content — it lets the dark
-  // surface paint continuously up to the notch.
+  // iOS PWA standalone — the system reads this at LAUNCH for the
+  // initial paint, but tab-mode contexts and some standalone refresh
+  // paths honour live changes; the pre-paint script in index.html
+  // mirrors this for next-launch correctness. We use "black" (solid
+  // black bar + light icons) instead of "black-translucent" because
+  // translucent makes the system bar a window into whatever paints
+  // at y=0 — any momentary light content (boot, transition, splash)
+  // bleeds through and the user sees a literal white bar. "black"
+  // forces a deterministic dark bar regardless of webview state.
   const iosStatusBarMeta = document.querySelector(
     'meta[name="apple-mobile-web-app-status-bar-style"]'
   );
   iosStatusBarMeta?.setAttribute(
     'content',
-    theme === 'dark' ? 'black-translucent' : 'default'
+    theme === 'dark' ? 'black' : 'default'
   );
 
   // Native Capacitor shell — fire-and-forget; never blocks React.

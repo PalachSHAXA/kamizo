@@ -1,4 +1,36 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.49 — cache suffix bumped to v103 to evict every v102 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • iOS PWA status-bar dark-mode determinism. v98 wired the iOS
+//     status-bar fix using `apple-mobile-web-app-status-bar-style =
+//     "black-translucent"` for dark, "default" for light. That worked
+//     when the webview painted dark-mode content right up to y=0, but
+//     "black-translucent" is a TRANSPARENT overlay — any momentary
+//     light content under it bleeds through and the user sees a literal
+//     white status bar. Switched to `"black"` (solid black bar + light
+//     icons) so the bar is deterministic regardless of webview state.
+//     Slight 1-tone visual seam between pure black bar and the warm-
+//     black #1A1612 page surface is acceptable; users care about
+//     light-bar-in-dark-app far more than that delta. Three sites
+//     changed in lockstep so first-launch + live-toggle + native-shell
+//     all agree:
+//
+//       1. index.html pre-paint script — sets meta to "black" when
+//          stored theme is dark, BEFORE React mounts. iOS reads the
+//          meta only at PWA launch, so this is the load-bearing path.
+//       2. themeStore.ts applyTheme — flips meta to "black" on live
+//          toggle (only some iOS contexts honour live changes, but
+//          the meta also matches the next-launch state).
+//       3. Doc comments in both files updated so the next person who
+//          touches this finds the "why black, not black-translucent"
+//          rationale right next to the literal.
+//
+//     No Capacitor / plugin changes needed — @capacitor/status-bar was
+//     already wired in v98 and uses Style.Dark (= light icons) on dark
+//     which is independent of the meta strategy. Android theme-color
+//     path is unchanged (Android reads theme-color, not the iOS meta).
+//
+// Previous notes (v102) preserved below:
 // Version: 3.7.48 — cache suffix bumped to v102 to evict every v101 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Switch component consolidation. Seven hand-rolled inline toggles
@@ -786,9 +818,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v102';
-const ASSET_CACHE = 'kamizo-assets-v102';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v102';
+const STATIC_CACHE = 'kamizo-static-v103';
+const ASSET_CACHE = 'kamizo-assets-v103';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v103';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
