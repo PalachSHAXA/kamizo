@@ -417,6 +417,24 @@ html.dark .bg-orange-100 { background-color: rgba(234,88,12,0.20) !important; }
 html.dark .border-orange-100 { border-color: rgba(234,88,12,0.30) !important; }
 html.dark .text-orange-300 { color: #FB923C !important; }
 html.dark .text-orange-500 { color: #FB923C !important; }
+
+/* Pill-family Tailwind utilities — Tailwind `primary-*` is a custom
+   palette in tailwind.config.js mapped to --brand-* CSS vars. Those
+   vars are only defined in :root, NOT in html.dark, so the literal
+   light values (#FFF7ED / #FFEDD5 / #FED7AA / etc.) survive in dark
+   mode and the selected pills "stick light" — that's the v94→v96 root
+   cause for #28 MeetingCreateModal format pill, #31 AnnouncementsPage
+   target-type pills, and #40 StaffProfilePage language switcher.
+   Re-tint the same hue family at low alpha so the pills still read as
+   "selected orange" but sit on the dark page; vivid `text-primary-*`
+   foregrounds stay intact and remain legible against the tinted bg. */
+html.dark .bg-primary-50 { background-color: rgba(234,88,12,0.14) !important; }
+html.dark .bg-primary-100 { background-color: rgba(234,88,12,0.20) !important; }
+html.dark .bg-primary-200 { background-color: rgba(234,88,12,0.28) !important; }
+html.dark .border-primary-100 { border-color: rgba(234,88,12,0.28) !important; }
+html.dark .border-primary-200 { border-color: rgba(234,88,12,0.36) !important; }
+html.dark .border-primary-300 { border-color: rgba(234,88,12,0.44) !important; }
+html.dark .border-primary-400 { border-color: rgba(234,88,12,0.55) !important; }
 html.dark .text-gray-400 { color: #8C8779 !important; }
 html.dark .text-gray-300 { color: #6B665C !important; }
 html.dark .bg-black\/\[0\.04\] { background-color: rgba(244,240,232,0.06) !important; }
@@ -1042,6 +1060,20 @@ html.dark .sidebar-item.active {
   max-height: 90dvh;
   overflow-y: auto;
   width: 100%;
+}
+
+/* Dark-mode shell for `.modal-content`. This single rule re-themes every
+   modal that uses the shared shell — at the time of writing that's
+   CreateRequestModal (#21), ManagementRequestModal (request detail, #32),
+   the assign-executor picker (#33) and any future modal that adopts the
+   class. Body bg flips to the warm-dark surface, border to a subtle
+   warm-white hairline, shadow deepens for the darker plate. Labels
+   inside the modal (text-gray-700 / text-gray-500) already flip via the
+   global Tailwind safety-net, so they become legible automatically. */
+html.dark .modal-content {
+  background: rgba(37, 32, 26, 0.96);
+  border-color: rgba(244, 240, 232, 0.08);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
 }
 
 /* Mobile modals - full screen on small devices */
