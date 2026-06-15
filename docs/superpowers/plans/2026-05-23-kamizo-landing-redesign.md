@@ -2064,7 +2064,7 @@ If `HeroSection` doesn't accept `onDemoClick` yet, add it as a prop and wire its
 }
 ```
 
-- [ ] **Step 21.4: Manual test:** enter `palach27` → should redirect to `demo.kamizo.uz`. Enter `garbage` → red error.
+- [ ] **Step 21.4: Manual test:** enter `[REDACTED-2026-06-15]` → should redirect to `demo.kamizo.uz`. Enter `garbage` → red error.
 
 - [ ] **Step 21.5: Commit**
 
@@ -2194,7 +2194,7 @@ Leave it running. Open `http://localhost:8787` in a real browser.
 - [ ] ComingSoon: 6 cards, each with "СКОРО" badge, each has its own embedded email form.
 - [ ] Footer: shows new logo + "© 2026 kamizo".
 - [ ] Language switcher: clicking RU/UZ/EN swaps every visible string. Refresh — choice persists (localStorage `kamizo-lang`).
-- [ ] Try-Demo modal: code `palach27` → redirects to `demo.kamizo.uz` (if hosted) or shows network error in dev; bad code → red error.
+- [ ] Try-Demo modal: code `[REDACTED-2026-06-15]` → redirects to `demo.kamizo.uz` (if hosted) or shows network error in dev; bad code → red error.
 - [ ] Demo form (Toast): fill name+phone+email, submit → success message, entry appears in local KV.
 - [ ] ComingSoon form (any card): fill email, submit → success; entry appears in KV with `type: 'early-access'` and `featureInterest: '<card title>'`.
 - [ ] Admin panel: open `/admin.html`. Type filter dropdown works; early-access entries are filterable.

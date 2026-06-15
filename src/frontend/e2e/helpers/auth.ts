@@ -22,7 +22,9 @@ export type Role =
 
 export const CREDS: Record<Role, { login: string; password: string }> = {
   superadmin: { login: 'superadmin', password: 'admin123' },
-  admin: { login: 'admin', password: 'palach27' },
+  // Password rotated out of source 2026-06-15. CI sets ADMIN_E2E_PASSWORD
+  // via secrets; fallback matches the kamizo demo convention.
+  admin: { login: 'admin', password: process.env.ADMIN_E2E_PASSWORD || 'kamizo' },
   director: { login: 'director', password: 'kamizo' },
   manager: { login: 'manager', password: 'kamizo' },
   department_head: { login: 'department_head', password: 'kamizo' },

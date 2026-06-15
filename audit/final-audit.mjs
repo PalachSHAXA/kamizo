@@ -85,7 +85,7 @@ async function phase1() {
     { role: 'tenant', login: 'demo-tenant', password: 'kamizo', ip: DEMO_IP, host: DEMO_HOST, note: 'demo-tenant' },
     { role: 'advertiser', login: 'advertiser', password: 'kamizo', ip: DEMO_IP, host: DEMO_HOST, note: 'advertiser' },
     { role: 'courier/marketplace_manager', login: 'demo-shop', password: 'kamizo', ip: DEMO_IP, host: DEMO_HOST, note: 'demo-shop (marketplace_manager role)' },
-    { role: 'super_admin', login: 'admin', password: 'palach27', ip: MAIN_IP, host: MAIN_HOST, note: 'admin@kamizo.uz' },
+    { role: 'super_admin', login: 'admin', password: '[REDACTED-2026-06-15]', ip: MAIN_IP, host: MAIN_HOST, note: 'admin@kamizo.uz' },
   ];
 
   const tokens = {};
@@ -109,7 +109,7 @@ async function phase1() {
       log(`  ${r.role}: RATE LIMITED`);
     } else if (res.status === 500 && r.role === 'super_admin') {
       status = 'FAIL';
-      notes = `HTTP 500 - D1 error 1101. Super admin login at kamizo.uz fails (DB error). Credential in code: login=admin, password=palach27. Note: ${r.note}`;
+      notes = `HTTP 500 - D1 error 1101. Super admin login at kamizo.uz fails (DB error). Credential in code: login=admin, password=[REDACTED-2026-06-15]. Note: ${r.note}`;
       log(`  ${r.role}: FAIL (D1 500)`);
     } else {
       status = 'FAIL';
@@ -434,7 +434,7 @@ async function phase11(tokens) {
 
   if (!superToken) {
     // Super admin login fails - document the failure
-    phase.tests.push({ test: 'Login at kamizo.uz (admin/admin123)', role: 'super_admin', status: 'FAIL', http_status: 500, notes: 'Login fails with D1 error 1101 (SQL error on main domain DB). The provided credential admin/admin123 does not match the actual credential admin/palach27 in the source code. Even with correct credentials, the main domain returns 500.' });
+    phase.tests.push({ test: 'Login at kamizo.uz (admin/admin123)', role: 'super_admin', status: 'FAIL', http_status: 500, notes: 'Login fails with D1 error 1101 (SQL error on main domain DB). The provided credential admin/admin123 does not match the actual credential admin/[REDACTED-2026-06-15] in the source code. Even with correct credentials, the main domain returns 500.' });
 
     // Try to see what tenant info is available from demo subdomain admin
     const { token: adminToken, ip, host } = tokens['admin'] || {};
