@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { Switch } from '../components/ui';
 import { CouponsModal } from './advertiser/CouponsModal';
 import { API_URL } from '../services/api/client';
 
@@ -917,7 +918,10 @@ export function AdvertiserDashboard() {
                 <label className="block text-sm font-medium text-gray-700 mb-3">{language === 'ru' ? 'Бейджи' : 'Nishonlar'}</label>
                 <div className="space-y-3">
                   {/* Recommended */}
-                  <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                  <div
+                    onClick={() => setAdForm({ ...adForm, badges: { ...adForm.badges, recommended: !adForm.badges.recommended } })}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                         <Star className="w-5 h-5 text-blue-600" />
@@ -927,19 +931,18 @@ export function AdvertiserDashboard() {
                         <div className="text-xs text-gray-500">{language === 'ru' ? 'Показывать как рекомендованное' : 'Tavsiya etilgan sifatida ko\'rsatish'}</div>
                       </div>
                     </div>
-                    <div className={`relative w-12 h-7 rounded-full transition-colors ${adForm.badges.recommended ? 'bg-primary-600' : 'bg-gray-300'}`}>
-                      <input
-                        type="checkbox"
-                        checked={adForm.badges.recommended}
-                        onChange={e => setAdForm({ ...adForm, badges: { ...adForm.badges, recommended: e.target.checked } })}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${adForm.badges.recommended ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </div>
-                  </label>
+                    <Switch
+                      checked={adForm.badges.recommended}
+                      onChange={(v) => setAdForm({ ...adForm, badges: { ...adForm.badges, recommended: v } })}
+                      ariaLabel={language === 'ru' ? 'Рекомендуем' : 'Tavsiya qilamiz'}
+                    />
+                  </div>
 
                   {/* New */}
-                  <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                  <div
+                    onClick={() => setAdForm({ ...adForm, badges: { ...adForm.badges, new: !adForm.badges.new } })}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                         <Sparkles className="w-5 h-5 text-green-600" />
@@ -949,19 +952,18 @@ export function AdvertiserDashboard() {
                         <div className="text-xs text-gray-500">{language === 'ru' ? 'Отметить как новое' : 'Yangi sifatida belgilash'}</div>
                       </div>
                     </div>
-                    <div className={`relative w-12 h-7 rounded-full transition-colors ${adForm.badges.new ? 'bg-green-600' : 'bg-gray-300'}`}>
-                      <input
-                        type="checkbox"
-                        checked={adForm.badges.new}
-                        onChange={e => setAdForm({ ...adForm, badges: { ...adForm.badges, new: e.target.checked } })}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${adForm.badges.new ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </div>
-                  </label>
+                    <Switch
+                      checked={adForm.badges.new}
+                      onChange={(v) => setAdForm({ ...adForm, badges: { ...adForm.badges, new: v } })}
+                      ariaLabel={language === 'ru' ? 'Новинка' : 'Yangilik'}
+                    />
+                  </div>
 
                   {/* Hot */}
-                  <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                  <div
+                    onClick={() => setAdForm({ ...adForm, badges: { ...adForm.badges, hot: !adForm.badges.hot } })}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
                         <Flame className="w-5 h-5 text-red-600" />
@@ -971,19 +973,18 @@ export function AdvertiserDashboard() {
                         <div className="text-xs text-gray-500">{language === 'ru' ? 'Популярное предложение' : 'Mashhur taklif'}</div>
                       </div>
                     </div>
-                    <div className={`relative w-12 h-7 rounded-full transition-colors ${adForm.badges.hot ? 'bg-red-600' : 'bg-gray-300'}`}>
-                      <input
-                        type="checkbox"
-                        checked={adForm.badges.hot}
-                        onChange={e => setAdForm({ ...adForm, badges: { ...adForm.badges, hot: e.target.checked } })}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${adForm.badges.hot ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </div>
-                  </label>
+                    <Switch
+                      checked={adForm.badges.hot}
+                      onChange={(v) => setAdForm({ ...adForm, badges: { ...adForm.badges, hot: v } })}
+                      ariaLabel={language === 'ru' ? 'Горячее' : 'Issiq'}
+                    />
+                  </div>
 
                   {/* Verified - Instagram style */}
-                  <label className="flex items-center justify-between p-3 bg-gradient-to-r from-sky-50 to-blue-50 rounded-xl cursor-pointer hover:from-sky-100 hover:to-blue-100 transition-colors border border-sky-100">
+                  <div
+                    onClick={() => setAdForm({ ...adForm, badges: { ...adForm.badges, verified: !adForm.badges.verified } })}
+                    className="flex items-center justify-between p-3 bg-gradient-to-r from-sky-50 to-blue-50 rounded-xl cursor-pointer hover:from-sky-100 hover:to-blue-100 transition-colors border border-sky-100"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gradient-to-br from-sky-400 to-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-sky-200">
                         <BadgeCheck className="w-5 h-5 text-white" />
@@ -998,16 +999,12 @@ export function AdvertiserDashboard() {
                         <div className="text-xs text-gray-500">{language === 'ru' ? 'Официальный партнёр УК' : 'BK rasmiy hamkori'}</div>
                       </div>
                     </div>
-                    <div className={`relative w-12 h-7 rounded-full transition-colors ${adForm.badges.verified ? 'bg-gradient-to-r from-sky-400 to-blue-500' : 'bg-gray-300'}`}>
-                      <input
-                        type="checkbox"
-                        checked={adForm.badges.verified}
-                        onChange={e => setAdForm({ ...adForm, badges: { ...adForm.badges, verified: e.target.checked } })}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${adForm.badges.verified ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </div>
-                  </label>
+                    <Switch
+                      checked={adForm.badges.verified}
+                      onChange={(v) => setAdForm({ ...adForm, badges: { ...adForm.badges, verified: v } })}
+                      ariaLabel={language === 'ru' ? 'Проверено' : 'Tasdiqlangan'}
+                    />
+                  </div>
                 </div>
               </div>
 

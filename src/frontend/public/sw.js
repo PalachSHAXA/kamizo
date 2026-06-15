@@ -1,4 +1,44 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.48 — cache suffix bumped to v102 to evict every v101 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Switch component consolidation. Seven hand-rolled inline toggles
+//     scattered across the codebase (all `<button>/<input type=checkbox>
+//     + nested <span> with translate-x animation` markup) are migrated
+//     to the canonical `<Switch>` from components/ui/Switch.tsx — the
+//     same one that ships v100 geometry (52×28 track, 26×26 knob,
+//     1px pad) and the brand-orange/warm-stone tokens. After this
+//     pass, every on/off switch in the SPA renders at the same size
+//     ("одинаковую везде"). Migrated:
+//
+//     1. pages/guest-access/CreatePassForm.tsx:351 — "Приедет на авто?"
+//        on resident guest-pass Step 3 (user-reported as the visibly
+//        smaller pill, w-11 h-6 = 44×24 vs the v100 52×28).
+//     2-5. pages/AdvertiserDashboard.tsx:930/952/974/1001 — the four
+//        ad-badge toggles (Recommended / Новинка / Горячее / Проверено).
+//        The per-badge accent colour (primary / green / red / sky)
+//        moves to the icon bubble on the left of each row; the toggle
+//        itself goes orange-on-stone to match every other switch in
+//        the app — the icon already carries the badge identity.
+//     6. pages/admin/components/AdsTab.tsx:483 — tenant-enabled
+//        toggle inside the AssignToTenants modal.
+//     7. pages/admin/components/DashboardTab.tsx:370 — "Coming Soon"
+//        banner toggle (useful-contacts / marketplace) inside the
+//        super-admin tenant detail.
+//
+//     All seven preserve the existing `checked`/`onChange` semantics
+//     verbatim — pure visual swap. Row-click UX preserved by wrapping
+//     the migrated toggle rows in `<div onClick={…}>` (was `<label>`);
+//     Switch's own `stopPropagation` prevents double-toggle. No new
+//     props added to Switch, no behaviour change for the existing
+//     consumers (ThemeToggle, AdminDashboard ad toggle, trainings
+//     notification toggle), no `size="sm"` usages anywhere in the
+//     project (verified — every <Switch /> renders the default md).
+//
+//   Light mode: every migrated row now shows the v100 chunky-pill
+//   shape instead of the older smaller variant — intended change. No
+//   other visual deltas, no behaviour deltas.
+//
+// Previous notes (v101) preserved below:
 // Version: 3.7.47 — cache suffix bumped to v101 to evict every v100 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • QR pass modal (pages/guest-access/QRCodeDisplay.tsx) dark mode.
@@ -746,9 +786,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v101';
-const ASSET_CACHE = 'kamizo-assets-v101';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v101';
+const STATIC_CACHE = 'kamizo-static-v102';
+const ASSET_CACHE = 'kamizo-assets-v102';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v102';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

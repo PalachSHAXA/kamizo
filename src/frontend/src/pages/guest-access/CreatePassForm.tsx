@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useGuestAccessStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useModalPresence } from '../../stores/modalStore';
+import { Switch } from '../../components/ui';
 import {
   VISITOR_TYPE_LABELS, ACCESS_TYPE_LABELS,
   type GuestAccessCode, type VisitorType, type AccessType,
@@ -348,13 +349,11 @@ export function CreatePassForm({
                         {language === 'ru' ? 'Приедет на авто?' : 'Avtomobil bilan keladimi?'}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => { setHasVehicle(!hasVehicle); if (hasVehicle) setVisitorVehiclePlate(''); }}
-                      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${hasVehicle ? 'bg-primary-500' : 'bg-gray-300'}`}
-                    >
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hasVehicle ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </button>
+                    <Switch
+                      checked={hasVehicle}
+                      onChange={(next) => { setHasVehicle(next); if (!next) setVisitorVehiclePlate(''); }}
+                      ariaLabel={language === 'ru' ? 'Приедет на авто?' : 'Avtomobil bilan keladimi?'}
+                    />
                   </div>
                   {hasVehicle && (
                     <div>

@@ -3,6 +3,7 @@ import { Building2, Users, Banknote, CheckCircle, XCircle, Edit2, Trash2, Extern
 import { apiRequest } from '../../../services/api';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
+import { Switch } from '../../../components/ui';
 import type { Tenant, TenantStats, DetailTab } from './types';
 import {
   BASE_DOMAIN, PLAN_LABELS,
@@ -367,8 +368,10 @@ export function DashboardTab({
                               <p className="text-sm font-medium text-gray-800">{item.label}</p>
                               <p className="text-xs text-gray-500">{item.desc}</p>
                             </div>
-                            <button
-                              onClick={async () => {
+                            <Switch
+                              checked={isOn}
+                              ariaLabel={item.label}
+                              onChange={async () => {
                                 try {
                                   const updated = await apiRequest<{ tenant: Record<string, unknown> }>(`/api/super-admin/tenants/${selectedTenant!.id}/banners`, {
                                     method: 'PATCH',
@@ -378,10 +381,7 @@ export function DashboardTab({
                                   setSelectedTenant(prev => prev ? { ...prev, ...updated.tenant } : prev);
                                 } catch { /* toggle may fail */ }
                               }}
-                              className={`relative w-11 h-6 rounded-full transition-colors ${isOn ? 'bg-orange-500' : 'bg-gray-300'}`}
-                            >
-                              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isOn ? 'translate-x-5' : ''}`} />
-                            </button>
+                            />
                           </div>
                         );
                       })}

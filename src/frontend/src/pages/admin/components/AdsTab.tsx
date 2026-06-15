@@ -3,6 +3,7 @@ import { Building2, Trash2, CheckCircle, RefreshCw, X, Eye, Phone, Globe, MapPin
 import { apiRequest } from '../../../services/api';
 import { useToastStore } from '../../../stores/toastStore';
 import type { Tenant, SuperAd, AdCategory, AdTenantAssignment } from './types';
+import { Switch } from '../../../components/ui';
 import { adCategoryIcons, BASE_DOMAIN } from './types';
 import { AdViewsModal } from './ads/AdViewsModal';
 
@@ -480,13 +481,11 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                             <div className="text-xs text-gray-400">{t.slug}</div>
                           </div>
                           {isSelected && assignment && (
-                            <button
-                              onClick={() => handleToggleTenantEnabled(showAssignModal.id, t.id, assignment.enabled === 0)}
-                              className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${assignment.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                              title={assignment.enabled ? 'Показывается жильцам' : 'Скрыто от жильцов'}
-                            >
-                              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${assignment.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                            </button>
+                            <Switch
+                              checked={!!assignment.enabled}
+                              onChange={() => handleToggleTenantEnabled(showAssignModal.id, t.id, assignment.enabled === 0)}
+                              ariaLabel={assignment.enabled ? 'Показывается жильцам' : 'Скрыто от жильцов'}
+                            />
                           )}
                         </div>
                       );
