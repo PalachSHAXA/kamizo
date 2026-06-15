@@ -23,7 +23,25 @@ ROUTE_QUICK_REFERENCE.txt
 
 # Mobile build artifacts
 *.apk
-src/frontend/android/
+*.aab
+*.keystore
+*.jks
+
+# Android (Capacitor) — track scaffold, ignore build outputs + machine-local
+# state. The scaffold (gradle config, AndroidManifest, branded res/) MUST
+# be tracked so colleagues + CI can rebuild APK/AAB deterministically.
+# Anything below this comment that lives under src/frontend/android/ is
+# gitignored regardless of being inside a tracked parent.
+src/frontend/android/.gradle/
+src/frontend/android/.idea/
+src/frontend/android/.kotlin/
+src/frontend/android/build/
+src/frontend/android/app/build/
+src/frontend/android/captures/
+src/frontend/android/app/release/
+src/frontend/android/local.properties
+src/frontend/android/keystore.properties
+src/frontend/android/app/keystore.properties
 
 # IDE / local editor state
 .vscode/

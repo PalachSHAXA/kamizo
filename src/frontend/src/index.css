@@ -1831,6 +1831,23 @@ a.btn-secondary:active,
     min-width: 44px;
   }
 
+  /* Exemption: the canonical Switch component (components/ui/Switch.tsx)
+     ships its own intentional geometry — 52×28 (md) / 40×22 (sm) — and
+     is itself a tap target the surrounding settings row enlarges to 44px
+     via its own padding. The global rule above would silently override
+     the inline height to 44px, anchoring the knob to the top-left and
+     producing a square-ish pill instead of the reference shape.
+     Selector specificity note: the offender `button:not(.icon-only)`
+     scores (0,1,1) (one tag + one class via :not), so plain `.kz-switch`
+     at (0,1,0) loses on specificity. `button.kz-switch` matches at
+     (0,1,1) and wins on source order (this rule comes later). Do NOT
+     widen this selector — every other <button> on the app needs the
+     44px floor for WCAG 2.5.5. */
+  button.kz-switch {
+    min-height: auto;
+    min-width: auto;
+  }
+
   /* Better spacing for form elements */
   .form-group + .form-group {
     margin-top: 16px;

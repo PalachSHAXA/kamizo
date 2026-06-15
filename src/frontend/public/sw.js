@@ -1,4 +1,21 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.46 — cache suffix bumped to v100 to evict every v99 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Switch geometry actually applies. v99 reshaped the DIMS table in
+//     components/ui/Switch.tsx to 52×28 (md) / 40×22 (sm), but a global
+//     mobile tap-target rule at index.css:1826-1832 — `button:not(.icon-
+//     only) { min-height: 44px; min-width: 44px }` inside `@media (max-
+//     width: 768px)` — silently overrode the inline `height: 28px` to
+//     44px on every phone-sized viewport. The Switch rendered 52×44
+//     with the 26×26 knob anchored top-left instead of vertically
+//     centered. Live CDP measurement on the emulator's WebView confirmed
+//     this: inline 28px, computed 44px, min-height 44px. Fix is a narrow
+//     exemption inside the same media query — `.kz-switch { min-height:
+//     auto; min-width: auto }` AFTER the global rule so cascade lets the
+//     inline values win for this single component. Every other button
+//     keeps the 44px tap-target floor unchanged.
+//
+// Previous notes (v99) preserved below:
 // Version: 3.7.45 — cache suffix bumped to v99 to evict every v98 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Switch component reshape to match the reference design. ONLY the
@@ -693,9 +710,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v99';
-const ASSET_CACHE = 'kamizo-assets-v99';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v99';
+const STATIC_CACHE = 'kamizo-static-v100';
+const ASSET_CACHE = 'kamizo-assets-v100';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v100';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
