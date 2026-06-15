@@ -11,21 +11,30 @@
     <link rel="apple-touch-icon" sizes="192x192" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <!-- Global theme-color is the app body / --app-bg (index.css :root) —
-         #F4F0E8 warm beige, matching the Claude Design palette. FINAL RULE:
-         light/beige status-bar chrome on EVERY page, no exceptions.
-         Pages MUST NOT override this to a dark tint; the Home hero stays
-         brown visually but starts BELOW env(safe-area-inset-top) via its
-         margin, so the status-bar zone always paints the light app bg. -->
+    <!-- theme-color is the cross-platform signal:
+         • Android Chrome: paints the top system bar with this color
+         • iOS Safari PWA: paints the status-bar chrome when paired with
+           apple-mobile-web-app-status-bar-style="black-translucent"
+         The values are flipped at runtime by applyTheme() in themeStore.ts:
+         #F4F0E8 (warm beige --app-bg) in light, #1A1612 in dark — so the
+         OS strip stays continuous with the page surface in both themes. -->
     <meta name="theme-color" content="#F4F0E8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- "default" status-bar-style keeps the iOS PWA status bar as a
-         system strip with dark text on the light background (matching
-         theme-color). We previously used "black-translucent" to let the
-         Home hero paint brown behind the bar; the new rule is no brown
-         behind the status bar anywhere, so the web view no longer extends
-         behind it. MobileHeader's padding-top: calc(safe-area-inset-top
-         + 12px) still keeps content clear of the notch. -->
+    <!-- iOS PWA status-bar-style:
+         • "default"          → light bg, dark icons (light theme)
+         • "black"            → solid black bg, light icons
+         • "black-translucent"→ transparent overlay; webview extends to y=0
+                               and paints the status-bar zone with its own bg,
+                               while system icons render LIGHT on top
+         We flip between "default" (light theme) and "black-translucent"
+         (dark theme) so the dark #1A1612 surface paints continuously up
+         to the notch with white system icons. MobileHeader's
+         padding-top: calc(safe-area-inset-top + 12px) keeps content
+         below the notch in BOTH meta modes, so no layout shift on flip.
+         Note: iOS reads this meta only when launching the installed PWA
+         from the home screen — runtime changes are ignored by iOS Safari
+         in standalone mode, so the pre-paint script below ALSO sets it
+         based on stored theme to make the very first launch correct. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="kamizo" />
@@ -50,6 +59,14 @@
             document.documentElement.classList.add('dark');
             var meta = document.querySelector('meta[name="theme-color"]');
             if (meta) meta.setAttribute('content', '#1A1612');
+            // iOS PWA: install-time read; must be set before the
+            // standalone launch paints its first frame. applyTheme()
+            // mirrors this on flips for any platform that does honour
+            // live changes (Android Chrome, iOS Safari tab mode).
+            var statusBarMeta = document.querySelector(
+              'meta[name="apple-mobile-web-app-status-bar-style"]'
+            );
+            if (statusBarMeta) statusBarMeta.setAttribute('content', 'black-translucent');
           }
         } catch (e) { /* private mode / blocked storage — default light */ }
       })();

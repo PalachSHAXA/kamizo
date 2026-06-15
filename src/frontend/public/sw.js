@@ -1,4 +1,31 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.44 — cache suffix bumped to v98 to evict every v97 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • iOS PWA + native Capacitor dark-mode status-bar fix. Before v98
+//     the OS status-bar zone stayed white in dark mode on iPhone PWA
+//     and on the native Capacitor app: applyTheme() flipped only
+//     <meta name="theme-color">, which Android Chrome honours but iOS
+//     PWA ignores in standalone mode. v98 wires three more surfaces in
+//     lock-step with the theme toggle:
+//       1. <meta name="apple-mobile-web-app-status-bar-style"> flips
+//          "default" ⇄ "black-translucent" so the dark surface paints
+//          continuously up to the notch with light system icons. The
+//          pre-paint script in index.html mirrors the value based on
+//          stored theme so the FIRST launch of a dark-mode user is
+//          already correct (iOS reads this meta at PWA-launch time).
+//       2. Capacitor StatusBar plugin (@capacitor/status-bar@^8.0.0,
+//          newly added) is called from applyTheme via a guarded dynamic
+//          import: Style.Dark+setBackgroundColor(#1A1612) for dark,
+//          Style.Light+setBackgroundColor(#F4F0E8) for light. The
+//          plugin is no-op on web (Capacitor.isNativePlatform() guard).
+//       3. capacitor.config.ts StatusBar block kept as the BOOT floor
+//          (light values) — runtime applyTheme overrides immediately
+//          on first JS frame.
+//     The Style.Dark = LIGHT icons inversion is documented twice (in
+//     themeStore.ts and capacitor.config.ts) so the next person to
+//     touch this doesn't re-discover the trap.
+//
+// Previous notes (v97) preserved below:
 // Version: 3.7.43 — cache suffix bumped to v97 to evict every v96 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Removed the "Пользователи" tab from the super-admin panel
@@ -647,9 +674,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v97';
-const ASSET_CACHE = 'kamizo-assets-v97';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v97';
+const STATIC_CACHE = 'kamizo-static-v98';
+const ASSET_CACHE = 'kamizo-assets-v98';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v98';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

@@ -19,6 +19,7 @@
     "@capacitor/android": "^8.2.0",
     "@capacitor/cli": "^8.2.0",
     "@capacitor/core": "^8.2.0",
+    "@capacitor/status-bar": "^8.0.2",
     "@types/qrcode": "^1.5.6",
     "date-fns": "^4.1.0",
     "docx": "^9.5.1",
