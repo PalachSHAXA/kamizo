@@ -1,4 +1,40 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.47 — cache suffix bumped to v101 to evict every v100 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • QR pass modal (pages/guest-access/QRCodeDisplay.tsx) dark mode.
+//     Modal shell was a literal `bg-white` div — stayed white under
+//     html.dark while every `text-gray-500/700` label inside flipped to
+//     light beige via the existing text-color safety net (index.css
+//     L374-L380), leaving labels invisible on the still-white card.
+//     Fix: swap the shell class for the canonical `.modal-content`
+//     (v96 themed shell). One class swap rethemed every label + the
+//     title without a single per-element edit. QR canvas wrapper stays
+//     `bg-white` with a comment (scanner-required artifact).
+//   • Resident Пропуска page (pages/ResidentGuestAccessPage.tsx) dark
+//     mode. The const block at the top shipped raw hex literals
+//     (TEXT_PRIMARY = '#1C1917' etc) which were applied inline and
+//     never themed, and the sticky header background was a literal
+//     rgba(244,240,232,0.92) — producing the half-themed "light strip on
+//     top of dark page" the user reported. Each const now reads through
+//     var(--themed-*, hex-fallback) per DESIGN.md root-cause #3; the
+//     sticky-header background uses the existing `--themed-strip-bg`
+//     token (was already defined under html.dark from the chat-strip
+//     task, just had to be plugged in here). Light mode is byte-identical
+//     since every var() fallback IS the previous literal hex.
+//   • Resident pass hero (pages/guest-access/LatestPassHero.tsx) had a
+//     duplicate "истёк" indicator — the left status pill ("● Истёк") and
+//     the right time-left text ("истёк") both showed the same word for
+//     non-active passes. The right text is now hidden unless the pass is
+//     ACTIVE (when it conveys "действует ещё N мин/ч", which is genuinely
+//     useful info the pill doesn't have). Pill stays. No layout change
+//     beyond the conditional render.
+//   • DESIGN.md gets two new root-cause families documented (sticky
+//     headers + per-page const blocks of raw hex; `.modal-content` vs
+//     `bg-white` modal shell) with the QR modal + Passes header as
+//     before/after examples so the next person hitting this trap finds
+//     the fix prescription instead of re-discovering the pattern.
+//
+// Previous notes (v100) preserved below:
 // Version: 3.7.46 — cache suffix bumped to v100 to evict every v99 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Switch geometry actually applies. v99 reshaped the DIMS table in
@@ -710,9 +746,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v100';
-const ASSET_CACHE = 'kamizo-assets-v100';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v100';
+const STATIC_CACHE = 'kamizo-static-v101';
+const ASSET_CACHE = 'kamizo-assets-v101';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v101';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

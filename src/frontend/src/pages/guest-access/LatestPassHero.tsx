@@ -162,9 +162,16 @@ export function LatestPassHero({
               }} />
               {statusPill.label}
             </span>
-            <span style={{ fontSize: 12, color: 'rgba(244,240,232,0.7)', fontWeight: 600 }}>
-              {timeLeftText}
-            </span>
+            {/* Only render the time-left text when the pass is ACTIVE.
+                For non-active states (used / revoked / expired) the
+                status pill on the left already conveys "истёк" / "отозван"
+                / "использован", and showing the same word in the small
+                right-side text duplicates the status indicator. */}
+            {isActive && msLeft > 0 && (
+              <span style={{ fontSize: 12, color: 'rgba(244,240,232,0.7)', fontWeight: 600 }}>
+                {timeLeftText}
+              </span>
+            )}
           </div>
 
           {/* QR + meta row */}

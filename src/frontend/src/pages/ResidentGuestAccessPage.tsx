@@ -20,14 +20,22 @@ import { CreatePassForm } from './guest-access/CreatePassForm';
 import { QuickCreateTiles } from './guest-access/QuickCreateTiles';
 import { safeVisitorLabel, safeAccessLabel, type VisitLog } from './guest-access/utils';
 
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#6F6A62';
-const TEXT_MUTED = '#A8A29E';
-const SURFACE = '#FFFFFF';
-const SURFACE_SUNKEN = '#EDE7DB';
-const BORDER = '#E6DFD2';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
-const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+// Tokens read through CSS variables with the EXISTING hex as fallback,
+// per DESIGN.md root-cause #3. Light mode is byte-identical for users
+// who haven't opted into dark; html.dark in index.css overrides each
+// `--themed-*` var to its dark-mode equivalent, so the whole page flips
+// without per-component branching. The sticky header bg gets its own
+// dedicated token because rgba(244,240,232,0.92) won't theme on its
+// own — see the inline use below.
+const TEXT_PRIMARY = 'var(--themed-text-primary, #1C1917)';
+const TEXT_SECONDARY = 'var(--themed-text-secondary, #6F6A62)';
+const TEXT_MUTED = 'var(--themed-text-muted, #A8A29E)';
+const SURFACE = 'var(--themed-surface, #FFFFFF)';
+const SURFACE_SUNKEN = 'var(--themed-surface-sunken, #EDE7DB)';
+const BORDER = 'var(--themed-border-c, #E6DFD2)';
+const HAIRLINE = 'var(--themed-hairline, rgba(28,25,23,0.06))';
+const STICKY_HEADER_BG = 'var(--themed-strip-bg, rgba(244,240,232,0.92))';
+const SHADOW_SM = 'var(--themed-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 
 export function ResidentGuestAccessPage() {
   const { user } = useAuthStore();
@@ -129,7 +137,7 @@ export function ResidentGuestAccessPage() {
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
-        background: 'rgba(244,240,232,0.92)',
+        background: STICKY_HEADER_BG,
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,

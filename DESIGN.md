@@ -91,6 +91,79 @@ each entry must read through `var(--themed-…, hex)`. If you need a new
 token, add it to the `html.dark` block in `index.css` — never declare a
 new family in :root that doesn't have a matching dark override.
 
+### 4. Sticky page headers + literal-hex const blocks on themed surfaces
+
+After v96 we tripped over a fourth recurring shape: page-top sticky
+headers with a hardcoded translucent-beige bg + a const block at the
+top of the file that ships pure literal hex (not the `var(--themed-…,
+hex)` pattern from root-cause #3). The Resident Passes page
+(`pages/ResidentGuestAccessPage.tsx`) had both at once:
+
+```ts
+const TEXT_PRIMARY   = '#1C1917';      // ❌ doesn't theme
+const TEXT_SECONDARY = '#6F6A62';      // ❌ doesn't theme
+const SURFACE        = '#FFFFFF';      // ❌ history-icon button stays white
+…
+<div style={{ background: 'rgba(244,240,232,0.92)', … }}>   // ❌ light strip on dark page
+```
+
+In dark mode the page bg flipped via `--app-bg` (correct), but the
+sticky header stayed warm beige and every label inside still painted
+`#1C1917`-dark — producing the "half-themed bar" the user reported:
+dark page below, light strip on top with dark-on-dark unreadable text.
+
+Fix uses the existing token plumbing — no new files, no new selectors:
+
+```ts
+const TEXT_PRIMARY     = 'var(--themed-text-primary, #1C1917)';   // ✅
+const TEXT_SECONDARY   = 'var(--themed-text-secondary, #6F6A62)'; // ✅
+const SURFACE          = 'var(--themed-surface, #FFFFFF)';        // ✅
+const STICKY_HEADER_BG = 'var(--themed-strip-bg, rgba(244,240,232,0.92))';
+…
+<div style={{ background: STICKY_HEADER_BG, … }}>                 // ✅
+```
+
+`--themed-strip-bg` was already defined under `html.dark` from a prior
+chat-strip task (`rgba(26,22,18,0.92)`) — the sticky header just had
+to start reading it.
+
+**Rule for sticky headers + per-page const blocks:**
+- Every entry in a page-level const block MUST resolve through
+  `var(--themed-X, hex-fallback)`. Never ship a raw literal hex.
+- The sticky header background goes through `--themed-strip-bg` (or
+  declare a same-named page-specific token next to its `html.dark`
+  override). Don't paint `rgba(244,240,232, …)` inline.
+- Any white circular button (history, close, share) inside a sticky
+  header reads `--themed-surface` for its bg so it themes with the
+  strip.
+
+### 5. Modal shells: prefer `.modal-content` over `bg-white`
+
+Closely related to root-cause #1 — and the bug that took the QR pass
+modal (`pages/guest-access/QRCodeDisplay.tsx`) out of dark mode in this
+same wave. The modal's outer card was `<div className="bg-white …">`
+instead of `<div className="modal-content …">`. Result:
+
+- The shell stayed white in dark mode (no override).
+- Every `text-gray-500` / `text-gray-700` label inside DID flip to a
+  light beige via the existing text-color safety net (`index.css`
+  L374-L380, `html.dark .text-gray-*`).
+- Light beige labels on a still-white card = "invisible".
+
+A single class change fixed every label in one stroke — no per-label
+edits needed:
+
+```tsx
+- <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
++ <div className="modal-content max-w-md">
+```
+
+**Rule for new/legacy modals:** if you find a `bg-white rounded-…
+max-w-* max-h-[…vh] overflow-y-auto` shell on a `fixed inset-0`
+overlay, that's a modal shell — convert to `.modal-content`. It
+already encodes the bg, border, shadow, backdrop-blur, mobile
+bottom-sheet behaviour, and the `html.dark` override.
+
 ---
 
 ## Where the tokens live

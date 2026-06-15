@@ -189,7 +189,14 @@ export function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: ()
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
+      {/* Use the canonical `.modal-content` shell (defined in index.css)
+          so the bg, border + text colors all flip under html.dark via the
+          v96 modal-shell override + the existing text-gray-* safety net.
+          Previously this used a literal `bg-white` shell which stayed
+          white in dark mode while the text-gray-500 labels flipped to
+          light beige via the safety net — invisible on the still-white
+          card. See DESIGN.md root-cause #1. */}
+      <div className="modal-content max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-base sm:text-lg font-bold">
@@ -202,6 +209,11 @@ export function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: ()
 
         {/* QR Code */}
         <div className="p-6 flex flex-col items-center">
+          {/* The QR code MUST remain on a literal white background in
+              BOTH themes — scanners require black-on-white contrast and a
+              dark warm-tone background would degrade decode reliability.
+              This is the "real artifact" exception in DESIGN.md §When
+              NOT to follow these rules. */}
           <div className="bg-white p-4 rounded-2xl shadow-lg border-2 border-gray-100">
             <canvas ref={canvasRef} />
           </div>
