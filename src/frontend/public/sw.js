@@ -1,4 +1,20 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.43 — cache suffix bumped to v97 to evict every v96 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Removed the "Пользователи" tab from the super-admin panel
+//     (SuperAdminDashboard). The tab listed every user across every
+//     tenant WITH stored credentials (login, role, phone, branch) and
+//     fetched them from GET /api/super-admin/users. The endpoint had
+//     already stripped password_hash in Sprint 71/P1-F4, but the
+//     cross-tenant credential listing surface itself remained an open
+//     audit finding (one super-admin browser window = every login on
+//     every UK on screen). With the tab gone the corresponding route
+//     in cloudflare/src/routes/super-admin.ts is deleted too; tenant
+//     listing + "Войти в админку УК" + analytics + ads + banners stay
+//     intact. Cache bump is the eviction signal so existing PWAs
+//     drop the v96 bundle that still contained UsersTab.
+//
+// Previous notes (v96) preserved below:
 // Version: 3.7.42 — cache suffix bumped to v96 to evict every v95 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-mode pass 3 (Commit A + Commit B in one wave):
@@ -631,9 +647,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v96';
-const ASSET_CACHE = 'kamizo-assets-v96';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v96';
+const STATIC_CACHE = 'kamizo-static-v97';
+const ASSET_CACHE = 'kamizo-assets-v97';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v97';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

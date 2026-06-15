@@ -677,60 +677,6 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
   return json({ user: adminUser, token: impersonateToken, tenantUrl: tenant.url, tenantName: tenant.name, ttlSec: IMP_TTL_SEC });
 });
 
-// GET /api/super-admin/users - list all users across all tenants with credentials (super_admin only)
-route('GET', '/api/super-admin/users', async (request, env) => {
-  const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
-
-  const url = new URL(request.url);
-  const search = url.searchParams.get('search') || '';
-  const role = url.searchParams.get('role') || '';
-  const tenantSlug = url.searchParams.get('tenant') || '';
-  const page = parseInt(url.searchParams.get('page') || '1');
-  const limit = parseInt(url.searchParams.get('limit') || '50');
-
-  let whereClause = "WHERE 1=1";
-  const params: any[] = [];
-
-  if (search) {
-    whereClause += " AND (u.login LIKE ? OR u.name LIKE ? OR u.phone LIKE ?)";
-    const s = `%${search}%`;
-    params.push(s, s, s);
-  }
-  if (role) {
-    whereClause += " AND u.role = ?";
-    params.push(role);
-  }
-  if (tenantSlug) {
-    whereClause += " AND t.slug = ?";
-    params.push(tenantSlug);
-  }
-
-  const countResult = await env.DB.prepare(
-    `SELECT COUNT(*) as total FROM users u LEFT JOIN tenants t ON u.tenant_id = t.id ${whereClause}`
-  ).bind(...params).first() as any;
-  const total = countResult?.total || 0;
-
-  const offset = (page - 1) * limit;
-  // Sprint 71 P1/F4: do NOT return password_hash. Was selected with
-  // alias `password` and rendered behind an Eye toggle on the FE — hash
-  // exfil enabled offline brute-force of weak demo passwords. The FE
-  // should use POST /api/users/:id/reset-password if a fresh credential
-  // is needed.
-  const { results } = await env.DB.prepare(`
-    SELECT u.id, u.login, u.name, u.phone, u.role, u.specialization,
-           u.tenant_id, t.name as tenant_name, t.slug as tenant_slug,
-           u.branch, u.building, u.created_at, u.is_active
-    FROM users u
-    LEFT JOIN tenants t ON u.tenant_id = t.id
-    ${whereClause}
-    ORDER BY t.name, u.role, u.name
-    LIMIT ? OFFSET ?
-  `).bind(...params, limit, offset).all();
-
-  return json({ users: results, total, page, limit });
-});
-
 // PATCH /api/super-admin/tenants/:id/banners - toggle coming soon banners
 route('PATCH', '/api/super-admin/tenants/:id/banners', async (request, env, params) => {
   const user = await getUser(request, env);

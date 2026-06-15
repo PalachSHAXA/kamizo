@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, RefreshCw, Settings, X, XCircle, BarChart3, Megaphone, Image, UserCog, LayoutDashboard, LogOut } from 'lucide-react';
+import { Plus, RefreshCw, Settings, X, XCircle, BarChart3, Megaphone, Image, LayoutDashboard, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/api';
@@ -9,7 +9,6 @@ import {
   AnalyticsTab,
   AdsTab,
   BannersTab,
-  UsersTab,
   TenantFormModal,
 } from './components';
 import type { Tenant, TenantFormData, AnalyticsData, SuperAd, AdCategory, TabType } from './components/types';
@@ -284,7 +283,6 @@ export function SuperAdminDashboard() {
               { key: 'analytics' as TabType, icon: <BarChart3 className="w-4 h-4" />, label: 'Аналитика' },
               { key: 'ads' as TabType, icon: <Megaphone className="w-4 h-4" />, label: 'Реклама' },
               { key: 'banners' as TabType, icon: <Image className="w-4 h-4" />, label: 'Баннеры' },
-              { key: 'users' as TabType, icon: <UserCog className="w-4 h-4" />, label: 'Пользователи' },
             ]).map(tab => (
               <button
                 key={tab.key}
@@ -349,14 +347,6 @@ export function SuperAdminDashboard() {
           banners={banners}
           isLoadingBanners={isLoadingBanners}
           loadBanners={loadBanners}
-        />
-      )}
-
-      {activeTab === 'users' && (
-        <UsersTab
-          tenants={tenants}
-          error={error}
-          setError={setError}
         />
       )}
 
