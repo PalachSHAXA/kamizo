@@ -34,12 +34,17 @@ interface SwitchProps {
   id?: string;
 }
 
+// Dimensions tuned to the reference shape (SW v99): knob nearly fills
+// the pill (knob/trackH ≈ 0.93) with 1px padding, so the white circle
+// visually dominates the orange/gray track instead of swimming in the
+// middle. Aspect ratio kept inside the requested 1.8–2.0 band:
+//   md: 52×28 → aspect 1.86, knob 26 → ratio 0.929
+//   sm: 40×22 → aspect 1.82, knob 20 → ratio 0.909
+// Colors / shadow / focus ring read through tokens in index.css; only
+// the geometry changed in v99.
 const DIMS: Record<Size, { trackW: number; trackH: number; knob: number; pad: number }> = {
-  // md: 44×24 track, 20 knob, 2 padding all around → ON knob left=22, OFF knob left=2.
-  md: { trackW: 44, trackH: 24, knob: 20, pad: 2 },
-  // sm: 36×20 track, 16 knob, 2 padding → ON left=18, OFF left=2. Reserved
-  // for tight rows; the main settings rows use md.
-  sm: { trackW: 36, trackH: 20, knob: 16, pad: 2 },
+  md: { trackW: 52, trackH: 28, knob: 26, pad: 1 },
+  sm: { trackW: 40, trackH: 22, knob: 20, pad: 1 },
 };
 
 export function Switch({ checked, onChange, ariaLabel, disabled, size = 'md', id }: SwitchProps) {

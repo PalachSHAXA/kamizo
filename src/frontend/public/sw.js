@@ -1,4 +1,23 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.45 — cache suffix bumped to v99 to evict every v98 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Switch component reshape to match the reference design. ONLY the
+//     DIMS table in components/ui/Switch.tsx was touched — colors,
+//     tokens (--switch-on-bg / --switch-off-bg / --switch-knob /
+//     --switch-knob-shadow), the brand-orange focus ring, the
+//     html.dark OFF-track override, and the API (checked / onChange /
+//     ariaLabel / disabled / size) are all unchanged. Geometry:
+//       md: 44×24 + knob 20 + pad 2  →  52×28 + knob 26 + pad 1
+//       sm: 36×20 + knob 16 + pad 2  →  40×22 + knob 20 + pad 1
+//     New knob/trackH ratios are 0.929 (md) and 0.909 (sm) so the
+//     white knob nearly fills the orange/gray pill — visually dominant
+//     instead of swimming. Aspect ratios stay inside the requested
+//     1.8–2.0 band (1.86 md, 1.82 sm). Every consumer of the shared
+//     <Switch> — ThemeToggle (Тёмная тема on resident / admin / staff
+//     profile), every settings row that uses the canonical control —
+//     inherits the new look automatically. No call-site changes.
+//
+// Previous notes (v98) preserved below:
 // Version: 3.7.44 — cache suffix bumped to v98 to evict every v97 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • iOS PWA + native Capacitor dark-mode status-bar fix. Before v98
@@ -674,9 +693,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v98';
-const ASSET_CACHE = 'kamizo-assets-v98';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v98';
+const STATIC_CACHE = 'kamizo-static-v99';
+const ASSET_CACHE = 'kamizo-assets-v99';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v99';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
