@@ -948,6 +948,52 @@ p, li {
   font-size: 15px;
 }
 
+/* ── Dark-mode overrides for the manager / staff drawer (Sidebar.tsx
+   line 1026+). The drawer panel renders via the .sidebar class which
+   ships a hardcoded `linear-gradient(180deg, #faf8f6 0%, #ffffff 40%)`
+   background and `color: #4b5563` for nav items. v85's Tailwind
+   safety-net + v92's --themed-* tokens did not catch this because
+   the styles live on raw CSS class rules, not Tailwind utilities or
+   inline `style={{}}`. v94's sweep misclassified Sidebar.tsx because
+   it only saw the resident-drawer's TEXT_ON_DARK literal (a dark
+   accent hero header inside the SAME file) and assumed Sidebar was
+   "text on dark accent". The staff drawer branch (lines 1026+ in
+   Sidebar.tsx) was missed entirely. Light mode untouched: every
+   property below is scoped under `html.dark`. */
+html.dark .sidebar {
+  background: linear-gradient(180deg, #1F1A14 0%, #1A1612 40%);
+  border-right-color: rgba(244, 240, 232, 0.08);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 768px) {
+  html.dark .sidebar {
+    box-shadow: 8px 0 30px rgba(0, 0, 0, 0.65);
+  }
+}
+
+html.dark .sidebar-item {
+  color: #D6CDC0;
+}
+
+@media (hover: hover) {
+  html.dark .sidebar-item:hover {
+    background: rgba(244, 240, 232, 0.05);
+    color: #F4F0E8;
+  }
+}
+
+html.dark .sidebar-item:active {
+  background: rgba(var(--brand-rgb), 0.18);
+}
+
+/* Active row keeps the brand-orange accent. Tint deepens for legibility
+   on the dark panel, FG stays --brand so the row reads as the selected
+   nav item exactly the same way it does in light. */
+html.dark .sidebar-item.active {
+  background: rgba(var(--brand-rgb), 0.18);
+}
+
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, constant(safe-area-inset-bottom, 0px));
 }
