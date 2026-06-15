@@ -1,4 +1,25 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.41 — cache suffix bumped to v95 to evict every v94 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Dark-mode drawer fix: the manager / staff slide-over drawer
+//     (Sidebar.tsx line 1026+ branch, rendered via the .sidebar /
+//     .sidebar-item CSS classes in index.css) shipped a hardcoded
+//     `linear-gradient(180deg, #faf8f6 0%, #ffffff 40%)` background
+//     and `color: #4b5563` for nav items. v85's Tailwind safety-net
+//     and v92's --themed-* tokens didn't catch this because the
+//     styles live on raw CSS class rules. v94's audit misclassified
+//     Sidebar.tsx — it only saw the RESIDENT drawer's TEXT_ON_DARK
+//     literal (a dark hero gradient header inside the same file) and
+//     assumed "text on dark accent". The staff drawer branch was
+//     missed. Fix: html.dark overrides added inline next to the
+//     existing .sidebar rules — panel gradient flips to the warm-dark
+//     family, border + box-shadow deepen, .sidebar-item text reads
+//     light, hover surface lifts to a faint warm-white tint, active
+//     row keeps the brand-orange accent (.sidebar-item.active uses
+//     rgba(var(--brand-rgb), 0.18) for the tint). Light mode is byte-
+//     identical (every property is scoped under html.dark only).
+//
+// Previous notes (v94) preserved below:
 // Version: 3.7.40 — cache suffix bumped to v94 to evict every v93 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Dark-mode pill fix: SELECTED pill / chip toggles on
@@ -577,9 +598,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v94';
-const ASSET_CACHE = 'kamizo-assets-v94';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v94';
+const STATIC_CACHE = 'kamizo-static-v95';
+const ASSET_CACHE = 'kamizo-assets-v95';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v95';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
