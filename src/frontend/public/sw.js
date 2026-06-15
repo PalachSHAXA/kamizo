@@ -1,4 +1,30 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.50 — cache suffix bumped to v104 to evict every v103 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Admin chat list (AdminChannelList.tsx) — Phase 1 of the Anthropic
+//     design migration. Three focused visual swaps that match the
+//     operator-inbox design (kamizo/project/kamizo-admin-chat.jsx):
+//     1. Active conversation row — 3px brand-orange LEFT border (was
+//        2px RIGHT) so the eye reads the active card in LTR order
+//        before reaching the row text. paddingLeft is reduced by 3px
+//        so the row content stays aligned across active/inactive rows.
+//     2. Timestamp tint when unread — text-orange-700 (one step deeper
+//        than the previous text-orange-600) so the time reads as a
+//        status accent on the same brand family as the row indicator.
+//     3. "Все / Непрочитанные" filter — migrated from two free-standing
+//        pills to a single segmented control on a bg-stone-100 (var
+//        --surface-sunken) track with bg-white pills + shadow-sm on the
+//        selected side. role="tablist" + aria-selected for keyboard /
+//        screen-reader users. Unread side disables when count is 0
+//        instead of hiding (less layout shift). Brand-orange dot stays
+//        for the unread side, used only when there's an actual count.
+//   The dialog panel + composer + system request chips + internal-notes
+//   surface + in-chat search are deferred to Phase 2 (the design's
+//   kamizo-admin-dialog.jsx + the chat-spec.md additions). All wiring,
+//   tenant isolation, WebSocket subscription, image markdown rendering,
+//   message data model unchanged. Resident chat untouched.
+//
+// Previous notes (v103) preserved below:
 // Version: 3.7.49 — cache suffix bumped to v103 to evict every v102 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • iOS PWA status-bar dark-mode determinism. v98 wired the iOS
@@ -818,9 +844,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v103';
-const ASSET_CACHE = 'kamizo-assets-v103';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v103';
+const STATIC_CACHE = 'kamizo-static-v104';
+const ASSET_CACHE = 'kamizo-assets-v104';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v104';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

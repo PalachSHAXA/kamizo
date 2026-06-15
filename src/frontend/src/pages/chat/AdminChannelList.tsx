@@ -198,31 +198,51 @@ export function AdminChannelList({
           {language === 'ru' ? 'Обращения жителей' : 'Aholi murojatlari'}
         </p>
 
-        {/* Read/Unread filter */}
-        <div className="flex gap-2 mb-3">
+        {/* Все / Непрочитанные — segmented control per the admin chat
+            design. Single bg-stone-100 track with two pills inside; the
+            selected pill gets var(--themed-surface) (white in light, dark
+            warm-surface in dark) plus a soft shadow. Reads as one cohesive
+            switch instead of two free-standing buttons. Tracks themes via
+            existing safety-net (bg-stone-100 / bg-white). */}
+        <div
+          className="flex gap-1 mb-3 p-[3px] rounded-[10px]"
+          style={{ background: 'var(--surface-sunken, #EDE7DB)' }}
+          role="tablist"
+          aria-label={language === 'ru' ? 'Фильтр сообщений' : 'Xabarlar filtri'}
+        >
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeFilter === 'all'}
             onClick={() => setActiveFilter('all')}
-            className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${
+            className={`flex-1 px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all ${
               activeFilter === 'all'
-                ? 'bg-orange-500 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-500 hover:text-gray-700'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'bg-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            {language === 'ru' ? 'Все' : 'Hammasi'} ({supportChannels.length})
+            {language === 'ru' ? 'Все' : 'Hammasi'} · {supportChannels.length}
           </button>
-          {unreadCount > 0 && (
-            <button
-              onClick={() => setActiveFilter('unread')}
-              className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeFilter === 'unread'
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-200'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${activeFilter === 'unread' ? 'bg-white' : 'bg-red-500'}`} />
-              {language === 'ru' ? 'Новые' : 'Yangi'} ({unreadCount})
-            </button>
-          )}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeFilter === 'unread'}
+            onClick={() => setActiveFilter('unread')}
+            disabled={unreadCount === 0}
+            className={`flex-1 px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeFilter === 'unread'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'bg-transparent text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
+          >
+            {unreadCount > 0 && (
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: 'var(--brand, #F97316)' }}
+              />
+            )}
+            {language === 'ru' ? 'Новые' : 'Yangi'}{unreadCount > 0 ? ` · ${unreadCount}` : ''}
+          </button>
         </div>
 
         {/* Search */}
@@ -377,9 +397,19 @@ export function AdminChannelList({
               <button
                 key={channel.id}
                 onClick={() => onSelectChannel(channel.id)}
+                style={isSelected ? {
+                  // Design pattern (kamizo-admin-chat.jsx ConvCard): the
+                  // active row carries a 3px brand-orange LEFT border + a
+                  // brand-tint background so the eye reads the active card
+                  // before the row text. Border on the left, not the right
+                  // (LTR reading order). bg-orange-50 already themes via
+                  // the v96 safety-net in dark mode.
+                  borderLeft: '3px solid var(--brand, #F97316)',
+                  paddingLeft: 'calc(1rem - 3px)',
+                } : undefined}
                 className={`w-full px-4 py-3.5 flex items-start gap-3 text-left transition-all ${
                   isSelected
-                    ? 'bg-orange-50 border-r-2 border-orange-500'
+                    ? 'bg-orange-50'
                     : hasUnread
                     ? 'bg-orange-50/30 hover:bg-orange-50/50'
                     : 'hover:bg-gray-50'
@@ -416,9 +446,13 @@ export function AdminChannelList({
                       {formatName(channel.name)}
                     </span>
                     {channel.last_message_at && (
+                      // Design tints the timestamp with the deeper brand
+                      // shade (brand-dark = #EA580C) when there are unread
+                      // messages — same brand family as the row indicator,
+                      // one step deeper to read as a status accent.
                       <span
-                        className={`text-[11px] flex-shrink-0 ${
-                          hasUnread ? 'text-orange-600 font-semibold' : 'text-gray-400'
+                        className={`text-[11px] flex-shrink-0 font-semibold ${
+                          hasUnread ? 'text-orange-700' : 'text-gray-400 font-normal'
                         }`}
                       >
                         {formatRelativeTime(channel.last_message_at, language)}
