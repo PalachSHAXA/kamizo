@@ -362,7 +362,7 @@ Email-подписка ComingSoonSection: **отдельный мини-вопр
     - Все секции прокручиваются
     - Анимации работают (GSAP, Lenis)
     - Переключение языков RU ↔ UZ ↔ EN — каждая строка переводится
-    - Модалка «Try Demo» с кодом → `palach27` → редирект на `demo.kamizo.uz`
+    - Модалка «Try Demo» с кодом → `[REDACTED-2026-06-15]` → редирект на `demo.kamizo.uz`
     - Модалка «Заказать демо» → форма → POST `/api/demo-requests` → 200
     - ComingSoon форма → POST `/api/demo-requests` с `type: 'early-access'` → видно в `admin.html`
     - `/api/clients` отдаёт реальные данные (My Helper), фейк-defaults отфильтрованы

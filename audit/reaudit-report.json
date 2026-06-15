@@ -4,7 +4,7 @@
   "credential_notes": {
     "actual_field_name": "login (not username)",
     "actual_password_all_demo_users": "kamizo (not demo123 as in audit spec)",
-    "super_admin_credential_in_source": "login=admin, password=palach27",
+    "super_admin_credential_in_source": "login=admin, password=[REDACTED-2026-06-15]",
     "guard_actual_login": "demo-security",
     "dept_head_actual_login": "demo-dept-head",
     "resident_actual_login": "demo-resident1",
@@ -80,7 +80,7 @@
           "role": "super_admin",
           "status": "FAIL",
           "http_status": 500,
-          "notes": "Login at kamizo.uz returns HTTP 500 D1 error 1101 (SQL error). Both spec credential admin/admin123 and source code credential admin/palach27 fail. Main domain DB has a critical schema or seed issue. This was also FAIL in earlier browser audit today."
+          "notes": "Login at kamizo.uz returns HTTP 500 D1 error 1101 (SQL error). Both spec credential admin/admin123 and source code credential admin/[REDACTED-2026-06-15] fail. Main domain DB has a critical schema or seed issue. This was also FAIL in earlier browser audit today."
         }
       ]
     },
@@ -463,7 +463,7 @@
           "role": "super_admin",
           "status": "FAIL",
           "http_status": 500,
-          "notes": "Login at https://kamizo.uz fails with HTTP 500 D1 error 1101. Both spec credential (admin/admin123) and source code credential (admin/palach27) result in 500. The main domain DB has a critical issue. This was also FAIL in today's earlier browser audit run."
+          "notes": "Login at https://kamizo.uz fails with HTTP 500 D1 error 1101. Both spec credential (admin/admin123) and source code credential (admin/[REDACTED-2026-06-15]) result in 500. The main domain DB has a critical issue. This was also FAIL in today's earlier browser audit run."
         },
         {
           "test": "Super admin dashboard loads",

@@ -75,7 +75,9 @@ route('POST', '/api/seed', async (request, env) => {
     // Super admin account (password: admin123)
     { login: 'superadmin', password: 'admin123', name: 'Super Administrator', role: 'super_admin', phone: '+998900000000' },
     // Demo accounts (password: kamizo) - matching LoginPage demo buttons
-    { login: 'admin', password: 'palach27', name: 'Администратор', role: 'admin', phone: '+998901234567' },
+    // password: previously hardcoded; rotated out of source 2026-06-15.
+    // Set the real value via .env on the seed host before running this.
+    { login: 'admin', password: process.env.ADMIN_SEED_PASSWORD || 'kamizo', name: 'Администратор', role: 'admin', phone: '+998901234567' },
     { login: 'director', password: 'kamizo', name: 'Директор Демо', role: 'director', phone: '+998901000000' },
     { login: 'manager', password: 'kamizo', name: 'Управляющий', role: 'manager', phone: '+998901111111' },
     { login: 'department_head', password: 'kamizo', name: 'Глава отдела', role: 'department_head', phone: '+998901222222' },

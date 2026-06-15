@@ -59,7 +59,7 @@ fi
 
 echo ""
 echo "🎉 Done! Demo accounts:"
-echo "   admin / palach27 (Администратор)"
+echo "   admin / \${ADMIN_SEED_PASSWORD:-kamizo} (Администратор)"
 echo "   director / kamizo (Директор)"
 echo "   manager / kamizo (Управляющий)"
 echo "   resident / kamizo (Житель)"
