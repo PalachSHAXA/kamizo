@@ -232,3 +232,133 @@ the call sites.
 
 If you're tempted to bypass any other rule, post in #frontend before
 shipping.
+
+---
+
+## Security pattern: offline-fallback must never be authoritative
+
+**Background.** Sprint 84 (commit
+[`d13c207b`](https://github.com/PalachSHAXA/kamizo/commit/d13c207b), SW
+v109) closed a critical cross-tenant bypass on the QR-pass scanner.
+The backend has been correct since v93 — `POST /api/guest-codes/validate`
+returns HTTP 403 with `{ valid: false, error: 'cross_tenant', message:
+'…другой УК…' }` and writes a row to `security_audit_log` whenever a
+guard from УК A scans a pass from УК B. The bug lived in the **frontend
+catch block** that fell through to client-side validation
+(`validateGuestAccessCode` in
+[`src/frontend/src/stores/guestAccessStore.ts`](src/frontend/src/stores/guestAccessStore.ts))
+whenever the server response wasn't 2xx. The offline validator had no
+tenant awareness; it decoded the GAPASS payload and returned `valid:
+true` for any well-formed, in-date pass — so the scanner UI flashed
+**green "Доступ разрешён"** for a cross-tenant pass even though the
+backend had explicitly denied access. A guard following the UI would
+physically admit the foreign-tenant guest.
+
+The lesson generalises beyond this one file. Below is the rule going
+forward.
+
+### Rule 1 — `apiRequest` throws `ApiError` for every non-2xx
+
+[`src/frontend/src/services/api/client.ts`](src/frontend/src/services/api/client.ts)
+defines an `ApiError extends Error` that carries `status` (the HTTP
+code) and `body` (the parsed response JSON). Every non-2xx now throws
+`ApiError(message, status, data)` instead of plain `Error`. Old call
+sites that read `err.message` keep working because `ApiError` IS an
+`Error`. **In new code, never `throw new Error()` for an HTTP failure
+— always `throw new ApiError(…)`** so the discriminator is available
+to call sites that need it.
+
+### Rule 2 — security-authoritative catch blocks must check `instanceof ApiError` FIRST
+
+In any `catch` that handles an admission decision, payment
+confirmation, role-elevated action, or any other security-authoritative
+operation, the first check must be:
+
+```ts
+} catch (err) {
+  if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+    // Server made an explicit decision. Respect it. Map err.body.error
+    // to a UI status and return — DO NOT fall through to client-side
+    // validation.
+    return;
+  }
+  // Only reached on genuine network failures (offline / DNS / 5xx /
+  // timeout). Whatever fallback runs here must follow Rule 3.
+}
+```
+
+The reference implementation is
+[`src/frontend/src/pages/GuardQRScannerPage.tsx`](src/frontend/src/pages/GuardQRScannerPage.tsx)
+`processQRCode`.
+
+### Rule 3 — offline-fallback paths must refuse for security-critical roles
+
+Even after Rule 2, the catch block STILL falls through to a fallback
+on genuine network failures. The fallback must NEVER make admission,
+refusal, payment, or authorization decisions for roles that require
+server confirmation. The pattern from
+[`guestAccessStore.ts`](src/frontend/src/stores/guestAccessStore.ts)
+`validateGuestAccessCode`:
+
+```ts
+try {
+  const raw = localStorage.getItem('uk-auth-storage');
+  if (raw) {
+    const role = JSON.parse(raw)?.state?.user?.role;
+    if (role === 'security') {
+      return { valid: false, error: 'offline_not_allowed_for_security' };
+    }
+  }
+} catch { /* private mode — fall through; non-security paths unchanged */ }
+// … rest of the offline validation …
+```
+
+The scanner UI maps this error to a clear "Нет связи с сервером.
+Свяжитесь с диспетчером." banner with no allow-entry button. A guard
+whose request never reached the server has NO basis to admit anyone —
+they should radio dispatch, call the resident, or wait for
+connectivity.
+
+### Rule 4 — design-time test when introducing a new offline-fallback
+
+For any new offline-fallback function, ask:
+
+> *"What would a malicious actor do with it if they can force the catch
+> block to run?"*
+
+If the answer is **"bypass server authorization"** — the fallback must
+refuse for the relevant role (Rule 3).
+
+### Safe offline-fallback examples
+
+- Reading cached read-only data for display (recent announcements,
+  stale message list while reconnecting, building/apartment list
+  that's already-fetched).
+- Optimistic UI updates that the server will reconcile (chat-message
+  send → optimistic bubble → real ID arrives in the next poll).
+- Drafts and undo state.
+
+### Unsafe offline-fallback examples — must use the refusal pattern
+
+- Validating access codes / entry passes / building doors / parking
+  barriers.
+- Approving payments / refunds / discount codes.
+- Granting role-elevated actions (impersonate, take-ownership, etc).
+- Tenant-scoped resource decisions where the client can't verify the
+  caller's tenant matches the resource's tenant from local data
+  alone.
+
+### Reference
+
+- Commit: `d13c207b` — "sec(tenant-iso): close cross-tenant QR bypass
+  via scanner offline-fallback (SW v109)"
+- Files: [`services/api/client.ts`](src/frontend/src/services/api/client.ts),
+  [`pages/GuardQRScannerPage.tsx`](src/frontend/src/pages/GuardQRScannerPage.tsx),
+  [`stores/guestAccessStore.ts`](src/frontend/src/stores/guestAccessStore.ts).
+- Two-layer defense: catch discriminator (Rule 2) + role refusal in the
+  store (Rule 3). Either layer would close the bypass on its own; both
+  ship together as defense-in-depth.
+- Audit log: queried `security_audit_log WHERE event LIKE
+  '%cross_tenant%'` post-deploy; 8 historical attempts in the table,
+  all attributable to test or demo accounts — no real production guard
+  exploited the bypass before it was closed.
