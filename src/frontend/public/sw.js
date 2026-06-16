@@ -1,4 +1,31 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.58 — cache suffix bumped to v112 to evict every v111 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • RoleBadge polish (chat message header):
+//     - Emoji prefix dropped (🤴 / 👤 / 👑 / 🔧 / 📞 / etc. read as
+//       toy/casual on a professional B2B SaaS surface).
+//     - Per-role bright pill (bg-rose-50 + text-rose-700 etc.) replaced
+//       with a neutral themed pill: rounded-full px-2 py-0.5,
+//       bg-stone-100/stone-800 + text-stone-700/stone-300 (light + dark).
+//     - Role is still scannable via a 6px colored dot prefix taken from
+//       the existing per-role hue (purple/orange/violet/amber/blue/green/
+//       yellow/indigo/rose/pink/cyan/slate/emerald-500).
+//     - Label shrunk to text-[10px] uppercase tracking-wide so the
+//       sender name + badge fit on a single line in narrow admin/
+//       resident chat columns without truncation.
+//     - 13 roles preserved verbatim, RU + UZ labels preserved.
+//     - "First message in same-author run" render rule untouched
+//       (MessageBubble unchanged).
+//
+//   Files changed:
+//     src/pages/chat/RoleBadge.tsx       — full rewrite of the badge body
+//
+//   Behaviour preserved:
+//     - v111 admin-chat-dialog mobile fixes (BottomBar hide,
+//       MessageList px-4 sm:px-3).
+//     - All earlier visuals (v104/v107/v108/v109/v110).
+//
+// Previous notes (v111) preserved below:
 // Version: 3.7.57 — cache suffix bumped to v111 to evict every v110 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Admin chat dialog mobile fixes (Capacitor APK + PWA):
@@ -1168,9 +1195,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v111';
-const ASSET_CACHE = 'kamizo-assets-v111';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v111';
+const STATIC_CACHE = 'kamizo-static-v112';
+const ASSET_CACHE = 'kamizo-assets-v112';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v112';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
