@@ -203,16 +203,26 @@ export function ChatPage() {
               onMarkRead={handleMarkRead}
             />
           ) : (
-            <div className="h-full flex items-center justify-center bg-white">
+            {/* Desktop empty state — matches the v2 admin chat design's
+                EmptyDesktop component: 76×76 brand-tinted tile (var
+                --surface) with brand-orange icon, 16px/800 headline,
+                13px helper text capped at 280px width. Both copy lines
+                taken from kamizo-admin-dialog.jsx EmptyDesktop. */}
+            <div className="h-full flex items-center justify-center bg-orange-50/30">
               <div className="text-center">
-                <div className="w-20 h-20 mx-auto mb-4 bg-orange-50 rounded-[24px] flex items-center justify-center">
-                  <MessageCircle className="w-10 h-10 text-orange-300" />
+                <div
+                  className="w-[76px] h-[76px] mx-auto mb-[18px] rounded-[22px] flex items-center justify-center bg-white shadow-md border"
+                  style={{ color: 'var(--brand, #F97316)', borderColor: 'var(--border-c, rgba(28,25,23,0.08))' }}
+                >
+                  <MessageCircle className="w-[34px] h-[34px]" />
                 </div>
-                <p className="text-gray-500 font-medium">
-                  {language === 'ru' ? 'Выберите чат' : 'Chatni tanlang'}
+                <p className="font-extrabold text-[16px] text-gray-700">
+                  {language === 'ru' ? 'Выберите диалог из списка' : "Ro'yxatdan dialog tanlang"}
                 </p>
-                <p className="text-gray-400 text-sm mt-1">
-                  {language === 'ru' ? 'Выберите диалог из списка слева' : 'Chap tarafdagi ro\'yxatdan dialog tanlang'}
+                <p className="text-gray-400 text-[13px] mt-[6px] max-w-[280px] leading-[1.5] mx-auto px-4">
+                  {language === 'ru'
+                    ? 'Слева — обращения жителей. Непрочитанные подняты наверх.'
+                    : "Chap tarafda — aholi murojatlari. O'qilmaganlari yuqorida."}
                 </p>
               </div>
             </div>

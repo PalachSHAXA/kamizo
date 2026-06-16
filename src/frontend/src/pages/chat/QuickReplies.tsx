@@ -27,13 +27,21 @@ export function QuickReplies({
           'Murojaat uchun rahmat!',
         ];
 
+  // Strip styling matches the v2 admin chat design (kamizo-admin-dialog.jsx
+  // quick-replies row at L230-235): tokens-themed pills on a transparent
+  // strip so the strip blends with whatever surface sits behind it (light
+  // app-bg in light, warm-dark in dark via the existing safety-net for
+  // bg-white / border-gray-200 utility classes). Sparkle leading-button
+  // (templates editor trigger) is deferred to Phase 3 — the editable
+  // templates surface needs per-tenant config + a modal which isn't part
+  // of Phase 2 scope. The 5 hardcoded replies stay the same copy.
   return (
-    <div className="px-4 py-2.5 border-b bg-orange-50/50 flex gap-2 overflow-x-auto scrollbar-none">
+    <div className="px-3 pt-2 pb-1.5 flex gap-1.5 overflow-x-auto scrollbar-none border-b border-gray-100">
       {replies.map((reply, i) => (
         <button
           key={i}
           onClick={() => onSelect(reply)}
-          className="flex-shrink-0 px-3.5 py-2 bg-white border border-orange-200 rounded-[12px] text-xs font-medium text-orange-700 hover:bg-orange-50 hover:border-orange-300 transition-all active:scale-95 shadow-sm"
+          className="flex-shrink-0 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-[12.5px] font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95 shadow-sm whitespace-nowrap"
         >
           {reply}
         </button>

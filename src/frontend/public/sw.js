@@ -1,4 +1,45 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.51 — cache suffix bumped to v105 to evict every v104 (and
+// older) cache on the next SW lifecycle update. This release ships the
+// Phase 2 (PARTIAL) of the admin chat redesign against the v2 design
+// bundle (CcgCOhkNYkJE0bRGRP-aPQ — archived under docs/design-bundle-
+// admin-chat/v2/). Two targeted visual swaps that match the v2 design's
+// EmptyDesktop + quick-replies pill row without rewriting the full
+// DialogPanel (which remains deferred):
+//
+//   1. Desktop empty state (ChatPage.tsx, admin/manager view). Was a
+//      80×80 orange-50 tile with text-gray-500 headline; now matches
+//      the v2 design EmptyDesktop component verbatim — 76×76 white
+//      tile with brand-orange icon + 16px/extrabold headline "Выберите
+//      диалог из списка" + 13px helper "Слева — обращения жителей.
+//      Непрочитанные подняты наверх." capped at 280px width and
+//      centered. Resident view empty state untouched.
+//
+//   2. QuickReplies pill row (QuickReplies.tsx). Was bright bg-orange-
+//      50/50 strip with bg-white border-orange-200 pills; now neutral
+//      themed strip (no background) with bg-white border-gray-200
+//      pills, matching the v2 design's quick-reply row that blends
+//      into whatever surface sits behind. Pill copy unchanged, tap-
+//      to-fill-composer behaviour unchanged (operator still edits the
+//      placed text before sending — design intent confirmed).
+//
+// Phase 2 STILL DEFERRED (see docs/design-bundle-admin-chat/v2/README.md):
+//   - DialogPanel header rewrite (avatar + house+apt + search + info)
+//   - In-chat search overlay with ↑↓ nav between matches
+//   - Message bubble redesign (gradient outgoing + operator author label)
+//   - System chips (centered request-state pills)
+//   - Templates editor modal
+//   - Composer auto-grow textarea + plus-icon attach menu
+//   - Info dropdown (resident profile + linked requests + actions)
+// Phase 3 (backend + frontend):
+//   - Internal notes (yellow operator-only bubbles)
+//   - Persisted quick-reply templates per-tenant
+//
+// All wiring (tenant isolation, WebSocket polling, image markdown v81,
+// existing message data model) unchanged. Resident view untouched.
+// Phase 1 list-panel visuals from v104 unchanged.
+//
+// Previous notes (v104) preserved below:
 // Version: 3.7.50 — cache suffix bumped to v104 to evict every v103 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Admin chat list (AdminChannelList.tsx) — Phase 1 of the Anthropic
@@ -844,9 +885,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v104';
-const ASSET_CACHE = 'kamizo-assets-v104';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v104';
+const STATIC_CACHE = 'kamizo-static-v105';
+const ASSET_CACHE = 'kamizo-assets-v105';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v105';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
