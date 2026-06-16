@@ -3,6 +3,8 @@ import { Loader2, AlertCircle, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useModalPresence } from '../stores/modalStore';
+import { useIsMobile } from '../hooks/useBreakpoint';
 import { chatApi } from '../services/api';
 import { AdminChannelList } from './chat/AdminChannelList';
 import { ChatView } from './chat/ChatView';
@@ -54,6 +56,21 @@ export function ChatPage() {
   const playSound = useNotificationSound();
 
   const isResident = user?.role === 'resident' || user?.role === 'tenant' || user?.role === 'commercial_owner';
+  const isMobile = useIsMobile();
+
+  // Hide the floating BottomBar when a manager/director/dispatcher (admin
+  // role) has a conversation OPEN on a MOBILE viewport. Mirror of the
+  // hide-on-/chat rule the BottomBar already enforces for direct-chat
+  // roles (resident/tenant/commercial_owner): the chat dialog owns its
+  // own composer that pins to the bottom, and the floating tab pill
+  // overlaps it. On the list view the bar stays visible (admins navigate
+  // between conversations); on desktop the bar stays visible too (the
+  // two-pane master-detail layout has horizontal space for both).
+  //
+  // Implementation uses the existing useModalPresence pattern (push +1
+  // to modalStore.count, pop on cleanup) — BottomBar already hides
+  // while count>0, so no new conditional is needed in BottomBar itself.
+  useModalPresence(!isResident && isMobile && !!selectedChannelId);
 
   const fetchChannels = useCallback(async () => {
     try {

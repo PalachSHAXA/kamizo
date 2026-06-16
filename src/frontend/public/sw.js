@@ -1,4 +1,39 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.57 — cache suffix bumped to v111 to evict every v110 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Admin chat dialog mobile fixes (Capacitor APK + PWA):
+//     - Floating tab bar (Главная/Заявки/…/Профиль) now HIDES when an
+//       admin/manager/director opens a conversation on mobile, the same
+//       way it already hid for resident roles. Implementation reuses the
+//       existing useModalPresence hook → modalStore.count → BottomBar's
+//       `modalCount > 0` early-return; no new conditional in BottomBar
+//       itself. On the list view the bar stays visible (admins navigate
+//       between channels there); on desktop nothing changes (no bar).
+//       Back button pops the channel, useModalPresence cleanup runs,
+//       bar restores. Telegram/WhatsApp/iMessage UX.
+//     - MessageList px-3 → px-4 sm:px-3. The 12px container padding
+//       was tight on a 412×765 Pixel viewport — combined with
+//       MessageBubble's own px-1 row padding the incoming-message
+//       avatar's left edge sat ~16px from the screen edge and looked
+//       clipped on real-device DPR. 16px container padding on mobile
+//       gives the 40px avatar visible breathing room; desktop stays
+//       at the original 12px (the two-pane layout has its own left
+//       gutter).
+//
+//   Behaviour preserved:
+//     - Resident chat already hid the bar via BottomBar's
+//       `/chat + isDirectChatRole` early-return — no change there.
+//     - Role badges in the bubble header (RoleBadge.tsx) untouched.
+//     - All earlier visuals (v104 Phase 1 cards, v107 Phase 2
+//       DialogHeader/DateSeparator/MessageList, v108 InfoDropdown
+//       etc., v109 ApiError fix, v110 AdminChannelList density)
+//       remain.
+//
+//   Files changed:
+//     src/pages/ChatPage.tsx              — useModalPresence + useIsMobile
+//     src/pages/chat/MessageList.tsx      — px-4 sm:px-3 mobile padding
+//
+// Previous notes (v110) preserved below:
 // Version: 3.7.56 — cache suffix bumped to v110 to evict every v109 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • AdminChannelList mobile-density refactor. The Phase 1 v104 visuals
@@ -1133,9 +1168,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v110';
-const ASSET_CACHE = 'kamizo-assets-v110';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v110';
+const STATIC_CACHE = 'kamizo-static-v111';
+const ASSET_CACHE = 'kamizo-assets-v111';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v111';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

@@ -56,7 +56,15 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto px-3 py-3"
+      // px-3 was tight on Capacitor APK — the incoming-message avatar
+      // (40px circle) touched the left edge because MessageBubble adds
+      // its own px-1 on the row, total ~16px from edge, and on real
+      // device DPR the avatar's shadow looked clipped. Bumped to px-4
+      // on mobile (16px container + 4px row = 20px from edge to avatar
+      // center, ~0px clear of avatar's left edge). Desktop keeps px-3
+      // (12px) since the two-pane layout already has its own left
+      // gutter from the list panel.
+      className="flex-1 overflow-y-auto px-4 sm:px-3 py-3"
       role="log"
       aria-live="polite"
       aria-relevant="additions text"
