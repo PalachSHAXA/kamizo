@@ -1,4 +1,44 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.64 — cache suffix bumped to v118 to evict every v117 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Targeted softening of the "Собрания" section in the bell
+//     notifications dropdown (MobileHeader.tsx), LIGHT theme only.
+//     v117 already softened the dark-theme rendering via the index.css
+//     safety net; this commit addresses a separate user observation
+//     that the LIGHT theme purple band was louder than its sibling
+//     section headers (amber Onboarding, blue Announcements). Root
+//     cause: Tailwind's `purple-50` (#FAF5FF) is markedly brighter
+//     than `blue-50` (#EFF6FF) / `amber-50` (#FFFBEB), so even though
+//     the JSX classes are structurally identical across the three
+//     sections, the purple one read as the most-saturated band.
+//
+//     Class deltas in MobileHeader.tsx, scoped strictly to the
+//     Meetings section JSX (~10 lines):
+//       header band:  bg-purple-50          → bg-purple-50/50
+//                     border-purple-100     → border-purple-100/60
+//       rows:         bg-purple-50/50       → (removed, plain white)
+//       icon circle:  bg-purple-100         → bg-purple-100/60
+//
+//     UNCHANGED (intentionally):
+//       header text  text-purple-700 — needs contrast for legibility
+//       icon text    text-purple-600 — category cue still visible
+//       unread dot   bg-purple-500   — functional marker, must stay vivid
+//       dark theme   inherits v117 safety net translucent treatment
+//       sibling sections (Onboarding amber, Announcements blue) — out of scope
+//       all other purple uses in the app (status pills, icon backgrounds,
+//         settings page module list, etc.) — out of scope
+//
+//   Files changed:
+//     src/components/layout/MobileHeader.tsx — 4 class edits in the Meetings block
+//     src/frontend/public/sw.js              — v3.7.64 / cache v118
+//
+//   Behaviour preserved:
+//     - All v109-v117 fixes untouched.
+//     - Light theme of every other surface in the app — byte-identical.
+//     - Dashboard cards (Сотрудники purple icon, Комплексы teal, Собрания
+//       orange) — UNCHANGED, they live in OverviewTab.tsx, not touched.
+//
+// Previous notes (v117) preserved below:
 // Version: 3.7.63 — cache suffix bumped to v117 to evict every v116 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Three dark-mode polish fixes for the director/admin dashboard,
@@ -1445,9 +1485,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v117';
-const ASSET_CACHE = 'kamizo-assets-v117';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v117';
+const STATIC_CACHE = 'kamizo-static-v118';
+const ASSET_CACHE = 'kamizo-assets-v118';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v118';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

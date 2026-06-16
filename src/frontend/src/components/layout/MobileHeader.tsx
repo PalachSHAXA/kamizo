@@ -238,10 +238,27 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                 </div>
               )}
 
-              {/* Meetings Section */}
+              {/* Meetings Section.
+                  v118: softened light-theme saturation. Tailwind's
+                  purple-50 (#FAF5FF) is brighter than blue-50 / amber-50
+                  used by the sibling section headers in this modal, so
+                  the band stood out as the loudest color block. Now:
+                  - header band uses `bg-purple-50/50` (halved opacity
+                    → pinkish-white that whispers "purple" instead of
+                    shouting it)
+                  - rows lose their `bg-purple-50/50` tint entirely so
+                    they read as plain modal surface (white)
+                  - icon circle dropped to `bg-purple-100/60` to match
+                    the gentler band, icon text stays purple-600 for
+                    recognition
+                  - functional unread dot (`bg-purple-500`) UNCHANGED —
+                    that's the eye-grabbing marker, must stay vivid
+                  - header text (`text-purple-700`) UNCHANGED for legibility
+                  Dark theme inherits the v117 safety net translucent
+                  treatment unchanged. */}
               {upcomingMeetings.length > 0 && (
                 <div className="border-b border-gray-200">
-                  <div className="px-3 py-2 bg-purple-50 border-b border-purple-100">
+                  <div className="px-3 py-2 bg-purple-50/50 border-b border-purple-100/60">
                     <p className="text-xs font-medium text-purple-700 flex items-center gap-1">
                       <Users className="w-3 h-3" />
                       Собрания ({upcomingMeetings.length})
@@ -251,9 +268,9 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                     <div
                       key={meeting.id}
                       onClick={() => { setShowNotifications(false); navigate('/meetings'); }}
-                      className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 bg-purple-50/50 flex items-center gap-2"
+                      className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 flex items-center gap-2"
                     >
-                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 bg-purple-100/60 rounded-full flex items-center justify-center flex-shrink-0">
                         <Users className="w-4 h-4 text-purple-600" />
                       </div>
                       <div className="flex-1 min-w-0">
