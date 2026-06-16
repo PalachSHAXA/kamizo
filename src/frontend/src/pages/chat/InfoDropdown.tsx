@@ -1,14 +1,22 @@
-// Phase 2 / commit 3 — NEW component. Resident-context overlay
-// triggered by the info-button in DialogHeader. Shows the resident's
-// profile (avatar + name + house+apt + role badge), tap-to-call phone,
-// list of linked requests (when the channel API exposes them), and a
-// stub action row matching the v2 design's kamizo-admin-dialog.jsx
-// InfoDropdown component:
+// Phase 2 / commit 3 — Resident-context overlay triggered by the
+// info-button in DialogHeader. Shows the resident's profile (avatar +
+// name + house+apt + role badge), tap-to-call phone, list of linked
+// requests (when the channel API exposes them), and the action rows
+// at the bottom.
 //
-//   • Профиль жителя        → navigates to /admin/residents/:id
-//   • Назначить сотрудника  → no-op placeholder (Phase 3+ work)
-//   • Пометить решённым     → no-op placeholder (Phase 3+ work)
-//   • Закрыть обращение     → no-op placeholder (Phase 3+ work)
+// Action-row history (admin-chat-actions sprint, commits 1-3):
+//   • Профиль жителя        → stub (commit 3 kept it disabled — the
+//                              app router is flat with no :id routes,
+//                              so deep-link to a single resident isn't
+//                              wirable today; see
+//                              docs/known-issues/resident-deep-link.md)
+//   • Назначить сотрудника  → live (commit 2 — AssignStaffModal +
+//                              PATCH /api/admin/chat/channels/:id/assign)
+//   • Пометить решённым    → live (commit 2 — ConfirmDialog +
+//                              PATCH /resolve or /unresolve, label
+//                              flips on channel.resolved_at)
+//   • Закрыть обращение     → REMOVED (commit 3 — duplicate of the
+//                              resolve action, same backend semantics)
 //
 // Backend reality: ChatChannel currently exposes name, apartment,
 // branch, building. Phone / linked-requests / personal_account are
@@ -25,7 +33,7 @@
 // only close path).
 
 import { useEffect, useRef } from 'react';
-import { Phone, User, Users, Check, X, ChevronRight, MapPin, Home } from 'lucide-react';
+import { Phone, User, Users, Check, ChevronRight, MapPin, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type ChatChannel, getAvatarColor, getInitials } from './chatUtils';
 
@@ -174,15 +182,35 @@ export function InfoDropdown({ channel, language, onClose, onAssignClick, onReso
         {/* Actions — all stubs in Phase 2 / commit 3. Profile navigates,
             the rest are placeholders we'll wire in a follow-up. */}
         <div className="py-1">
+          {/* TODO(resident-deep-link): wire to resident profile once the
+              router gains :id-parameterised routes OR the
+              `/residents?focus=:id` convention is approved. Today the
+              app router is flat (no :param routes anywhere in
+              Layout.tsx) and resident detail is reached only via the
+              stateful ResidentCardModal inside the /residents list,
+              with no URL surface. Keeping this row visible but
+              disabled documents the intent for v120 dispatcher users
+              without shipping a half-wired navigation that lands them
+              on a generic list (UX gap). See
+              docs/known-issues/resident-deep-link.md for the full
+              decision log + workaround. */}
           <ActionRow
             icon={<User className="w-4 h-4" />}
             tone="text-gray-700"
             label={language === 'ru' ? 'Профиль жителя' : 'Aholi profili'}
             onClick={() => {
-              const residentId = channel?.resident_id;
-              if (residentId) navigate(`/admin/residents/${residentId}`);
+              // Deep-link route does not exist yet — log the intent so
+              // the gap surfaces in devtools/Sentry instead of being a
+              // silent no-op. Real wiring lands when routing strategy
+              // is decided across the app (see known-issue doc).
+              if (typeof console !== 'undefined' && console.warn) {
+                console.warn('Профиль жителя: deep-link route pending — see docs/known-issues/resident-deep-link.md');
+              }
+              // Suppress unused-import warning until the route lands.
+              void navigate;
               onClose();
             }}
+            disabled
           />
           {/* v120 commit 2 — Assign action wired. Disabled only if the
               parent didn't pass a handler (e.g. the resident view, where
@@ -218,13 +246,14 @@ export function InfoDropdown({ channel, language, onClose, onAssignClick, onReso
             }}
             disabled={!onResolveClick}
           />
-          <ActionRow
-            icon={<X className="w-4 h-4" />}
-            tone="text-red-600"
-            label={language === 'ru' ? 'Закрыть обращение' : 'Murojaatni yopish'}
-            onClick={() => onClose()}
-            disabled
-          />
+          {/* v121 commit 3 — removed "Закрыть обращение" row.
+              It was a stubbed duplicate of "Пометить решённым": both
+              mapped to the same PATCH /resolve endpoint in commit 2,
+              with no distinct backend semantics. Keeping a single
+              action row (label flips on resolved_at) is the cleaner
+              UX. Removing it here also drops the only consumer of
+              the lucide `X` icon in this file, so the import was
+              tightened too. */}
         </div>
       </div>
     </div>
