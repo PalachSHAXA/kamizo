@@ -191,7 +191,20 @@ export function ChatPage() {
   // composer was hiding 34px below the screen.
   return (
     <div
-      className="-mx-4 -mt-4 md:mx-0 md:mt-0 bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden"
+      // v113: dropped the leading `-mx-4 -mt-4`. Previously the chat
+      // wrapper bled into the host page's px-4/pt-4 padding, but the
+      // useEffect above (and the .chat-active CSS rule) already zero
+      // #main-content's padding when chat is open — so the negative
+      // margin became a pure -16px shift that pushed the wrapper past
+      // the LEFT viewport edge. Avatars and bubbles ended up flush
+      // against (and on iPhone, clipped by) the screen. With the
+      // wrapper now at margin 0 it naturally fills the zeroed parent
+      // edge-to-edge, and MessageList's px-3 gutter is honored as
+      // designed. Desktop is unchanged: md:rounded-[22px] +
+      // md:shadow-sm + md:border still wrap the card, and the chat
+      // sits inside the normal main-content padding above the md
+      // breakpoint.
+      className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden"
       style={{
         height: 'calc(100dvh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
         maxHeight: 'calc(100dvh - 68px - env(safe-area-inset-bottom, 0px))',

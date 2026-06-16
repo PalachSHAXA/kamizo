@@ -1,4 +1,38 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.59 — cache suffix bumped to v113 to evict every v112 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Admin chat dialog — root-cause fix for left-edge clipping
+//     (residual bug from v111's cosmetic padding bump):
+//     - ChatPage's admin-view wrapper dropped `-mx-4 -mt-4`. Those
+//       classes were designed for a host page that paints px-4/pt-4
+//       gutters, but the same component's useEffect (plus the
+//       `.chat-active { padding: 0 !important }` CSS rule in
+//       index.css) already zeroes #main-content's padding while chat
+//       is open. With parent padding=0, `-mx-4` became a pure -16px
+//       shift that pushed the wrapper PAST the left viewport edge.
+//       Avatars and bubbles sat flush against (and on iPhone, were
+//       clipped by) the screen rail. Desktop md:rounded-[22px] +
+//       md:shadow-sm + md:border layout unchanged — those classes
+//       are unaffected, and on desktop main-content keeps its
+//       normal padding.
+//     - MessageList reverted px-4 sm:px-3 → px-3. The v111 mobile
+//       bump was buying back what -mx-4 stole; with the wrapper now
+//       at margin 0 the designed 12px gutter is correct again,
+//       and the extra 4px on each side was narrowing the bubble
+//       max-width.
+//
+//   Files changed:
+//     src/pages/ChatPage.tsx               — admin wrapper className
+//     src/pages/chat/MessageList.tsx       — revert to px-3
+//
+//   Behaviour preserved:
+//     - v111 BottomBar hide rule (modalStore-driven) untouched.
+//     - v112 RoleBadge polish untouched.
+//     - Resident-view loading + error wrappers in ChatPage still use
+//       -mx-4 -mt-4 (they have the same bug but are transient ~1s
+//       states, intentionally left for a follow-up if needed).
+//
+// Previous notes (v112) preserved below:
 // Version: 3.7.58 — cache suffix bumped to v112 to evict every v111 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • RoleBadge polish (chat message header):
@@ -1195,9 +1229,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v112';
-const ASSET_CACHE = 'kamizo-assets-v112';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v112';
+const STATIC_CACHE = 'kamizo-static-v113';
+const ASSET_CACHE = 'kamizo-assets-v113';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v113';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

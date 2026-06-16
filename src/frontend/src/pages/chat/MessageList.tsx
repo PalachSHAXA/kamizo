@@ -56,15 +56,13 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
-      // px-3 was tight on Capacitor APK — the incoming-message avatar
-      // (40px circle) touched the left edge because MessageBubble adds
-      // its own px-1 on the row, total ~16px from edge, and on real
-      // device DPR the avatar's shadow looked clipped. Bumped to px-4
-      // on mobile (16px container + 4px row = 20px from edge to avatar
-      // center, ~0px clear of avatar's left edge). Desktop keeps px-3
-      // (12px) since the two-pane layout already has its own left
-      // gutter from the list panel.
-      className="flex-1 overflow-y-auto px-4 sm:px-3 py-3"
+      // v113: reverted to plain px-3 (12px). The v111 mobile bump to
+      // px-4 was cosmetic compensation for ChatPage's -mx-4 wrapper
+      // which pushed the whole chat 16px past the left viewport edge.
+      // With v113's wrapper-margin fix that shift is gone, so the
+      // designed 12px gutter is the right value again — anything more
+      // narrows the bubble max-width unnecessarily.
+      className="flex-1 overflow-y-auto px-3 py-3"
       role="log"
       aria-live="polite"
       aria-relevant="additions text"
