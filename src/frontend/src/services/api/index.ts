@@ -1,7 +1,7 @@
 // Barrel re-export for all API modules
 
 // Core client infrastructure
-export { apiRequest, invalidateCache, cachedGet, apiRequestWrapped, transformUser, CACHE_TTL, API_URL, WS_URL, getToken } from './client';
+export { apiRequest, ApiError, invalidateCache, cachedGet, apiRequestWrapped, transformUser, CACHE_TTL, API_URL, WS_URL, getToken } from './client';
 export type { ApiResponse } from './client';
 
 // Auth

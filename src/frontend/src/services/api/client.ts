@@ -124,6 +124,31 @@ export function invalidateCache(pattern?: string): void {
 // Default timeout for API requests (30 seconds)
 const API_TIMEOUT = 30000;
 
+// Sprint 84 — security: ApiError carries the parsed HTTP status + body
+// so callers can DISCRIMINATE a server-rejected request (non-2xx with
+// a parseable JSON body) from a true network failure (offline, DNS
+// fail, timeout, 5xx without JSON). Critical for the QR-pass scanner:
+// before this class, every catch block could only see `error.message`
+// and had to assume the server might be unreachable — which led the
+// scanner's offline-fallback path to treat a definitive 403
+// cross_tenant as "we don't know, try offline validation", and the
+// offline path admitted any well-formed foreign-tenant GAPASS.
+//
+// The class extends Error so EVERY existing call site that just reads
+// `error.message` keeps working unchanged; only call sites that need
+// the discriminator (currently: GuardQRScannerPage.tsx) check
+// `instanceof ApiError` and read `.status` / `.body`.
+export class ApiError extends Error {
+  public readonly status: number;
+  public readonly body: unknown;
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 // Helper for API requests - returns raw data for backward compatibility
 export async function apiRequest<T>(
   endpoint: string,
@@ -161,7 +186,7 @@ export async function apiRequest<T>(
         // some endpoints legitimately 401 while the auth middleware's tenant
         // resolution catches up for this role.
         if (now < loginGraceUntil) {
-          throw new Error(pickErrorMessage(data));
+          throw new ApiError(pickErrorMessage(data), response.status, data);
         }
         if (now - first401Timestamp > WINDOW_MS) {
           // Reset counter if too much time passed since first 401
@@ -189,12 +214,12 @@ export async function apiRequest<T>(
           } catch { /* storage cleanup may fail */ }
           // Reload page to show login (delayed to allow state cleanup)
           setTimeout(() => window.location.reload(), 100);
-          throw new Error('Session expired');
+          throw new ApiError('Session expired', response.status, data);
         }
         // First 401: just throw, don't wipe session — might be transient
-        throw new Error(pickErrorMessage(data));
+        throw new ApiError(pickErrorMessage(data), response.status, data);
       }
-      throw new Error(pickErrorMessage(data));
+      throw new ApiError(pickErrorMessage(data), response.status, data);
     }
 
     return data;

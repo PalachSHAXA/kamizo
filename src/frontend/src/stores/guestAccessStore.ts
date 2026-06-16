@@ -215,6 +215,36 @@ export const useGuestAccessStore = create<GuestAccessState>()(
     },
 
     validateGuestAccessCode: (qrToken) => {
+      // Sprint 84 LAYER 2 — security role guard. Offline-fallback
+      // validation of a GAPASS payload has NO tenant awareness (the
+      // payload doesn't carry tenant_id, and re-issuing every existing
+      // token to add it is out of scope). For a security guard who is
+      // offline, "I decoded the token and the dates look fine" is NOT
+      // a sufficient basis to admit a guest — the pass could belong to
+      // any УК, and admitting cross-tenant guests is a real security
+      // incident.
+      //
+      // The guard's job is to admit or refuse. Without server
+      // confirmation they have NO basis to admit. Recommended UX flow
+      // when this hits: radio dispatch, call the resident, or wait for
+      // connectivity. Layer 1 in GuardQRScannerPage.tsx maps this
+      // error code to a yellow/orange "Нет связи" banner with no
+      // allow-entry button.
+      //
+      // We read the role directly from localStorage (auth-storage's
+      // persisted shape) instead of importing useAuthStore to avoid
+      // a require cycle (api/client → store → api). This mirrors how
+      // pickErrorMessage reads language-storage in api/client.ts.
+      try {
+        const raw = localStorage.getItem('uk-auth-storage');
+        if (raw) {
+          const role = (JSON.parse(raw)?.state?.user?.role ?? '') as string;
+          if (role === 'security') {
+            return { valid: false, error: 'offline_not_allowed_for_security' };
+          }
+        }
+      } catch { /* private mode / blocked storage — fall through; non-security paths are unchanged */ }
+
       const now = new Date();
 
       // Check if this is a self-contained token (starts with GAPASS:)

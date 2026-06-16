@@ -1,4 +1,64 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.55 — cache suffix bumped to v109 to evict every v108 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • SECURITY FIX (Sprint 84): cross-tenant QR pass bypass via the
+//     scanner's offline-fallback catch block. Backend has been correct
+//     since v93 — POST /api/guest-codes/validate returns 403 with
+//     {valid:false, error:'cross_tenant', message:'...другой УК...'}
+//     and writes a security_audit_log row when a guard from УК A
+//     scans a pass from УК B. But the frontend's apiRequest throws on
+//     ANY non-2xx, and the GuardQRScannerPage catch block fell through
+//     to validateGuestAccessCode (in guestAccessStore) which decodes
+//     the GAPASS payload locally with NO tenant awareness and returns
+//     {valid:true}. Result: GREEN "Доступ разрешён" for a foreign-
+//     tenant pass on every cross-tenant scan. Reproduced end-to-end
+//     against api.kamizo.uz in the diagnostic step before this fix.
+//
+//   Two-layer defense:
+//
+//     LAYER 1 — distinguish server-rejected from network-failed.
+//       services/api/client.ts: new ApiError class extends Error,
+//       carries status + body. apiRequest throws ApiError(message,
+//       status, data) instead of plain Error on every non-2xx. Old
+//       call sites that just read err.message are unchanged (ApiError
+//       IS an Error; .message still works). Exported from the api
+//       barrel for the discriminator.
+//
+//       pages/GuardQRScannerPage.tsx: catch block first checks
+//       err instanceof ApiError && err.status>=400 && <500. If yes →
+//       the server gave a definitive 4xx; we map err.body.error to a
+//       UI status (cross_tenant → red banner, etc.) WITHOUT falling
+//       through to offline validation. The catch only reaches the
+//       client-side validateGuestAccessCode path for genuine network
+//       failures (offline / DNS / 5xx without JSON / timeout).
+//
+//     LAYER 2 — refuse offline validation for the security role.
+//       stores/guestAccessStore.ts validateGuestAccessCode: reads the
+//       current user role from uk-auth-storage (avoids a require
+//       cycle with api/client). If role === 'security', returns
+//       {valid:false, error:'offline_not_allowed_for_security'}
+//       BEFORE decoding the GAPASS payload. Even if Layer 1 ever
+//       misses a path, a guard cannot offline-admit any pass — they
+//       must reach the server (which has the tenant check). The
+//       scanner UI maps this error to a yellow/orange "Нет связи с
+//       сервером. Свяжитесь с диспетчером." banner with no allow-
+//       entry button.
+//
+//   Verified end-to-end after deploy: same setup (myhelper guest
+//   pass scanned by moon security guard) now correctly returns the
+//   server's 403 cross_tenant response in the UI catch handler, the
+//   UI red-banners the attempt, and there is NO allow-entry button.
+//   Same-tenant happy path still works (moon guard scanning a moon
+//   pass returns 200 + green + allow-entry). Wrong-password login
+//   still surfaces the auth-error message (ApiError.message survives
+//   all the way to the LoginPage error display).
+//
+//   No backend changes. No GAPASS token format change (would require
+//   re-issuing every existing token). No other guest-pass routes
+//   touched. ResidentChatView, AdminChannelList, Phase 2 chat work
+//   all untouched.
+//
+// Previous notes (v108) preserved below:
 // Version: 3.7.54 — cache suffix bumped to v108 to evict every v107 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Phase 2 / commit 3 (PARTIAL) of the admin chat DialogPanel
@@ -1030,9 +1090,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v108';
-const ASSET_CACHE = 'kamizo-assets-v108';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v108';
+const STATIC_CACHE = 'kamizo-static-v109';
+const ASSET_CACHE = 'kamizo-assets-v109';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v109';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

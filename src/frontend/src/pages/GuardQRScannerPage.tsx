@@ -7,7 +7,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestAccessStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { guestCodesApi, apiRequest } from '../services/api';
+import { guestCodesApi, apiRequest, ApiError } from '../services/api';
 import { type GuestAccessCode } from '../types';
 import { Modal } from '../components/common';
 import { formatName } from '../utils/formatName';
@@ -26,7 +26,10 @@ interface ScanLog {
 }
 
 type ScanResult = {
-  status: 'success' | 'expired' | 'used' | 'revoked' | 'invalid' | 'not_yet_valid' | 'cross_tenant';
+  // Sprint 84 added 'offline_not_allowed' for the Layer-2 case where
+  // a security guard tries to scan a pass with no server connection —
+  // see guestAccessStore.validateGuestAccessCode.
+  status: 'success' | 'expired' | 'used' | 'revoked' | 'invalid' | 'not_yet_valid' | 'cross_tenant' | 'offline_not_allowed';
   code?: GuestAccessCode;
   message: string;
 };
@@ -70,42 +73,76 @@ export function GuardQRScannerPage() {
   }, []);
 
   const processQRCode = useCallback(async (qrData: string) => {
-    // Server-side validation (authoritative); fallback to client-side store if offline
+    // Sprint 84 — security: the catch path no longer falls through to
+    // client-side validation when the server returned a definitive 4xx.
+    // Previously, ANY thrown error from the await landed in the catch
+    // and ran the offline-fallback `validateGuestAccessCode`, which
+    // (1) accepted any well-formed GAPASS regardless of tenant, and
+    // (2) returned `valid: true` → the UI flashed GREEN "Доступ
+    // разрешён" for a cross-tenant pass even though the server had
+    // explicitly rejected it with 403 cross_tenant. Now we discriminate
+    // server-rejected from network-failed via ApiError (thrown only
+    // when the server gave us a parseable response).
+    //
+    // Helper that maps the backend's error code to a UI status.
+    // Shared between the in-body `!serverResult.valid` branch and the
+    // ApiError branch in the catch (where the same body shape arrives
+    // via err.body instead of through the success path).
+    const mapServerError = (errCode: string | undefined): { status: ScanResult['status']; message: string } => {
+      switch (errCode) {
+        case 'expired': return { status: 'expired', message: language === 'ru' ? 'Пропуск истёк' : 'Ruxsatnoma muddati tugagan' };
+        case 'revoked': return { status: 'revoked', message: language === 'ru' ? 'Пропуск отменён' : 'Ruxsatnoma bekor qilingan' };
+        case 'already_used':
+        case 'max_uses_reached': return { status: 'used', message: language === 'ru' ? 'Пропуск уже использован' : 'Ruxsatnoma ishlatilgan' };
+        case 'not_yet_valid': return { status: 'not_yet_valid', message: language === 'ru' ? 'Пропуск ещё не действителен' : 'Ruxsatnoma hali amal qilmaydi' };
+        case 'cross_tenant':
+          // Foreign-tenant pass — distinct status so the UI shows a red
+          // "wrong УК" banner instead of the generic "invalid". Backend
+          // intentionally doesn't return code details for this branch
+          // (no tenant-name leak); we don't read serverResult.code.
+          return {
+            status: 'cross_tenant',
+            message: language === 'ru'
+              ? 'Пропуск принадлежит другой УК. Доступ запрещён.'
+              : "Ruxsatnoma boshqa boshqaruv kompaniyasiga tegishli. Kirish taqiqlanadi.",
+          };
+        default: return { status: 'invalid', message: language === 'ru' ? 'Недействительный QR-код' : "Noto'g'ri QR-kod" };
+      }
+    };
+
     try {
-      // Sprint 65 P0/F5: backend expects `qr_token`. Was sending `qr_data`,
-      // which made the server destructure to `undefined.startsWith` → 500,
-      // and the catch fell into the client-only validation that returns
-      // true for ANY well-formed GAPASS — effectively bypassing the server.
+      // Sprint 65 P0/F5: backend expects `qr_token` (was `qr_data`, which
+      // made the server destructure to `undefined.startsWith` → 500).
       const serverResult = await apiRequest<{valid: boolean; error?: string; code?: GuestAccessCode}>('/api/guest-codes/validate', {
         method: 'POST',
         body: JSON.stringify({ qr_token: qrData }),
       });
       if (!serverResult.valid) {
-        let status: ScanResult['status'] = 'invalid';
-        let message = '';
-        switch (serverResult.error) {
-          case 'expired': status = 'expired'; message = language === 'ru' ? 'Пропуск истёк' : 'Ruxsatnoma muddati tugagan'; break;
-          case 'revoked': status = 'revoked'; message = language === 'ru' ? 'Пропуск отменён' : 'Ruxsatnoma bekor qilingan'; break;
-          case 'already_used': case 'max_uses_reached': status = 'used'; message = language === 'ru' ? 'Пропуск уже использован' : 'Ruxsatnoma ishlatilgan'; break;
-          case 'not_yet_valid': status = 'not_yet_valid'; message = language === 'ru' ? 'Пропуск ещё не действителен' : 'Ruxsatnoma hali amal qilmaydi'; break;
-          case 'cross_tenant':
-            // Foreign-tenant pass — distinct status so the UI shows a red
-            // "wrong УК" banner instead of the generic "invalid". Backend
-            // intentionally doesn't return code details for this branch
-            // (no tenant-name leak); we ignore serverResult.code here too.
-            status = 'cross_tenant';
-            message = language === 'ru'
-              ? 'Пропуск принадлежит другой УК. Доступ запрещён.'
-              : "Ruxsatnoma boshqa boshqaruv kompaniyasiga tegishli. Kirish taqiqlanadi.";
-            break;
-          default: status = 'invalid'; message = language === 'ru' ? 'Недействительный QR-код' : "Noto'g'ri QR-kod";
-        }
-        setScanResult({ status, code: serverResult.code || null, message });
+        const m = mapServerError(serverResult.error);
+        setScanResult({ status: m.status, code: serverResult.code || null, message: m.message });
       } else {
         setScanResult({ status: 'success', code: serverResult.code, message: language === 'ru' ? 'Пропуск найден' : 'Ruxsatnoma topildi' });
       }
-    } catch {
-      // Offline fallback: use client-side store data
+    } catch (err) {
+      // Sprint 84 LAYER 1b: distinguish server-rejected (definitive 4xx
+      // with a parseable body) from a genuine network failure. The
+      // critical case is the cross-tenant 403 — apiRequest throws
+      // ApiError(status=403, body={valid:false, error:'cross_tenant', ...}).
+      // We must NOT fall through to offline-fallback validation here
+      // because the offline path has no tenant awareness and would
+      // wave the guest through.
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+        const body = err.body as { valid?: boolean; error?: string; code?: GuestAccessCode } | null;
+        const m = mapServerError(body?.error);
+        setScanResult({ status: m.status, code: body?.code || null, message: m.message });
+        return;
+      }
+
+      // Genuine network failure (offline / DNS / 5xx without JSON /
+      // timeout) — fall through to the client-side store. Layer 2 in
+      // guestAccessStore.validateGuestAccessCode refuses to validate
+      // for role='security' so even this path can no longer wave a
+      // cross-tenant pass through.
       const result = validateGuestAccessCode(qrData);
       if (!result.valid) {
         let message = '';
@@ -115,6 +152,12 @@ export function GuardQRScannerPage() {
           case 'revoked': status = 'revoked'; message = language === 'ru' ? 'Пропуск отменён' : 'Ruxsatnoma bekor qilingan'; break;
           case 'already_used': case 'max_uses_reached': status = 'used'; message = language === 'ru' ? 'Пропуск уже использован' : 'Ruxsatnoma ishlatilgan'; break;
           case 'not_yet_valid': status = 'not_yet_valid'; message = language === 'ru' ? 'Пропуск ещё не действителен' : 'Ruxsatnoma hali amal qilmaydi'; break;
+          case 'offline_not_allowed_for_security':
+            status = 'offline_not_allowed';
+            message = language === 'ru'
+              ? 'Нет связи с сервером. Сканирование пропусков требует подключения. Свяжитесь с диспетчером.'
+              : 'Server bilan aloqa yo\'q. Ruxsatnoma skanerlash uchun ulanish kerak. Dispetcher bilan bog\'laning.';
+            break;
           default: status = 'invalid'; message = language === 'ru' ? 'Недействительный QR-код' : "Noto'g'ri QR-kod";
         }
         setScanResult({ status, code: result.code, message });
