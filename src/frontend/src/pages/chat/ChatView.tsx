@@ -14,7 +14,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { chatApi } from '../../services/api';
 import { subscribeToChatMessages } from '../../hooks/useWebSocketSync';
-import { CHAT_CHANNEL_LABELS } from '../../types';
+import { CHAT_CHANNEL_LABELS, type UserRole } from '../../types';
 import { ChatComposer } from './ChatComposer';
 import { QuickReplies } from './QuickReplies';
 import { MessageList } from './MessageList';
