@@ -376,7 +376,13 @@ export function ChatView({
   return (
     <div
       ref={chatContainerRef}
-      className="h-full flex flex-col bg-[#FEFAF6]"
+      // v114: added `min-w-0 min-h-0` so this column flex container can
+      // actually shrink to fit its parent. Combined with the matching
+      // additions on ChatPage.tsx's two-pane wrapper, this stops the chat
+      // from inflating to its own content's intrinsic size — DialogHeader
+      // stays sticky at top, Composer stays sticky at bottom, and
+      // MessageList scrolls inside the bounded middle band as designed.
+      className="h-full flex flex-col bg-[#FEFAF6] min-w-0 min-h-0"
       style={keyboardOffset > 0 ? { height: `calc(100% - ${keyboardOffset}px)` } : undefined}
     >
       {/* Phase 2 / commit 2: extracted to DialogHeader. Same markup

@@ -97,20 +97,24 @@ export function QuickReplies({
         </button>
       </div>
 
-      {/* TemplatesPicker popover. Anchored to the bottom-right of the
-          QuickReplies strip; clicking the backdrop closes. Tapping a
-          template inserts it into the composer (calls onSelect with the
-          template text). No auto-send — matches the inline replies'
-          edit-before-send convention. */}
+      {/* TemplatesPicker popover. v114: switched from `bottom-full` (above
+          the strip) to `top-full` (below). In the admin ChatView layout
+          QuickReplies sits at the TOP of the chat (right under
+          DialogHeader), so `bottom-full` rendered the popover ABOVE the
+          header — off-screen at y≈-326 per CDP probe. Anchoring below
+          the strip keeps the popover inside the viewport. Tapping the
+          backdrop closes. Tapping a template inserts it into the
+          composer (calls onSelect with the template text). No auto-send
+          — matches the inline replies' edit-before-send convention. */}
       {showTemplates && (
         <div
           onClick={() => setShowTemplates(false)}
-          className="absolute inset-x-0 bottom-full z-40"
+          className="absolute inset-x-0 top-full z-40"
           role="presentation"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-3 bottom-2 w-[min(20rem,90vw)] bg-white rounded-[16px] shadow-xl border border-gray-100 overflow-hidden"
+            className="absolute right-3 top-2 w-[min(20rem,90vw)] bg-white rounded-[16px] shadow-xl border border-gray-100 overflow-hidden"
             role="dialog"
             aria-label={isRu ? 'Шаблоны ответов' : 'Javob shablonlari'}
           >

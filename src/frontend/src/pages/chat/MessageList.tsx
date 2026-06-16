@@ -57,12 +57,17 @@ export function MessageList({
     <div
       ref={containerRef}
       // v113: reverted to plain px-3 (12px). The v111 mobile bump to
-      // px-4 was cosmetic compensation for ChatPage's -mx-4 wrapper
-      // which pushed the whole chat 16px past the left viewport edge.
-      // With v113's wrapper-margin fix that shift is gone, so the
-      // designed 12px gutter is the right value again — anything more
-      // narrows the bubble max-width unnecessarily.
-      className="flex-1 overflow-y-auto px-3 py-3"
+      // px-4 was cosmetic compensation for ChatPage's -mx-4 wrapper.
+      //
+      // v114: added `min-h-0` so this flex-1 item can actually shrink
+      // below its content's intrinsic height. Without it, `flex-1` +
+      // `overflow-y-auto` is a footgun — the element grows tall enough
+      // to fit all its children (3200+ CSS px of bubbles), the
+      // overflow-y-auto never engages, and the outer page scrolls
+      // instead. With `min-h-0` the flex item respects the bounded
+      // height handed down from ChatView's `h-full flex flex-col`, and
+      // the message stream scrolls internally as designed.
+      className="flex-1 min-h-0 overflow-y-auto px-3 py-3"
       role="log"
       aria-live="polite"
       aria-relevant="additions text"

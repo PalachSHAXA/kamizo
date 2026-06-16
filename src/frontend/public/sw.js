@@ -1,4 +1,74 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.60 — cache suffix bumped to v114 to evict every v113 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Admin chat mobile layout — root-cause fix for everything-offscreen:
+//     - Prior verify report (v113 era) found DialogHeader, search button,
+//       info button, InfoDropdown, and TemplatesPicker were all positioned
+//       OUTSIDE the 412 CSS px mobile viewport. CDP probe showed the chat
+//       panel rendering at ~947 CSS px wide and ~3428 CSS px tall, with
+//       the outer .main-content scroller carrying a scrollTop of ~2607 —
+//       i.e. the chat had inflated past the viewport in both axes and
+//       the outer page had auto-scrolled toward the bottom, hiding the
+//       header.
+//     - Root cause: missing `min-w-0` / `min-h-0` on the flex chain.
+//       A flex item defaults to `min-width: auto` / `min-height: auto`,
+//       which sizes to its content's min-content dimensions and refuses
+//       to shrink below. Combined with `flex: 1` + `overflow-y-auto` on
+//       MessageList, this is a classic footgun — the overflow never
+//       clips because the flex item itself grows tall enough to hide
+//       the need for any scrollbar.
+//     - Fix touches three files, each adding a small set of utility
+//       classes (zero new logic):
+//         ChatPage.tsx           — two-pane wrapper + both panes get
+//                                  `min-w-0 min-h-0`
+//         ChatView.tsx           — h-full flex flex-col gets `min-w-0 min-h-0`
+//         MessageList.tsx        — flex-1 overflow-y-auto gets `min-h-0`
+//     - Net effect on mobile (<768px): single-column dialog fills the
+//       viewport, DialogHeader pinned at top, Composer pinned at bottom,
+//       message list scrolls inside the bounded middle band. Telegram /
+//       WhatsApp UX as spec'd. Popovers (InfoDropdown +
+//       TemplatesPicker) anchor against in-viewport elements, render
+//       inside the viewport.
+//     - Desktop (>=768px): unchanged. The two-pane layout still works
+//       because the panels have explicit widths (md:w-[280px] etc.)
+//       that exceed any min-content; `min-w-0` is a no-op when the
+//       intrinsic content fits within the explicit width.
+//
+//     - PLUS a second root cause uncovered during verify: Capacitor's
+//       Android WebView does NOT support dynamic viewport units
+//       (100dvh / 100svh / 100lvh all resolve to 0px on this build).
+//       The chat wrapper's `height: calc(100dvh - 68px - safe-area)`
+//       resolved to 0 → invalid → fell back to auto → wrapper inflated
+//       to content. Switched to `100vh` (which DOES work, returning
+//       821 CSS px) so the calc resolves to ~753 px as designed.
+//       Same change duplicated in ResidentChatView.tsx (same pattern,
+//       same bug). Other dvh callsites in the codebase (Header.tsx
+//       dropdown maxHeight, LoginPage.tsx, DashboardTab.tsx min-height)
+//       are likely affected too but out of scope for this fix — flagged
+//       separately for follow-up.
+//     - PLUS a third issue: TemplatesPicker popover was anchored with
+//       `bottom-full` (above the QuickReplies strip). In the admin
+//       ChatView layout QuickReplies sits at the TOP of the chat, so
+//       `bottom-full` rendered the popover ABOVE the DialogHeader at
+//       y=-326 — entirely offscreen. Switched to `top-full` so it
+//       opens below the strip, fully inside the viewport.
+//
+//   Files changed:
+//     src/pages/ChatPage.tsx               — min-w-0/min-h-0 on two-pane + right pane; dvh→vh in wrapper height
+//     src/pages/chat/ChatView.tsx          — min-w-0/min-h-0 on outer column flex
+//     src/pages/chat/MessageList.tsx       — min-h-0 on scroller
+//     src/pages/chat/ResidentChatView.tsx  — dvh→vh in wrapper height
+//     src/pages/chat/QuickReplies.tsx      — TemplatesPicker bottom-full → top-full
+//
+//   Behaviour preserved:
+//     - v111 BottomBar hide rule (modalStore-driven) untouched.
+//     - v112 RoleBadge polish untouched.
+//     - v113 wrapper-margin fix untouched.
+//     - Resident view (ResidentChatView) untouched.
+//     - AdminChannelList untouched.
+//     - Phase 1 v104 / Phase 2 v107-v112 visuals untouched.
+//
+// Previous notes (v113) preserved below:
 // Version: 3.7.59 — cache suffix bumped to v113 to evict every v112 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Admin chat dialog — root-cause fix for left-edge clipping
@@ -1229,9 +1299,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v113';
-const ASSET_CACHE = 'kamizo-assets-v113';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v113';
+const STATIC_CACHE = 'kamizo-static-v114';
+const ASSET_CACHE = 'kamizo-assets-v114';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v114';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

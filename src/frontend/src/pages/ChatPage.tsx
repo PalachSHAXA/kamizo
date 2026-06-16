@@ -206,14 +206,26 @@ export function ChatPage() {
       // breakpoint.
       className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden"
       style={{
-        height: 'calc(100dvh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
-        maxHeight: 'calc(100dvh - 68px - env(safe-area-inset-bottom, 0px))',
+        // v114: switched from `100dvh` → `100vh`. The Capacitor Android
+        // WebView (Chrome 108+ on emulator, lower on real devices) DOES
+        // NOT support dynamic viewport units — calc(100dvh - 68px)
+        // resolved to 0px, the height style was invalid, the wrapper
+        // fell back to auto height, and the chat inflated to its
+        // content's full ~5928 CSS px tall. That outer overflow forced
+        // .main-content to scroll, dragging DialogHeader to y=-5107.
+        // 100vh works correctly (821 CSS px on the test viewport), so
+        // the calc resolves to ~753 px as designed — chat wrapper now
+        // owns a bounded height, the min-h-0 flex chain inside engages,
+        // and MessageList scrolls internally instead of inflating.
+        // Same pattern duplicated to ResidentChatView.tsx.
+        height: 'calc(100vh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
+        maxHeight: 'calc(100vh - 68px - env(safe-area-inset-bottom, 0px))',
       }}
     >
-      <div className="h-full flex">
+      <div className="h-full flex min-w-0 min-h-0">
         <div className={`${
           selectedChannelId ? 'hidden md:flex md:flex-col' : 'flex flex-col'
-        } w-full md:w-[280px] lg:w-[340px] border-r`}>
+        } w-full md:w-[280px] lg:w-[340px] border-r min-w-0 min-h-0`}>
           <AdminChannelList
             channels={channels}
             onSelectChannel={handleSelectChannel}
@@ -222,9 +234,20 @@ export function ChatPage() {
           />
         </div>
 
+        {/* v114: added `min-w-0 min-h-0` so the right panel shrinks to fit its
+            parent instead of inflating to its child's intrinsic content size.
+            Without `min-w-0` a flex item defaults to `min-width: auto`, which
+            measures content's min-content and refuses to shrink below it. On
+            mobile, this caused ChatView's DialogHeader + MessageList content
+            to size the right panel at ~947 CSS px on a 412 viewport, pushing
+            search/info buttons offscreen right and making InfoDropdown /
+            TemplatesPicker render at x=591+. Same logic for `min-h-0` —
+            without it MessageList's overflow-y-auto can't actually clip its
+            content, so the list grows tall and the outer .main-content
+            scrolls instead, dragging DialogHeader off-screen vertically. */}
         <div className={`${
           selectedChannelId ? 'flex flex-col' : 'hidden md:flex md:flex-col'
-        } flex-1`}>
+        } flex-1 min-w-0 min-h-0`}>
           {selectedChannelId ? (
             <ChatView
               channelId={selectedChannelId}

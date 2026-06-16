@@ -603,7 +603,9 @@ export function ResidentChatView({ channel, onBack }: Props) {
           borderRadius: 22,
           display: 'flex',
           flexDirection: 'column',
-          height: 'calc(100dvh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
+          // v114: dvh → vh — Capacitor Android WebView returns 0 for
+          // dynamic viewport units, breaking this height calc. vh works.
+          height: 'calc(100vh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
           maxWidth: 960,
           margin: '0 auto',
           width: '100%',
