@@ -9,11 +9,34 @@ interface MessageContentProps {
 
 // Fullscreen image lightbox
 function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  // v116: the prior implementation did `a.click()` on a detached anchor —
+  // works in some desktop browsers, silently no-ops in the Capacitor
+  // Android WebView (which is what users tap the download icon from).
+  // Fix: attach the anchor to the document before clicking, then remove.
+  // Also generate a sensible filename when `alt` is empty/generic so the
+  // saved file isn't just "image" with no extension — pick the MIME-type
+  // suffix off the data: URL when possible, or fall back to .jpg.
   const handleDownload = () => {
-    const a = document.createElement('a');
-    a.href = src;
-    a.download = alt || 'image';
-    a.click();
+    try {
+      const a = document.createElement('a');
+      a.href = src;
+      const dataMatch = src.match(/^data:image\/([a-zA-Z+]+);/);
+      const ext = dataMatch ? dataMatch[1].replace('jpeg', 'jpg') : 'jpg';
+      const safeAlt = alt && alt !== 'image' ? alt : `kamizo-chat-image-${Date.now()}.${ext}`;
+      a.download = safeAlt;
+      a.rel = 'noopener';
+      // The detached <a>.click() trick works in Chrome desktop because the
+      // anchor only needs to be a valid HTMLAnchorElement, but Android
+      // WebView treats clicks on disconnected nodes as no-ops. Attach to
+      // body, dispatch, then remove on the next frame.
+      document.body.appendChild(a);
+      a.click();
+      requestAnimationFrame(() => a.remove());
+    } catch {
+      // Last-resort fallback — open in a new tab so the user can long-press
+      // the image and "Save" via the WebView's own context menu.
+      try { window.open(src, '_blank', 'noopener'); } catch { /* noop */ }
+    }
   };
 
   return (

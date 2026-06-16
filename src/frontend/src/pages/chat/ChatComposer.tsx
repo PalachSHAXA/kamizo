@@ -195,7 +195,12 @@ export function ChatComposer({
         <button
           onClick={onSend}
           disabled={!canSend}
-          className="w-10 h-10 flex items-center justify-center rounded-[13px] transition-all touch-manipulation flex-shrink-0 active:scale-95 disabled:bg-gray-100 disabled:text-gray-300 disabled:shadow-none"
+          // v116: disabled state keeps gray background (signals "not
+          // actionable" — matches the input bg above) but the paper-
+          // plane icon stays brand-orange so the Kamizo identity marker
+          // doesn't disappear when the composer is empty. Enabled
+          // state unchanged: brand-gradient bg + white icon.
+          className="w-10 h-10 flex items-center justify-center rounded-[13px] transition-all touch-manipulation flex-shrink-0 active:scale-95 disabled:bg-gray-100 disabled:text-orange-500 disabled:shadow-none"
           style={
             canSend
               ? {

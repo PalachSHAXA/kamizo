@@ -1,4 +1,58 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.62 — cache suffix bumped to v116 to evict every v115 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Three admin chat dialog fixes in one commit:
+//
+//     1) Image-viewer download button (was a no-op in Capacitor).
+//        ImageLightbox.handleDownload created a detached <a> with a
+//        `download` attribute and called .click() on it. Chrome desktop
+//        tolerates clicks on disconnected anchors; Android WebView
+//        silently no-ops. Fix: appendChild to body, click, then
+//        requestAnimationFrame-remove. Also derive a sensible filename
+//        ("kamizo-chat-image-${ts}.${ext}") from the data:image MIME
+//        type when alt is empty/generic. try/catch + window.open
+//        fallback for the rare case where the browser blocks the
+//        synthetic click (user can then long-press → Save image).
+//
+//     2) Staff QuickReplies pills moved from ABOVE MessageList (right
+//        under DialogHeader) to immediately ABOVE the Composer. The
+//        prior position blocked the resident-context strip from being
+//        visible during message scroll and didn't match the design
+//        pack mockup or the resident chat's own pattern. The flex
+//        chain is unchanged (`shrink-0` everywhere except MessageList's
+//        `flex-1 min-h-0`), so this is a pure render-order change.
+//        QuickReplies.tsx itself unchanged behaviour-wise, but its
+//        TemplatesPicker popover anchor flipped from `top-full` (v114
+//        decision when pills were at top) back to `bottom-full` so the
+//        popover opens UPWARD into the message-list area — visible
+//        — instead of off the bottom of the viewport.
+//
+//     3) Send-button icon stays brand-orange when disabled. Previously
+//        `disabled:text-gray-300` made the paper-plane fade out with
+//        the button, washing the Kamizo identity. Now the button bg
+//        stays gray (signals "not actionable") but the icon switches
+//        to `text-orange-500` so the brand marker is visible even with
+//        an empty composer.
+//
+//   Files changed:
+//     src/components/common/MessageContent.tsx  — robust download path
+//     src/pages/chat/ChatView.tsx               — QuickReplies render position
+//     src/pages/chat/QuickReplies.tsx           — popover anchor bottom-full
+//     src/pages/chat/ChatComposer.tsx           — disabled-icon color
+//     src/frontend/public/sw.js                 — v3.7.62 / cache v116
+//
+//   Behaviour preserved:
+//     - v111 BottomBar hide rule (modalStore-driven) untouched.
+//     - v112 RoleBadge polish untouched.
+//     - v113 wrapper-margin fix untouched.
+//     - v114 dvh→vh + min-w-0/min-h-0 flex chain untouched.
+//     - v115 conditional bottom reserve untouched.
+//     - Resident chat (ResidentChatView) untouched — QuickReplies is
+//       staff-only (rendered only when `isStaff && isPrivateSupport`),
+//       resident's own quick-reply chips are inline in ChatView at a
+//       different render block.
+//
+// Previous notes (v115) preserved below:
 // Version: 3.7.61 — cache suffix bumped to v115 to evict every v114 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Admin chat composer — close the ~68 px gap below it on mobile.
@@ -1341,9 +1395,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v115';
-const ASSET_CACHE = 'kamizo-assets-v115';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v115';
+const STATIC_CACHE = 'kamizo-static-v116';
+const ASSET_CACHE = 'kamizo-assets-v116';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v116';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

@@ -481,13 +481,19 @@ export function ChatView({
         </div>
       )}
 
-      {/* ── Quick replies (staff in private support) ── */}
-      {isStaff && isPrivateSupport && (
-        <QuickReplies
-          onSelect={(text) => setNewMessage(text)}
-          language={language}
-        />
-      )}
+      {/* v116: Staff QuickReplies (formerly rendered ABOVE MessageList,
+            directly under DialogHeader) moved to immediately above the
+            Composer — see the new render position after MessageList.
+            That position matches the Anthropic design pack "Открытый
+            диалог" mockup, the resident chat's own quick-reply strip,
+            and the WhatsApp/Telegram pattern: pills sit on the composer
+            surface, not under the header where they'd compete with the
+            resident-context strip. The flex chain is unchanged
+            (`shrink-0` on header + QuickReplies + composer, `flex-1
+            min-h-0` on MessageList) so this is a pure render-order
+            change. The TemplatesPicker popover anchored `top-full`
+            against the strip in v114 (so it opens below) still works
+            — opens between the strip and the composer. */}
 
       {/* ── Messages ──
             Phase 2 / commit 1: extracted to MessageList. Refs stay on
@@ -538,6 +544,18 @@ export function ChatView({
               the user scrolls — iOS rubber-band feels cleaner with this. */}
           <div className="w-2 flex-shrink-0" aria-hidden />
         </div>
+      )}
+
+      {/* ── Quick replies (staff in private support) ──
+            v116: moved here from above MessageList. See the render-
+            position comment block above. The pills sit on the composer
+            surface, matching the design pack mockup + the
+            resident-side quick-replies strip rendered above. */}
+      {isStaff && isPrivateSupport && (
+        <QuickReplies
+          onSelect={(text) => setNewMessage(text)}
+          language={language}
+        />
       )}
 
       {/* Sticky composer — extracted to ChatComposer in Sprint 12. */}
