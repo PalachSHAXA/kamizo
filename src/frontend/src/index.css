@@ -385,6 +385,48 @@ html.dark .border-gray-300 { border-color: rgba(244,240,232,0.14) !important; }
 html.dark .divide-gray-100 > * + *,
 html.dark .divide-gray-200 > * + * { border-color: rgba(244,240,232,0.10) !important; }
 
+/* v117 — section-accent dark-mode safety net.
+   The notifications dropdown (Header.tsx + MobileHeader.tsx) groups
+   notifications by category — Onboarding (amber), Announcements (blue),
+   Meetings (purple) — and each section header + row uses a hardcoded
+   bg-{color}-50 / text-{color}-700 / bg-{color}-100 with no dark
+   variant. The v96 safety net only covered the gray scale, so these
+   bands rendered as bright lit panels against the dark surface (the
+   user reported the violet «Собрания (2)» header looking pasted in
+   from a different design system, plus translucent gray meeting rows
+   that lift above the surface).
+   Map them to alpha overlays of the same hue so the band stays
+   identifiable (purple still says "meetings") but the surface tone
+   matches the rest of the dark theme. Light theme is untouched. Same
+   icon-circle and dot accent values get a brightened text color so
+   the lucide glyphs stay legible on the new translucent surface. */
+html.dark .bg-purple-50  { background-color: rgba(168,85,247,0.08) !important; }
+html.dark .bg-purple-50\/50 { background-color: rgba(168,85,247,0.06) !important; }
+html.dark .bg-purple-100 { background-color: rgba(168,85,247,0.18) !important; }
+html.dark .border-purple-100 { border-color: rgba(168,85,247,0.22) !important; }
+html.dark .text-purple-600 { color: #C4B5FD !important; }
+html.dark .text-purple-700 { color: #C4B5FD !important; }
+html.dark .bg-blue-50  { background-color: rgba(59,130,246,0.08) !important; }
+html.dark .bg-blue-50\/50 { background-color: rgba(59,130,246,0.06) !important; }
+html.dark .bg-blue-100 { background-color: rgba(59,130,246,0.18) !important; }
+html.dark .border-blue-100 { border-color: rgba(59,130,246,0.22) !important; }
+html.dark .text-blue-600 { color: #93C5FD !important; }
+html.dark .text-blue-700 { color: #93C5FD !important; }
+html.dark .bg-amber-50  { background-color: rgba(245,158,11,0.08) !important; }
+html.dark .bg-amber-100 { background-color: rgba(245,158,11,0.18) !important; }
+html.dark .border-amber-100 { border-color: rgba(245,158,11,0.22) !important; }
+html.dark .text-amber-700 { color: #FCD34D !important; }
+
+/* v117 — active (press-down) state dark-mode safety net.
+   Tailwind generates `:active` pseudo selectors like
+   `.active\:bg-gray-100:active`. The existing v96 safety net's
+   `.bg-gray-100` rule didn't match the pseudo, so taps on dashboard
+   tabs (Director / Admin / Manager — 8 callsites) flashed a bright
+   light-gray "white capsule" against the dark surface. Route the
+   press state to the same themed stone the static state uses. */
+html.dark .active\:bg-gray-100:active { background-color: #2C2620 !important; }
+html.dark .active\:bg-gray-50:active { background-color: #2A241D !important; }
+
 /* shadow utility softening — Tailwind shadows tuned for light bg are
    invisible on dark. Use a single warm-dark shadow family. */
 html.dark .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.35) !important; }

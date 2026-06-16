@@ -1,4 +1,54 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.63 — cache suffix bumped to v117 to evict every v116 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Three dark-mode polish fixes for the director/admin dashboard,
+//     all addressed via a single index.css safety-net extension (no
+//     component-level JSX changes — light theme is byte-identical).
+//
+//     1) Notifications dropdown — section accent colors. The bell
+//        modal in Header.tsx + MobileHeader.tsx groups notifications
+//        by category (Onboarding amber, Announcements blue, Meetings
+//        purple) and each section header + row uses hardcoded
+//        bg-{color}-50 / text-{color}-700 / bg-{color}-100 with no
+//        dark variant. The v96 safety net only covered the gray
+//        scale, so the bands rendered as bright lit panels against
+//        the dark surface. User specifically reported the violet
+//        "Собрания (2)" header looking pasted in from a different
+//        design system, plus translucent gray rows lifting above
+//        the surface. New rules map each accent family to alpha
+//        overlays of the same hue — band stays identifiable but
+//        the surface tone matches the rest of the dark theme.
+//
+//     2) Tab press state — "white capsule" on tap. Director,
+//        Admin, and Manager dashboards share a segmented-tab
+//        pattern with `active:bg-gray-100` (8 callsites). The v96
+//        safety net's `.bg-gray-100` rule only matched the unmodified
+//        class — Tailwind's `:active` pseudo selector
+//        (`.active\:bg-gray-100:active`) escaped it, so taps flashed
+//        a bright light-gray panel against the dark surface. New
+//        rule routes the press state to the same themed stone the
+//        static state uses.
+//
+//     3) Companion `active:bg-gray-50` rule added so the same
+//        treatment applies wherever components use the lighter
+//        press shade.
+//
+//   Files changed:
+//     src/frontend/src/index.css   — +43 lines in the v96 safety-net block
+//     src/frontend/public/sw.js    — v3.7.63 / cache v117
+//
+//   Behaviour preserved:
+//     - All v109-v116 fixes (security, density, tabbar hide,
+//       RoleBadge, layout, scroll, conditional bottom-bar, image
+//       download, QuickReplies position, send icon color).
+//     - Light theme byte-identical — every new rule is `html.dark`
+//       scoped.
+//     - No JSX touched, so no risk of breaking existing visuals
+//       in surfaces the rules also reach (status pills using
+//       bg-purple-100 etc. now get the same translucent
+//       treatment, which is a net improvement, not a regression).
+//
+// Previous notes (v116) preserved below:
 // Version: 3.7.62 — cache suffix bumped to v116 to evict every v115 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Three admin chat dialog fixes in one commit:
@@ -1395,9 +1445,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v116';
-const ASSET_CACHE = 'kamizo-assets-v116';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v116';
+const STATIC_CACHE = 'kamizo-static-v117';
+const ASSET_CACHE = 'kamizo-assets-v117';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v117';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
