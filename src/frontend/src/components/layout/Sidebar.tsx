@@ -1079,8 +1079,18 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             return itemsWithSection.map((item, index) => {
               const badgeCount = badges[item.path as keyof typeof badges] || 0;
               const isMeetingsTab = item.path === '/meetings';
+              // v119: meetings-tab voting-state badge swapped from
+              // bg-blue-500 → bg-primary-500 (brand orange). The blue
+              // was a categorical marker for "active vote" but read as
+              // off-brand on the sidebar surface where every other
+              // count badge is brand orange. The animate-pulse on
+              // shouldAnimate (line below) still flags it as urgent —
+              // orange + pulse is more in line with Kamizo's palette.
+              // The `confirmed` green stays — that's a different
+              // success-state semantic ("vote concluded"), and the
+              // user's complaint was specifically about the blue.
               const badgeColor = isMeetingsTab && meetingStatus
-                ? (meetingStatus === 'voting' ? 'bg-blue-500' : meetingStatus === 'confirmed' ? 'bg-green-500' : 'bg-primary-500')
+                ? (meetingStatus === 'voting' ? 'bg-primary-500' : meetingStatus === 'confirmed' ? 'bg-green-500' : 'bg-primary-500')
                 : 'bg-primary-500';
               const shouldAnimate = !isMeetingsTab || meetingStatus === 'voting';
               const isResident = user?.role === 'resident';

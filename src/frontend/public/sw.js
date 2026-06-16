@@ -1,4 +1,57 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.65 — cache suffix bumped to v119 to evict every v118 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Sidebar drawer "Собрания" nav badge — color swap blue → brand orange.
+//
+//     User reported that the count badge on the «Собрания жильцов»
+//     row in the side-drawer (hamburger menu) renders as a blue
+//     circle when there's an active vote, which reads as off-brand
+//     against the surrounding sidebar where every other count badge
+//     is brand orange. Note: the bug lives in Sidebar.tsx (the
+//     drawer component), NOT MobileHeader.tsx as the task description
+//     stated — MobileHeader hosts the bell notifications dropdown,
+//     and only opens the drawer that Sidebar.tsx renders.
+//
+//     Root cause: a 3-way conditional at Sidebar.tsx:~1083 that color-
+//     coded the badge by meeting status — `voting` → bg-blue-500,
+//     `confirmed` → bg-green-500, anything else → bg-primary-500
+//     (brand orange). The blue was a categorical "active vote"
+//     marker but didn't match the Kamizo palette and was the only
+//     blue badge anywhere in the drawer.
+//
+//     Single class swap: bg-blue-500 → bg-primary-500. Net:
+//       voting state → orange (was blue) + still pulses
+//                      (animate-pulse via shouldAnimate)
+//       confirmed   → green  (unchanged — that's a different success-
+//                      state semantic the user didn't complain about)
+//       upcoming    → orange (unchanged)
+//       all other   → orange (unchanged)
+//
+//   NOT touched:
+//     - The other badge render path inside the resident-side
+//       NavMenuItem (line ~1339-1349) — it already uses
+//       `var(--brand, #F97316)`, so no change needed there.
+//     - The bell-icon red badge in MobileHeader top-right
+//       (unread-critical indicator, stays red).
+//     - The gray lock icons on premium-feature rows.
+//     - The orange "СНОКО" tenant chip — already brand orange.
+//     - All other badges across the app.
+//     - The shared `<span>` badge renderer at line 1131 — change is
+//       scoped to the per-item `badgeColor` derivation, not the JSX.
+//
+//   Files changed:
+//     src/components/layout/Sidebar.tsx   — 1 class swap (3-way conditional, voting branch)
+//     src/frontend/public/sw.js           — v3.7.65 / cache v119
+//
+//   Behaviour preserved:
+//     - v109-v118 fixes untouched.
+//     - Light + dark themes both render the orange badge correctly
+//       (bg-primary-500 = orange in both themes; no dark-variant
+//       needed because brand orange is identity-color, not surface).
+//     - Pulse animation on active voting still fires.
+//     - confirmed-state green badge unchanged.
+//
+// Previous notes (v118) preserved below:
 // Version: 3.7.64 — cache suffix bumped to v118 to evict every v117 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Targeted softening of the "Собрания" section in the bell
@@ -1485,9 +1538,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v118';
-const ASSET_CACHE = 'kamizo-assets-v118';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v118';
+const STATIC_CACHE = 'kamizo-static-v119';
+const ASSET_CACHE = 'kamizo-assets-v119';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v119';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
