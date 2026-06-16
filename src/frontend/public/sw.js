@@ -1,4 +1,42 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.52 — cache suffix bumped to v106 to evict every v105 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Phase 2 / commit 1 of the admin chat DialogPanel rewrite — message
+//     rendering decomposition. The inline message-render block in
+//     ChatView.tsx (loading spinner, empty state, and the messages.map
+//     producing date separators + per-message bubbles) is extracted into
+//     three new files under pages/chat/:
+//
+//       MessageList.tsx    — owns the loading/empty/map orchestration,
+//                            reads messages from props
+//       DateSeparator.tsx  — the centered date pill above each new day's
+//                            run (extracted byte-for-byte from inline)
+//       SystemChip.tsx     — NEW. Centered system-event pill for future
+//                            chat-spec.md §3.2 system messages
+//                            (sender_role='system'). Currently no API
+//                            produces such messages; MessageList already
+//                            knows how to switch on it so the future
+//                            backend change is a one-line surface.
+//
+//     Behaviour is identical to v105 by construction:
+//       - Same loading/empty branches and copy
+//       - Same date-key memoisation (y-m-d local time)
+//       - Same per-message search-match / current-match calculation
+//       - Same MessageBubble props + isOwn / showSender derivation
+//       - Same messagesContainerRef / messagesEndRef DOM topology (refs
+//         still owned by ChatView so the existing scroll-to-bottom +
+//         scroll-to-search-match useEffects work unchanged)
+//       - Same warm-gradient background style
+//     Resident chat (ResidentChatView.tsx) untouched.
+//     AdminChannelList.tsx untouched.
+//     No new CSS tokens. No design migration in this commit — pure refactor.
+//
+//   • Backup branch before this wave: backup/phase2-pre-rewrite-
+//     20260616-122240 (pushed). Commit-2 (DialogHeader + ActiveRequest-
+//     Banner) and commit-3 (Composer + InfoDropdown + Templates picker)
+//     are gated behind user confirmation after commit-1 verifies.
+//
+// Previous notes (v105) preserved below:
 // Version: 3.7.51 — cache suffix bumped to v105 to evict every v104 (and
 // older) cache on the next SW lifecycle update. This release ships the
 // Phase 2 (PARTIAL) of the admin chat redesign against the v2 design
@@ -885,9 +923,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v105';
-const ASSET_CACHE = 'kamizo-assets-v105';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v105';
+const STATIC_CACHE = 'kamizo-static-v106';
+const ASSET_CACHE = 'kamizo-assets-v106';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v106';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

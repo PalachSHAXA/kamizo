@@ -6,26 +6,23 @@
 // channel selection / list rendering.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, MessageCircle, MoreVertical, Search, X } from 'lucide-react';
-import { EmptyState, MessageContent } from '../../components/common';
+import { ArrowLeft, ChevronDown, ChevronUp, MoreVertical, Search, X } from 'lucide-react';
+import { EmptyState } from '../../components/common';
 import { formatName } from '../../utils/formatName';
 import { plural } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { chatApi } from '../../services/api';
 import { subscribeToChatMessages } from '../../hooks/useWebSocketSync';
-import { CHAT_CHANNEL_LABELS, type UserRole } from '../../types';
-import { MessageBubble } from './MessageBubble';
+import { CHAT_CHANNEL_LABELS } from '../../types';
 import { ChatComposer } from './ChatComposer';
-import { RoleBadge } from './RoleBadge';
 import { QuickReplies } from './QuickReplies';
+import { MessageList } from './MessageList';
 import {
   type ChatChannel,
   type ChatMessage,
   getAvatarColor,
   getInitials,
-  formatDateSeparator,
-  formatMessageTime,
 } from './chatUtils';
 
 export function ChatView({
@@ -379,11 +376,6 @@ export function ChatView({
     return `${messages.length} ${language === 'ru' ? 'сообщений' : 'xabar'}`;
   };
 
-  const getDateKey = (dateStr: string) => {
-    const d = new Date(dateStr.endsWith?.('Z') ? dateStr : dateStr + 'Z');
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  };
-
   return (
     <div
       ref={chatContainerRef}
@@ -570,79 +562,25 @@ export function ChatView({
         />
       )}
 
-      {/* ── Messages ── Subtle warm gradient so bubbles sit on a textured
-            background, not pure white. The gradient also implicitly scrolls
-            with the messages container (no parallax hacks). */}
-      <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto px-3 py-3"
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions text"
-        aria-label={language === 'ru' ? 'Сообщения чата' : 'Chat xabarlari'}
-        style={{
-          overscrollBehaviorY: 'contain',
-          background: 'var(--chat-page-gradient, linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%))',
-        }}
-      >
-        {isLoading ? (
-          <div className="h-full flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center">
-            <div className="w-16 h-16 bg-orange-50 rounded-[20px] flex items-center justify-center mb-4">
-              <MessageCircle className="w-8 h-8 text-orange-300" />
-            </div>
-            <p className="text-gray-400 text-sm font-medium">
-              {language === 'ru' ? 'Начните диалог' : 'Suhbatni boshlang'}
-            </p>
-            <p className="text-gray-300 text-xs mt-1">
-              {language === 'ru' ? 'Напишите первое сообщение' : 'Birinchi xabar yozing'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-0.5">
-            {messages.map((message, index) => {
-              const isOwn = message.sender_id === user?.id;
-              const prevMsg = index > 0 ? messages[index - 1] : null;
-              const sameAuthorAsPrev = prevMsg && prevMsg.sender_id === message.sender_id;
-              const showSender = !isOwn && !sameAuthorAsPrev;
-              const showDateSeparator = !prevMsg || getDateKey(prevMsg.created_at) !== getDateKey(message.created_at);
-
-              const isSearchMatch = searchResults.includes(index);
-              const isCurrentMatch = searchResults[currentSearchIndex] === index;
-
-              return (
-                <div key={message.id} id={`msg-${index}`}>
-                  {showDateSeparator && (
-                    <div className="flex items-center justify-center py-3">
-                      <span className="px-3 py-1 bg-black/[0.04] rounded-[10px] text-[11px] text-gray-500 font-medium">
-                        {formatDateSeparator(message.created_at, language)}
-                      </span>
-                    </div>
-                  )}
-
-                  <MessageBubble
-                    message={message}
-                    isOwn={isOwn}
-                    showSender={showSender}
-                    isCurrentMatch={isCurrentMatch}
-                    isSearchMatch={isSearchMatch}
-                    isResident={isResident}
-                    isPrivateSupport={isPrivateSupport}
-                    language={language === 'ru' ? 'ru' : 'uz'}
-                    formatTime={formatMessageTime}
-                    renderRoleBadge={(role) => <RoleBadge role={role} language={language} />}
-                    onRetry={retrySend}
-                  />
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
+      {/* ── Messages ──
+            Phase 2 / commit 1: extracted to MessageList. Refs stay on
+            ChatView so the existing scroll-to-bottom + scroll-to-search-
+            match useEffects keep working unchanged. The component renders
+            loading / empty / map+DateSeparator+MessageBubble paths byte-
+            for-byte from the previous inline version. */}
+      <MessageList
+        messages={messages}
+        isLoading={isLoading}
+        currentUserId={user?.id}
+        isResident={isResident}
+        isPrivateSupport={isPrivateSupport}
+        language={language === 'ru' ? 'ru' : 'uz'}
+        searchResults={searchResults}
+        currentSearchIndex={currentSearchIndex}
+        onRetry={retrySend}
+        containerRef={messagesContainerRef}
+        endRef={messagesEndRef}
+      />
 
       {/* ── Resident quick replies — shown only when the composer is empty so
             they don't fight with ongoing typing. Hidden for staff (who have
