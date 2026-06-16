@@ -203,11 +203,11 @@ export function ChatPage() {
               onMarkRead={handleMarkRead}
             />
           ) : (
-            {/* Desktop empty state — matches the v2 admin chat design's
-                EmptyDesktop component: 76×76 brand-tinted tile (var
-                --surface) with brand-orange icon, 16px/800 headline,
-                13px helper text capped at 280px width. Both copy lines
-                taken from kamizo-admin-dialog.jsx EmptyDesktop. */}
+            // Desktop empty state — matches the v2 admin chat design's
+            // EmptyDesktop component: 76x76 brand-tinted tile (var
+            // --surface) with brand-orange icon, 16px/800 headline,
+            // 13px helper text capped at 280px width. Both copy lines
+            // taken from kamizo-admin-dialog.jsx EmptyDesktop.
             <div className="h-full flex items-center justify-center bg-orange-50/30">
               <div className="text-center">
                 <div
