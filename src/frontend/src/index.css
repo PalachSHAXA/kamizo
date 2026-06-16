@@ -1716,6 +1716,16 @@ html.dark .modal-content {
   min-height: 44px;
 }
 
+/* Phase 2/follow-up safe-area utility.
+   Adds env(safe-area-inset-top) as top padding so a page that pins its
+   own header at top:0 (e.g. AdminChannelList's sticky header) stays
+   below the status bar on Capacitor (overlaysWebView=true) and on iOS
+   PWA standalone. In Chrome browser tab + Android overlaysWebView=false
+   modes the env() value is 0 and the rule is a no-op — same layout. */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 /* Prevent text selection for app-like feel on interactive elements */
 .touch-manipulation {
   touch-action: manipulation;

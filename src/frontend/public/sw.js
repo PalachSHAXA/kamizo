@@ -1,4 +1,47 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.56 — cache suffix bumped to v110 to evict every v109 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • AdminChannelList mobile-density refactor. The Phase 1 v104 visuals
+//     (segmented filter, left-border active row, brand-dark unread
+//     timestamp) all preserved, but every vertical-spending element
+//     trimmed for mobile. Net effect on a 412×765 Pixel viewport: the
+//     header + segmented + search block goes from ~190px down to ~120px
+//     (header h2 17px instead of 18, mb-3 → mb-1.5 between rows,
+//     dropped 'Обращения жителей' subtitle, search py-2 → py-1.5).
+//
+//     ChatCard row goes from ~110px down to ~70px:
+//     - row padding px-4 py-3.5 → px-3 py-2.5
+//     - LocationBadges collapsed from 3 colored pills (branch + building
+//       + apt — ~26px extra height) into a single muted text line
+//       'Building · Apt' (drops the 'branch' badge entirely since it's
+//       redundant with the branch-tab filter row above, or with the
+//       building when one branch has one building).
+//     - All other elements (46px avatar, name, time, preview) unchanged
+//       per the Phase 1 v104 contract.
+//
+//     Header now uses `sticky top-0 z-10 bg-white safe-area-top` so it
+//     stays pinned during list scroll AND respects iOS PWA / Capacitor
+//     overlaysWebView=true safe-area top inset. .safe-area-top is a
+//     new utility class in index.css that adds padding-top:
+//     env(safe-area-inset-top, 0px) — no-op on Chrome browser tab and
+//     Capacitor overlaysWebView=false (the env() returns 0).
+//
+//   Behaviour preserved verbatim:
+//     - Phase 1 v104: 3px left border on active row, brand-dark
+//       text-orange-700 timestamp on unread, segmented filter with both
+//       sides visible (Новые disabled when count=0).
+//     - Phase 2 v107: DialogHeader, DateSeparator, MessageList.
+//     - Phase 2 v108: InfoDropdown, TemplatesPicker, ActiveRequestBanner.
+//     - Sprint 84 v109: ApiError cross-tenant fix, Layer 2 store guard.
+//     - ResidentChatView.tsx — NOT in diff.
+//     - Tenant isolation, WebSocket subscriptions, image markdown v81.
+//
+//   Files changed:
+//     src/index.css                                — +9 lines, .safe-area-top
+//     src/pages/chat/AdminChannelList.tsx          — header + segmented + search
+//                                                    + ChatCard padding + LocationBadges
+//
+// Previous notes (v109) preserved below:
 // Version: 3.7.55 — cache suffix bumped to v109 to evict every v108 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • SECURITY FIX (Sprint 84): cross-tenant QR pass bypass via the
@@ -1090,9 +1133,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v109';
-const ASSET_CACHE = 'kamizo-assets-v109';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v109';
+const STATIC_CACHE = 'kamizo-static-v110';
+const ASSET_CACHE = 'kamizo-assets-v110';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v110';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

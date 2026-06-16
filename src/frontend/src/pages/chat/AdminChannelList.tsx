@@ -24,43 +24,33 @@ import {
 // Three colored pills rendered under each channel name showing branch /
 // building / apartment. Memoised because the channel rows below render
 // many of these and most rows don't change when a sibling changes.
+// Compacted from the 3-pill "branch chip + building chip + apt chip"
+// layout. The 3 pills inflated every row by ~26px and pushed the chat
+// card to ~110-120px vertical. Manager use-case: in 99% of cases the
+// branch is implied by the active branch tab above OR redundant with
+// the building name; the building + apt are the load-bearing context
+// for "which resident is messaging me". So we collapse to a single
+// muted text line "Building · Apt" (drops branch entirely; if needed
+// it's still in the branch-tab filter row above). One row, one line,
+// no chips.
 const LocationBadges = memo(function LocationBadges({
   channel,
   language,
-  branchIndex,
 }: {
   channel: ChatChannel;
   language: string;
   branchIndex: number;
 }) {
-  const color = getBranchColor(branchIndex);
+  const parts: string[] = [];
+  if (channel.resident_building_name) parts.push(channel.resident_building_name);
+  if (channel.resident_apartment) {
+    parts.push(`${language === 'ru' ? 'кв.' : 'xon.'} ${channel.resident_apartment}`);
+  }
+  if (parts.length === 0) return null;
   return (
-    <div className="flex items-center gap-1 flex-wrap mt-1">
-      {channel.resident_branch_name && (
-        <span
-          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold ${color.inactive}`}
-          title={channel.resident_branch_name}
-        >
-          <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
-          <span className="truncate max-w-[80px]">{channel.resident_branch_name}</span>
-        </span>
-      )}
-      {channel.resident_building_name && (
-        <span
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
-          title={channel.resident_building_name}
-        >
-          <Building2 className="w-2.5 h-2.5 flex-shrink-0" />
-          <span className="truncate max-w-[80px]">{channel.resident_building_name}</span>
-        </span>
-      )}
-      {channel.resident_apartment && (
-        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-xs font-medium bg-gray-100 text-gray-600">
-          <Home className="w-2.5 h-2.5 flex-shrink-0" />
-          {language === 'ru' ? 'кв.' : 'xon.'} {channel.resident_apartment}
-        </span>
-      )}
-    </div>
+    <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+      {parts.join(' · ')}
+    </p>
   );
 });
 
@@ -182,30 +172,33 @@ export function AdminChannelList({
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between mb-0.5">
-          <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Onest', sans-serif" }}>
+      {/* Header — sticky so it pins to the top of the list panel during
+          scroll. .safe-area-top adds env(safe-area-inset-top) on
+          Capacitor/iOS PWA where the WebView sits under the status bar.
+          The chat-list-active container (set by ChatPage when chat is
+          open) sets padding:0 on #main-content so the WebView's y=0 is
+          the actual top of the visible viewport. */}
+      <div className="sticky top-0 z-10 bg-white safe-area-top px-4 pt-2 pb-1.5 border-b border-gray-100">
+        <div className="flex items-center justify-between mb-0">
+          <h2 className="text-[17px] font-extrabold text-gray-900 leading-tight" style={{ fontFamily: "'Onest', sans-serif" }}>
             {language === 'ru' ? 'Сообщения' : 'Xabarlar'}
           </h2>
           {totalUnread > 0 && (
-            <span className="px-2 py-0.5 bg-orange-500 text-white text-xs font-bold rounded-full">
-              {totalUnread > 99 ? '99+' : totalUnread} {language === 'ru' ? 'непрочитанных' : "o'qilmagan"}
+            <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[10.5px] font-bold rounded-full">
+              {totalUnread > 99 ? '99+' : totalUnread}
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-400 mb-3">
-          {language === 'ru' ? 'Обращения жителей' : 'Aholi murojatlari'}
-        </p>
 
-        {/* Все / Непрочитанные — segmented control per the admin chat
-            design. Single bg-stone-100 track with two pills inside; the
-            selected pill gets var(--themed-surface) (white in light, dark
-            warm-surface in dark) plus a soft shadow. Reads as one cohesive
-            switch instead of two free-standing buttons. Tracks themes via
-            existing safety-net (bg-stone-100 / bg-white). */}
+        {/* Все / Непрочитанные — segmented control per the Phase 1 v104
+            design. Compacted in v110: p-[2px] track + py-1 pills + text-
+            [11.5px] for mobile density. Single bg-stone-100 track with
+            two pills inside; the selected pill gets var(--themed-surface)
+            (white in light, dark warm-surface in dark) plus a soft
+            shadow. Tracks themes via the existing safety-net for
+            bg-stone-100 / bg-white. */}
         <div
-          className="flex gap-1 mb-3 p-[3px] rounded-[10px]"
+          className="flex gap-1 mt-2 mb-1.5 p-[2px] rounded-[8px]"
           style={{ background: 'var(--surface-sunken, #EDE7DB)' }}
           role="tablist"
           aria-label={language === 'ru' ? 'Фильтр сообщений' : 'Xabarlar filtri'}
@@ -215,7 +208,7 @@ export function AdminChannelList({
             role="tab"
             aria-selected={activeFilter === 'all'}
             onClick={() => setActiveFilter('all')}
-            className={`flex-1 px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all ${
+            className={`flex-1 px-3 py-1 rounded-[6px] text-[11.5px] font-bold transition-all ${
               activeFilter === 'all'
                 ? 'bg-white text-gray-900 shadow-sm'
                 : 'bg-transparent text-gray-500 hover:text-gray-700'
@@ -229,7 +222,7 @@ export function AdminChannelList({
             aria-selected={activeFilter === 'unread'}
             onClick={() => setActiveFilter('unread')}
             disabled={unreadCount === 0}
-            className={`flex-1 px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`flex-1 px-3 py-1 rounded-[6px] text-[11.5px] font-bold transition-all flex items-center justify-center gap-1.5 ${
               activeFilter === 'unread'
                 ? 'bg-white text-gray-900 shadow-sm'
                 : 'bg-transparent text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed'
@@ -246,14 +239,14 @@ export function AdminChannelList({
         </div>
 
         {/* Search */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={language === 'ru' ? 'Имя, объект, квартира...' : 'Ism, obyekt, xona...'}
-            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-[12px] text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+            className="w-full pl-7 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-[10px] text-[12.5px] focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
             aria-label={language === 'ru' ? 'Поиск контактов' : 'Kontaktlarni qidirish'}
           />
         </div>
@@ -407,7 +400,7 @@ export function AdminChannelList({
                   borderLeft: '3px solid var(--brand, #F97316)',
                   paddingLeft: 'calc(1rem - 3px)',
                 } : undefined}
-                className={`w-full px-4 py-3.5 flex items-start gap-3 text-left transition-all ${
+                className={`w-full px-3 py-2.5 flex items-start gap-2.5 text-left transition-all ${
                   isSelected
                     ? 'bg-orange-50'
                     : hasUnread
