@@ -1,4 +1,46 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.61 — cache suffix bumped to v115 to evict every v114 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Admin chat composer — close the ~68 px gap below it on mobile.
+//     v114's wrapper height calc subtracted var(--mobile-header-h, 68px)
+//     unconditionally, leaving ~68 CSS px of empty space between the
+//     Composer and the viewport bottom when the dialog was open and the
+//     BottomBar was hidden. The subtraction was a hold-over from a
+//     prior layout — no top mobile-header is actually rendered above
+//     the chat-active wrapper, and the bottom reservation didn't match
+//     the actual BottomBar height anyway.
+//     v115 fixes both: drops the spurious --mobile-header-h subtraction
+//     and makes the bottom reservation conditional on BottomBar
+//     visibility. Decision tree:
+//       - Mobile + LIST view (no channel selected) → reserve
+//         var(--bottom-bar-h, 64px). BottomBar is fixed at bottom and
+//         the wrapper must not run under it.
+//       - Mobile + DIALOG view (channel selected) → reserve only
+//         env(safe-area-inset-bottom). BottomBar is hidden via
+//         useModalPresence, so the wrapper fills the viewport.
+//       - Desktop (≥md) → reserve safe-area only. BottomBar is never
+//         rendered on desktop (BottomBar.tsx early-returns on
+//         !isMobile).
+//
+//     Same change duplicated to ResidentChatView.tsx — the resident
+//     chat uses a fixed-positioned composer that pinned itself to
+//     viewport bottom regardless of wrapper height, but the
+//     chat-area surface still ended ~64 px above viewport bottom.
+//     Resident is always on /chat with BottomBar hidden, so we drop
+//     the var entirely and reserve only safe-area-inset-bottom.
+//
+//   Files changed:
+//     src/pages/ChatPage.tsx                 — conditional bottom reserve in admin wrapper height + maxHeight
+//     src/pages/chat/ResidentChatView.tsx    — drop --mobile-header-h, reserve safe-area only
+//     src/frontend/public/sw.js              — v3.7.61 / cache v115
+//
+//   Behaviour preserved:
+//     - v111 BottomBar hide rule (modalStore-driven) untouched.
+//     - v112 RoleBadge polish untouched.
+//     - v113 wrapper-margin fix untouched.
+//     - v114 dvh→vh + min-w-0/min-h-0 flex chain fix untouched.
+//
+// Previous notes (v114) preserved below:
 // Version: 3.7.60 — cache suffix bumped to v114 to evict every v113 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Admin chat mobile layout — root-cause fix for everything-offscreen:
@@ -1299,9 +1341,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v114';
-const ASSET_CACHE = 'kamizo-assets-v114';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v114';
+const STATIC_CACHE = 'kamizo-static-v115';
+const ASSET_CACHE = 'kamizo-assets-v115';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v115';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

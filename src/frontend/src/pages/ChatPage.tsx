@@ -206,20 +206,36 @@ export function ChatPage() {
       // breakpoint.
       className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden"
       style={{
-        // v114: switched from `100dvh` → `100vh`. The Capacitor Android
-        // WebView (Chrome 108+ on emulator, lower on real devices) DOES
-        // NOT support dynamic viewport units — calc(100dvh - 68px)
-        // resolved to 0px, the height style was invalid, the wrapper
-        // fell back to auto height, and the chat inflated to its
-        // content's full ~5928 CSS px tall. That outer overflow forced
-        // .main-content to scroll, dragging DialogHeader to y=-5107.
-        // 100vh works correctly (821 CSS px on the test viewport), so
-        // the calc resolves to ~753 px as designed — chat wrapper now
-        // owns a bounded height, the min-h-0 flex chain inside engages,
-        // and MessageList scrolls internally instead of inflating.
-        // Same pattern duplicated to ResidentChatView.tsx.
-        height: 'calc(100vh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
-        maxHeight: 'calc(100vh - 68px - env(safe-area-inset-bottom, 0px))',
+        // v115: conditional bottom reservation matched to BottomBar
+        // visibility, plus dropped the always-on --mobile-header-h
+        // subtraction (no top mobile-header is rendered above the chat
+        // wrapper on chat-active — that var was leftover from a prior
+        // layout). Decision tree:
+        //
+        //   showBottomBar:
+        //     - mobile + admin LIST view (no channel selected) → TRUE
+        //       BottomBar is fixed at viewport bottom and would
+        //       overlap the chat — reserve var(--bottom-bar-h, 64px)
+        //       which already includes env(safe-area-inset-bottom).
+        //     - mobile + admin DIALOG view (channel selected) → FALSE
+        //       BottomBar is hidden via useModalPresence (see line ~74).
+        //       Wrapper should fill the viewport — reserve only
+        //       env(safe-area-inset-bottom) for the iOS home indicator.
+        //     - desktop (anything ≥md) → FALSE
+        //       BottomBar.tsx early-returns on !isMobile. Same
+        //       safe-area-only reservation.
+        //
+        // Pre-v115 the wrapper always subtracted --mobile-header-h
+        // (~64 CSS px) regardless of state, which on mobile dialog left
+        // a ~68 px gap below the Composer (between Composer bottom and
+        // viewport bottom) because the hidden BottomBar's space wasn't
+        // reclaimed. Reference design has Composer flush against
+        // viewport bottom.
+        //
+        // 100vh is required because Capacitor Android WebView doesn't
+        // support dvh/svh (v114 fix); see prior comment in v114 notes.
+        height: `calc(100vh - ${isMobile && !selectedChannelId ? 'var(--bottom-bar-h, 64px)' : 'env(safe-area-inset-bottom, 0px)'})`,
+        maxHeight: `calc(100vh - ${isMobile && !selectedChannelId ? 'var(--bottom-bar-h, 64px)' : 'env(safe-area-inset-bottom, 0px)'})`,
       }}
     >
       <div className="h-full flex min-w-0 min-h-0">

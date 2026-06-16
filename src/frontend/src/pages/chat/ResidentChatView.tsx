@@ -604,8 +604,21 @@ export function ResidentChatView({ channel, onBack }: Props) {
           display: 'flex',
           flexDirection: 'column',
           // v114: dvh → vh — Capacitor Android WebView returns 0 for
-          // dynamic viewport units, breaking this height calc. vh works.
-          height: 'calc(100vh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px))',
+          // dynamic viewport units.
+          // v115: dropped the always-on --mobile-header-h subtraction
+          // (no top mobile-header is rendered above this wrapper on
+          // resident /chat — the var was leftover from a prior layout
+          // and was making the wrapper ~64 px shorter than it needs to
+          // be). The resident composer itself is in a fixed-positioned
+          // bottom bar (see L3 in the verify probe) so it always pins
+          // to viewport bottom, but the chat-area background was
+          // ending 64 px above viewport bottom — visible as a thin
+          // gap when the composer's translucent surface caught light.
+          // BottomBar.tsx hides itself on /chat for resident roles,
+          // so we only reserve env(safe-area-inset-bottom) for the
+          // iOS home indicator. Matches ChatPage's admin-dialog-open
+          // branch.
+          height: 'calc(100vh - env(safe-area-inset-bottom, 0px))',
           maxWidth: 960,
           margin: '0 auto',
           width: '100%',
