@@ -6,12 +6,14 @@
 // channel selection / list rendering.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { EmptyState } from '../../components/common';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { formatName } from '../../utils/formatName';
 import { plural } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useToastStore } from '../../stores/toastStore';
 import { chatApi } from '../../services/api';
 import { subscribeToChatMessages } from '../../hooks/useWebSocketSync';
 import { CHAT_CHANNEL_LABELS, type UserRole } from '../../types';
@@ -20,6 +22,7 @@ import { QuickReplies } from './QuickReplies';
 import { MessageList } from './MessageList';
 import { DialogHeader } from './DialogHeader';
 import { ActiveRequestBanner, type ActiveRequest } from './ActiveRequestBanner';
+import { AssignStaffModal } from './AssignStaffModal';
 import { type ChatChannel, type ChatMessage } from './chatUtils';
 
 export function ChatView({
@@ -28,12 +31,17 @@ export function ChatView({
   onBack,
   hideBackOnDesktop = false,
   onMarkRead,
+  onChannelUpdated,
 }: {
   channelId: string;
   channel?: ChatChannel;
   onBack: () => void;
   hideBackOnDesktop?: boolean;
   onMarkRead?: () => void;
+  // v120 commit 2 — bubble channel-mutating PATCH responses up to
+  // ChatPage so it can replace the row in its local channels[] state
+  // and the list view (Решено pill) re-renders without a full refetch.
+  onChannelUpdated?: (updated: ChatChannel) => void;
 }) {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
@@ -53,6 +61,62 @@ export function ChatView({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // v120 commit 2 — admin action state. ChatView owns the modal +
+  // confirm dialog so both the "Назначен:" line in DialogHeader and
+  // the InfoDropdown row open the same assign modal without
+  // prop-drilling. Confirm for resolve/unresolve is one ConfirmDialog
+  // whose label and PATCH target flip on channel.resolved_at.
+  // (isStaff / isResident are derived from `user` further down — we
+  // gate handlers on the same boolean.)
+  const addToast = useToastStore((s) => s.addToast);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showResolveConfirm, setShowResolveConfirm] = useState(false);
+  const [isResolveBusy, setIsResolveBusy] = useState(false);
+
+  const handleAssignClick = useCallback(() => {
+    setShowAssignModal(true);
+  }, []);
+
+  const handleResolveClick = useCallback(() => {
+    setShowResolveConfirm(true);
+  }, []);
+
+  const handleResolveConfirm = useCallback(async () => {
+    if (!channel || isResolveBusy) return;
+    setIsResolveBusy(true);
+    try {
+      const updated = channel.resolved_at
+        ? ((await chatApi.unresolveChannel(channel.id)) as unknown as ChatChannel)
+        : ((await chatApi.resolveChannel(channel.id)) as unknown as ChatChannel);
+      onChannelUpdated?.(updated);
+      addToast(
+        'success',
+        channel.resolved_at
+          ? language === 'ru'
+            ? 'Отметка снята'
+            : 'Belgi olib tashlandi'
+          : language === 'ru'
+          ? 'Обращение помечено решённым'
+          : 'Murojaat hal qilingan deb belgilandi',
+      );
+      setShowResolveConfirm(false);
+    } catch (e) {
+      addToast(
+        'error',
+        language === 'ru' ? 'Не удалось пометить, попробуйте позже' : "Belgilab bo'lmadi, keyinroq urinib ko'ring",
+      );
+    } finally {
+      setIsResolveBusy(false);
+    }
+  }, [channel, isResolveBusy, addToast, language, onChannelUpdated]);
+
+  const handleAssignedFromModal = useCallback(
+    (updated: ChatChannel) => {
+      onChannelUpdated?.(updated);
+    },
+    [onChannelUpdated],
+  );
 
   // Resident-side quick replies — the 3 most common openings. Shown only
   // when message input is empty so they don't overlap typing.
@@ -402,6 +466,11 @@ export function ChatView({
         onToggleSearch={() => { setShowSearch(s => !s); setShowInfo(false); }}
         onToggleInfo={() => { setShowInfo(s => !s); setShowSearch(false); setShowEmojiPicker(false); }}
         onCloseInfo={() => setShowInfo(false)}
+        // v120 commit 2 — staff-only action handlers. Undefined for
+        // residents → InfoDropdown disables the rows and the
+        // assigned-to line in the header collapses to non-tappable text.
+        onAssignClick={isStaff ? handleAssignClick : undefined}
+        onResolveClick={isStaff ? handleResolveClick : undefined}
         getTitle={getTitle}
         getSubtitle={getSubtitle}
       />
@@ -576,6 +645,60 @@ export function ChatView({
         fileInputRef={fileInputRef}
         onFilePick={handleFilePick}
         keyboardOffset={keyboardOffset}
+      />
+
+      {/* v120 commit 2 — admin action overlays.
+          AssignStaffModal: bottom sheet on mobile / centered card on
+          desktop. Renders only for staff (handlers undefined for
+          residents so even a programmatic open would be a no-op).
+          ConfirmDialog: single instance — title/body/button flip on
+          channel.resolved_at so one render covers both resolve and
+          unresolve. Primary tone (orange) matches the brand button. */}
+      {channel && isStaff && (
+        <AssignStaffModal
+          channel={channel}
+          isOpen={showAssignModal}
+          onClose={() => setShowAssignModal(false)}
+          onAssigned={handleAssignedFromModal}
+        />
+      )}
+      <ConfirmDialog
+        isOpen={showResolveConfirm}
+        title={
+          channel?.resolved_at
+            ? language === 'ru'
+              ? 'Вернуть обращение в активные?'
+              : 'Murojaatni faolga qaytarish?'
+            : language === 'ru'
+            ? 'Пометить обращение решённым?'
+            : 'Murojaatni hal qilingan deb belgilash?'
+        }
+        description={
+          channel?.resolved_at
+            ? language === 'ru'
+              ? 'Отметка «Решено» снимется, обращение снова станет активным.'
+              : "«Hal qilingan» belgisi olib tashlanadi, murojaat yana faol bo'ladi."
+            : language === 'ru'
+            ? 'Диалог останется в списке с пометкой «Решено». Это действие можно отменить.'
+            : "Suhbat ro'yxatda «Hal qilingan» belgisi bilan qoladi. Bu amalni qaytarish mumkin."
+        }
+        confirmLabel={
+          channel?.resolved_at
+            ? language === 'ru'
+              ? 'Вернуть в активные'
+              : 'Faolga qaytarish'
+            : language === 'ru'
+            ? 'Пометить решённым'
+            : 'Hal qilingan deb belgilash'
+        }
+        cancelLabel={language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+        tone="primary"
+        icon={<Check className="w-6 h-6" />}
+        confirmDisabled={isResolveBusy}
+        onConfirm={handleResolveConfirm}
+        onClose={() => {
+          if (!isResolveBusy) setShowResolveConfirm(false);
+        }}
       />
     </div>
   );

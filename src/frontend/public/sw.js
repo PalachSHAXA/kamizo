@@ -1,4 +1,92 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.66 — cache suffix bumped to v120 to evict every v119 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Admin chat InfoDropdown actions — frontend implementation
+//     (commit 2 of 3 in the admin-chat-actions sprint).
+//
+//     Backend (commit 1, shipped earlier) added chat_channels.assigned_to
+//     / resolved_at / resolved_by columns and four PATCH endpoints. This
+//     commit wires the InfoDropdown's previously-stubbed rows to those
+//     endpoints, plus surfaces the new state in DialogHeader and the
+//     AdminChannelList ChatCard.
+//
+//     New: AssignStaffModal.tsx
+//       - Bottom-sheet on mobile / centered 480-card on desktop
+//       - Fetches /api/team on open, flattens the categorized response
+//         into a single rank-ordered list (director → admin → manager
+//         → department_head → dispatcher → executor → advertiser →
+//         security), renders RoleBadge per row
+//       - Search filter by name or role label
+//       - Tap row → PATCH /assign with that user-id → toast + close
+//       - Current assignee shows orange "Назначен" pill + disabled row
+//       - Footer "Снять назначение" button when an assignee exists
+//
+//     InfoDropdown.tsx wired:
+//       - "Назначить сотрудника" row now opens AssignStaffModal
+//       - "Пометить решённым" row triggers ConfirmDialog → PATCH /resolve
+//         Label dynamically flips to "Снять отметку решённого" when
+//         channel.resolved_at is non-null; same row drives /unresolve
+//       - "Профиль жителя" still navigates (was already wired)
+//       - "Закрыть обращение" still stub — commit 3 will REMOVE it
+//
+//     DialogHeader.tsx:
+//       - Adds emerald "✓ Решено" pill next to channel name when
+//         channel.resolved_at is set (visible to BOTH staff and
+//         residents — chat-spec §1.4 makes resolved state legitimate
+//         resident-facing context)
+//       - Adds tappable "Назначен: <Name> · <Role>" line under the
+//         subtitle (staff only — backend nulls assigned_* for residents).
+//         Tap reopens AssignStaffModal so the operator can reassign.
+//
+//     AdminChannelList.tsx (ChatCard LocationBadges):
+//       - Adds small emerald "Решено" tag next to the
+//         "Дом X · кв. N" metadata line. Resolved channels stay in the
+//         list (chat-spec §5.1 — no auto-archive).
+//
+//     ChatView.tsx:
+//       - Hosts the modal + ConfirmDialog state, owns the PATCH calls,
+//         calls onChannelUpdated(updated) bubble up.
+//       - Confirm dialog uses the existing ConfirmDialog component
+//         (tone: primary, brand orange button).
+//       - Error toasts on 400/403/404 — "Не удалось пометить, попробуйте
+//         позже" / "Не удалось назначить, попробуйте позже".
+//
+//     ChatPage.tsx:
+//       - handleChannelUpdated(updated) replaces the row in channels[]
+//         state in-place. List view re-renders with the new Решено tag
+//         without a full /api/chat/channels refetch.
+//
+//   Type extensions:
+//     ChatChannel (in chatUtils.ts) — new optional/nullable fields:
+//       assigned_to, assigned_to_name, assigned_to_role,
+//       resolved_at, resolved_by, resolved_by_name, updated_at
+//
+//   chatApi (in services/api/chat.ts) — new methods:
+//       getChannel(id)               GET /api/chat/channels/:id
+//       assignChannel(id, userId)    PATCH /assign  body {assigned_to}
+//       resolveChannel(id)           PATCH /resolve
+//       unresolveChannel(id)         PATCH /unresolve
+//
+//   Files changed/created:
+//     src/pages/chat/AssignStaffModal.tsx        — NEW (~280 lines)
+//     src/pages/chat/InfoDropdown.tsx            — wired Assign + Resolve rows
+//     src/pages/chat/DialogHeader.tsx            — Решено pill + Назначен line
+//     src/pages/chat/AdminChannelList.tsx        — Решено tag on ChatCard
+//     src/pages/chat/ChatView.tsx                — modal/confirm state + handlers
+//     src/pages/ChatPage.tsx                     — onChannelUpdated handler
+//     src/pages/chat/chatUtils.ts                — ChatChannel type ext
+//     src/services/api/chat.ts                   — 4 new methods
+//
+//   Behaviour preserved:
+//     - All v109-v119 fixes untouched.
+//     - Resident view (ResidentChatView) untouched — InfoDropdown
+//       only renders on the staff dialog header.
+//     - Light + dark themes both render correctly. Emerald palette
+//       picks up dark variants automatically via Tailwind defaults.
+//     - "Профиль жителя" stub — commit 3 wires the navigation.
+//     - "Закрыть обращение" stub — commit 3 removes it.
+//
+// Previous notes (v119) preserved below:
 // Version: 3.7.65 — cache suffix bumped to v119 to evict every v118 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Sidebar drawer "Собрания" nav badge — color swap blue → brand orange.
@@ -1538,9 +1626,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v119';
-const ASSET_CACHE = 'kamizo-assets-v119';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v119';
+const STATIC_CACHE = 'kamizo-static-v120';
+const ASSET_CACHE = 'kamizo-assets-v120';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v120';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

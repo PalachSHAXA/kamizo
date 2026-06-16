@@ -61,4 +61,41 @@ export const chatApi = {
   getUnreadCount: async () => {
     return apiRequest<{ unread_count: number }>('/api/chat/unread-count');
   },
+
+  // v120 — single channel detail. Used after admin actions
+  // (assign/resolve/unresolve) to refresh local state. Backend GET
+  // /api/chat/channels/:id includes joined assigned_to_name / role
+  // and resolved_by_name so the UI doesn't need a separate users
+  // fetch.
+  getChannel: async (channelId: string) => {
+    return apiRequest<Record<string, unknown>>(`/api/chat/channels/${channelId}`, { cache: 'no-store' });
+  },
+
+  // v120 — assign a staff member to handle this channel. Pass null to
+  // unassign. Backend rejects non-staff target users with a 400.
+  assignChannel: async (channelId: string, assignedTo: string | null) => {
+    return apiRequest<Record<string, unknown>>(`/api/admin/chat/channels/${channelId}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ assigned_to: assignedTo }),
+    });
+  },
+
+  // v120 — mark channel resolved (stamps resolved_at + resolved_by
+  // server-side). Idempotent: re-calling returns the row unchanged.
+  resolveChannel: async (channelId: string) => {
+    return apiRequest<Record<string, unknown>>(`/api/admin/chat/channels/${channelId}/resolve`, {
+      method: 'PATCH',
+      body: '{}',
+    });
+  },
+
+  // v120 — re-open a previously-resolved channel. Not surfaced in
+  // commit-2 UI yet but the endpoint ships now; commit 3 may add a
+  // "Reopen" affordance.
+  unresolveChannel: async (channelId: string) => {
+    return apiRequest<Record<string, unknown>>(`/api/admin/chat/channels/${channelId}/unresolve`, {
+      method: 'PATCH',
+      body: '{}',
+    });
+  },
 };

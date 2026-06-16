@@ -37,6 +37,19 @@ export interface ChatChannel {
   resident_apartment?: string;
   resident_building_name?: string;
   resident_branch_name?: string;
+  // v120 (commit 2 of the admin-chat-actions sprint). Backend migration
+  // 050 added these columns to chat_channels; both the list and the
+  // single-channel endpoints now return them. All optional + nullable —
+  // residents see the assigned_* / resolved_by_* fields nulled
+  // server-side, but resolved_at is still visible to them (chat-spec
+  // §1.4 — "your case was closed" is OK for residents to know).
+  assigned_to?: string | null;
+  assigned_to_name?: string | null;
+  assigned_to_role?: string | null;
+  resolved_at?: string | null;
+  resolved_by?: string | null;
+  resolved_by_name?: string | null;
+  updated_at?: string | null;
 }
 
 export type FilterTab = 'all' | 'unread';

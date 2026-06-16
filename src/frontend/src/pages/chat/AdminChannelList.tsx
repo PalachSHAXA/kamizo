@@ -46,10 +46,23 @@ const LocationBadges = memo(function LocationBadges({
   if (channel.resident_apartment) {
     parts.push(`${language === 'ru' ? 'кв.' : 'xon.'} ${channel.resident_apartment}`);
   }
-  if (parts.length === 0) return null;
+  // v120 commit 2 — surface resolved state in the list so the operator
+  // can scan which channels are already closed without opening each
+  // dialog. Resolved channels stay in the list (intentional —
+  // chat-spec §5.1 doesn't auto-archive); the pill just marks them.
+  const isResolved = !!channel.resolved_at;
+  if (parts.length === 0 && !isResolved) return null;
   return (
-    <p className="text-[11px] text-gray-400 mt-0.5 truncate">
-      {parts.join(' · ')}
+    <p className="text-[11px] text-gray-400 mt-0.5 truncate flex items-center gap-1.5">
+      {parts.length > 0 && <span className="truncate">{parts.join(' · ')}</span>}
+      {isResolved && (
+        <span
+          className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold uppercase tracking-wide flex-shrink-0"
+          aria-label={language === 'ru' ? 'Обращение решено' : 'Murojaat hal qilingan'}
+        >
+          {language === 'ru' ? 'Решено' : 'Hal'}
+        </span>
+      )}
     </p>
   );
 });

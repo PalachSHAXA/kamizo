@@ -135,6 +135,15 @@ export function ChatPage() {
     ));
   }, [selectedChannelId]);
 
+  // v120 commit 2 — when ChatView mutates the channel via PATCH (assign /
+  // resolve / unresolve), it bubbles the updated row back up here so we
+  // can replace it in `channels[]`. The list view's ChatCard re-renders
+  // with the new `Решено` tag without a full /api/chat/channels refetch.
+  const handleChannelUpdated = useCallback((updated: ChatChannel) => {
+    if (!updated?.id) return;
+    setChannels(prev => prev.map(ch => (ch.id === updated.id ? { ...ch, ...updated } : ch)));
+  }, []);
+
   // ── Resident View ──
   if (isResident) {
     if (isLoading) {
@@ -270,6 +279,7 @@ export function ChatPage() {
               channel={selectedChannel}
               onBack={() => { setSelectedChannelId(null); selectedChannelIdRef.current = null; }}
               onMarkRead={handleMarkRead}
+              onChannelUpdated={handleChannelUpdated}
             />
           ) : (
             // Desktop empty state — matches the v2 admin chat design's

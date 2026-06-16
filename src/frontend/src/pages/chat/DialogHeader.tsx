@@ -21,9 +21,32 @@
 // getSubtitle resolution, isPrivateSupport branching) is preserved
 // verbatim.
 
-import { ArrowLeft, MoreVertical, Search } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Search, Check, UserCheck } from 'lucide-react';
 import { type ChatChannel, getAvatarColor, getInitials } from './chatUtils';
 import { InfoDropdown } from './InfoDropdown';
+
+// v120 commit 2 — admin actions metadata. Map staff role → display
+// label for the "Назначен: <Name> · <Role>" line under the title.
+const ROLE_LABEL_RU: Record<string, string> = {
+  director: 'Директор',
+  admin: 'Админ',
+  manager: 'Менеджер',
+  department_head: 'Глава отдела',
+  dispatcher: 'Диспетчер',
+  executor: 'Исполнитель',
+  advertiser: 'Рекламодатель',
+  security: 'Охрана',
+};
+const ROLE_LABEL_UZ: Record<string, string> = {
+  director: 'Direktor',
+  admin: 'Admin',
+  manager: 'Menejer',
+  department_head: "Bo'lim boshlig'i",
+  dispatcher: 'Dispetcher',
+  executor: 'Ijrochi',
+  advertiser: 'Reklamaberuvchi',
+  security: "Qo'riqchi",
+};
 
 export interface DialogHeaderProps {
   channel?: ChatChannel;
@@ -41,6 +64,12 @@ export interface DialogHeaderProps {
   onCloseInfo: () => void;
   getTitle: () => string;
   getSubtitle: () => string;
+  // v120 commit 2 — wire the admin actions. Both undefined on the
+  // resident path (ResidentChatView doesn't render this header), so
+  // InfoDropdown's row gets `disabled` and the assigned-to line in
+  // the header collapses to a non-tappable text row.
+  onAssignClick?: () => void;
+  onResolveClick?: () => void;
 }
 
 export function DialogHeader({
@@ -59,6 +88,8 @@ export function DialogHeader({
   onCloseInfo,
   getTitle,
   getSubtitle,
+  onAssignClick,
+  onResolveClick,
 }: DialogHeaderProps) {
   // commit 3: InfoDropdown is rendered as a popover anchored to the
   // info button — staff side only. Residents don't see an info button.
@@ -135,13 +166,56 @@ export function DialogHeader({
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-[16px] font-bold text-gray-900 truncate leading-tight">
-              {getTitle()}
-            </h3>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className="text-[16px] font-bold text-gray-900 truncate leading-tight">
+                {getTitle()}
+              </h3>
+              {/* v120 commit 2 — Решено pill. Shown to BOTH staff and
+                  residents (chat-spec §1.4 makes the resolved state
+                  visible to the resident — "your case was closed" is
+                  legitimate context). Pill stays in flex-shrink-0 so
+                  the title truncates around it on narrow viewports. */}
+              {channel?.resolved_at && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10.5px] font-bold uppercase tracking-wide flex-shrink-0"
+                  aria-label={language === 'ru' ? 'Обращение решено' : 'Murojaat hal qilingan'}
+                  title={
+                    channel.resolved_by_name
+                      ? `${language === 'ru' ? 'Решил' : 'Yopdi'}: ${channel.resolved_by_name}`
+                      : undefined
+                  }
+                >
+                  <Check className="w-2.5 h-2.5" />
+                  {language === 'ru' ? 'Решено' : 'Hal qilingan'}
+                </span>
+              )}
+            </div>
             {resolvedSubtitle && (
               <p className={`text-[12px] truncate leading-tight mt-0.5 ${subtitleTone}`}>
                 {resolvedSubtitle}
               </p>
+            )}
+            {/* v120 commit 2 — Assigned-to row. Renders for staff only
+                (channel.assigned_to is server-side nulled for residents).
+                Tappable when an onAssignClick handler is wired so the
+                operator can reassign without going through the info
+                menu. */}
+            {isStaff && channel?.assigned_to_name && (
+              <button
+                type="button"
+                onClick={onAssignClick}
+                disabled={!onAssignClick}
+                className="mt-0.5 inline-flex items-center gap-1 max-w-full text-left text-[12px] text-gray-500 truncate leading-tight hover:text-gray-700 touch-manipulation disabled:cursor-default"
+                aria-label={language === 'ru' ? 'Переназначить сотрудника' : 'Xodimni qayta tayinlash'}
+              >
+                <UserCheck className="w-3 h-3 flex-shrink-0 text-orange-500" />
+                <span className="truncate">
+                  {language === 'ru' ? 'Назначен' : 'Tayinlangan'}: {channel.assigned_to_name}
+                  {channel.assigned_to_role && (
+                    <> · {(language === 'ru' ? ROLE_LABEL_RU : ROLE_LABEL_UZ)[channel.assigned_to_role] || channel.assigned_to_role}</>
+                  )}
+                </span>
+              </button>
             )}
           </div>
         </div>
@@ -181,6 +255,8 @@ export function DialogHeader({
             <InfoDropdown
               channel={channel}
               language={language}
+              onAssignClick={onAssignClick}
+              onResolveClick={onResolveClick}
               onClose={onCloseInfo}
             />
           )}

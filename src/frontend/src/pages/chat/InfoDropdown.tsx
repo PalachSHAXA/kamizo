@@ -49,9 +49,15 @@ export interface InfoDropdownProps {
   };
   language: 'ru' | 'uz';
   onClose: () => void;
+  // v120 commit 2 — wire the two admin actions. Parent (ChatView)
+  // owns the modal + confirm dialog state so the "Назначен:" line in
+  // DialogHeader can also trigger the assign modal. InfoDropdown stays
+  // a thin overlay; it just dispatches.
+  onAssignClick?: () => void;
+  onResolveClick?: () => void;
 }
 
-export function InfoDropdown({ channel, language, onClose }: InfoDropdownProps) {
+export function InfoDropdown({ channel, language, onClose, onAssignClick, onResolveClick }: InfoDropdownProps) {
   const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -178,19 +184,39 @@ export function InfoDropdown({ channel, language, onClose }: InfoDropdownProps) 
               onClose();
             }}
           />
+          {/* v120 commit 2 — Assign action wired. Disabled only if the
+              parent didn't pass a handler (e.g. the resident view, where
+              this row should never render in practice). */}
           <ActionRow
             icon={<Users className="w-4 h-4" />}
             tone="text-blue-600"
             label={language === 'ru' ? 'Назначить сотрудника' : "Xodim tayinlash"}
-            onClick={() => onClose()}
-            disabled
+            onClick={() => {
+              onClose();
+              onAssignClick?.();
+            }}
+            disabled={!onAssignClick}
           />
+          {/* v120 commit 2 — Resolve / Unresolve. Label flips on the
+              channel's resolved_at so a single row covers both
+              directions. Parent handles the confirm dialog. */}
           <ActionRow
             icon={<Check className="w-4 h-4" />}
             tone="text-emerald-600"
-            label={language === 'ru' ? 'Пометить решённым' : 'Hal qilingan deb belgilash'}
-            onClick={() => onClose()}
-            disabled
+            label={
+              channel?.resolved_at
+                ? language === 'ru'
+                  ? 'Снять отметку решённого'
+                  : "Hal qilingan belgisini olib tashlash"
+                : language === 'ru'
+                ? 'Пометить решённым'
+                : 'Hal qilingan deb belgilash'
+            }
+            onClick={() => {
+              onClose();
+              onResolveClick?.();
+            }}
+            disabled={!onResolveClick}
           />
           <ActionRow
             icon={<X className="w-4 h-4" />}
