@@ -1,4 +1,48 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.53 — cache suffix bumped to v107 to evict every v106 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Phase 2 / commit 2 of the admin chat DialogPanel rewrite —
+//     DialogHeader + ActiveRequestBanner. ChatView.tsx's 100+ line
+//     inline header markup (back arrow + avatar + title + subtitle +
+//     search-toggle + info-button + inline info dropdown) is extracted
+//     to pages/chat/DialogHeader.tsx — a structural lift, not a
+//     redesign. One behavioural tweak: admin-side staff viewing a
+//     private-support channel with no resident-context subtitle now
+//     gets the "на связи · отвечаем до 15 мин" copy (mirrors v2
+//     design's operator surface). All other behaviour byte-for-byte:
+//     same avatar gradient family, online dot for resident side, same
+//     search+info toggles, same inline info dropdown content.
+//
+//     NEW: pages/chat/ActiveRequestBanner.tsx — inline strip under the
+//     header when channel has a linked active request (per chat-spec.md
+//     §3.1 active_request_id). Currently no API row populates the
+//     field, so the banner stays hidden in production; component is
+//     forward-compat — when the backend adds active_request_id +
+//     request data to the channel response, the banner activates
+//     automatically. Click navigates to /admin/requests/:id. Type
+//     ActiveRequest defines { id, description?, status? }. Reads field
+//     defensively via cast: (channel as ChatChannel & { active_request?
+//     }).active_request — no ChatChannel type change in this commit.
+//
+//   • CI gate caught one regression in pre-push: dropped
+//     CHAT_CHANNEL_LABELS import while line 356 still references it.
+//     Pre-push tsc -p tsconfig.app.json | grep "TS2304|TS2552" flagged
+//     in 200ms; one-character fix restored. Same trap as v106 but
+//     caught locally this time. The pre-push gate (running CI's exact
+//     filter) is now the standard for the remaining Phase 2 commits.
+//
+//   • Backup: backup/phase2-pre-rewrite-20260616-122240 pre-dates
+//     commit 1; v106 in main is the last known-good intermediate.
+//
+//   Behaviour preserved verbatim:
+//     - Tenant isolation (chatApi paths unchanged)
+//     - WebSocket subscriptions (subscribeToChatMessages unchanged)
+//     - Image markdown v81 (MessageBubble not touched)
+//     - ResidentChatView.tsx untouched
+//     - AdminChannelList.tsx untouched
+//     - MessageList from commit 1 unchanged
+//
+// Previous notes (v106) preserved below:
 // Version: 3.7.52 — cache suffix bumped to v106 to evict every v105 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Phase 2 / commit 1 of the admin chat DialogPanel rewrite — message
@@ -923,9 +967,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v106';
-const ASSET_CACHE = 'kamizo-assets-v106';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v106';
+const STATIC_CACHE = 'kamizo-static-v107';
+const ASSET_CACHE = 'kamizo-assets-v107';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v107';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
