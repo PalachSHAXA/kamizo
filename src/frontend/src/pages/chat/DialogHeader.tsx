@@ -22,8 +22,8 @@
 // verbatim.
 
 import { ArrowLeft, MoreVertical, Search } from 'lucide-react';
-import { CHAT_CHANNEL_LABELS } from '../../types';
 import { type ChatChannel, getAvatarColor, getInitials } from './chatUtils';
+import { InfoDropdown } from './InfoDropdown';
 
 export interface DialogHeaderProps {
   channel?: ChatChannel;
@@ -38,6 +38,7 @@ export interface DialogHeaderProps {
   onBack: () => void;
   onToggleSearch: () => void;
   onToggleInfo: () => void;
+  onCloseInfo: () => void;
   getTitle: () => string;
   getSubtitle: () => string;
 }
@@ -55,9 +56,13 @@ export function DialogHeader({
   onBack,
   onToggleSearch,
   onToggleInfo,
+  onCloseInfo,
   getTitle,
   getSubtitle,
 }: DialogHeaderProps) {
+  // commit 3: InfoDropdown is rendered as a popover anchored to the
+  // info button — staff side only. Residents don't see an info button.
+  void messagesCount; // unused after commit 3 swap; kept in props for stable ABI
   // Admin-side subtitle: prefer the house/apt context from getSubtitle();
   // when it's empty (channel has no resident context), fall back to the
   // same "на связи" copy the resident side shows — matches v2 design's
@@ -165,57 +170,19 @@ export function DialogHeader({
             <MoreVertical className="w-5 h-5" />
           </button>
           {showInfo && (
-            // The existing inline info dropdown stays in commit 2 (we
-            // ship a structural extract of the header WITHOUT changing
-            // its dropdown content). Commit 3 will swap this for the v2
-            // design's full InfoDropdown overlay component.
-            //
-            // Sprint 1 caveat preserved: w-64 (256px) overflows on
-            // iPhone SE 320px; capped via min(16rem,85vw).
-            <div className="absolute right-0 top-full mt-1 w-[min(16rem,85vw)] bg-white rounded-[14px] shadow-lg border border-gray-100 z-50 p-4">
-              <div className="space-y-2.5">
-                <div>
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-                    {language === 'ru' ? 'Название' : 'Nomi'}
-                  </p>
-                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{getTitle()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-                    {language === 'ru' ? 'Тип' : 'Turi'}
-                  </p>
-                  <p className="text-sm text-gray-700 mt-0.5">
-                    {channel?.type
-                      ? CHAT_CHANNEL_LABELS[channel.type]
-                        ? language === 'ru'
-                          ? CHAT_CHANNEL_LABELS[channel.type].label
-                          : CHAT_CHANNEL_LABELS[channel.type].labelUz
-                        : channel.type
-                      : '-'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-                    {language === 'ru' ? 'Сообщений' : 'Xabarlar'}
-                  </p>
-                  <p className="text-sm text-gray-700 mt-0.5">{messagesCount}</p>
-                </div>
-                {getSubtitle() && (
-                  <div>
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-                      {language === 'ru' ? 'Детали' : 'Tafsilotlar'}
-                    </p>
-                    <p className="text-sm text-gray-700 mt-0.5">{getSubtitle()}</p>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={onToggleInfo}
-                className="mt-3 w-full py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-[10px] transition-colors"
-              >
-                {language === 'ru' ? 'Закрыть' : 'Yopish'}
-              </button>
-            </div>
+            // Phase 2 / commit 3: replaces the v2-pre inline info
+            // dropdown with the full InfoDropdown overlay component
+            // (resident profile + tap-to-call phone + linked requests +
+            // action row). Renders as a popover anchored to the header
+            // — the absolute-positioned backdrop closes it on outside
+            // click. Channel fields are read defensively so missing
+            // backend data degrades to a smaller card instead of
+            // erroring.
+            <InfoDropdown
+              channel={channel}
+              language={language}
+              onClose={onCloseInfo}
+            />
           )}
         </div>
       </div>

@@ -1,4 +1,67 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.54 — cache suffix bumped to v108 to evict every v107 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Phase 2 / commit 3 (PARTIAL) of the admin chat DialogPanel
+//     rewrite — InfoDropdown overlay + Templates picker. Two of the
+//     three commit-3 surfaces ship in this commit; the Composer
+//     auto-grow textarea + plus-icon attach menu is deliberately
+//     deferred (the existing ChatComposer.tsx works correctly; an
+//     auto-grow textarea has subtle pitfalls — IME composition, multi-
+//     line paste, height collapse on send — that warrant their own
+//     dedicated commit + test cycle).
+//
+//     NEW: pages/chat/InfoDropdown.tsx — full resident-context overlay
+//     triggered by the info-button on DialogHeader. Replaces the
+//     v107-pre inline info dropdown (name + type + message count) with
+//     the v2 design's structure: avatar+name+house+apt+branch header,
+//     tap-to-call phone row when channel.phone is exposed, linked-
+//     requests list when channel.requests is exposed, and a 4-row
+//     action stub (Профиль жителя navigates to /admin/residents/:id;
+//     the other three — Назначить сотрудника / Пометить решённым /
+//     Закрыть обращение — are disabled placeholders for a Phase 3
+//     follow-up that needs the matching backend mutations). Channel
+//     fields are read defensively so missing API data degrades the
+//     card gracefully.
+//
+//     pages/chat/QuickReplies.tsx — added TemplatesPicker. A trailing
+//     "+" button at the end of the inline-replies row opens a popover
+//     with 7 hardcoded templates (chat-spec.md §4.4 list). Tapping a
+//     template inserts it into the composer for edit-then-send —
+//     same edit-before-send convention as the 5 inline replies, no
+//     auto-send. Templates are static in code; per-tenant editable
+//     templates are deferred to Phase 3 (chat-spec.md §4.4 — needs
+//     per-tenant config + an editor modal + storage).
+//
+//     pages/chat/DialogHeader.tsx — info-button now opens the new
+//     InfoDropdown overlay. Adds onCloseInfo prop so the overlay's
+//     backdrop click can close it. Drops the inline dropdown's
+//     CHAT_CHANNEL_LABELS dependency (which moved into ChatView's
+//     getSubtitle path; no functional change).
+//
+//     pages/chat/ChatView.tsx — passes onCloseInfo={() => setShowInfo
+//     (false)} to DialogHeader.
+//
+//   • Composer auto-grow + plus-icon attach menu DEFERRED. Will land
+//     as commit 3b once we have time for a focused IME/paste/height
+//     test pass.
+//
+//   • Pre-push gate: tsc -p tsconfig.app.json --noEmit | grep -E
+//     'TS2304|TS2552' → empty, npm run build → ✓ built in 10.51s.
+//
+//   Behaviour preserved verbatim:
+//     - Tenant isolation (chatApi paths unchanged)
+//     - WebSocket subscriptions for realtime new-message + read-receipt
+//     - Image markdown v81 (MessageBubble not touched)
+//     - Existing message data model
+//     - Resident chat (ResidentChatView.tsx) — UNTOUCHED
+//     - AdminChannelList.tsx (Phase 1 v104) — UNTOUCHED
+//     - MessageList (commit 1) — UNTOUCHED
+//     - DialogHeader (commit 2) avatar/title/subtitle/search-toggle —
+//       UNCHANGED; only the info-button click target swapped
+//     - ChatComposer.tsx (existing input + emoji + paperclip + send) —
+//       UNCHANGED, deferred to a separate commit
+//
+// Previous notes (v107) preserved below:
 // Version: 3.7.53 — cache suffix bumped to v107 to evict every v106 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Phase 2 / commit 2 of the admin chat DialogPanel rewrite —
@@ -967,9 +1030,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v107';
-const ASSET_CACHE = 'kamizo-assets-v107';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v107';
+const STATIC_CACHE = 'kamizo-static-v108';
+const ASSET_CACHE = 'kamizo-assets-v108';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v108';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

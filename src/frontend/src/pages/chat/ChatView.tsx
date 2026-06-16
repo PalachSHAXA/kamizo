@@ -395,6 +395,7 @@ export function ChatView({
         onBack={onBack}
         onToggleSearch={() => { setShowSearch(s => !s); setShowInfo(false); }}
         onToggleInfo={() => { setShowInfo(s => !s); setShowSearch(false); setShowEmojiPicker(false); }}
+        onCloseInfo={() => setShowInfo(false)}
         getTitle={getTitle}
         getSubtitle={getSubtitle}
       />
