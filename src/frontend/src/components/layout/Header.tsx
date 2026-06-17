@@ -664,11 +664,17 @@ export function Header() {
               </div>
             )}
 
-            {/* Meetings Section */}
+            {/* Meetings Section — recolored from purple to brand orange in
+                v125 so the notification surface lives in the same brand
+                family as the rest of the app (avoids "this section
+                belongs to a different product" optic on director +
+                resident accounts). MobileHeader's mirror block carries
+                the same palette so the dropdown looks identical at
+                every breakpoint. */}
             {unreadMeetingsCount > 0 && (
               <div className="border-b border-gray-200">
-                <div className="px-4 py-2 bg-purple-50 border-b border-purple-100">
-                  <p className="text-xs font-medium text-purple-700 flex items-center gap-1">
+                <div className="px-4 py-2 bg-orange-50 border-b border-orange-100">
+                  <p className="text-xs font-medium text-orange-700 flex items-center gap-1">
                     <Users className="w-3 h-3" />
                     Собрания ({unreadMeetingsCount})
                   </p>
@@ -680,11 +686,11 @@ export function Header() {
                       setShowNotifications(false);
                       navigate('/meetings');
                     }}
-                    className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 bg-purple-50/50"
+                    className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 bg-orange-50/50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                        <Users className="w-5 h-5 text-purple-600" />
+                      <div className="flex-shrink-0 w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-orange-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm text-gray-900 truncate">
@@ -694,7 +700,7 @@ export function Header() {
                           {meeting.confirmedDateTime ? new Date(meeting.confirmedDateTime).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : (language === 'ru' ? 'Дата уточняется' : 'Sana aniqlanmoqda')}
                         </p>
                       </div>
-                      <span className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0" />
+                      <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0" />
                     </div>
                   </div>
                 ))}

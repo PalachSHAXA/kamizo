@@ -239,27 +239,25 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
               )}
 
               {/* Meetings Section.
-                  v118: softened light-theme saturation. Tailwind's
-                  purple-50 (#FAF5FF) is brighter than blue-50 / amber-50
-                  used by the sibling section headers in this modal, so
-                  the band stood out as the loudest color block. Now:
-                  - header band uses `bg-purple-50/50` (halved opacity
-                    → pinkish-white that whispers "purple" instead of
-                    shouting it)
-                  - rows lose their `bg-purple-50/50` tint entirely so
-                    they read as plain modal surface (white)
-                  - icon circle dropped to `bg-purple-100/60` to match
-                    the gentler band, icon text stays purple-600 for
-                    recognition
-                  - functional unread dot (`bg-purple-500`) UNCHANGED —
-                    that's the eye-grabbing marker, must stay vivid
-                  - header text (`text-purple-700`) UNCHANGED for legibility
-                  Dark theme inherits the v117 safety net translucent
-                  treatment unchanged. */}
+                  v125: full purple → brand orange swap. The v118 pass
+                  only softened opacity (50/60 alpha) but left the hue
+                  purple, so director / resident accounts still saw a
+                  non-brand section in their notification dropdown.
+                  Now header band, row tint, icon circle, icon, and
+                  unread dot all live in the orange family, alpha-
+                  matched to v118's softening rule:
+                    band   = bg-orange-50/50  (pale, whispered)
+                    border = border-orange-100/60
+                    icon ◯ = bg-orange-100/60 + text-orange-600
+                    header = text-orange-700  (legible eyebrow)
+                    dot    = bg-orange-500    (kept vivid, eye-grabbing)
+                  Header.tsx's desktop mirror block carries the same
+                  palette so the dropdown looks identical at every
+                  breakpoint. */}
               {upcomingMeetings.length > 0 && (
                 <div className="border-b border-gray-200">
-                  <div className="px-3 py-2 bg-purple-50/50 border-b border-purple-100/60">
-                    <p className="text-xs font-medium text-purple-700 flex items-center gap-1">
+                  <div className="px-3 py-2 bg-orange-50/50 border-b border-orange-100/60">
+                    <p className="text-xs font-medium text-orange-700 flex items-center gap-1">
                       <Users className="w-3 h-3" />
                       Собрания ({upcomingMeetings.length})
                     </p>
@@ -270,8 +268,8 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                       onClick={() => { setShowNotifications(false); navigate('/meetings'); }}
                       className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 flex items-center gap-2"
                     >
-                      <div className="w-8 h-8 bg-purple-100/60 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Users className="w-4 h-4 text-purple-600" />
+                      <div className="w-8 h-8 bg-orange-100/60 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Users className="w-4 h-4 text-orange-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">Собрание дома</p>
@@ -281,7 +279,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                             : (language === 'ru' ? 'Дата уточняется' : 'Sana aniqlanmoqda')}
                         </p>
                       </div>
-                      <span className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0" />
+                      <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0" />
                     </div>
                   ))}
                 </div>

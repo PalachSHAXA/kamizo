@@ -1,4 +1,48 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.71 — cache suffix bumped to v125 to evict every v124 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Notifications dropdown "Собрания" section recolored from purple
+//     to brand orange. v118 had only softened the saturation (50/60
+//     alpha) but left the hue purple, so director / resident accounts
+//     still saw a non-brand block in their notification dropdown. v125
+//     swaps every purple-* utility for the corresponding orange-*:
+//       header band   bg-orange-50  /  bg-orange-50/50   (mobile keeps alpha)
+//       border        border-orange-100  /  border-orange-100/60
+//       row tint      bg-orange-50/50    (desktop only)
+//       icon circle   bg-orange-100  /  bg-orange-100/60
+//       icon          text-orange-600
+//       header text   text-orange-700
+//       unread dot    bg-orange-500
+//     Two files touched — Header.tsx (desktop ≥ md breakpoint) and
+//     MobileHeader.tsx (< md). No other notification renderer exists;
+//     grep confirmed there's no NotificationsModal / NotificationsPanel
+//     / NotificationsDropdown sub-component, both header variants own
+//     the dropdown inline. All other section colors untouched (Заявки
+//     blue, Объявления blue, onboarding amber, dashboard category tiles
+//     keep their categorical colors — including the legit purple
+//     "Сотрудники" tile which is outside this dropdown).
+//
+//   Tested live on Capacitor APK + Chrome PWA against api.kamizo.uz:
+//     - test-director-moon: notifications dropdown header band is
+//       orange in light + dark themes.
+//     - test-choko (resident, 1 upcoming meeting): same orange band,
+//       same brand-consistent eyebrow.
+//     - Other categorical colors (announcements blue, onboarding amber)
+//       unchanged.
+//
+//   Files changed:
+//     src/components/layout/Header.tsx                    — desktop block swap (6 classes)
+//     src/components/layout/MobileHeader.tsx              — mobile block swap (5 classes, /50/60 alpha kept)
+//     src/frontend/public/sw.js                           — v3.7.71 / cache v125
+//
+//   Behaviour preserved:
+//     - All v109-v124 fixes untouched.
+//     - Sprint 85 tenant-contract feature unchanged.
+//     - Dashboard categorical tiles unchanged.
+//     - Sidebar nav badges unchanged.
+//     - RoleBadge dots unchanged.
+//
+// Previous notes (v124) preserved below:
 // Version: 3.7.70 — cache suffix bumped to v124 to evict every v123 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Sprint 85 commit 3 of 3 — resident-side download of the tenant's
@@ -1825,9 +1869,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v124';
-const ASSET_CACHE = 'kamizo-assets-v124';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v124';
+const STATIC_CACHE = 'kamizo-static-v125';
+const ASSET_CACHE = 'kamizo-assets-v125';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v125';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
