@@ -111,6 +111,15 @@ export function Header() {
   const getUnreadCount = useNotificationStore(s => s.getUnreadCount);
   const markNotificationAsRead = useNotificationStore(s => s.markNotificationAsRead);
   const markAllNotificationsAsRead = useNotificationStore(s => s.markAllNotificationsAsRead);
+  // v126 — per-user dismissal of upcoming-meeting bell rows. Stored
+  // client-side; see notificationStore for the rationale (meetings
+  // are events, not notification rows).
+  const dismissMeetingForUser = useNotificationStore(s => s.dismissMeetingForUser);
+  const dismissedMeetings = useNotificationStore(s => s.dismissedMeetings);
+  // v126 — announcement read-state lives server-side (announcements.viewed_by_user).
+  // markAnnouncementAsViewed POSTs /api/announcements-views so a tap
+  // here decrements the badge AND syncs to the user's other devices.
+  const markAnnouncementAsViewed = useAnnouncementStore(s => s.markAnnouncementAsViewed);
   const requests = useRequestStore(s => s.requests);
   const vehicles = useVehicleStore(s => s.vehicles);
   const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
@@ -156,17 +165,42 @@ export function Header() {
   // Super admin doesn't participate in tenant meetings
   const isExecutor = user?.role === 'executor' || user?.role === 'security';
   const showMeetings = !isRentalUser && !isAdvertiserRole && !isSuperAdmin && !isExecutor;
+  // v126 — filter out meetings the current user already tapped in the
+  // bell dropdown. Without this the badge would stay stuck at "1"
+  // until the meeting started, since meetings have no server-side
+  // read state.
+  const userDismissedMeetingIds = useMemo(() => new Set(dismissedMeetings[user?.id || ''] || []), [dismissedMeetings, user?.id]);
   const upcomingMeetings = useMemo(() => {
     if (!showMeetings) return [];
     const now = new Date();
     const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     return meetings.filter(m => {
       if (!m.confirmedDateTime) return false;
+      if (userDismissedMeetingIds.has(m.id)) return false;
       const meetingDate = new Date(m.confirmedDateTime);
       return meetingDate >= now && meetingDate <= weekFromNow && m.status !== 'cancelled';
     });
-  }, [showMeetings, meetings]);
+  }, [showMeetings, meetings, userDismissedMeetingIds]);
   const unreadMeetingsCount = upcomingMeetings.length;
+
+  // v126 — Telegram-style tap-to-mark-read + navigate. Routes are
+  // resolved heuristically because the Notification.type union is
+  // narrow (request_* only — see types/request.ts) but the backend
+  // also sends meeting/announcement-flavored bodies with type='*'
+  // falling through to default. The heuristic checks:
+  //   1. explicit requestId field → /requests
+  //   2. title/message text → /meetings, /announcements
+  //   3. otherwise no-nav (just mark-as-read + close modal)
+  // Detail routes (/requests/:id etc) don't exist in this app —
+  // every Layout.tsx Route here points to a LIST page — so navigation
+  // lands on the list and lets the user scan.
+  const getNotificationRoute = (n: { requestId?: string | null; title?: string; message?: string }): string | null => {
+    if (n.requestId) return '/requests';
+    const t = ((n.title || '') + ' ' + (n.message || '')).toLowerCase();
+    if (/собрани|голосовани|повестк/.test(t)) return '/meetings';
+    if (/объявлен/.test(t)) return '/announcements';
+    return null;
+  };
 
   const handleTaskClick = (task: OnboardingTask) => {
     setShowNotifications(false);
@@ -644,6 +678,10 @@ export function Header() {
                   <div
                     key={announcement.id}
                     onClick={() => {
+                      // v126 — fire-and-forget mark-as-viewed before nav so the
+                      // badge decrements optimistically; failure just leaves the
+                      // local viewedBy update intact (server-side dedup is safe).
+                      if (user?.id) void markAnnouncementAsViewed(announcement.id, user.id);
                       setShowNotifications(false);
                       navigate('/announcements');
                     }}
@@ -683,6 +721,10 @@ export function Header() {
                   <div
                     key={meeting.id}
                     onClick={() => {
+                      // v126 — local dismissal so the bell badge decrements.
+                      // See notificationStore.dismissMeetingForUser for why
+                      // this is client-only.
+                      if (user?.id) dismissMeetingForUser(user.id, meeting.id);
                       setShowNotifications(false);
                       navigate('/meetings');
                     }}
@@ -721,9 +763,17 @@ export function Header() {
                   <div
                     key={notification.id}
                     onClick={() => {
+                      // v126 — Telegram-style: mark this single row read +
+                      // navigate to its category list + close modal. Both
+                      // mark and nav fire even if the row was already read
+                      // (idempotent server-side) so the UX is "tap takes
+                      // you somewhere" regardless of read state.
                       if (!notification.read) {
                         markNotificationAsRead(notification.id);
                       }
+                      const route = getNotificationRoute(notification);
+                      setShowNotifications(false);
+                      if (route) navigate(route);
                     }}
                     className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
                       !notification.read ? 'bg-blue-50' : 'bg-white'

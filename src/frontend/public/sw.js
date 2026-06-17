@@ -1,4 +1,71 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.72 — cache suffix bumped to v126 to evict every v125 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Notifications dropdown — Telegram-style tap-to-mark-read +
+//     navigate. Before v126 the bell badge would stay at its highest
+//     count for the whole session: opening the modal didn't clear
+//     anything, and only the generic userNotifications rows had a
+//     mark-as-read on click (no navigation), while the meetings and
+//     announcements section rows navigated without marking. Now every
+//     row in every section is a single self-contained tap target:
+//
+//       userNotifications row:
+//         - markNotificationAsRead(id) → PATCH /api/notifications/:id/read
+//           (already existed, idempotent server-side)
+//         - heuristic route resolver maps title/message + requestId
+//           to /requests, /meetings, /announcements (LIST pages —
+//           detail routes don't exist in this app)
+//         - close modal + navigate
+//
+//       Meetings section row:
+//         - notificationStore.dismissMeetingForUser(userId, meetingId)
+//           writes a per-user dismissed-meeting ID to localStorage
+//           (under the existing uk-notification-storage blob).
+//           upcomingMeetings filter excludes dismissed IDs so the
+//           "Собрания (N)" header decrements + the bell total drops.
+//           No backend table — meetings are events, not notification
+//           rows, and cross-device dismissal sync carries near-zero
+//           product value (a meeting you reviewed on the phone is
+//           still upcoming and a fresh nudge on the tablet is fine).
+//         - close modal + navigate('/meetings')
+//
+//       Announcements section row:
+//         - announcementStore.markAnnouncementAsViewed(id, userId)
+//           POSTs the existing /api/announcements-views endpoint
+//           (already shipped) so the badge decrements AND the read
+//           state syncs across devices.
+//         - close modal + navigate('/announcements')
+//
+//     Both header surfaces (desktop Header.tsx + mobile MobileHeader.tsx)
+//     receive the same wiring so the behavior is identical at every
+//     breakpoint. Onboarding tasks already self-clear when complete
+//     (client-side check against user/vehicle state) — no change.
+//
+//   Files changed:
+//     src/frontend/src/stores/notificationStore.ts        — +47 / dismissedMeetings + 2 actions
+//     src/frontend/src/components/layout/Header.tsx       — wired 3 click handlers
+//     src/frontend/src/components/layout/MobileHeader.tsx — wired 3 click handlers
+//     src/frontend/public/sw.js                           — v3.7.72 / cache v126
+//
+//   No backend changes. PATCH /api/notifications/:id/read +
+//   /api/announcements-views were both already wired pre-v126.
+//
+//   Verified live on Capacitor APK against api.kamizo.uz:
+//     - test-director-moon: bell badge "1" → tap "Собрание дома" row →
+//       modal closes → /meetings page → bell badge gone.
+//     - test-choko (5 unread): tap 🔔 "Новое собрание объявлено" →
+//       modal closes → /meetings → badge "5" → "4".
+//     - Cross-tenant: choko cannot mark moon's notification IDs (404,
+//       handler scopes to user_id from JWT — preserved from pre-v126
+//       endpoint).
+//     - Light + dark themes both render decrement correctly.
+//
+//   Behaviour preserved:
+//     - All v109-v125 fixes intact, Sprint 85 contract feature
+//       unchanged, v125 orange "Собрания" recolor unchanged.
+//     - markAllNotificationsAsRead button (when present) unchanged.
+//
+// Previous notes (v125) preserved below:
 // Version: 3.7.71 — cache suffix bumped to v125 to evict every v124 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Notifications dropdown "Собрания" section recolored from purple
@@ -1869,9 +1936,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v125';
-const ASSET_CACHE = 'kamizo-assets-v125';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v125';
+const STATIC_CACHE = 'kamizo-static-v126';
+const ASSET_CACHE = 'kamizo-assets-v126';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v126';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

@@ -22,6 +22,11 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   const notifications = useNotificationStore(s => s.notifications);
   const markNotificationAsRead = useNotificationStore(s => s.markNotificationAsRead);
   const markAllNotificationsAsRead = useNotificationStore(s => s.markAllNotificationsAsRead);
+  // v126 — per-user dismissed-meeting set + announcement view marker.
+  // See Header.tsx for the rationale.
+  const dismissMeetingForUser = useNotificationStore(s => s.dismissMeetingForUser);
+  const dismissedMeetings = useNotificationStore(s => s.dismissedMeetings);
+  const markAnnouncementAsViewed = useAnnouncementStore(s => s.markAnnouncementAsViewed);
   const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
   const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
   const { meetings } = useMeetingStore();
@@ -44,17 +49,30 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
   const isRentalUser = user?.role === 'tenant' || user?.role === 'commercial_owner';
   const isExecutor = user?.role === 'executor' || user?.role === 'security';
 
-  // Get upcoming meetings
+  // Get upcoming meetings (v126 — minus the ones this user has
+  // already tapped from the bell dropdown).
+  const userDismissedMeetingIds = useMemo(() => new Set(dismissedMeetings[user?.id || ''] || []), [dismissedMeetings, user?.id]);
   const upcomingMeetings = useMemo(() => {
     if (isRentalUser || isExecutor) return [];
     const nowDate = new Date();
     const weekFromNow = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
     return meetings.filter(m => {
       if (!m.confirmedDateTime) return false;
+      if (userDismissedMeetingIds.has(m.id)) return false;
       const meetingDate = new Date(m.confirmedDateTime);
       return meetingDate >= nowDate && meetingDate <= weekFromNow && m.status !== 'cancelled';
     });
-  }, [meetings, isRentalUser, isExecutor]);
+  }, [meetings, isRentalUser, isExecutor, userDismissedMeetingIds]);
+
+  // v126 — mirror of Header.tsx getNotificationRoute. See the parent
+  // comment there for the routing heuristic.
+  const getNotificationRoute = (n: { requestId?: string | null; title?: string; message?: string }): string | null => {
+    if (n.requestId) return '/requests';
+    const t = ((n.title || '') + ' ' + (n.message || '')).toLowerCase();
+    if (/собрани|голосовани|повестк/.test(t)) return '/meetings';
+    if (/объявлен/.test(t)) return '/announcements';
+    return null;
+  };
 
   const pendingTasks: unknown[] = [];
   const pendingTasksCount = 0;
@@ -222,7 +240,14 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                   {userAnnouncements.filter(a => !a.viewedBy?.includes(user?.id || '')).slice(0, 3).map((announcement) => (
                     <div
                       key={announcement.id}
-                      onClick={() => { setShowNotifications(false); navigate('/announcements'); }}
+                      onClick={() => {
+                        // v126 — mark viewed via existing /api/announcements-views
+                        // POST so the badge decrements + the read state syncs to
+                        // other devices.
+                        if (user?.id) void markAnnouncementAsViewed(announcement.id, user.id);
+                        setShowNotifications(false);
+                        navigate('/announcements');
+                      }}
                       className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 bg-blue-50/50 flex items-center gap-2"
                     >
                       <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -265,7 +290,12 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                   {upcomingMeetings.slice(0, 2).map((meeting) => (
                     <div
                       key={meeting.id}
-                      onClick={() => { setShowNotifications(false); navigate('/meetings'); }}
+                      onClick={() => {
+                        // v126 — local dismissal so the bell badge drops.
+                        if (user?.id) dismissMeetingForUser(user.id, meeting.id);
+                        setShowNotifications(false);
+                        navigate('/meetings');
+                      }}
                       className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 flex items-center gap-2"
                     >
                       <div className="w-8 h-8 bg-orange-100/60 rounded-full flex items-center justify-center flex-shrink-0">
@@ -300,11 +330,15 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
                     <div
                       key={notification.id}
                       onClick={() => {
+                        // v126 — Telegram-style tap: mark read + nav + close.
                         if (!notification.read) {
                           markNotificationAsRead(notification.id);
                         }
+                        const route = getNotificationRoute(notification);
+                        setShowNotifications(false);
+                        if (route) navigate(route);
                       }}
-                      className={`p-3 border-b border-gray-100 ${!notification.read ? 'bg-blue-50' : 'bg-white'}`}
+                      className={`p-3 border-b border-gray-100 cursor-pointer ${!notification.read ? 'bg-blue-50' : 'bg-white'}`}
                     >
                       <div className="flex gap-2">
                         <span className="text-lg">{getNotificationIcon(notification.type)}</span>
