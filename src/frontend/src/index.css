@@ -671,7 +671,12 @@ html.dark textarea::placeholder { color: var(--text-disabled); }
 body {
   font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
   background: var(--app-bg);
+  /* v129 P1 — full fallback chain. Capacitor's Android WebView (and
+     several Android 11/12 system updaters opt-out of Chrome auto-
+     update) resolves 100dvh to 0; the page-lock height-stack must
+     fall back through 100vh → 100svh which both resolve correctly. */
   min-height: 100vh;
+  min-height: 100svh;
   min-height: 100dvh;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
@@ -1305,7 +1310,10 @@ html.dark .modal-content {
 /* Main layout - responsive */
 .main-layout {
   display: flex;
+  /* v129 P1 — full fallback chain. Capacitor WebView may return 0 for
+     dvh; svh always returns a real "small viewport height". */
   min-height: 100vh;
+  min-height: 100svh;
   min-height: 100dvh;
 }
 
@@ -1334,6 +1342,10 @@ html.dark .modal-content {
    already computes. Now both branches use the same formula. */
 @media (min-width: 769px) {
   .resident-chat-container {
+    /* v129 P1 — same Capacitor dvh-collapse-to-0 fix. svh has the same
+       calc semantics; both fall through to vh. */
+    height: calc(100vh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px));
+    height: calc(100svh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px));
     height: calc(100dvh - var(--mobile-header-h, 68px) - env(safe-area-inset-bottom, 0px));
   }
 }

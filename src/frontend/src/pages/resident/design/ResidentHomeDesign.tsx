@@ -145,7 +145,12 @@ function QuickTiles({ onNewRequest, navigate, language, passCount = 0, vehicleCo
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
       {tiles.map((t, i) => (
-        <button key={i} onClick={t.onClick} style={{ position: 'relative', background: 'var(--surface)', border: '1px solid var(--border-c)', borderRadius: 20, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
+        // v129 P1 — "Оплата" was a soon-flagged tile (Lock icon) but
+        // the button still kept registering active-state taps. disabled
+        // + aria-disabled + reduced opacity + non-pointer cursor makes
+        // it visibly inactive and unresponsive to tap. Matches the v127
+        // ResidentProfilePage disabled-tile convention.
+        <button key={i} onClick={t.onClick} disabled={!t.onClick} aria-disabled={!t.onClick} style={{ position: 'relative', background: 'var(--surface)', border: '1px solid var(--border-c)', borderRadius: 20, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: t.onClick ? 'pointer' : 'default', opacity: t.onClick ? 1 : 0.7, boxShadow: 'var(--shadow-sm)' }}>
           <div style={{ position: 'relative', width: 46, height: 46, borderRadius: 999, background: 'var(--brand-tint)', color: 'var(--brand-dark)', display: 'grid', placeItems: 'center' }}>
             <t.Icon size={22} stroke={1.9} />
             {t.badge > 0 && (

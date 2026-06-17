@@ -169,8 +169,15 @@ export function LoginPage() {
     <div
       className="relative bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
       style={{
-        minHeight: '100dvh',
-        height: '100dvh',
+        // v129 P1 — Capacitor's Android System WebView resolves 100dvh
+        // to 0 on Chromium < 108 (still in service on many real Android
+        // 11/12 devices via system updater opt-out). Fall back through
+        // 100vh → 100svh, both of which Capacitor implements correctly.
+        // The minHeight/height pair keeps the page lock from collapsing
+        // the scroll region when the bundled keyboard plugin shifts the
+        // viewport.
+        minHeight: '100vh',
+        height: '100svh',
         overflowY: 'auto',
         overflowX: 'hidden',
         overscrollBehavior: 'contain',
@@ -1031,11 +1038,14 @@ export function LoginPage() {
         <div
           className="fixed inset-0 z-50 bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
           style={{
+            // v129 P1 — same Capacitor fallback as the parent /login
+            // scroll region above.
             overflowY: 'auto',
             overflowX: 'hidden',
             overscrollBehavior: 'contain',
             WebkitOverflowScrolling: 'touch',
-            height: '100dvh',
+            height: '100svh',
+            minHeight: '100vh',
           }}
           role="dialog"
           aria-modal="true"

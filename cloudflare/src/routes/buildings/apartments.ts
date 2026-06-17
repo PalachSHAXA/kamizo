@@ -3,6 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { json, error } from '../../utils/helpers';
+import { createRequestLogger } from '../../utils/logger';
 
 export function registerApartmentRoutes() {
 
@@ -69,6 +70,16 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
   `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   if (!apartment) return error('Apartment not found', 404);
 
+  // v129 P1 — these three queries used to swallow errors silently
+  // (`} catch (e) {}` with no body), returning empty arrays / null
+  // on any DB failure. "Missing related data" is a legitimate case
+  // — owners/personal_accounts/users may genuinely have no matching
+  // rows. But masking a real DB error as "no related data" hides
+  // outages from observability. Log the error so it shows up in
+  // /opt/kamizo/logs/api.err.log; KEEP the empty-fallback behavior
+  // so the caller still gets a partial response.
+  const logger = createRequestLogger(request);
+
   let owners: any[] = [];
   try {
     const { results } = await env.DB.prepare(`
@@ -76,10 +87,16 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
       FROM owners o JOIN owner_apartments oa ON o.id = oa.owner_id WHERE oa.apartment_id = ? ORDER BY oa.is_primary DESC
     `).bind(params.id).all();
     owners = results || [];
-  } catch (e) {}
+  } catch (e) {
+    logger.error('apartments.detail: owners lookup failed', e);
+  }
 
   let account = null;
-  try { account = await env.DB.prepare('SELECT * FROM personal_accounts WHERE apartment_id = ?').bind(params.id).first(); } catch (e) {}
+  try {
+    account = await env.DB.prepare('SELECT * FROM personal_accounts WHERE apartment_id = ?').bind(params.id).first();
+  } catch (e) {
+    logger.error('apartments.detail: personal_account lookup failed', e);
+  }
 
   let userResidents: any[] = [];
   try {
@@ -95,7 +112,9 @@ route('GET', '/api/apartments/:id', async (request, env, params) => {
       `).bind(apt.building_id, aptNumber, ...(tenantId ? [tenantId] : [])).all();
       userResidents = results || [];
     }
-  } catch (e) {}
+  } catch (e) {
+    logger.error('apartments.detail: userResidents lookup failed', e);
+  }
 
   return json({ apartment, owners, personalAccount: account, userResidents });
 });

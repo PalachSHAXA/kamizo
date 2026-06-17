@@ -621,7 +621,12 @@ export function Header() {
           {/* Dropdown */}
           <div
             className="fixed right-4 left-4 sm:left-auto sm:right-6 top-20 sm:w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
-            style={{ zIndex: 10001, maxHeight: 'calc(100dvh - 100px)' }}
+            // v129 P1 — Capacitor WebView resolves dvh to 0 → dropdown
+            // collapsed to maxHeight: -100px (clipped invisible). Bound
+            // to a safe min(vh - chrome, 500px) so the dropdown is
+            // always at least visible AND never taller than the
+            // viewport's small-height variant.
+            style={{ zIndex: 10001, maxHeight: 'min(calc(100vh - 100px), 500px)' }}
             role="region"
             aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
           >

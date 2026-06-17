@@ -1,4 +1,76 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.75 — cache suffix bumped to v129 to evict every v128 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • P1 sweep from the pre-iOS project audit. Three categories of
+//     hygiene fix, batched into a single commit because each surface
+//     is small and they share an SW bump.
+//
+//     A. dvh callsites — Capacitor's Android System WebView can resolve
+//        `100dvh` to 0 on some older Chromium-based WebViews, collapsing
+//        the page chrome to height 0. The CSS-only callsites get a
+//        `100vh → 100svh → 100dvh` cascade so the last supported value
+//        wins; inline-style JSX sites switch to 100svh (small viewport,
+//        always real) with 100vh as the safe baseline.
+//          src/frontend/src/index.css                 — body + #root + main-layout + resident-chat-container cascades
+//          src/frontend/src/pages/LoginPage.tsx       — root + picker overlay heights
+//          src/frontend/src/components/layout/Header.tsx — notification dropdown maxHeight (also bounded to 500px)
+//          src/frontend/src/pages/admin/components/DashboardTab.tsx — master-list pane maxHeight + min-height calc
+//
+//     B. Swallowed error catches in backend route handlers. Three
+//        catches in apartments.ts and one in buildings.ts used to
+//        return empty arrays / null on ANY DB error, masking real
+//        outages as "no related data". KEEP the empty fallback (the
+//        partial response is the correct UX when those tables are
+//        empty or absent in older deployments), but add createRequestLogger
+//        error logging so DB failures surface in /opt/kamizo/logs/api.err.log
+//        instead of disappearing.
+//          cloudflare/src/routes/buildings/apartments.ts — owners + personal_accounts + userResidents
+//          cloudflare/src/routes/buildings/buildings.ts  — building_documents
+//
+//     C. Resident HomeTab "Оплата" tile was a soon-flagged button that
+//        kept registering tap presses without action (the Lock icon
+//        was the only visual cue, no `disabled` attribute). Now
+//        disabled + aria-disabled when its onClick is undefined, with
+//        opacity 0.7 to match the v127 ResidentProfilePage disabled-tile
+//        convention. Tap no longer reads as broken UI.
+//          src/frontend/src/pages/resident/components/HomeTab.tsx
+//
+//     SettingsPage AddManager button was already correctly disabled
+//     (opacity-50 + cursor-not-allowed + disabled + title) — no change.
+//
+//   Files changed:
+//     src/frontend/src/index.css                                — 3 dvh cascade blocks
+//     src/frontend/src/pages/LoginPage.tsx                      — 2 inline style fixes
+//     src/frontend/src/components/layout/Header.tsx             — dropdown maxHeight
+//     src/frontend/src/pages/admin/components/DashboardTab.tsx  — master-list min/max heights
+//     src/frontend/src/pages/resident/components/HomeTab.tsx    — Оплата tile disabled
+//     cloudflare/src/routes/buildings/apartments.ts             — 3 catches + logger
+//     cloudflare/src/routes/buildings/buildings.ts              — 1 catch + logger
+//     src/frontend/public/sw.js                                 — v3.7.75 / cache v129
+//
+//   Verified on Capacitor APK + production api.kamizo.uz:
+//     - Login page renders full viewport on Android emulator (was
+//       collapsed pre-v129 on some Chromium-WebView builds).
+//     - Notification dropdown opens at min(viewport - 100px, 500px) —
+//       never 0-height clipped.
+//     - Resident HomeTab "Оплата" tile: tap no longer triggers an
+//       active state; Lock icon + reduced opacity make it visibly
+//       inactive at a glance.
+//     - Apartment detail / building detail responses unchanged when
+//       the underlying tables are empty. Triggering a deliberate
+//       table-missing failure now writes an error line to api.err.log
+//       (visible via `journalctl -u kamizo-api -f`).
+//
+//   Migration: NONE.
+//
+//   Behaviour preserved:
+//     - All v109-v128 fixes intact.
+//     - Sprint 85 contract + v125 Собрания + v126 tap-to-read + v128
+//       apartment_id all untouched.
+//     - Existing v117 + v125 dark-theme safety net unchanged — no new
+//       surface broken in dark.
+//
+// Previous notes (v128) preserved below:
 // Version: 3.7.74 — cache suffix bumped to v128 to evict every v127 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Real fix for the v127 P0-NEEDS-DECISION on resident finance balance.
@@ -2059,9 +2131,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v128';
-const ASSET_CACHE = 'kamizo-assets-v128';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v128';
+const STATIC_CACHE = 'kamizo-static-v129';
+const ASSET_CACHE = 'kamizo-assets-v129';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v129';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

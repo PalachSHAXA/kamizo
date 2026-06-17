@@ -28,8 +28,15 @@ function QuickTiles({ onNewRequest }: { onNewRequest: () => void }) {
         <button
           key={i}
           onClick={t.onClick}
-          className="relative flex flex-col items-center gap-2 py-3.5 px-2 rounded-[20px] touch-manipulation active:scale-[0.97] transition-transform"
-          style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border-c, #E6DFD2)', boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))' }}
+          // v129 P1 — "Оплата" tile had Lock icon + no onClick but still
+          // rendered as an active button. Tap registered as a press
+          // without action. Now disabled + aria-disabled when no onClick
+          // so the tap doesn't register at all; opacity matches the
+          // ResidentProfilePage disabled-tile convention from v127.
+          disabled={!t.onClick}
+          aria-disabled={!t.onClick}
+          className="relative flex flex-col items-center gap-2 py-3.5 px-2 rounded-[20px] touch-manipulation active:scale-[0.97] transition-transform disabled:active:scale-100"
+          style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border-c, #E6DFD2)', boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))', opacity: t.onClick ? 1 : 0.7 }}
         >
           <div
             className="w-[46px] h-[46px] rounded-full grid place-items-center"

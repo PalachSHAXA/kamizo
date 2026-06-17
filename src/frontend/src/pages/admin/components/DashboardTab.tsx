@@ -474,9 +474,12 @@ export function DashboardTab({
       </div>
 
       {/* Master-Detail */}
-      <div className="flex flex-col md:flex-row gap-4" style={{ minHeight: 'min(500px, calc(100dvh - 370px))' }}>
+      <div className="flex flex-col md:flex-row gap-4" style={{ minHeight: 'min(500px, calc(100vh - 370px))' }}>
       {/* Left: Tenant List */}
-      <div className="w-full md:w-80 md:flex-shrink-0 bg-white border border-gray-100 rounded-2xl p-3 sm:p-4 space-y-3 overflow-y-auto shadow-sm max-h-[40dvh] md:max-h-none">
+      {/* v129 P1 — was max-h-[40dvh]; Capacitor WebView resolves dvh
+          to 0 so the master list collapsed to height 0 on mobile native.
+          40vh is the closest Tailwind unit (vh is widely supported). */}
+      <div className="w-full md:w-80 md:flex-shrink-0 bg-white border border-gray-100 rounded-2xl p-3 sm:p-4 space-y-3 overflow-y-auto shadow-sm max-h-[40vh] md:max-h-none">
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
           <input

@@ -7,6 +7,7 @@ import { getCached, setCache } from '../../middleware/cache-local';
 import { json, error, generateId, isManagement, getPaginationParams, createPaginatedResponse } from '../../utils/helpers';
 import { validateBody } from '../../validation/validate';
 import { createBuildingSchema } from '../../validation/schemas';
+import { createRequestLogger } from '../../utils/logger';
 
 export function registerBuildingCrudRoutes() {
 
@@ -119,7 +120,12 @@ route('GET', '/api/buildings/:id', async (request, env, params) => {
           `SELECT * FROM building_documents WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
         ).bind(buildingId, ...(tenantId ? [tenantId] : [])).all();
         documents = docsResult.results;
-      } catch (e) {}
+      } catch (e) {
+        // v129 P1 — was silently empty. building_documents table may not
+        // exist on older deployments; tolerate the absence but log so a
+        // schema regression is visible in the API err log.
+        createRequestLogger(request).error('buildings.detail: building_documents lookup failed', e);
+      }
 
       return { building, entrances, documents };
     },
