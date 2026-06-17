@@ -1,4 +1,76 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.70 — cache suffix bumped to v124 to evict every v123 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Sprint 85 commit 3 of 3 — resident-side download of the tenant's
+//     "Договор управления" PDF. Closes the end-to-end loop opened by
+//     commit 1 (backend / R2 / 5 endpoints) and commit 2 (super-admin
+//     + director upload UI). Now every authenticated resident on a
+//     tenant whose director uploaded a contract can pull the PDF
+//     from their profile in two taps.
+//
+//     Implementation:
+//       - src/pages/ResidentProfilePage.tsx — new
+//         "Договор управления" section sits between the
+//         ManagementCompanyCard and the Settings sections, matching
+//         the page's existing inline-style design (NOT the Tailwind
+//         ContractUploader from commit 2 — visually would clash with
+//         the rest of the profile). Two states:
+//           filled: BRAND_TINT FileText icon, filename, upload date
+//                   + uploader name, full-width orange "Скачать
+//                   договор" button, muted help line "Договор
+//                   управления многоквартирным домом с УК {name}"
+//           empty : muted FileText icon, "Договор ещё не загружен",
+//                   help line "Обратитесь в управляющую компанию,
+//                   чтобы они загрузили договор управления"
+//         Inline download helper mirrors ContractUploader's flow
+//         (fetch → blob → URL.createObjectURL → <a download> →
+//         revoke on next animation frame) without taking on the
+//         shared component's Tailwind / dragdrop / delete surface.
+//       - On mount the page also calls useTenantStore.fetchConfig()
+//         so super-admin / director changes since the last app boot
+//         become visible without a hard reload. Cheap — same pattern
+//         the page already uses for refreshUser().
+//       - GET /api/resident/contract is the only endpoint touched —
+//         already shipped in commit 1. tenant_id is JWT-derived in
+//         the handler, so cross-tenant residents can never see
+//         another УК's PDF.
+//       - 404 on download (race against super-admin deleting the
+//         contract between page-load and tap) triggers a friendly
+//         "Договор больше не доступен. Обновите страницу." toast +
+//         a silent refetchTenantConfig() so the section flips to
+//         empty-state on the next paint.
+//
+//     Tested live on Capacitor APK + Chrome PWA against api.kamizo.uz:
+//       - test-choko (resident on choko.kamizo.uz):
+//         section visible, metadata correct, "Скачать договор"
+//         downloads the PDF via Android DownloadManager.
+//       - Resident with no tenant contract: empty state renders
+//         with the contact-УК prompt and no download button.
+//       - Super-admin deletes choko's contract → resident reloads
+//         the profile → section flips to the empty state.
+//       - Cross-tenant: as test-moon, only MOON's contract (or empty
+//         state) is reachable. Server enforces tenant isolation on
+//         /api/resident/contract via JWT-derived tenant_id; the
+//         client never knows the other tenant's contract URL.
+//       - Dark + light themes both render cleanly via the existing
+//         --rpp-* tokens.
+//       - Admin / director / chat surfaces untouched.
+//
+//   Files changed (commit 3):
+//     src/frontend/src/pages/ResidentProfilePage.tsx       — +~210
+//     src/frontend/public/sw.js                            — v3.7.70 / cache v124
+//
+//   Behaviour preserved:
+//     - All v109-v123 fixes untouched.
+//     - ContractUploader / director / super-admin surfaces unchanged.
+//     - Resident /contract route (personal contract tile) unchanged.
+//     - No backend changes — uses existing GET /api/resident/contract
+//       and GET /api/tenant/config from commits 1 + 2.
+//
+//   Phase complete — all 3 Sprint 85 commits closed. End-to-end working:
+//     super-admin uploads → director uploads → every resident downloads.
+//
+// Previous notes (v123) preserved below:
 // Version: 3.7.69 — cache suffix bumped to v123 to evict every v122 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Sprint 85 commit 2 of 3 — super-admin + director upload UI for
@@ -1753,9 +1825,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v123';
-const ASSET_CACHE = 'kamizo-assets-v123';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v123';
+const STATIC_CACHE = 'kamizo-static-v124';
+const ASSET_CACHE = 'kamizo-assets-v124';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v124';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

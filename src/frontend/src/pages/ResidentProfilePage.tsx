@@ -19,6 +19,7 @@ import { formatName } from '../utils/formatName';
 import { formatPhone } from '../utils/formatPhone';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { generateQRCode } from '../components/LazyQRCode';
+import { API_URL, getToken } from '../services/api/client';
 
 // ─── Page implements Claude Design §07-profil. Source of truth lives in
 //     design/handoff/profile-handoff.md. Visual structure (hero / tiles /
@@ -107,6 +108,14 @@ export function ResidentProfilePage() {
   // building name/address from buildingStore (lazy-loaded once on mount
   // when the user has a buildingId).
   const tenantConfig = useTenantStore(s => s.config?.tenant);
+  // Sprint 85 commit 3 — refresh /api/tenant/config on profile open so the
+  // "Договор управления" section reflects any super-admin / director
+  // change since the resident last booted the app (upload, replace,
+  // delete). Cheap — single GET, same pattern as refreshUser() above.
+  const refetchTenantConfig = useTenantStore(s => s.fetchConfig);
+  useEffect(() => { void refetchTenantConfig(); }, [refetchTenantConfig]);
+  const tenantContract = tenantConfig?.contract ?? null;
+  const [contractDownloading, setContractDownloading] = useState(false);
   const fetchBuildingById = useBuildingStore(s => s.fetchBuildingById);
   const residentBuilding = useBuildingStore(s =>
     user?.buildingId ? s.buildings.find(b => b.id === user.buildingId) : undefined
@@ -215,6 +224,15 @@ export function ResidentProfilePage() {
     sectionUk: 'Управляющая компания',
     ukEyebrow: 'Управляющая компания',
     ukBuildingLine: 'Жилой комплекс',
+    contractSectionTitle: 'Договор управления',
+    contractDownloadBtn: 'Скачать договор',
+    contractHelpWithName: (uk: string) => `Договор управления многоквартирным домом с УК ${uk}`,
+    contractHelpNoName: 'Договор управления многоквартирным домом с вашей УК',
+    contractEmptyTitle: 'Договор ещё не загружен',
+    contractEmptyHelp: 'Обратитесь в управляющую компанию, чтобы они загрузили договор управления',
+    contractDownloadSuccess: 'Договор скачан',
+    contractDownloadNetwork: 'Не удалось скачать. Проверьте подключение.',
+    contractDownloadGone: 'Договор больше не доступен. Обновите страницу.',
   } : {
     role_resident: 'Egasi',
     role_tenant: 'Ijarachi',
@@ -276,6 +294,15 @@ export function ResidentProfilePage() {
     sectionUk: 'Boshqaruv kompaniyasi',
     ukEyebrow: 'Boshqaruv kompaniyasi',
     ukBuildingLine: 'Turar-joy majmuasi',
+    contractSectionTitle: 'Boshqaruv shartnomasi',
+    contractDownloadBtn: 'Shartnomani yuklab olish',
+    contractHelpWithName: (uk: string) => `${uk} BK bilan koʻp xonadonli uy boshqaruv shartnomasi`,
+    contractHelpNoName: 'Sizning BK bilan koʻp xonadonli uy boshqaruv shartnomasi',
+    contractEmptyTitle: 'Shartnoma hali yuklanmagan',
+    contractEmptyHelp: 'Boshqaruv shartnomasini yuklash uchun boshqaruv kompaniyasiga murojaat qiling',
+    contractDownloadSuccess: 'Shartnoma yuklab olindi',
+    contractDownloadNetwork: 'Yuklab boʻlmadi. Internetni tekshiring.',
+    contractDownloadGone: 'Shartnoma endi mavjud emas. Sahifani yangilang.',
   }, [language]);
 
   if (!user) return null;
@@ -360,6 +387,53 @@ export function ResidentProfilePage() {
     if (typeof window !== 'undefined' && window.confirm(t.logoutConfirm)) {
       logout();
       navigate('/login', { replace: true });
+    }
+  };
+
+  // ── Tenant management contract (Sprint 85 commit 3) ──────────────────
+  // GET /api/resident/contract streams the PDF bytes. The download flow
+  // mirrors the director widget's (ContractUploader.handleDownload):
+  // fetch → blob → URL.createObjectURL → synthetic <a download> → revoke
+  // on the next animation frame so Android WebView's DownloadManager
+  // has time to consume the click before the blob URL goes away.
+  // 404 means the contract was deleted between page-load and tap; we
+  // silently refetch the tenant config so the section flips to the
+  // empty state on the resident's next tap.
+  const handleDownloadTenantContract = async () => {
+    if (!tenantContract || contractDownloading) return;
+    setContractDownloading(true);
+    try {
+      const token = getToken();
+      const resp = await fetch(`${API_URL}/api/resident/contract`, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (resp.status === 404) {
+        addToast('error', t.contractDownloadGone);
+        void refetchTenantConfig();
+        return;
+      }
+      if (!resp.ok) {
+        addToast('error', t.contractDownloadNetwork);
+        return;
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = tenantContract.filename || 'contract.pdf';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      requestAnimationFrame(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+      addToast('success', t.contractDownloadSuccess);
+    } catch {
+      addToast('error', t.contractDownloadNetwork);
+    } finally {
+      setContractDownloading(false);
     }
   };
 
@@ -584,6 +658,31 @@ export function ResidentProfilePage() {
           buildingAddress={residentBuilding?.address || user.address || null}
           jkLabel={t.ukBuildingLine}
           onClick={() => navigate('/contract')}
+        />
+      </div>
+
+      {/* ── Договор управления (Sprint 85 commit 3) ──────────────────
+          Per-tenant PDF that super-admin or the tenant's director
+          uploaded (commits 1 + 2). Residents see filename + upload
+          date + a "Скачать договор" primary button when present, or
+          a quiet empty state asking them to contact the УК when not.
+          Bytes stream over GET /api/resident/contract; tenant_id is
+          derived from the resident's JWT, never from URL or body. */}
+      <div style={{ padding: '20px 16px 0' }}>
+        <TenantContractSection
+          contract={tenantContract}
+          tenantName={tenantConfig?.name || null}
+          downloading={contractDownloading}
+          onDownload={handleDownloadTenantContract}
+          t={{
+            title: t.contractSectionTitle,
+            downloadBtn: t.contractDownloadBtn,
+            helpWithName: t.contractHelpWithName,
+            helpNoName: t.contractHelpNoName,
+            emptyTitle: t.contractEmptyTitle,
+            emptyHelp: t.contractEmptyHelp,
+          }}
+          language={language}
         />
       </div>
 
@@ -931,6 +1030,210 @@ function ManagementCompanyCard({
         </div>
       )}
     </button>
+  );
+}
+
+// Sprint 85 commit 3 — presentational "Договор управления" section.
+// Read-only on the resident side: no upload, no delete, no replace.
+// Two states:
+//   filled   → eyebrow + card with file icon, filename, upload date,
+//              "Скачать договор" primary button, help line below
+//   empty    → eyebrow + card with muted icon, "Договор ещё не
+//              загружен" title, and a help line asking the resident
+//              to contact the УК
+// Visual language matches the rest of the resident profile (inline
+// styles + --rpp-* tokens) — intentionally NOT the Tailwind-based
+// ContractUploader so it sits cleanly next to ManagementCompanyCard
+// and SettingsSection without a tonal seam.
+function TenantContractSection({
+  contract,
+  tenantName,
+  downloading,
+  onDownload,
+  t,
+  language,
+}: {
+  contract: { filename: string | null; uploaded_at: string | null; uploaded_by_name: string | null } | null;
+  tenantName: string | null;
+  downloading: boolean;
+  onDownload: () => void;
+  t: {
+    title: string;
+    downloadBtn: string;
+    helpWithName: (uk: string) => string;
+    helpNoName: string;
+    emptyTitle: string;
+    emptyHelp: string;
+  };
+  language: 'ru' | 'uz';
+}) {
+  const eyebrowStyle: CSSProperties = {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: '0.06em',
+    color: TEXT_SECONDARY,
+    textTransform: 'uppercase',
+    padding: '0 4px',
+    marginBottom: 8,
+  };
+  const cardStyle: CSSProperties = {
+    background: SURFACE,
+    borderRadius: 20,
+    border: `1px solid ${BORDER}`,
+    boxShadow: SHADOW_SM,
+    padding: 16,
+  };
+
+  const dateLabel = (iso: string | null): string => {
+    if (!iso) return '';
+    // SQLite TEXT timestamps land as "YYYY-MM-DD HH:MM:SS" (UTC, no
+    // suffix) — same shape we already format in ContractUploader.
+    const d = new Date(iso.replace(' ', 'T') + (iso.includes('T') ? '' : 'Z'));
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    });
+  };
+
+  return (
+    <div>
+      <div style={eyebrowStyle}>{t.title}</div>
+      {contract ? (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: BRAND_TINT,
+                color: BRAND_DARK,
+                display: 'grid',
+                placeItems: 'center',
+                flex: '0 0 auto',
+              }}
+              aria-hidden
+            >
+              <FileText size={20} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  letterSpacing: '-0.01em',
+                  color: TEXT_PRIMARY,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {contract.filename || 'contract.pdf'}
+              </div>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: TEXT_SECONDARY,
+                  marginTop: 2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {dateLabel(contract.uploaded_at)}
+                {contract.uploaded_at && contract.uploaded_by_name ? ' · ' : ''}
+                {contract.uploaded_by_name && (language === 'ru'
+                  ? `загрузил ${contract.uploaded_by_name}`
+                  : `yukladi ${contract.uploaded_by_name}`)}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onDownload}
+            disabled={downloading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              marginTop: 14,
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 14,
+              background: BRAND_DARK,
+              color: '#FFFFFF',
+              fontSize: 14,
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
+              border: 'none',
+              cursor: downloading ? 'default' : 'pointer',
+              opacity: downloading ? 0.7 : 1,
+              boxShadow: '0 6px 14px rgba(234,88,12,0.22)',
+            }}
+          >
+            {downloading
+              ? <Loader2 size={16} className="animate-spin" />
+              : <Download size={16} />}
+            {t.downloadBtn}
+          </button>
+
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 11.5,
+              lineHeight: 1.4,
+              color: TEXT_MUTED,
+            }}
+          >
+            {tenantName ? t.helpWithName(tenantName) : t.helpNoName}
+          </div>
+        </div>
+      ) : (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: SURFACE_SUNKEN,
+                color: TEXT_MUTED,
+                display: 'grid',
+                placeItems: 'center',
+                flex: '0 0 auto',
+              }}
+              aria-hidden
+            >
+              <FileText size={20} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  letterSpacing: '-0.01em',
+                  color: TEXT_PRIMARY,
+                }}
+              >
+                {t.emptyTitle}
+              </div>
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  color: TEXT_SECONDARY,
+                }}
+              >
+                {t.emptyHelp}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
