@@ -1,4 +1,52 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.73 — cache suffix bumped to v127 to evict every v126 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • P0 fixes from the pre-iOS project audit. Two resident-facing
+//     issues found by the auto-walker (director + manager surfaces
+//     came back 0 dead buttons / 0 4xx):
+//
+//     1. ResidentProfilePage "Бонусы" tile was a dead button —
+//        no onClick, no visual disabled state, no "Скоро" indicator.
+//        Tapping read as "broken UI". Fix:
+//          - Tile sub-text now reads "Скоро" / "Tez orada" instead
+//            of the bare "—" placeholder.
+//          - Tile button now sets disabled / aria-disabled when its
+//            onClick is undefined, so it visually + semantically
+//            announces "not active yet". opacity 0.7 makes it
+//            distinct from active tiles at a glance.
+//
+//     2. ResidentDashboard was calling /api/finance/apartments/
+//        :apartmentId/balance with user.id (a users.id, not an
+//        apartments.id). The backend's WHERE clause never matched,
+//        returning 403 twice per dashboard render. The "Оплата" tile
+//        showed "—" anyway because the response was discarded. Fix:
+//          - Gate the fetch behind user.apartmentId — currently
+//            absent from /api/auth/login, so the call is suppressed
+//            until that backend payload is widened. Visible UX is
+//            unchanged (tile still defaults to "—"), but we stop
+//            hammering /api/finance with rejections.
+//
+//        Tracked as P0-NEEDS-DECISION in the v127 audit report: the
+//        real fix requires either widening the user payload (option
+//        A) or adding GET /api/finance/me/balance with JWT-derived
+//        resolution (option B). Both are small backend touches —
+//        ~1 hour of dev time. Not done in v127 per the audit's
+//        "no backend changes" stop condition.
+//
+//   Files changed:
+//     src/frontend/src/pages/ResidentProfilePage.tsx     — Бонусы tile + disabled rendering
+//     src/frontend/src/pages/ResidentDashboard.tsx       — gate finance fetch
+//     src/frontend/public/sw.js                          — v3.7.73 / cache v127
+//
+//   Behaviour preserved:
+//     - All v109-v126 fixes intact.
+//     - Director / manager / dispatcher / executor surfaces unchanged
+//       (auto-walker confirmed 0 dead buttons / 0 4xx).
+//     - Sprint 85 contract section untouched.
+//     - v125 orange "Собрания" recolor untouched.
+//     - v126 Telegram-style tap-to-read untouched.
+//
+// Previous notes (v126) preserved below:
 // Version: 3.7.72 — cache suffix bumped to v126 to evict every v125 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Notifications dropdown — Telegram-style tap-to-mark-read +
@@ -1936,9 +1984,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v126';
-const ASSET_CACHE = 'kamizo-assets-v126';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v126';
+const STATIC_CACHE = 'kamizo-static-v127';
+const ASSET_CACHE = 'kamizo-assets-v127';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v127';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

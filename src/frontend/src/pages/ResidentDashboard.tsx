@@ -136,8 +136,25 @@ export function ResidentDashboard() {
   }, [fetchAnnouncements, fetchMeetings]);
 
   useEffect(() => {
-    if (user?.id) {
-      getApartmentBalance(user.id).then(res => {
+    // v127 P0 — was calling getApartmentBalance(user.id), but
+    // /api/finance/apartments/:apartmentId/balance expects an
+    // apartments.id UUID, not a users.id. The backend's WHERE clause
+    // (`apartments WHERE id = ? AND primary_owner_id = ?`) never
+    // matched, returning 403 ("Access denied") twice per dashboard
+    // render and leaving the "Оплата" tile blank ("—") anyway.
+    // User.apartmentId isn't exposed by /api/auth/login today, so a
+    // correct call site requires either:
+    //   (a) /api/auth/login + /api/users/me to include apartment_id, or
+    //   (b) a new GET /api/finance/me/balance handler that resolves the
+    //       caller's apartment server-side from JWT user_id.
+    // Both are backend work — flagged as P0-NEEDS-DECISION in the
+    // v127 audit report. Until then, gate the fetch behind the
+    // (currently absent) user.apartmentId field so we stop spamming
+    // 403s. The tile already defaults to "—", so visible UX is
+    // unchanged — only the wasted network calls go away.
+    const apartmentId = (user as unknown as { apartmentId?: string })?.apartmentId;
+    if (user?.id && apartmentId) {
+      getApartmentBalance(apartmentId).then(res => {
         if (res) setFinanceBalance(res.balance as Record<string, unknown>);
       });
     }

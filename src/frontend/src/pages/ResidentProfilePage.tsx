@@ -358,7 +358,11 @@ export function ResidentProfilePage() {
     {
       Icon: Star,
       label: t.tileBonus,
-      sub: '—',
+      // v127 P0 — was a dead button (no onClick, no visual disabled state).
+      // Resident-side bonuses program isn't shipped yet, so flag it as
+      // "Скоро" the same way the resident HomeTab tile does. The cursor
+      // already drops to 'default' below when onClick is undefined.
+      sub: language === 'ru' ? 'Скоро' : 'Tez orada',
       fg: '#7C3AED',
       bg: 'rgba(124,58,237,0.12)',
     },
@@ -591,6 +595,12 @@ export function ResidentProfilePage() {
             key={i}
             type="button"
             onClick={tile.onClick}
+            // v127 P0 — tiles without onClick (Бонусы) read as broken
+            // buttons on tap without these aria/disabled signals. Mark
+            // them disabled so the press doesn't even register an active
+            // state, and screen readers announce them correctly.
+            disabled={!tile.onClick}
+            aria-disabled={!tile.onClick}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -601,6 +611,7 @@ export function ResidentProfilePage() {
               borderRadius: 20,
               boxShadow: SHADOW_SM,
               cursor: tile.onClick ? 'pointer' : 'default',
+              opacity: tile.onClick ? 1 : 0.7,
               textAlign: 'left',
               minWidth: 0,
               color: TEXT_PRIMARY,
