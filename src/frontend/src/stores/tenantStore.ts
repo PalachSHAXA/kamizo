@@ -12,6 +12,17 @@ export interface TenantConfig {
     plan: string;
     logo: string | null;
     is_demo: boolean;
+    // Sprint 85 commit 2 — per-tenant contract metadata. Populated by
+    // /api/tenant/config when the tenant row has a contract_r2_key.
+    // Used by the director-dashboard ContractUploader widget and
+    // (commit 3) the resident profile download row. Bytes are NEVER
+    // sent here — they stream from /api/admin/tenant/contract or
+    // /api/resident/contract.
+    contract?: {
+      filename: string | null;
+      uploaded_at: string | null;
+      uploaded_by_name: string | null;
+    } | null;
   } | null;
   features: string[];
 }

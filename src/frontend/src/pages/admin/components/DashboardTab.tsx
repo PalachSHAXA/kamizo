@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, Banknote, CheckCircle, XCircle, Edit2, Trash2, ExternalLink, ClipboardList, Vote, QrCode, UserCog, Settings, Search, RefreshCw, Sparkles } from 'lucide-react';
+import { Building2, Users, Banknote, CheckCircle, XCircle, Edit2, Trash2, ExternalLink, ClipboardList, Vote, QrCode, UserCog, Settings, Search, RefreshCw, Sparkles, FileText } from 'lucide-react';
 import { apiRequest } from '../../../services/api';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
 import { Switch } from '../../../components/ui';
+import { ContractUploader } from '../../../components/contracts/ContractUploader';
 import type { Tenant, TenantStats, DetailTab } from './types';
 import {
   BASE_DOMAIN, PLAN_LABELS,
@@ -25,6 +26,7 @@ interface DashboardTabProps {
 export function DashboardTab({
   tenants, setTenants, error, setError,
   onEditTenant, onDeleteTenant, onToggleActive,
+  loadTenants,
 }: DashboardTabProps) {
   const { language } = useLanguageStore();
 
@@ -234,6 +236,29 @@ export function DashboardTab({
                 );
               })}
             </div>
+
+            {/* Sprint 85 commit 2 — tenant contract uploader. Super-admin
+                can replace + delete; download is intentionally NOT
+                wired (no super-admin-can-read-any-tenant endpoint
+                today — see commit-1 known-issue note). Buttons fall
+                back to no-ops if endpoints are missing. */}
+            <ContractUploader
+              hasContract={selectedTenant.has_contract === 1}
+              filename={selectedTenant.contract_filename}
+              uploadedAt={selectedTenant.contract_uploaded_at}
+              uploadedByName={selectedTenant.contract_uploaded_by_name}
+              uploadEndpoint={`/api/super-admin/tenants/${selectedTenant.id}/contract`}
+              deleteEndpoint={`/api/super-admin/tenants/${selectedTenant.id}/contract`}
+              allowDelete={true}
+              onChanged={() => {
+                // After a contract upload / delete the list row's
+                // has_contract + the joined uploader name change. Both
+                // surfaces re-read by reloading the tenants list and
+                // re-selecting the same row.
+                loadTenants();
+              }}
+              language="ru"
+            />
 
             {/* Detail Tabs */}
             <div className="flex gap-1 bg-gray-50/80 p-1 rounded-xl overflow-x-auto scrollbar-hide">
@@ -517,6 +542,20 @@ export function DashboardTab({
                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count || 0}</span>
                 <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count || 0}</span>
                 <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {(tenant as Record<string, unknown>).buildings_count as number || 0}</span>
+                {/* Sprint 85 commit 2 — contract presence badge from the
+                    list endpoint's has_contract flag. Quiet visual: muted
+                    emerald icon-only, no count. Lets the super-admin
+                    scan the list for tenants missing a contract without
+                    opening each card. */}
+                {tenant.has_contract === 1 && (
+                  <span
+                    className="inline-flex items-center gap-0.5 text-emerald-600"
+                    title="Договор управления загружен"
+                    aria-label="Договор загружен"
+                  >
+                    <FileText className="w-3 h-3" />
+                  </span>
+                )}
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onDeleteTenant(tenant); }}

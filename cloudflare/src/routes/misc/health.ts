@@ -52,6 +52,16 @@ function buildConfigResponse(tenant: Record<string, unknown>) {
   } catch {
     features = [];
   }
+  // Sprint 85 commit 2 — surface the tenant contract metadata so the
+  // director-dashboard widget can render "kamizo-uk-choko.pdf · 17 июн
+  // 2026" without a second fetch, and so the resident-side download
+  // surface (commit 3) can decide whether to even show the row. Only
+  // metadata travels here — the PDF bytes stay behind the
+  // /api/admin/tenant/contract and /api/resident/contract streaming
+  // routes. contract_uploaded_by_name comes from `tenant._contract_uploaded_by_name`
+  // which the caller stitches via a JOIN before invoking this helper
+  // (see the two call sites below).
+  const hasContract = !!tenant.contract_r2_key;
   return json({
     tenant: {
       id: tenant.id,
@@ -64,6 +74,11 @@ function buildConfigResponse(tenant: Record<string, unknown>) {
       is_demo: tenant.is_demo === 1 || tenant.is_demo === true,
       show_useful_contacts_banner: tenant.show_useful_contacts_banner !== 0 ? 1 : 0,
       show_marketplace_banner: tenant.show_marketplace_banner !== 0 ? 1 : 0,
+      contract: hasContract ? {
+        filename: (tenant.contract_filename as string | null) || null,
+        uploaded_at: (tenant.contract_uploaded_at as string | null) || null,
+        uploaded_by_name: (tenant._contract_uploaded_by_name as string | null) || null,
+      } : null,
     },
     features
   });
@@ -80,7 +95,17 @@ route('GET', '/api/tenant/config', async (request, env) => {
   //    which only the full SELECT * row from index.ts has.
   const fromOrigin = getTenantForRequest(request);
   if (fromOrigin && (fromOrigin as { name?: unknown }).name) {
-    return buildConfigResponse(fromOrigin);
+    // Sprint 85 commit 2 — the in-request tenant came from
+    // setTenantForRequest() which mirrored the full SELECT * row,
+    // but the contract_uploaded_by_name JOIN wasn't part of that
+    // query. Look it up here when a key is present.
+    let enrichedTenant = fromOrigin as Record<string, unknown>;
+    if (enrichedTenant.contract_uploaded_by) {
+      const u = await env.DB.prepare('SELECT name FROM users WHERE id = ?')
+        .bind(enrichedTenant.contract_uploaded_by).first() as { name?: string } | null;
+      if (u?.name) enrichedTenant = { ...enrichedTenant, _contract_uploaded_by_name: u.name };
+    }
+    return buildConfigResponse(enrichedTenant);
   }
 
   // 2. JWT fallback (Capacitor native shell, or any browser request
@@ -92,9 +117,16 @@ route('GET', '/api/tenant/config', async (request, env) => {
     try {
       const payload = await verifyJWT(token, env.JWT_SECRET);
       if (payload?.tenantId) {
-        const tenant = await env.DB.prepare(
-          'SELECT * FROM tenants WHERE id = ? AND is_active = 1'
-        ).bind(payload.tenantId).first() as Record<string, unknown> | null;
+        // Sprint 85 commit 2 — JOIN users on the tenant's
+        // contract_uploaded_by so /api/tenant/config can return the
+        // uploader's display name without a second round-trip from
+        // the director dashboard widget.
+        const tenant = await env.DB.prepare(`
+          SELECT t.*, u.name as _contract_uploaded_by_name
+          FROM tenants t
+          LEFT JOIN users u ON t.contract_uploaded_by = u.id
+          WHERE t.id = ? AND t.is_active = 1
+        `).bind(payload.tenantId).first() as Record<string, unknown> | null;
         if (tenant) {
           return buildConfigResponse(tenant);
         }

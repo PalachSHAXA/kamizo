@@ -1,4 +1,70 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.69 — cache suffix bumped to v123 to evict every v122 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Sprint 85 commit 2 of 3 — super-admin + director upload UI for
+//     tenant contract PDFs. Backend (commit 1, v200) already shipped
+//     the R2 binding + 5 endpoints + tenants.contract_* columns.
+//     This commit adds:
+//       - NEW src/components/contracts/ContractUploader.tsx
+//         (~280 lines) — single shared widget used by both surfaces.
+//         Empty-state drag-drop zone with file picker; filled-state
+//         metadata row + Заменить + Скачать + (optional) Удалить
+//         buttons. Client-side validation: file.type ===
+//         'application/pdf' AND size ≤ 10 MB. Toast on 415 / 413 /
+//         403 with friendly RU/UZ copy. ConfirmDialog on delete
+//         (red tone). Download path: fetch → blob →
+//         URL.createObjectURL → synthetic <a download> → revoke on
+//         next animation frame so Android WebView's DownloadManager
+//         actually picks up the click.
+//       - DashboardTab.tsx (super-admin tenants page) — wired the
+//         shared component into the selected-tenant detail panel
+//         with allowDelete=true. Cards also get a quiet emerald
+//         FileText icon on tenants with has_contract === 1, so
+//         super-admin can scan the list for missing contracts.
+//       - OverviewTab.tsx (director dashboard) — wired with
+//         allowDelete=false; downloadEndpoint=/api/admin/tenant/
+//         contract so director can verify what residents see.
+//       - useTenantStore.TenantConfig type + frontend Tenant type
+//         extended with optional contract metadata. /api/tenant/config
+//         got a small 5-line backend touch to include
+//         { contract: { filename, uploaded_at, uploaded_by_name } }
+//         when the tenant has a contract uploaded. The director uses
+//         this for the widget without a second fetch.
+//       - Backend touch (src/routes/misc/health.ts) was the only
+//         non-frontend change — adds a LEFT JOIN users + lifts the
+//         per-row enrichment so the existing useTenantStore consumers
+//         get the field for free. No new endpoint introduced.
+//
+//   Tested live on Capacitor APK + Chrome PWA against api.kamizo.uz:
+//     - Director upload (PDF): metadata refreshes, toast "Договор
+//       загружен", widget switches to filled state with filename +
+//       date + uploader name
+//     - Director download: PDF blob, anchor download triggers
+//       browser's save dialog (Capacitor WebView → DownloadManager)
+//     - Director NO Delete button rendered (allowDelete=false)
+//     - Resident path (test-choko): InfoDropdown, chat, contract
+//       download from profile (commit 3 territory) all unaffected
+//     - Non-PDF rejected client-side with friendly RU message
+//     - >10 MB file rejected client-side
+//     - Cross-tenant: as test-director-moon, dashboard shows MOON's
+//       contract metadata (from JWT-scoped /api/tenant/config)
+//
+//   Files changed:
+//     src/components/contracts/ContractUploader.tsx       — NEW (~280)
+//     src/pages/admin/components/DashboardTab.tsx         — uploader + cards badge
+//     src/pages/admin/components/types.ts                 — contract fields
+//     src/pages/dashboard/OverviewTab.tsx                 — director widget
+//     src/stores/tenantStore.ts                           — TenantConfig.contract
+//     cloudflare/src/routes/misc/health.ts                — backend touch
+//     src/frontend/public/sw.js                           — v3.7.69 / cache v123
+//
+//   Behaviour preserved:
+//     - All v109-v122 fixes untouched.
+//     - ResidentChatView unchanged.
+//     - Resident profile (commit 3 territory) unchanged.
+//     - TenantFormModal unchanged.
+//
+// Previous notes (v122) preserved below:
 // Version: 3.7.68 — cache suffix bumped to v122 to evict every v121 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • TWO fixes in one commit.
@@ -1687,9 +1753,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v122';
-const ASSET_CACHE = 'kamizo-assets-v122';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v122';
+const STATIC_CACHE = 'kamizo-static-v123';
+const ASSET_CACHE = 'kamizo-assets-v123';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v123';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

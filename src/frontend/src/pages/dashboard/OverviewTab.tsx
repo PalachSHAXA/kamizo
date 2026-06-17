@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InstallAppBanner } from '../../components/InstallAppSection';
+import { ContractUploader } from '../../components/contracts/ContractUploader';
+import { useTenantStore } from '../../stores/tenantStore';
 import { Modal, EmptyState } from '../../components/common';
 import { formatAddress } from '../../utils/formatAddress';
 import { formatName } from '../../utils/formatName';
@@ -72,9 +74,32 @@ export function OverviewTab({
   const navigate = useNavigate();
   const [activeModal, setActiveModal] = useState<'requests' | 'staff' | 'buildings' | 'activity' | null>(null);
   const REQUEST_STATUS_LABELS = getRequestStatusLabels(language);
+  // Sprint 85 commit 2 — director-side tenant contract widget. Reads
+  // contract metadata from /api/tenant/config (already shaped by the
+  // server-side join). Re-fetches the config after upload so the
+  // metadata refreshes without a hard page reload.
+  const tenantConfig = useTenantStore(s => s.config);
+  const refetchTenantConfig = useTenantStore(s => s.fetchConfig);
+  const contract = tenantConfig?.tenant?.contract;
 
   return (
     <>
+      {/* Sprint 85 commit 2 — Договор управления widget. Renders before
+          the stat cards so the dispatcher's first scroll-glance shows
+          "missing contract — upload now" when applicable. Director
+          cannot delete (backend 403s); for that they ask super-admin. */}
+      <ContractUploader
+        hasContract={!!contract}
+        filename={contract?.filename}
+        uploadedAt={contract?.uploaded_at}
+        uploadedByName={contract?.uploaded_by_name}
+        uploadEndpoint="/api/admin/tenant/contract"
+        downloadEndpoint="/api/admin/tenant/contract"
+        allowDelete={false}
+        onChanged={refetchTenantConfig}
+        language={language === 'ru' ? 'ru' : 'uz'}
+      />
+
       {/* Main Stats - Clickable Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:gap-5">
         {/* Requests - Clickable */}

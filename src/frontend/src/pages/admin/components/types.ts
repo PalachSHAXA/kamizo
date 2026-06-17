@@ -24,6 +24,15 @@ export interface Tenant {
   updated_at: string;
   show_useful_contacts_banner: number;
   show_marketplace_banner: number;
+  // Sprint 85 commit 1/2 — per-tenant contract PDF storage. Surfaced
+  // by GET /api/tenants (super-admin only). The Cloudflare R2 bytes
+  // live behind separate streaming endpoints.
+  contract_r2_key?: string | null;
+  contract_filename?: string | null;
+  contract_uploaded_at?: string | null;
+  contract_uploaded_by?: string | null;
+  contract_uploaded_by_name?: string | null;
+  has_contract?: number;
 }
 
 export interface TenantFormData {
