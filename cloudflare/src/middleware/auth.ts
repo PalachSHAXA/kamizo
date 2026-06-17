@@ -78,8 +78,14 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   const lookupTenantId: string | null = authTenantId
     || ((payload as { tenantId?: string }).tenantId ?? null);
 
+  // v128 — same `apartment_id` correlated subquery as the login route.
+  // Keep getUser's payload field-for-field consistent with /api/auth/login
+  // so a client that calls /api/users/me to refresh its user data sees
+  // identical fields, including apartment_id.
+  const meUserFields = `id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, is_active, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
+
   let result = await env.DB.prepare(
-    `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, is_active FROM users WHERE id = ? ${lookupTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
+    `SELECT ${meUserFields} FROM users WHERE id = ? ${lookupTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
   ).bind(...[userId, ...(lookupTenantId ? [lookupTenantId] : [])]).first();
 
   // Super admin fallback: super admins have no tenant_id, so the tenanted
@@ -89,7 +95,7 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   // user's role is super_admin — other roles must stay tenant-scoped.
   if (!result && lookupTenantId) {
     const fallback = await env.DB.prepare(
-      `SELECT id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, is_active FROM users WHERE id = ? AND is_active = 1 LIMIT 1`
+      `SELECT ${meUserFields} FROM users WHERE id = ? AND is_active = 1 LIMIT 1`
     ).bind(userId).first() as any;
     if (fallback && fallback.role === 'super_admin') {
       result = fallback;

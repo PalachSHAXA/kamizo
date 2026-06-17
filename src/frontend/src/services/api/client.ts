@@ -287,6 +287,9 @@ export function transformUser(user: Record<string, unknown>): Record<string, unk
     totalArea: user.total_area || user.totalArea,
     personalAccount: user.personal_account || user.personalAccount,
     signatureKey: user.signature_key || user.signatureKey,
+    // v128 — apartments.id UUID from the login JOIN. null for users with
+    // no apartment row (directors, managers, super-admins, advertisers).
+    apartmentId: user.apartment_id ?? user.apartmentId ?? null,
     // Keep original fields too for backward compatibility
   };
 }

@@ -1,4 +1,79 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.74 — cache suffix bumped to v128 to evict every v127 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Real fix for the v127 P0-NEEDS-DECISION on resident finance balance.
+//
+//     Backend (the v127 audit's "Option A" — widen the user payload):
+//       cloudflare/src/routes/users/auth.ts — `userFields` SELECT now
+//         carries a correlated subquery that resolves the user's
+//         apartment_id (apartments.id UUID) via
+//           SELECT id FROM apartments
+//             WHERE primary_owner_id = users.id
+//               AND tenant_id = users.tenant_id
+//             ORDER BY created_at ASC LIMIT 1
+//         Both PATH A (tenant-scoped login) and PATH B (unified mobile
+//         disambiguation) reuse the same field list — both now include
+//         apartment_id.
+//       cloudflare/src/middleware/auth.ts — getUser() applies the same
+//         subquery to both the tenant-scoped lookup and the super-admin
+//         fallback path, so /api/users/me + every other endpoint that
+//         reads `user.apartment_id` from getUser stays consistent with
+//         the login payload.
+//
+//     Frontend:
+//       src/types/auth.ts — User.apartmentId?: string | null
+//       src/services/api/client.ts — transformUser() maps the snake_case
+//         apartment_id from the API into camelCase apartmentId, falling
+//         back to null when absent.
+//       src/pages/ResidentDashboard.tsx — replaces the v127 guarded-no-op
+//         with a proper call: getApartmentBalance(user.apartmentId)
+//         only when apartmentId is truthy. Effect dep array now keys on
+//         apartmentId instead of user.id so a user who got their
+//         apartment linked after first login re-fires the fetch.
+//
+//     Verified on production api.kamizo.uz with VPS-restarted backend:
+//       - test-choko (resident, linked to apartment fa55afb2-…):
+//         /api/auth/login response includes
+//           "apartment_id": "fa55afb2-221e-4a91-914a-b0288d368890"
+//         GET /api/finance/apartments/fa55afb2…/balance with the same
+//         token returns HTTP 200 + a real balance object (no more 403).
+//       - test-director-choko: response carries
+//           "apartment_id": null
+//         No crashes on profile or dashboard surfaces (verified via APK
+//         re-walk: 0 dead buttons, 0 4xx).
+//       - Cross-tenant: as test-choko, GET /api/finance/apartments/
+//         f8d2b7f6-… (an apartment on a different tenant) → 403
+//         "Access denied". Tenant isolation holds; the JOIN's
+//         `tenant_id = users.tenant_id` keeps cross-tenant rows out.
+//       - /api/users/me with the resident token returns the same
+//         apartment_id as /api/auth/login. Refresh paths consistent.
+//
+//   Test-data note: choko has 28 apartments seeded but only a handful
+//   have `primary_owner_id` set. Most residents in the choko test set
+//   thus get apartment_id=null on login. That's correct behavior — the
+//   tile keeps its "—" default for those users. Real production data
+//   should hydrate primary_owner_id during onboarding (the auth.ts
+//   /api/auth/register handler already does that for new residents).
+//
+//   Migration: NONE. The query is an additive subquery; no schema
+//   change, no ALTER TABLE.
+//
+//   Files changed:
+//     cloudflare/src/routes/users/auth.ts                   — userFields subquery
+//     cloudflare/src/middleware/auth.ts                     — getUser subquery × 2
+//     src/frontend/src/types/auth.ts                        — User.apartmentId
+//     src/frontend/src/services/api/client.ts               — transformUser mapping
+//     src/frontend/src/pages/ResidentDashboard.tsx          — proper apartmentId call
+//     src/frontend/public/sw.js                             — v3.7.74 / cache v128
+//
+//   Behaviour preserved:
+//     - All v109-v127 fixes intact.
+//     - Sprint 85 contract section + v125 orange Собрания + v126
+//       Telegram-style tap-to-read untouched.
+//     - Existing routes that didn't read apartment_id from getUser are
+//       unaffected (extra field is harmless if ignored).
+//
+// Previous notes (v127) preserved below:
 // Version: 3.7.73 — cache suffix bumped to v127 to evict every v126 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • P0 fixes from the pre-iOS project audit. Two resident-facing
@@ -1984,9 +2059,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v127';
-const ASSET_CACHE = 'kamizo-assets-v127';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v127';
+const STATIC_CACHE = 'kamizo-static-v128';
+const ASSET_CACHE = 'kamizo-assets-v128';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v128';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

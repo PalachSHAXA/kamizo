@@ -43,7 +43,18 @@ route('POST', '/api/auth/login', async (request, env) => {
   // Trim password to match frontend behavior (prevents whitespace mismatch)
   const trimmedPassword = password.trim();
   const trimmedLogin = login.trim();
-  const userFields = 'id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id';
+  // v128 — also expose apartment_id (apartments.id) so the resident
+  // dashboard's finance-balance fetch can hit
+  // /api/finance/apartments/:apartmentId/balance with the correct
+  // identifier instead of passing user.id (was 403'ing in v127 and
+  // earlier). Correlated subquery means no JOIN restructuring + no
+  // extra row per user; LIMIT 1 picks the first apartment by
+  // created_at so multi-apartment residents get the earliest one
+  // (rare today — flagged in the v128 report). NULL for users with
+  // no apartment (directors, managers, super-admins, advertisers).
+  // Tenant isolation is enforced by `tenant_id = users.tenant_id` —
+  // super-admin or empty-tenant users get NULL.
+  const userFields = `id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
 
   // Sprint 66 P1/F9 timing-attack guard. The previous "search all tenants
   // then verify against each candidate" code leaked timing because the

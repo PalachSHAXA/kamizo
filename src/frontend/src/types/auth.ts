@@ -10,7 +10,8 @@ export interface User {
   specialization?: ExecutorSpecialization;
   avatar?: string;
   address?: string;
-  apartment?: string;
+  apartment?: string; // apartment NUMBER (string like "12A"), not the apartments.id UUID
+  apartmentId?: string | null; // v128 — apartments.id UUID, populated by /api/auth/login + /api/users/me via the LEFT-join on primary_owner_id. null for users with no apartment row (directors, managers, super-admins, advertisers).
   branch?: string; // филиал (YS, CH, etc.)
   building?: string; // номер дома (8A, 15, etc.)
   buildingId?: string;

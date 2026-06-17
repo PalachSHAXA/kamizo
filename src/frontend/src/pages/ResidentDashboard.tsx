@@ -136,29 +136,20 @@ export function ResidentDashboard() {
   }, [fetchAnnouncements, fetchMeetings]);
 
   useEffect(() => {
-    // v127 P0 — was calling getApartmentBalance(user.id), but
-    // /api/finance/apartments/:apartmentId/balance expects an
-    // apartments.id UUID, not a users.id. The backend's WHERE clause
-    // (`apartments WHERE id = ? AND primary_owner_id = ?`) never
-    // matched, returning 403 ("Access denied") twice per dashboard
-    // render and leaving the "Оплата" tile blank ("—") anyway.
-    // User.apartmentId isn't exposed by /api/auth/login today, so a
-    // correct call site requires either:
-    //   (a) /api/auth/login + /api/users/me to include apartment_id, or
-    //   (b) a new GET /api/finance/me/balance handler that resolves the
-    //       caller's apartment server-side from JWT user_id.
-    // Both are backend work — flagged as P0-NEEDS-DECISION in the
-    // v127 audit report. Until then, gate the fetch behind the
-    // (currently absent) user.apartmentId field so we stop spamming
-    // 403s. The tile already defaults to "—", so visible UX is
-    // unchanged — only the wasted network calls go away.
-    const apartmentId = (user as unknown as { apartmentId?: string })?.apartmentId;
-    if (user?.id && apartmentId) {
-      getApartmentBalance(apartmentId).then(res => {
+    // v128 — uses the apartment_id field added to /api/auth/login +
+    // /api/users/me. The v127 commit suppressed this fetch because
+    // the previous call site passed user.id where the endpoint
+    // expected apartments.id. Now user.apartmentId is the correct
+    // UUID; null when the user has no apartment (legitimate for
+    // directors/managers/super-admins or unassigned residents) —
+    // skip the fetch in that case so the tile keeps its "—"
+    // default.
+    if (user?.apartmentId) {
+      getApartmentBalance(user.apartmentId).then(res => {
         if (res) setFinanceBalance(res.balance as Record<string, unknown>);
       });
     }
-  }, [user?.id, getApartmentBalance]);
+  }, [user?.apartmentId, getApartmentBalance]);
 
   // Sync tab state with URL params
   useEffect(() => {
