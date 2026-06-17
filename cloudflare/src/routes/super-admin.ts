@@ -319,7 +319,22 @@ route('GET', '/api/tenants', async (request, env) => {
   const user = await getUser(request, env);
   if (!isSuperAdmin(user)) return error('Access denied', 403);
 
-  const result = await env.DB.prepare(`SELECT * FROM tenants ORDER BY created_at DESC LIMIT 500`).all();
+  // Sprint 85 commit 1 — the SELECT * already pulls the new
+  // contract_r2_key / contract_filename / contract_uploaded_at /
+  // contract_uploaded_by columns thanks to migration 051; we just
+  // add a derived has_contract flag so the super-admin UI doesn't
+  // need to know about the R2 key shape. contract_uploaded_by_name
+  // is joined here too so the list can show "uploaded by Иванов" on
+  // hover without a second fetch.
+  const result = await env.DB.prepare(`
+    SELECT t.*,
+      (t.contract_r2_key IS NOT NULL) AS has_contract,
+      u.name AS contract_uploaded_by_name
+    FROM tenants t
+    LEFT JOIN users u ON t.contract_uploaded_by = u.id
+    ORDER BY t.created_at DESC
+    LIMIT 500
+  `).all();
   return json({ tenants: result.results || [] });
 });
 
@@ -495,7 +510,18 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
   if (!isSuperAdmin(user)) return error('Access denied', 403);
 
   const tenantId = params.id;
-  const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(tenantId).first();
+  // Sprint 85 commit 1 — enrich the detail row with the contract
+  // uploader's name (joined) and a derived has_contract flag, so the
+  // super-admin tenant detail UI can render "📄 Договор · Иванов ·
+  // 2026-06-17" without a second fetch.
+  const tenant = await env.DB.prepare(`
+    SELECT t.*,
+      (t.contract_r2_key IS NOT NULL) AS has_contract,
+      u.name AS contract_uploaded_by_name
+    FROM tenants t
+    LEFT JOIN users u ON t.contract_uploaded_by = u.id
+    WHERE t.id = ?
+  `).bind(tenantId).first();
   if (!tenant) return error('Tenant not found', 404);
 
   try {

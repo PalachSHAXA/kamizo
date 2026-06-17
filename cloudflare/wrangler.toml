@@ -40,6 +40,24 @@ migrations_dir = "migrations"
 binding = "RATE_LIMITER"
 id = "89850617af24420da6d3e91051c1d2d2"
 
+# Sprint 85 — tenant contract PDF storage (commit 1 of 3).
+# Each tenant attaches one scanned contract PDF (≤10 MB); residents of
+# that tenant download it via /api/resident/contract. Storage layout:
+#   tenants/<tenant_id>/contract-<ISO_timestamp>.pdf
+# The tenant_id prefix means listing-leaks can't be used to access
+# cross-tenant objects — keys aren't guessable into another namespace.
+#
+# Bucket creation (idempotent — does nothing if it already exists):
+#   wrangler r2 bucket create kamizo-contracts
+#
+# On the VPS Node.js path (api.kamizo.uz) this binding is shimmed by
+# /opt/kamizo/app/src/shim/r2.js with a filesystem backend at
+# /opt/kamizo/data/contracts/. The shim exposes the same put/get/
+# delete/head surface so the route handler code is single-source.
+[[r2_buckets]]
+binding = "CONTRACTS_BUCKET"
+bucket_name = "kamizo-contracts"
+
 [[durable_objects.bindings]]
 name = "CONNECTION_MANAGER"
 class_name = "ConnectionManager"

@@ -15,6 +15,12 @@ export interface Env {
   ASSETS: Fetcher;
   RATE_LIMITER: KVNamespace;
   CONNECTION_MANAGER: DurableObjectNamespace;
+  // Sprint 85 — tenant contract PDFs. On Cloudflare Workers this is
+  // the real R2Bucket binding declared in wrangler.toml; on the VPS
+  // Node.js path the shim at /opt/kamizo/app/src/shim/r2.js exposes
+  // the same .put / .get / .delete / .head surface backed by the
+  // local filesystem at /opt/kamizo/data/contracts/.
+  CONTRACTS_BUCKET: R2Bucket;
 }
 
 export interface User {
