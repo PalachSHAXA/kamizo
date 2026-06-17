@@ -12,6 +12,24 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
     overScrollMode: 'never',
   },
+  ios: {
+    // Background color shows during the brief window between native
+    // splash dismissal and the JS bundle painting the body bg. Match
+    // index.css :root --app-bg so the user never sees a flash of
+    // pure white before our beige.
+    backgroundColor: '#F4F0E8',
+    // The default iOS WebView content inset behavior pushes the page
+    // down by the status bar height. Our React shell already accounts
+    // for safe-area-inset-top via env() in its own padding rules
+    // (BottomBar + HomePage hero), so we override iOS's default to
+    // "never" — keeps the resident dashboard hero and director
+    // dashboard tiles flush to the top edge under the status bar
+    // and lets index.css drive the actual top padding through
+    // env(safe-area-inset-top). Without this, every layout that
+    // padded itself would gain ~44px of double padding on iOS only.
+    contentInset: 'never',
+    scrollEnabled: true,
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1500,
