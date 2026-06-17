@@ -6,6 +6,7 @@ import { apiRequest } from '../../../../services/api';
 import type { BuildingFull } from '../../../../types';
 import { useBackGuard } from '../../../../hooks/useBackGuard';
 import { useToastStore } from '../../../../stores/toastStore';
+import { downloadBlob } from '../../../../utils/downloadFile';
 import type { Branch, Entrance, Apartment, ViewLevel } from './types';
 
 export function useBuildingsState() {
@@ -306,12 +307,10 @@ export function useBuildingsState() {
     try {
       const data = await apiRequest(`/api/branches/${branch.id}/export`);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `zhk-${branch.code}-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      // v130 — shared cross-platform helper
+      await downloadBlob(blob, {
+        filename: `zhk-${branch.code}-${new Date().toISOString().slice(0, 10)}.json`,
+      });
     } catch (err: unknown) {
       addToast('error', (err instanceof Error ? err.message : '') || t('Ошибка экспорта', 'Eksport xatosi'));
     } finally {

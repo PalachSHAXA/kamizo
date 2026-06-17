@@ -10,6 +10,7 @@ import { StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
 import { teamApi, apiRequest } from '../../services/api';
 import { pluralWithCount } from '../../utils/plural';
+import { downloadBlob } from '../../utils/downloadFile';
 import { CredentialsModal } from './team/CredentialsModal';
 import { StaffImportModal } from './team/StaffImportModal';
 import { AddStaffModal } from './team/AddStaffModal';
@@ -126,12 +127,10 @@ export function TeamPage() {
     try {
       const data = await apiRequest('/api/team/export') as Record<string, unknown>;
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `staff-export-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      // v130 — shared cross-platform helper
+      await downloadBlob(blob, {
+        filename: `staff-export-${new Date().toISOString().slice(0, 10)}.json`,
+      });
     } catch (e: unknown) {
       addToast('error', (e instanceof Error ? e.message : '') || 'Ошибка экспорта');
     } finally {

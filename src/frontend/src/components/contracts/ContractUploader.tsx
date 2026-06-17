@@ -40,6 +40,7 @@ import { FileText, Upload, Download, Trash2, Loader2, AlertCircle } from 'lucide
 import { useToastStore } from '../../stores/toastStore';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { API_URL, getToken } from '../../services/api/client';
+import { downloadBlob } from '../../utils/downloadFile';
 
 interface ContractUploaderProps {
   // Display metadata. All optional so the empty-state path works
@@ -185,19 +186,15 @@ export function ContractUploader({
         return;
       }
       const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename || 'contract.pdf';
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      // requestAnimationFrame so Android WebView (which routes
-      // <a download> through DownloadManager) actually picks up the
-      // click before we revoke the blob URL.
-      requestAnimationFrame(() => {
-        a.remove();
-        URL.revokeObjectURL(url);
+      // v130 — was a synthetic <a download> of a blob URL. Works on
+      // Chromium / Android Capacitor WebView but silently no-ops on
+      // iOS Capacitor WKWebView (confirmed on iPhone 15 Sim after
+      // Sprint 85 commit 3). Route through downloadBlob() so iOS uses
+      // @capacitor/filesystem → Documents/, Android uses the same,
+      // and PWA keeps the synthetic anchor path.
+      await downloadBlob(blob, {
+        filename: filename || 'contract.pdf',
+        language,
       });
     } catch {
       addToast('error', isRu ? 'Сетевая ошибка при скачивании' : "Yuklab olishda tarmoq xatosi");

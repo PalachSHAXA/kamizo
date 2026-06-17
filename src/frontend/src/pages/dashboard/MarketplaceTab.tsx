@@ -9,6 +9,7 @@ import {
 import type { MarketplaceReport } from './types';
 import type { Style } from 'exceljs';
 import { pluralWithCount } from '../../utils/plural';
+import { downloadBlob } from '../../utils/downloadFile';
 
 interface MarketplaceTabProps {
   language: string;
@@ -289,12 +290,11 @@ export function MarketplaceTab({
     // Generate and download file
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = language === 'ru' ? `Отчёт_маркетплейс_${reportStartDate}_${reportEndDate}.xlsx` : `Marketplace_hisobot_${reportStartDate}_${reportEndDate}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const filename = language === 'ru'
+      ? `Отчёт_маркетплейс_${reportStartDate}_${reportEndDate}.xlsx`
+      : `Marketplace_hisobot_${reportStartDate}_${reportEndDate}.xlsx`;
+    // v130 — shared cross-platform helper
+    await downloadBlob(blob, { filename, language: language === 'ru' ? 'ru' : 'uz' });
   };
 
   return (

@@ -20,6 +20,7 @@ import { formatPhone } from '../utils/formatPhone';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { generateQRCode } from '../components/LazyQRCode';
 import { API_URL, getToken } from '../services/api/client';
+import { downloadBlob } from '../utils/downloadFile';
 
 // ─── Page implements Claude Design §07-profil. Source of truth lives in
 //     design/handoff/profile-handoff.md. Visual structure (hero / tiles /
@@ -422,16 +423,17 @@ export function ResidentProfilePage() {
         return;
       }
       const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = tenantContract.filename || 'contract.pdf';
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      requestAnimationFrame(() => {
-        a.remove();
-        URL.revokeObjectURL(url);
+      // v130 — route through the shared downloadBlob helper so iOS uses
+      // @capacitor/filesystem (Documents/ → Files app) instead of the
+      // synthetic <a download> which silently no-ops in WKWebView.
+      // PWA + Android keep their existing anchor/DownloadManager behavior.
+      // silent=true because this page surfaces its own contractDownloadSuccess
+      // toast with locale-aware copy that matches the rest of the resident
+      // profile.
+      await downloadBlob(blob, {
+        filename: tenantContract.filename || 'contract.pdf',
+        language: language === 'ru' ? 'ru' : 'uz',
+        silent: true,
       });
       addToast('success', t.contractDownloadSuccess);
     } catch {

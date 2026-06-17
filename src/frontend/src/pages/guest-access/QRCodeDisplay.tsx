@@ -10,6 +10,7 @@ import { useGuestAccessStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { useToastStore } from '../../stores/toastStore';
+import { downloadBlob } from '../../utils/downloadFile';
 import {
   toneFor, safeVisitorLabel, safeAccessLabel, safeStatusLabel,
 } from './utils';
@@ -52,13 +53,22 @@ export function QRCodeDisplay({ codeId, onClose }: { codeId: string; onClose: ()
     }
   };
 
-  const handleDownload = () => {
-    if (canvasRef.current) {
-      const link = document.createElement('a');
-      link.download = `guest-pass-${code.id}.png`;
-      link.href = canvasRef.current.toDataURL('image/png');
-      link.click();
-    }
+  const handleDownload = async () => {
+    if (!canvasRef.current) return;
+    // v130 — was a data: URL on a synthetic anchor click. Same iOS
+    // WKWebView no-op as blob URLs. Convert to Blob and route through
+    // the shared downloadBlob helper so iOS native uses
+    // @capacitor/filesystem (lands in Files → Kamizo).
+    await new Promise<void>((resolve) => {
+      canvasRef.current!.toBlob(async (blob) => {
+        if (!blob) { resolve(); return; }
+        await downloadBlob(blob, {
+          filename: `guest-pass-${code.id}.png`,
+          language: language === 'ru' ? 'ru' : 'uz',
+        }).catch(() => { /* downloadBlob already toasts */ });
+        resolve();
+      }, 'image/png');
+    });
   };
 
   // Create combined image with QR code and caption text

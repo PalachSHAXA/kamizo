@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import type { User } from '../types/auth';
 import { useRequestStore, useExecutorStore } from '../stores/dataStore';
+import { downloadBlob } from '../utils/downloadFile';
 import { SPECIALIZATION_LABELS } from '../types';
 import { apiRequest } from '../services/api';
 import { useLanguageStore } from '../stores/languageStore';
@@ -477,14 +478,12 @@ export function AdminDashboard() {
     // Generate and download file
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = language === 'ru'
+    const filename = language === 'ru'
       ? `Отчёт_маркетплейс_${reportStartDate}_${reportEndDate}.xlsx`
       : `Hisobot_marketplace_${reportStartDate}_${reportEndDate}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // v130 — cross-platform download: Capacitor native → Documents/,
+    // PWA → anchor or iOS-Safari new-tab. Same single helper.
+    await downloadBlob(blob, { filename, language: language === 'ru' ? 'ru' : 'uz' });
   };
 
   return (

@@ -3,6 +3,13 @@ import PizZip from 'pizzip';
 import QRCode from 'qrcode';
 import type { User } from '../types';
 import { API_URL } from '../services/api/client';
+// v130 — use the shared cross-platform download helper. The previous
+// inline downloadBlob() handled iOS Safari (PWA) but not Capacitor iOS
+// (WKWebView), so contracts generated inside the iOS native app went
+// nowhere visible. downloadFile.ts routes Capacitor → @capacitor/filesystem
+// → Documents/ (Files app exposes it), Android → same, PWA → anchor or
+// open-in-new-tab for iOS Safari. Single helper, every platform handled.
+import { downloadBlob as saveBlob } from './downloadFile';
 
 // Import the template as a URL
 import templateUrl from '../assets/dogovor.docx?url';
@@ -18,35 +25,13 @@ const UK_COMPANY = {
   mfo: '01071',
 };
 
-// Cross-browser file download that works in Safari iOS
-function downloadBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob);
-
-  // For iOS Safari, we need to open in new tab
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-  if (isIOS || isSafari) {
-    // For Safari/iOS - open blob URL directly which allows user to save
-    const newWindow = window.open(url, '_blank');
-    if (!newWindow) {
-      // If popup blocked, fallback to direct navigation
-      window.location.href = url;
-    }
-    // Clean up after a delay
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  } else {
-    // Standard download for other browsers
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    // Clean up
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  }
+// v130 — thin wrapper around the shared helper so existing call sites
+// in this file keep their old signature (blob, fileName) without
+// passing an options object. Toast is suppressed because contract
+// generation may bundle the .docx alongside other artifacts and the
+// caller surfaces its own status messaging.
+async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
+  await saveBlob(blob, { filename: fileName, silent: true });
 }
 
 const MONTHS_RU: Record<number, string> = {

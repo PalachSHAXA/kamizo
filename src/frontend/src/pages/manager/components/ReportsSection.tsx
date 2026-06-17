@@ -3,6 +3,7 @@ import { Star, Download, CalendarDays } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { SPECIALIZATION_LABELS } from '../../../types';
 import type { Request, Executor, ExecutorSpecialization } from '../../../types';
+import { downloadBlob } from '../../../utils/downloadFile';
 
 // Reports Section - used in ReportsPage
 export function ReportsSection({ requests, executors }: { requests: Request[]; executors: Executor[] }) {
@@ -90,7 +91,7 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
   }).filter(e => e.total > 0).sort((a, b) => b.completed - a.completed);
 
   // Export to Excel
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     // Create CSV content
     const headers = [
       language === 'ru' ? 'Исполнитель' : 'Ijrochi',
@@ -117,14 +118,11 @@ export function ReportsSection({ requests, executors }: { requests: Request[]; e
     // Add BOM for Excel UTF-8 support
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `report_${period}_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // v130 — shared cross-platform helper
+    await downloadBlob(blob, {
+      filename: `report_${period}_${new Date().toISOString().slice(0, 10)}.csv`,
+      language: language === 'ru' ? 'ru' : 'uz',
+    });
   };
 
   const formatDate = (date: Date) => {

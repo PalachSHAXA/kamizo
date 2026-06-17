@@ -1,5 +1,7 @@
 import PizZip from 'pizzip';
 import QRCode from 'qrcode';
+// v130 — shared cross-platform download helper. See downloadFile.ts.
+import { downloadBlob as saveBlob } from './downloadFile';
 
 interface VoteResult {
   votesFor: number;
@@ -74,28 +76,11 @@ const UK_COMPANY = {
   mfo: '01071',
 };
 
-// Cross-browser file download
+// v130 — delegate to the shared cross-platform helper. See
+// downloadFile.ts for why the old inline iOS-Safari sniffing wasn't
+// enough (Capacitor WKWebView needs @capacitor/filesystem).
 function downloadBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-  if (isIOS || isSafari) {
-    const newWindow = window.open(url, '_blank');
-    if (!newWindow) {
-      window.location.href = url;
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  } else {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  }
+  void saveBlob(blob, { filename: fileName, silent: true });
 }
 
 const MONTHS_RU: Record<number, string> = {

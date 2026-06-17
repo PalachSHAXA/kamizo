@@ -2,6 +2,7 @@ import { FileText, User, CheckCircle, Clock, Star, Calendar, Download, List, Act
 import { EmptyState } from '../../components/common';
 import { useRequestStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { downloadBlob } from '../../utils/downloadFile';
 
 export function ActivityLogPage() {
   const requests = useRequestStore(s => s.requests);
@@ -93,7 +94,7 @@ export function ActivityLogPage() {
   }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   // Export activity log to CSV
-  const handleExportActivityLog = () => {
+  const handleExportActivityLog = async () => {
     const headers = language === 'ru'
       ? ['Дата/Время', 'Тип', '№ Заявки', 'Пользователь', 'Описание']
       : ['Sana/Vaqt', 'Turi', 'Ariza №', 'Foydalanuvchi', 'Tavsif'];
@@ -126,14 +127,11 @@ export function ActivityLogPage() {
     const csvContent = [headers, ...rows].map(row => row.join(';')).join('\n');
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = language === 'ru'
+    const filename = language === 'ru'
       ? `журнал_действий_${new Date().toLocaleDateString('ru-RU')}.csv`
       : `harakatlar_jurnali_${new Date().toLocaleDateString('ru-RU')}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    // v130 — shared cross-platform helper
+    await downloadBlob(blob, { filename, language: language === 'ru' ? 'ru' : 'uz' });
   };
 
   const getActivityIcon = (type: string) => {

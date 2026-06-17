@@ -57,5 +57,16 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- v130 — required for files written to Documents/ via @capacitor/
+	     filesystem to show up under "On My iPhone → Kamizo" in the Files
+	     app. Without UIFileSharingEnabled, the Documents directory is
+	     hidden; without LSSupportsOpeningDocumentsInPlace, iOS opens a
+	     copy instead of the original file when the user taps it. Both
+	     keys are recommended by Apple for any app that produces
+	     user-facing documents (contracts, receipts, exports). -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 </dict>
 </plist>

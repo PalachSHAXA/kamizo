@@ -1,4 +1,108 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.76 — cache suffix bumped to v130 to evict every v129 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • Cross-platform file download via @capacitor/filesystem. The
+//     iOS port (v129+) revealed a known Capacitor limitation: blob
+//     URLs on synthetic <a download> clicks silently no-op in
+//     WKWebView. Sprint 85's contract download fired the toast +
+//     fetched the bytes but Files app showed nothing. Same applied
+//     to every report export (Excel, CSV) and the guest-pass PNG.
+//
+//   Plugin:
+//     npm install @capacitor/filesystem (8.1.2)
+//     SPM (iOS) and android settings.gradle now register the plugin.
+//
+//   Shared helper:
+//     src/utils/downloadFile.ts — single entry point
+//        downloadBlob(blob, { filename, language?, silent? })
+//     Routes by Capacitor.getPlatform():
+//        'ios' / 'android' → @capacitor/filesystem.writeFile to
+//                             Directory.Documents. iOS Files app
+//                             surfaces it under "On My iPhone →
+//                             Kamizo → {filename}" (requires
+//                             UIFileSharingEnabled +
+//                             LSSupportsOpeningDocumentsInPlace
+//                             in Info.plist, both added in v130).
+//        'web'             → synthetic <a download> OR (iOS Safari
+//                             PWA only) window.open() so the user
+//                             can Save via the share sheet. The old
+//                             iOS-Safari sniff that lived inline in
+//                             contractGenerator.ts/protocolGenerator.ts
+//                             moved here.
+//     One success toast pair shared across surfaces. silent: true
+//     when the caller wants to surface its own (resident profile's
+//     locale-aware "Договор скачан").
+//
+//   Info.plist updates (ios/App/App/Info.plist):
+//     UIFileSharingEnabled = true            (Documents/ visible in Files)
+//     LSSupportsOpeningDocumentsInPlace = true (tap → original, not copy)
+//
+//   Twelve call sites replaced:
+//     src/components/contracts/ContractUploader.tsx        — Sprint 85 director/super-admin
+//     src/pages/ResidentProfilePage.tsx                    — Sprint 85 resident
+//     src/utils/contractGenerator.ts                       — DOCX + PDF contract
+//     src/utils/protocolGenerator.ts                       — meeting protocol DOCX
+//     src/pages/AdminDashboard.tsx                         — marketplace XLSX
+//     src/pages/admin/ReportsPage.tsx                      — 3 CSV exports
+//     src/pages/admin/ActivityLogPage.tsx                  — activity CSV
+//     src/pages/admin/TeamPage.tsx                         — staff JSON
+//     src/pages/manager/components/ReportsSection.tsx      — manager CSV
+//     src/pages/shared/components/buildings/useBuildingsState.ts — ZHK JSON
+//     src/pages/dashboard/MarketplaceTab.tsx               — marketplace XLSX
+//     src/pages/guest-access/QRCodeDisplay.tsx             — guest QR PNG
+//
+//   NOT touched (per task spec):
+//     src/components/common/MessageContent.tsx             — chat attachments
+//                                                            (chat surface closed)
+//
+//   Capacitor version alignment as part of this sprint:
+//     @capacitor/core, android, cli all bumped to 8.4.0 (was 8.2.0)
+//     to silence the sync warning that flagged @capacitor/core 8.4.0
+//     (pulled in transitively by @capacitor/filesystem) mismatching
+//     android 8.2.0. status-bar stays at 8.0.2 — that's the latest
+//     stable on npm.
+//
+//   Verified:
+//     - iOS Simulator (iPhone 15 / iOS 17.0.1): tapped "Скачать
+//       договор" as test-choko → Files → On My iPhone → Kamizo →
+//       test2.pdf visible → opens in iOS PDF viewer.
+//     - Android emulator: file lands in
+//       /storage/emulated/0/Android/data/uz.kamizo.app/files/Documents/
+//       (visible via adb shell ls). No regression in the v124 director
+//       download path.
+//     - PWA (Chrome desktop, https://choko.kamizo.uz): Capacitor.
+//       getPlatform() === 'web' → synthetic anchor path → file lands
+//       in ~/Downloads, existing behavior preserved. Toast still fires.
+//
+//   Files changed:
+//     src/frontend/src/utils/downloadFile.ts                — NEW (~140)
+//     src/frontend/src/utils/contractGenerator.ts           — local downloadBlob → shared
+//     src/frontend/src/utils/protocolGenerator.ts           — local downloadBlob → shared
+//     src/frontend/src/components/contracts/ContractUploader.tsx — handleDownload
+//     src/frontend/src/pages/ResidentProfilePage.tsx        — handleDownloadTenantContract
+//     src/frontend/src/pages/AdminDashboard.tsx             — marketplace export
+//     src/frontend/src/pages/admin/ReportsPage.tsx          — 3 handlers
+//     src/frontend/src/pages/admin/ActivityLogPage.tsx      — handleExportActivityLog
+//     src/frontend/src/pages/admin/TeamPage.tsx             — handleExportStaff
+//     src/frontend/src/pages/manager/components/ReportsSection.tsx
+//     src/frontend/src/pages/shared/components/buildings/useBuildingsState.ts
+//     src/frontend/src/pages/dashboard/MarketplaceTab.tsx   — marketplace XLSX
+//     src/frontend/src/pages/guest-access/QRCodeDisplay.tsx — guest pass PNG
+//     src/frontend/ios/App/App/Info.plist                   — UIFileSharingEnabled + LSSupports…
+//     src/frontend/capacitor.config.ts                      — (already wired in v127 iOS port)
+//     src/frontend/package.json + package-lock.json         — @capacitor/filesystem ^8.1.2
+//                                                              + core/android/cli 8.4.0 align
+//     src/frontend/ios/App/CapApp-SPM/Package.swift         — auto-regenerated by cap sync
+//     src/frontend/android/capacitor.settings.gradle        — auto-regenerated by cap sync
+//     src/frontend/public/sw.js                             — v3.7.76 / cache v130
+//
+//   Behaviour preserved:
+//     - All v109-v129 fixes intact.
+//     - Sprint 85 backend untouched.
+//     - v126 Telegram-style tap-to-mark-read untouched.
+//     - Web PWA download UX unchanged.
+//
+// Previous notes (v129) preserved below:
 // Version: 3.7.75 — cache suffix bumped to v129 to evict every v128 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • P1 sweep from the pre-iOS project audit. Three categories of
@@ -2131,9 +2235,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v129';
-const ASSET_CACHE = 'kamizo-assets-v129';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v129';
+const STATIC_CACHE = 'kamizo-static-v130';
+const ASSET_CACHE = 'kamizo-assets-v130';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v130';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
