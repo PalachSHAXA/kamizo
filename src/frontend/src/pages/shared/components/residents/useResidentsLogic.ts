@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useCRMStore } from '../../../../stores/crmStore';
 import { useAuthStore } from '../../../../stores/authStore';
 import { authApi, usersApi, vehiclesApi, apiRequest } from '../../../../services/api';
@@ -90,6 +91,70 @@ export function useResidentsLogic() {
       fetchResidents(selectedBuilding.id);
     }
   }, [selectedBuilding]);
+
+  // v122 — query-param deep-link: /residents?focus=<resident-id>.
+  // Triggered by the chat InfoDropdown's "Профиль жителя" row. We fetch
+  // the resident via the tenant-wide residents endpoint (no
+  // building_id filter) and open ResidentCardModal directly, instead
+  // of forcing the dispatcher to drill branches → buildings →
+  // entrances. The fetch is short-circuited when the target is already
+  // in `apiResidents` (e.g. dispatcher had just been browsing). The
+  // param is cleared on success or failure so refresh doesn't
+  // re-trigger and back-navigation lands on the bare list.
+  //
+  // Tenant isolation is enforced server-side: usersApi.getAll only
+  // returns residents in the caller's tenant. A cross-tenant focus id
+  // (e.g. moon trying to deep-link to a choko resident) silently
+  // misses and the dispatcher lands on their own residents list — no
+  // error, no PII leak. See docs/known-issues/resident-deep-link.md
+  // (now resolved).
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const focusId = searchParams.get('focus');
+    if (!focusId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const tryOpen = (r: { id: string; login: string; name: string; phone?: string; address?: string; apartment?: string; building_id?: string }) => {
+          if (cancelled) return;
+          setShowResidentCard({
+            id: r.id,
+            login: r.login,
+            name: r.name,
+            phone: r.phone,
+            address: r.address,
+            apartment: r.apartment,
+            buildingId: r.building_id,
+          });
+        };
+        const fromCache = apiResidents.find(r => r.id === focusId);
+        if (fromCache) {
+          tryOpen(fromCache);
+        } else {
+          const result = await usersApi.getAll({ role: 'resident', limit: 5000 });
+          if (cancelled) return;
+          // usersApi.getAll is typed loosely as Record<string, unknown>[]
+          // because the v1 endpoint pre-dates ApiResident; narrow here.
+          const rows = (result.users || []) as unknown as ApiResident[];
+          const target = rows.find(u => u && u.id === focusId);
+          if (target) tryOpen(target);
+          // Silent no-op if not found — could be wrong tenant, deleted
+          // resident, or just a stale link. Spec accepts this fallback.
+        }
+      } catch {
+        // Network error → silent no-op per spec. Param still cleared
+        // below so the next render doesn't loop.
+      } finally {
+        if (!cancelled) setSearchParams({}, { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
+    // Intentionally only run when the searchParams snapshot changes —
+    // apiResidents updates re-evaluate the cache hit on the next
+    // dispatcher action, not automatically here, to avoid a re-fire
+    // race when the building drill-down loads in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const fetchBranches = async () => {
     setIsLoadingBranches(true);

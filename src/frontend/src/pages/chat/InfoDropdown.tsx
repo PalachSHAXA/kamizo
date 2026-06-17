@@ -4,12 +4,14 @@
 // requests (when the channel API exposes them), and the action rows
 // at the bottom.
 //
-// Action-row history (admin-chat-actions sprint, commits 1-3):
-//   • Профиль жителя        → stub (commit 3 kept it disabled — the
-//                              app router is flat with no :id routes,
-//                              so deep-link to a single resident isn't
-//                              wirable today; see
-//                              docs/known-issues/resident-deep-link.md)
+// Action-row history (admin-chat-actions sprint):
+//   • Профиль жителя        → WIRED in v122 via /residents?focus=:id
+//                              query-param convention. useResidentsLogic
+//                              reads ?focus on mount, fetches the
+//                              resident, opens ResidentCardModal,
+//                              clears the param. See
+//                              docs/known-issues/resident-deep-link.md
+//                              (now resolved).
 //   • Назначить сотрудника  → live (commit 2 — AssignStaffModal +
 //                              PATCH /api/admin/chat/channels/:id/assign)
 //   • Пометить решённым    → live (commit 2 — ConfirmDialog +
@@ -182,35 +184,30 @@ export function InfoDropdown({ channel, language, onClose, onAssignClick, onReso
         {/* Actions — all stubs in Phase 2 / commit 3. Profile navigates,
             the rest are placeholders we'll wire in a follow-up. */}
         <div className="py-1">
-          {/* TODO(resident-deep-link): wire to resident profile once the
-              router gains :id-parameterised routes OR the
-              `/residents?focus=:id` convention is approved. Today the
-              app router is flat (no :param routes anywhere in
-              Layout.tsx) and resident detail is reached only via the
-              stateful ResidentCardModal inside the /residents list,
-              with no URL surface. Keeping this row visible but
-              disabled documents the intent for v120 dispatcher users
-              without shipping a half-wired navigation that lands them
-              on a generic list (UX gap). See
-              docs/known-issues/resident-deep-link.md for the full
-              decision log + workaround. */}
+          {/* v122 — Профиль жителя WIRED via /residents?focus=:id query
+              param. useResidentsLogic reads the param on mount, fetches
+              the matching resident (using the existing tenant-wide
+              residents endpoint), opens ResidentCardModal, then clears
+              the param. Defensive: if the channel doesn't expose
+              resident_id (e.g. uk_general channels), the row falls back
+              to disabled — better to show a stub than land the
+              dispatcher on a list with no focus target. */}
           <ActionRow
             icon={<User className="w-4 h-4" />}
             tone="text-gray-700"
             label={language === 'ru' ? 'Профиль жителя' : 'Aholi profili'}
             onClick={() => {
-              // Deep-link route does not exist yet — log the intent so
-              // the gap surfaces in devtools/Sentry instead of being a
-              // silent no-op. Real wiring lands when routing strategy
-              // is decided across the app (see known-issue doc).
-              if (typeof console !== 'undefined' && console.warn) {
-                console.warn('Профиль жителя: deep-link route pending — see docs/known-issues/resident-deep-link.md');
+              const residentId = channel?.resident_id;
+              if (!residentId) {
+                // Should never reach here because the row is disabled
+                // when resident_id is missing, but be belt-and-braces.
+                onClose();
+                return;
               }
-              // Suppress unused-import warning until the route lands.
-              void navigate;
               onClose();
+              navigate(`/residents?focus=${encodeURIComponent(residentId)}`);
             }}
-            disabled
+            disabled={!channel?.resident_id}
           />
           {/* v120 commit 2 — Assign action wired. Disabled only if the
               parent didn't pass a handler (e.g. the resident view, where

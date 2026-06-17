@@ -10,9 +10,10 @@ who hits the same surface.
 
 ## Open
 
-- [resident-deep-link.md](resident-deep-link.md) — resident profile
-  deep-link from chat InfoDropdown deferred pending routing strategy
+_(none)_
 
 ## Resolved
 
-_(none yet)_
+- [resident-deep-link.md](resident-deep-link.md) — resident profile
+  deep-link from chat InfoDropdown — **resolved 2026-06-17 (v122)**
+  via `/residents?focus=:id` query-param convention.

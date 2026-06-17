@@ -1,4 +1,65 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.68 — cache suffix bumped to v122 to evict every v121 (and
+// older) cache on the next SW lifecycle update. This release ships:
+//   • TWO fixes in one commit.
+//
+//     1) WIRED "Профиль жителя" in the admin chat InfoDropdown via the
+//        `/residents?focus=:id` query-param convention. v121 had kept
+//        the row disabled (Option D in the known-issue doc). Within
+//        24h product asked for the chat → profile flow to work
+//        end-to-end without waiting on an app-wide :param routing
+//        decision, so Option B was re-picked with two adjustments to
+//        the original B sketch:
+//          - Tenant-wide fetch (no building filter) on cache miss so
+//            the dispatcher gets the modal even on first load — not
+//            just when they had recently drilled into a building.
+//          - Param always cleared via
+//            setSearchParams({}, { replace: true }) regardless of
+//            success / miss / error, so refresh + back-nav don't
+//            re-fire the effect.
+//        Tenant isolation is server-side (usersApi.getAll filters by
+//        caller's JWT tenant). Cross-tenant focus IDs silently miss —
+//        the dispatcher lands on their own residents list, no error,
+//        no PII leak.
+//
+//     2) KILLED light-flash on :active and :hover in dark theme
+//        app-wide. v117 had patched only the dashboard tabs
+//        (active:bg-gray-100 / -50). Tailwind doesn't ship dark
+//        variants for those pseudo classes, so dozens of other
+//        components (cards, list rows, sidebar nav items, modal close
+//        buttons) flashed bright on every tap. Extended the v96 dark
+//        safety net to cover the full color family:
+//          .active\\:bg-white /
+//          .active\\:bg-gray-{100,200,50} /
+//          .active\\:bg-stone-{50,100,200} /
+//          .active\\:bg-neutral-{50,100} /
+//          .active\\:bg-slate-{50,100} /
+//          .active\\:bg-zinc-{50,100}
+//        Plus companion :hover rules for desktop pointer surfaces. Each
+//        maps to the same themed stone the static-state v96 rule uses,
+//        so the press blends with the surrounding card.
+//
+//   Files changed:
+//     src/pages/chat/InfoDropdown.tsx                            — wired profile nav
+//     src/pages/shared/components/residents/useResidentsLogic.ts — ?focus reader
+//     src/index.css                                              — dark safety net
+//     docs/known-issues/INDEX.md                                 — moved to Resolved
+//     docs/known-issues/resident-deep-link.md                    — sprint-note appended
+//     src/frontend/public/sw.js                                  — v3.7.68 / cache v122
+//
+//   Behaviour preserved:
+//     - LIGHT theme is byte-identical — every CSS rule is `html.dark` scoped.
+//     - All v109-v121 fixes untouched (security, layout, dark theme,
+//       admin chat actions, RoleBadge, etc.).
+//     - ResidentChatView unchanged.
+//     - Commit-2 InfoDropdown rows (Assign / Resolve) untouched.
+//     - AssignStaffModal unchanged.
+//     - ResidentsPage existing flows (drill-down, upload, add, edit)
+//       unaffected — the new useEffect only fires when ?focus= is in
+//       the URL.
+//
+// Previous notes (v120 — v121 cache header never updated the comment)
+// preserved below:
 // Version: 3.7.66 — cache suffix bumped to v120 to evict every v119 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Admin chat InfoDropdown actions — frontend implementation
@@ -1626,9 +1687,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v121';
-const ASSET_CACHE = 'kamizo-assets-v121';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v121';
+const STATIC_CACHE = 'kamizo-static-v122';
+const ASSET_CACHE = 'kamizo-assets-v122';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v122';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

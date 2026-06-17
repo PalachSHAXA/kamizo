@@ -427,6 +427,50 @@ html.dark .text-amber-700 { color: #FCD34D !important; }
 html.dark .active\:bg-gray-100:active { background-color: #2C2620 !important; }
 html.dark .active\:bg-gray-50:active { background-color: #2A241D !important; }
 
+/* v122 — app-wide active-state safety net.
+   Tailwind `active:` utilities don't have dark variants by default, so
+   any component using `active:bg-white|gray-*|stone-*|neutral-*|
+   slate-*|zinc-*` flashes BRIGHT on a dark surface during the
+   press-down state (visible for ~100 ms but jarring). v117 patched
+   just the dashboard tabs (gray-100 / gray-50); this rule generalises
+   to every light surface a designer might reasonably reach for as a
+   press-flash. Each maps to the same themed stone the static-state
+   v96 rule uses, so the press blends with the surrounding card.
+   Add new classes here as needed; the safety net catches them
+   globally. */
+html.dark .active\:bg-white:active,
+html.dark .active\:bg-gray-200:active,
+html.dark .active\:bg-stone-50:active,
+html.dark .active\:bg-stone-100:active,
+html.dark .active\:bg-stone-200:active,
+html.dark .active\:bg-neutral-50:active,
+html.dark .active\:bg-neutral-100:active,
+html.dark .active\:bg-slate-50:active,
+html.dark .active\:bg-slate-100:active,
+html.dark .active\:bg-zinc-50:active,
+html.dark .active\:bg-zinc-100:active {
+  background-color: #2C2620 !important;
+}
+
+/* Companion `hover:` safety net. Mobile rarely shows :hover, but
+   desktop dispatcher + manager workflows definitely do; covering it
+   here keeps the dark theme consistent across both pointer types. */
+html.dark .hover\:bg-white:hover,
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-gray-200:hover,
+html.dark .hover\:bg-stone-50:hover,
+html.dark .hover\:bg-stone-100:hover,
+html.dark .hover\:bg-stone-200:hover,
+html.dark .hover\:bg-neutral-50:hover,
+html.dark .hover\:bg-neutral-100:hover,
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-zinc-50:hover,
+html.dark .hover\:bg-zinc-100:hover {
+  background-color: #2A241D !important;
+}
+
 /* shadow utility softening — Tailwind shadows tuned for light bg are
    invisible on dark. Use a single warm-dark shadow family. */
 html.dark .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.35) !important; }

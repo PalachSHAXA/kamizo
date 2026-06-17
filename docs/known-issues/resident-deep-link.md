@@ -1,8 +1,21 @@
-# Profile deep-linking from chat InfoDropdown — deferred
+# Profile deep-linking from chat InfoDropdown — RESOLVED
 
-**Status**: open, deferred
+**Status**: ✅ RESOLVED on 2026-06-17 (v122)
+**Resolution**: Option **B** — query-param convention
+`/residents?focus=:id`. `useResidentsLogic` reads `?focus` on mount,
+short-circuits to the in-memory cache when the resident is already
+loaded (drilled-down dispatcher), otherwise fetches the tenant-wide
+residents list (one call, no building filter) and opens
+`ResidentCardModal` directly. Param is cleared via
+`setSearchParams({}, { replace: true })` on success or failure so
+refresh / back-nav lands on the bare list. Cross-tenant focus IDs
+silently miss (tenant-isolated `usersApi.getAll` won't return them).
+See [SPRINT-NOTE — 2026-06-17 follow-up](#sprint-note--2026-06-17-followup)
+at the bottom for the reasoning that overrode the original D-defer
+choice.
+
 **Discovered**: Sprint 84 commit 3 (admin-chat-actions sprint, v121)
-**Owner**: TBD — routing strategy decision
+**Resolved**: Sprint 84 follow-up (v122)
 
 ## Symptom
 
@@ -85,3 +98,35 @@ Whichever comes first.
 - `src/frontend/public/sw.js` — cache bump to v121.
 - This file (newly created).
 - [INDEX.md](INDEX.md) — index entry.
+
+
+## SPRINT-NOTE — 2026-06-17 follow-up
+
+The original commit 3 picked **Option D (defer)** on the principle
+that wiring should wait for an app-wide routing strategy decision.
+Within 24h the product asked for the chat → profile flow to work
+end-to-end without that decision, accepting the limitation that the
+wiring is chat-only and uses query-param convention rather than a new
+`:id` route. We re-picked **Option B** with two adjustments to the
+original B sketch:
+
+1. **Tenant-wide fetch, not list-match-only.** The original B sketch
+   relied on the resident already being in `apiResidents` (which only
+   loads after the dispatcher drills into a building). In real use
+   that's almost never true on the chat → profile path, so we add a
+   single `usersApi.getAll({ role: 'resident', limit: 5000 })` call
+   when the cache miss happens. The endpoint is tenant-isolated
+   server-side, so the fetch is safe; cost is acceptable for a
+   dispatcher-triggered nav.
+
+2. **Param always cleared.** Whether the fetch succeeds, misses, or
+   errors out, we `setSearchParams({}, { replace: true })`. The next
+   render doesn't re-fire the effect and the URL is clean for
+   back-nav.
+
+The original B-cons remain accurate: this convention is chat-specific
+and not used elsewhere in the app yet. When the next surface needs
+similar deep-linking, the cleanest move is to lift the
+`?focus`-handling pattern into a tiny reusable hook (e.g.
+`useFocusParam`). For now it's inline in `useResidentsLogic`.
+
