@@ -557,7 +557,15 @@ export function TeamPage() {
               </select>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* sm:flex-wrap on desktop: if window width pinches, the row of
+              buttons wraps to a new line as a whole — far better than each
+              button growing tall because its label broke into two lines
+              (the "Сбросить пароли" / "Добавить сотрудника" symptom).
+              Each button itself gets `whitespace-nowrap` so its label
+              stays on one line regardless of available width. Mobile
+              labels are `hidden sm:inline`, so nothing about the mobile
+              icon-only layout changes. */}
+          <div className="flex items-center gap-2 sm:flex-wrap">
             <button
               onClick={fetchTeam}
               className="btn-secondary p-2"
@@ -570,7 +578,7 @@ export function TeamPage() {
             {[...admins, ...managers, ...departmentHeads, ...executors].some(m => !m.password) && (
               <button
                 onClick={handleResetAllPasswords}
-                className="btn-secondary flex items-center gap-2 text-orange-600 hover:bg-orange-50"
+                className="btn-secondary flex items-center gap-2 text-orange-600 hover:bg-orange-50 whitespace-nowrap"
                 title={language === 'ru' ? 'Сбросить пароли для сотрудников без паролей' : 'Parolsiz xodimlarning parollarini tiklash'}
                 aria-label={language === 'ru' ? 'Массовый сброс паролей сотрудников' : 'Xodimlar parollarini ommaviy tiklash'}
               >
@@ -581,7 +589,7 @@ export function TeamPage() {
             <button
               onClick={handleExportStaff}
               disabled={exportLoading}
-              className="btn-secondary flex items-center gap-2 text-green-600 hover:bg-green-50 disabled:opacity-50"
+              className="btn-secondary flex items-center gap-2 text-green-600 hover:bg-green-50 disabled:opacity-50 whitespace-nowrap"
               title={language === 'ru' ? 'Экспорт персонала' : 'Xodimlarni eksport qilish'}
             >
               {exportLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
@@ -589,7 +597,7 @@ export function TeamPage() {
             </button>
             <button
               onClick={() => { setImportFile(null); setImportResult(null); setShowImportModal(true); }}
-              className="btn-secondary flex items-center gap-2 text-blue-600 hover:bg-blue-50"
+              className="btn-secondary flex items-center gap-2 text-blue-600 hover:bg-blue-50 whitespace-nowrap"
               title={language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}
             >
               <Upload className="w-5 h-5" />
@@ -597,7 +605,7 @@ export function TeamPage() {
             </button>
             <button
               onClick={() => openAddModal('executor')}
-              className="btn-primary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
             >
               <Plus className="w-5 h-5" />
               <span className="hidden sm:inline">{language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}</span>
