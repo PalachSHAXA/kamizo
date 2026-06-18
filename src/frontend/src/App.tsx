@@ -9,6 +9,7 @@ import {
   useNotificationStore,
 } from './stores/dataStore';
 import { useTenantStore } from './stores/tenantStore';
+import { applyTenantBrand } from './utils/tenantBrand';
 import { Layout } from './components/layout';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -63,17 +64,23 @@ function App() {
   const fetchRequests = useRequestStore(s => s.fetchRequests);
   const fetchVehicles = useVehicleStore(s => s.fetchVehicles);
   const { fetchConfig } = useTenantStore();
+  const tenantColor = useTenantStore(s => s.config?.tenant?.color);
 
-  // Load tenant config on app start. The tenant.color / color_secondary
-  // fields still ride along on the response (DB keeps the column, and
-  // the super-admin tenant editor still reads + writes them — we may
-  // re-surface a paid accent feature later), but they no longer paint
-  // the UI: every chrome element resolves to Kamizo orange via the
-  // --brand* tokens declared statically in index.css. Tenant identity
-  // is expressed through logo, name, and content only.
+  // Load tenant config on app start.
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
+
+  // Paint the UI in the tenant's chosen primary colour. The super-admin
+  // editor stores tenants.color, and this applies it to the brand CSS
+  // tokens at runtime (see utils/tenantBrand). On the main / no-tenant
+  // domain tenantColor is undefined → the static Kamizo-orange defaults
+  // from index.css are used. Runs whenever the resolved tenant colour
+  // changes (persisted config makes it available before the fetch returns,
+  // minimising any colour flash).
+  useEffect(() => {
+    applyTenantBrand(tenantColor);
+  }, [tenantColor]);
 
   const fetchNotificationsFromAPI = useNotificationStore(s => s.fetchNotificationsFromAPI);
 

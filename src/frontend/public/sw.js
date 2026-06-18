@@ -1,4 +1,12 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.86 — cache suffix bumped to v140. Per-tenant brand colour:
+//     the colour a УК picks in the super-admin editor (tenants.color) was
+//     stored but never painted — every tenant rendered Kamizo orange. Now
+//     applyTenantBrand() writes the picked colour into the --brand* tokens
+//     (incl. the full --brand-50..900 scale that tailwind's primary-* maps
+//     to) on tenant-config load, so the site themes to the УК's colour.
+//     Main / no-tenant domain stays orange.
+//     Previous note (v139) preserved below:
 // Version: 3.7.85 — cache suffix bumped to v139. ImageLightbox now supports
 //     zoom + pan: mouse wheel / +- buttons / double-click to zoom, drag to
 //     pan, two-finger pinch on touch, Esc/backdrop/X to close. Applies to
@@ -2353,9 +2361,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v139';
-const ASSET_CACHE = 'kamizo-assets-v139';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v139';
+const STATIC_CACHE = 'kamizo-static-v140';
+const ASSET_CACHE = 'kamizo-assets-v140';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v140';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
