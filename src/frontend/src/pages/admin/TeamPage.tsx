@@ -557,15 +557,13 @@ export function TeamPage() {
               </select>
             </div>
           </div>
-          {/* sm:flex-wrap on desktop: if window width pinches, the row of
-              buttons wraps to a new line as a whole — far better than each
-              button growing tall because its label broke into two lines
-              (the "Сбросить пароли" / "Добавить сотрудника" symptom).
-              Each button itself gets `whitespace-nowrap` so its label
-              stays on one line regardless of available width. Mobile
-              labels are `hidden sm:inline`, so nothing about the mobile
-              icon-only layout changes. */}
-          <div className="flex items-center gap-2 sm:flex-wrap">
+          {/* whitespace-nowrap on each button (below) keeps the label on
+              one line on desktop so the row stays tidy. Mobile is
+              unaffected — labels are `hidden sm:inline`, so on <sm only
+              the icon renders. The row itself stays nowrap (no
+              flex-wrap) so the buttons always live on one line, matching
+              the design before the visual regression. */}
+          <div className="flex items-center gap-2">
             <button
               onClick={fetchTeam}
               className="btn-secondary p-2"
