@@ -1,11 +1,86 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.80 — cache suffix bumped to v134. Agenda photo VIEWER fix:
-//     attached photos are stored as data: URLs, and clicking one opened it
-//     in a new tab — blocked by Chromium (Chrome AND Edge) → about:blank
-//     #blocked. Now images open in an in-app ImageLightbox (fullscreen
-//     overlay) in BOTH the resident voting view (MeetingVotingModal) and
-//     the staff details view (MeetingDetailsModal: manager/director/admin).
-//     Non-image files now download instead of target=_blank.
+// Version: 3.7.84 — cache suffix bumped to v138. Agenda photo VIEWER fix:
+//     attached photos are data: URLs; clicking one opened it in a new tab,
+//     blocked by Chromium (Chrome AND Edge) → about:blank#blocked. Now images
+//     open in an in-app ImageLightbox in BOTH the resident voting view
+//     (MeetingVotingModal) and the staff details view (MeetingDetailsModal:
+//     manager/director/admin). Non-image files now download.
+//     (Bumped to v138 over colleagues' v137 on merge.)
+//     Previous note (v137) preserved below:
+// Version: 3.7.83 — cache suffix bumped to v137. LoginPage hardening
+//     surfaced during Sprint 86 simulator testing:
+//       (a) Smart Punctuation defang on both login + password fields.
+//           iOS rewrites typed ASCII hyphens to en/em dashes silently
+//           (HTML autoCorrect="off" does NOT suppress this — it's a
+//           separate Settings → Keyboard → Smart Punctuation toggle),
+//           so e.g. a user typing test-director-choko on the sim could
+//           ship test–director–choko (U+2013) in the request body,
+//           hit the server's case-sensitive WHERE login = ? lookup
+//           with zero matches, then see only the masked-generic
+//           "Неверный логин или пароль" with no clue why. Normalizer
+//           runs every keystroke through:
+//             U+2013 / U+2014 / U+2212 → ASCII hyphen
+//             U+00A0 (NBSP) → regular space
+//       (b) Stop overriding the server's real error with the hardcoded
+//           generic at LoginPage.tsx:113 + :134. authStore already maps
+//           "Invalid credentials" / empty → the Russian generic; every
+//           other server message (tenant resolution, rate limit,
+//           5xx) now passes through, so future "why won't it log in"
+//           debugging is self-evident from the UI alone.
+//     Bumps SW to evict v136 caches on next lifecycle so the patched
+//     LoginPage bundle is picked up.
+//     Previous note (v136) preserved below:
+// Version: 3.7.82 — cache suffix bumped to v136. Sprint 86 — native APNs
+//     push-notification infrastructure (code-complete; no business
+//     events fire push yet — that's the next sprint). New surface:
+//       (a) device_tokens table (migration 052) — per-installation
+//           UPSERT keyed by token, soft-deactivate on logout.
+//       (b) cloudflare/src/services/apns-client.ts — provider-token
+//           ES256 JWT (50-min cache) + HTTP/2 POST to APNs, both
+//           production and sandbox endpoints. No new npm dep —
+//           uses Node 18+ Web Crypto in the same pattern as
+//           cloudflare/src/utils/crypto.ts.
+//       (c) cloudflare/src/routes/devices.ts — POST /api/devices/
+//           {register,unregister,test-push}. tenant_id always
+//           pinned from JWT (cross-tenant register impossible).
+//       (d) @capacitor/push-notifications@8.1.1 — installed, wired
+//           into AppDelegate.swift, App.entitlements created (aps-
+//           environment = development), Info.plist gains
+//           UIBackgroundModes=[remote-notification].
+//       (e) src/services/nativePush.ts — initialize() called from
+//           authStore.login post-success; unregister() from logout
+//           with JWT snapshot captured before localStorage wipe.
+//           Native-only (Capacitor.isNativePlatform guard), PWA
+//           build unaffected.
+//     Bumps SW to evict v135 caches on next lifecycle so the new
+//     pushNotifications.register() listener wiring is picked up.
+//     Previous note (v135) preserved below:
+// Version: 3.7.81 — cache suffix bumped to v135. Bug 7 from the pre-iOS
+//     E2E audit: replace the default white Capacitor splash with a
+//     Kamizo-branded one. Cream #F4F0E8 background (continuity with the
+//     flattened app-icon background + index.css --app-bg) and the same
+//     "K" mark used in the launcher icon, ~40% of the shortest screen
+//     dimension, centered. iOS: Splash.imageset reflattened at 2732×2732,
+//     LaunchScreen.storyboard backgroundColor pinned to cream so the
+//     letterbox color matches if the WebView paints before the storyboard
+//     fades. Android: 28 PNGs regenerated across every density/orientation/
+//     theme bucket; @drawable/splash chain in styles.xml unchanged.
+//     capacitor.config.ts SplashScreen plugin: launchAutoHide:false +
+//     backgroundColor:#F4F0E8; main.tsx now calls SplashScreen.hide({
+//     fadeOutDuration: 300 }) once React mounts. Single revertable commit.
+//     Previous note (v134) preserved below:
+// Version: 3.7.80 — cache suffix bumped to v134. Frontend change in this
+//     bump: AddStaffModal role dropdown now lists Диспетчер and Охранник
+//     alongside the existing Менеджер / Глава отдела / Исполнитель.
+//     Reason: the pre-iOS E2E audit's Bug 6 finding was actually a
+//     two-roles-missing dropdown, not a missing form. Backend
+//     POST /api/auth/register already accepts dispatcher + security
+//     from director / admin / manager callers and pins tenant_id from
+//     the JWT (cloudflare/src/routes/users/auth.ts:353), so a director
+//     can build their full team (Manager → Dispatcher → Executor →
+//     Security) without ever needing to leave the UI for a curl call.
+//     Single TypeScript-union widening in three files (modal type,
+//     TeamPage useState type, openAddModal default-param type).
 //     Previous note (v133) preserved below:
 // Version: 3.7.79 — cache suffix bumped to v133. Agenda photo SAVE fix:
 //     meetingStore.createMeeting was rebuilding each agenda item with only
@@ -2273,9 +2348,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v134';
-const ASSET_CACHE = 'kamizo-assets-v134';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v134';
+const STATIC_CACHE = 'kamizo-static-v138';
+const ASSET_CACHE = 'kamizo-assets-v138';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v138';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

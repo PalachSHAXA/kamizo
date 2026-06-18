@@ -7,8 +7,15 @@ import type { ExecutorSpecialization } from '../../../types';
 // a regenerate button + copy. State stays at TeamPage; this is the
 // presentational shell.
 
+// Bug 6 (2026-06-18) — dispatcher + security added to the role union.
+// The backend register handler (cloudflare/src/routes/users/auth.ts)
+// already accepts these from a director / admin / manager caller; the
+// only thing blocking them in production was that the UI dropdown
+// below didn't list them. tenant_id stays JWT-derived server-side,
+// so cross-tenant attempts via this form 403 + audit-log just like
+// every other tenant-scoped write.
 export interface AddStaffForm {
-  role: 'manager' | 'department_head' | 'executor';
+  role: 'manager' | 'department_head' | 'executor' | 'dispatcher' | 'security';
   managerType: 'manager' | 'advertiser';
   specialization: ExecutorSpecialization | '';
   name: string;
@@ -78,18 +85,22 @@ export function AddStaffModal({
               onChange={(e) =>
                 setForm({
                   ...form,
-                  role: e.target.value as 'manager' | 'department_head' | 'executor',
+                  role: e.target.value as 'manager' | 'department_head' | 'executor' | 'dispatcher' | 'security',
                   managerType: 'manager',
+                  // Dispatcher + security are role-only — no specialization.
                   specialization: '' as ExecutorSpecialization,
                 })
               }
               className="input-field"
             >
-              <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
+              {/* Ordered roughly by management rank: highest first */}
+              <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
+              <option value="dispatcher">{language === 'ru' ? 'Диспетчер' : 'Dispetcher'}</option>
               <option value="department_head">
                 {language === 'ru' ? 'Глава отдела' : "Bo'lim boshlig'i"}
               </option>
-              <option value="manager">{language === 'ru' ? 'Менеджер' : 'Menejer'}</option>
+              <option value="executor">{language === 'ru' ? 'Исполнитель' : 'Ijrochi'}</option>
+              <option value="security">{language === 'ru' ? 'Охранник' : 'Qorovul'}</option>
             </select>
           </div>
 

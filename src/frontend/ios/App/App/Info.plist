@@ -68,5 +68,15 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!-- Sprint 86 — APNs / Push Notifications. `remote-notification` lets
+	     iOS wake the app in the background for silent content-available
+	     pushes (e.g. badge updates), as a companion to the standard
+	     foreground/alert path. Required for the @capacitor/push-
+	     notifications register() call to succeed on a freshly-installed
+	     build. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

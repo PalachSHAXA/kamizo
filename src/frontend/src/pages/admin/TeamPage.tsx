@@ -87,7 +87,10 @@ export function TeamPage() {
     phone: '',
     login: '',
     password: '',
-    role: 'executor' as 'manager' | 'department_head' | 'executor',
+    // Bug 6 (2026-06-18) — widened to include dispatcher + security so
+    // those two top-level roles can be picked from the AddStaffModal
+    // dropdown. Backend register handler already accepts them.
+    role: 'executor' as 'manager' | 'department_head' | 'executor' | 'dispatcher' | 'security',
     managerType: 'manager' as 'manager' | 'advertiser',
     specialization: '' as ExecutorSpecialization | '',
   });
@@ -349,7 +352,7 @@ export function TeamPage() {
     }
   };
 
-  const openAddModal = (role: 'manager' | 'department_head' | 'executor' = 'executor') => {
+  const openAddModal = (role: 'manager' | 'department_head' | 'executor' | 'dispatcher' | 'security' = 'executor') => {
     setAddForm({
       name: '',
       phone: '',

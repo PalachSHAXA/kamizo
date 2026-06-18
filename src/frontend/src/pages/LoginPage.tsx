@@ -49,6 +49,24 @@ export function LoginPage() {
 
   const [loginValue, setLoginValue] = useState('');
   const [password, setPassword] = useState('');
+  // Sprint 86 — Smart Punctuation defang. iOS Simulator (and physical
+  // iPhone if "Smart Punctuation" is on under General → Keyboard) silently
+  // rewrites the ASCII hyphen `-` (U+002D) to en-dash `–` (U+2013) or
+  // em-dash `—` (U+2014) inside text input fields. The HTML
+  // `autoCorrect="off"` attribute does NOT suppress Smart Punctuation —
+  // it's a separate iOS setting. So a user typing `test-director-choko`
+  // can quietly land at `test–director–choko` (visually identical at
+  // form font size, byte-distinct in the request body), the server's
+  // case-sensitive `WHERE login = ?` lookup misses, PATH B's fan-out
+  // verifies zero rows, the 401 returns "Не удалось определить вашу
+  // управляющую компанию" — and the user gets the generic
+  // "Неверный логин или пароль" with no clue why. Both fields run
+  // every keystroke through this normalizer; harmless on web where the
+  // chars never appear.
+  //   • U+2013 en-dash, U+2014 em-dash, U+2212 minus  → ASCII hyphen
+  //   • U+00A0 non-breaking space (slips in from autocorrect)  → space
+  const normalizeAuthField = (s: string): string =>
+    s.replace(/[–—−]/g, '-').replace(/ /g, ' ');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -108,10 +126,13 @@ export function LoginPage() {
     }
 
     try {
-      const outcome = await login(loginValue, password);
-      if (outcome === 'error') {
-        setError(language === 'ru' ? 'Неверный логин или пароль' : 'Login yoki parol noto\'g\'ri');
-      }
+      // Sprint 86 — DO NOT setError on outcome === 'error'. The previous
+      // override blanketed every server response with the hardcoded
+      // generic "Неверный логин или пароль", hiding the real reason
+      // (tenant resolution fail / rate limit / 5xx / etc). The auth
+      // store has already normalised the server message into authError
+      // for us — `displayError = error || authError` will surface it.
+      await login(loginValue, password);
       // outcome === 'picker' → the workspace picker render below opens
       //   (driven by store.pickerTenants); password stays in this
       //   component's useState for the re-submit.
@@ -129,10 +150,10 @@ export function LoginPage() {
     setPickingSlug(slug);
     setError('');
     try {
-      const outcome = await login(loginValue, password, slug);
-      if (outcome === 'error') {
-        setError(language === 'ru' ? 'Неверный логин или пароль' : 'Login yoki parol noto\'g\'ri');
-      }
+      // Same as handleSubmit: let authStore's mapped error surface
+      // through displayError instead of clobbering it with the
+      // hardcoded generic.
+      await login(loginValue, password, slug);
       // outcome === 'success' → App re-renders.
       // outcome === 'picker' should NOT happen here (the slug pinned a
       // single tenant), but if it ever did, the picker just re-renders.
@@ -270,7 +291,7 @@ export function LoginPage() {
               id="login-field"
               type="text"
               value={loginValue}
-              onChange={(e) => setLoginValue(e.target.value)}
+              onChange={(e) => setLoginValue(normalizeAuthField(e.target.value))}
               placeholder={language === 'ru' ? 'Введите логин' : 'Login kiriting'}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
               aria-label={language === 'ru' ? 'Логин' : 'Login'}
@@ -296,7 +317,7 @@ export function LoginPage() {
                 id="password-field"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => setPassword(normalizeAuthField(e.target.value))}
                 placeholder={language === 'ru' ? 'Введите пароль' : 'Parol kiriting'}
                 className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
                 aria-label={language === 'ru' ? 'Пароль' : 'Parol'}

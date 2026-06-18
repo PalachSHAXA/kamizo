@@ -13,6 +13,7 @@ import { registerNotificationRoutes } from './notifications';
 import { registerMiscRoutes } from './misc';
 import { registerFinanceRoutes } from './finance';
 import { registerTenantContractRoutes } from './tenants/contracts';
+import { registerDeviceRoutes } from './devices';
 
 export function registerAllRoutes() {
   registerUserRoutes();
@@ -33,4 +34,8 @@ export function registerAllRoutes() {
   // segments at the same depth, but contract endpoints add an extra
   // path segment so the router's longest-match wins regardless.
   registerTenantContractRoutes();
+  // Sprint 86 — APNs / FCM device-token registration surface.
+  // Read by future business-event push paths (chat, requests, meetings)
+  // through device_tokens WHERE is_active = 1.
+  registerDeviceRoutes();
 }
