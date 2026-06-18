@@ -32,10 +32,20 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 1500,
-      backgroundColor: '#F97316',
+      // Bug 7 (2026-06-18) — branded splash. Cream #F4F0E8 background
+      // (matches app-icon flattened bg + index.css --app-bg) with the
+      // K mark centered. launchAutoHide:false → JS calls
+      // SplashScreen.hide({ fadeOutDuration: 300 }) from main.tsx
+      // once Zustand stores + i18n are ready; the 2-second
+      // launchShowDuration is only the safety ceiling.
+      launchShowDuration: 2000,
+      launchAutoHide: false,
+      backgroundColor: '#F4F0E8',
       showSpinner: false,
       androidScaleType: 'CENTER_CROP',
+      splashFullScreen: true,
+      splashImmersive: false,
+      useDialog: false,
     },
     // Boot-time floor for the native status bar. applyTheme() in
     // src/stores/themeStore.ts immediately overrides style +

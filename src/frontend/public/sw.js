@@ -1,4 +1,18 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.81 — cache suffix bumped to v135. Bug 7 from the pre-iOS
+//     E2E audit: replace the default white Capacitor splash with a
+//     Kamizo-branded one. Cream #F4F0E8 background (continuity with the
+//     flattened app-icon background + index.css --app-bg) and the same
+//     "K" mark used in the launcher icon, ~40% of the shortest screen
+//     dimension, centered. iOS: Splash.imageset reflattened at 2732×2732,
+//     LaunchScreen.storyboard backgroundColor pinned to cream so the
+//     letterbox color matches if the WebView paints before the storyboard
+//     fades. Android: 28 PNGs regenerated across every density/orientation/
+//     theme bucket; @drawable/splash chain in styles.xml unchanged.
+//     capacitor.config.ts SplashScreen plugin: launchAutoHide:false +
+//     backgroundColor:#F4F0E8; main.tsx now calls SplashScreen.hide({
+//     fadeOutDuration: 300 }) once React mounts. Single revertable commit.
+//     Previous note (v134) preserved below:
 // Version: 3.7.80 — cache suffix bumped to v134. Frontend change in this
 //     bump: AddStaffModal role dropdown now lists Диспетчер and Охранник
 //     alongside the existing Менеджер / Глава отдела / Исполнитель.
@@ -2278,9 +2292,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v134';
-const ASSET_CACHE = 'kamizo-assets-v134';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v134';
+const STATIC_CACHE = 'kamizo-static-v135';
+const ASSET_CACHE = 'kamizo-assets-v135';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v135';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

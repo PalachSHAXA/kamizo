@@ -11,21 +11,35 @@
     <link rel="apple-touch-icon" sizes="192x192" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <!-- Global theme-color is the app body / --app-bg (index.css :root) —
-         #F4F0E8 warm beige, matching the Claude Design palette. FINAL RULE:
-         light/beige status-bar chrome on EVERY page, no exceptions.
-         Pages MUST NOT override this to a dark tint; the Home hero stays
-         brown visually but starts BELOW env(safe-area-inset-top) via its
-         margin, so the status-bar zone always paints the light app bg. -->
+    <!-- theme-color is the cross-platform signal:
+         • Android Chrome: paints the top system bar with this color
+         • iOS Safari (tab mode): tints the status-bar background
+         The values are flipped at runtime by applyTheme() in themeStore.ts:
+         #F4F0E8 (warm beige --app-bg) in light, #1A1612 in dark — so the
+         OS strip stays continuous with the page surface in both themes.
+         (iOS PWA standalone reads apple-mobile-web-app-status-bar-style
+         below instead of this meta.) -->
     <meta name="theme-color" content="#F4F0E8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- "default" status-bar-style keeps the iOS PWA status bar as a
-         system strip with dark text on the light background (matching
-         theme-color). We previously used "black-translucent" to let the
-         Home hero paint brown behind the bar; the new rule is no brown
-         behind the status bar anywhere, so the web view no longer extends
-         behind it. MobileHeader's padding-top: calc(safe-area-inset-top
-         + 12px) still keeps content clear of the notch. -->
+    <!-- iOS PWA status-bar-style:
+         • "default"          → light bg, dark icons (light theme)
+         • "black"            → solid black bg, light icons (dark theme — what we use)
+         • "black-translucent"→ transparent overlay; webview content
+                               paints under the bar — any momentary light
+                               surface (boot, transition, splash) bleeds
+                               through and the user sees a literal white
+                               strip even after applyTheme has run
+         We flip between "default" (light theme) and "black" (dark theme).
+         "black" was chosen over "black-translucent" for determinism:
+         users care about light-bar-in-dark-app far more than a 1-tone
+         shift between pure black and warm-black (#1A1612), and the
+         deterministic solid bar removes a class of "why is the bar
+         white" bug reports. MobileHeader's padding-top: calc(safe-area-
+         inset-top + 12px) keeps content below the notch regardless.
+         Note: iOS reads this meta only when launching the installed PWA
+         from the home screen — runtime changes are ignored by iOS Safari
+         in standalone mode, so the pre-paint script below ALSO sets it
+         based on stored theme to make the very first launch correct. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="kamizo" />
@@ -50,13 +64,21 @@
             document.documentElement.classList.add('dark');
             var meta = document.querySelector('meta[name="theme-color"]');
             if (meta) meta.setAttribute('content', '#1A1612');
+            // iOS PWA: install-time read; must be set before the
+            // standalone launch paints its first frame. applyTheme()
+            // mirrors this on flips for any platform that does honour
+            // live changes (Android Chrome, iOS Safari tab mode).
+            var statusBarMeta = document.querySelector(
+              'meta[name="apple-mobile-web-app-status-bar-style"]'
+            );
+            if (statusBarMeta) statusBarMeta.setAttribute('content', 'black');
           }
         } catch (e) { /* private mode / blocked storage — default light */ }
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-Bjq6VR4x.js"></script>
+    <script type="module" crossorigin src="/assets/index-X0CzYmxy.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/charts-BFe3Y058.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-mZp1QviU.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-C1ibjoUU.css">
   </head>
   <body>
     <div id="root">

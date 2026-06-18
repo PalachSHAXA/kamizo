@@ -1,7 +1,19 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Capacitor } from '@capacitor/core'
+import { SplashScreen } from '@capacitor/splash-screen'
 import './index.css'
 import App from './App.tsx'
+
+// Bug 7 (2026-06-18) — hide the native splash with a 300ms fade once the
+// WebView has hydrated React. capacitor.config.ts sets launchAutoHide:false
+// so this is the only thing that dismisses the splash; the 2-second
+// launchShowDuration is just a safety ceiling. No-op on web/PWA.
+if (Capacitor.isNativePlatform()) {
+  requestAnimationFrame(() => {
+    SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => {})
+  })
+}
 
 function setIOSPwaGap() {
   const gap = Math.max(0, window.screen.height - window.innerHeight);
