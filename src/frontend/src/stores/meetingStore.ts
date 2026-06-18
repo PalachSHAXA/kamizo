@@ -434,6 +434,10 @@ export const useMeetingStore = create<MeetingState>()(
               title: item.title,
               description: item.description,
               threshold: item.threshold,
+              // Was dropped here — so photos attached to a «свой вопрос» never
+              // reached the server (stored as NULL). Forward them so the
+              // backend persists meeting_agenda_items.attachments.
+              attachments: item.attachments,
             })),
           });
           if (response.success && response.data) {

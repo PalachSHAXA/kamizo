@@ -1,4 +1,11 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.79 — cache suffix bumped to v133. Agenda photo SAVE fix:
+//     meetingStore.createMeeting was rebuilding each agenda item with only
+//     {title, description, threshold} — silently dropping `attachments`, so
+//     a photo on a «свой вопрос» never reached the server (stored NULL).
+//     Now forwarded. (Companion to the v132 display fix in mapAgendaItem —
+//     both are needed: one to save the photo, one to render it.)
+//     Previous note (v132) preserved below:
 // Version: 3.7.78 — cache suffix bumped to v132. In this bundle:
 //   (1) Meeting schedule-poll voting fix: resident date-poll votes were
 //       silently dropped — the server INSERT omitted the legacy NOT NULL
@@ -2258,9 +2265,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v132';
-const ASSET_CACHE = 'kamizo-assets-v132';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v132';
+const STATIC_CACHE = 'kamizo-static-v133';
+const ASSET_CACHE = 'kamizo-assets-v133';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v133';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

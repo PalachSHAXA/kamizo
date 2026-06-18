@@ -79,7 +79,7 @@ export const meetingsFullApi = {
     location?: string;
     description?: string;
     meetingTime?: string;
-    agendaItems: { title: string; description?: string; threshold?: string }[];
+    agendaItems: { title: string; description?: string; threshold?: string; attachments?: { name: string; url: string; type: string; size: number }[] }[];
     materials?: Record<string, unknown>[];
   }) => {
     invalidateCache('/api/meetings');
