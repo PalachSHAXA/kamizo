@@ -34,6 +34,19 @@ export interface Env {
   CF_API_TOKEN?: string;
   CF_ACCOUNT_ID?: string;
   CF_D1_DATABASE_ID?: string;
+
+  // Sprint 86 — APNs push provider config. All four are required for
+  // sendApnsNotification to actually fire; missing → the call returns
+  // ok=false with a "not configured" reason and the request continues.
+  // .p8 file lives at APNS_KEY_PATH on the VPS, mode 600, never in git.
+  // APNS_ENVIRONMENT='sandbox' targets api.sandbox.push.apple.com for
+  // debug/TestFlight builds; default is production. See
+  // cloudflare/src/services/apns-client.ts for the contract.
+  APNS_TEAM_ID?: string;
+  APNS_KEY_ID?: string;
+  APNS_KEY_PATH?: string;
+  APNS_TOPIC?: string;
+  APNS_ENVIRONMENT?: 'production' | 'sandbox';
 }
 
 export interface User {

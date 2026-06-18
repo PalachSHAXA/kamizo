@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Sprint 86 — APNs Push Notifications entitlement.
+
+	  `development` routes the app to api.sandbox.push.apple.com when
+	  signed with a development provisioning profile. App Store / TestFlight
+	  builds re-sign with a distribution profile and Xcode automatically
+	  flips this to `production` (or you can change it here for Ad-Hoc
+	  Enterprise distribution). The Apple Developer portal APNs key is
+	  scoped Sandbox + Production team-wide, so a single .p8 works for
+	  both — only the entitlement string changes per build.
+
+	  Xcode normally generates this file automatically when you toggle
+	  Push Notifications under Signing & Capabilities. We commit it
+	  explicitly so a fresh clone of the repo doesn't need a developer
+	  to remember the capability toggle.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

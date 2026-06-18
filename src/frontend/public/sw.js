@@ -1,4 +1,29 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.82 — cache suffix bumped to v136. Sprint 86 — native APNs
+//     push-notification infrastructure (code-complete; no business
+//     events fire push yet — that's the next sprint). New surface:
+//       (a) device_tokens table (migration 052) — per-installation
+//           UPSERT keyed by token, soft-deactivate on logout.
+//       (b) cloudflare/src/services/apns-client.ts — provider-token
+//           ES256 JWT (50-min cache) + HTTP/2 POST to APNs, both
+//           production and sandbox endpoints. No new npm dep —
+//           uses Node 18+ Web Crypto in the same pattern as
+//           cloudflare/src/utils/crypto.ts.
+//       (c) cloudflare/src/routes/devices.ts — POST /api/devices/
+//           {register,unregister,test-push}. tenant_id always
+//           pinned from JWT (cross-tenant register impossible).
+//       (d) @capacitor/push-notifications@8.1.1 — installed, wired
+//           into AppDelegate.swift, App.entitlements created (aps-
+//           environment = development), Info.plist gains
+//           UIBackgroundModes=[remote-notification].
+//       (e) src/services/nativePush.ts — initialize() called from
+//           authStore.login post-success; unregister() from logout
+//           with JWT snapshot captured before localStorage wipe.
+//           Native-only (Capacitor.isNativePlatform guard), PWA
+//           build unaffected.
+//     Bumps SW to evict v135 caches on next lifecycle so the new
+//     pushNotifications.register() listener wiring is picked up.
+//     Previous note (v135) preserved below:
 // Version: 3.7.81 — cache suffix bumped to v135. Bug 7 from the pre-iOS
 //     E2E audit: replace the default white Capacitor splash with a
 //     Kamizo-branded one. Cream #F4F0E8 background (continuity with the
@@ -2292,9 +2317,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v135';
-const ASSET_CACHE = 'kamizo-assets-v135';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v135';
+const STATIC_CACHE = 'kamizo-static-v136';
+const ASSET_CACHE = 'kamizo-assets-v136';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v136';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

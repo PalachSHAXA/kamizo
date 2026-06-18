@@ -126,6 +126,15 @@ export const useAuthStore = create<AuthState>()(
           import('./tenantStore').then(({ useTenantStore }) => {
             void useTenantStore.getState().fetchConfig();
           }).catch(() => { /* non-critical */ });
+
+          // Sprint 86 — request native push permission + register the
+          // device token with the backend. Native-only (Capacitor.is
+          // NativePlatform() guard inside). Fire-and-forget: a denied
+          // permission or a network failure here must not break login.
+          // The PWA build short-circuits to a no-op.
+          import('../services/nativePush').then(({ initializeNativePush }) => {
+            void initializeNativePush();
+          }).catch(() => { /* non-critical */ });
           return 'success';
         } catch (apiError: unknown) {
           // Login failed
@@ -156,6 +165,17 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Sprint 86 — deactivate the current native push token. We
+        // snapshot the JWT synchronously BEFORE authApi.logout() wipes
+        // localStorage; the snapshot is handed to the unregister call
+        // so it stays authenticated even though the dynamic-import
+        // resolves a microtask after the wipe. Fire-and-forget — a
+        // backend blip must not strand the user on the login screen.
+        let jwtSnapshot: string | null = null;
+        try { jwtSnapshot = localStorage.getItem('auth_token'); } catch { /* private mode */ }
+        import('../services/nativePush').then(({ unregisterNativePush }) => {
+          void unregisterNativePush(jwtSnapshot);
+        }).catch(() => { /* non-critical */ });
         authApi.logout();
         set({ user: null, token: null, error: null });
       },

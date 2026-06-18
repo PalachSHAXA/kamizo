@@ -50,3 +50,6 @@ src/frontend/android/app/keystore.properties
 # Claude Code local backup/state files
 .claude/settings.json.bak
 .claude/settings.local.json
+# Sprint 86 — APNs .p8 signing key never gets committed. Lives on VPS
+# at /opt/kamizo/secrets/AuthKey_*.p8 (mode 700 dir, mode 600 file).
+*.p8
