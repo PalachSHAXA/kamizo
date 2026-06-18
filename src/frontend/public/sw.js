@@ -1,4 +1,12 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.77 — cache suffix bumped to v131. Frontend change in this
+//     bump: TeamPage desktop toolbar no longer overlaps (action buttons
+//     wrap as a unit, never compress). (Companion server-side fix, not in
+//     this file: the Cloudflare Worker now validates a tenant subdomain
+//     against the LIVE VPS DB via /api/public/tenant-exists instead of the
+//     frozen D1 archive — that archive lacked every post-migration УК, so
+//     new tenants like testpr.kamizo.uz were wrongly 404'd.)
+//     Previous note (v130) preserved below:
 // Version: 3.7.76 — cache suffix bumped to v130 to evict every v129 (and
 // older) cache on the next SW lifecycle update. This release ships:
 //   • Cross-platform file download via @capacitor/filesystem. The
@@ -2235,9 +2243,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v130';
-const ASSET_CACHE = 'kamizo-assets-v130';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v130';
+const STATIC_CACHE = 'kamizo-static-v131';
+const ASSET_CACHE = 'kamizo-assets-v131';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v131';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

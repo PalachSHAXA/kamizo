@@ -529,8 +529,8 @@ export function TeamPage() {
             </p>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
             {/* Search */}
             <div className="relative flex-1 sm:flex-none min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -557,13 +557,15 @@ export function TeamPage() {
               </select>
             </div>
           </div>
-          {/* whitespace-nowrap on each button (below) keeps the label on
-              one line on desktop so the row stays tidy. Mobile is
-              unaffected — labels are `hidden sm:inline`, so on <sm only
-              the icon renders. The row itself stays nowrap (no
-              flex-wrap) so the buttons always live on one line, matching
-              the design before the visual regression. */}
-          <div className="flex items-center gap-2">
+          {/* Action buttons live in ONE non-shrinking row (sm:shrink-0).
+              The wrapping happens on the PARENT toolbar (sm:flex-wrap), so
+              when desktop width pinches this whole group drops below the
+              search/filter row as a single unit — it never compresses into
+              the search row (the overlap bug) and never orphans a lone
+              button like an individual flex-wrap did. whitespace-nowrap on
+              each button keeps its label on one line. Mobile is unaffected:
+              labels are `hidden sm:inline` and the toolbar is flex-col. */}
+          <div className="flex items-center gap-2 sm:shrink-0">
             <button
               onClick={fetchTeam}
               className="btn-secondary p-2"

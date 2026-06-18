@@ -20,6 +20,31 @@ route('GET', '/api/health', async (_request, env) => {
   return json(health, status);
 });
 
+// Tenant existence check by slug.
+// PUBLIC: no auth required. Returns { exists: boolean }.
+//
+// WHY THIS EXISTS: the Cloudflare Worker serves the SPA shell for
+// {slug}.kamizo.uz and must 404 unregistered subdomains. It used to check
+// its own env.DB — but on the Worker that's the FROZEN D1 archive, which
+// has no tenant created after the D1→VPS migration, so every new УК 404'd.
+// This endpoint runs on the VPS (api.kamizo.uz) against the LIVE SQLite, so
+// the Worker can ask the authoritative source. It returns only a boolean —
+// no tenant data leaks, so it's safe to expose unauthenticated.
+route('GET', '/api/public/tenant-exists', async (request, env) => {
+  const url = new URL(request.url);
+  const slug = (url.searchParams.get('slug') || '').trim().toLowerCase();
+  // Validate shape before touching the DB — same charset the Worker's
+  // getTenantSlug() accepts. Rejects junk early; the query is parametrised
+  // regardless, so this is defence-in-depth, not the only guard.
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
+    return json({ exists: false });
+  }
+  const row = await env.DB.prepare(
+    'SELECT 1 FROM tenants WHERE slug = ? AND is_active = 1'
+  ).bind(slug).first();
+  return json({ exists: !!row });
+});
+
 // Tenant Config (returns current tenant's configuration)
 // PUBLIC: no auth required, BUT optionally honours a Bearer JWT.
 //

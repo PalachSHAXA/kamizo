@@ -11,7 +11,7 @@ import type { Env } from './types';
 import { matchRoute } from './router';
 import { setCorsOrigin, getCurrentCorsOrigin, resolveCorsOrigin, initCors } from './middleware/cors';
 import { getUser } from './middleware/auth';
-import { setTenantForRequest, getTenantForRequest, getTenantSlug, setCurrentTenant } from './middleware/tenant';
+import { setTenantForRequest, getTenantSlug, setCurrentTenant } from './middleware/tenant';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
 import { error, sanitizeErrorMessage } from './utils/helpers';
 import { createRequestLogger } from './utils/logger';
@@ -400,6 +400,33 @@ function tenantNotFoundResponse(tenantSlug: string): Response {
   });
 }
 
+// Authoritative "does this УК exist?" check against the LIVE database.
+//
+// The Worker's own env.DB is the FROZEN D1 archive — it has no tenant
+// created after the D1→VPS migration, so checking it 404'd every new УК.
+// Instead we ask the VPS (api.kamizo.uz), which runs the same handler
+// against the live SQLite and answers a plain { exists: boolean }.
+//
+// Returns: true (registered) | false (definitively not registered) |
+//          null (couldn't determine — caller MUST fail-open and serve the
+//          shell so a network blip never 404s a real УК).
+async function tenantExistsLive(slug: string): Promise<boolean | null> {
+  try {
+    const res = await fetch(
+      `https://api.kamizo.uz/api/public/tenant-exists?slug=${encodeURIComponent(slug)}`,
+      { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { exists?: unknown };
+    if (data.exists === true) return true;
+    if (data.exists === false) return false;
+    return null;
+  } catch {
+    // Timeout / network error / bad JSON → unknown → fail-open.
+    return null;
+  }
+}
+
 // ==================== MAIN HANDLER ====================
 
 // Static assets: hashed bundle chunks, styles, fonts, icons, manifest, sw.
@@ -498,16 +525,19 @@ export default {
           SELECT * FROM tenants WHERE slug = ? AND is_active = 1
         `).bind(tenantSlug).first();
 
-        if (!tenant) {
-          return tenantNotFoundResponse(tenantSlug);
+        // This D1 lookup is LEGACY and only sets request tenant context for
+        // the few remaining Worker-served /api paths (the SPA itself talks
+        // to api.kamizo.uz, so these are effectively dead). It must NOT gate
+        // static serving: D1 is a frozen pre-migration archive and lacks
+        // every УК created after the migration. Authoritative existence is
+        // decided later by tenantExistsLive() against the live VPS DB.
+        if (tenant) {
+          setCurrentTenant(tenant);
+          setTenantForRequest(request, tenant);
         }
-
-        // Store tenant context for this request
-        setCurrentTenant(tenant);
-        setTenantForRequest(request, tenant);
       } catch (error) {
-        console.error('Error fetching tenant:', error);
-        return new Response('Error loading tenant', { status: 500 });
+        // A D1 hiccup must never block serving the static app shell.
+        console.error('Error fetching tenant (non-fatal):', error);
       }
     } else {
       setCurrentTenant(null);
@@ -621,11 +651,23 @@ export default {
       return applyCors(error('Not found', 404));
     }
 
-    // For SPA: serve static assets or fallback to index.html
-    // BUT first verify tenant exists if this is a tenant subdomain
-    if (tenantSlug && !getTenantForRequest(request)) {
-      // Defensive: should already be handled above when fetching tenant
-      return tenantNotFoundResponse(tenantSlug);
+    // Hard gate: only serve the SPA shell for a tenant subdomain whose УК
+    // is actually REGISTERED. We check the LIVE database (api.kamizo.uz →
+    // VPS SQLite), never the frozen D1 archive which lacks post-migration
+    // tenants (that bug 404'd every new УК). To avoid paying the round-trip
+    // on every asset, we only gate navigation (HTML document) requests —
+    // static assets (JS/CSS/img) under a tenant subdomain are harmless and
+    // skip the check. Fail-OPEN: if the check can't complete (timeout /
+    // network), we serve the shell rather than wrongly 404 a real УК.
+    if (tenantSlug) {
+      const accept = request.headers.get('Accept') || '';
+      const isNavigation = request.method === 'GET' && accept.includes('text/html');
+      if (isNavigation) {
+        const exists = await tenantExistsLive(tenantSlug);
+        if (exists === false) {
+          return tenantNotFoundResponse(tenantSlug);
+        }
+      }
     }
 
     // Helper: add no-cache + CSP headers to HTML responses (index.html)
