@@ -21,6 +21,19 @@ export interface Env {
   // the same .put / .get / .delete / .head surface backed by the
   // local filesystem at /opt/kamizo/data/contracts/.
   CONTRACTS_BUCKET: R2Bucket;
+
+  // Bug 2 (2026-06-18) — VPS-only env triple. Used by
+  // `mirrorTenantWriteToD1()` in routes/super-admin.ts to dual-write
+  // tenant rows to Cloudflare D1 so the kamizo Worker's subdomain
+  // lookup (env.DB SELECT in cloudflare/src/index.ts) keeps pace with
+  // the VPS SQLite source-of-truth. All three must be set for the
+  // mirror to run; if any is missing (e.g. inside the Cloudflare
+  // Worker itself, where env.DB IS D1 and a HTTP-API mirror would
+  // be redundant), the mirror silently no-ops. Remove this triple
+  // once Variant #3 (KV cache + D1 decommission) lands.
+  CF_API_TOKEN?: string;
+  CF_ACCOUNT_ID?: string;
+  CF_D1_DATABASE_ID?: string;
 }
 
 export interface User {

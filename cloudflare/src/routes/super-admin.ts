@@ -10,6 +10,77 @@ import { isSuperAdmin } from '../index';
 import { createRequestLogger } from '../utils/logger';
 import { validateBody } from '../validation/validate';
 import { createPaymentSchema } from '../validation/schemas';
+import type { Env } from '../types';
+
+// ──────────────────────────────────────────────────────────────────
+// Bug 2 (2026-06-18) — D1 dual-write mirror.
+//
+// The kamizo Cloudflare Worker resolves *.kamizo.uz subdomains by
+// querying env.DB (Cloudflare D1) for the matching tenant row. After
+// the VPS migration, every tenant create/update/delete handler in
+// this file landed in /opt/kamizo/data/kamizo.db (better-sqlite3 via
+// the shim at /opt/kamizo/app/src/shim/d1.js) without touching D1.
+// D1 stayed frozen at the 2026-03-28 snapshot; tenants created after
+// that date were unreachable through their subdomains because the
+// Worker's SELECT returned nothing → tenantNotFoundResponse() →
+// "Управляющая компания X не найдена".
+//
+// The investigation proposed three fixes. This is Variant #1: a one-
+// shot D1 backfill (already applied via /tmp/backfill-d1.mjs) plus
+// this VPS-side dual-write so every future mutation also lands in D1.
+// Variant #3 (decommission D1 + KV-cache the slug→tenant map from the
+// VPS) is still the long-term plan. This mirror is intentionally a
+// thin fire-and-forget HTTP call so it can be deleted in one commit
+// when Variant #3 lands.
+//
+// The helper detects the VPS context by the env triple
+// (CF_API_TOKEN + CF_ACCOUNT_ID + CF_D1_DATABASE_ID) — these are only
+// set in /opt/kamizo/app/.env on the VPS. Inside the Cloudflare
+// Worker the triple is absent and the helper silently no-ops, so
+// the same handler code stays correct on both runtimes.
+//
+// All callers run AFTER the canonical env.DB.prepare(...).run() so
+// VPS SQLite remains the source-of-truth. A mirror failure logs but
+// never fails the response.
+async function mirrorTenantWriteToD1(
+  env: Env,
+  request: Request,
+  sql: string,
+  params: any[],
+): Promise<void> {
+  if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID || !env.CF_D1_DATABASE_ID) {
+    return; // not VPS (or VPS misconfigured); silently skip
+  }
+  try {
+    const url = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/d1/database/${env.CF_D1_DATABASE_ID}/query`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.CF_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sql, params }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      createRequestLogger(request).error(
+        'mirrorTenantWriteToD1: D1 HTTP API rejected',
+        { status: resp.status, body: body.slice(0, 500), sql: sql.slice(0, 80) },
+      );
+      return;
+    }
+    const j = await resp.json().catch(() => null) as { success?: boolean; errors?: unknown } | null;
+    if (!j?.success) {
+      createRequestLogger(request).error(
+        'mirrorTenantWriteToD1: D1 returned success=false',
+        { errors: j?.errors, sql: sql.slice(0, 80) },
+      );
+    }
+  } catch (err) {
+    // Network failure, DNS resolution failure, timeout — never block the response.
+    createRequestLogger(request).error('mirrorTenantWriteToD1: threw', err);
+  }
+}
 
 export function registerSuperAdminRoutes() {
 
@@ -379,11 +450,13 @@ route('POST', '/api/tenants', async (request, env) => {
 
   const id = generateId();
   const features = body.features ? JSON.stringify(body.features) : '["requests","votes","qr","rentals","notepad","reports"]';
+  const sanitizedLogo = sanitizeAttachmentUrl(body.logo, { maxDataUrlBytes: 2_500_000 });
 
-  await env.DB.prepare(`
+  const insertTenantSql = `
     INSERT INTO tenants (id, name, slug, url, admin_url, color, color_secondary, plan, features, admin_email, admin_phone, logo, contract_template)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
+  `;
+  const insertTenantParams = [
     id, body.name, slug, body.url, body.admin_url || null,
     body.color || '#6366f1', body.color_secondary || '#a855f7',
     body.plan || 'basic', features,
@@ -391,9 +464,14 @@ route('POST', '/api/tenants', async (request, env) => {
     // Sprint 78 P1/F6: sanitize tenant logo same way as ad logo. Was
     // stored raw — javascript: URL on tenant logo renders to every
     // login page.
-    sanitizeAttachmentUrl(body.logo, { maxDataUrlBytes: 2_500_000 }),
-    body.contract_template || null
-  ).run();
+    sanitizedLogo,
+    body.contract_template || null,
+  ];
+  await env.DB.prepare(insertTenantSql).bind(...insertTenantParams).run();
+  // Bug 2 dual-write: mirror to D1 so the kamizo Worker's subdomain
+  // SELECT will find this new tenant. See mirrorTenantWriteToD1
+  // comment at the top of this file. Failure logs but never throws.
+  await mirrorTenantWriteToD1(env, request, insertTenantSql, insertTenantParams);
 
   // Create initial director user for the tenant
   let directorCreated = false;
@@ -462,7 +540,12 @@ route('PATCH', '/api/tenants/:id', async (request, env, params) => {
   if (updates.length > 0) {
     updates.push("updated_at = datetime('now')");
     values.push(params.id);
-    await env.DB.prepare(`UPDATE tenants SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+    const updateSql = `UPDATE tenants SET ${updates.join(', ')} WHERE id = ?`;
+    await env.DB.prepare(updateSql).bind(...values).run();
+    // Bug 2 dual-write: mirror the same UPDATE to D1 so a tenant
+    // rename / slug change / is_active flip stays in sync with the
+    // Worker's subdomain SELECT.
+    await mirrorTenantWriteToD1(env, request, updateSql, values);
 
     // Invalidate feature cache when plan or features change
     if (body.features !== undefined || body.plan !== undefined) {
@@ -490,9 +573,13 @@ route('DELETE', '/api/tenants/:id', async (request, env, params) => {
   const existing = await env.DB.prepare(`SELECT id, slug FROM tenants WHERE id = ?`).bind(params.id).first() as any;
   if (!existing) return error('Tenant not found', 404);
 
-  await env.DB.prepare(
-    `UPDATE tenants SET is_active = 0, updated_at = datetime('now') WHERE id = ?`
-  ).bind(params.id).run();
+  const softDeleteSql = `UPDATE tenants SET is_active = 0, updated_at = datetime('now') WHERE id = ?`;
+  await env.DB.prepare(softDeleteSql).bind(params.id).run();
+  // Bug 2 dual-write: mirror the soft-delete so the Worker's
+  // `SELECT ... WHERE slug = ? AND is_active = 1` stops returning
+  // this row right away (otherwise the subdomain stays reachable
+  // until D1 manually catches up).
+  await mirrorTenantWriteToD1(env, request, softDeleteSql, [params.id]);
 
   try {
     await env.DB.prepare(`
@@ -723,8 +810,13 @@ route('PATCH', '/api/super-admin/tenants/:id/banners', async (request, env, para
 
   if (updates.length === 0) return error('No fields to update', 400);
 
-  await env.DB.prepare(`UPDATE tenants SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`)
-    .bind(...values, params.id).run();
+  const bannersSql = `UPDATE tenants SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`;
+  const bannersParams = [...values, params.id];
+  await env.DB.prepare(bannersSql).bind(...bannersParams).run();
+  // Bug 2 dual-write: banner-toggle columns aren't read by the
+  // Worker's subdomain SELECT, but mirror them anyway so D1 stays
+  // consistent with VPS until Variant #3 lands.
+  await mirrorTenantWriteToD1(env, request, bannersSql, bannersParams);
 
   const tenant = await env.DB.prepare('SELECT * FROM tenants WHERE id = ?').bind(params.id).first();
   return json({ success: true, tenant });
