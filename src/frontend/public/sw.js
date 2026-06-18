@@ -1,4 +1,9 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.85 — cache suffix bumped to v139. ImageLightbox now supports
+//     zoom + pan: mouse wheel / +- buttons / double-click to zoom, drag to
+//     pan, two-finger pinch on touch, Esc/backdrop/X to close. Applies to
+//     agenda photos in both the resident and staff meeting views.
+//     Previous note (v138) preserved below:
 // Version: 3.7.84 — cache suffix bumped to v138. Agenda photo VIEWER fix:
 //     attached photos are data: URLs; clicking one opened it in a new tab,
 //     blocked by Chromium (Chrome AND Edge) → about:blank#blocked. Now images
@@ -2348,9 +2353,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v138';
-const ASSET_CACHE = 'kamizo-assets-v138';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v138';
+const STATIC_CACHE = 'kamizo-static-v139';
+const ASSET_CACHE = 'kamizo-assets-v139';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v139';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
