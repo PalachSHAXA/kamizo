@@ -41,11 +41,12 @@ const PDF_MAGIC = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 // executor / security all qualify — the contract is reference
 // material everyone on the team may need to verify.
 const STAFF_DOWNLOAD_ROLES = new Set(['director', 'admin', 'manager', 'department_head', 'dispatcher', 'executor', 'security']);
-// Director / admin are the only roles that may UPLOAD via the
-// self-upload endpoint. Manager + dispatcher are intentionally
-// excluded — this is the binding-contract artefact for the entire
-// УК, and overwriting it is something only the org owner should do.
-const SELF_UPLOAD_ROLES = new Set(['director', 'admin']);
+// Roles that may UPLOAD / replace the contract via the self-upload
+// endpoint. Director + admin own the УК; manager is included by
+// product decision (managers handle day-to-day company paperwork and
+// must be able to attach the management contract). Dispatcher /
+// department_head and below stay excluded — they only download.
+const SELF_UPLOAD_ROLES = new Set(['director', 'admin', 'manager']);
 // Resident-class roles. Tenant + commercial_owner are also lawful
 // signatories on the agreement, so they get the download path too.
 const RESIDENT_ROLES = new Set(['resident', 'tenant', 'commercial_owner']);
@@ -256,7 +257,7 @@ route('POST', '/api/admin/tenant/contract', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   if (!SELF_UPLOAD_ROLES.has(user.role as string)) {
-    return error('Director or admin role required to upload the tenant contract', 403);
+    return error('Director, admin or manager role required to upload the tenant contract', 403);
   }
   const tenantId = (user.tenant_id as string | null) || null;
   if (!tenantId) {

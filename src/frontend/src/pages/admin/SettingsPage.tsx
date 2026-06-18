@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon } from 'lucide-react';
+import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -9,6 +9,7 @@ import { Modal, ThemeToggle } from '../../components/common';
 import { Switch } from '../../components/ui';
 import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
+import { ContractUploader } from '../../components/contracts/ContractUploader';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -17,9 +18,15 @@ export function SettingsPage() {
   const { user, updateUserProfile } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
   const { hasFeature, fetchConfig } = useTenantStore();
+  const tenantContract = useTenantStore(s => s.config?.tenant?.contract);
   const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
   const isAdmin = user?.role === 'admin';
-  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'modules' | 'notifications' | 'integrations' | 'users'>('profile');
+  // Who may attach/replace the management contract — keep in sync with the
+  // backend SELF_UPLOAD_ROLES (contracts.ts). The "Договор" tab only shows
+  // once a contract exists; it's added from the dashboard overview, then
+  // managed here.
+  const canManageContract = ['director', 'admin', 'manager'].includes(user?.role || '');
+  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'modules' | 'notifications' | 'integrations' | 'users' | 'contract'>('profile');
   const [saved, setSaved] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -65,6 +72,13 @@ export function SettingsPage() {
   const [pushTestResult, setPushTestResult] = useState<string | null>(null);
 
   // Check push notification status on mount
+  // If the contract tab is open but the contract goes away (e.g. super-admin
+  // deleted it), the tab disappears from the list — bounce back to Профиль
+  // so we never strand the user on an empty tab.
+  useEffect(() => {
+    if (activeTab === 'contract' && !tenantContract) setActiveTab('profile');
+  }, [activeTab, tenantContract]);
+
   useEffect(() => {
     const checkPushStatus = () => {
       const isSupported = pushService.isSupported();
@@ -266,7 +280,7 @@ export function SettingsPage() {
 
   // Different tabs for admin vs manager vs super_admin
   const isSuperAdmin = user?.role === 'super_admin';
-  const tabs = isSuperAdmin
+  const baseTabs = isSuperAdmin
     ? [
         { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
       ]
@@ -284,6 +298,11 @@ export function SettingsPage() {
         { id: 'modules' as const, label: language === 'ru' ? 'Модули' : 'Modullar', icon: ToggleRight },
         { id: 'notifications' as const, label: language === 'ru' ? 'Уведомления' : 'Bildirishnomalar', icon: Bell },
       ];
+  // Append the contract tab ONLY once a contract is attached (it's added
+  // from the dashboard overview). Visible to director / admin / manager.
+  const tabs = canManageContract && !!tenantContract
+    ? [...baseTabs, { id: 'contract' as const, label: language === 'ru' ? 'Договор' : 'Shartnoma', icon: FileText }]
+    : baseTabs;
 
   return (
     <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
@@ -1215,6 +1234,33 @@ export function SettingsPage() {
               </table>
             </div>
             <p className="text-xs text-gray-500 mt-3">{language === 'ru' ? 'А - Админ, М - Менеджер, И - Исполнитель, Ж - Житель' : 'A - Admin, M - Menejer, I - Ijrochi, J - Aholik'}</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'contract' && canManageContract && tenantContract && (
+        <div className="space-y-4 md:space-y-6">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
+            <h2 className="text-base md:text-lg font-semibold mb-1 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-gray-400" />
+              {language === 'ru' ? 'Договор управления' : 'Boshqaruv shartnomasi'}
+            </h2>
+            <p className="text-xs md:text-sm text-gray-500 mb-3 md:mb-4">
+              {language === 'ru'
+                ? 'PDF договора, который видят жители. Здесь можно скачать или заменить файл.'
+                : 'Yashovchilar koʻradigan shartnoma PDF fayli. Bu yerda faylni yuklab olish yoki almashtirish mumkin.'}
+            </p>
+            <ContractUploader
+              hasContract={!!tenantContract}
+              filename={tenantContract?.filename}
+              uploadedAt={tenantContract?.uploaded_at}
+              uploadedByName={tenantContract?.uploaded_by_name}
+              uploadEndpoint="/api/admin/tenant/contract"
+              downloadEndpoint="/api/admin/tenant/contract"
+              allowDelete={false}
+              onChanged={fetchConfig}
+              language={language === 'ru' ? 'ru' : 'uz'}
+            />
           </div>
         </div>
       )}

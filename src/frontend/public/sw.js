@@ -1,4 +1,19 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.78 — cache suffix bumped to v132. In this bundle:
+//   (1) Meeting schedule-poll voting fix: resident date-poll votes were
+//       silently dropped — the server INSERT omitted the legacy NOT NULL
+//       `user_id` column (constraint failure 500) and the store masked it
+//       as "Голос принят!". Now user_id is written and the store surfaces
+//       real failures.
+//   (2) Meeting agenda photos: attachments never reached the UI because
+//       mapAgendaItem didn't map `attachments` (the list endpoint returns
+//       it as a JSON string) — now parsed, so residents see photos attached
+//       to a question.
+//   (3) Договор управления: upload widget shows on the director/manager
+//       dashboard overview ONLY while no contract exists; once attached it
+//       moves to Настройки → Договор (new tab, appears only after upload).
+//       Managers can now upload the contract too (SELF_UPLOAD_ROLES += manager).
+//     Previous note (v131) preserved below:
 // Version: 3.7.77 — cache suffix bumped to v131. Frontend change in this
 //     bump: TeamPage desktop toolbar no longer overlaps (action buttons
 //     wrap as a unit, never compress). (Companion server-side fix, not in
@@ -2243,9 +2258,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v131';
-const ASSET_CACHE = 'kamizo-assets-v131';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v131';
+const STATIC_CACHE = 'kamizo-static-v132';
+const ASSET_CACHE = 'kamizo-assets-v132';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v132';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

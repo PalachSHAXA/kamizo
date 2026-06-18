@@ -62,6 +62,11 @@ const mapMeetingFromApi = (data: Record<string, unknown>): Meeting => {
     isApproved: item.is_approved,
     decision: item.decision,
     materials: parseJson(item.materials, []),
+    // Agenda-item attachments (photos/PDFs). The list endpoint returns this
+    // as a raw JSON string and the detail endpoint as a parsed array;
+    // parseJson handles both. Without this line attachments stayed
+    // undefined, so residents never saw the photos attached to a question.
+    attachments: parseJson(item.attachments, []),
   });
 
   // Map schedule options from snake_case to camelCase
