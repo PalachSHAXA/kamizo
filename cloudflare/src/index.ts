@@ -696,5 +696,17 @@ export default {
   }
 };
 
-// Export Durable Object
-export { ConnectionManager } from './ConnectionManager';
+// ConnectionManager (Durable Object) and its export were removed from
+// this entry point after the move from Cloudflare Workers to a single
+// Node.js process on the VPS. The file `./ConnectionManager` imported
+// `DurableObject` from the Workers-only `cloudflare:workers` ESM
+// scheme — Node's loader rejects that scheme and crashloops the
+// kamizo-api service every time the index module is re-evaluated.
+// Runtime references to env.CONNECTION_MANAGER are still resolved by
+// the in-memory stub in /opt/kamizo/app/src/shim/, so chat / websocket
+// broadcasts behave the same as before — they just no longer carry
+// the Workers-side fan-out the VPS process now handles in-band.
+// Restoring this for a future Workers re-deploy: cherry-pick the
+// file + binding back from git history (commit prior to this one)
+// and re-add the [[durable_objects.bindings]] + [[migrations]] blocks
+// in wrangler.toml.
