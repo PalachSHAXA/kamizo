@@ -1,4 +1,27 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.83 — cache suffix bumped to v137. LoginPage hardening
+//     surfaced during Sprint 86 simulator testing:
+//       (a) Smart Punctuation defang on both login + password fields.
+//           iOS rewrites typed ASCII hyphens to en/em dashes silently
+//           (HTML autoCorrect="off" does NOT suppress this — it's a
+//           separate Settings → Keyboard → Smart Punctuation toggle),
+//           so e.g. a user typing test-director-choko on the sim could
+//           ship test–director–choko (U+2013) in the request body,
+//           hit the server's case-sensitive WHERE login = ? lookup
+//           with zero matches, then see only the masked-generic
+//           "Неверный логин или пароль" with no clue why. Normalizer
+//           runs every keystroke through:
+//             U+2013 / U+2014 / U+2212 → ASCII hyphen
+//             U+00A0 (NBSP) → regular space
+//       (b) Stop overriding the server's real error with the hardcoded
+//           generic at LoginPage.tsx:113 + :134. authStore already maps
+//           "Invalid credentials" / empty → the Russian generic; every
+//           other server message (tenant resolution, rate limit,
+//           5xx) now passes through, so future "why won't it log in"
+//           debugging is self-evident from the UI alone.
+//     Bumps SW to evict v136 caches on next lifecycle so the patched
+//     LoginPage bundle is picked up.
+//     Previous note (v136) preserved below:
 // Version: 3.7.82 — cache suffix bumped to v136. Sprint 86 — native APNs
 //     push-notification infrastructure (code-complete; no business
 //     events fire push yet — that's the next sprint). New surface:
@@ -2317,9 +2340,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v136';
-const ASSET_CACHE = 'kamizo-assets-v136';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v136';
+const STATIC_CACHE = 'kamizo-static-v137';
+const ASSET_CACHE = 'kamizo-assets-v137';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v137';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
