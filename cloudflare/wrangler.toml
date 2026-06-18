@@ -58,10 +58,15 @@ id = "89850617af24420da6d3e91051c1d2d2"
 binding = "CONTRACTS_BUCKET"
 bucket_name = "kamizo-contracts"
 
-[[durable_objects.bindings]]
-name = "CONNECTION_MANAGER"
-class_name = "ConnectionManager"
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["ConnectionManager"]
+# Removed: [[durable_objects.bindings]] CONNECTION_MANAGER (class
+# ConnectionManager) and its v1 [[migrations]] new_sqlite_classes
+# entry. The kamizo Worker on Cloudflare only serves static assets
+# now (see CLAUDE.md "Cloudflare: CDN + DNS + static Worker"); chat /
+# websocket broadcasts run on the VPS Node process via in-process
+# stubs. The class file cloudflare/src/ConnectionManager.ts and its
+# export from index.ts were removed alongside this block — together
+# they made every VPS deploy crashloop on `import { DurableObject }
+# from 'cloudflare:workers'` (Node ESM loader rejects the
+# cloudflare: scheme). Restoring the binding for a future Workers
+# re-deploy: cherry-pick the file + export + this block back from
+# git history.
