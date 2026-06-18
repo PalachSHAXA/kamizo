@@ -1,4 +1,17 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.78 — cache suffix bumped to v132. Frontend change in this
+//     bump: AddStaffModal role dropdown now lists Диспетчер and Охранник
+//     alongside the existing Менеджер / Глава отдела / Исполнитель.
+//     Reason: the pre-iOS E2E audit's Bug 6 finding was actually a
+//     two-roles-missing dropdown, not a missing form. Backend
+//     POST /api/auth/register already accepts dispatcher + security
+//     from director / admin / manager callers and pins tenant_id from
+//     the JWT (cloudflare/src/routes/users/auth.ts:353), so a director
+//     can build their full team (Manager → Dispatcher → Executor →
+//     Security) without ever needing to leave the UI for a curl call.
+//     Single TypeScript-union widening in three files (modal type,
+//     TeamPage useState type, openAddModal default-param type).
+//     Previous note (v131) preserved below:
 // Version: 3.7.77 — cache suffix bumped to v131. Frontend change in this
 //     bump: TeamPage desktop toolbar no longer overlaps (action buttons
 //     wrap as a unit, never compress). (Companion server-side fix, not in
@@ -2243,9 +2256,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v131';
-const ASSET_CACHE = 'kamizo-assets-v131';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v131';
+const STATIC_CACHE = 'kamizo-static-v132';
+const ASSET_CACHE = 'kamizo-assets-v132';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v132';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
