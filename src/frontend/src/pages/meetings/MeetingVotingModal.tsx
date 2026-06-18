@@ -33,6 +33,7 @@ import { useModalPresence } from '../../stores/modalStore';
 import { DECISION_THRESHOLD_LABELS, MEETING_STATUS_LABELS } from '../../types';
 import type { Meeting, VoteChoice } from '../../types';
 import { QRSignatureModal } from '../../components/QRSignatureModal';
+import { ImageLightbox } from '../../components/common/ImageLightbox';
 
 // ── shared visual tokens (literal so a rename in global CSS doesn't
 //    silently destroy this surface) ─────────────────────────────────
@@ -699,6 +700,10 @@ function AgendaCard({
   onCounterProposal: (t: string) => void;
 }) {
   const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+  // Photos are stored as data: URLs; opening them in a new tab is blocked by
+  // Chromium browsers (Chrome AND Edge) → about:blank#blocked. Show them in
+  // an in-app lightbox instead.
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   // Live counts shown on the buttons include the user's pending choice
   // (the prototype's UX trick — bar moves the moment you tap).
@@ -760,15 +765,15 @@ function AgendaCard({
           {attachments.map((att, i) => {
             const isImg = att.type?.startsWith('image/');
             return isImg ? (
-              <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
+              <button key={i} type="button"
                 title={att.name}
-                onClick={(e) => e.stopPropagation()}
-                style={{ flex: '0 0 auto', width: 80, height: 80, borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}`, background: STONE_100 }}>
+                onClick={(e) => { e.stopPropagation(); setLightbox({ src: att.url, alt: att.name }); }}
+                style={{ flex: '0 0 auto', width: 80, height: 80, borderRadius: 12, overflow: 'hidden', border: `1px solid ${BORDER}`, background: STONE_100, padding: 0, cursor: 'pointer' }}>
                 <img src={att.url} alt={att.name} loading="lazy" decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-              </a>
+              </button>
             ) : (
-              <a key={i} href={att.url} download={att.name} target="_blank" rel="noopener noreferrer"
+              <a key={i} href={att.url} download={att.name}
                 title={att.name}
                 onClick={(e) => e.stopPropagation()}
                 style={{
@@ -783,6 +788,10 @@ function AgendaCard({
             );
           })}
         </div>
+      )}
+
+      {lightbox && (
+        <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
       )}
 
       {/* Vote button row */}

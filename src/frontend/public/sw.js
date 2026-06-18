@@ -1,4 +1,12 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.80 — cache suffix bumped to v134. Agenda photo VIEWER fix:
+//     attached photos are stored as data: URLs, and clicking one opened it
+//     in a new tab — blocked by Chromium (Chrome AND Edge) → about:blank
+//     #blocked. Now images open in an in-app ImageLightbox (fullscreen
+//     overlay) in BOTH the resident voting view (MeetingVotingModal) and
+//     the staff details view (MeetingDetailsModal: manager/director/admin).
+//     Non-image files now download instead of target=_blank.
+//     Previous note (v133) preserved below:
 // Version: 3.7.79 — cache suffix bumped to v133. Agenda photo SAVE fix:
 //     meetingStore.createMeeting was rebuilding each agenda item with only
 //     {title, description, threshold} — silently dropping `attachments`, so
@@ -2265,9 +2273,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v133';
-const ASSET_CACHE = 'kamizo-assets-v133';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v133';
+const STATIC_CACHE = 'kamizo-static-v134';
+const ASSET_CACHE = 'kamizo-assets-v134';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v134';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
