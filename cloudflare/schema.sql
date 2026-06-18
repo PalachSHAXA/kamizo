@@ -1029,6 +1029,10 @@ CREATE TABLE IF NOT EXISTS meeting_schedule_votes (
   id TEXT PRIMARY KEY,
   meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   option_id TEXT NOT NULL REFERENCES meeting_schedule_options(id) ON DELETE CASCADE,
+  -- user_id mirrors voter_id (same value). Legacy column kept because the
+  -- vote-tally readers in crud-list.ts / crud-detail.ts still SELECT
+  -- user_id; both columns are written on every vote (see schedule.ts).
+  user_id TEXT NOT NULL,
   voter_id TEXT NOT NULL,
   voter_name TEXT,
   vote_weight REAL DEFAULT 50, -- Вес голоса = площадь квартиры (кв.м), default 50 sq.m

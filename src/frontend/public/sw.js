@@ -1,5 +1,5 @@
 // Kamizo PWA Service Worker
-// Version: 3.7.78 — cache suffix bumped to v132. Frontend change in this
+// Version: 3.7.80 — cache suffix bumped to v134. Frontend change in this
 //     bump: AddStaffModal role dropdown now lists Диспетчер and Охранник
 //     alongside the existing Менеджер / Глава отдела / Исполнитель.
 //     Reason: the pre-iOS E2E audit's Bug 6 finding was actually a
@@ -11,6 +11,28 @@
 //     Security) without ever needing to leave the UI for a curl call.
 //     Single TypeScript-union widening in three files (modal type,
 //     TeamPage useState type, openAddModal default-param type).
+//     Previous note (v133) preserved below:
+// Version: 3.7.79 — cache suffix bumped to v133. Agenda photo SAVE fix:
+//     meetingStore.createMeeting was rebuilding each agenda item with only
+//     {title, description, threshold} — silently dropping `attachments`, so
+//     a photo on a «свой вопрос» never reached the server (stored NULL).
+//     Now forwarded. (Companion to the v132 display fix in mapAgendaItem —
+//     both are needed: one to save the photo, one to render it.)
+//     Previous note (v132) preserved below:
+// Version: 3.7.78 — cache suffix bumped to v132. In this bundle:
+//   (1) Meeting schedule-poll voting fix: resident date-poll votes were
+//       silently dropped — the server INSERT omitted the legacy NOT NULL
+//       `user_id` column (constraint failure 500) and the store masked it
+//       as "Голос принят!". Now user_id is written and the store surfaces
+//       real failures.
+//   (2) Meeting agenda photos: attachments never reached the UI because
+//       mapAgendaItem didn't map `attachments` (the list endpoint returns
+//       it as a JSON string) — now parsed, so residents see photos attached
+//       to a question.
+//   (3) Договор управления: upload widget shows on the director/manager
+//       dashboard overview ONLY while no contract exists; once attached it
+//       moves to Настройки → Договор (new tab, appears only after upload).
+//       Managers can now upload the contract too (SELF_UPLOAD_ROLES += manager).
 //     Previous note (v131) preserved below:
 // Version: 3.7.77 — cache suffix bumped to v131. Frontend change in this
 //     bump: TeamPage desktop toolbar no longer overlaps (action buttons
@@ -2256,9 +2278,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v132';
-const ASSET_CACHE = 'kamizo-assets-v132';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v132';
+const STATIC_CACHE = 'kamizo-static-v134';
+const ASSET_CACHE = 'kamizo-assets-v134';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v134';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

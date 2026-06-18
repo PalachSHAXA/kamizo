@@ -36,10 +36,18 @@ route('POST', '/api/meetings/:meetingId/schedule-votes', async (request, env, pa
   ).bind(params.meetingId, authUser.id, ...(tenantId ? [tenantId] : [])).run();
 
   const id = generateId();
+  // IMPORTANT: write BOTH user_id and voter_id (same value = the voter's
+  // user id). The live DB still carries a legacy `user_id TEXT NOT NULL`
+  // column, so omitting it makes the INSERT fail with a NOT NULL
+  // constraint — that silently dropped EVERY schedule vote. And the vote
+  // COUNT/voter aggregation in crud-list.ts / crud-detail.ts reads
+  // `user_id`, so it must stay populated for tallies to be correct. The
+  // Sprint-61 move to voter_id was only half-applied; until those readers
+  // also move to voter_id, both columns must be written.
   await env.DB.prepare(`
-    INSERT INTO meeting_schedule_votes (id, meeting_id, option_id, voter_id, voter_name, vote_weight, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, params.meetingId, optionId, authUser.id, authUser.name, voteWeight, tenantId).run();
+    INSERT INTO meeting_schedule_votes (id, meeting_id, option_id, user_id, voter_id, voter_name, vote_weight, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, params.meetingId, optionId, authUser.id, authUser.id, authUser.name, voteWeight, tenantId).run();
 
   await env.DB.prepare(`UPDATE meetings SET updated_at = datetime('now') WHERE id = ?`).bind(params.meetingId).run();
   invalidateCache('meetings:');

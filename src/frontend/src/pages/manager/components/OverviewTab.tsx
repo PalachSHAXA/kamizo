@@ -7,6 +7,8 @@ import {
   FileText, Clock, TrendingUp, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { useTenantStore } from '../../../stores/tenantStore';
+import { ContractUploader } from '../../../components/contracts/ContractUploader';
 import { RequestCard } from './RequestCard';
 import { RescheduleRequestCard, RescheduleHistoryCard } from './RescheduleCards';
 import type { OverviewTabProps } from './types';
@@ -23,9 +25,25 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
+  // Договор управления: managers may attach the contract too. Mirror the
+  // director overview — show the upload prompt only while none exists;
+  // once uploaded it moves to Настройки → Договор.
+  const contract = useTenantStore(s => s.config?.tenant?.contract);
+  const refetchTenantConfig = useTenantStore(s => s.fetchConfig);
 
   return (
     <>
+      {!contract && (
+        <ContractUploader
+          hasContract={false}
+          uploadEndpoint="/api/admin/tenant/contract"
+          downloadEndpoint="/api/admin/tenant/contract"
+          allowDelete={false}
+          onChanged={refetchTenantConfig}
+          language={language === 'ru' ? 'ru' : 'uz'}
+        />
+      )}
+
       {/* Stats Cards - 2 columns on mobile */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 xl:gap-5">
         <div

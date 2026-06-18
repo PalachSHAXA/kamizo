@@ -1022,6 +1022,9 @@ CREATE TABLE IF NOT EXISTS meeting_schedule_votes (
   id TEXT PRIMARY KEY,
   meeting_id TEXT NOT NULL ,
   option_id TEXT NOT NULL ,
+  -- user_id mirrors voter_id; legacy column still read by the vote-tally
+  -- aggregation (crud-list.ts / crud-detail.ts). Written on every vote.
+  user_id TEXT NOT NULL,
   voter_id TEXT NOT NULL,
   voter_name TEXT,
   vote_weight REAL DEFAULT 50, -- Вес голоса = площадь квартиры (кв.м), default 50 sq.m

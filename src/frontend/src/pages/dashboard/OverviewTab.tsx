@@ -84,21 +84,22 @@ export function OverviewTab({
 
   return (
     <>
-      {/* Sprint 85 commit 2 — Договор управления widget. Renders before
-          the stat cards so the dispatcher's first scroll-glance shows
-          "missing contract — upload now" when applicable. Director
-          cannot delete (backend 403s); for that they ask super-admin. */}
-      <ContractUploader
-        hasContract={!!contract}
-        filename={contract?.filename}
-        uploadedAt={contract?.uploaded_at}
-        uploadedByName={contract?.uploaded_by_name}
-        uploadEndpoint="/api/admin/tenant/contract"
-        downloadEndpoint="/api/admin/tenant/contract"
-        allowDelete={false}
-        onChanged={refetchTenantConfig}
-        language={language === 'ru' ? 'ru' : 'uz'}
-      />
+      {/* Договор управления: show the upload prompt here ONLY while no
+          contract exists yet — a first-scroll nudge to attach it. Once
+          uploaded, this widget disappears from the overview and the
+          contract is managed under Настройки → Договор (kept there so the
+          dashboard stays focused on operational stats). Director cannot
+          delete (backend 403s); for that they ask super-admin. */}
+      {!contract && (
+        <ContractUploader
+          hasContract={false}
+          uploadEndpoint="/api/admin/tenant/contract"
+          downloadEndpoint="/api/admin/tenant/contract"
+          allowDelete={false}
+          onChanged={refetchTenantConfig}
+          language={language === 'ru' ? 'ru' : 'uz'}
+        />
+      )}
 
       {/* Main Stats - Clickable Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 xl:gap-5">

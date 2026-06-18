@@ -207,10 +207,18 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
     voteForSchedule: async (meetingId, optionId, refetchMeetings) => {
       try {
         const response = await meetingScheduleVotesApi.vote(meetingId, optionId);
-        if (response.success) {
-          // Refetch meetings to get accurate vote counts from server
-          await refetchMeetings();
+        // Was: `return { success: true }` unconditionally — that masked
+        // every server-side failure (e.g. the INSERT 500 that dropped the
+        // vote) and showed the user a false "Голос принят!". Surface the
+        // real result so the modal can show the error toast instead.
+        if (!response.success) {
+          return {
+            success: false,
+            error: response.error || 'Не удалось проголосовать. Проверьте что указана площадь квартиры.',
+          };
         }
+        // Refetch meetings to get accurate vote counts from server.
+        await refetchMeetings();
         return { success: true };
       } catch (err: unknown) {
         console.error('Failed to vote for schedule:', err);
