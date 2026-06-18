@@ -54,9 +54,41 @@ id = "89850617af24420da6d3e91051c1d2d2"
 # /opt/kamizo/app/src/shim/r2.js with a filesystem backend at
 # /opt/kamizo/data/contracts/. The shim exposes the same put/get/
 # delete/head surface so the route handler code is single-source.
-[[r2_buckets]]
-binding = "CONTRACTS_BUCKET"
-bucket_name = "kamizo-contracts"
+#
+# DISABLED 2026-06-18 — R2 is not enabled on this Cloudflare account
+# (wrangler returns "Please enable R2 through the Cloudflare Dashboard
+# [code: 10042]"). Every CI deploy has been failing silently for 2 days
+# because of this binding; the kamizo.uz Worker has been stuck on the
+# 2026-06-16 build (pre-Sprint-85), surfacing as Cloudflare error 1101
+# on every SPA route (kamizo.uz/login, etc.).
+#
+# Impact while disabled: contract endpoints (POST /api/super-admin/
+# tenants/:id/contract, GET /api/resident/contract, etc.) hitting the
+# Cloudflare Worker would throw at runtime because env.CONTRACTS_BUCKET
+# is undefined. In practice these endpoints route through api.kamizo.uz
+# (VPS Node) which uses the filesystem shim, so the Worker path is
+# never exercised. No user-visible regression.
+#
+# Restoration steps:
+#   1. Cloudflare Dashboard → R2 → Enable (one-time, may require
+#      payment plan signup)
+#   2. wrangler r2 bucket create kamizo-contracts
+#   3. Uncomment the [[r2_buckets]] block below
+#   4. wrangler deploy
+# [[r2_buckets]]
+# binding = "CONTRACTS_BUCKET"
+# bucket_name = "kamizo-contracts"
+
+# v2 migration drops the ConnectionManager Durable Object class. The
+# v1 migration created it via new_sqlite_classes; without a matching
+# delete-class migration, every wrangler deploy after the class file
+# was removed (commit 7d05b8f7) would fail with "New version of script
+# does not export class 'ConnectionManager' which is depended on by
+# existing Durable Objects [code: 10064]". Cloudflare-side cleanup of
+# the DO storage happens during this deploy.
+[[migrations]]
+tag = "v2"
+deleted_classes = ["ConnectionManager"]
 
 # Removed: [[durable_objects.bindings]] CONNECTION_MANAGER (class
 # ConnectionManager) and its v1 [[migrations]] new_sqlite_classes
