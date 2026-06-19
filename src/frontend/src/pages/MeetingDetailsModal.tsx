@@ -467,7 +467,10 @@ export function MeetingDetailsModal({
         {/* TODO: migrate to <Modal> component */}
         {showSendModal && (
           <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-            <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 max-h-[90dvh] overflow-y-auto">
+            {/* Mobile keeps the bottom-sheet scroll (max-h + overflow). On
+                desktop the short form fits, so drop the cap/scroll — no stray
+                scrollbar (ползунок) on PC. */}
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 max-h-[90dvh] overflow-y-auto sm:max-h-none sm:overflow-visible">
               <h3 className="text-base sm:text-lg font-bold mb-4">
                 {language === 'ru' ? 'Запрос на пересмотр голоса' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}
               </h3>

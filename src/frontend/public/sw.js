@@ -1,4 +1,10 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.90 — cache suffix bumped to v144. Desktop polish: the
+//     reconsideration-request modal (Запрос на пересмотр голоса) had
+//     max-h-[90dvh] + overflow-y-auto, forcing a stray scrollbar on PC where
+//     the short form fits. Now sm:max-h-none / sm:overflow-visible — no
+//     scrollbar on desktop; mobile bottom-sheet untouched.
+//     Previous note (v143) preserved below:
 // Version: 3.7.89 — cache suffix bumped to v143. ImageLightbox now renders via
 //     a portal to <body> so the overlay covers the TRUE viewport (incl. the
 //     sidebar + top banner) instead of being trapped inside a transformed
@@ -2378,9 +2384,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v143';
-const ASSET_CACHE = 'kamizo-assets-v143';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v143';
+const STATIC_CACHE = 'kamizo-static-v144';
+const ASSET_CACHE = 'kamizo-assets-v144';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v144';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
