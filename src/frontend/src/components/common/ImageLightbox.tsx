@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 // Fullscreen in-app image viewer with zoom + pan. Used wherever we show
@@ -119,7 +120,11 @@ export function ImageLightbox({
   const btn =
     'p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors';
 
-  return (
+  // Portal to <body> so the overlay escapes any transformed ancestor (the
+  // meeting modal / layout creates a containing block that otherwise traps
+  // `fixed`, leaving the sidebar + top banner painted over the image). At
+  // body level it covers the TRUE viewport, above the sidebar (z 61).
+  return createPortal(
     <div
       ref={containerRef}
       className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center overflow-hidden select-none"
@@ -164,6 +169,7 @@ export function ImageLightbox({
         // huge; the dark backdrop frames it. Zoom still scales beyond this.
         className="max-w-full max-h-full md:max-w-[72vw] md:max-h-[80vh] object-contain rounded-lg"
       />
-    </div>
+    </div>,
+    document.body
   );
 }

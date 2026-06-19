@@ -1,4 +1,9 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.89 — cache suffix bumped to v143. ImageLightbox now renders via
+//     a portal to <body> so the overlay covers the TRUE viewport (incl. the
+//     sidebar + top banner) instead of being trapped inside a transformed
+//     ancestor — the photo no longer sits flush against the sidebar.
+//     Previous note (v142) preserved below:
 // Version: 3.7.88 — cache suffix bumped to v142. ImageLightbox: cap the photo
 //     size on desktop (md+ → max 72vw / 80vh) so it isn't huge; mobile stays
 //     full-screen as before. Zoom still scales beyond the cap.
@@ -2373,9 +2378,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v142';
-const ASSET_CACHE = 'kamizo-assets-v142';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v142';
+const STATIC_CACHE = 'kamizo-static-v143';
+const ASSET_CACHE = 'kamizo-assets-v143';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v143';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
