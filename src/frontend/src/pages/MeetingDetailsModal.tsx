@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { API_URL } from '../services/api/client';
+import { API_URL, getToken } from '../services/api/client';
 import {
   Users, Calendar, AlertCircle,
   FileText,
@@ -119,8 +119,13 @@ export function MeetingDetailsModal({
   const handleDownloadProtocol = async () => {
     setDownloadingProtocol(true);
     try {
-      // Fetch protocol data from backend
-      const response = await fetch(`${API_URL}/api/meetings/${meeting.id}/protocol/data`);
+      // Fetch protocol data from backend. MUST send the JWT — this endpoint
+      // is auth-gated (getUser), so a bare fetch returns 401 and the download
+      // silently failed with "Ошибка при скачивании протокола".
+      const token = getToken();
+      const response = await fetch(`${API_URL}/api/meetings/${meeting.id}/protocol/data`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch protocol data');

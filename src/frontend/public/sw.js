@@ -1,4 +1,12 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.87 — cache suffix bumped to v141. "Скачать протокол" fix:
+//     two bugs. (1) the DOCX download fetched /protocol/data WITHOUT the JWT
+//     → 401. Now sends Authorization. (2) the live meeting_agenda_comments
+//     table was on the OLD schema (user_id/comment NOT NULL, no
+//     resident_id/content) while the code expects resident_id/content, so
+//     the protocol query 500'd ("no such column: c.content") and comments
+//     could never be saved. Migration 053 rebuilds the table (0 rows, safe).
+//     Previous note (v140) preserved below:
 // Version: 3.7.86 — cache suffix bumped to v140. Per-tenant brand colour:
 //     the colour a УК picks in the super-admin editor (tenants.color) was
 //     stored but never painted — every tenant rendered Kamizo orange. Now
@@ -2361,9 +2369,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v140';
-const ASSET_CACHE = 'kamizo-assets-v140';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v140';
+const STATIC_CACHE = 'kamizo-static-v141';
+const ASSET_CACHE = 'kamizo-assets-v141';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v141';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
