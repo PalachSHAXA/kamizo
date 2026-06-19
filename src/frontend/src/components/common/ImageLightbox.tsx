@@ -159,7 +159,10 @@ export function ImageLightbox({
           touchAction: 'none',
           transition: pointers.current.size ? 'none' : 'transform 0.12s ease-out',
         }}
-        className="max-w-full max-h-full object-contain rounded-lg"
+        // Mobile: fill the screen (max-w/h-full) — left as-is per request.
+        // Desktop (md+): cap to a comfortable centred size so the photo isn't
+        // huge; the dark backdrop frames it. Zoom still scales beyond this.
+        className="max-w-full max-h-full md:max-w-[72vw] md:max-h-[80vh] object-contain rounded-lg"
       />
     </div>
   );

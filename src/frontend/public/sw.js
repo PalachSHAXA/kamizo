@@ -1,4 +1,8 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.88 — cache suffix bumped to v142. ImageLightbox: cap the photo
+//     size on desktop (md+ → max 72vw / 80vh) so it isn't huge; mobile stays
+//     full-screen as before. Zoom still scales beyond the cap.
+//     Previous note (v141) preserved below:
 // Version: 3.7.87 — cache suffix bumped to v141. "Скачать протокол" fix:
 //     two bugs. (1) the DOCX download fetched /protocol/data WITHOUT the JWT
 //     → 401. Now sends Authorization. (2) the live meeting_agenda_comments
@@ -2369,9 +2373,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v141';
-const ASSET_CACHE = 'kamizo-assets-v141';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v141';
+const STATIC_CACHE = 'kamizo-static-v142';
+const ASSET_CACHE = 'kamizo-assets-v142';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v142';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
