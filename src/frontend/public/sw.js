@@ -1,4 +1,10 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.91 — cache suffix bumped to v145. Desktop polish: the meeting
+//     details modal showed a tall, useless-looking scrollbar on PC. Added a
+//     desktop-only `.desktop-scrollbar-hide` utility (≥640px) and applied it
+//     via panelClassName — the scrollbar is hidden on PC (wheel/trackpad
+//     scroll still works); mobile keeps its scrollbar.
+//     Previous note (v144) preserved below:
 // Version: 3.7.90 — cache suffix bumped to v144. Desktop polish: the
 //     reconsideration-request modal (Запрос на пересмотр голоса) had
 //     max-h-[90dvh] + overflow-y-auto, forcing a stray scrollbar on PC where
@@ -2384,9 +2390,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v144';
-const ASSET_CACHE = 'kamizo-assets-v144';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v144';
+const STATIC_CACHE = 'kamizo-static-v145';
+const ASSET_CACHE = 'kamizo-assets-v145';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v145';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

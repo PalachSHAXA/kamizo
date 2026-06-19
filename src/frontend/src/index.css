@@ -1875,6 +1875,19 @@ a.btn-secondary:active,
   display: none;
 }
 
+/* Hide the scrollbar ONLY on desktop (≥640px). Used on tall modals where the
+   default desktop scrollbar looks like a useless leftover; wheel/trackpad
+   scrolling still works. Mobile keeps its scrollbar untouched. */
+@media (min-width: 640px) {
+  .desktop-scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .desktop-scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Native-like scroll snapping for tabs */
 .scroll-snap-x {
   scroll-snap-type: x mandatory;

@@ -154,7 +154,7 @@ export function MeetingDetailsModal({
 
   return (
     <>
-    <Modal open={true} onClose={onClose} size="lg" hideCloseButton>
+    <Modal open={true} onClose={onClose} size="lg" hideCloseButton panelClassName="desktop-scrollbar-hide">
       {/* Header */}
       <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
         <div>
