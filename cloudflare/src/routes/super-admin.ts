@@ -497,6 +497,23 @@ route('POST', '/api/tenants', async (request, env) => {
     adminCreated = true;
   }
 
+  // Always ensure the УК has an administrator. The super-admin "Войти в
+  // админку УК" impersonation enters as admin (priority admin > director),
+  // but a freshly-created УК only had a director — so it fell back to the
+  // director. Auto-create an admin alongside the director when no explicit
+  // admin was provided: login = "<director_login>-admin", SAME password as
+  // the director (so the SA already knows it). login is unique per-tenant,
+  // so the suffix can't collide with the director.
+  if (directorCreated && !adminCreated) {
+    const autoAdminId = generateId();
+    const autoAdminHash = await hashPassword(body.director_password);
+    await env.DB.prepare(`
+      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
+    `).bind(autoAdminId, `${body.director_login}-admin`, autoAdminHash, 'Администратор', id).run();
+    adminCreated = true;
+  }
+
   const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(id).first();
   return json({ tenant, directorCreated, adminCreated }, 201);
 });
