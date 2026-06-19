@@ -21,7 +21,7 @@ route('GET', '/api/meetings/:meetingId/agenda/:agendaItemId/votes/against', asyn
 
   const { results: againstVotes } = await env.DB.prepare(`
     SELECT vr.id as vote_id, vr.voter_id, vr.voter_name, vr.apartment_number, vr.vote_weight, vr.voted_at, u.phone, u.total_area,
-      (SELECT comment FROM meeting_agenda_comments WHERE agenda_item_id = ? AND user_id = vr.voter_id ORDER BY created_at DESC LIMIT 1) as comment,
+      (SELECT content FROM meeting_agenda_comments WHERE agenda_item_id = ? AND resident_id = vr.voter_id ORDER BY created_at DESC LIMIT 1) as comment,
       (SELECT COUNT(*) FROM meeting_vote_reconsideration_requests WHERE agenda_item_id = ? AND resident_id = vr.voter_id) as request_count
     FROM meeting_vote_records vr LEFT JOIN users u ON u.id = vr.voter_id
     WHERE vr.meeting_id = ? AND vr.agenda_item_id = ? AND vr.choice = 'against' AND vr.is_revote = 0 ORDER BY vr.vote_weight DESC
