@@ -9,6 +9,7 @@ import type { LucideIcon } from 'lucide-react';
 import { SERVICE_CATEGORIES } from '../../../types';
 import type { ExecutorSpecialization, RequestPriority, Request, User } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
+import { compressImage } from '../../../utils/compressImage';
 import { useModalPresence } from '../../../stores/modalStore';
 import { useIsMobile } from '../../../hooks/useBreakpoint';
 
@@ -402,8 +403,11 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
     ? !!(trashType && trashVolume && trashDate && trashTime)
     : desc.trim().length >= 8;
 
-  // Same FileReader/data-URL pipeline as NewRequestModal — photos are stored
-  // as JSON data-URLs in requests.photos and shown to executor + management.
+  // Photos are stored as JPEG data-URLs in requests.photos and shown to the
+  // executor + management. They MUST be compressed client-side: the server
+  // rejects any photo data-URL over ~350 KB, and a raw phone photo is several
+  // MB — so without compressImage() the photo was silently dropped (saved as
+  // NULL) and never appeared.
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setPhotoError(null);
     const files = Array.from(e.target.files || []);
@@ -415,12 +419,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
     for (const file of accepted) {
       if (!file.type.startsWith('image/')) { setPhotoError(ru ? 'Только изображения' : 'Faqat rasmlar'); continue; }
       if (file.size > MAX_FILE_SIZE) { setPhotoError(ru ? 'Файл больше 3 МБ' : 'Fayl 3 MB dan katta'); continue; }
-      const dataUrl = await new Promise<string | null>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
-      });
+      const dataUrl = await compressImage(file).catch(() => null);
       if (dataUrl) next.push(dataUrl);
     }
     setPhotos((p) => [...p, ...next]);

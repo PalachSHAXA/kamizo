@@ -1,4 +1,11 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.92 — cache suffix bumped to v146. Request photo fix: the
+//     resident new-request flow stored the RAW (uncompressed) photo as a
+//     data-URL — but the server silently rejects any photo data-URL over
+//     350 KB, so every attached photo was dropped (requests.photos = NULL)
+//     and never showed for the executor/resident. New compressImage() util
+//     resizes to ~1280px JPEG (≤280 KB) so photos actually save + display.
+//     Previous note (v145) preserved below:
 // Version: 3.7.91 — cache suffix bumped to v145. Desktop polish: the meeting
 //     details modal showed a tall, useless-looking scrollbar on PC. Added a
 //     desktop-only `.desktop-scrollbar-hide` utility (≥640px) and applied it
@@ -2390,9 +2397,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v145';
-const ASSET_CACHE = 'kamizo-assets-v145';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v145';
+const STATIC_CACHE = 'kamizo-static-v146';
+const ASSET_CACHE = 'kamizo-assets-v146';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v146';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
