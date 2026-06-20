@@ -4,8 +4,10 @@ import {
   CalendarDays, AlertCircle,
   RefreshCw, Hand, XCircle
 } from 'lucide-react';
+import { useState } from 'react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { formatAddress } from '../../../utils/formatAddress';
+import { ImageLightbox } from '../../../components/common/ImageLightbox';
 import { SPECIALIZATION_LABELS } from '../../../types';
 import type { Request } from '../../../types';
 
@@ -36,6 +38,8 @@ export function RequestDetailsModal({
   formatTime
 }: RequestDetailsModalProps) {
   const { language } = useLanguageStore();
+  // Photo viewer (data: URLs can't open in a new tab — Chromium blocks them).
+  const [lightbox, setLightbox] = useState<string | null>(null);
   // Can decline/release if assigned, accepted, or in_progress (for illness, etc.)
   const canDecline = ['assigned', 'accepted', 'in_progress'].includes(request.status);
   // Can reschedule if assigned, accepted, or in_progress
@@ -138,15 +142,14 @@ export function RequestDetailsModal({
               </h3>
               <div className="grid grid-cols-3 gap-2">
                 {request.photos.map((src, i) => (
-                  <a
+                  <button
                     key={i}
-                    href={src}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80"
+                    type="button"
+                    onClick={() => setLightbox(src)}
+                    className="aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80 p-0 cursor-pointer"
                   >
                     <img src={src} alt="" className="w-full h-full object-cover" />
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -330,6 +333,7 @@ export function RequestDetailsModal({
           )}
         </div>
       </div>
+      {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }

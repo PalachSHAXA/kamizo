@@ -1,5 +1,7 @@
 import { Phone, MapPin, Calendar, User, UserPlus, Camera } from 'lucide-react';
+import { useState } from 'react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { ImageLightbox } from '../../../components/common/ImageLightbox';
 import { STATUS_LABELS, PRIORITY_LABELS } from '../../../types';
 import type { RequestStatus, RequestPriority } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
@@ -14,6 +16,8 @@ export function RequestCard({
   compact = false
 }: RequestCardProps) {
   const { language } = useLanguageStore();
+  // Photo viewer (data: URLs can't open in a new tab — Chromium blocks them).
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const getStatusBadge = (status: RequestStatus) => {
     const colors: Record<RequestStatus, string> = {
       new: 'bg-purple-100 text-purple-700',
@@ -81,16 +85,14 @@ export function RequestCard({
           {request.photos && request.photos.length > 0 && (
             <div className="flex items-center gap-1.5 mb-2 md:mb-3">
               {request.photos.slice(0, 3).map((src, i) => (
-                <a
+                <button
                   key={i}
-                  href={src}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80"
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setLightbox(src); }}
+                  className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80 p-0 cursor-pointer"
                 >
                   <img src={src} alt="" className="w-full h-full object-cover" />
-                </a>
+                </button>
               ))}
               {request.photos.length > 3 && (
                 <div className="h-12 px-2 rounded-lg bg-gray-100 border border-gray-200 flex items-center gap-1 text-xs font-semibold text-gray-600">
@@ -163,6 +165,7 @@ export function RequestCard({
           )}
         </div>
       </div>
+      {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }

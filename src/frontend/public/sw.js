@@ -1,4 +1,9 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.94 — cache suffix bumped to v148. Request photo viewer: clicking
+//     a request photo opened the raw data: URL (blank page) instead of viewing
+//     it. Now opens the in-app ImageLightbox (zoom/pan, like meetings) in the
+//     executor + resident detail modals and the manager request card.
+//     Previous note (v147) preserved below:
 // Version: 3.7.93 — cache suffix bumped to v147. Request photo fix #2: photo
 //     now saves (v146 compression), but it "disappeared a split second after
 //     creation" because addRequest's realRequest mapping omitted `photos` —
@@ -2403,9 +2408,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v147';
-const ASSET_CACHE = 'kamizo-assets-v147';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v147';
+const STATIC_CACHE = 'kamizo-static-v148';
+const ASSET_CACHE = 'kamizo-assets-v148';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v148';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
