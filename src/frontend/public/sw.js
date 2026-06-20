@@ -1,4 +1,10 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.93 — cache suffix bumped to v147. Request photo fix #2: photo
+//     now saves (v146 compression), but it "disappeared a split second after
+//     creation" because addRequest's realRequest mapping omitted `photos` —
+//     the optimistic request (with photo) was replaced by a photo-less one.
+//     Now maps photos from the server response (fallback to attached ones).
+//     Previous note (v146) preserved below:
 // Version: 3.7.92 — cache suffix bumped to v146. Request photo fix: the
 //     resident new-request flow stored the RAW (uncompressed) photo as a
 //     data-URL — but the server silently rejects any photo data-URL over
@@ -2397,9 +2403,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v146';
-const ASSET_CACHE = 'kamizo-assets-v146';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v146';
+const STATIC_CACHE = 'kamizo-static-v147';
+const ASSET_CACHE = 'kamizo-assets-v147';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v147';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
