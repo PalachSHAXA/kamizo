@@ -10,6 +10,7 @@ import type { LucideIcon } from 'lucide-react';
 import { SERVICE_CATEGORIES } from '../../../types';
 import type { ExecutorSpecialization, RequestPriority, Request, User } from '../../../types';
 import { formatAddress } from '../../../utils/formatAddress';
+import { compressImage } from '../../../utils/compressImage';
 import { useModalPresence } from '../../../stores/modalStore';
 import { useIsMobile } from '../../../hooks/useBreakpoint';
 
@@ -617,30 +618,13 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
     ? !!(trashType && trashVolume && trashDate && trashTime)
     : desc.trim().length >= 8;
 
-  // v118.96 — photos pipeline:
+  // v118.96 (merged) — photos pipeline:
   //   1. reject non-image and >10MB raw (defensive — non-image junk only)
-  //   2. compress to 1280px max edge JPEG q=0.8 (~150-250 KB base64),
-  //      matching the codebase convention so the server's 350 KB cap
-  //      is never tripped (used to silently drop large photos).
+  //   2. compress to 1280px max edge JPEG q=0.8 (~150-250 KB base64)
+  //      via the shared compressImage util — server rejects any photo
+  //      data-URL over ~350 KB, so without compression the photo was
+  //      silently dropped (saved as NULL) and never appeared.
   //   3. push the compressed data URL into state.
-  // createImageBitmap + canvas.toDataURL works on iOS WKWebView 11+.
-  const compressImage = async (file: File): Promise<string | null> => {
-    try {
-      const bitmap = await createImageBitmap(file);
-      const maxDim = 1280;
-      const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-      const w = Math.max(1, Math.round(bitmap.width * scale));
-      const h = Math.max(1, Math.round(bitmap.height * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { bitmap.close(); return null; }
-      ctx.drawImage(bitmap, 0, 0, w, h);
-      bitmap.close();
-      return canvas.toDataURL('image/jpeg', 0.8);
-    } catch { return null; }
-  };
-
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setPhotoError(null);
     const files = Array.from(e.target.files || []);
@@ -652,7 +636,7 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
     for (const file of accepted) {
       if (!file.type.startsWith('image/')) { setPhotoError(ru ? 'Только изображения' : 'Faqat rasmlar'); continue; }
       if (file.size > MAX_FILE_SIZE) { setPhotoError(ru ? 'Файл больше 10 МБ' : 'Fayl 10 MB dan katta'); continue; }
-      const dataUrl = await compressImage(file);
+      const dataUrl = await compressImage(file).catch(() => null);
       if (dataUrl) next.push(dataUrl);
       else setPhotoError(ru ? 'Не удалось обработать изображение' : 'Rasmni qayta ishlab boʼlmadi');
     }

@@ -242,6 +242,17 @@ export const useRequestStore = create<RequestState>()(
             try { return JSON.parse(p as string) as string[]; } catch { return requestData.photos; }
           })(),
           createdAt: apiRequest.created_at,
+          // Keep the photos. The server returns them (r.* → photos JSON), but
+          // they were missing from this mapping — so the optimistic request
+          // (which HAD the photos) got replaced by a photo-less one and the
+          // photo "disappeared a split second after creation". Parse the
+          // server value; fall back to what we just attached.
+          photos: (() => {
+            const p = (apiRequest as { photos?: unknown }).photos;
+            if (Array.isArray(p)) return p as string[];
+            if (typeof p === 'string') { try { return JSON.parse(p); } catch { /* fall through */ } }
+            return requestData.photos;
+          })(),
         };
 
         // Replace optimistic with real

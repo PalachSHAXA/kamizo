@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { API_URL } from '../services/api/client';
+import { API_URL, getToken } from '../services/api/client';
 import {
   Users, Calendar, AlertCircle,
   FileText,
@@ -14,6 +14,7 @@ import { generateProtocolDocx } from '../utils/protocolGenerator';
 import type { Meeting } from '../types';
 import { MEETING_STATUS_LABELS, DECISION_THRESHOLD_LABELS } from '../types';
 import { Modal } from '../components/ui/Modal';
+import { ImageLightbox } from '../components/common/ImageLightbox';
 
 export interface MeetingDetailsModalProps {
   meeting: Meeting;
@@ -43,6 +44,9 @@ export function MeetingDetailsModal({
   const [downloadingProtocol, setDownloadingProtocol] = useState(false);
   const [activeTab, setActiveTab] = useState<'agenda' | 'against'>('agenda');
   const [selectedAgendaItem, setSelectedAgendaItem] = useState<string | null>(null);
+  // Attached photos are data: URLs — opening them in a new tab is blocked by
+  // Chromium (Chrome AND Edge). Show them in an in-app lightbox instead.
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const [againstVotes, setAgainstVotes] = useState<AgainstVote[]>([]);
   const [loadingAgainstVotes, setLoadingAgainstVotes] = useState(false);
   const [sendingRequest, setSendingRequest] = useState<string | null>(null);
@@ -115,8 +119,13 @@ export function MeetingDetailsModal({
   const handleDownloadProtocol = async () => {
     setDownloadingProtocol(true);
     try {
-      // Fetch protocol data from backend
-      const response = await fetch(`${API_URL}/api/meetings/${meeting.id}/protocol/data`);
+      // Fetch protocol data from backend. MUST send the JWT — this endpoint
+      // is auth-gated (getUser), so a bare fetch returns 401 and the download
+      // silently failed with "Ошибка при скачивании протокола".
+      const token = getToken();
+      const response = await fetch(`${API_URL}/api/meetings/${meeting.id}/protocol/data`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch protocol data');
@@ -144,7 +153,8 @@ export function MeetingDetailsModal({
   };
 
   return (
-    <Modal open={true} onClose={onClose} size="lg" hideCloseButton>
+    <>
+    <Modal open={true} onClose={onClose} size="lg" hideCloseButton panelClassName="desktop-scrollbar-hide">
       {/* Header */}
       <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
         <div>
@@ -374,14 +384,17 @@ export function MeetingDetailsModal({
                             {item.attachments.map((att: { name: string; url: string; type: string; size?: number }, ai: number) => (
                               <div key={ai}>
                                 {att.type.startsWith('image/') ? (
-                                  <a href={att.url} target="_blank" rel="noopener noreferrer">
+                                  <button
+                                    type="button"
+                                    onClick={() => setLightbox({ src: att.url, alt: att.name })}
+                                    className="block p-0 border-0 bg-transparent cursor-pointer"
+                                  >
                                     <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded border border-gray-200 hover:opacity-80 transition-opacity" />
-                                  </a>
+                                  </button>
                                 ) : (
                                   <a
                                     href={att.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    download={att.name}
                                     className="flex items-center gap-1 px-2 py-1 bg-white rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
                                   >
                                     <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -454,7 +467,10 @@ export function MeetingDetailsModal({
         {/* TODO: migrate to <Modal> component */}
         {showSendModal && (
           <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-            <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 max-h-[90dvh] overflow-y-auto">
+            {/* Mobile keeps the bottom-sheet scroll (max-h + overflow). On
+                desktop the short form fits, so drop the cap/scroll — no stray
+                scrollbar (ползунок) on PC. */}
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 max-h-[90dvh] overflow-y-auto sm:max-h-none sm:overflow-visible">
               <h3 className="text-base sm:text-lg font-bold mb-4">
                 {language === 'ru' ? 'Запрос на пересмотр голоса' : 'Ovozni qayta ko\'rib chiqish so\'rovi'}
               </h3>
@@ -536,5 +552,9 @@ export function MeetingDetailsModal({
           </div>
         )}
     </Modal>
+    {lightbox && (
+      <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+    )}
+    </>
   );
 }

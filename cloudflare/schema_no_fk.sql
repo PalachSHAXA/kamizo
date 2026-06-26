@@ -1195,6 +1195,8 @@ CREATE TABLE IF NOT EXISTS meeting_agenda_comments (
   resident_name TEXT NOT NULL,
   apartment_number TEXT,
   content TEXT NOT NULL,
+  comment_type TEXT DEFAULT 'comment', -- 'comment' | 'objection' | 'counter_proposal'
+  counter_proposal TEXT,               -- альтернативное предложение (при голосовании ПРОТИВ)
   include_in_protocol INTEGER DEFAULT 1, -- Флаг "Включить в протокол"
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),

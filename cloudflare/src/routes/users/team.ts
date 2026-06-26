@@ -4,7 +4,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
 import { json, error, isAdminLevel, canActOnRole } from '../../utils/helpers';
-import { hashPassword, encryptPassword } from '../../utils/crypto';
+import { hashPassword, encryptPassword, decryptPassword } from '../../utils/crypto';
 
 export function registerTeamRoutes() {
 
@@ -37,7 +37,11 @@ route('GET', '/api/team', async (request, env) => {
     params.push(`%${search}%`, `%${search}%`);
   }
 
-  // Sprint 66 P0/F5: `canSeePasswords` removed — no role ever sees plaintext now.
+  // Restored (per product owner): admin + director may view staff passwords
+  // of their own УК — same rule as before the Sprint-66 hardening. This is a
+  // deliberate, accepted trade-off (reversible password_plain is decrypted
+  // for these two roles only; everyone else still gets it stripped).
+  const canSeePasswords = user.role === 'admin' || user.role === 'director';
 
   const baseSelect = `u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at`;
   const statsJoin = `
@@ -62,10 +66,11 @@ route('GET', '/api/team', async (request, env) => {
 
   let staff: any[];
   try {
-    // Sprint 66 P0/F5: no longer SELECT password_plain. The try/catch
-    // shape stays for compat with very old DBs that lack columns.
+    // SELECT password_plain so admin/director can be shown the decrypted
+    // value below. The try/catch shape stays for compat with very old DBs
+    // that lack the column.
     const res = await env.DB.prepare(`
-      SELECT ${baseSelect},
+      SELECT ${baseSelect}, u.password_plain,
         COALESCE(stats.completed_count, 0) as completed_count,
         COALESCE(stats.active_count, 0) as active_count,
         COALESCE(stats.avg_rating, 0) as avg_rating
@@ -84,16 +89,19 @@ route('GET', '/api/team', async (request, env) => {
     staff = res.results as any[];
   }
 
-  // Sprint 66 P0/F5: stop returning plaintext passwords. Even to admin/
-  // director — there's a separate /api/users/:id/reset-password flow
-  // that issues a fresh temp password when a credential needs to be
-  // recovered. Storing + returning password_plain is a one-shot key to
-  // every staff account if any admin/director session token leaks.
-  // We strip the column unconditionally now; decryption stays available
-  // for the reset endpoint but is no longer wired through team lists.
+  // Decrypt the password for admin/director; strip the raw encrypted blob
+  // for everyone and the plaintext for everyone else.
   for (const s of staff) {
+    if (canSeePasswords && s.password_plain && env.ENCRYPTION_KEY) {
+      try {
+        s.password = await decryptPassword(s.password_plain, env.ENCRYPTION_KEY);
+      } catch {
+        s.password = null;
+      }
+    } else {
+      delete s.password;
+    }
     delete s.password_plain;
-    delete s.password;
   }
 
   const directors = staff.filter((s: any) => s.role === 'director');
@@ -119,24 +127,28 @@ route('GET', '/api/team/:id', async (request, env, params) => {
   if (!isAdminLevel(user)) return error('Access denied', 403);
 
   const tenantId = getTenantId(request);
+  const canSeePasswords = user.role === 'admin' || user.role === 'director';
   const roleFilter = "AND role IN ('admin', 'manager', 'department_head', 'executor', 'director', 'advertiser')";
   const tenantFilter = tenantId ? 'AND tenant_id = ?' : '';
   const idBinds = [params.id, ...(tenantId ? [tenantId] : [])];
 
-  // Sprint 66 P0/F5: never SELECT password_plain.
   const staff: any = await env.DB.prepare(
-    `SELECT id, login, name, phone, role, specialization, status, created_at FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
+    `SELECT id, login, name, phone, role, specialization, status, created_at${canSeePasswords ? ', password_plain' : ''} FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
   ).bind(...idBinds).first();
 
   if (!staff) {
     return error('Staff member not found', 404);
   }
 
-  // Sprint 66 P0/F5: strip plaintext password unconditionally. See note
-  // on the list endpoint above — admin uses /api/users/:id/reset-password
-  // to issue a fresh credential out-of-band.
+  // Decrypt the password for admin/director only; strip the encrypted blob.
+  if (canSeePasswords && staff.password_plain && env.ENCRYPTION_KEY) {
+    try {
+      staff.password = await decryptPassword(staff.password_plain, env.ENCRYPTION_KEY);
+    } catch {
+      staff.password = null;
+    }
+  }
   delete staff.password_plain;
-  delete staff.password;
 
   return json({ user: staff });
 });

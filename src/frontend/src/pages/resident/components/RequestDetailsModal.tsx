@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useModalPresence } from '../../../stores/modalStore';
+import { ImageLightbox } from '../../../components/common/ImageLightbox';
 import type { ExecutorSpecialization, RequestPriority, RequestStatus } from '../../../types';
 import type { RequestDetailsModalProps } from './types';
 import { RoleAvatar } from '../../../components/RoleAvatar';
@@ -111,6 +112,9 @@ export function RequestDetailsModal({
 }: RequestDetailsModalProps) {
   // Keep the global BottomBar hidden while this sheet is mounted.
   useModalPresence();
+
+  // Photo viewer (data: URLs can't open in a new tab — Chromium blocks them).
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   const { language } = useLanguageStore();
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
@@ -464,20 +468,19 @@ export function RequestDetailsModal({
                 overflowX: 'auto', WebkitOverflowScrolling: 'touch',
               }}>
                 {request.photos.map((src, i) => (
-                  <a
+                  <button
                     key={i}
-                    href={src}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    type="button"
+                    onClick={() => setLightbox(src)}
                     style={{
                       flex: '0 0 auto', width: 72, height: 72,
-                      borderRadius: 12, overflow: 'hidden',
+                      borderRadius: 12, overflow: 'hidden', padding: 0, cursor: 'pointer',
                       border: `1px solid ${BORDER_C}`, background: SURFACE_SUNKEN,
                       display: 'block',
                     }}>
                     <img src={src} alt="" loading="lazy" decoding="async"
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                  </a>
+                  </button>
                 ))}
               </div>
             </>
@@ -610,6 +613,7 @@ export function RequestDetailsModal({
           {lang === 'ru' ? 'Закрыть' : 'Yopish'}
         </button>
       </div>
+      {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   useNotificationStore,
 } from './stores/dataStore';
 import { useTenantStore } from './stores/tenantStore';
+import { applyTenantBrand } from './utils/tenantBrand';
 import { Layout } from './components/layout';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -153,17 +154,21 @@ function App() {
   const fetchRequests = useRequestStore(s => s.fetchRequests);
   const fetchVehicles = useVehicleStore(s => s.fetchVehicles);
   const { fetchConfig } = useTenantStore();
+  const tenantColor = useTenantStore(s => s.config?.tenant?.color);
 
-  // Load tenant config on app start. The tenant.color / color_secondary
-  // fields still ride along on the response (DB keeps the column, and
-  // the super-admin tenant editor still reads + writes them — we may
-  // re-surface a paid accent feature later), but they no longer paint
-  // the UI: every chrome element resolves to Kamizo orange via the
-  // --brand* tokens declared statically in index.css. Tenant identity
-  // is expressed through logo, name, and content only.
+  // Load tenant config on app start.
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
+
+  // Paint the UI in the tenant's chosen primary colour. The super-admin
+  // editor stores tenants.color, and this applies it to the brand CSS
+  // tokens at runtime (see utils/tenantBrand). On the main / no-tenant
+  // domain tenantColor is undefined → the static Kamizo-orange defaults
+  // from index.css are used.
+  useEffect(() => {
+    applyTenantBrand(tenantColor);
+  }, [tenantColor]);
 
   // DEV AUTOLOGIN — REMOVE BEFORE STORE SUBMISSION
   // Convenience for development: after every uninstall/reinstall (which
@@ -191,10 +196,7 @@ function App() {
       try {
         const outcome = await authLogin('test-choko', 'kamizo');
         if (cancelled) return;
-        // outcome: 'success' | 'picker' | 'error'
         if (outcome !== 'success') {
-          // Quiet log only — don't block the UI. Real login still works
-          // (the LoginPage stays mounted when /login is the matched route).
           // eslint-disable-next-line no-console
           console.warn('[DEV AUTOLOGIN] outcome:', outcome);
         }
@@ -204,7 +206,6 @@ function App() {
       }
     })();
     return () => { cancelled = true; };
-    // Run once on mount; the `user` check inside guards against re-run loops.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

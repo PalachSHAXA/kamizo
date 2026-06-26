@@ -5,7 +5,7 @@ import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, clearFeatureCache } from '../middleware/tenant';
 import { json, error, bilingualError, generateId, isManagement, sanitizeInput, sanitizeUrl, sanitizeAttachmentUrl } from '../utils/helpers';
-import { hashPassword, createJWT } from '../utils/crypto';
+import { hashPassword, createJWT, encryptPassword } from '../utils/crypto';
 import { isSuperAdmin } from '../index';
 import { createRequestLogger } from '../utils/logger';
 import { validateBody } from '../validation/validate';
@@ -478,10 +478,13 @@ route('POST', '/api/tenants', async (request, env) => {
   if (body.director_login && body.director_password && body.director_name) {
     const directorId = generateId();
     const passwordHash = await hashPassword(body.director_password);
+    // Store the reversible password too so admin/director can view it in the
+    // team page (canSeePasswords). Falls back to null if no ENCRYPTION_KEY.
+    const directorPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.director_password, env.ENCRYPTION_KEY) : null;
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
-    `).bind(directorId, body.director_login, passwordHash, body.director_name, id).run();
+      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
+    `).bind(directorId, body.director_login, passwordHash, directorPlain, body.director_name, id).run();
     directorCreated = true;
   }
 
@@ -490,10 +493,29 @@ route('POST', '/api/tenants', async (request, env) => {
   if (body.admin_login && body.admin_password && body.admin_name) {
     const adminId = generateId();
     const adminPasswordHash = await hashPassword(body.admin_password);
+    const adminPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.admin_password, env.ENCRYPTION_KEY) : null;
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
-    `).bind(adminId, body.admin_login, adminPasswordHash, body.admin_name, id).run();
+      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
+    `).bind(adminId, body.admin_login, adminPasswordHash, adminPlain, body.admin_name, id).run();
+    adminCreated = true;
+  }
+
+  // Always ensure the УК has an administrator. The super-admin "Войти в
+  // админку УК" impersonation enters as admin (priority admin > director),
+  // but a freshly-created УК only had a director — so it fell back to the
+  // director. Auto-create an admin alongside the director when no explicit
+  // admin was provided: login = "<director_login>-admin", SAME password as
+  // the director (so the SA already knows it). login is unique per-tenant,
+  // so the suffix can't collide with the director.
+  if (directorCreated && !adminCreated) {
+    const autoAdminId = generateId();
+    const autoAdminHash = await hashPassword(body.director_password);
+    const autoAdminPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.director_password, env.ENCRYPTION_KEY) : null;
+    await env.DB.prepare(`
+      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
+    `).bind(autoAdminId, `${body.director_login}-admin`, autoAdminHash, autoAdminPlain, 'Администратор', id).run();
     adminCreated = true;
   }
 

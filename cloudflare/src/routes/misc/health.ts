@@ -2,7 +2,7 @@
 
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantForRequest, getTenantId } from '../../middleware/tenant';
+import { getTenantForRequest, getTenantId, getTenantSlug } from '../../middleware/tenant';
 import { getCacheStats } from '../../cache';
 import { invalidateOnChange } from '../../cache';
 import { metricsAggregator, healthCheck, AlertManager, logAnalyticsEvent } from '../../monitoring';
@@ -161,6 +161,32 @@ route('GET', '/api/tenant/config', async (request, env) => {
       // Fall through to the no-tenant response. Don't surface the
       // error — same shape as the pre-login case.
     }
+  }
+
+  // 2.5. Public subdomain resolution (anonymous / logged-out). On
+  //      {slug}.kamizo.uz the login page has NO JWT, and on the VPS the
+  //      request Host is api.kamizo.uz — so neither path above resolves the
+  //      tenant, and the login page loses its branding/logo/colour AND the
+  //      demo quick-login buttons (is_demo was always null pre-login). This
+  //      is why demo.kamizo.uz/login showed a bare form. Resolve the tenant
+  //      from the Origin/Referer subdomain. Only PUBLIC branding is returned
+  //      — contract metadata is stripped (contract_r2_key nulled) so an
+  //      anonymous, Origin-spoofable caller can't read the contract filename
+  //      / uploader.
+  const originHeader = request.headers.get('Origin') || request.headers.get('Referer') || '';
+  try {
+    const host = originHeader ? new URL(originHeader).hostname : '';
+    const slug = getTenantSlug(host);
+    if (slug) {
+      const tenant = await env.DB.prepare(
+        'SELECT * FROM tenants WHERE slug = ? AND is_active = 1'
+      ).bind(slug).first() as Record<string, unknown> | null;
+      if (tenant) {
+        return buildConfigResponse({ ...tenant, contract_r2_key: null });
+      }
+    }
+  } catch {
+    // Malformed Origin / DB hiccup → fall through to the no-tenant response.
   }
 
   // 3. Nothing matched. Same response as before this change for

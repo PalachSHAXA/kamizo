@@ -11,3 +11,4 @@ export { Sheet, SheetErrorBoundary } from './Sheet';
 export { ConfirmDialog } from './ConfirmDialog';
 export { ThemeToggle } from './ThemeToggle';
 export { ThemeProvider } from './ThemeProvider';
+export { ImageLightbox } from './ImageLightbox';

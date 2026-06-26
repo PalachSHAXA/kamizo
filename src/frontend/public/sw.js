@@ -6431,6 +6431,73 @@
 //     (its mobile wrapper uses position:fixed; inset:0 which already
 //     covers the safe area cleanly). No iOS native / signing /
 //     entitlement files touched, so APNs setup unaffected.
+// Version: 3.7.94 — cache suffix bumped to v148. Request photo viewer: clicking
+//     a request photo opened the raw data: URL (blank page) instead of viewing
+//     it. Now opens the in-app ImageLightbox (zoom/pan, like meetings) in the
+//     executor + resident detail modals and the manager request card.
+//     Previous note (v147) preserved below:
+// Version: 3.7.93 — cache suffix bumped to v147. Request photo fix #2: photo
+//     now saves (v146 compression), but it "disappeared a split second after
+//     creation" because addRequest's realRequest mapping omitted `photos` —
+//     the optimistic request (with photo) was replaced by a photo-less one.
+//     Now maps photos from the server response (fallback to attached ones).
+//     Previous note (v146) preserved below:
+// Version: 3.7.92 — cache suffix bumped to v146. Request photo fix: the
+//     resident new-request flow stored the RAW (uncompressed) photo as a
+//     data-URL — but the server silently rejects any photo data-URL over
+//     350 KB, so every attached photo was dropped (requests.photos = NULL)
+//     and never showed for the executor/resident. New compressImage() util
+//     resizes to ~1280px JPEG (≤280 KB) so photos actually save + display.
+//     Previous note (v145) preserved below:
+// Version: 3.7.91 — cache suffix bumped to v145. Desktop polish: the meeting
+//     details modal showed a tall, useless-looking scrollbar on PC. Added a
+//     desktop-only `.desktop-scrollbar-hide` utility (≥640px) and applied it
+//     via panelClassName — the scrollbar is hidden on PC (wheel/trackpad
+//     scroll still works); mobile keeps its scrollbar.
+//     Previous note (v144) preserved below:
+// Version: 3.7.90 — cache suffix bumped to v144. Desktop polish: the
+//     reconsideration-request modal (Запрос на пересмотр голоса) had
+//     max-h-[90dvh] + overflow-y-auto, forcing a stray scrollbar on PC where
+//     the short form fits. Now sm:max-h-none / sm:overflow-visible — no
+//     scrollbar on desktop; mobile bottom-sheet untouched.
+//     Previous note (v143) preserved below:
+// Version: 3.7.89 — cache suffix bumped to v143. ImageLightbox now renders via
+//     a portal to <body> so the overlay covers the TRUE viewport (incl. the
+//     sidebar + top banner) instead of being trapped inside a transformed
+//     ancestor — the photo no longer sits flush against the sidebar.
+//     Previous note (v142) preserved below:
+// Version: 3.7.88 — cache suffix bumped to v142. ImageLightbox: cap the photo
+//     size on desktop (md+ → max 72vw / 80vh) so it isn't huge; mobile stays
+//     full-screen as before. Zoom still scales beyond the cap.
+//     Previous note (v141) preserved below:
+// Version: 3.7.87 — cache suffix bumped to v141. "Скачать протокол" fix:
+//     two bugs. (1) the DOCX download fetched /protocol/data WITHOUT the JWT
+//     → 401. Now sends Authorization. (2) the live meeting_agenda_comments
+//     table was on the OLD schema (user_id/comment NOT NULL, no
+//     resident_id/content) while the code expects resident_id/content, so
+//     the protocol query 500'd ("no such column: c.content") and comments
+//     could never be saved. Migration 053 rebuilds the table (0 rows, safe).
+//     Previous note (v140) preserved below:
+// Version: 3.7.86 — cache suffix bumped to v140. Per-tenant brand colour:
+//     the colour a УК picks in the super-admin editor (tenants.color) was
+//     stored but never painted — every tenant rendered Kamizo orange. Now
+//     applyTenantBrand() writes the picked colour into the --brand* tokens
+//     (incl. the full --brand-50..900 scale that tailwind's primary-* maps
+//     to) on tenant-config load, so the site themes to the УК's colour.
+//     Main / no-tenant domain stays orange.
+//     Previous note (v139) preserved below:
+// Version: 3.7.85 — cache suffix bumped to v139. ImageLightbox now supports
+//     zoom + pan: mouse wheel / +- buttons / double-click to zoom, drag to
+//     pan, two-finger pinch on touch, Esc/backdrop/X to close. Applies to
+//     agenda photos in both the resident and staff meeting views.
+//     Previous note (v138) preserved below:
+// Version: 3.7.84 — cache suffix bumped to v138. Agenda photo VIEWER fix:
+//     attached photos are data: URLs; clicking one opened it in a new tab,
+//     blocked by Chromium (Chrome AND Edge) → about:blank#blocked. Now images
+//     open in an in-app ImageLightbox in BOTH the resident voting view
+//     (MeetingVotingModal) and the staff details view (MeetingDetailsModal:
+//     manager/director/admin). Non-image files now download.
+//     (Bumped to v138 over colleagues' v137 on merge.)
 //     Previous note (v137) preserved below:
 // Version: 3.7.83 — cache suffix bumped to v137. LoginPage hardening
 //     surfaced during Sprint 86 simulator testing:
