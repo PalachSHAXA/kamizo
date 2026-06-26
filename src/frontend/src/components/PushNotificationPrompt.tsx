@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Bell, X, Loader2, Share, Plus } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { pushNotifications } from '../services/pushNotifications';
 import { useAuthStore } from '../stores/authStore';
 import { useTenantStore } from '../stores/tenantStore';
@@ -18,6 +19,17 @@ function isStandalone(): boolean {
 }
 
 export function PushNotificationPrompt() {
+  // v118.3 — Inside the Capacitor native iOS/Android shell the user is
+  // by definition already past "install the app". Native push runs
+  // through services/nativePush.ts (APNs/FCM) wired into authStore
+  // login; the Web Push subscribe + iOS Add-to-Home-Screen surfaces
+  // below must NEVER render here. iOS WKWebView's UA contains
+  // "iPhone" + neither display-mode:standalone nor
+  // navigator.standalone are set, so the legacy isIOS/isStandalone
+  // gates below incorrectly fire the A2HS prompt inside the native
+  // app without this short-circuit.
+  if (Capacitor.isNativePlatform()) return null;
+
   const [requested, setRequested] = useState<'standard' | 'ios' | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);

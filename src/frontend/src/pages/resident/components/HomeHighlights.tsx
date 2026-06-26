@@ -250,7 +250,13 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
       <div
         {...handlers}
         className="relative cursor-grab select-none home-highlights-carousel"
-        style={{ height: 195, perspective: 800, marginBottom: 12 }}
+        // v118.22 — outer carousel container shortened (195 → 168) to
+        // match the new card height (185 → 158). The brown hero card
+        // above this row is ~170-215 px tall depending on apt chip;
+        // 158 keeps the turquoise card shorter than the brown header
+        // so the visual hierarchy reads correctly (brand-mark + name
+        // are the anchor; the carousel is supporting content).
+        style={{ height: 168, perspective: 800, marginBottom: 12 }}
       >
         {cards.map((card, i) => {
           const diff = i - activeIdx;
@@ -270,10 +276,20 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
               style={{
                 left: 8,
                 right: 8,
-                height: 185,
+                // v118.22 — card height + padding trimmed so the
+                // carousel reads as supporting content under the
+                // brown hero (was 185 / 22 → now 158 / 18). Inner
+                // content (badge / icon / title / subtitle / CTA)
+                // still fits with breathing room: ~32 px icon +
+                // ~24 px title + ~30 px line-clamp-2 subtitle +
+                // ~32 px CTA = ~118 px content, against a 158-36 =
+                // 122 px inner box. Flex justify-between distributes
+                // the remaining slack between the top group and the
+                // CTA, so cards stay uniform across all 5 variants.
+                height: 158,
                 borderRadius: 24,
                 background: card.gradient,
-                padding: 22,
+                padding: 18,
                 transform: `translateX(${diff * 35 + d}px) translateZ(${-absD * 50}px) rotateY(${diff * -4 + (i === activeIdx ? drag * 0.04 : 0)}deg) scale(${1 - absD * 0.07})`,
                 opacity: absD > 2 ? 0 : 1 - absD * 0.25,
                 transition: dragging ? 'none' : 'all 0.5s cubic-bezier(0.34,1.56,0.64,1)',
@@ -289,7 +305,10 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
                 <div
                   className="absolute font-bold uppercase tracking-wider"
                   style={{
-                    top: 14,
+                    // v118.22 — top: 14 → 12 follows the card's new
+                    // 18 px padding; without this the badge sits
+                    // visually disconnected from the trimmed top edge.
+                    top: 12,
                     right: 16,
                     background: 'rgba(255,255,255,0.25)',
                     backdropFilter: 'blur(10px)',
@@ -302,9 +321,15 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
                 </div>
               )}
               <div>
-                <Icon className="w-9 h-9 mb-2" strokeWidth={2} />
+                {/* v118.22 — icon w-9 h-9 mb-2 → w-8 h-8 mb-1 saves
+                    ~6 px of vertical height (icon 36 + 8 → 32 + 4).
+                    The 32 px icon still reads clearly at every size.
+                    Subtitle mt-1 → mt-0.5 saves another 2 px without
+                    cramping the line. Title font kept at 19 px so
+                    the card's primary message stays legible. */}
+                <Icon className="w-8 h-8 mb-1" strokeWidth={2} />
                 <div className="text-[19px] font-extrabold leading-tight">{card.title}</div>
-                <div className="text-[12px] opacity-80 mt-1 line-clamp-2">{card.sub}</div>
+                <div className="text-[12px] opacity-80 mt-0.5 line-clamp-2">{card.sub}</div>
               </div>
               <div
                 className="inline-flex items-center gap-1.5 self-start font-semibold"

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kamizo · Resident Redesign</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="tokens.css" />
+
+<style>
+  html, body { margin: 0; padding: 0; background: #e8e2d6; font-family: "Manrope", system-ui, sans-serif; }
+  @keyframes kzPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .55; transform: scale(0.85); }
+  }
+  @keyframes kzPop {
+    0%   { opacity: 0; transform: scale(0.9) translateY(-6px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes kzFade { 0% { opacity: 0; } 100% { opacity: 1; } }
+  @keyframes kzSheet { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
+  @keyframes kzSpin { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
+  /* Make screens-in-iOS-frames clip cleanly */
+  .kz-frame-host { position: relative; }
+</style>
+</head>
+
+<body>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Components -->
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="kamizo-icons.jsx"></script>
+<script type="text/babel" src="kamizo-silhouettes.jsx"></script>
+<script type="text/babel" src="kamizo-cards.jsx"></script>
+<script type="text/babel" src="kamizo-home.jsx"></script>
+<script type="text/babel" src="kamizo-requests.jsx"></script>
+<script type="text/babel" src="kamizo-request-details.jsx"></script>
+<script type="text/babel" src="kamizo-approve.jsx"></script>
+<script type="text/babel" src="kamizo-newrequest.jsx"></script>
+<script type="text/babel" src="kamizo-request.jsx"></script>
+<script type="text/babel" src="kamizo-voting.jsx"></script>
+<script type="text/babel" src="kamizo-meetings.jsx"></script>
+<script type="text/babel" src="kamizo-announcements.jsx"></script>
+<script type="text/babel" src="kamizo-vehicles.jsx"></script>
+<script type="text/babel" src="kamizo-guest.jsx"></script>
+<script type="text/babel" src="kamizo-profile.jsx"></script>
+<script type="text/babel" src="kamizo-contacts.jsx"></script>
+<script type="text/babel" src="kamizo-rate.jsx"></script>
+<script type="text/babel" src="kamizo-chat.jsx"></script>
+<script type="text/babel" src="kamizo-sidebar.jsx"></script>
+<script type="text/babel" src="kamizo-notifications.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+
+const TWEAKS = /*EDITMODE-BEGIN*/{
+  "voteVariant": "hero",
+  "showRequestSheet": false,
+  "homeTab": "guest",
+  "language": "ru"
+}/*EDITMODE-END*/;
+
+// ─────────────────────────────────────────────────────────────
+// Wraps a Kamizo screen in the iOS device frame.
+function PhoneFrame({ children, dark = false }) {
+  return (
+    <div style={{ width: 402, height: 874, position: 'relative' }}>
+      <IOSDevice width={402} height={874} dark={dark}>
+        <div style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
+          {children}
+        </div>
+      </IOSDevice>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Home artboard — interactive, opens the New Request sheet
+// and can navigate to Voting (state lifted to caller).
+function HomeArtboardInner({ tweaks, setTweak, onOpenVote }) {
+  const [sheet, setSheet] = React.useState(false);
+  return (
+    <PhoneFrame>
+      <HomeScreen
+        voteVariant={tweaks.voteVariant}
+        activeTab={tweaks.homeTab}
+        onOpenVote={onOpenVote}
+        onNewRequest={() => setSheet(true)}
+        onTabChange={(id) => setTweak('homeTab', id)}
+      />
+      <NewRequestFlow
+        open={sheet}
+        onClose={() => setSheet(false)}
+        onSubmitted={() => setSheet(false)}
+      />
+    </PhoneFrame>
+  );
+}
+
+// New Request artboard — full flow (catalog → form) on dimmed home
+function RequestArtboardInner() {
+  return (
+    <PhoneFrame>
+      <div style={{ position: 'absolute', inset: 0, filter: 'brightness(0.9)' }}>
+        <HomeScreen activeTab="home" />
+      </div>
+      <NewRequestFlow open={true} onClose={() => {}} onSubmitted={() => {}} />
+    </PhoneFrame>
+  );
+}
+
+// Voting artboard
+function VotingArtboardInner({ onClose }) {
+  return (
+    <PhoneFrame>
+      <VotingScreen onClose={onClose} />
+    </PhoneFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAKS);
+  const [voteOpen, setVoteOpen] = React.useState(false);
+
+  // If user opens voting from Home, swap inner of Home artboard to voting screen
+  return (
+    <DesignCanvas>
+      <DCSection id="core" title="Kamizo · Resident" subtitle="Перепроектирование жилого приложения · 12 экранов">
+
+        <DCArtboard id="home" label="01 · Главная" width={402} height={874}>
+          {voteOpen
+            ? <VotingArtboardInner onClose={() => setVoteOpen(false)} />
+            : <HomeArtboardInner tweaks={tweaks} setTweak={setTweak} onOpenVote={() => setVoteOpen(true)} />
+          }
+        </DCArtboard>
+
+        <DCArtboard id="request" label="02 · Новая заявка" width={402} height={874}>
+          <RequestArtboardInner />
+        </DCArtboard>
+
+        <DCArtboard id="requests-list" label="02б · Заявки (список)" width={402} height={874}>
+          <PhoneFrame><RequestsScreen activeTab="requests" onTabChange={() => {}} onNewRequest={() => {}} /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="request-details" label="02д · Детали заявки" width={402} height={874}>
+          <PhoneFrame>
+            <div style={{ position: 'absolute', inset: 0, filter: 'brightness(0.9)' }}>
+              <RequestsScreen activeTab="requests" />
+            </div>
+            <RequestDetailsSheet open={true} onClose={() => {}} request={{ number: '1842', title: 'Протечка в ванной', category: 'plumbing', status: 'new', executor: 'Ожидает мастера', photos: 2, priority: 'medium', description: 'Капает из-под раковины в ванной, образовалась лужа.', submitted: '31.05.2026 03:25' }} />
+          </PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="meetings" label="05 · Собрания" width={402} height={874}>
+          <PhoneFrame><MeetingsScreen activeTab="home" onVote={() => {}} /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="vote" label="03 · Голосование" width={402} height={874}>
+          <VotingArtboardInner onClose={() => {}} />
+        </DCArtboard>
+
+        <DCArtboard id="announcements" label="04 · Объявления" width={402} height={874}>
+          <PhoneFrame><AnnouncementsScreen activeTab="home" /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="vehicles" label="05 · Транспорт" width={402} height={874}>
+          <PhoneFrame><VehiclesScreen activeTab="home" /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="guest" label="06 · QR-доступ" width={402} height={874}>
+          <PhoneFrame><GuestAccessScreen activeTab="home" /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="profile" label="07 · Профиль" width={402} height={874}>
+          <PhoneFrame><ProfileScreen activeTab="profile" /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="contacts" label="08 · Полезные контакты" width={402} height={874}>
+          <PhoneFrame><ContactsScreen activeTab="home" /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="rate" label="09 · Оценка сотрудников" width={402} height={874}>
+          <PhoneFrame><RateScreen activeTab="home" /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="chat" label="10 · Чат с УК" width={402} height={874}>
+          <PhoneFrame><ChatScreen activeTab="home" /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="sidebar" label="11 · Боковое меню" width={402} height={874}>
+          <PhoneFrame>
+            <div style={{ position: 'absolute', inset: 0, filter: 'brightness(0.95) saturate(0.85)' }}>
+              <HomeScreen voteVariant="hero" activeTab="home" />
+            </div>
+            <SidebarDrawer open={true} onClose={() => {}} />
+          </PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="notifications" label="12 · Уведомления" width={402} height={874}>
+          <PhoneFrame><NotificationsScreen onClose={() => {}} /></PhoneFrame>
+        </DCArtboard>
+
+        <DCArtboard id="request-approve" label="02п · Приёмка работы" width={402} height={874}>
+          <PhoneFrame>
+            <div style={{ position: 'absolute', inset: 0, filter: 'brightness(0.9)' }}>
+              <RequestsScreen activeTab="requests" />
+            </div>
+            <ApproveModal open={true} onClose={() => {}} request={{ number: '1840', title: 'Замена смесителя', executor: 'Бахтиёр Р.', category: 'plumbing' }} />
+          </PhoneFrame>
+        </DCArtboard>
+
+      </DCSection>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Главный экран">
+          <TweakRadio
+            label="Карточка голосования"
+            value={tweaks.voteVariant}
+            onChange={(v) => setTweak('voteVariant', v)}
+            options={[
+              { value: 'hero', label: 'Hero' },
+              { value: 'card', label: 'Card' },
+            ]}
+          />
+          <TweakRadio
+            label="Активный таб"
+            value={tweaks.homeTab}
+            onChange={(v) => setTweak('homeTab', v)}
+            options={[
+              { value: 'home', label: 'Гл.' },
+              { value: 'requests', label: 'Заявки' },
+              { value: 'votes', label: 'Голос.' },
+              { value: 'profile', label: 'Проф.' },
+            ]}
+          />
+        </TweakSection>
+        <TweakSection label="Действия">
+          <TweakButton label="Показать голосование на «01»" onClick={() => setVoteOpen(true)} />
+          <TweakButton label="Вернуть Главную на «01»" onClick={() => setVoteOpen(false)} secondary />
+        </TweakSection>
+      </TweaksPanel>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
+</body>
+</html>

@@ -2,6 +2,16 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Users, Wrench, Car } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+// v118.79 — Capacitor Haptics on tab tap. ONLY in this file. No other
+// component imports @capacitor/haptics — confirmed by grep gate in plan.
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+
+const fireLightHaptic = () => {
+  // Web no-op so the .catch isn't even reached on dev.
+  if (!Capacitor.isNativePlatform()) return;
+  Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+};
 import { useLanguageStore } from '../stores/languageStore';
 import { useRequestStore, useNotificationStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
@@ -252,6 +262,9 @@ export function BottomBar() {
 
   const handleTap = (tab: Tab) => {
     if (tab.isFab) {
+      // v118.79 — light haptic on FAB tap (user enumerated `+` in the
+      // BottomBar list). Locked-tap (handled below) does NOT fire.
+      fireLightHaptic();
       if (tab.id === 'qr') {
         navigate('/qr-scanner');
         return;
@@ -269,11 +282,15 @@ export function BottomBar() {
       return;
     }
     if (isTabLocked(tab)) {
+      // Locked taps show a modal — nothing actually navigates, so no
+      // haptic feedback (matches iOS pattern of no haptic on disabled).
       const lang = language === 'ru' ? 'ru' : 'uz';
       setLockedFeatureName(featureNameMap[tab.feature!]?.[lang] || (language === 'ru' ? 'Функция' : 'Funksiya'));
       setLockedFeatureKey(tab.feature || null);
       return;
     }
+    // v118.79 — light haptic on accepted tab tap.
+    fireLightHaptic();
     navigate(tab.path);
   };
 

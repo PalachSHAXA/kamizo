@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import {
   Droplet, Zap, Flame, MoveVertical, Sparkles, Trash2, ShieldCheck, Bell,
@@ -15,7 +16,9 @@ import { useIsMobile } from '../../../hooks/useBreakpoint';
 // New request flow — 1:1 port of Claude Design §03-novaya-zayavka, wired to
 // real data: catalog tiles map to real ExecutorSpecialization categories,
 // photo upload uses the same FileReader/data-URL pipeline as NewRequestModal
-// (max 5, 3 MB each), and submit calls the real addRequest via onCreate.
+// (max 5; raw up to 10 MB, auto-compressed to 1280px JPEG ~150-250 KB
+// before storage so the server's 350 KB/photo cap is never tripped),
+// and submit calls the real addRequest via onCreate.
 // Two steps in one component: 'catalog' (ServiceSheet) → 'form' (RequestForm).
 
 type Tone = { fg: string; tint: string; ring: string; glow: string };
@@ -117,11 +120,11 @@ export function ResidentNewRequestFlow({ open, language, user, onClose, onCreate
   if (!open) return null;
   return (
     <SheetShell onDismiss={onClose}>
-      {(drag, requestClose) => (
+      {(shell, requestClose) => (
         step === 'catalog' ? (
           <ServiceSheet
             language={language}
-            drag={drag}
+            shell={shell}
             onClose={requestClose}
             onPick={(c) => { setCategory(c); setStep('form'); }}
           />
@@ -130,7 +133,7 @@ export function ResidentNewRequestFlow({ open, language, user, onClose, onCreate
             language={language}
             user={user}
             category={category!}
-            drag={drag}
+            shell={shell}
             onBack={() => setStep('catalog')}
             onClose={requestClose}
             onCreate={onCreate}
@@ -143,10 +146,36 @@ export function ResidentNewRequestFlow({ open, language, user, onClose, onCreate
 }
 
 // Drag handlers spread onto a step's grabber so a downward swipe dismisses.
+//
+// v118.23 — bundle now includes TWO handler sets:
+//   • `drag`           — spread on the header / grabber zone. Always
+//                        treats a downward touch as a sheet drag,
+//                        except when the touch starts on an interactive
+//                        descendant (input / button / link / etc) so
+//                        the search field, X close button, and chip
+//                        strip still work normally.
+//   • `dragScrollable` — spread on the scrollable content list. Only
+//                        initiates a sheet drag if the list is already
+//                        scrolled to the TOP (scrollTop === 0) so the
+//                        list's normal vertical scroll wins everywhere
+//                        else. Once the user is at the top and pulls
+//                        down, the SHEET drags, not the list.
+//
+// Both sets close the sheet when EITHER the cumulative downward
+// distance crosses ~90 px OR a flick velocity > 0.55 px/ms is
+// detected at touchend — whichever first. The 110 px distance-only
+// threshold the previous build used made the dismiss gesture feel
+// "stiff" because users have to drag almost the whole header before
+// it would commit; the new combined-criteria version mirrors native
+// iOS bottom-sheet behaviour.
 type DragHandlers = {
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: () => void;
+};
+type ShellDrag = {
+  drag: DragHandlers;
+  dragScrollable: DragHandlers;
 };
 
 // Animated bottom-sheet chrome shared by every step: slides up on open, fades
@@ -161,20 +190,57 @@ type DragHandlers = {
 // (~720 px) and full-radius corners — without this, the sheet flat-out
 // covered the whole desktop main column with a dark backdrop including
 // over the global Sidebar.
-function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: (drag: DragHandlers, requestClose: () => void) => ReactNode }) {
+function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: (shell: ShellDrag, requestClose: () => void) => ReactNode }) {
   const [entered, setEntered] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [dragY, setDragY] = useState(0);
   const dragging = useRef(false);
   const startY = useRef(0);
+  const dragYRef = useRef(0);
+  const lastY = useRef(0);
+  const lastT = useRef(0);
+  const velocity = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   useModalPresence();
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setEntered(true));
-    const prev = document.body.style.overflow;
+    // v118.28 — REAL background scroll lock. v118.23 set
+    // `document.body.style.overflow = 'hidden'` but that's a no-op
+    // on mobile because body is already `overflow:hidden` per the
+    // global mobile CSS (the actual scroll container is
+    // `.main-content` / `.main-content-full`). Without locking THAT
+    // element, the user's dismiss-drag down on the sheet bled
+    // through to the body's touch handler → the WebView walked the
+    // DOM up to `.main-content` (the first scrollable ancestor) and
+    // scrolled IT while the sheet was being dragged. The home page
+    // visually moved with the sheet.
+    //
+    // Fix: find the actual scroll container by class and freeze it
+    // with overflow:hidden + touchAction:none. Both are required:
+    //   • overflow:hidden stops momentum / wheel scroll
+    //   • touchAction:none stops iOS WKWebView from interpreting any
+    //     touch-driven pan on a descendant as a scroll gesture for
+    //     this container
+    // body.style.overflow is ALSO set as belt-and-suspenders (matters
+    // on desktop where body IS the scroller).
+    const prevBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { cancelAnimationFrame(raf); document.body.style.overflow = prev; };
+    const scrollEl = document.querySelector('.main-content, .main-content-full') as HTMLElement | null;
+    const prevScrollOverflow = scrollEl?.style.overflow ?? '';
+    const prevScrollTouchAction = scrollEl?.style.touchAction ?? '';
+    if (scrollEl) {
+      scrollEl.style.overflow = 'hidden';
+      scrollEl.style.touchAction = 'none';
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      document.body.style.overflow = prevBodyOverflow;
+      if (scrollEl) {
+        scrollEl.style.overflow = prevScrollOverflow;
+        scrollEl.style.touchAction = prevScrollTouchAction;
+      }
+    };
   }, []);
 
   const requestClose = useCallback(() => {
@@ -188,22 +254,139 @@ function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: 
     return () => document.removeEventListener('keydown', onKey);
   }, [requestClose]);
 
-  // Drag-to-dismiss is a touch gesture — meaningful only on the mobile sheet.
-  // On desktop the swipe-down grabber still renders (so the design stays
-  // consistent), but pointer dragging is a no-op there.
-  const drag: DragHandlers = {
-    onTouchStart: (e) => { if (!isMobile) return; dragging.current = true; startY.current = e.touches[0].clientY; },
-    onTouchMove: (e) => { if (!isMobile || !dragging.current) return; const dy = e.touches[0].clientY - startY.current; setDragY(dy > 0 ? dy : 0); },
-    onTouchEnd: () => { if (!isMobile) return; dragging.current = false; if (dragY > 110) requestClose(); else setDragY(0); },
+  // v118.23 — bottom-sheet dismiss redesigned for native-iOS feel.
+  //
+  // (1) FOLLOW-FINGER 1:1: every touchmove writes the new translateY
+  //     directly to panelRef.current.style instead of going through
+  //     React state. The previous setDragY/setState path forced the
+  //     entire SheetShell subtree (the ~20 service tiles, search,
+  //     chips, etc.) to re-render on every move event — janky on
+  //     iPhone SE / mid-range Android. Direct DOM mutation keeps
+  //     the gesture locked to the finger at 60 fps even on weak
+  //     hardware. The transition is set to "none" during a drag
+  //     so the transform applies instantly; on release we restore
+  //     the spring curve.
+  //
+  // (2) LOWER THRESHOLD + VELOCITY: closes if EITHER the cumulative
+  //     downward distance crosses CLOSE_DISTANCE_PX (90 px) OR the
+  //     instantaneous velocity at touchend exceeds CLOSE_VELOCITY
+  //     (0.55 px/ms ≈ 550 px/s — a normal flick is 800-1500 px/s).
+  //     Velocity is sampled across consecutive touchmove events so
+  //     a quick flick down dismisses even if the total distance
+  //     dragged is only ~30 px. Previously the dismiss required
+  //     a slow 110 px drag — too stiff.
+  //
+  // (3) SPRING-BACK: if neither criterion is met, we set translateY
+  //     to 0 and re-enable the cubic-bezier(.32,.72,0,1) curve so
+  //     the panel springs back smoothly instead of snapping.
+  //
+  // Desktop: pointer-drag is a no-op (`if (!isMobile) return`); the
+  // pill renders only as a visual cue, X close button is the only
+  // dismiss path. Same logic as before.
+  const CLOSE_DISTANCE_PX = 90;
+  const CLOSE_VELOCITY = 0.55;
+
+  const applyTransform = useCallback((y: number, withSpring: boolean) => {
+    const el = panelRef.current;
+    if (!el) return;
+    el.style.transition = withSpring
+      ? 'transform .28s cubic-bezier(.32,.72,0,1)'
+      : 'none';
+    el.style.transform = `translateY(${y}px)`;
+  }, []);
+
+  const beginDrag = useCallback((clientY: number) => {
+    if (!isMobile) return;
+    dragging.current = true;
+    startY.current = clientY;
+    lastY.current = clientY;
+    lastT.current = performance.now();
+    velocity.current = 0;
+    dragYRef.current = 0;
+  }, [isMobile]);
+
+  const moveDrag = useCallback((clientY: number) => {
+    if (!isMobile || !dragging.current) return;
+    const dy = clientY - startY.current;
+    const y = dy > 0 ? dy : 0;
+    dragYRef.current = y;
+    applyTransform(y, false);
+    // Velocity sampling — small window averages out finger jitter
+    // while still being responsive to a true flick.
+    const now = performance.now();
+    const dt = now - lastT.current;
+    if (dt > 0) {
+      velocity.current = (clientY - lastY.current) / dt;
+    }
+    lastY.current = clientY;
+    lastT.current = now;
+  }, [isMobile, applyTransform]);
+
+  const endDrag = useCallback(() => {
+    if (!isMobile || !dragging.current) return;
+    dragging.current = false;
+    const flick = velocity.current > CLOSE_VELOCITY;
+    const farEnough = dragYRef.current > CLOSE_DISTANCE_PX;
+    if (flick || farEnough) {
+      requestClose();
+    } else {
+      // Spring back to 0
+      applyTransform(0, true);
+      dragYRef.current = 0;
+    }
+  }, [isMobile, requestClose, applyTransform]);
+
+  // Two handler sets — see ShellDrag type above. `drag` is for the
+  // header / grabber area; `dragScrollable` is for the scrollable
+  // content list and only initiates a sheet drag when the list is
+  // at scrollTop === 0 (otherwise the list scrolls normally — no
+  // gesture conflict).
+  const shell: ShellDrag = {
+    drag: {
+      onTouchStart: (e) => {
+        // Skip if the touch starts on an interactive descendant —
+        // search input, X close button, category chips. Those need
+        // their own touch behaviour and shouldn't initiate a drag.
+        const target = e.target as HTMLElement;
+        if (target.closest('input, button, a, textarea, select, label')) return;
+        beginDrag(e.touches[0].clientY);
+      },
+      onTouchMove: (e) => moveDrag(e.touches[0].clientY),
+      onTouchEnd: () => endDrag(),
+    },
+    dragScrollable: {
+      onTouchStart: (e) => {
+        const el = e.currentTarget as HTMLElement;
+        // Only initiate sheet drag if the list is at the top —
+        // otherwise the list scrolls normally and the sheet stays put.
+        if (el.scrollTop > 0) return;
+        beginDrag(e.touches[0].clientY);
+      },
+      onTouchMove: (e) => moveDrag(e.touches[0].clientY),
+      onTouchEnd: () => endDrag(),
+    },
   };
 
   const shown = entered && !closing;
   // Mobile: slide-up from the bottom edge; closing slides back down.
-  // Desktop: fade + tiny scale; no translate, since the panel is centered.
+  // Desktop: fade + tiny scale; no translate, since the panel is
+  // centered. During a drag the transform is updated via panelRef
+  // directly (applyTransform), but when the panel mounts / closes
+  // we still rely on the JSX-driven transform below for the
+  // open/close animations.
   const panelTransform = isMobile
-    ? `translateY(${shown ? `${dragY}px` : '100%'})`
+    ? `translateY(${shown ? '0px' : '100%'})`
     : `scale(${shown ? 1 : 0.97})`;
-  return (
+  // v118.28 — render the sheet through a portal to document.body.
+  // Without the portal, the outer `position:fixed` div still lives
+  // inside .main-content's DOM subtree, so touchmove events on the
+  // sheet bubble up the DOM tree all the way to .main-content, and
+  // the WebView finds it as the nearest scrollable ancestor and
+  // pans it while the user is dragging the sheet. Portaling escapes
+  // the .main-content subtree entirely so touch can only bubble to
+  // body (which is already overflow:hidden on mobile, and now
+  // belt-and-suspenders pinned via the useEffect above).
+  const tree = (
     <div
       onClick={requestClose}
       style={{
@@ -222,7 +405,7 @@ function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: 
         padding: isMobile ? 0 : '24px 24px 72px 24px',
       }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{
+      <div ref={panelRef} onClick={(e) => e.stopPropagation()} style={{
         width: '100%',
         maxWidth: isMobile ? '100%' : 720,
         // Cap shorter on desktop (was 88vh) so even when the panel is full
@@ -241,19 +424,19 @@ function SheetShell({ onDismiss, children }: { onDismiss: () => void; children: 
         overflow: 'hidden',
         transform: panelTransform,
         opacity: isMobile ? 1 : (shown ? 1 : 0),
-        transition: dragging.current
-          ? 'none'
-          : `transform .28s cubic-bezier(.32,.72,0,1), opacity .22s ease`,
+        transition: `transform .28s cubic-bezier(.32,.72,0,1), opacity .22s ease`,
         willChange: 'transform, opacity',
       }}>
-        {children(drag, requestClose)}
+        {children(shell, requestClose)}
       </div>
     </div>
   );
+  if (typeof document === 'undefined') return tree;
+  return createPortal(tree, document.body);
 }
 
 // ── Step 1: catalog ──────────────────────────────────────────
-function ServiceSheet({ language, onPick, onClose, drag }: { language: string; onPick: (c: ExecutorSpecialization) => void; onClose: () => void; drag: DragHandlers }) {
+function ServiceSheet({ language, onPick, onClose, shell }: { language: string; onPick: (c: ExecutorSpecialization) => void; onClose: () => void; shell: ShellDrag }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<'all' | SvcCat>('all');
   const [sel, setSel] = useState<ExecutorSpecialization | null>(null);
@@ -269,16 +452,31 @@ function ServiceSheet({ language, onPick, onClose, drag }: { language: string; o
 
   return (
     <>
+        {/* v118.23 — drag handlers spread on the WHOLE dark hero
+            (not just the pill), so users can grab anywhere in the
+            header to dismiss. The interactive-child guard inside
+            beginDrag() ensures the search input, X close, and
+            category chips still receive their own touch events.
+            touchAction 'pan-y' lets the browser tolerate the
+            vertical pan we're tracking without trying to scroll
+            the underlying surface. */}
         {/* dark stone hero header */}
-        <div style={{
-          position: 'relative', overflow: 'hidden', flexShrink: 0,
-          background: 'linear-gradient(155deg, #33302C 0%, #1C1917 70%)',
-          padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 16px 15px', color: 'var(--text-on-dark, #F4F0E8)',
-          borderTopLeftRadius: RX, borderTopRightRadius: RX,
-        }}>
+        <div
+          {...shell.drag}
+          style={{
+            position: 'relative', overflow: 'hidden', flexShrink: 0,
+            background: 'linear-gradient(155deg, #33302C 0%, #1C1917 70%)',
+            padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 16px 15px', color: 'var(--text-on-dark, #F4F0E8)',
+            borderTopLeftRadius: RX, borderTopRightRadius: RX,
+            touchAction: 'pan-y',
+          }}
+        >
           <div style={{ position: 'absolute', top: -70, right: -40, width: 200, height: 200, borderRadius: 999, background: 'radial-gradient(circle, rgba(249,115,22,0.35), transparent 70%)', pointerEvents: 'none' }} />
           <div style={{ position: 'relative' }}>
-            <div {...drag} style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 12px', cursor: 'grab', touchAction: 'none' }}>
+            {/* Visible grab indicator — the pill stays as a visual
+                cue (the whole hero is now the drag surface, but
+                users still expect to see the pill). */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 12px', cursor: 'grab', pointerEvents: 'none' }} aria-hidden="true">
               <div style={{ width: 38, height: 5, borderRadius: 999, background: 'rgba(244,240,232,0.3)' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -304,8 +502,15 @@ function ServiceSheet({ language, onPick, onClose, drag }: { language: string; o
           </div>
         </div>
 
+        {/* v118.23 — tiles list uses dragScrollable: when scrollTop > 0
+            the list scrolls normally (no gesture conflict); when at
+            the top, pulling down dismisses the sheet. Matches native
+            iOS bottom-sheet behaviour exactly. */}
         {/* tiles */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+        <div
+          {...shell.dragScrollable}
+          style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16, overscrollBehavior: 'contain' }}
+        >
           {(cat === 'all' && !q.trim()) && (
             <a href="tel:1059" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', marginBottom: 14, borderRadius: RM, background: 'var(--status-critical-bg, rgba(226,72,61,0.12))', border: '1px solid rgba(226,72,61,0.22)' }}>
               <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--status-critical, #E2483D)', color: '#fff', display: 'grid', placeItems: 'center', flex: '0 0 auto', boxShadow: '0 4px 12px rgba(226,72,61,0.3)' }}><Phone size={19} /></div>
@@ -370,11 +575,11 @@ function ServiceSheet({ language, onPick, onClose, drag }: { language: string; o
 }
 
 // ── Step 2: form ─────────────────────────────────────────────
-function RequestForm({ language, user, category, onBack, onClose, onCreate, onGoToRequests, drag }: {
+function RequestForm({ language, user, category, onBack, onClose, onCreate, onGoToRequests, shell }: {
   language: string; user: User | null; category: ExecutorSpecialization;
   onBack: () => void; onClose: () => void;
   onCreate: ResidentNewRequestFlowProps['onCreate']; onGoToRequests: () => void;
-  drag: DragHandlers;
+  shell: ShellDrag;
 }) {
   const ru = language === 'ru';
   const svc = NR_SERVICES.find(s => s.category === category) || NR_SERVICES[0];
@@ -397,13 +602,45 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
   const [trashTime, setTrashTime] = useState('');
 
   const MAX_PHOTOS = 5;
-  const MAX_FILE_SIZE = 3 * 1024 * 1024;
+  // v118.96 — raise FE size cap 3 → 10 MB. The 3 MB cap was hitting modern
+  // iPhone camera shots constantly. NOTE: server (requests/crud.ts) caps
+  // each photo at 350 KB base64 and SILENTLY DROPS oversize entries, so a
+  // raise-only fix is a UX trap (user thinks photo attached, server
+  // drops it). Companion fix below: compressImage() runs BEFORE the size
+  // check, downsizing the camera input to 1280px JPEG q=0.8 — matches
+  // the codebase-wide convention (CLAUDE.md "Фронт компрессит до 1280px
+  // JPEG q=0.8 ~150-250KB"). Real-world camera shots land at ~200 KB
+  // base64, comfortably under the server's 350 KB cap. The 10 MB FE
+  // ceiling now only catches non-image junk.
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
   const valid = isTrash
     ? !!(trashType && trashVolume && trashDate && trashTime)
     : desc.trim().length >= 8;
 
-  // Same FileReader/data-URL pipeline as NewRequestModal — photos are stored
-  // as JSON data-URLs in requests.photos and shown to executor + management.
+  // v118.96 — photos pipeline:
+  //   1. reject non-image and >10MB raw (defensive — non-image junk only)
+  //   2. compress to 1280px max edge JPEG q=0.8 (~150-250 KB base64),
+  //      matching the codebase convention so the server's 350 KB cap
+  //      is never tripped (used to silently drop large photos).
+  //   3. push the compressed data URL into state.
+  // createImageBitmap + canvas.toDataURL works on iOS WKWebView 11+.
+  const compressImage = async (file: File): Promise<string | null> => {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const maxDim = 1280;
+      const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { bitmap.close(); return null; }
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      bitmap.close();
+      return canvas.toDataURL('image/jpeg', 0.8);
+    } catch { return null; }
+  };
+
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setPhotoError(null);
     const files = Array.from(e.target.files || []);
@@ -414,14 +651,10 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
     const next: string[] = [];
     for (const file of accepted) {
       if (!file.type.startsWith('image/')) { setPhotoError(ru ? 'Только изображения' : 'Faqat rasmlar'); continue; }
-      if (file.size > MAX_FILE_SIZE) { setPhotoError(ru ? 'Файл больше 3 МБ' : 'Fayl 3 MB dan katta'); continue; }
-      const dataUrl = await new Promise<string | null>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
-      });
+      if (file.size > MAX_FILE_SIZE) { setPhotoError(ru ? 'Файл больше 10 МБ' : 'Fayl 10 MB dan katta'); continue; }
+      const dataUrl = await compressImage(file);
       if (dataUrl) next.push(dataUrl);
+      else setPhotoError(ru ? 'Не удалось обработать изображение' : 'Rasmni qayta ishlab boʼlmadi');
     }
     setPhotos((p) => [...p, ...next]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -489,9 +722,15 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
 
   return (
     <>
+        {/* v118.23 — same drag-area expansion as ServiceSheet: spread
+            on the whole header so users grab anywhere; pill stays as
+            a visual cue with pointer-events:none. */}
         {/* header */}
-        <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 16px 14px', borderBottom: '1px solid var(--border-c, #E6DFD2)', background: 'var(--surface, #fff)' }}>
-          <div {...drag} style={{ display: 'flex', justifyContent: 'center', padding: '0 0 10px', cursor: 'grab', touchAction: 'none' }}>
+        <div
+          {...shell.drag}
+          style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 16px 14px', borderBottom: '1px solid var(--border-c, #E6DFD2)', background: 'var(--surface, #fff)', touchAction: 'pan-y' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '0 0 10px', cursor: 'grab', pointerEvents: 'none' }} aria-hidden="true">
             <div style={{ width: 38, height: 5, borderRadius: 999, background: 'var(--border-strong, #D8CFBE)' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -505,8 +744,14 @@ function RequestForm({ language, user, category, onBack, onClose, onCreate, onGo
           </div>
         </div>
 
+        {/* v118.23 — body uses dragScrollable so the textarea + scrolling
+            form content keeps normal vertical scroll, and only pulling
+            down from scrollTop===0 dismisses the sheet. */}
         {/* body */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+        <div
+          {...shell.dragScrollable}
+          style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16, overscrollBehavior: 'contain' }}
+        >
           {!isTrash && (<>
           <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #1C1917)' }}>{ru ? 'Опишите проблему' : 'Muammoni tasvirlang'}</label>
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={ru ? 'Например: капает из-под раковины, под ней лужа со вчера' : 'Masalan: rakovina ostidan suv oqyapti'} style={{

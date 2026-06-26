@@ -66,8 +66,20 @@ export function RequestsTab({
       </div>
 
       {/* Segment control — 3 equal columns in a sunken track */}
+      {/* v118.4: use Tailwind's arbitrary-value class instead of
+          `grid-cols-3`. index.css:1614-1624 has a global mobile
+          override that forces every `.grid-cols-3` (and `.grid-cols-4`)
+          to `repeat(2, 1fr) !important` at ≤640 px — load-bearing for
+          LoginPage's role grid and AnnouncementsPage's stat grid (both
+          rely on the 3/4→2 collapse on phones), can't be dropped
+          globally. The arbitrary class generates a different class
+          NAME (`grid-cols-[repeat(3,minmax(0,1fr))]`) that the global
+          selector list doesn't match, so the 3-equal-columns layout
+          survives on mobile. Same CSS value as the original `grid-cols-3`.
+          The previous v144 `whitespace-nowrap` on each button stays as
+          defence against future label changes. */}
       <div
-        className="grid grid-cols-3 gap-1 mt-3.5 p-1 rounded-[14px]"
+        className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-1 mt-3.5 p-1 rounded-[14px]"
         style={{ background: 'var(--surface-sunken, #EDE7DB)' }}
       >
         {subTabs.map((t) => {
@@ -76,7 +88,7 @@ export function RequestsTab({
             <button
               key={t.id}
               onClick={() => setRequestsSubTab(t.id)}
-              className="py-[9px] px-1.5 rounded-[10px] text-[13px] inline-flex items-center justify-center gap-1.5 transition-all touch-manipulation"
+              className="py-[9px] px-1.5 rounded-[10px] text-[13px] inline-flex items-center justify-center gap-1.5 transition-all touch-manipulation whitespace-nowrap"
               style={
                 on
                   ? { background: 'var(--surface, #fff)', color: 'var(--text-primary, #1C1917)', fontWeight: 750, boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(28,25,23,0.04))' }

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kamizo · Прототип жителя</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  html, body { margin: 0; padding: 0; background: #e8e2d6; font-family: "Manrope", system-ui, sans-serif; }
+  @keyframes kzPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.55;transform:scale(0.85)} }
+  @keyframes kzPop { 0%{opacity:0;transform:scale(0.9) translateY(-6px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+  @keyframes kzSheet { 0%{transform:translateY(100%)} 100%{transform:translateY(0)} }
+  @keyframes kzSpin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+  @keyframes kzScreenIn { 0%{opacity:0;transform:translateY(8px)} 100%{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="kamizo-icons.jsx"></script>
+<script type="text/babel" src="kamizo-silhouettes.jsx"></script>
+<script type="text/babel" src="kamizo-cards.jsx"></script>
+<script type="text/babel" src="kamizo-home.jsx"></script>
+<script type="text/babel" src="kamizo-requests.jsx"></script>
+<script type="text/babel" src="kamizo-request-details.jsx"></script>
+<script type="text/babel" src="kamizo-approve.jsx"></script>
+<script type="text/babel" src="kamizo-newrequest.jsx"></script>
+<script type="text/babel" src="kamizo-voting.jsx"></script>
+<script type="text/babel" src="kamizo-meetings.jsx"></script>
+<script type="text/babel" src="kamizo-announcements.jsx"></script>
+<script type="text/babel" src="kamizo-vehicles.jsx"></script>
+<script type="text/babel" src="kamizo-guest.jsx"></script>
+<script type="text/babel" src="kamizo-profile.jsx"></script>
+<script type="text/babel" src="kamizo-contacts.jsx"></script>
+<script type="text/babel" src="kamizo-rate.jsx"></script>
+<script type="text/babel" src="kamizo-chat.jsx"></script>
+<script type="text/babel" src="kamizo-sidebar.jsx"></script>
+<script type="text/babel" src="kamizo-notifications.jsx"></script>
+<script type="text/babel" src="kamizo-finance.jsx"></script>
+<script type="text/babel" src="kamizo-marketplace.jsx"></script>
+<script type="text/babel" src="kamizo-orders.jsx"></script>
+<script type="text/babel" src="kamizo-contract.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState } = React;
+
+// Which bottom-nav tab is highlighted for a given screen.
+const TAB_OF = {
+  home: 'home', meetings: 'home', announcements: 'home', guest: 'home',
+  vehicles: 'home', finance: 'home', marketplace: 'home', orders: 'home',
+  contacts: 'home', rate: 'home',
+  requests: 'requests', chat: 'chat',
+  profile: 'profile', contract: 'profile',
+};
+
+function App() {
+  const [screen, setScreen] = useState('home');
+  const [sidebar, setSidebar] = useState(false);
+  const [newReq, setNewReq] = useState(false);
+  const [notif, setNotif] = useState(false);
+  const [voting, setVoting] = useState(false);
+
+  const go = (s) => { setScreen(s); };
+  const onTab = (t) => {
+    if (t === 'home') go('home');
+    else if (t === 'requests') go('requests');
+    else if (t === 'chat') go('chat');
+    else if (t === 'profile') go('profile');
+  };
+  const tab = TAB_OF[screen] || 'home';
+
+  const body = (() => {
+    switch (screen) {
+      case 'home': return <HomeScreen activeTab={tab} onTabChange={onTab} onMenu={() => setSidebar(true)} onNewRequest={() => setNewReq(true)} onOpenVote={() => { go('meetings'); setVoting(true); }} />;
+      case 'requests': return <RequestsScreen activeTab={tab} onTabChange={onTab} onNewRequest={() => setNewReq(true)} />;
+      case 'meetings': return <MeetingsScreen activeTab={tab} onTabChange={onTab} onVote={() => setVoting(true)} />;
+      case 'announcements': return <AnnouncementsScreen activeTab={tab} onTabChange={onTab} />;
+      case 'vehicles': return <VehiclesScreen activeTab={tab} onTabChange={onTab} onMenu={() => setSidebar(true)} />;
+      case 'guest': return <GuestAccessScreen activeTab={tab} onTabChange={onTab} onCreate={() => {}} />;
+      case 'profile': return <ProfileScreen activeTab={tab} onTabChange={onTab} />;
+      case 'contacts': return <ContactsScreen activeTab={tab} onTabChange={onTab} />;
+      case 'rate': return <RateScreen activeTab={tab} onTabChange={onTab} />;
+      case 'chat': return <ChatScreen activeTab={tab} onTabChange={onTab} />;
+      case 'finance': return <FinanceScreen activeTab={tab} onTabChange={onTab} />;
+      case 'marketplace': return <MarketplaceScreen activeTab={tab} onTabChange={onTab} />;
+      case 'orders': return <OrdersScreen activeTab={tab} onTabChange={onTab} />;
+      case 'contract': return <ContractScreen activeTab={tab} onTabChange={onTab} />;
+      default: return <HomeScreen activeTab="home" onTabChange={onTab} onMenu={() => setSidebar(true)} onNewRequest={() => setNewReq(true)} />;
+    }
+  })();
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#e8e2d6', boxSizing: 'border-box' }}>
+      <div style={{ width: 402, height: 874, position: 'relative' }}>
+        <IOSDevice width={402} height={874}>
+          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+            <div key={screen} style={{ position: 'absolute', inset: 0, overflow: 'auto', animation: 'kzScreenIn 0.28s var(--ease-emphasized)' }}>
+              {body}
+            </div>
+
+            {/* Overlays live above the scrolling screen */}
+            <SidebarDrawer open={sidebar} onClose={() => setSidebar(false)} onNavigate={go} />
+            <NewRequestFlow open={newReq} onClose={() => setNewReq(false)} onSubmitted={() => { setNewReq(false); go('requests'); }} />
+            {notif && <NotificationsScreen onClose={() => setNotif(false)} />}
+            {voting && <VotingScreen onClose={() => setVoting(false)} />}
+          </div>
+        </IOSDevice>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -143,13 +143,49 @@ export function ResidentChatView({ channel, onBack }: Props) {
     };
   }, [activeRequest, draft]);
 
-  // Scroll the message list to the bottom when a new message arrives,
-  // unless the user is reading history (>200 px above the bottom).
+  // v118.115 — reverted to a deliberately minimal auto-scroll policy.
+  // The v254-v258 dead-edge + anti-yank work built up several layers
+  // of refs / timers / guards on top of the React scroll logic, and
+  // each layer fought with the next; manual up-swipes still felt
+  // unreliable. The native + CSS fixes from v258 (MainViewController
+  // bounces / touch-action pan-y on the list / pan-x on the chips)
+  // stay in place — they're correct and app-wide. What's gone:
+  //   • wasAtBottomRef / userScrollingRef / userScrolledAwayRef
+  //   • the 800 ms touch-settle timer (was already removed in v257
+  //     but the surrounding scaffolding stayed)
+  //   • the effect that re-pinned scrollTop=scrollHeight on every
+  //     messages.length change.
+  //
+  // What's left: a SINGLE one-shot per-channel initial scroll to
+  // bottom (double-rAF so the DOM is laid out first). After that,
+  // nothing — neither poll-driven length changes nor any other
+  // effect touches the scroll position. The user always wins.
+  //
+  // Trade-off: when a new message arrives while the user is at the
+  // bottom, it won't auto-scroll into view; the user needs to
+  // manually scroll down. Explicit choice — "do LESS auto-scrolling,
+  // a missed snap is far better than a blocked scroll" (user, v257).
+  // Sending a message still scrolls to bottom because the send
+  // handler does it explicitly (line ~163 / 207).
+  const initialScrolledRef = useRef(false);
+
   useEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    const fromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
-    if (fromBottom < 200) el.scrollTop = el.scrollHeight;
+    // Reset the per-channel one-shot when switching channels so the
+    // new channel also opens at its bottom.
+    initialScrolledRef.current = false;
+  }, [channel.id]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (initialScrolledRef.current) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = listRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+        initialScrolledRef.current = true;
+      });
+    });
   }, [messages.length]);
 
   const send = useCallback(async () => {
@@ -305,9 +341,23 @@ export function ResidentChatView({ channel, onBack }: Props) {
         borderBottom: '1px solid var(--chat-strip-border, rgba(0,0,0,0.06))',
         paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : 0,
         flex: '0 0 auto',
+        // v118.118 — `pointer-events: none` on the header background so
+        // vertical pans that land here pass through to the list
+        // underneath (the header sits at z-index:200 above the
+        // message scroller; without this it claimed gestures and
+        // dropped them, which is why the chat "sensor stalled" in
+        // the upper part of the scroll area). Buttons + tappable
+        // rows inside re-claim `pointer-events: auto` themselves so
+        // taps still work normally.
+        pointerEvents: isMobile ? 'none' : 'auto',
       }}
     >
-      <div style={{ padding: '10px 16px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* v118.118 — inner header row reclaims `pointer-events: auto`
+          so back button, title (which opens info), and search button
+          stay tappable while the surrounding header BACKGROUND
+          (the blurred bg + safe-area area) lets vertical pans pass
+          through to the list. */}
+      <div style={{ padding: '10px 16px 12px', display: 'flex', alignItems: 'center', gap: 12, pointerEvents: 'auto' }}>
         <button
           type="button"
           onClick={onBack || (() => navigate('/'))}
@@ -363,6 +413,10 @@ export function ResidentChatView({ channel, onBack }: Props) {
           type="button"
           onClick={() => navigate('/?tab=requests')}
           style={{
+            // v118.118 — see header outer comment. This chip is a
+            // sibling of the inner row, so it needs its own
+            // `pointer-events: auto` reclaim.
+            pointerEvents: 'auto',
             display: 'flex', alignItems: 'center', gap: 10,
             width: 'calc(100% - 32px)',
             margin: '0 16px 10px',
@@ -444,6 +498,14 @@ export function ResidentChatView({ channel, onBack }: Props) {
           padding: '8px 16px 8px',
           display: 'flex', gap: 7, overflowX: 'auto',
           WebkitOverflowScrolling: 'touch',
+          // v118.114 — explicit pan-x: this row only handles
+          // horizontal scrolling for its chips. Without it iOS
+          // attributes vertical pans here too (the row covers the
+          // top ~40px of the composer overlay, which sits ABOVE the
+          // chat scroller in z-order — vertical pans landing here
+          // were being eaten because the row "tried" to handle them
+          // and dropped them since it can't scroll Y).
+          touchAction: 'pan-x',
         }}
       >
         {quickReplies.map((q) => (
@@ -590,7 +652,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
           inset: 0,
           background: 'var(--chat-page-bg, #FAFAF9)',
           overflow: 'hidden',
-          overscrollBehavior: 'none',
+          overscrollBehavior: 'contain',
         } : {
           // Desktop: bounded card inside main-content. Height matches the
           // existing .resident-chat-container CSS (viewport minus mobile-
@@ -625,13 +687,49 @@ export function ResidentChatView({ channel, onBack }: Props) {
         }}
       >
         {!isMobile && headerEl}
+        {/* v118.110 — dead-edge-at-bottom (proper root-cause fix).
+            The user nailed the exact symptom: momentum-alive scrolls
+            both ways, but once the scroller settles AT scrollTop=max
+            the next touch is dropped until something wakes the
+            scroller. That's the classic iOS WKWebView non-momentum
+            scroll dead-edge — the gesture recogniser stays "asleep"
+            because there's no rubber-band slack at the edge.
+            v253 made things worse by dropping
+            `-webkit-overflow-scrolling: touch` (I'd misdiagnosed
+            momentum as the trigger; it's actually the cure here).
+            Without that property WKWebView uses non-momentum scroll
+            which has THIS dead-edge bug at exact scrollTop=max.
+            FIX (the two properties have to coexist):
+              • `WebkitOverflowScrolling: 'touch'` — keeps native
+                momentum-scroll engine on, so the scroller has the
+                "rubber-band capable" gesture recogniser.
+              • `overscrollBehavior: 'contain'` — keeps the rubber-
+                band LOCAL to this scroller (doesn't chain to the
+                outer page) while still allowing it to bounce.
+                Together: the scroller has a tiny rubber-band slot
+                at the edges, so even when content rests exactly at
+                max the gesture recogniser stays alive and the next
+                up-swipe is accepted instantly.
+              • position:absolute, inset:0 stays from v253 — that
+                part of v253 was fine, only the property removal was
+                the regression. */}
         <div
           ref={listRef}
+          // v118.115 — no React-level scroll handler. The minimal
+          // auto-scroll policy above only does a one-shot initial
+          // scroll-to-bottom per channel; nothing watches scroll
+          // position, nothing reacts to it. The scroller is plain.
           style={isMobile ? {
-            height: '100%',
+            position: 'absolute',
+            inset: 0,
             overflowY: 'auto', overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',
             overscrollBehavior: 'contain',
+            // v118.114 — explicit touch-action so iOS WKWebView knows
+            // this is the vertical-pan target, regardless of ancestor
+            // touch-action rules. Removes any ambiguity at the edges
+            // about which element should receive the next gesture.
+            touchAction: 'pan-y',
             paddingTop: `${headerHeight}px`,
             paddingBottom: `${composerHeight}px`,
           } : {

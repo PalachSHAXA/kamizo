@@ -55,7 +55,6 @@ export function ChatView({
   // boolean state still drives the UI spinner; the ref is purely a guard.
   const sendingRef = useRef(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [attachedFile, setAttachedFile] = useState<{ name: string; size: number; dataUrl?: string; isImage: boolean } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -148,23 +147,26 @@ export function ChatView({
     }
   };
 
-  // ── visualViewport keyboard handling — keep input visible above keyboard ──
+  // ── v118.12 — Capacitor Keyboard plugin with `resize: 'native'`
+  // now handles keyboard layout natively: WKWebView shrinks itself when
+  // the keyboard opens, so the `flex flex-col h-full` chat container
+  // naturally puts ChatComposer flush above the keyboard. The previous
+  // visualViewport offset useEffect double-applied on top of WKWebView's
+  // already-shrunken layout viewport, flinging the composer to the top
+  // with a big gap. Plugin install + native resize replaces all that
+  // JS math with one source of truth — kept here as a marker for
+  // future hands. We DO still scroll the message list to its bottom
+  // on keyboard open via a focus listener on the composer input, so
+  // the latest messages stay in view when the keyboard appears. */
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const onResize = () => {
-      // Difference between layout viewport and visual viewport = keyboard height
-      const offset = window.innerHeight - vv.height;
-      setKeyboardOffset(offset > 50 ? offset : 0);
-      // Scroll messages to bottom when keyboard opens
-      if (offset > 50) {
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 250);
       }
     };
-
-    vv.addEventListener('resize', onResize);
-    return () => vv.removeEventListener('resize', onResize);
+    window.addEventListener('focusin', onFocus);
+    return () => window.removeEventListener('focusin', onFocus);
   }, []);
 
   // Search state
@@ -273,13 +275,54 @@ export function ChatView({
     return () => clearInterval(interval);
   }, [fetchMessages, channelId, markAsRead]);
 
-  // Scroll to bottom
+  // v118.97 — Scroll-to-bottom strategy (messenger semantics):
+  //   1. INITIAL open of a channel: instant jump (behavior:'auto') so
+  //      the user lands at the latest message in the same frame the
+  //      list paints — no visible top→bottom slide. Tracked per
+  //      channelId via an init-flag ref that resets when channelId
+  //      changes.
+  //   2. SUBSEQUENT message-length growth (poll picks up a new
+  //      message, or user sends one): smooth scroll BUT only if the
+  //      user is already near the bottom (within ~120 px). If they've
+  //      scrolled up to read history, leave them where they are.
+  // The legacy effect was always `behavior:'smooth'` with a 100 ms
+  // delay, which produced both the "opens at top, then slides down"
+  // flash AND the "yank-to-bottom while reading history" annoyance.
+  const initialScrollDoneRef = useRef<string | null>(null);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [messages.length]);
+    // Channel switch — clear the init flag so the new channel's
+    // first paint triggers the instant jump again.
+    initialScrollDoneRef.current = null;
+  }, [channelId]);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const container = messagesContainerRef.current;
+    const end = messagesEndRef.current;
+    if (!container || !end) return;
+
+    // Initial open of this channel — instant jump, no animation.
+    if (initialScrollDoneRef.current !== channelId) {
+      // Two-tier wait: first rAF lets React commit the DOM, second
+      // ensures the browser laid the list out so scrollHeight is real.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          container.scrollTop = container.scrollHeight;
+          initialScrollDoneRef.current = channelId;
+        });
+      });
+      return;
+    }
+
+    // Subsequent updates — smooth, but only if near bottom.
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const NEAR_BOTTOM_THRESHOLD = 120;
+    if (distanceFromBottom <= NEAR_BOTTOM_THRESHOLD) {
+      const timer = setTimeout(() => {
+        end.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, channelId]);
 
   // Search logic — Sprint 58: debounce 150ms.
   // Was firing a full scan on every keystroke (500 messages × lowercase
@@ -447,7 +490,6 @@ export function ChatView({
       // stays sticky at top, Composer stays sticky at bottom, and
       // MessageList scrolls inside the bounded middle band as designed.
       className="h-full flex flex-col bg-[#FEFAF6] min-w-0 min-h-0"
-      style={keyboardOffset > 0 ? { height: `calc(100% - ${keyboardOffset}px)` } : undefined}
     >
       {/* Phase 2 / commit 2: extracted to DialogHeader. Same markup
           (back arrow + avatar + name + subtitle + search/info buttons +
@@ -644,7 +686,6 @@ export function ChatView({
         onInsertEmoji={insertEmoji}
         fileInputRef={fileInputRef}
         onFilePick={handleFilePick}
-        keyboardOffset={keyboardOffset}
       />
 
       {/* v120 commit 2 — admin action overlays.

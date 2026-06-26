@@ -3,6 +3,7 @@ import {
   Wrench, QrCode, CreditCard, Car, Lock, Users, ChevronRight,
   Megaphone, Clock, Download,
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { HomeHighlights } from './HomeHighlights';
 import type { HomeTabProps } from './types';
 
@@ -228,10 +229,13 @@ export function HomeTab({
         </div>
       )}
 
-      {/* PWA install */}
-      <div className={sec}>
-        <PWABanner language={language} />
-      </div>
+      {/* PWA install — v118.3: hidden inside Capacitor native shell
+          (the user is already past "install the app" by definition). */}
+      {!Capacitor.isNativePlatform() && (
+        <div className={sec}>
+          <PWABanner language={language} />
+        </div>
+      )}
     </div>
   );
 }

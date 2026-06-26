@@ -49,11 +49,6 @@ interface ChatComposerProps {
   // File picker.
   fileInputRef: RefObject<HTMLInputElement>;
   onFilePick: (file: File) => void;
-
-  // visualViewport-driven keyboard offset; when >0 we drop the
-  // env(safe-area-inset-bottom) padding because the keyboard is
-  // already pushing the composer up.
-  keyboardOffset: number;
 }
 
 export function ChatComposer({
@@ -72,7 +67,6 @@ export function ChatComposer({
   onInsertEmoji,
   fileInputRef,
   onFilePick,
-  keyboardOffset,
 }: ChatComposerProps) {
   const isRu = language === 'ru';
   const canSend = (value.trim().length > 0 || !!attachedFile) && !isSending;
@@ -96,7 +90,14 @@ export function ChatComposer({
       className="flex-shrink-0"
       style={{
         background: 'var(--chat-strip-bg, #FFFFFF)',
-        paddingBottom: keyboardOffset > 0 ? '0px' : 'max(12px, env(safe-area-inset-bottom, 12px))',
+        // v118.12 — always reserve safe-area-bottom clearance. The
+        // previous keyboardOffset>0 flip to 0px was needed to undo
+        // a JS double-shrink; with capacitor.config Keyboard.resize:
+        // 'native' the WebView itself resizes for the keyboard, so
+        // safe-area-inset-bottom collapses to 0 on iOS WHILE the
+        // keyboard is up (iOS hides the home indicator behind the
+        // keyboard). One rule handles both states cleanly.
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
         boxShadow: '0 -2px 12px rgba(0,0,0,0.04), 0 -1px 0 rgba(0,0,0,0.04)',
       }}
     >

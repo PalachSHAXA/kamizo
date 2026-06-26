@@ -15,6 +15,7 @@ import { OfflineIndicator } from '../OfflineIndicator';
 import { ProtectedRoute } from '../ProtectedRoute';
 import { OnboardingWizard } from '../OnboardingWizard';
 import { useOverlayStore, useCanShowOverlay } from '../../stores/overlayStore';
+import { useModalStore } from '../../stores/modalStore';
 import { OnboardingTooltips } from '../OnboardingTooltips';
 import { settingsApi } from '../../services/api/settings';
 import { Loader2, ArrowLeft, ShieldAlert, Home, MapPinOff } from 'lucide-react';
@@ -128,6 +129,10 @@ const WorkOrdersPage = lazy(() => import('../../pages/WorkOrdersPage').then(m =>
 const TrainingsPage = lazy(() => import('../../pages/TrainingsPage'));
 const ColleaguesSection = lazy(() => import('../../pages/ColleaguesSection').then(m => ({ default: m.ColleaguesSection })));
 const ResidentVehiclesPage = lazy(() => import('../../pages/ResidentVehiclesPage').then(m => ({ default: m.ResidentVehiclesPage })));
+// v118.36 — AddCarPage is mounted as a TOP-LEVEL route in App.tsx
+// (outside the Layout shell) so it owns the whole viewport without
+// the app drawer header or bottom nav bar. The lazy import lives
+// in App.tsx — removed from here to avoid duplicate loading.
 const VehicleSearchPage = lazy(() => import('../../pages/VehicleSearchPage').then(m => ({ default: m.VehicleSearchPage })));
 const ResidentGuestAccessPage = lazy(() => import('../../pages/ResidentGuestAccessPage').then(m => ({ default: m.ResidentGuestAccessPage })));
 const GuardQRScannerPage = lazy(() => import('../../pages/GuardQRScannerPage').then(m => ({ default: m.GuardQRScannerPage })));
@@ -252,9 +257,32 @@ export function Layout() {
     return () => window.removeEventListener('open-sidebar', handleOpenSidebar);
   }, []);
 
-  // Swipe from left edge to open sidebar
+  // Swipe from left edge to open sidebar.
+  //
+  // v118.21 — the chat page (any /chat* route) now opts OUT of this
+  // gesture. With it enabled on chat, a swipe-right-from-left-edge
+  // was popping the sidebar drawer in over the chat, exposing the
+  // resident-mode drawer's nav items ("Заявки / Собрания / Пропуска /
+  // Быстрый доступ" — same labels as the home dashboard, easy to
+  // mistake for the dashboard itself sliding underneath chat).
+  // The drawer is still openable on chat via the hamburger menu in
+  // MobileHeader; only the swipe trigger is disabled there. Other
+  // routes keep the swipe-to-open behaviour unchanged.
+  //
+  // pathnameRef lets the touchstart callback read the current route
+  // WITHOUT re-creating + re-registering the listener on every route
+  // change (the touchstart/touchend listeners would otherwise churn
+  // on every navigation, since useCallback would invalidate when
+  // location.pathname changes).
+  const pathnameRef = useRef(location.pathname);
+  useEffect(() => {
+    pathnameRef.current = location.pathname;
+  }, [location.pathname]);
+
   const swipeRef = useRef<{ startX: number; startY: number; started: boolean }>({ startX: 0, startY: 0, started: false });
   const handleGlobalTouchStart = useCallback((e: TouchEvent) => {
+    // Chat owns the entire screen — no edge-swipe drawer open here.
+    if (pathnameRef.current.startsWith('/chat')) return;
     const x = e.touches[0].clientX;
     // Only trigger from left 15px edge (avoid conflict with iOS back gesture zone ~20px)
     if (x < 15 && !sidebarOpen) {
@@ -264,6 +292,12 @@ export function Layout() {
 
   const handleGlobalTouchEnd = useCallback((e: TouchEvent) => {
     if (!swipeRef.current.started) return;
+    // Belt-and-suspenders: in case the user starts a swipe elsewhere
+    // then navigates into chat mid-gesture, also bail at touchend.
+    if (pathnameRef.current.startsWith('/chat')) {
+      swipeRef.current.started = false;
+      return;
+    }
     const endX = e.changedTouches[0].clientX;
     const endY = e.changedTouches[0].clientY;
     const diffX = endX - swipeRef.current.startX;
@@ -283,6 +317,36 @@ export function Layout() {
       document.removeEventListener('touchend', handleGlobalTouchEnd);
     };
   }, [handleGlobalTouchStart, handleGlobalTouchEnd]);
+
+  // v118.85 — Belt-and-suspenders against iOS WKWebView top elastic
+  // overscroll on the .main-content scroll container. CSS already has
+  // `overscroll-behavior-y: none` (index.css), which iOS 16+ honors,
+  // but older iOS may still bounce. This handler ONLY blocks the
+  // downward-from-top gesture — preventDefault on touchmove when
+  // scrollTop is exactly at 0 AND the user is dragging down. Normal
+  // scrolling (scrollTop > 0, upward drags, bottom overscroll) all
+  // unaffected. Without this, content could bounce up past the fixed
+  // HomeHero (v226) on resident Home.
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = mainContentRef.current;
+    if (!el) return;
+    let startY = 0;
+    const onTouchStart = (e: TouchEvent) => { startY = e.touches[0]?.clientY ?? 0; };
+    const onTouchMove = (e: TouchEvent) => {
+      const currentY = e.touches[0]?.clientY ?? 0;
+      // scrollTop can briefly be negative during the bounce itself; treat <=0 as "at top".
+      if (el.scrollTop <= 0 && currentY > startY) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+    };
+  }, []);
 
   // Determine which dashboard to show based on role and account_type
   const getDashboard = () => {
@@ -401,12 +465,30 @@ export function Layout() {
   // complex filter page).
   const isResidentFinance = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/finance/charges';
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance;
+  // v118.102 — Director / Admin / Manager hitting /profile now renders
+  // SettingsPage in the v241/v242 pinned-header + inner-scroller pattern.
+  // Hide the global MobileHeader so its 42 px chrome doesn't stack on
+  // top of the SettingsPage's own safe-area header (which would let the
+  // status bar collide with the page title). Page paints its own
+  // notch-aware header instead.
+  const isStaffSettingsFullBleed = ['admin', 'director', 'manager'].includes(user?.role || '')
+    && location.pathname === '/profile';
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance || isStaffSettingsFullBleed;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
   // channel info + actions), so we drop the generic mobile header there.
+  // v118.103 — also hide MobileHeader while any full-screen modal is
+  // open (BottomBar already does this via modalCount). The director's
+  // "Создать заявку" sheet anchors bottom of viewport with max-h:90dvh,
+  // leaving a 10% transparent strip at the top through which the
+  // header chrome (burger/choko/bell) bled, visually covering the
+  // sheet's own "Создать заявку" title + X close button. Hiding the
+  // mobile header for the duration of the modal fixes the overlap
+  // without changing per-modal z-index plumbing across the app.
+  const modalCount = useModalStore((s) => s.count);
   const showMobileHeader = !isSuperAdmin
+    && modalCount === 0
     && !isResidentFullBleed
     && location.pathname !== '/marketplace'
     && location.pathname !== '/profile'
@@ -460,6 +542,7 @@ export function Layout() {
       )}
 
       <div
+        ref={mainContentRef}
         className={`${isSuperAdmin ? "main-content-full" : "main-content"}${showMobileHeader ? ' has-mobile-header' : ''}`}
         style={impersonation && !showMobileHeader ? { paddingTop: '42px' } : undefined}
       >
@@ -535,11 +618,12 @@ export function Layout() {
                   <ResidentRateEmployeesPage />
                 </ProtectedRoute>
               } />
-              <Route path="/vehicles" element={
-                <ProtectedRoute allowedRoles={['resident']} requiredFeature="vehicles">
-                  <ResidentVehiclesPage />
-                </ProtectedRoute>
-              } />
+              {/* v118.36 — /vehicles/add moved to top-level route in
+                  App.tsx so AddCarPage owns the full viewport without
+                  Layout's header / bottom nav.
+                  v118.63 — /vehicles (гараж) тоже переехал на
+                  top-level в App.tsx по тем же причинам: full-screen
+                  без drawer + bell + bottom nav. */}
               <Route path="/vehicle-search" element={
                 <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'security', 'executor']} requiredFeature="vehicles">
                   <VehicleSearchPage />
@@ -564,8 +648,16 @@ export function Layout() {
                     : <StaffProfilePage />
               } />
               <Route path="/contract" element={<ResidentContractPage />} />
+              {/* v118.93 — dropped requiredFeature="useful-contacts" gate.
+                  Most tenant `features` JSON blobs don't list this string,
+                  so hasFeature() returned false → ProtectedRoute redirected
+                  /useful-contacts back to / and the "Полезные контакты"
+                  Home swipe-card looked broken (tap → bounce to Home).
+                  The page itself is universally useful (emergency services
+                  + building contacts) and self-contained; no per-tenant
+                  gate justified. ProtectedRoute kept for auth. */}
               <Route path="/useful-contacts" element={
-                <ProtectedRoute requiredFeature="useful-contacts"><ResidentUsefulContactsPage /></ProtectedRoute>
+                <ProtectedRoute><ResidentUsefulContactsPage /></ProtectedRoute>
               } />
               {/* /contacts — legacy alias that some UI copies still point at.
                   Redirect so the user doesn't hit the generic 404 screen. */}

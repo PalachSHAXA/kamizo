@@ -1118,13 +1118,25 @@ export function ReportsPage() {
           </div>
 
           {/* Top Executors */}
-          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
+          <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl overflow-hidden">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Топ исполнителей' : 'Top ijrochilar'}
             </h2>
-            <div className="overflow-x-auto -mx-6 px-6">
-              <table className="w-full" style={{ minWidth: '600px' }}>
+            {/* v118.1: scroll the wide table INSIDE the card's content
+                box. Previous `-mx-6 px-6` extended the scroll container
+                12 px past the card edges on mobile (card padding is
+                `p-3` = 12 px, but the negative margin was -24 px), so
+                scrolled columns bled past the right side and over the
+                rounded corner. With the negative-margin trick removed
+                and `overflow-hidden` on the card outer (above), the
+                rounded border clips anything that tries to escape;
+                scroll happens entirely within the card. -webkit-
+                overflow-scrolling:touch is a belt-and-braces for
+                momentum on older iOS WebKit (iOS 17+ enables this by
+                default). */}
+            <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+              <table className="w-full" style={{ minWidth: '600px', WebkitTapHighlightColor: 'transparent' }}>
                 <thead>
                   <tr className="text-left text-sm text-gray-500 border-b border-gray-200">
                     <th className="pb-3 pr-2 font-medium w-8">#</th>
@@ -1138,7 +1150,7 @@ export function ReportsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {executorStats.slice(0, 10).map((executor, index) => (
-                    <tr key={executor.id} className="hover:bg-white/30">
+                    <tr key={executor.id} className="md:hover:bg-white/30">
                       <td className="py-3 pr-2 text-gray-500">{index + 1}</td>
                       <td className="py-3 pr-3">
                         <div className="flex items-center gap-2">

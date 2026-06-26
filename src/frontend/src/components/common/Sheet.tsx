@@ -58,8 +58,18 @@ export function Sheet({
 }: SheetProps) {
   const { language } = useLanguageStore();
   const sheetRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [entered, setEntered] = useState(false);
+
+  // v118.68 — swipe-down-to-dismiss state. Mobile only (< sm 640 px).
+  // Drag handle и header area всегда draggable. Body draggable
+  // только когда scrollTop === 0 и направление вниз — иначе native
+  // scroll работает как обычно.
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ y: 0, t: 0 });
+  const dragLast = useRef({ y: 0, t: 0 });
 
   // Hide the global BottomBar while this sheet is open — same modal-presence
   // registry the rest of the app uses.
@@ -106,6 +116,114 @@ export function Sheet({
 
   const closeLabel = language === 'ru' ? 'Закрыть' : 'Yopish';
 
+  // v118.68 — swipe-down-to-dismiss helpers. Шарятся между handlers
+  // для drag handle/header (всегда draggable) и body (draggable
+  // только при scrollTop=0 + движение вниз).
+  const isMobileViewport = (): boolean =>
+    typeof window !== 'undefined' && window.innerWidth < 640;
+
+  const startDrag = (clientY: number) => {
+    const now = performance.now();
+    dragStart.current = { y: clientY, t: now };
+    dragLast.current = { y: clientY, t: now };
+    setIsDragging(true);
+  };
+
+  const updateDrag = (clientY: number) => {
+    const dy = Math.max(0, clientY - dragStart.current.y);
+    dragLast.current = { y: clientY, t: performance.now() };
+    setDragY(dy);
+  };
+
+  const endDrag = () => {
+    const sheetEl = sheetRef.current;
+    setIsDragging(false);
+    if (!sheetEl) { setDragY(0); return; }
+    const sheetH = sheetEl.clientHeight;
+    const threshold = Math.max(80, sheetH * 0.25);
+    const elapsed = Math.max(1, dragLast.current.t - dragStart.current.t);
+    const totalDy = dragLast.current.y - dragStart.current.y;
+    const velocityPxPerSec = (totalDy / elapsed) * 1000;
+    const shouldDismiss = dragY > threshold || velocityPxPerSec > 600;
+    if (shouldDismiss && !forceAction) {
+      // Animate off-screen via the same inline transform, then call onClose.
+      setDragY(sheetH + 80);
+      window.setTimeout(() => {
+        setDragY(0);
+        onClose();
+      }, 220);
+    } else {
+      // Snap back to top — inline transform clears, class translate-y-0 +
+      // duration-200 transition animates the return.
+      setDragY(0);
+    }
+  };
+
+  // Handlers для drag handle + header (всегда draggable на mobile).
+  const headerDragHandlers: React.HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (e) => {
+      if (!isMobileViewport()) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+      startDrag(e.clientY);
+    },
+    onPointerMove: (e) => {
+      if (!isDragging) return;
+      updateDrag(e.clientY);
+    },
+    onPointerUp: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      endDrag();
+    },
+    onPointerCancel: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      setIsDragging(false);
+      setDragY(0);
+    },
+  };
+
+  // Handlers для body — draggable только когда scrollTop=0; иначе
+  // не захватываем pointer и native scroll работает как обычно.
+  const bodyDragHandlers: React.HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (e) => {
+      if (!isMobileViewport()) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const body = bodyRef.current;
+      if (body && body.scrollTop > 0) return; // user скроллит внутри — не перехватываем
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+      startDrag(e.clientY);
+    },
+    onPointerMove: (e) => {
+      if (!isDragging) return;
+      updateDrag(e.clientY);
+    },
+    onPointerUp: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      endDrag();
+    },
+    onPointerCancel: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      setIsDragging(false);
+      setDragY(0);
+    },
+  };
+
+  // Inline transform для drag — overrides Tailwind translate-y-0 class.
+  // Когда dragY=0 — inline стиля нет, class transform + transition берёт
+  // верх и snap-back анимируется автоматически.
+  const dragStyle: React.CSSProperties = dragY > 0
+    ? {
+        transform: `translateY(${dragY}px)`,
+        transition: isDragging ? 'none' : 'transform 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+        // touchAction: 'none' под dragging чтобы iOS не пытался scroll
+        touchAction: 'none',
+      }
+    : {};
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center"
@@ -136,16 +254,29 @@ export function Sheet({
         `}
         style={{
           paddingBottom: 'env(safe-area-inset-bottom)',
+          ...dragStyle,
         }}
       >
-        {/* Handle grip on mobile */}
-        <div className="flex justify-center pt-2 pb-1 sm:hidden" aria-hidden="true">
+        {/* v118.68 — Handle grip + header — оба элемента слушают
+            pointer events для swipe-down-to-dismiss. Handle обёрнут
+            в div с padding для увеличения hit-area. touchAction:none
+            предотвращает scroll конфликты на iOS. */}
+        <div
+          {...headerDragHandlers}
+          className="flex justify-center pt-2 pb-1 sm:hidden cursor-grab active:cursor-grabbing"
+          style={{ touchAction: 'none' }}
+          aria-hidden="true"
+        >
           <div className="w-10 h-1 rounded-full bg-gray-300" />
         </div>
 
         {/* Header */}
         {(title || showClose) && (
-          <div className="flex items-start justify-between px-5 pt-3 sm:pt-5 pb-3 border-b border-gray-200/60 flex-shrink-0">
+          <div
+            {...headerDragHandlers}
+            style={{ touchAction: isMobileViewport() ? 'none' : 'auto' }}
+            className="flex items-start justify-between px-5 pt-3 sm:pt-5 pb-3 border-b border-gray-200/60 flex-shrink-0 sm:cursor-default cursor-grab active:cursor-grabbing"
+          >
             <div className="min-w-0 flex-1">
               {title && (
                 <h2 id="sheet-title" className="text-lg sm:text-xl font-bold text-gray-900 break-words" title={title}>
@@ -157,7 +288,8 @@ export function Sheet({
             {showClose && (
               <button
                 type="button"
-                onClick={onClose}
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+                onPointerDown={(e) => e.stopPropagation()}
                 data-sheet-close
                 aria-label={closeLabel}
                 className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation flex-shrink-0 ml-2"
@@ -168,8 +300,14 @@ export function Sheet({
           </div>
         )}
 
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 overscroll-contain">
+        {/* Scrollable body — drag начинается ТОЛЬКО при scrollTop=0
+            (иначе native scroll работает). На desktop bodyDragHandlers
+            no-op'ятся через isMobileViewport guard. */}
+        <div
+          ref={bodyRef}
+          {...bodyDragHandlers}
+          className="flex-1 overflow-y-auto px-5 py-4 overscroll-contain"
+        >
           {children}
         </div>
 

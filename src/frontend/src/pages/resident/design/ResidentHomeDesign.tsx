@@ -4,84 +4,332 @@
    wired to real data via props. Includes the design's own floating TabBar — the
    global BottomBar is hidden for residents on this screen to avoid a double nav. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import {
   IBell, IPin, IWrench, IQR, ICard, ICar, ILock, ICheck, IClock, IChevronR,
   IUsers, IBolt, IUmbrella, IDownload, IStar, IPhone,
   SwipeCardStack,
 } from './kamizoDesign';
 import { useIsMobile } from '../../../hooks/useBreakpoint';
+import { useThemeStore } from '../../../stores/themeStore';
+import { NotificationsDropdown } from '../../../components/NotificationsDropdown';
 
 const ru = (language: string, r: string, u: string) => (language === 'ru' ? r : u);
 
-// City skyline silhouette — flat dark rectangles with little window squares,
-// painted behind the hero content so it reads as a city behind the greeting
-// (LEFT mockup §01-glavnaya). Pure SVG, no extra assets to load.
-function CityBackground() {
-  const buildings: [number, number, number, number][] = [
-    [0, 70, 38, 70], [40, 50, 44, 90], [86, 80, 30, 60],
-    [118, 30, 48, 110], [168, 64, 32, 76], [202, 44, 46, 96],
-    [250, 74, 30, 66], [282, 28, 48, 112], [332, 56, 36, 84],
-    [370, 44, 30, 96],
-  ];
-  const windows: [number, number][] = [];
-  buildings.forEach(([bx, by, bw, bh]) => {
-    const cols = Math.max(2, Math.floor(bw / 10));
-    const rows = Math.max(3, Math.floor(bh / 14));
-    const cellW = 6, cellH = 6;
-    const stepX = (bw - cols * cellW) / (cols + 1);
-    for (let c = 0; c < cols; c++) {
-      for (let r = 1; r < rows; r++) {
-        const wx = bx + stepX + c * (cellW + stepX);
-        const wy = by + r * 13;
-        if (wy + cellH < by + bh - 4) windows.push([wx, wy]);
-      }
-    }
-  });
+// v118.25 — Tashkent skyline silhouette (inline SVG).
+//
+// The design §01-glavnaya handoff references raster PNGs
+// (screens/skyline-light.png + screens/skyline-dark.png) of an
+// actual Tashkent skyline. DesignSync.get_file capped both files
+// at 256 KiB (server-side limit) and returned `truncated: true`,
+// so the persisted base64 was incomplete and decoded to broken
+// PNGs. Per the user's Q3 fallback rule we ship a hand-built
+// SVG of the real Tashkent silhouette instead — recognisable
+// landmarks left-to-right:
+//
+//   1. Hotel Uzbekistan       (Soviet-era twin-curve tower)
+//   2. International Hotel    (modern slim tower)
+//   3. Khast Imam mosque dome (cental dome + 2 minarets)
+//   4. Hazrati Imam complex   (smaller dome cluster)
+//   5. Tashkent TV Tower      (375 m — the city's tallest)
+//   6. Markaziy Bank tower    (modernist box, antenna)
+//   7. Magic City group       (cluster of 3 modern towers)
+//   8. Plaza Tower            (slim residential tower)
+//   9. Trade Centre block     (low rectangular slab)
+//
+// Theme-aware:
+//   • DARK hero  → silhouette painted cream (#FAFAF9), warm amber
+//                  window dots — silhouette glows against the dark
+//                  brown sky.
+//   • LIGHT hero → silhouette painted deep warm brown (#4A3B30),
+//                  pale-cream window dots — a backlit city against
+//                  the warm beige sky.
+// preserveAspectRatio xMidYMax meet so the skyline always anchors
+// to the BOTTOM edge of the hero across iPhone SE → 17 Pro Max
+// widths (the design's PNGs do the same).
+function TashkentSkyline({ theme }: { theme: 'light' | 'dark' }) {
+  const buildingFill = theme === 'dark' ? '#FAFAF9' : '#4A3B30';
+  const windowFill = theme === 'dark' ? 'rgba(255,231,194,0.78)' : 'rgba(255,231,194,0.85)';
+  const opacity = theme === 'dark' ? 0.55 : 0.4;
   return (
     <svg
       viewBox="0 0 400 140"
-      preserveAspectRatio="none"
+      preserveAspectRatio="xMidYMax meet"
       aria-hidden
-      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: '62%', opacity: 0.42, pointerEvents: 'none' }}
+      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: '75%', opacity, pointerEvents: 'none' }}
     >
-      <g fill="#000">{buildings.map(([x, y, w, h], i) => <rect key={`b${i}`} x={x} y={y} width={w} height={h} />)}</g>
-      <g fill="rgba(255, 230, 200, 0.35)">{windows.map(([x, y], i) => <rect key={`w${i}`} x={x} y={y} width={5} height={5} rx={0.5} />)}</g>
+      <g fill={buildingFill}>
+        {/* 1. Hotel Uzbekistan — distinctive twin-curve tower */}
+        <path d="M2 88 L2 138 L46 138 L46 88 Q46 60 38 56 L38 50 L34 50 L34 56 Q30 58 30 64 L18 64 Q18 58 14 56 L14 50 L10 50 L10 56 Q2 60 2 88 Z" />
+        {/* 2. International Hotel — slim modern tower */}
+        <rect x="52" y="42" width="22" height="96" />
+        <rect x="60" y="32" width="6" height="10" />
+        <polygon points="63,28 60,32 66,32" />
+        {/* 3. Khast Imam mosque — central dome + two minarets */}
+        <rect x="80" y="106" width="48" height="32" />
+        <path d="M104 106 Q104 80 96 78 Q104 76 104 60 Q104 76 112 78 Q104 80 104 106 Z" />
+        <circle cx="104" cy="78" r="14" />
+        <rect x="82" y="62" width="5" height="44" />
+        <circle cx="84.5" cy="60" r="3" />
+        <polygon points="84.5,52 82,60 87,60" />
+        <rect x="121" y="62" width="5" height="44" />
+        <circle cx="123.5" cy="60" r="3" />
+        <polygon points="123.5,52 121,60 126,60" />
+        {/* 4. Hazrati Imam smaller dome cluster */}
+        <rect x="134" y="110" width="30" height="28" />
+        <path d="M149 110 Q149 96 144 95 Q149 94 149 86 Q149 94 154 95 Q149 96 149 110 Z" />
+        <circle cx="149" cy="95" r="8" />
+        {/* 5. Tashkent TV Tower — 375 m, three-leg base, observation pod */}
+        <polygon points="180,138 188,82 198,138" />
+        <polygon points="184,138 188,82 192,138" />
+        <rect x="184" y="74" width="8" height="14" rx="1.5" />
+        <rect x="180" y="66" width="16" height="9" rx="2" />
+        <rect x="186" y="50" width="4" height="16" />
+        <rect x="184" y="42" width="8" height="9" rx="1.5" />
+        <rect x="187" y="22" width="2" height="20" />
+        <circle cx="188" cy="20" r="2.2" />
+        {/* 6. Markaziy Bank tower — modernist with antenna */}
+        <rect x="208" y="58" width="28" height="80" />
+        <rect x="220" y="44" width="4" height="14" />
+        <polygon points="222,38 220,44 224,44" />
+        {/* 7. Magic City — cluster of 3 modern towers (stepped heights) */}
+        <rect x="244" y="72" width="20" height="66" />
+        <rect x="266" y="52" width="22" height="86" />
+        <rect x="290" y="64" width="18" height="74" />
+        {/* 7b. roof crowns */}
+        <polygon points="254,72 244,76 264,76" />
+        <polygon points="277,52 266,58 288,58" />
+        {/* 8. Plaza Tower — slim residential */}
+        <rect x="316" y="46" width="14" height="92" />
+        <rect x="321" y="40" width="4" height="6" />
+        {/* 9. Trade Centre block — low slab */}
+        <rect x="336" y="96" width="62" height="42" />
+        <rect x="336" y="90" width="62" height="6" />
+      </g>
+      <g fill={windowFill}>
+        {/* Hotel Uzbekistan windows */}
+        {[0,1,2,3,4].map(r => [6,12,18,24,30,36].map((x, i) => (
+          <rect key={`hu-${r}-${i}`} x={x} y={94 + r*9} width={3.5} height={4} rx={0.4} />
+        ))).flat()}
+        {/* International Hotel windows */}
+        {[0,1,2,3,4,5,6,7,8,9].map(r => [54, 60, 67].map((x, i) => (
+          <rect key={`ih-${r}-${i}`} x={x} y={48 + r*9} width={2.6} height={3.5} rx={0.4} />
+        ))).flat()}
+        {/* Markaziy Bank windows */}
+        {[0,1,2,3,4,5,6,7].map(r => [210, 216, 222, 228, 233].map((x, i) => (
+          <rect key={`mb-${r}-${i}`} x={x} y={64 + r*9} width={2.6} height={3.5} rx={0.4} />
+        ))).flat()}
+        {/* Magic City windows */}
+        {[0,1,2,3,4,5,6].map(r => [246, 251, 257, 262].map((x, i) => (
+          <rect key={`mc1-${r}-${i}`} x={x} y={78 + r*8} width={2.4} height={3} rx={0.3} />
+        ))).flat()}
+        {[0,1,2,3,4,5,6,7,8].map(r => [268, 273, 279, 284].map((x, i) => (
+          <rect key={`mc2-${r}-${i}`} x={x} y={60 + r*8} width={2.4} height={3} rx={0.3} />
+        ))).flat()}
+        {[0,1,2,3,4,5,6,7].map(r => [292, 297, 302].map((x, i) => (
+          <rect key={`mc3-${r}-${i}`} x={x} y={70 + r*8} width={2.4} height={3} rx={0.3} />
+        ))).flat()}
+        {/* Plaza Tower */}
+        {[0,1,2,3,4,5,6,7,8,9,10].map(r => [318, 323, 327].map((x, i) => (
+          <rect key={`pt-${r}-${i}`} x={x} y={52 + r*8} width={2.2} height={3} rx={0.3} />
+        ))).flat()}
+        {/* Trade Centre */}
+        {[0,1,2,3].map(r => [340, 348, 356, 364, 372, 380, 388].map((x, i) => (
+          <rect key={`tc-${r}-${i}`} x={x} y={102 + r*9} width={3} height={3.5} rx={0.4} />
+        ))).flat()}
+      </g>
     </svg>
   );
 }
 
+// v118.25 — 14-star twinkle field for the dark hero sky.
+// Coordinates are %, sizes are px. Animation keyframes
+// (kzTwinkle) live in index.css.
+const HERO_STARS: Array<[number, number, number]> = [
+  [9,16,2.5],[18,30,2],[27,12,2.5],[35,24,2],[44,15,2.5],[7,40,2],
+  [61,11,2.5],[69,26,2],[78,15,3],[87,30,2],[92,19,2.5],[54,32,1.8],[15,52,2],[88,44,2],
+];
+
 function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, unread, brand, logo }: any) {
-  // Time-of-day greeting (per Claude Design §01-glavnaya).
+  // v118.84 — STEP 2 (clean fixed conversion on verified v225 baseline).
+  // ResizeObserver measures the hero's height on every layout change
+  // (greeting wrap, theme toggle, safe-area, tenant name swap) and
+  // writes it to a CSS variable --home-hero-h on documentElement.
+  // The ResidentHomeDesign wrapper reserves that height as paddingTop
+  // so the first content section starts right below the hero.
+  // Cleanup on unmount removes the var so other .kz-screen pages
+  // aren't affected.
+  const heroRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+    const update = () => {
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      if (h > 0) document.documentElement.style.setProperty('--home-hero-h', `${h}px`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--home-hero-h');
+    };
+  }, []);
+  // v118.25 — full-bleed hero per new screens/01-glavnaya.html.
+  // Theme-aware via useThemeStore (Q1=B keeps tenant logo/name in
+  // the center; Q2=B keeps time-of-day greeting). Compact typography
+  // per handoff: name 30 / lineHeight 1.05; address pill 8x13;
+  // count chip 8x12 with digit 22. Theme toggle now rendered
+  // top-right next to the bell. Dark variant gets a 14-star
+  // twinkle field (HERO_STARS); light variant gets the sun disc.
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggle);
+  const isLight = theme === 'light';
   const hour = new Date().getHours();
   const greetRu = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
   const greetUz = hour < 6 ? 'Hayrli tun' : hour < 12 ? 'Hayrli tong' : hour < 18 ? 'Hayrli kun' : 'Hayrli kech';
+
+  const bg = isLight
+    ? 'linear-gradient(165deg, #FFE2B0 0%, #FFC889 46%, #F6AF6A 100%)'
+    : 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)';
+  const heroEdge = isLight ? '#F6AF6A' : '#34291F';
+  const onHero = isLight ? '#3A2A1C' : '#F4F0E8';
+  const onHeroSoft = isLight ? 'rgba(58,42,28,0.62)' : 'rgba(244,240,232,0.78)';
+  const onHeroSofter = isLight ? 'rgba(58,42,28,0.55)' : 'rgba(244,240,232,0.7)';
+  const glassBg = isLight ? 'rgba(255,255,255,0.32)' : 'rgba(244,240,232,0.12)';
+  const glassBorder = isLight ? 'rgba(58,42,28,0.12)' : 'rgba(244,240,232,0.14)';
+  const pinColor = isLight ? '#C2410C' : '#FB923C';
+  const chipBg = isLight ? 'rgba(255,255,255,0.5)' : 'rgba(249,115,22,0.22)';
+  const chipBorder = isLight ? 'rgba(194,65,12,0.22)' : 'rgba(249,115,22,0.4)';
+  const chipNum = isLight ? '#C2410C' : '#FDBA74';
+  // Menu burger bars + brand-K letter stay orange in BOTH themes (brand
+  // identity), but use the darker C2410C in light mode so the orange
+  // doesn't bleach against the beige sky.
+  const menuStroke = isLight ? '#C2410C' : '#FDBA74';
+  // Wash gradient over the hero — warm sun-glow in light mode, the
+  // existing brand-orange / amber radial blend in dark mode.
+  const washBg = isLight
+    ? 'radial-gradient(60% 50% at 84% -6%, rgba(255,247,230,0.85) 0%, transparent 60%)'
+    : 'radial-gradient(90% 70% at 88% -10%, rgba(251,146,60,0.5) 0%, transparent 55%), radial-gradient(70% 60% at 0% 110%, rgba(217,119,6,0.18) 0%, transparent 60%)';
+  const washOpacity = isLight ? 0.8 : 0.55;
+  const wordmarkColor = isLight ? '#3A2A1C' : '#F4F0E8';
+
   return (
     <div
+      ref={heroRef}
       style={{
-        position: 'relative',
-        background: 'linear-gradient(160deg, #4A3B30 0%, #34291F 55%, #2A2018 100%)',
-        // Floating rounded card: rounded on ALL corners with a light gap above
-        // so the status-bar zone paints the light page bg (--app-bg), not the
-        // brown gradient. margin-top = env(safe-area-inset-top) + 10px keeps
-        // the brown strictly BELOW the iOS status bar / notch.
-        borderRadius: 28,
-        margin: 'calc(env(safe-area-inset-top, 0px) + 10px) 12px 0',
-        padding: '20px 18px 22px',
+        // v118.84 STEP 2 — position:fixed (was sticky in v225).
+        // Rubber-band overscroll on .main-content cannot drag a
+        // viewport-fixed element. v225 was visually correct but
+        // sticky bounced with iOS WKWebView's elastic scroll.
+        // padding-top: env(safe-area-inset-top) + 14 — unchanged
+        // from v225/v222 → icon row below notch, gradient fills box.
+        // index.css's kzPagePushIn/PopIn end-keyframe is `transform:
+        // none` (v224, retained) → no lingering containing block
+        // after page-enter animation, so the fixed hero is truly
+        // viewport-fixed once the animation completes. DURING the
+        // 280ms enter animation, kz-screen has translateX → fixed
+        // hero slides in WITH the page (intended).
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        // v118.86 — defensive GPU layer. translateZ(0) is an identity
+        // visual transform but forces iOS WebKit to render the hero on
+        // its own compositor layer that is independent of document/
+        // WebView overscroll translation. Even if some residual quirk
+        // tries to bounce content, the hero is on a separate layer that
+        // doesn't move. willChange:transform makes the GPU promotion
+        // explicit. Safe because hero has no position:fixed descendants
+        // (children are positioned absolute/relative to the hero box).
+        transform: 'translateZ(0)',
+        willChange: 'transform',
+        background: bg,
+        // v118.25 — FULL-BLEED per new handoff. Sky paints the
+        // status-bar safe area too; bottom corners stay rounded
+        // (xl). padding-top includes env(safe-area-inset-top) so
+        // the menu / logo / bell row never collides with the notch.
+        // bg fills the entire padding box → the notch zone is
+        // painted with the hero gradient, eliminating any beige
+        // strip above the hero.
+        borderRadius: '0 0 28px 28px',
+        margin: 0,
+        // v118.88 — defensive padding-top via max(): floor of 68px
+        // guarantees the icon row (44px buttons) sits clearly below
+        // ANY notch / Dynamic Island even if env(safe-area-inset-top)
+        // returns 0 in some WKWebView contexts (the failure mode in
+        // v228-v229 where drawer + bell were cut by the status bar).
+        // On a real notched device, env(safe-area-inset-top) ≈ 47-59
+        // and the calc adds +18 → ~65-77px, which the 68px floor
+        // gracefully clears. Side padding (18) and bottom (26)
+        // unchanged.
+        padding: 'max(68px, calc(env(safe-area-inset-top, 0px) + 18px)) 18px 26px',
         overflow: 'hidden',
-        color: 'var(--text-on-dark)',
+        color: onHero,
       }}
     >
-      <div style={{ position: 'absolute', inset: 0, opacity: 0.55, background: 'radial-gradient(90% 70% at 88% -10%, rgba(251,146,60,0.5) 0%, transparent 55%), radial-gradient(70% 60% at 0% 110%, rgba(217,119,6,0.18) 0%, transparent 60%)' }} />
-      <CityBackground />
+      <div style={{ position: 'absolute', inset: 0, opacity: washOpacity, background: washBg, pointerEvents: 'none' }} />
+      {/* Sun disc — light theme only, top-right of the hero per handoff */}
+      {isLight && (
+        <div style={{
+          position: 'absolute', top: -26, right: 6, width: 150, height: 150, borderRadius: '50%',
+          background: 'radial-gradient(circle at 50% 50%, #FFFBEF 0%, #FFE79A 34%, rgba(252,211,77,0.55) 58%, rgba(251,191,36,0) 72%)',
+          pointerEvents: 'none',
+        }} />
+      )}
+      {/* Stars — dark theme only, twinkle via @keyframes kzTwinkle */}
+      {!isLight && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden>
+          {HERO_STARS.map(([x, y, size], i) => (
+            <span key={i} style={{
+              position: 'absolute', left: `${x}%`, top: `${y}%`,
+              width: size, height: size, borderRadius: '50%', background: '#F4F0E8',
+              animation: `kzTwinkle ${3 + (i % 3)}s ease-in-out ${(i * 0.22).toFixed(2)}s infinite`,
+            }} />
+          ))}
+        </div>
+      )}
+      {/* v118.27 — BOTH skyline variants are now the user's real
+          Tashkent raster PNGs from the design handoff. LIGHT
+          variant re-exported smaller (171 KB after DesignSync, IEND
+          intact, 720×214) — replaces the inline SVG fallback that
+          v166 was using. DARK variant unchanged from v166 (169 KB,
+          880×209). Per-theme opacity matches the design's handoff:
+          dark sky 0.62, light sky 0.5 (the beige hero needs a
+          softer silhouette so the dark-brown buildings don't fight
+          the warm gradient). Wrapper is identical for both — full-
+          bleed absolute, anchored to the hero's bottom edge,
+          objectPosition:bottom + width:100%/height:auto so the
+          aspect ratio is preserved at every viewport from SE to
+          17 Pro Max. The TashkentSkyline SVG component stays
+          defined in this file as a safety net in case the PNGs
+          ever fail to load on a particular device. */}
+      <img
+        src={isLight ? '/screens/skyline-light.png' : '/screens/skyline-dark.png'}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{
+          position: 'absolute',
+          left: 0, right: 0, bottom: 0, width: '100%',
+          height: 'auto',
+          objectFit: 'cover',
+          objectPosition: 'bottom',
+          opacity: isLight ? 0.5 : 0.62,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-        <button onClick={onMenu} style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', display: 'grid', placeItems: 'center', cursor: 'pointer' }} aria-label="Меню">
-          <svg width="22" height="15" viewBox="0 0 22 15"><rect y="0" width="22" height="3" rx="1.5" fill="#FDBA74"/><rect y="6" width="15" height="3" rx="1.5" fill="#FDBA74"/><rect y="12" width="22" height="3" rx="1.5" fill="#FDBA74"/></svg>
+        <button onClick={onMenu} style={{ width: 44, height: 44, borderRadius: 14, background: glassBg, border: `1px solid ${glassBorder}`, display: 'grid', placeItems: 'center', cursor: 'pointer' }} aria-label="Меню">
+          <svg width="22" height="15" viewBox="0 0 22 15"><rect y="0" width="22" height="3" rx="1.5" fill={menuStroke}/><rect y="6" width="15" height="3" rx="1.5" fill={menuStroke}/><rect y="12" width="22" height="3" rx="1.5" fill={menuStroke}/></svg>
         </button>
         {/* Centered Kamizo wordmark — bigger K tile (34) + bigger Kamizo (19) per LEFT mockup.
-            Every text node below has an EXPLICIT color (hex literals, not vars) so
-            inheritance from body{color:#1a1a1a} cannot turn the white text dark even if
+            Every text node below has an EXPLICIT color (hex literals via wordmarkColor) so
+            inheritance from body{color:#1a1a1a} cannot turn the cream text dark even if
             the CSS bundle is the old cached one. */}
         {/* `whiteSpace: 'nowrap'` on both wrapper and label so multi-word
              УК names ("Kamizo Demo", "Sky Park Tashkent") stay on a
@@ -92,7 +340,7 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
           {logo ? (
             // Real УК logo from tenants.logo (data:image/…;base64,…) routed
             // through useTenantStore. White inner background mirrors the
-            // sidebar chip so transparent PNGs read on the dark hero.
+            // sidebar chip so transparent PNGs read on either sky.
             <div style={{ width: 34, height: 34, borderRadius: 10, background: '#FFFFFF', display: 'grid', placeItems: 'center', overflow: 'hidden', flex: '0 0 auto', border: '1px solid rgba(249,115,22,0.4)' }}>
               <img src={logo} alt={brand || 'Kamizo'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
@@ -100,35 +348,58 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
             // No logo on file — letter-chip from the УК name (first letter)
             // instead of a hardcoded "K", so a brand-new tenant without a
             // logo doesn't impersonate the Kamizo brandmark.
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', display: 'grid', placeItems: 'center', color: '#FDBA74', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', flex: '0 0 auto' }}>{(brand || 'K').trim().charAt(0).toUpperCase()}</div>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', display: 'grid', placeItems: 'center', color: menuStroke, fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', flex: '0 0 auto' }}>{(brand || 'K').trim().charAt(0).toUpperCase()}</div>
           )}
-          <div style={{ fontSize: 19, fontWeight: 700, color: '#F4F0E8', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{brand || 'Kamizo'}</div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: wordmarkColor, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{brand || 'Kamizo'}</div>
         </div>
-        <button onClick={onBell} style={{ position: 'relative', width: 44, height: 44, borderRadius: 14, background: bellOpen ? 'var(--brand, #F97316)' : 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: bellOpen ? '#fff' : '#F4F0E8' }} aria-label="Уведомления">
-          <IBell size={20} />
-          {unread > 0 && <span style={{ position: 'absolute', top: 8, right: 9, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: '#EF4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', border: '2px solid #34291F' }}>{unread}</span>}
-        </button>
+        {/* v118.25 — Right cluster: theme toggle + bell, per new
+            handoff. Toggle wired to useThemeStore.toggle so one tap
+            re-themes the whole app (same store the Profile page's
+            ThemeToggle already uses). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={toggleTheme}
+            style={{ width: 44, height: 44, borderRadius: 14, background: glassBg, border: `1px solid ${glassBorder}`, display: 'grid', placeItems: 'center', cursor: 'pointer', color: onHero }}
+            aria-label={isLight ? 'Тёмная тема' : 'Светлая тема'}
+          >
+            {isLight ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14.2A8 8 0 1 1 9.8 4 6.3 6.3 0 0 0 20 14.2z" /></svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="4.2" /><path d="M12 2v2.6M12 19.4V22M2 12h2.6M19.4 12H22M4.9 4.9l1.85 1.85M17.25 17.25l1.85 1.85M4.9 19.1l1.85-1.85M17.25 6.75l1.85-1.85" /></svg>
+            )}
+          </button>
+          <button onClick={onBell} style={{ position: 'relative', width: 44, height: 44, borderRadius: 14, background: bellOpen ? 'var(--brand, #F97316)' : glassBg, border: `1px solid ${glassBorder}`, display: 'grid', placeItems: 'center', cursor: 'pointer', color: bellOpen ? '#fff' : onHero }} aria-label="Уведомления">
+            <IBell size={20} />
+            {unread > 0 && <span style={{ position: 'absolute', top: 8, right: 9, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: '#EF4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', border: `2px solid ${heroEdge}` }}>{unread}</span>}
+          </button>
+        </div>
       </div>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(244,240,232,0.78)' }}>{ru(language, greetRu, greetUz)} 👋</div>
-          {/* Name — EXPLICIT #F4F0E8 (warm white) instead of relying on inheritance
-              from the hero's color var. This is the line the user reported as "black". */}
-          <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 6, color: '#F4F0E8' }}>{name}</div>
-          {/* Hide the whole pin+address chip when there's no address —
-              otherwise residents whose row has no address/apartment yet
-              (or admin-created stub accounts) see a floating pin icon
-              chip with empty text. */}
+          {/* v118.25 — compact greeting per handoff (14 instead of 15
+              + letterSpacing -0.01em). Greeting stays time-of-day
+              driven per Q2=B. */}
+          <div style={{ fontSize: 14, fontWeight: 600, color: onHeroSoft, letterSpacing: '-0.01em' }}>{ru(language, greetRu, greetUz)} 👋</div>
+          {/* v118.25 — compact name per handoff: 30 / 1.05 / mt 3
+              (v164 had 48 / 1 / 6). */}
+          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 3, color: onHero }}>{name}</div>
+          {/* v118.25 — compact glass address pill per handoff:
+              padding 8x13, marginTop 14, borderRadius 13.
+              Hide the whole pin+address chip when there's no
+              address — otherwise stub accounts see an empty pill. */}
           {apt && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 16, padding: '9px 14px', background: 'rgba(244,240,232,0.12)', border: '1px solid rgba(244,240,232,0.14)', backdropFilter: 'blur(8px)', borderRadius: 14, fontSize: 13.5, fontWeight: 600, color: '#F4F0E8' }}>
-              <IPin size={15} style={{ color: '#FB923C' }} />{apt}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 14, padding: '8px 13px', background: glassBg, border: `1px solid ${glassBorder}`, backdropFilter: 'blur(8px)', borderRadius: 13, fontSize: 13.5, fontWeight: 600, color: onHero, letterSpacing: '-0.01em' }}>
+              <IPin size={15} style={{ color: pinColor }} />{apt}
             </div>
           )}
         </div>
-        {/* Active-count chip — taller square card matching LEFT mockup: digit 34, ~88px wide. */}
-        <div style={{ flex: '0 0 auto', padding: '16px 18px', borderRadius: 18, background: 'rgba(249,115,22,0.22)', border: '1px solid rgba(249,115,22,0.4)', textAlign: 'center', minWidth: 88, backdropFilter: 'blur(6px)' }}>
-          <div style={{ fontSize: 34, fontWeight: 800, color: '#FDBA74', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{activeCount}</div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(244,240,232,0.8)', marginTop: 6, lineHeight: 1.2 }}>{ru(language, 'активные', 'faol')}<br/>{ru(language, 'заявки', 'arizalar')}</div>
+        {/* v118.25 — compact active-count chip per handoff: padding
+            8x12, borderRadius 13, digit 22, sub 10.5 — no fixed
+            minWidth (was 16x18 / radius 18 / digit 34 / sub 11 /
+            minWidth 88 in v164). */}
+        <div style={{ flex: '0 0 auto', padding: '8px 12px', borderRadius: 13, background: chipBg, border: `1px solid ${chipBorder}`, textAlign: 'center', backdropFilter: 'blur(6px)' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: chipNum, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{activeCount}</div>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: onHeroSofter, marginTop: 3, lineHeight: 1.2 }}>{ru(language, 'активные', 'faol')}<br/>{ru(language, 'заявки', 'arizalar')}</div>
         </div>
       </div>
     </div>
@@ -258,6 +529,11 @@ function AnnMini({ items, language, onOpen }: any) {
 function useShouldShowInstallPrompt(): boolean {
   const detectInstalled = (): boolean => {
     if (typeof window === 'undefined') return false;
+    // v118.3 — Capacitor native shell IS the "installed app". Neither
+    // display-mode:standalone nor navigator.standalone fire inside
+    // WKWebView, so short-circuit to "installed" here before falling
+    // through to the PWA-specific detectors.
+    if (Capacitor.isNativePlatform()) return true;
     if (window.matchMedia?.('(display-mode: standalone)')?.matches) return true;
     if (window.matchMedia?.('(display-mode: fullscreen)')?.matches) return true;
     if (window.matchMedia?.('(display-mode: minimal-ui)')?.matches) return true;
@@ -345,8 +621,10 @@ interface Props {
 export function ResidentHomeDesign(props: Props) {
   const { language, name, apt, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, brand, logo = null, passCount = 0, vehicleCount = 0, needsRegistration = false, registrationMissing, onNewRequest, onTab, onMenu, onCompleteRegistration, onApprove, onOpenRequest } = props;
   const navigate = useNavigate();
+  // v118.72 — bell toggles the NotificationsDropdown panel (was: navigate
+  // to /announcements). Dropdown is mounted just below the hero (anchor
+  // offset 96 px) per kamizo-home.jsx prototype.
   const [bell, setBell] = useState(false);
-  void bell;
   // Mobile uses width:100vw + negative auto margins to break out of any
   // ancestor padding. On desktop that breaks out PAST the sidebar too — the
   // hero ends up covering the global navigation. Drop the break-out for ≥md;
@@ -371,16 +649,21 @@ export function ResidentHomeDesign(props: Props) {
       ? ru(language, `Не заполнено: ${registrationMissing}`, `To'ldirilmagan: ${registrationMissing}`)
       : ru(language, 'Не заполнено: пароль', "To'ldirilmagan: parol"),
     cta: ru(language, 'Заполнить →', "To'ldirish →"),
-    gradient: 'linear-gradient(150deg, #2DD4BF 0%, #0E9488 100%)',
-    shadow: 'rgba(14,148,136,0.5)',
+    // v118.71 — gradient + shadow tweaked to match LIVE design exactly
+    // (cyan-leaning teal vs. previous bluegray-leaning teal).
+    gradient: 'linear-gradient(150deg, #2DD4CF 0%, #0E9AAB 100%)',
+    shadow: 'rgba(14,154,171,0.5)',
     onClick: () => { if (onCompleteRegistration) onCompleteRegistration(); else navigate('/profile'); },
   };
   const baseCards = [
-    { id: 'voting', Icon: IUsers, silhouette: 'people', badge: ru(language, 'Голосование', 'Ovoz'), title: ru(language, 'Идёт голосование', 'Ovoz berish'), sub: ru(language, 'Ваш голос важен', 'Ovozingiz muhim'), cta: ru(language, 'Проголосовать →', 'Ovoz berish →'), gradient: 'linear-gradient(150deg, #FB923C 0%, #EA580C 100%)', shadow: 'rgba(249,115,22,0.5)', onClick: () => navigate('/meetings') },
+    // v118.71 — silhouette 'people' → 'ballot' + richer title/sub copy to match LIVE design.
+    { id: 'voting', Icon: IUsers, silhouette: 'ballot', badge: ru(language, 'Голосование', 'Ovoz'), title: ru(language, 'Ремонт лифтов · идёт голосование', "Liftlarni ta'mirlash · ovoz berilmoqda"), sub: ru(language, 'Ваш голос · 67 м² · осталось 2 дня', "Sizning ovozingiz · 67 m² · 2 kun qoldi"), cta: ru(language, 'Проголосовать →', 'Ovoz berish →'), gradient: 'linear-gradient(150deg, #FB923C 0%, #EA580C 100%)', shadow: 'rgba(249,115,22,0.5)', onClick: () => navigate('/meetings') },
     { id: 'guest', Icon: IQR, silhouette: 'qr', badge: 'QR', title: ru(language, 'Гостевой пропуск', 'Mehmon ruxsati'), sub: ru(language, 'QR для гостя или доставки', 'Mehmon yoki yetkazib berish uchun'), cta: ru(language, 'Создать →', 'Yaratish →'), gradient: 'linear-gradient(150deg, #34D399 0%, #15A06E 100%)', shadow: 'rgba(21,160,110,0.5)', onClick: () => navigate('/guest-access') },
-    { id: 'rate', Icon: IStar, silhouette: 'star', badge: ru(language, 'Оценка', 'Baho'), title: ru(language, 'Оцените УК', 'Boshqaruvni baholang'), sub: ru(language, 'Раз в месяц · 30 секунд', 'Oyiga bir marta'), cta: ru(language, 'Оценить →', 'Baholash →'), gradient: 'linear-gradient(150deg, #A78BFA 0%, #7C3AED 100%)', shadow: 'rgba(124,58,237,0.5)', onClick: () => navigate('/rate-employees') },
-    { id: 'contacts', Icon: IPhone, silhouette: 'phone', badge: ru(language, 'Контакты', 'Kontaktlar'), title: ru(language, 'Полезные контакты', 'Foydali kontaktlar'), sub: ru(language, 'Экстренные службы и мастера', 'Favqulodda xizmatlar'), cta: ru(language, 'Открыть →', 'Ochish →'), gradient: 'linear-gradient(150deg, #60A5FA 0%, #2F77C2 100%)', shadow: 'rgba(47,119,194,0.5)', onClick: () => navigate('/useful-contacts') },
-    { id: 'find-car', Icon: ICar, silhouette: 'car', badge: ru(language, 'Авто', 'Avto'), title: ru(language, 'Найти владельца авто', 'Avto egasini topish'), sub: ru(language, 'Поиск соседа по номеру', 'Raqam bo\'yicha qidirish'), cta: ru(language, 'Найти →', 'Topish →'), gradient: 'linear-gradient(150deg, #FBBF24 0%, #D97706 100%)', shadow: 'rgba(217,119,6,0.5)', onClick: () => navigate('/vehicles') },
+    // v118.69 — order swapped to match handoff §01: contacts (blue) before rate (purple).
+    // v118.71 — sub copy expanded to match LIVE design ('и мастера дома', 'займёт 30 секунд', 'по номеру машины').
+    { id: 'contacts', Icon: IPhone, silhouette: 'phone', badge: ru(language, 'Контакты', 'Kontaktlar'), title: ru(language, 'Полезные контакты', 'Foydali kontaktlar'), sub: ru(language, 'Экстренные службы и мастера дома', "Favqulodda xizmatlar va uy ustalari"), cta: ru(language, 'Открыть →', 'Ochish →'), gradient: 'linear-gradient(150deg, #60A5FA 0%, #2F77C2 100%)', shadow: 'rgba(47,119,194,0.5)', onClick: () => navigate('/useful-contacts') },
+    { id: 'rate', Icon: IStar, silhouette: 'star', badge: ru(language, 'Оценка', 'Baho'), title: ru(language, 'Оцените УК', 'Boshqaruvni baholang'), sub: ru(language, 'Раз в месяц · займёт 30 секунд', "Oyiga bir marta · 30 soniya oladi"), cta: ru(language, 'Оценить →', 'Baholash →'), gradient: 'linear-gradient(150deg, #A78BFA 0%, #7C3AED 100%)', shadow: 'rgba(124,58,237,0.5)', onClick: () => navigate('/rate-employees') },
+    { id: 'find-car', Icon: ICar, silhouette: 'car', badge: ru(language, 'Авто', 'Avto'), title: ru(language, 'Найти владельца авто', 'Avto egasini topish'), sub: ru(language, 'Поиск соседа по номеру машины', "Mashina raqami bo'yicha qidirish"), cta: ru(language, 'Найти →', 'Topish →'), gradient: 'linear-gradient(150deg, #FBBF24 0%, #D97706 100%)', shadow: 'rgba(217,119,6,0.5)', onClick: () => navigate('/vehicles') },
   ];
   const cards = needsRegistration ? [registrationCard, ...baseCards] : baseCards;
 
@@ -395,12 +678,21 @@ export function ResidentHomeDesign(props: Props) {
     <div
       className="kz-screen"
       style={{
+        // v118.87 — wrapper now fills the container with a flex column
+        // so the dedicated INNER SCROLLER (.home-scroll, below) can take
+        // the remaining height as a controlled scroll context. The fixed
+        // hero is a sibling of the scroller (NOT inside it) so iOS
+        // WKWebView's bounce on the scroller cannot translate the hero.
+        // iOS reliably honors `overscroll-behavior: none` on a
+        // non-document scroller, which it ignores on .main-content's
+        // document-coupled scrolling — moving the home scroll inwards
+        // is the fix the previous 4 defence-in-depth layers couldn't be.
+        height: '100%',
         minHeight: '100%',
         background: 'var(--app-bg)',
-        // Pill (~68px) + safe-area-inset-bottom + breathing room. Without
-        // this, the last card (BalanceCard / PWA banner) is hidden behind
-        // the portal-mounted fixed TabBar.
-        paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
         // Mobile: break out of any horizontal padding on parent main so the
         // hero reaches the edges. Desktop: stay inside main-content's column
         // — otherwise the hero spans the whole viewport and slides under the
@@ -410,8 +702,39 @@ export function ResidentHomeDesign(props: Props) {
         marginRight: isMobile ? 'calc(50% - 50vw)' : 0,
       }}
     >
-      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} logo={logo} onMenu={onMenu} onBell={() => { setBell((b) => !b); navigate('/announcements'); }} bellOpen={bell} />
+      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} logo={logo} onMenu={onMenu} onBell={() => setBell((b) => !b)} bellOpen={bell} />
+      <NotificationsDropdown
+        open={bell}
+        onClose={() => setBell(false)}
+        onSeeAll={() => { setBell(false); navigate('/notifications'); }}
+      />
 
+      {/* v118.87 — dedicated INNER SCROLLER. iOS WKWebView honors
+          overscroll-behavior:none reliably on a non-document scroller
+          (it ignores it on the document-coupled .main-content). The
+          fixed hero sits OUTSIDE this element so even if some quirk
+          tries to bounce the inner content, the hero cannot move
+          with it. -webkit-overflow-scrolling:touch enables native
+          momentum scrolling here — on an isolated inner element it
+          coexists with overscroll-behavior:none correctly.
+          flex:1 + minHeight:0 ensures the scroller fills the wrapper's
+          remaining height (after the fixed hero is laid out out of
+          flow). paddingTop reserves the hero's measured height so the
+          first card lands right below it; paddingBottom reserves the
+          floating BottomBar. */}
+      <div
+        className="home-scroll"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          paddingTop: 'var(--home-hero-h, 220px)',
+          paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
       <div style={{ ...section, marginTop: 18 }}>
         {/* Card height bumped 210 → 250 so the densest card
             (registration: 2-line title + sub + "Заполнить →") fits
@@ -474,6 +797,7 @@ export function ResidentHomeDesign(props: Props) {
       {/* No bottom navigation rendered here — the global BottomBar in
           src/components/BottomBar.tsx is mounted by Layout for every
           resident route and now owns the floating-pill design. */}
+      </div>{/* /home-scroll inner scroller */}
     </div>
   );
 }

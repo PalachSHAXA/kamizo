@@ -10,6 +10,7 @@ import {
   ROLE_LABELS_RU, ROLE_LABELS_UZ, ROLE_COLORS,
   SPECIALIZATION_ICONS, SPECIALIZATION_COLORS,
 } from './constants';
+import { getRoleIcon, initialsOf } from '../../../utils/roleIcon';
 
 // Sprint 31: extracted from TeamPage. Compact card for one staff
 // member — avatar/specialty icon, name, role chip, status badge,
@@ -48,17 +49,34 @@ export function StaffCard({ member, onOpen, onDelete, getSpecLabel, getStatusBad
 
       <div className="flex items-start justify-between mb-2 sm:mb-3 pr-8">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div
-            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-lg font-medium flex-shrink-0 ${
-              member.specialization
-                ? SPECIALIZATION_COLORS[member.specialization]
-                : 'bg-primary-100 text-primary-700'
-            }`}
-          >
-            {member.specialization
+          {/* v118.19 — Specialty icon wins when present (plumber →
+              wrench, electrician → bolt, etc — most specific).
+              Fallback for non-specialised staff (admins, managers,
+              directors, advertisers) is now the central role icon
+              (Building2 for management). super_admin + any unmapped
+              future role still fall through to initials so nothing
+              breaks. Pale primary tile preserved per StaffCard's
+              design — RoleAvatar isn't used here because the card
+              uses Tailwind classes for sizing across breakpoints. */}
+          {(() => {
+            const RoleI = getRoleIcon(member.role);
+            const inner = member.specialization
               ? SPECIALIZATION_ICONS[member.specialization]
-              : member.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-          </div>
+              : RoleI
+                ? <RoleI className="w-5 h-5 sm:w-6 sm:h-6" />
+                : initialsOf(member.name);
+            return (
+              <div
+                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-lg font-medium flex-shrink-0 ${
+                  member.specialization
+                    ? SPECIALIZATION_COLORS[member.specialization]
+                    : 'bg-primary-100 text-primary-700'
+                }`}
+              >
+                {inner}
+              </div>
+            );
+          })()}
           <div className="min-w-0">
             <h3 className="font-semibold text-sm sm:text-base truncate" title={member.name}>
               {formatName(member.name)}

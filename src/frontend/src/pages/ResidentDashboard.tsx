@@ -3,7 +3,7 @@ import { InstallAppBanner } from '../components/InstallAppSection';
 import {
   ChevronRight, CheckCircle2, Clock as ClockIcon
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -12,6 +12,7 @@ import { useTenantStore } from '../stores/tenantStore';
 import { useFinanceStore } from '../stores/financeStore';
 import { useVehicleStore } from '../stores/vehicleStore';
 import { useGuestAccessStore } from '../stores/guestAccessStore';
+import { useNotificationStore } from '../stores/notificationStore';
 import type { Request, RescheduleRequest } from '../types';
 import { formatAddress } from '../utils/formatAddress';
 import { formatName } from '../utils/formatName';
@@ -31,6 +32,12 @@ import type { ActiveTab, RequestsSubTab } from './resident/components';
 
 export function ResidentDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
+  // v118.74 — react-router navigate replaces window.location.assign for
+  // in-app routes. window.location.assign() on Capacitor reloads the
+  // WebView from the app shell — Capacitor's SplashScreen plugin re-shows,
+  // which the user perceived as a crash / restart in v216 when tapping
+  // the "Завершите регистрацию" CTA.
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   // Audit P0: was 2× useDataStore() (full barrel) on the resident home —
   // every cross-store update re-rendered the dashboard. Focused selectors
@@ -187,6 +194,25 @@ export function ResidentDashboard() {
   const userBranch = user?.branch || '';
   const userApartment = user?.apartment || '';
   const userId = user?.id || '';
+  // v118.73 — bell badge counts UNSEEN, not unread.
+  // v118.76 — FIXED: previous version called
+  //   useNotificationStore(s => s.notifications.filter(n => n.userId === userId))
+  // which returned a NEW Array on every snapshot read. Zustand v4
+  // uses React's useSyncExternalStore — the snapshot fn MUST be
+  // referentially stable when the store hasn't changed; a fresh
+  // .filter() array tripped React's "snapshot changed without
+  // external update" check → infinite re-render → React error #185
+  // ("Maximum update depth exceeded") on the next route transition.
+  //
+  // Correct shape: subscribe to the raw notifications array (stable
+  // ref while store unchanged) and derive the per-user filter in
+  // useMemo (recomputes only when notifications OR userId changes).
+  const notifications = useNotificationStore(s => s.notifications);
+  const lastSeenAt = useNotificationStore(s => s.notificationsLastSeenAt[userId] || '');
+  const allNotificationsForUser = useMemo(
+    () => notifications.filter(n => n.userId === userId),
+    [notifications, userId]
+  );
   const latestAnnouncements = useMemo(() => {
     const list = getAnnouncementsForResidents(userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment);
     return list.filter(a => !a.viewedBy?.includes(userId)).slice(0, 3);
@@ -247,6 +273,23 @@ export function ResidentDashboard() {
           there is exactly one header and one bottom nav. */}
       {activeTab === 'home' && (() => {
         const firstName = (formatName(user?.name).split(' ')[0]) || formatName(user?.name);
+        // v118.72 — combined notification unread count (notifications +
+        // unviewed announcements) for the bell badge. Was missing — bell
+        // always rendered "0" before. Announcements that the resident
+        // hasn't viewed contribute to the badge because they show in the
+        // dropdown / /notifications feed too.
+        // v118.73 — unseen = items with createdAt > lastSeenAt. When
+        // lastSeenAt is empty (first run), every notification + every
+        // unviewed announcement counts. Open the bell dropdown OR the
+        // /notifications page → markNotificationsSeen() stamps "now"
+        // → badge goes to 0.
+        const unseenNotif = lastSeenAt
+          ? allNotificationsForUser.filter(n => (n.createdAt || '') > lastSeenAt).length
+          : allNotificationsForUser.length;
+        const unseenAnn = lastSeenAt
+          ? latestAnnouncements.filter(a => (a.createdAt || '') > lastSeenAt).length
+          : latestAnnouncements.length;
+        const unreadCount = unseenNotif + unseenAnn;
         return (
           <ResidentHomeDesign
             language={language}
@@ -257,6 +300,7 @@ export function ResidentDashboard() {
             pendingReschedules={pendingReschedules}
             meeting={activeMeetings[0] || null}
             announcements={latestAnnouncements}
+            unread={unreadCount}
             brand={tenantName}
             logo={tenantLogo}
             passCount={passCount}
@@ -266,7 +310,7 @@ export function ResidentDashboard() {
             onNewRequest={() => setShowAllServices(true)}
             onTab={switchTab}
             onMenu={() => window.dispatchEvent(new Event('open-sidebar'))}
-            onCompleteRegistration={() => window.location.assign('/profile')}
+            onCompleteRegistration={() => navigate('/profile')}
             onApprove={(req) => handleApproveClick(req)}
             onOpenRequest={(req) => setSelectedRequest(req)}
           />

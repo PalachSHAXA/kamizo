@@ -85,6 +85,11 @@
   --chat-page-gradient: linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%);
   --chat-strip-bg: rgba(250,250,249,0.95);
   --chat-strip-border: rgba(0,0,0,0.06);
+  /* v118.66 — sticky-header glass background для модалов с blurred top
+     bar (MeetingVotingModal TopBar). Светлый полупрозрачный для light,
+     тёмный полупрозрачный для dark — переключается через html.dark
+     ниже. */
+  --header-glass-bg: rgba(245,245,244,0.85);
   --chat-bubble-in-bg: #FFFFFF;
   --chat-bubble-in-border: rgba(28,25,23,0.08);
   --chat-bubble-in-text: #1C1917;
@@ -205,6 +210,15 @@ html {
       text, no invisible content. Designers can later polish each one
       individually without breaking anything during rollout. */
 html.dark {
+  /* v118.8: opt iOS WKWebView (and any UA-painted form control) into
+     dark mode. Native <input type="date"> paints its displayed value
+     using the document's color-scheme, NOT the CSS `color` property,
+     so without this, the date value text was rendered in UA LIGHT-
+     mode dark color against the html.dark-overridden dark
+     `background-color: var(--surface)`, looking like an empty box.
+     Setting color-scheme: dark also makes scrollbars, picker menus,
+     and other UA chrome consistent with the dark theme. */
+  color-scheme: dark;
   --app-bg: #1A1612;
 
   /* surfaces */
@@ -262,6 +276,9 @@ html.dark {
   --chat-page-gradient: linear-gradient(180deg, #1F1A14 0%, #1A1612 100%);
   --chat-strip-bg: rgba(26,22,18,0.95);
   --chat-strip-border: rgba(244,240,232,0.08);
+  /* v118.66 dark override for sticky-header glass bg — dark warm
+     stone полупрозрачный поверх dark app surface. */
+  --header-glass-bg: rgba(28,25,23,0.85);
   --chat-bubble-in-bg: #2C2620;
   --chat-bubble-in-border: rgba(244,240,232,0.08);
   --chat-bubble-in-text: #F4F0E8;
@@ -636,6 +653,62 @@ html.dark select {
 html.dark input::placeholder,
 html.dark textarea::placeholder { color: var(--text-disabled); }
 
+/* v118.8: explicit per-input color-scheme so the native date/time
+   controls keep dark scheme even if a parent style somehow resets
+   the inherited document color-scheme. Defence in depth — the
+   `html.dark { color-scheme: dark }` above already covers the
+   normal case. */
+html.dark input[type="date"],
+html.dark input[type="time"],
+html.dark input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+/* v118.9: equalize the rendered height of <input type="date"> with
+   neighbouring <select> / <input> on iOS WKWebView. Native date
+   controls implement their value as an internal
+   ::-webkit-date-and-time-value + ::-webkit-datetime-edit
+   pseudo-element stack that each carries its own UA padding +
+   min-height. The parent input's CSS `height` becomes a floor —
+   the internal stack pushes the rendered box past it. The result:
+   a 44 px `h-11` request renders at ~50-52 px on iPhone, while a
+   neighbouring <select> sits at 44 px. Bottom edges don't line up;
+   the date input looks "taller / overlapping at the bottom".
+
+   `-webkit-appearance: none` + `appearance: none` disable the
+   native control chrome so the CSS box model wins (the iOS picker
+   still opens on tap because it's triggered by focus, not by
+   appearance). The pseudo-element resets are belt-and-braces in
+   case a WebKit minor version still leaks internal padding.
+
+   Applies in both light and dark — the height bug exists in both
+   modes; dark just made it more visually obvious. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+}
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="datetime-local"]::-webkit-datetime-edit {
+  padding: 0;
+  min-height: 0;
+}
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+
 /* Canonical Switch (components/ui/Switch.tsx) — focus-visible ring in
    brand orange. Everything else (track / knob / colors / transitions)
    lives inline on the element so the component file is self-contained. */
@@ -782,8 +855,29 @@ p, li {
     min-height: 0; /* critical: allows flex child to shrink below content size */
     overflow-y: auto;
     overflow-x: hidden;
+    /* v118.85 (HISTORICAL) — was `contain`, switched to `none` to stop
+       the rubber-band moving the v226 fixed HomeHero. v118.86 —
+       dropped `-webkit-overflow-scrolling: touch` for the same reason.
+       v118.118 — REVERTED both. By the time Home v229, Vehicles v232,
+       Meetings v241, Useful-Contacts v237 et al. landed, every page
+       with a fixed top element moved to its OWN inner-scroller
+       pattern (height:100dvh + flex column + inner div with the iOS-
+       safe combo). They no longer depend on .main-content scrolling
+       at all. The pages that DO still rely on .main-content (resident
+       Profile, every admin/director dashboard, requests list, etc.)
+       were left with the iOS WKWebView dead-edge: at scrollTop=max
+       with no rubber-band slack, the gesture recogniser goes to sleep
+       and the next opposite-direction touch is dropped — the "sensor
+       tupit" report. Restoring `contain` (still no chain to parent,
+       but local rubber-band keeps the recogniser alive at edges) and
+       the momentum hint (the cure for the dead-edge per v254) brings
+       the verified iOS-safe combo to every page that scrolls through
+       .main-content, in one rule. Plus touch-action: pan-y so child
+       horizontal scrollers (tab strips, chip rows) can't claim our
+       vertical pans — same discipline as v258, applied globally. */
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     /* Transparent on mobile so the page bg from html/body shows through under
        the semi-transparent BottomBar (bg-white/95) into the safe-area. */
     background: transparent;
@@ -2137,6 +2231,16 @@ a.btn-secondary:active,
   animation: qrScan 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* v118.25 — twinkling star field for the resident-home dark hero
+   (used by HomeHero in ResidentHomeDesign.tsx). 14 stars rendered
+   with staggered animation-delays so the field never blinks in
+   unison. Reduced-motion users get static stars via the global
+   prefers-reduced-motion suppression elsewhere in this file. */
+@keyframes kzTwinkle {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.7; }
+}
+
 /* Timer pulse animation */
 @keyframes timer-pulse {
   0%, 100% {
@@ -2452,4 +2556,87 @@ a.btn-secondary:active,
   .sidebar {
     bottom: 0 !important;
   }
+}
+
+/* ── AddCarPage license-plate inputs (v188 design refresh) ──────────────
+   Placeholder text must render with the same embossed Manrope styling
+   as a typed value, otherwise iOS WebKit renders the placeholder in a
+   default ghost gray and the empty segments look smaller/thinner than
+   the filled ones (original v183 regression cause; the v184 fix lives
+   here).
+
+   v188 — the v187 hero recolor (orange letters, dark digits, flat
+   monospace) is reverted. The new Claude Design "Add Car - Yur" uses
+   the original embossed black plate character look, so the placeholder
+   rule now matches charStyle from PlateHero (Manrope ExtraBold, dark
+   ink, two-layer text-shadow that gives the stamped-metal effect).
+
+   Inline styles cannot target ::placeholder, so the rule lives here. */
+input.kamizo-plate-char::placeholder {
+  color: #15110D;
+  -webkit-text-fill-color: #15110D;
+  opacity: 1;
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95),
+    0 -1px 0 rgba(0, 0, 0, 0.14);
+}
+
+/* ── AddCarPage plate animations (v188) ────────────────────────────────
+   Ported verbatim from Claude Design's ensurePlateStyles() in
+   kamizo-addcar.jsx. acShimmer drives the moving light-streak on the
+   plate body; acPulse drives the orange focus ring on the active
+   segment. Both respect prefers-reduced-motion (the streak hides,
+   the pulse falls back to a static ring). */
+@keyframes acShimmer {
+  0%        { transform: translateX(-160%) skewX(-14deg); }
+  58%, 100% { transform: translateX(420%)  skewX(-14deg); }
+}
+@keyframes acPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(249,115,22,0.95), 0 0 13px rgba(249,115,22,0.5); }
+  50%      { box-shadow: 0 0 0 2px rgba(249,115,22,1),    0 0 22px rgba(249,115,22,0.85); }
+}
+.ac-shimmer { animation: acShimmer 5.6s ease-in-out infinite; }
+.ac-seg-active { animation: acPulse 1.7s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ac-shimmer { display: none !important; }
+  .ac-seg-active { animation: none !important; box-shadow: 0 0 0 2px rgba(249,115,22,0.95) !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   v118.79 — iOS-like page transitions.
+
+   Any page whose outermost wrapper has className="kz-screen" gets a
+   slide+fade animation when it mounts (i.e. on every route change).
+   NavigationDirectionTracker (mounted inside BrowserRouter) sets
+   document.body.dataset.nav to 'push' (forward) or 'pop' (back) so the
+   CSS below picks the correct direction.
+
+   Layout itself does NOT have .kz-screen — sidebar / header / BottomBar
+   persist across internal nav (no flash). Only the inner page that swaps
+   gets the animation.
+
+   prefers-reduced-motion → 140 ms fade only, no slide.
+   Spring-like ease cubic-bezier(0.32, 0.72, 0, 1) matches the bottom-
+   sheet swipe (v210). 280 ms duration is iOS-native length.
+   ───────────────────────────────────────────────────────────────────── */
+/* v118.82 — end keyframe uses `transform: none` (not translateX(0)).
+   animation-fill-mode:both keeps the end-state applied; `translateX(0)` is
+   technically a non-`none` transform, which creates a NEW containing block
+   for `position:fixed` descendants. That made truly-fixed elements
+   (HomeHero v224, NotificationsDropdown) scroll WITH the page wrapper
+   inside main-content. `transform: none` restores normal containing-block
+   semantics after animation. During animation itself a non-identity
+   transform is still applied (correct — the page enter / pop animation
+   intentionally translates the whole shell). */
+@keyframes kzPagePushIn { from { transform: translateX(36px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes kzPagePopIn  { from { transform: translateX(-36px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes kzPageFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.kz-screen { animation: kzPagePushIn 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+body[data-nav="pop"] .kz-screen { animation: kzPagePopIn 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .kz-screen,
+  body[data-nav] .kz-screen { animation: kzPageFadeIn 140ms ease-out both; }
 }

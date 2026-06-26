@@ -50,4 +50,11 @@
          everywhere; runtime falls back to gallery picker. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- v118.35 — Android 13 (API 33+) requires this runtime permission
+         for any app that posts notifications. Kamizo ships @capacitor/
+         push-notifications and the registration call silently fails
+         on Android 13+ without it. Without this declaration Google
+         Play also flags the listing in the Data Safety form review. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

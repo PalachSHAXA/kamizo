@@ -46,27 +46,62 @@ export const IStar = (p: IP) => <Icon {...p}><path d="M12 3l3 6 7 1-5 5 1 7-6-3-
 export const IChat = (p: IP) => <Icon {...p}><path d="M21 12a8 8 0 01-11.5 7.2L4 20l1-4.5A8 8 0 1121 12z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></Icon>;
 export const IPin = (p: IP) => <Icon {...p}><path d="M12 2c4 0 7 3 7 7 0 5-7 13-7 13S5 14 5 9c0-4 3-7 7-7z"/><circle cx="12" cy="9" r="2.5"/></Icon>;
 
-export function Silhouette({ kind, color = '#fff', opacity = 0.14 }: { kind: string; color?: string; opacity?: number }) {
-  const common = { fill: color, opacity };
-  const wrap: React.CSSProperties = { position: 'absolute', right: -6, bottom: -10, width: 180, height: 180, pointerEvents: 'none' };
+// v118.71 — Silhouettes ported 1:1 from handoff kamizo-silhouettes.jsx —
+// switched from filled-blob shapes to crisp stroke-outline line icons
+// (strokeWidth 4.4, round caps/joins) that bleed off the bottom-right
+// corner of each gradient card. Reads as intentional superapp decoration
+// instead of an opaque smudge. Bumped wrap size to 196, anchor to
+// right:-16 / bottom:-22 per handoff.
+export function Silhouette({ kind, color = '#fff', opacity = 0.2, size = 196 }: { kind: string; color?: string; opacity?: number; size?: number }) {
+  const wrap: React.CSSProperties = { position: 'absolute', right: -16, bottom: -22, width: size, height: size, pointerEvents: 'none' };
+  const s = { fill: 'none', stroke: color, strokeWidth: 4.4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, opacity };
   const svg = (children: React.ReactNode, vb = '0 0 100 100') => <svg viewBox={vb} style={wrap}>{children}</svg>;
   switch (kind) {
-    case 'people':
-      return svg(<g {...common}><circle cx="28" cy="34" r="11"/><path d="M10 78c0-12 8-20 18-20s18 8 18 20z"/><circle cx="60" cy="30" r="13"/><path d="M38 80c0-14 10-23 22-23s22 9 22 23z"/><circle cx="86" cy="36" r="9"/><path d="M72 78c0-10 6-16 14-16s14 6 14 16z"/></g>);
-    case 'qr':
-      return svg(<g {...common}><rect x="6" y="6" width="26" height="26" rx="3"/><rect x="14" y="14" width="10" height="10" rx="1" fill="none"/><rect x="68" y="6" width="26" height="26" rx="3"/><rect x="6" y="68" width="26" height="26" rx="3"/><rect x="44" y="6" width="8" height="8"/><rect x="44" y="20" width="8" height="8"/><rect x="68" y="44" width="8" height="8"/><rect x="86" y="44" width="8" height="8"/><rect x="44" y="44" width="8" height="8"/><rect x="44" y="68" width="8" height="8"/><rect x="44" y="86" width="8" height="8"/><rect x="68" y="68" width="12" height="12"/><rect x="86" y="86" width="8" height="8"/></g>);
-    case 'star':
-      return svg(<path {...common} d="M50 8l12 26 28 3-21 19 6 28-25-15-25 15 6-28L20 37l28-3z"/>);
-    case 'phone':
-      return svg(<path {...common} d="M30 18c-6 0-10 4-10 9 0 28 26 54 54 54 5 0 9-4 9-10v-9c0-3-2-5-5-6l-13-3c-3-1-6 0-7 3l-3 6c-10-5-18-13-23-23l6-3c3-1 4-4 3-7l-3-13c-1-3-3-5-6-5z"/>);
-    case 'car':
-      return svg(<g {...common}><path d="M14 56l8-22c1-4 5-7 9-7h38c4 0 8 3 9 7l8 22z"/><rect x="6" y="54" width="88" height="26" rx="6"/><circle cx="28" cy="80" r="7" fill="#000" opacity="0.25"/><circle cx="72" cy="80" r="7" fill="#000" opacity="0.25"/></g>);
+    // регистрация / онбординг → удостоверение жителя
     case 'check':
-      return svg(<g {...common}><rect x="22" y="10" width="56" height="78" rx="8"/><rect x="34" y="4" width="32" height="14" rx="5" fill="#000" opacity="0.18"/><path d="M36 44l8 8 18-18" stroke={color} strokeWidth="6" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={opacity}/></g>);
+    case 'idcard':
+      return svg(<g {...s}><rect x="14" y="26" width="72" height="50" rx="9" /><circle cx="36" cy="46" r="8.5" /><path d="M23 64c0-8 6-12 13-12s13 4 13 12" /><line x1="58" y1="44" x2="78" y2="44" /><line x1="58" y1="55" x2="73" y2="55" /></g>);
+    // голосование → бюллетень с галочкой
+    case 'ballot':
+    case 'people':
+      return svg(<g {...s}><rect x="26" y="14" width="48" height="62" rx="7" /><path d="M35 42l9 9 20-22" /><line x1="35" y1="62" x2="58" y2="62" /><line x1="35" y1="70" x2="50" y2="70" /></g>);
+    // гостевой доступ → QR (finder-паттерны + сетка модулей)
+    case 'qr': {
+      const finder = (x: number, y: number) => (
+        <g key={`f-${x}-${y}`}>
+          <rect x={x} y={y} width="24" height="24" rx="5" fill="none" stroke={color} strokeWidth="4.6" />
+          <rect x={x + 8} y={y + 8} width="8" height="8" rx="2" fill={color} stroke="none" />
+        </g>
+      );
+      const mod: [number, number][] = [
+        [42,6],[60,6],[42,15],[51,24],[60,15],
+        [6,42],[15,42],[24,51],[6,60],[15,69],[24,42],
+        [42,42],[51,42],[60,51],[42,51],[51,60],[69,42],[78,51],[87,42],
+        [42,69],[51,78],[60,69],[42,87],[69,69],[78,69],[87,60],[69,87],[87,87],[78,78],
+      ];
+      return svg(<g opacity={opacity} fill={color}>{finder(6, 6)}{finder(70, 6)}{finder(6, 70)}{mod.map(([x, y], i) => <rect key={i} x={x} y={y} width="6" height="6" rx="1.5" />)}</g>);
+    }
+    // полезные контакты → телефонная трубка
+    case 'phone':
+      return svg(<path {...s} d="M30 18c-6 0-10 4-10 10 0 28 26 54 54 54 6 0 10-4 10-10v-9c0-3-2-5-5-6l-13-3c-3-1-6 0-7 3l-3 6c-10-5-18-13-23-23l6-3c3-1 4-4 3-7l-3-13c-1-3-3-5-6-5z" />);
+    // оценка → звезда
+    case 'star':
+      return svg(<path {...s} d="M50 12l11 24 26 3-19.5 18 5.5 26-23-14-23 14 5.5-26L15 39l26-3z" />);
+    // авто → силуэт машины
+    case 'car':
+      return svg(<g {...s}><path d="M15 56l7-20c1.4-4 5-7 9.5-7h37c4.5 0 8 3 9.5 7l7 20" /><rect x="9" y="55" width="82" height="23" rx="7" /><circle cx="30" cy="79" r="7.5" /><circle cx="70" cy="79" r="7.5" /></g>);
+    // оплата → стопка монет (used by BalanceCard in ResidentHomeDesign)
+    case 'coins':
+      return svg(<g {...s}><ellipse cx="40" cy="30" rx="25" ry="8.5" /><path d="M15 30v11c0 4.7 11.2 8.5 25 8.5s25-3.8 25-8.5V30" /><ellipse cx="60" cy="58" rx="25" ry="8.5" /><path d="M35 58v11c0 4.7 11.2 8.5 25 8.5s25-3.8 25-8.5V58" /></g>);
+    // заявка / протечка → капля
     case 'drop':
-      return svg(<path {...common} d="M50 8s30 30 30 50a30 30 0 11-60 0C20 38 50 8 50 8z"/>);
+      return svg(<path {...s} d="M50 12s28 28 28 47a28 28 0 11-56 0C22 40 50 12 50 12z" />);
+    // услуги / ремонт → гаечный ключ
     case 'wrench':
-      return svg(<path {...common} d="M62 16a18 18 0 0021 24L62 61 39 84a9 9 0 01-13-13l23-23-21-21a18 18 0 0134-11z"/>);
+      return svg(<path {...s} d="M64 16a17 17 0 0019 23L60 62 39 83a8.5 8.5 0 01-12-12l21-21-19-19A17 17 0 0164 16z" />);
+    // собрание / дом → здание
+    case 'building':
+      return svg(<g {...s}><rect x="26" y="18" width="48" height="64" rx="5" /><line x1="38" y1="32" x2="46" y2="32" /><line x1="54" y1="32" x2="62" y2="32" /><line x1="38" y1="46" x2="46" y2="46" /><line x1="54" y1="46" x2="62" y2="46" /><line x1="38" y1="60" x2="46" y2="60" /><line x1="54" y1="60" x2="62" y2="60" /></g>);
     default:
       return null;
   }
@@ -104,7 +139,14 @@ export function SwipeCardStack({ cards, height = 250 }: { cards: SwipeCard[]; he
   };
 
   return (
-    <div>
+    // v118.81 — isolation:isolate creates a new stacking context for the
+    // whole swipe band. Required because the dots indicator below has
+    // `position:relative + zIndex:20` which, without an isolated parent,
+    // leaks up to compete with the sticky HomeHero (v222, zIndex:50)
+    // at the .main-content level — dots painted ABOVE the hero on scroll.
+    // Containing the z-index here keeps the dots above the cards inside
+    // the band but below the hero externally.
+    <div style={{ isolation: 'isolate' }}>
       <div
         onTouchStart={(e) => onStart(e.touches[0].clientX)}
         onTouchMove={(e) => onMove(e.touches[0].clientX)}
@@ -128,43 +170,63 @@ export function SwipeCardStack({ cards, height = 250 }: { cards: SwipeCard[]; he
               onClick={() => { if (i === active && dragRef.current.moved < 6) card.onClick?.(); }}
               style={{
                 position: 'absolute', left: 0, right: 0, top: 0, height: height - 10, borderRadius: 26,
-                background: card.gradient, color: '#fff', textAlign: 'left', padding: 20, border: 'none',
+                background: card.gradient, color: '#fff', textAlign: 'left', padding: 22, border: 'none',
                 transform: `translateX(${diff * 32 + d}px) translateZ(${-absD * 56}px) rotateY(${diff * -5 + (i === active ? drag * 0.05 : 0)}deg) scale(${1 - absD * 0.06})`,
                 opacity: absD > 2 ? 0 : 1 - absD * 0.2,
                 transition: dragRef.current.active ? 'none' : 'all 0.45s cubic-bezier(0.34,1.4,0.64,1)',
                 zIndex: 10 - absD,
-                boxShadow: absD === 0 ? `0 18px 44px -10px ${card.shadow}` : '0 8px 20px rgba(0,0,0,0.12)',
-                // Stack the avatar+title+sub block followed by the CTA
-                // pill at flex-start. `space-between` was pushing the
-                // CTA to the bottom edge of the 200-px tall card, which
-                // on the registration card read as "detached" — well
-                // below the "Не заполнено" line. flex-start with an
-                // explicit 16-px marginTop on the CTA (line 147) settles
-                // the button directly under the sub like the handoff.
-                display: 'flex', flexDirection: 'column', justifyContent: 'flex-start',
+                // v118.70 — prototype boxShadow: brand drop + 1px inset top
+                // sheen + 1px inset border. Gives the active card a
+                // 3D-glossy "lifted" feel vs the flat shadow shipped before.
+                boxShadow: absD === 0
+                  ? `0 18px 44px -10px ${card.shadow}, inset 0 1px 0 rgba(255,255,255,0.28), inset 0 0 0 1px rgba(255,255,255,0.10)`
+                  : '0 8px 20px rgba(0,0,0,0.12)',
+                // v118.70 — switched flex-start → space-between to match
+                // prototype: icon+title+sub at the top, CTA pinned at the
+                // bottom of the card. Card height stays 250 so longer uz
+                // translations don't clip; on the registration card this
+                // leaves ~30 px of breathing room between sub and CTA,
+                // which matches the handoff at scale.
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
                 pointerEvents: absD === 0 ? 'auto' : 'none', overflow: 'hidden', cursor: 'pointer',
               }}
             >
-              <div style={{ position: 'absolute', right: -40, top: -50, width: 150, height: 150, borderRadius: 999, background: 'rgba(255,255,255,0.1)' }} />
-              {card.silhouette && <Silhouette kind={card.silhouette} opacity={0.16} />}
+              {/* v118.70 — corner glow now a radial gradient (210×210, white
+                  18%→0 at 68%) instead of a flat 150×150 solid white tint —
+                  blends into the gradient body rather than reading as a
+                  pasted-on disc. */}
+              <div style={{ position: 'absolute', right: -56, top: -64, width: 210, height: 210, borderRadius: 999, background: 'radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 68%)', pointerEvents: 'none' }} />
+              {/* v118.70 — silhouette opacity 0.16 → 0.22 per prototype */}
+              {card.silhouette && <Silhouette kind={card.silhouette} opacity={0.22} />}
+              {/* v118.70 — top sheen overlay (white 16%→0 in top 34%) — was
+                  missing entirely. Gives the gradient a glossy "wet" reading
+                  near the badge row. */}
+              <div style={{ position: 'absolute', inset: 0, borderRadius: 26, background: 'linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 34%)', pointerEvents: 'none' }} />
               {card.badge && (
                 <div style={{ position: 'absolute', top: 18, right: 18, background: 'rgba(255,255,255,0.25)', backdropFilter: 'blur(10px)', padding: '5px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{card.badge}</div>
               )}
               <div style={{ position: 'relative' }}>
-                <div style={{ width: 48, height: 48, borderRadius: 999, border: '2.5px solid rgba(255,255,255,0.55)', display: 'grid', placeItems: 'center', marginBottom: 12 }}>
-                  <Ic size={24} stroke={2.4} />
+                {/* v118.70 — icon circle bumped 48 → 52, icon size 24 → 26,
+                    marginBottom 12 → 16 per prototype. */}
+                <div style={{ width: 52, height: 52, borderRadius: 999, border: '2.5px solid rgba(255,255,255,0.55)', display: 'grid', placeItems: 'center', marginBottom: 16 }}>
+                  <Ic size={26} stroke={2.4} />
                 </div>
-                <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.12, textWrap: 'pretty' }}>{card.title}</div>
-                {card.sub && <div style={{ fontSize: 13, opacity: 0.88, marginTop: 6, lineHeight: 1.35, maxWidth: '85%' }}>{card.sub}</div>}
+                {/* v118.70 — title 23 → 26 / lineHeight 1.12 → 1.05 per prototype */}
+                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.025em', lineHeight: 1.05, textWrap: 'pretty' }}>{card.title}</div>
+                {/* v118.70 — sub fontSize 13 → 13.5, marginTop 6 → 8 per prototype */}
+                {card.sub && <div style={{ fontSize: 13.5, opacity: 0.88, marginTop: 8, lineHeight: 1.35, maxWidth: '85%' }}>{card.sub}</div>}
               </div>
               {card.cta && (
-                <div style={{ position: 'relative', alignSelf: 'flex-start', marginTop: 14, background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(10px)', padding: '9px 16px', borderRadius: 14, fontSize: 13.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{card.cta}</div>
+                /* v118.70 — CTA padding 9×16 → 10×18, fontSize 13.5 → 14, drop
+                    explicit marginTop (space-between handles vertical spacing) */
+                <div style={{ position: 'relative', alignSelf: 'flex-start', background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(10px)', padding: '10px 18px', borderRadius: 14, fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 7 }}>{card.cta}</div>
               )}
             </button>
           );
         })}
       </div>
-      <div style={{ position: 'relative', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 11, marginTop: 6 }}>
+      {/* v118.70 — dots margin 6 → 14 per prototype */}
+      <div style={{ position: 'relative', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 11, marginTop: 14 }}>
         {cards.map((_, i) => (
           /* className="icon-only" + inline minWidth/minHeight: 0 to escape
              the global `button:not(.icon-only){min-width:44px;min-height:44px}`

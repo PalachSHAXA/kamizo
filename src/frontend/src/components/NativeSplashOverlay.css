@@ -1,0 +1,435 @@
+/* ──────────────────────────────────────────────────────────────────────
+   NativeSplashOverlay — time-based splash painted in the webview.
+   Adapted from claude.ai/design Kamizo Splash.html. The original was
+   designed inside a faux iPhone frame (420×892, .device + .status +
+   .island + .themeToggle); for in-app use that chrome is removed and
+   the stage covers the full viewport including safe-area band.
+   Themes are toggled by `.kamizo-splash--light` / `.kamizo-splash--dark`
+   on the wrapper rather than `body.light/.dark` to keep this self-
+   contained. Animations gate on `.kamizo-splash--play` to fire after
+   first paint, matching the source design's `.play` semantics.
+   ────────────────────────────────────────────────────────────────────── */
+
+.kamizo-splash {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh; /* fall back through dvh → vh on older WebKit */
+  z-index: 9999;
+  overflow: hidden;
+  background: var(--ks-sky, #F4F0E8);
+  font-family: "Manrope", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Cross-theme fade on theme switch, plus opacity-driven self-fadeout
+     when the component sets `--ks-fade: 1` before unmount. */
+  transition: background 0.5s ease, opacity 0.4s ease;
+  opacity: 1;
+  /* Block all interaction — splash is purely passive. */
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kamizo-splash[data-ks-fading="true"] {
+  opacity: 0;
+}
+
+.kamizo-splash * {
+  box-sizing: border-box;
+}
+
+/* v118.34 — Theme tokens deleted from this file. All --ks-* variables
+   (sky, glow, ink, ink2, muted, ring-bg, ring-bd, kmark, track-bg,
+   bldg, winbase, ground) are now set INLINE on the splash root from
+   NativeSplashOverlay.tsx based on a single `tokens` object derived
+   from `theme`. Child elements still read `var(--ks-*)` — they
+   inherit from the root's inline-set variables. The old
+   `.kamizo-splash--light` and `.kamizo-splash--dark` selectors that
+   used to define these variables are removed because they competed
+   with ancestor CSS-variable scope overrides (html.dark, app theme
+   rules) and caused the dark theme to silently fall back to light
+   visuals across v170–v173. Inline beats every external selector.
+   Theme-only constants (the orange brand) move to the base rule. */
+
+/* ── Ambient glow ── */
+.kamizo-splash .ks-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--ks-glow);
+  animation: ks-breathe 6s ease-in-out infinite;
+}
+
+@keyframes ks-breathe {
+  0%, 100% { opacity: 0.82; }
+  50%      { opacity: 1;    }
+}
+
+/* ── Sun (light theme only) ── */
+.kamizo-splash .ks-sun {
+  position: absolute;
+  top: 9%;
+  right: 9%;
+  width: clamp(120px, 36vw, 180px);
+  height: clamp(120px, 36vw, 180px);
+  border-radius: 50%;
+  z-index: 3;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 50%,
+    #FFFDF4 0%, #FFEEAE 32%, rgba(253, 186, 116, 0.5) 56%, rgba(251, 191, 36, 0) 72%);
+}
+
+/* v118.34 — `.kamizo-splash--dark .ks-sun { display:none }` removed.
+   The sun is now CONDITIONALLY RENDERED only when theme==='light'
+   (see JSX), so the dark splash never gets a .ks-sun element at all. */
+
+.kamizo-splash--play .ks-sun {
+  animation:
+    ks-sun-rise 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards,
+    ks-sun-pulse 5s ease-in-out 1.6s infinite;
+}
+
+@keyframes ks-sun-rise {
+  from { opacity: 0; transform: translateY(26px) scale(0.82); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ks-sun-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.07); }
+}
+
+/* ── Stars (dark theme only) ── */
+.kamizo-splash .ks-starfield {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* v118.34 — `.kamizo-splash--light .ks-starfield { display:none }`
+   removed. The starfield is now CONDITIONALLY RENDERED only when
+   theme !== 'light' (see JSX), so the light splash never gets the
+   .ks-starfield element at all. */
+
+.kamizo-splash .ks-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #F4F0E8;
+  opacity: 0;
+}
+
+.kamizo-splash--play .ks-star {
+  animation: ks-twinkle 3.6s ease-in-out infinite;
+}
+
+@keyframes ks-twinkle {
+  0%, 100% { opacity: 0.12; }
+  50%      { opacity: 0.6;  }
+}
+
+/* ── Real Tashkent skyline PNG, anchored to bottom ─────────────
+   v118.29 — replaces the procedural SVG silhouette below for the
+   splash. Both PNGs (public/screens/skyline-{dark,light}.png) are
+   the user's real exports from the Claude Design handoff,
+   theme-aware (theme picked by pickInfo from pickTheme(), i.e.
+   the splash's own clock).
+   width: 100% + height: auto + object-position: bottom keeps the
+   ENTIRE silhouette visible at every viewport — no edge buildings
+   cropped. Opacity per theme matches handoff: 0.7 dark / 0.92
+   light. z-index 4 puts it BEHIND .ks-center (z-index 30) but
+   above the .ks-glow / .ks-sun / .ks-starfield layers. Aspect
+   ratio is preserved (height: auto) so the skyline is naturally
+   short on a phone (~120 px tall on a 390 px viewport for the
+   720×214 light PNG) — leaves the center brand mark + tagline
+   uncovered. */
+.kamizo-splash .ks-realsky {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  object-position: bottom;
+  pointer-events: none;
+  user-select: none;
+  z-index: 4;
+  /* v118.34 — opacity is now set inline from JSX
+     (tokens.realskyOpacity: 0.92 light / 0.7 dark) so the value is
+     driven by one source. */
+  /* v118.31 — scale the silhouette ~1.45× from bottom-center so the
+     buildings read bigger and rise higher up the screen, per user
+     request. Edges may crop on narrow viewports (splash root is
+     overflow:hidden) — center landmarks (TV tower, mosque domes)
+     stay visible. transform-origin keeps the silhouette ANCHORED
+     to the bottom edge so the ground line never lifts off. */
+  transform: scale(1.45);
+  transform-origin: bottom center;
+}
+
+/* v118.34 — `.kamizo-splash--dark .ks-realsky { opacity:0.7 }` removed.
+   The realsky <img> now has `style={{ opacity: tokens.realskyOpacity }}`
+   inline from JSX (0.92 light / 0.7 dark) — single source of truth. */
+
+/* The procedural .ks-skyline SVG below is hidden — kept in the
+   DOM so the ref + effect that injects <defs id="ks-glow"> on
+   first mount doesn't crash on a missing element. The PNG above
+   replaces it visually for both themes. */
+.kamizo-splash .ks-skyline {
+  display: none;
+  /* Geometry preserved below as historical reference for the
+     procedural silhouette so a future iteration can revert with
+     a CSS-only change. */
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: clamp(280px, 42vh, 420px);
+  z-index: 4;
+  transform: translateY(40px);
+  opacity: 0;
+}
+
+.kamizo-splash--play .ks-skyline {
+  animation: ks-rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+}
+
+@keyframes ks-rise {
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.kamizo-splash .ks-bldg    { fill: var(--ks-bldg); }
+.kamizo-splash .ks-winbase { fill: var(--ks-winbase); }
+.kamizo-splash .ks-ground  { fill: var(--ks-ground); }
+
+.kamizo-splash .ks-lite {
+  opacity: 0;
+}
+
+.kamizo-splash--play .ks-lite {
+  animation:
+    ks-light-on 0.5s ease-out var(--d) forwards,
+    ks-flick 5s ease-in-out calc(var(--d) + 1s) infinite;
+}
+
+@keyframes ks-light-on {
+  from { opacity: 0; }
+  to   { opacity: 0.95; }
+}
+
+@keyframes ks-flick {
+  0%, 100% { opacity: 0.95; }
+  46%      { opacity: 0.95; }
+  50%      { opacity: 0.62; }
+  54%      { opacity: 0.95; }
+}
+
+/* ── Center brand: ring + K-mark + wordmark + tagline ── */
+.kamizo-splash .ks-center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 40%;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px;
+}
+
+.kamizo-splash .ks-ring {
+  width: clamp(88px, 24vw, 116px);
+  height: clamp(88px, 24vw, 116px);
+  border-radius: 30px;
+  display: grid;
+  place-items: center;
+  background: var(--ks-ring-bg);
+  border: 1px solid var(--ks-ring-bd);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+  transform: scale(0.4);
+  opacity: 0;
+}
+
+.kamizo-splash--play .ks-ring {
+  animation:
+    ks-pop-ring 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.35s forwards,
+    ks-ring-glow 2.4s ease-in-out 1.2s infinite;
+}
+
+@keyframes ks-pop-ring {
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes ks-ring-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.0); }
+  50%      { box-shadow: 0 0 44px 2px rgba(251, 146, 60, 0.30); }
+}
+
+/* v118.18 — bare K-mark, no ring / no rounded-square frame. The mark
+   sits directly on the splash sky with transparent edges. Sized
+   bigger than the previous ring-framed version so it carries the
+   center confidently. Width uses clamp(min, viewport-relative, max)
+   so it scales from iPhone SE up to iPhone 17 Pro Max + Android
+   without hardcoded pixels. Image is naturally 681×813 (taller than
+   wide because the K letterform extends below the diagonal), so we
+   set width and let height auto via object-fit: contain. The center
+   container's flex layout keeps it horizontally centered above the
+   wordmark.
+
+   Drop-shadow per theme:
+     • light → soft dark shadow (gives the dark navy K a sense of
+       depth on the cream sky)
+     • dark  → soft brand-orange glow (matches the dark theme's
+       --kmark warmth + the design's intended ring-glow vibe; the
+       cream K + orange details both gain a subtle warm halo) */
+.kamizo-splash .ks-kmark-img {
+  width: clamp(140px, 36vw, 200px);
+  height: auto;
+  display: block;
+  opacity: 0;
+  transform: scale(0.6);
+  -webkit-user-drag: none;
+  pointer-events: none;
+  /* v118.34 — filter is now set inline from JSX (tokens.kmarkFilter)
+     so the dark / light variant is driven by one source. */
+}
+
+/* v118.34 — `.kamizo-splash--dark .ks-kmark-img { filter:... }`
+   removed. The K-mark <img> now has `style={{ filter: tokens.kmarkFilter }}`
+   inline from JSX — single source of truth, no cascade conflict. */
+
+.kamizo-splash--play .ks-kmark-img {
+  animation: ks-kmark-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s forwards;
+}
+
+@keyframes ks-kmark-pop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.kamizo-splash .ks-wordmark {
+  margin-top: 26px;
+  display: flex;
+  gap: 1px;
+}
+
+.kamizo-splash .ks-wordmark span {
+  font-size: clamp(30px, 9vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ks-ink);
+  opacity: 0;
+  transform: translateY(14px);
+  display: inline-block;
+}
+
+.kamizo-splash--play .ks-wordmark span {
+  animation: ks-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ks-up {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.kamizo-splash .ks-tagline {
+  margin-top: 12px;
+  font-size: clamp(13px, 3.8vw, 16px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ks-ink2);
+  opacity: 0;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.kamizo-splash--play .ks-tagline {
+  animation: ks-fade 0.7s ease-out 1.5s forwards;
+}
+
+@keyframes ks-fade {
+  to { opacity: 1; }
+}
+
+/* ── Loader ── */
+.kamizo-splash .ks-loader {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* base 24 px + iOS home-indicator clearance */
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  opacity: 0;
+}
+
+.kamizo-splash--play .ks-loader {
+  animation: ks-fade 0.6s ease-out 1.7s forwards;
+}
+
+.kamizo-splash .ks-track {
+  width: clamp(120px, 36vw, 160px);
+  height: 4px;
+  border-radius: 99px;
+  background: var(--ks-track-bg);
+  overflow: hidden;
+  position: relative;
+}
+
+.kamizo-splash .ks-track i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 42%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, var(--ks-brand-light), var(--ks-brand));
+  animation: ks-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes ks-slide {
+  0%   { left: -45%; }
+  100% { left: 103%; }
+}
+
+.kamizo-splash .ks-loadtxt {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ks-muted);
+}
+
+/* v118.35 — debug strip + .ks-debug-clear rules removed for
+   store submission. JSX no longer renders them. */
+
+/* ── Reduced motion: honor user preference, show all elements
+   immediately at their final visual state, drop the animations. */
+@media (prefers-reduced-motion: reduce) {
+  .kamizo-splash .ks-glow,
+  .kamizo-splash .ks-star,
+  .kamizo-splash .ks-skyline,
+  .kamizo-splash .ks-lite,
+  .kamizo-splash .ks-ring,
+  .kamizo-splash .ks-kmark-img,
+  .kamizo-splash .ks-wordmark span,
+  .kamizo-splash .ks-tagline,
+  .kamizo-splash .ks-loader,
+  .kamizo-splash .ks-track i,
+  .kamizo-splash .ks-sun {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

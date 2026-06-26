@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { useSettingsStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -305,39 +306,112 @@ export function SettingsPage() {
     : baseTabs;
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-24 md:pb-0">
-      {/* Back button for super_admin (no sidebar) */}
-      {isSuperAdmin && (
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
-        </button>
-      )}
-
-      {/* Header — Sprint 44: brand-orange avatar pattern */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
-            <Settings className="w-5 h-5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</h1>
-            <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Параметры системы' : 'Tizim parametrlari'}</p>
-          </div>
-        </div>
-        {saved && (
-          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm shrink-0">
-            <CheckCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">{language === 'ru' ? 'Сохранено' : 'Saqlandi'}</span>
-          </div>
+    // v118.102 — restructured to the v241/v242 inner-scroller pattern.
+    // Was a plain `space-y-4` block inside Layout's .page-content with
+    // no safe-area handling, so on iOS the page's gear-icon header
+    // collided with the status bar (Layout's MobileHeader was stacked
+    // on top, but the page's content rose above its own offset). Now:
+    //   • Outer: height:100dvh + flex column + overflow:hidden.
+    //   • Pinned header (flex:0 0 auto) paints its own notch-aware
+    //     padding-top: env(safe-area-inset-top) so the gear / title /
+    //     subtitle sit cleanly below the status bar in both themes.
+    //     Layout hides the global MobileHeader for staff /profile via
+    //     isStaffSettingsFullBleed so the two don't stack.
+    //   • Inner scroller (flex:1 1 auto, minHeight:0, overflowY:auto,
+    //     overscrollBehavior:none, WebkitOverflowScrolling:touch) owns
+    //     ALL scroll; tabs + settings forms scroll inside it.
+    //   • Bottom safe-area + BottomBar reserve via paddingBottom.
+    <div style={{
+      // v118.106 — was `height: 100dvh` which exceeded main-content's
+      // available height (main-content reserves
+      // `padding-bottom: calc(var(--bottom-bar-h) + 16px)` for the
+      // floating BottomBar). SettingsPage spilled past the BottomBar,
+      // got clipped by main-content's overflow, and the inner scroller's
+      // bottommost pixels sat hidden behind the BottomBar — scrollTop=
+      // max landed at an invisible position and iOS WKWebView's gesture
+      // recogniser stuck. Subtract the BottomBar reservation so the
+      // page fits ABOVE the bar and the inner scroller's bottom edge
+      // is the actual visible edge.
+      height: 'calc(100dvh - var(--bottom-bar-h, 64px) - 16px)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      // negative margins counteract Layout's .page-content `px-3 py-3`
+      // (3 + 12 = 12px each side, 12 top) so the page goes truly edge-
+      // to-edge. With isStaffSettingsFullBleed on, Layout already uses
+      // page-content-full-bleed but the wrapper element's <main> still
+      // sits inside .main-content with its own padding-bottom for the
+      // BottomBar. Pull negative -3 on the sides to be safe regardless.
+      marginLeft: 'calc(50% - 50vw)',
+      marginRight: 'calc(50% - 50vw)',
+      marginTop: 0,
+      width: '100vw',
+    }}>
+      {/* Pinned header — flex:0 0 auto, safe-area top */}
+      <div style={{
+        flex: '0 0 auto',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
+        paddingLeft: 16, paddingRight: 16, paddingBottom: 14,
+        background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
+        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+        borderBottom: '1px solid var(--border-c, #E6DFD2)',
+      }}>
+        {isSuperAdmin && (
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
+          </button>
         )}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+              <Settings className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-2xl font-bold text-gray-900 leading-tight">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</h1>
+              <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Параметры системы' : 'Tizim parametrlari'}</p>
+            </div>
+          </div>
+          {saved && (
+            <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm shrink-0">
+              <CheckCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">{language === 'ru' ? 'Сохранено' : 'Saqlandi'}</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Tabs - horizontal scroll on mobile */}
-      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar">
+      {/* Inner scroller — flex:1 1 auto, owns all scroll */}
+      <div className="settings-scroll" style={{
+        flex: '1 1 auto',
+        minHeight: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch',
+        paddingLeft: 12, paddingRight: 12, paddingTop: 12,
+        // v118.106 — outer wrapper now subtracts var(--bottom-bar-h)
+        // from its height, so the inner scroller's bottom edge is the
+        // actual visible boundary. The previous 96 + safe-area reserve
+        // was compensating for the BottomBar that lived BELOW this
+        // page — now the page lives ABOVE the bar, just need a
+        // breathing 24 px gap for the last field.
+        paddingBottom: 24,
+      }}>
+      <div className="space-y-4 md:space-y-6">
+
+      {/* Tabs - horizontal scroll on mobile.
+          v118.118 — added `touch-action: pan-x` so iOS WKWebView
+          doesn't claim vertical pans on this row. Without it the
+          horizontal scroller "took" vertical gestures that should
+          have reached the parent .settings-scroll, and dropped them
+          because it can't scroll vertically — visible as "scroll
+          stalls in the upper part". Same discipline as v258 chips
+          bar in ResidentChatView. */}
+      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar" style={{ touchAction: 'pan-x' }}>
         <div className="glass-card p-1 inline-flex gap-1 min-w-max">
           {tabs.map((tab) => (
             <button
@@ -1030,19 +1104,24 @@ export function SettingsPage() {
               </div>
             )}
 
-            {/* Help Text */}
-            <div className="mt-4 p-3 bg-primary-50 rounded-xl">
-              <div className="text-sm text-primary-800">
-                <strong>{language === 'ru' ? 'Для iOS:' : 'iOS uchun:'}</strong> {language === 'ru' ? 'Чтобы получать уведомления на iPhone/iPad:' : 'iPhone/iPad\'da bildirishnomalarni olish uchun:'}
-                <ol className="list-decimal ml-4 mt-2 space-y-1 text-xs">
-                  <li>{language === 'ru' ? 'Откройте Safari и перейдите на app.kamizo.uz' : 'Safari\'ni oching va app.kamizo.uz\'ga o\'ting'}</li>
-                  <li>{language === 'ru' ? 'Нажмите кнопку "Поделиться" (квадрат со стрелкой)' : '"Baham ko\'rish" tugmasini bosing (strelkali kvadrat)'}</li>
-                  <li>{language === 'ru' ? 'Выберите "На экран Домой"' : '"Bosh ekranga qo\'shish"ni tanlang'}</li>
-                  <li>{language === 'ru' ? 'Откройте приложение с домашнего экрана' : 'Ilovani bosh ekrandan oching'}</li>
-                  <li>{language === 'ru' ? 'Нажмите "Включить уведомления" выше' : 'Yuqoridagi "Bildirishnomalarni yoqish" tugmasini bosing'}</li>
-                </ol>
+            {/* Help Text — v118.3: hidden inside Capacitor native shell
+                (the instruction is "open Safari and install as PWA" —
+                irrelevant when the user is already running the native
+                .app on iPhone/iPad/Android). */}
+            {!Capacitor.isNativePlatform() && (
+              <div className="mt-4 p-3 bg-primary-50 rounded-xl">
+                <div className="text-sm text-primary-800">
+                  <strong>{language === 'ru' ? 'Для iOS:' : 'iOS uchun:'}</strong> {language === 'ru' ? 'Чтобы получать уведомления на iPhone/iPad:' : 'iPhone/iPad\'da bildirishnomalarni olish uchun:'}
+                  <ol className="list-decimal ml-4 mt-2 space-y-1 text-xs">
+                    <li>{language === 'ru' ? 'Откройте Safari и перейдите на app.kamizo.uz' : 'Safari\'ni oching va app.kamizo.uz\'ga o\'ting'}</li>
+                    <li>{language === 'ru' ? 'Нажмите кнопку "Поделиться" (квадрат со стрелкой)' : '"Baham ko\'rish" tugmasini bosing (strelkali kvadrat)'}</li>
+                    <li>{language === 'ru' ? 'Выберите "На экран Домой"' : '"Bosh ekranga qo\'shish"ni tanlang'}</li>
+                    <li>{language === 'ru' ? 'Откройте приложение с домашнего экрана' : 'Ilovani bosh ekrandan oching'}</li>
+                    <li>{language === 'ru' ? 'Нажмите "Включить уведомления" выше' : 'Yuqoridagi "Bildirishnomalarni yoqish" tugmasini bosing'}</li>
+                  </ol>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <button onClick={handleSave} className="btn-primary w-full md:w-auto py-3 md:py-2 text-base touch-manipulation">
@@ -1160,7 +1239,8 @@ export function SettingsPage() {
 
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Права доступа' : 'Kirish huquqlari'}</h2>
-            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            {/* v118.118 — same touch-action discipline as the tab row above. */}
+            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ touchAction: 'pan-x' }}>
               <table className="w-full text-xs md:text-sm min-w-[400px]">
                 <thead>
                   <tr className="text-left border-b border-gray-200">
@@ -1265,7 +1345,11 @@ export function SettingsPage() {
         </div>
       )}
 
-      {/* Reset Requests Confirmation Modal */}
+      </div>{/* /space-y wrapper inside inner scroller */}
+      </div>{/* /settings-scroll inner scroller */}
+
+      {/* Reset Requests Confirmation Modal — sibling of scroller; Modal
+          portals itself, so visual placement is irrelevant. */}
       <Modal isOpen={showResetModal} onClose={() => setShowResetModal(false)} title={language === 'ru' ? 'Подтвердите действие' : 'Amalni tasdiqlang'} size="sm">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">

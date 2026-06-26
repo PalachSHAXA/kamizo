@@ -29,12 +29,32 @@ interface NotificationState {
    * + table for ~zero product value.
    */
   dismissedMeetings: Record<string, string[]>;
+  /**
+   * v118.73 — per-user "last time the bell dropdown / /notifications
+   * page was opened" timestamp (ISO string). Powers the **unseen**
+   * counter on the home bell badge, which is intentionally distinct
+   * from DB-side **read**:
+   *
+   *   • `read` (server-side) flips when the user explicitly opens a
+   *     notification row OR calls "Прочитать всё". Useful for the row's
+   *     unread-dot styling.
+   *   • `lastSeenAt` (client-side, here) flips when the user opens the
+   *     bell dropdown or the /notifications page. The badge counts
+   *     notifications whose createdAt > lastSeenAt — i.e. "things that
+   *     arrived since you last looked at notifications".
+   *
+   * Without this, a backlog of historically-read notifications would
+   * never produce a badge on the bell (BUG 1 in v215).
+   */
+  notificationsLastSeenAt: Record<string, string>;
 
   fetchNotificationsFromAPI: () => Promise<void>;
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: (userId: string) => void;
   getUnreadCount: (userId: string) => number;
+  /** Stamps the current time as "last seen" for this user. */
+  markNotificationsSeen: (userId: string) => void;
   dismissMeetingForUser: (userId: string, meetingId: string) => void;
   isMeetingDismissed: (userId: string, meetingId: string) => boolean;
 }
@@ -44,6 +64,7 @@ export const useNotificationStore = create<NotificationState>()(
     (set, get) => ({
       notifications: [],
       dismissedMeetings: {},
+      notificationsLastSeenAt: {},
 
       fetchNotificationsFromAPI: async () => {
         try {
@@ -106,6 +127,16 @@ export const useNotificationStore = create<NotificationState>()(
         return get().notifications.filter(n => n.userId === userId && !n.read).length;
       },
 
+      markNotificationsSeen: (userId) => {
+        if (!userId) return;
+        set((state) => ({
+          notificationsLastSeenAt: {
+            ...state.notificationsLastSeenAt,
+            [userId]: new Date().toISOString(),
+          },
+        }));
+      },
+
       dismissMeetingForUser: (userId, meetingId) => {
         set((state) => {
           const existing = state.dismissedMeetings[userId] || [];
@@ -128,6 +159,7 @@ export const useNotificationStore = create<NotificationState>()(
       partialize: (state) => ({
         notifications: state.notifications.slice(0, 100),
         dismissedMeetings: state.dismissedMeetings,
+        notificationsLastSeenAt: state.notificationsLastSeenAt,
       }),
     }
   )

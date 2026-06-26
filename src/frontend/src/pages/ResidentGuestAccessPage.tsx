@@ -7,7 +7,8 @@
 // BottomBar hides while open).
 
 import { useState, useEffect, useMemo } from 'react';
-import { History, QrCode, CheckCircle2, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, History, QrCode, CheckCircle2, XCircle } from 'lucide-react';
 import { EmptyState, ConfirmDialog } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestAccessStore } from '../stores/dataStore';
@@ -38,6 +39,11 @@ const STICKY_HEADER_BG = 'var(--themed-strip-bg, rgba(244,240,232,0.92))';
 const SHADOW_SM = 'var(--themed-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 
 export function ResidentGuestAccessPage() {
+  // v118.78 — navigate for the new back arrow added to the sticky
+  // header. The page itself stays inside Layout (BottomBar still
+  // rendered) — unlike /vehicles, /announcements, /notifications,
+  // /meetings which became standalone fullscreen.
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
   const fetchGuestCodes = useGuestAccessStore(s => s.fetchGuestCodes);
@@ -126,14 +132,15 @@ export function ResidentGuestAccessPage() {
   };
 
   return (
-    <div style={{
+    // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
+    <div className="kz-screen" style={{
       minHeight: '100%',
       background: 'var(--app-bg)',
       color: TEXT_PRIMARY,
       paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
       letterSpacing: '-0.01em',
     }}>
-      {/* ── Sticky header (eyebrow + title + history button) ─────────── */}
+      {/* ── Sticky header (back + eyebrow + title + history button) ─────────── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
@@ -142,7 +149,24 @@ export function ResidentGuestAccessPage() {
         WebkitBackdropFilter: 'blur(14px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       }}>
-        <div style={{ minWidth: 0 }}>
+        {/* v118.78 — back arrow added; explicit navigate('/') (NOT
+            history.back) so the user always lands on Home, regardless
+            of how they reached /guest-access. BottomBar remains
+            because page stays inside Layout. */}
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+          style={{
+            width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+            background: SURFACE, border: `1px solid ${BORDER}`,
+            color: TEXT_PRIMARY, padding: 0, cursor: 'pointer',
+            display: 'grid', placeItems: 'center',
+          }}
+        >
+          <ArrowLeft size={19} />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
             color: TEXT_SECONDARY, textTransform: 'uppercase',

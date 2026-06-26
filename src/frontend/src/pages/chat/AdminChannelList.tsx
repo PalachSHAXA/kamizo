@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { Loader2, MessageSquare, Search, MapPin, Building2, Home } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
-import { EmptyState } from '../../components/common';
+import { EmptyState, ScrollArea } from '../../components/common';
 import { formatName } from '../../utils/formatName';
 import { plural } from '../../utils/plural';
 import {
@@ -370,7 +370,14 @@ export function AdminChannelList({
       </div>
 
       {/* Channel list */}
-      <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+      {/* v118.115 — migrated from `flex-1 overflow-y-auto` to <ScrollArea>
+          which enforces the verified iOS-safe combo (overflow-y:auto +
+          -webkit-overflow-scrolling:touch + overscroll-behavior:contain
+          + min-height:0). The previous Tailwind-only scroller didn't have
+          the momentum/rubber-band properties and could exhibit the iOS
+          WKWebView dead-edge at the channel list level too.
+          v118 bottom-bar reserve preserved via className. */}
+      <ScrollArea className="divide-y divide-gray-100 pb-[var(--bottom-bar-h,64px)] md:pb-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
@@ -495,7 +502,7 @@ export function AdminChannelList({
             );
           })
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 }

@@ -7,8 +7,12 @@ android {
         applicationId "uz.kamizo.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // v118.35 — aligned with iOS MARKETING_VERSION (1.1.0) so the
+        // Play and App Store listings show the same version string.
+        // versionCode bumped to 2 to satisfy Play Store's
+        // "must increment on every upload" rule for first prod release.
+        versionCode 2
+        versionName "1.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

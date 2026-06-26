@@ -215,36 +215,48 @@ export function ChatPage() {
       // breakpoint.
       className="bg-white md:rounded-[22px] md:shadow-sm md:border overflow-hidden"
       style={{
-        // v115: conditional bottom reservation matched to BottomBar
-        // visibility, plus dropped the always-on --mobile-header-h
-        // subtraction (no top mobile-header is rendered above the chat
-        // wrapper on chat-active — that var was leftover from a prior
-        // layout). Decision tree:
+        // v118.20 — belt-and-suspenders for the back-swipe bug. The
+        // primary fix is in ios/App/App/MainViewController.swift
+        // which disables WKWebView's allowsBackForwardNavigationGestures.
+        // These two CSS rules add defence-in-depth for any other
+        // place that could initiate horizontal panning at the chat
+        // root: touchAction 'pan-y pinch-zoom' tells the browser to
+        // ONLY handle vertical pans + pinch-zoom inside the chat —
+        // any horizontal swipe must be ignored by both web and (where
+        // honored) native gesture recognizers. overscrollBehaviorX
+        // 'none' prevents any horizontal scroll-chaining from a child
+        // overflow-x:auto chip row from bubbling up to the document
+        // and being interpreted as a navigation gesture. Vertical
+        // message scroll is unaffected — both rules are X-axis only.
+        touchAction: 'pan-y pinch-zoom',
+        overscrollBehaviorX: 'none',
+        // v118: BOTH branches now use plain 100vh. The wrapper's
+        // existing bg-white then paints a single continuous white
+        // surface from top to bottom — including the safe-area-inset-
+        // bottom zone — and the floating BottomBar (BottomBar.tsx,
+        // position:fixed + z-index 1000) sits on top of that white
+        // surface without a slab attached to it. The cream --app-bg
+        // never shows on this screen.
         //
-        //   showBottomBar:
-        //     - mobile + admin LIST view (no channel selected) → TRUE
-        //       BottomBar is fixed at viewport bottom and would
-        //       overlap the chat — reserve var(--bottom-bar-h, 64px)
-        //       which already includes env(safe-area-inset-bottom).
-        //     - mobile + admin DIALOG view (channel selected) → FALSE
-        //       BottomBar is hidden via useModalPresence (see line ~74).
-        //       Wrapper should fill the viewport — reserve only
-        //       env(safe-area-inset-bottom) for the iOS home indicator.
-        //     - desktop (anything ≥md) → FALSE
-        //       BottomBar.tsx early-returns on !isMobile. Same
-        //       safe-area-only reservation.
+        // The list-view branch (mobile + no channel selected) used to
+        // subtract var(--bottom-bar-h) so its list pane wouldn't go
+        // under the floating pill — but that pushed the wrapper above
+        // the home indicator and exposed --app-bg as a beige strip.
+        // The bottom-bar clearance is now reserved INSIDE the list
+        // (AdminChannelList's scrollable container gets
+        // `pb-[var(--bottom-bar-h,64px)] md:pb-0`), so the last channel
+        // still clears the pill while the white background runs to
+        // the viewport bottom.
         //
-        // Pre-v115 the wrapper always subtracted --mobile-header-h
-        // (~64 CSS px) regardless of state, which on mobile dialog left
-        // a ~68 px gap below the Composer (between Composer bottom and
-        // viewport bottom) because the hidden BottomBar's space wasn't
-        // reclaimed. Reference design has Composer flush against
-        // viewport bottom.
+        // The dialog branch (channel selected) was already 100vh in
+        // v117 — ChatComposer.tsx pads its own interactive content
+        // above the home indicator. Unchanged here. Same continuous-
+        // white guarantee inside dialogs.
         //
         // 100vh is required because Capacitor Android WebView doesn't
         // support dvh/svh (v114 fix); see prior comment in v114 notes.
-        height: `calc(100vh - ${isMobile && !selectedChannelId ? 'var(--bottom-bar-h, 64px)' : 'env(safe-area-inset-bottom, 0px)'})`,
-        maxHeight: `calc(100vh - ${isMobile && !selectedChannelId ? 'var(--bottom-bar-h, 64px)' : 'env(safe-area-inset-bottom, 0px)'})`,
+        height: '100vh',
+        maxHeight: '100vh',
       }}
     >
       <div className="h-full flex min-w-0 min-h-0">

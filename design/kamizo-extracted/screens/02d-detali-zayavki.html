@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kamizo · 02д · Детали заявки</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../tokens.css" />
+<style>
+  html, body { margin: 0; padding: 0; background: #e8e2d6; font-family: "Manrope", system-ui, sans-serif; }
+  @keyframes kzPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.55;transform:scale(0.85)} }
+  @keyframes kzPop { 0%{opacity:0;transform:scale(0.9) translateY(-6px)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+  @keyframes kzFade { 0%{opacity:0} 100%{opacity:1} }
+  @keyframes kzSheet { 0%{transform:translateY(100%)} 100%{transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="../ios-frame.jsx"></script>
+<script type="text/babel" src="../kamizo-icons.jsx"></script>
+<script type="text/babel" src="../kamizo-silhouettes.jsx"></script>
+<script type="text/babel" src="../kamizo-cards.jsx"></script>
+<script type="text/babel" src="../kamizo-home.jsx"></script>
+<script type="text/babel" src="../kamizo-requests.jsx"></script>
+<script type="text/babel" src="../kamizo-request-details.jsx"></script>
+<script type="text/babel" src="../kamizo-request.jsx"></script>
+<script type="text/babel" src="../kamizo-voting.jsx"></script>
+<script type="text/babel" src="../kamizo-announcements.jsx"></script>
+<script type="text/babel" src="../kamizo-vehicles.jsx"></script>
+<script type="text/babel" src="../kamizo-guest.jsx"></script>
+<script type="text/babel" src="../kamizo-profile.jsx"></script>
+<script type="text/babel" src="../kamizo-contacts.jsx"></script>
+<script type="text/babel" src="../kamizo-rate.jsx"></script>
+<script type="text/babel" src="../kamizo-chat.jsx"></script>
+<script type="text/babel" src="../kamizo-sidebar.jsx"></script>
+<script type="text/babel" src="../kamizo-notifications.jsx"></script>
+<script type="text/babel" src="../screen-frame.jsx"></script>
+<script type="text/babel" data-presets="react">
+function DetailsDemo(){
+  const [open,setOpen]=React.useState(true);
+  const r={ number:'1842', title:'Протечка в ванной', category:'plumbing', status:'new', executor:'Ожидает мастера', date:'сегодня', photos:2, priority:'medium', description:'Капает из-под раковины в ванной, образовалась лужа.', submitted:'31.05.2026 03:25' };
+  return (<ScreenFrame>
+    <div style={{position:'absolute',inset:0,filter:'brightness(0.9)'}}><RequestsScreen activeTab="requests" /></div>
+    <RequestDetailsSheet open={open} request={r} onClose={()=>setOpen(true)} />
+  </ScreenFrame>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<DetailsDemo />);
+</script>
+</body></html>

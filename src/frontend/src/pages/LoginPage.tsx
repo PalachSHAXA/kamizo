@@ -174,10 +174,17 @@ export function LoginPage() {
 
   const displayError = error || authError;
 
-  // Show blank screen while tenant config is loading to prevent flash of wrong layout
-  if (!isConfigFetched) {
-    return <div className="min-h-screen bg-gray-50" />;
-  }
+  // v118.116 — was: blank screen while tenant config loaded, "to
+  // prevent flash of wrong layout". On a cold start with a slow VPS
+  // round-trip this stretched 10-15 s — the user saw a blank screen,
+  // assumed the app was frozen, and couldn't even tap the DEV
+  // autologin button if the autologin happened to have failed. The
+  // login form's layout doesn't actually DEPEND on tenant config
+  // (tenant branding is filled in conditionally below), so removing
+  // the gate lets the form render immediately and the branding paints
+  // in as soon as fetchConfig resolves. Worst case = a 50 ms flash of
+  // generic-themed login → tenant-themed login, vastly better than a
+  // 10 s frozen screen.
 
   return (
     // Mobile app-shell in index.css locks body/#root/.layout-root to
@@ -188,7 +195,8 @@ export function LoginPage() {
     // overflow-y:auto, with m-auto-on-flex-child centering so the card
     // centers when it fits the viewport and scrolls when it overflows.
     <div
-      className="relative bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
+      // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
+      className="kz-screen relative bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
       style={{
         // v129 P1 — Capacitor's Android System WebView resolves 100dvh
         // to 0 on Chromium < 108 (still in service on many real Android

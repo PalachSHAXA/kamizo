@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home, MoreHorizontal, Bell, Info } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home, MoreHorizontal, Info, ArrowLeft } from 'lucide-react';
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -9,7 +9,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useIsMobile } from '../hooks/useBreakpoint';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
-import { SearchPlateInput, PlateNumberInput, UZFlag, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
+import { SearchPlateInput, PlateNumberInput, UZFlag, Plate, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
 
 // "Recent searches" persist across sessions in localStorage. Capped at 5
 // entries to keep the list scannable. We store the plate exactly as the
@@ -79,6 +79,7 @@ export function ResidentVehiclesPage() {
   const searchVehiclesByPlate = useVehicleStore(s => s.searchVehiclesByPlate);
   const { language } = useLanguageStore();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   // Same desktop guard as ResidentHomeDesign — the 100vw break-out for the
   // dark Garage hero slips under the global Sidebar on ≥md viewports.
   const isMobile = useIsMobile();
@@ -159,24 +160,24 @@ export function ResidentVehiclesPage() {
 
   const handleOpenModal = (vehicle?: Vehicle) => {
     if (vehicle) {
-      setEditingVehicle(vehicle);
-      const ownerType = vehicle.ownerType || 'individual';
-      setSelectedOwnerType(ownerType);
-      setPlateParts(parsePlateNumber(vehicle.plateNumber, ownerType));
-      setFormData({
-        brand: vehicle.brand,
-        model: vehicle.model,
-        color: vehicle.color,
-        year: vehicle.year?.toString() || '',
-        type: vehicle.type,
-        companyName: vehicle.companyName || '',
-        parkingSpot: vehicle.parkingSpot || '',
-        notes: vehicle.notes || '',
-      });
-    } else {
-      resetForm();
+      // v118.44 — EDIT also routes to the full-screen theme-aware
+      // form. Same AddCarPage component in dual-mode (see App.tsx
+      // route /vehicles/edit/:id). Save there calls the SAME
+      // vehicleStore.updateVehicle path the old inline modal used,
+      // so list refresh and downstream notifications are unchanged.
+      // The inline modal state below (showModal/editingVehicle/
+      // plateParts/formData) is now dead code for the edit path —
+      // it never opens after this routing change, but the helpers
+      // are left in place to keep the diff minimal and to leave
+      // future cleanup as a separate commit.
+      navigate('/vehicles/edit/' + vehicle.id);
+      return;
     }
-    setShowModal(true);
+    // ADD — navigate to the new theme-aware /vehicles/add screen
+    // (AddCarPage). Save there writes through the SAME
+    // vehicleStore.addVehicle so the optimistic insert + list
+    // refresh works identically.
+    navigate('/vehicles/add');
   };
 
   // Reset plate parts when owner type changes
@@ -336,12 +337,39 @@ export function ResidentVehiclesPage() {
   };
 
   return (
-    <div className="pb-24 md:pb-0">
-      {/* Dark "Гараж" hero — 1:1 port of Claude Design §05-transport.
+    <div
+      className="kz-screen"
+      style={{
+        // v118.90 — split into FIXED dark block (flex:0) + scrollable
+        // inner area (flex:1 with overflow). The outer wrapper itself
+        // does NOT scroll — it's a flex column that constrains the
+        // inner scroller to viewport height. Same iOS-tested pattern
+        // as v229 home-scroll: WKWebView reliably honors
+        // overscroll-behavior:none on a non-document inner scroller.
+        // The dark block is a SIBLING of the scroller, so it cannot
+        // move under any scroll/bounce input.
+        height: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--app-bg)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* v118.63 — ResidentVehiclesPage теперь рендерится full-screen
+          через top-level route в App.tsx (вне Layout). Никакого
+          MobileHeader, никакого Sidebar/BottomBar. Старый pb-24
+          (96 px резерв под BottomBar) убран, на его место добавлен
+          padding-bottom: calc(24 + env(safe-area-inset-bottom)) чтобы
+          "Добавить ещё одно авто" не липло к home indicator.
+
+          Dark "Гараж" hero — 1:1 port of Claude Design §05-transport.
           Covered-car silhouette + big primary plate + brand/model + parking
           status, with a Гараж/Поиск toggle. Wired to the real primary
-          vehicle. The global MobileHeader is hidden for residents on
-          /vehicles (see Layout) so this dark hero owns the top. */}
+          vehicle.
+
+          v118.90 — wrapped in flex:0 0 auto so the dark block sits as
+          a fixed-height sibling above the inner scroller below. */}
+      <div style={{ flex: '0 0 auto' }}>
       {(() => {
         const pp = primaryVehicle ? parsePlateNumber(primaryVehicle.plateNumber, 'individual') : null;
         return (
@@ -361,29 +389,44 @@ export function ResidentVehiclesPage() {
               marginRight: isMobile ? 'calc(50% - 50vw)' : 0,
             }}
           >
-            {/* top bar */}
-            <div className="relative px-4 pb-2 flex items-center justify-between">
-              <button onClick={() => window.dispatchEvent(new Event('open-sidebar'))} aria-label="Меню" className="w-10 h-10 rounded-[12px] grid place-items-center" style={{ background: 'rgba(250,250,249,0.08)', border: '1px solid rgba(250,250,249,0.1)' }}>
-                <svg width="20" height="14" viewBox="0 0 20 14"><rect y="0" width="20" height="2.5" rx="1.25" fill="#FB923C"/><rect y="5.75" width="14" height="2.5" rx="1.25" fill="#FB923C"/><rect y="11.5" width="20" height="2.5" rx="1.25" fill="#FB923C"/></svg>
-              </button>
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: 'rgba(250,250,249,0.5)' }}>{garageLabel}</div>
-              {/* Bell — matches handoff (kamizo-vehicles.jsx lines 308-315):
-                  40x40 dark-glass tile + 8px orange dot at top-right. Routes
-                  to the resident announcements stream, which is where the
-                  global home bell also goes. */}
-              <button
-                onClick={() => window.location.assign('/announcements')}
-                aria-label={language === 'ru' ? 'Уведомления' : 'Bildirishnomalar'}
-                className="relative w-10 h-10 rounded-[12px] grid place-items-center text-white"
-                style={{ background: 'rgba(250,250,249,0.08)', border: '1px solid rgba(250,250,249,0.1)' }}
-              >
-                <Bell className="w-[19px] h-[19px]" strokeWidth={1.8} />
-                <span
-                  aria-hidden
-                  className="absolute"
-                  style={{ top: 5, right: 5, width: 8, height: 8, borderRadius: 999, background: '#FB923C', border: '1.5px solid #1C1917' }}
-                />
-              </button>
+            {/* top bar — top-left button is context-dependent:
+                  • activeTab === 'my_vehicles' → 40x40 ← back arrow,
+                    navigate('/') explicitly.
+                  • activeTab === 'search' (v118.92) → pill "← К моим
+                    авто" replacing the back arrow; switches back to
+                    the my_vehicles tab + resets search state. The
+                    duplicate pill that previously sat above the
+                    search card (white section) is removed.
+                Layout uses flex so the pill button can be wider than
+                40px on search. On my_vehicles a right-side 40px
+                spacer keeps "ГАРАЖ · …" visually centered. */}
+            <div className="relative px-4 pb-2 flex items-center gap-3">
+              {activeTab === 'my_vehicles' ? (
+                <button
+                  onClick={() => navigate('/')}
+                  aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+                  className="w-10 h-10 rounded-[12px] grid place-items-center text-white flex-none"
+                  style={{ background: 'rgba(250,250,249,0.08)', border: '1px solid rgba(250,250,249,0.1)' }}
+                >
+                  <ArrowLeft className="w-[19px] h-[19px]" strokeWidth={2.2} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setActiveTab('my_vehicles');
+                    setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
+                    setManuallySelectedResult(null);
+                    setApiSearchResults([]);
+                  }}
+                  className="h-10 px-3.5 rounded-full inline-flex items-center gap-1.5 text-white text-[13px] font-semibold flex-none"
+                  style={{ background: 'rgba(250,250,249,0.08)', border: '1px solid rgba(250,250,249,0.1)' }}
+                >
+                  <ArrowLeft className="w-[15px] h-[15px]" strokeWidth={2.4} />
+                  {language === 'ru' ? 'К моим авто' : 'Mening avtomobillarimga'}
+                </button>
+              )}
+              <div className="flex-1 text-[11px] font-bold uppercase tracking-[0.16em] text-center" style={{ color: 'rgba(250,250,249,0.5)' }}>{garageLabel}</div>
+              {activeTab === 'my_vehicles' && <div aria-hidden className="w-10 h-10 flex-none" />}
             </div>
 
             {/* garage tab: primary car hero */}
@@ -456,6 +499,22 @@ export function ResidentVehiclesPage() {
           </div>
         );
       })()}
+      </div>{/* /flex:0 dark block wrapper */}
+
+      {/* v118.90 — inner scroller. Only the white list (or search content)
+          scrolls; the dark block above stays pinned. */}
+      <div
+        className="vehicles-scroll"
+        style={{
+          flex: '1 1 auto',
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 'calc(24px + env(safe-area-inset-bottom))',
+        }}
+      >
 
       {/* My Vehicles Tab — body only when there ARE cars; the empty state is
           owned by the dark hero above (covered car + "Добавить авто"), so we
@@ -495,38 +554,63 @@ export function ResidentVehiclesPage() {
             <div className="space-y-2.5">
               {vehicles.map((vehicle) => {
                 const isPrimary = primaryVehicle?.id === vehicle.id;
-                const formatted = formatPlateDisplay(vehicle.plateNumber);
                 return (
-                  <div key={vehicle.id} className="rounded-[18px] p-[14px] relative" style={{ background: '#FFFFFF', border: '1px solid var(--border-c, #E6DFD2)', boxShadow: '0 4px 14px rgba(28,25,23,0.06)' }}>
-                    {/* Plate ribbon — handoff lines 452-477: light gradient,
-                        1.5 px ink border, 10 px radius, Inter Tight font,
-                        22/800 with 6 % tracking, ink color. */}
+                  <div key={vehicle.id} className="rounded-[18px] p-[14px] relative" style={{
+                    // v118.64 — card background WAS hardcoded '#FFFFFF',
+                    // что в dark теме оставляло карточку белой пока текст
+                    // (var(--text-primary)) становился light cream =
+                    // невидимый. Переход на var(--surface, #FFFFFF):
+                    // light = #FFFFFF (без изменений визуально),
+                    // dark = #25201A (warm stone) → текст cream
+                    // отлично читается.
+                    background: 'var(--surface, #FFFFFF)',
+                    border: '1px solid var(--border-c, #E6DFD2)',
+                    boxShadow: '0 4px 14px rgba(28,25,23,0.06)',
+                  }}>
+                    {/* v118.89 — realistic UZ plate display matching
+                        AddCarPage PlateHero visual (white gradient
+                        embossed body + region segment + divider +
+                        embossed chars + UZ flag chrome-bezel inset).
+                        Replaces the old inline minimal flex layout. */}
                     <button
                       onClick={() => handleOpenModal(vehicle)}
                       className="w-full text-left active:scale-[0.99] transition-transform touch-manipulation"
                     >
-                      <div
-                        className="flex items-stretch overflow-hidden"
-                        style={{ background: 'linear-gradient(180deg, #FAFAF9 0%, #F5F5F4 100%)', border: '1.5px solid #1C1917', borderRadius: 10 }}
-                      >
-                        <div
-                          className="flex-1 flex items-center justify-center"
-                          style={{ padding: '10px 12px', fontFamily: 'var(--font-num, "Inter Tight", monospace)', fontSize: 22, fontWeight: 800, letterSpacing: '0.06em', color: '#1C1917' }}
-                        >
-                          {formatted}
-                        </div>
-                        <div className="flex flex-col items-center justify-center px-2" style={{ borderLeft: '1.5px solid #1C1917', background: '#FFFFFF' }}>
-                          <UZFlag className="w-[22px] h-4" />
-                          <span style={{ fontSize: 9, fontWeight: 800, color: '#1C1917', lineHeight: 1, marginTop: 1 }}>UZ</span>
-                        </div>
-                      </div>
+                      <Plate
+                        plateNumber={vehicle.plateNumber}
+                        ownerType={vehicle.ownerType ?? 'individual'}
+                        size="sm"
+                      />
                     </button>
 
                     {/* Bottom row: model + meta + ⋯ menu */}
                     <div className="flex items-center justify-between mt-2.5 px-1">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-[14px] text-gray-900 truncate">
+                          {/* v118.62 — car-name title color fix v2.
+                              v203 inline `color: var(--text-primary)`
+                              был корректным элементом (line 539 рядом
+                              с ОСНОВНОЙ badge на 545), но iOS Safari
+                              перебивает обычный `color` через
+                              `-webkit-text-fill-color` если он установлен
+                              в каком-либо родителе/cascade. Belt-and-
+                              suspenders подход:
+                                • Tailwind text-stone-900 + dark:text-stone-100
+                                  как fallback на случай если var() не
+                                  резолвится
+                                • inline color + WebkitTextFillColor
+                                  (оба свойства, поскольку на iOS второе
+                                  перебивает первое)
+                                • opacity: 1 явно (на случай parent
+                                  opacity inheritance) */}
+                          <span
+                            className="font-bold text-[14px] truncate text-stone-900 dark:text-stone-100"
+                            style={{
+                              color: 'var(--text-primary, #15110D)',
+                              WebkitTextFillColor: 'var(--text-primary, #15110D)',
+                              opacity: 1,
+                            }}
+                          >
                             {vehicle.brand} {vehicle.model}
                           </span>
                           {isPrimary && (
@@ -538,7 +622,16 @@ export function ResidentVehiclesPage() {
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-gray-500 truncate mt-0.5">
+                        {/* v118.64 — meta line theme-aware: убран
+                            Tailwind text-gray-500 (фикс #6B7280),
+                            заменён inline color: var(--text-secondary)
+                            (light #6B7280 / dark #B8B2A8 через
+                            html.dark). На dark теме gray-500 был бы
+                            почти невидим на dark surface. */}
+                        <div
+                          className="text-[11px] truncate mt-0.5"
+                          style={{ color: 'var(--text-secondary, #6B7280)' }}
+                        >
                           {vehicle.year && `${vehicle.year} · `}
                           {vehicle.color}
                           {vehicle.parkingSpot && ` · ${language === 'ru' ? 'парк.' : 'avt.'} ${vehicle.parkingSpot}`}
@@ -600,21 +693,11 @@ export function ResidentVehiclesPage() {
       {/* Search Tab */}
       {activeTab === 'search' && (
         <div className="space-y-3 px-3 md:px-0 pt-4">
-          {/* Audit P0: residents who tapped into search had no visible way back
-              to "Мой гараж". They had to clear the input or use the drawer.
-              Now: a dedicated "← К моим авто" pill above the search card. */}
-          <button
-            onClick={() => {
-              setActiveTab('my_vehicles');
-              setSearchPlateParts({ region: '', letters1: '', digits: '', letters2: '' });
-              setManuallySelectedResult(null);
-              setApiSearchResults([]);
-            }}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-gray-200 text-[13px] font-semibold text-gray-700 active:bg-gray-50 transition-colors"
-          >
-            <span aria-hidden="true">←</span>
-            {language === 'ru' ? 'К моим авто' : 'Mening avtomobillarimga'}
-          </button>
+          {/* v118.92 — the "← К моим авто" pill that used to sit here
+              is gone. It's been relocated into the dark header's
+              top-left slot (replacing the back arrow on the search
+              tab) so there's only one back affordance, where the user
+              expects it. */}
           {/* Plate input + CTA card */}
           <div className="bg-white rounded-[18px] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.05)] relative z-10 overflow-visible">
             <div className="flex flex-col items-center relative">
@@ -890,6 +973,8 @@ export function ResidentVehiclesPage() {
           </div>
         </div>
       )}
+
+      </div>{/* /vehicles-scroll inner scroller */}
 
       {/* Add/Edit Modal - Mobile full-screen, centered on desktop */}
       {showModal && (

@@ -15,6 +15,7 @@
 
 import type { RefObject } from 'react';
 import { Loader2, MessageCircle } from 'lucide-react';
+import { ScrollArea } from '../../components/common/ScrollArea';
 import { MessageBubble } from './MessageBubble';
 import { DateSeparator } from './DateSeparator';
 import { SystemChip } from './SystemChip';
@@ -54,26 +55,20 @@ export function MessageList({
   };
 
   return (
-    <div
+    // v118.111 — migrated from hand-rolled `flex-1 min-h-0 overflow-y-
+    // auto` + `overscrollBehaviorY:contain` (no momentum hint) to the
+    // shared <ScrollArea> which enforces the verified iOS-safe combo
+    // (overflow-y:auto + -webkit-overflow-scrolling:touch + overscroll-
+    // behavior:contain + min-height:0). Same scroll-stick-at-bottom
+    // protection as the v254 resident-chat fix, in a single shared
+    // implementation.
+    <ScrollArea
       ref={containerRef}
-      // v113: reverted to plain px-3 (12px). The v111 mobile bump to
-      // px-4 was cosmetic compensation for ChatPage's -mx-4 wrapper.
-      //
-      // v114: added `min-h-0` so this flex-1 item can actually shrink
-      // below its content's intrinsic height. Without it, `flex-1` +
-      // `overflow-y-auto` is a footgun — the element grows tall enough
-      // to fit all its children (3200+ CSS px of bubbles), the
-      // overflow-y-auto never engages, and the outer page scrolls
-      // instead. With `min-h-0` the flex item respects the bounded
-      // height handed down from ChatView's `h-full flex flex-col`, and
-      // the message stream scrolls internally as designed.
-      className="flex-1 min-h-0 overflow-y-auto px-3 py-3"
+      className="px-3 py-3"
       role="log"
-      aria-live="polite"
-      aria-relevant="additions text"
-      aria-label={language === 'ru' ? 'Сообщения чата' : 'Chat xabarlari'}
+      ariaLabel={language === 'ru' ? 'Сообщения чата' : 'Chat xabarlari'}
+      ariaLive="polite"
       style={{
-        overscrollBehaviorY: 'contain',
         background: 'var(--chat-page-gradient, linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%))',
       }}
     >
@@ -141,6 +136,6 @@ export function MessageList({
           <div ref={endRef} />
         </div>
       )}
-    </div>
+    </ScrollArea>
   );
 }

@@ -28,6 +28,7 @@ import { apiRequest } from '../services/api/client';
 import type { Executor } from '../types';
 import { SPECIALIZATION_LABELS } from '../types';
 import { Modal } from '../components/common';
+import { RoleAvatar } from '../components/RoleAvatar';
 import { formatName } from '../utils/formatName';
 
 // ── design tokens used inline (kept literal so they survive any
@@ -67,13 +68,6 @@ const TAG_OPTIONS: TagOption[] = [
 // Word-rating per star count (handoff)
 const RATING_WORDS_RU = ['', 'Очень плохо', 'Плохо', 'Нормально', 'Хорошо', 'Отлично'] as const;
 const RATING_WORDS_UZ = ['', 'Juda yomon', 'Yomon', 'Oʻrtacha', 'Yaxshi', "A'lo"] as const;
-
-const getInitials = (name: string): string => {
-  const parts = formatName(name).trim().split(/\s+/);
-  if (!parts[0]) return '·';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-};
 
 const tagsToCommentPrefix = (tagIds: string[], lang: 'ru' | 'uz'): string => {
   if (tagIds.length === 0) return '';
@@ -485,7 +479,6 @@ function EmployeeChip({
   isRated: boolean;
   onClick: () => void;
 }) {
-  const initials = getInitials(executor.name);
   return (
     <button
       type="button"
@@ -502,17 +495,20 @@ function EmployeeChip({
         position: 'relative',
       }}
     >
-      <div style={{
-        width: 50, height: 50, borderRadius: 999,
-        background: isActive
+      {/* v118.19 — Executor avatar in the horizontal chip picker.
+          Always role='executor' (Key icon). Brand orange when this
+          chip is the active one, stone grey when inactive — only the
+          bg changes between states, the icon stays consistent. */}
+      <RoleAvatar
+        role="executor"
+        name={executor.name}
+        size={50}
+        background={isActive
           ? 'linear-gradient(135deg, #FB923C, #EA580C)'
-          : STONE_200,
-        color: '#fff', fontWeight: 700, fontSize: 16,
-        display: 'grid', placeItems: 'center',
-        letterSpacing: '-0.01em',
-      }}>
-        {initials}
-      </div>
+          : STONE_200}
+        iconColor={isActive ? '#fff' : 'rgba(42,32,24,0.55)'}
+        textColor={isActive ? '#fff' : 'rgba(42,32,24,0.55)'}
+      />
       {isRated && (
         <div style={{
           position: 'absolute', top: 8, right: 8,
@@ -559,7 +555,6 @@ function SelectedEmployeeCard({
   submitting: boolean;
   language: 'ru' | 'uz';
 }) {
-  const initials = getInitials(executor.name);
   const avg = (executor.rating || 0).toFixed(1);
   const completedCount = executor.completedCount || 0;
   const ratingWord = language === 'ru' ? RATING_WORDS_RU[rating] : RATING_WORDS_UZ[rating];
@@ -572,16 +567,9 @@ function SelectedEmployeeCard({
     }}>
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 999,
-          background: 'linear-gradient(135deg, #FB923C, #EA580C)',
-          color: '#fff', fontWeight: 700, fontSize: 19,
-          display: 'grid', placeItems: 'center',
-          flex: '0 0 auto',
-          letterSpacing: '-0.01em',
-        }}>
-          {initials}
-        </div>
+        {/* v118.19 — Selected-executor header (the rating card top).
+            Always role='executor' → Key icon. */}
+        <RoleAvatar role="executor" name={executor.name} size={56} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em',

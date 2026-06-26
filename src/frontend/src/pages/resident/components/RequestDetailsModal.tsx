@@ -10,7 +10,7 @@
 // parent which opens the existing ApproveModal / CancelRequestModal /
 // RescheduleModal.
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Check, Clock, Droplets, Zap, Flame, Snowflake, Sparkles, Truck,
   Leaf, Shield, Trash2, ArrowUpDown, KeyRound, Phone,
@@ -20,6 +20,7 @@ import { useLanguageStore } from '../../../stores/languageStore';
 import { useModalPresence } from '../../../stores/modalStore';
 import type { ExecutorSpecialization, RequestPriority, RequestStatus } from '../../../types';
 import type { RequestDetailsModalProps } from './types';
+import { RoleAvatar } from '../../../components/RoleAvatar';
 
 // ── design tokens — each reads through `var(--themed-…, <light-hex>)`.
 //    Light mode is byte-identical (fallback wins when the var is
@@ -100,13 +101,6 @@ const formatSubmitted = (iso: string | undefined, lang: 'ru' | 'uz'): string => 
   return d.toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '·';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return ((parts[0][0] || '') + (parts[1][0] || '')).toUpperCase();
-};
-
 export function RequestDetailsModal({
   request,
   onClose,
@@ -122,6 +116,98 @@ export function RequestDetailsModal({
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
   const [descExpanded, setDescExpanded] = useState(false);
   const isLongDesc = (request.description?.length || 0) > 120;
+
+  // v118.69 — swipe-down-to-dismiss (inline copy of shared Sheet.tsx
+  // pattern). Этот modal не использует shared Sheet, у него inline
+  // implementation, поэтому drag handlers применяются здесь напрямую.
+  // Mobile only (< 640 px viewport). Drag handle + sheet body слушают
+  // pointer events; body trigger'ит drag только при scrollTop=0.
+  const sheetBodyRef = useRef<HTMLDivElement>(null);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ y: 0, t: 0 });
+  const dragLast = useRef({ y: 0, t: 0 });
+
+  const isMobileViewport = (): boolean =>
+    typeof window !== 'undefined' && window.innerWidth < 640;
+
+  const startDrag = (clientY: number) => {
+    const now = performance.now();
+    dragStart.current = { y: clientY, t: now };
+    dragLast.current = { y: clientY, t: now };
+    setIsDragging(true);
+  };
+  const updateDrag = (clientY: number) => {
+    const dy = Math.max(0, clientY - dragStart.current.y);
+    dragLast.current = { y: clientY, t: performance.now() };
+    setDragY(dy);
+  };
+  const endDrag = () => {
+    const el = sheetBodyRef.current;
+    setIsDragging(false);
+    if (!el) { setDragY(0); return; }
+    const sheetH = el.clientHeight;
+    const threshold = Math.max(80, sheetH * 0.25);
+    const elapsed = Math.max(1, dragLast.current.t - dragStart.current.t);
+    const totalDy = dragLast.current.y - dragStart.current.y;
+    const velocity = (totalDy / elapsed) * 1000;
+    if (dragY > threshold || velocity > 600) {
+      setDragY(sheetH + 80);
+      window.setTimeout(() => { setDragY(0); onClose(); }, 220);
+    } else {
+      setDragY(0);
+    }
+  };
+
+  const headerDragHandlers: React.HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (e) => {
+      if (!isMobileViewport()) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {/* noop */}
+      startDrag(e.clientY);
+    },
+    onPointerMove: (e) => { if (isDragging) updateDrag(e.clientY); },
+    onPointerUp: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {/* noop */}
+      endDrag();
+    },
+    onPointerCancel: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {/* noop */}
+      setIsDragging(false);
+      setDragY(0);
+    },
+  };
+
+  const bodyDragHandlers: React.HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (e) => {
+      if (!isMobileViewport()) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const el = sheetBodyRef.current;
+      if (el && el.scrollTop > 0) return; // user скроллит внутри — не перехватываем
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {/* noop */}
+      startDrag(e.clientY);
+    },
+    onPointerMove: (e) => { if (isDragging) updateDrag(e.clientY); },
+    onPointerUp: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {/* noop */}
+      endDrag();
+    },
+    onPointerCancel: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {/* noop */}
+      setIsDragging(false);
+      setDragY(0);
+    },
+  };
+
+  const sheetDragStyle: React.CSSProperties = dragY > 0 ? {
+    transform: `translateY(${dragY}px)`,
+    transition: isDragging ? 'none' : 'transform 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+    touchAction: 'none',
+  } : {};
 
   const cat = CATEGORY[request.category] ?? CATEGORY.other;
   const CategoryIcon = cat.Icon;
@@ -191,18 +277,38 @@ export function RequestDetailsModal({
       }}
     >
       <div
+        ref={sheetBodyRef}
+        {...bodyDragHandlers}
         onClick={(e) => e.stopPropagation()}
         style={{
+          // v118.111 — added overscrollBehavior:contain to the iOS-safe
+          // combo (WebkitOverflowScrolling:touch already wired via
+          // bodyDragHandlers cascade). Was overflowY:auto only — risked
+          // dead-edge-at-bottom on long request details (history list).
           width: '100%', maxHeight: '92dvh', overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
           background: APP_BG, color: TEXT_PRIMARY,
           borderTopLeftRadius: RADIUS_XL, borderTopRightRadius: RADIUS_XL,
           boxShadow: '0 -10px 40px rgba(28,25,23,0.25)',
           paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
           letterSpacing: '-0.01em',
+          ...sheetDragStyle,
         }}
       >
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+        {/* v118.69 — Drag handle wrapper теперь полноценный pointer
+            target: расширенный padding для hit-area + touchAction:none
+            чтобы iOS не скроллил конфликтно во время drag'a. */}
+        <div
+          {...headerDragHandlers}
+          style={{
+            display: 'flex', justifyContent: 'center',
+            padding: '10px 0 8px',
+            touchAction: 'none',
+            cursor: 'grab',
+          }}
+          aria-hidden="true"
+        >
           <div style={{ width: 38, height: 5, borderRadius: 999, background: BORDER_STRONG }} />
         </div>
 
@@ -417,14 +523,19 @@ export function RequestDetailsModal({
             <>
               <div style={{ height: 1, background: HAIRLINE, margin: '16px 0' }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 999,
-                  background: BRAND_TINT, color: BRAND_DARK,
-                  display: 'grid', placeItems: 'center',
-                  fontSize: 14, fontWeight: 800, flex: '0 0 auto',
-                }}>
-                  {getInitials(request.executorName)}
-                </div>
+                {/* v118.19 — Executor avatar on the request-details
+                    card. role='executor' → Key icon. Keeps the
+                    existing pale BRAND_TINT bg + BRAND_DARK glyph
+                    colour from the design (a softer treatment than
+                    the page-header solid orange circle). */}
+                <RoleAvatar
+                  role="executor"
+                  name={request.executorName || ''}
+                  size={44}
+                  background={BRAND_TINT}
+                  iconColor={BRAND_DARK}
+                  textColor={BRAND_DARK}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.01em',

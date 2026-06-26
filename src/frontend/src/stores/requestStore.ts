@@ -226,6 +226,21 @@ export const useRequestStore = create<RequestState>()(
           residentPhone: apiRequest.resident_phone,
           address: apiRequest.address,
           apartment: apiRequest.apartment,
+          // v118.100 — photos were silently dropped on the optimistic→
+          // real swap. The list-fetch path parses requests.photos (TEXT,
+          // JSON-encoded array of data-URLs) at line 118, but this
+          // create-path realRequest omitted the field entirely, so the
+          // request detail view showed no photo immediately after
+          // creation even though the row was persisted correctly
+          // server-side. Mirror the list-fetch parser; fall back to the
+          // optimistic payload if the server-echoed photos can't be
+          // parsed (rare — defensive).
+          photos: (() => {
+            const p = apiRequest.photos;
+            if (!p) return requestData.photos;
+            if (Array.isArray(p)) return p as string[];
+            try { return JSON.parse(p as string) as string[]; } catch { return requestData.photos; }
+          })(),
           createdAt: apiRequest.created_at,
         };
 

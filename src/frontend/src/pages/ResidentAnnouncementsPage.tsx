@@ -14,7 +14,8 @@
 // so useModalPresence is not needed here.
 
 import { useState, useEffect } from 'react';
-import { Megaphone, AlertTriangle, ChevronDown, FileText, File, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Megaphone, AlertTriangle, ChevronDown, FileText, File, Download, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -102,6 +103,9 @@ const formatFileSize = (bytes: number): string => {
 };
 
 export function ResidentAnnouncementsPage() {
+  // v118.67 — навигация для back-кнопки (страница теперь top-level
+  // full-screen route в App.tsx, без Layout chrome).
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   // Audit P1: was useDataStore() — subscribed to all 9 sub-stores. Now
   // reads only from useAnnouncementStore since that's the only domain
@@ -162,11 +166,17 @@ export function ResidentAnnouncementsPage() {
     : (lang === 'ru' ? 'Объявления дома' : "Uy e'lonlari");
 
   return (
-    <div style={{
+    // v118.79 — kz-screen opts into the global iOS-like page-enter
+    // slide+fade defined in index.css.
+    <div className="kz-screen" style={{
       minHeight: '100%',
       background: APP_BG,
       color: TEXT_PRIMARY,
-      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+      // v118.67 — bottom padding снижен с 124px (резерв под global
+      // BottomBar, которого больше нет — страница теперь top-level
+      // full-screen route) до 24px + safe-area-inset чтобы контент
+      // не липло к home indicator.
+      paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
       letterSpacing: '-0.01em',
     }}>
       {/* ── Sticky header ─────────────────────────────────────────────── */}
@@ -178,17 +188,40 @@ export function ResidentAnnouncementsPage() {
         WebkitBackdropFilter: 'blur(14px)',
         borderBottom: `1px solid ${HAIRLINE}`,
       }}>
-        <div style={{
-          fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-          color: TEXT_SECONDARY, textTransform: 'uppercase',
-        }}>
-          {eyebrow}
-        </div>
-        <div style={{
-          fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
-          marginTop: 2, color: TEXT_PRIMARY,
-        }}>
-          {lang === 'ru' ? 'Объявления' : "E'lonlar"}
+        {/* v118.67 — back-arrow + heading inline row. Back на левой
+            стороне, навигирует явно на '/' (не history.back чтобы из
+            любой entry-point вели на Главную). Heading справа,
+            растягивается через flex:1. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <button
+            onClick={() => navigate('/')}
+            aria-label={lang === 'ru' ? 'Назад' : 'Orqaga'}
+            style={{
+              width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+              background: SURFACE,
+              border: `1px solid ${HAIRLINE}`,
+              display: 'grid', placeItems: 'center', cursor: 'pointer',
+              color: TEXT_PRIMARY,
+              padding: 0,
+              marginTop: 2,
+            }}
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
+              color: TEXT_SECONDARY, textTransform: 'uppercase',
+            }}>
+              {eyebrow}
+            </div>
+            <div style={{
+              fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
+              marginTop: 2, color: TEXT_PRIMARY,
+            }}>
+              {lang === 'ru' ? 'Объявления' : "E'lonlar"}
+            </div>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           {([

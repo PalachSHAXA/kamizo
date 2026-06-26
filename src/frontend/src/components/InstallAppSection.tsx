@@ -4,6 +4,7 @@ import {
   Smartphone, Share, Plus, MoreVertical, Bell, BellRing,
   CheckCircle, Sparkles, X, ChevronRight, EyeOff
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 
 // Detect platform
 function getDevicePlatform(): 'ios' | 'android' | 'desktop' {
@@ -14,6 +15,10 @@ function getDevicePlatform(): 'ios' | 'android' | 'desktop' {
 }
 
 function isStandaloneMode(): boolean {
+  // v118.3 — Capacitor native shell IS "installed". Neither
+  // display-mode:standalone nor navigator.standalone are reliable
+  // inside WKWebView, so short-circuit before the PWA detectors.
+  if (Capacitor.isNativePlatform()) return true;
   return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
 }
 

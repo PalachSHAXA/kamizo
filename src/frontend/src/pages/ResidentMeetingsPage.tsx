@@ -13,8 +13,9 @@
 // already shipped). No new endpoints.
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  AlertTriangle, Calendar, Check, CheckCircle, ChevronRight, Clock,
+  AlertTriangle, ArrowLeft, Calendar, Check, CheckCircle, ChevronRight, Clock,
   Loader2, MessageSquare, RefreshCw, Shield, Vote, X,
 } from 'lucide-react';
 import { plural } from '../utils/plural';
@@ -86,6 +87,10 @@ const formatTimeLeft = (iso: string | undefined, lang: 'ru' | 'uz'): { label: st
 };
 
 export function ResidentMeetingsPage() {
+  // v118.77 — navigate for the back arrow added when /meetings became
+  // standalone-fullscreen for residents (top-level Route in App.tsx,
+  // no Layout chrome).
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const {
     meetings,
@@ -199,13 +204,25 @@ export function ResidentMeetingsPage() {
 
   // ── render ──────────────────────────────────────────────────────
   return (
-    <div style={{
-      minHeight: '100%',
+    // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
+    // v118.98 — was minHeight:100% with the page itself scrolling under a
+    // position:sticky header (the header would drift on iOS rubber-band).
+    // Restructured to the v229 (Home) / v232 (Garage) pattern: flex
+    // column, header is flex:0 0 auto (truly fixed, no sticky), content
+    // lives in a dedicated inner scroller (flex:1 1 auto + minHeight:0
+    // + overflowY:auto + overscrollBehavior:none + WebkitOverflowScrolling:
+    // touch). The body/document no longer scrolls — only the inner
+    // container does — so the header is immune to any rubber-band drift.
+    <div className="kz-screen" style={{
+      height: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
       background: APP_BG, color: TEXT_PRIMARY,
-      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+      overflow: 'hidden',
       letterSpacing: '-0.01em',
     }}>
-      {/* New-request popup (existing alert) */}
+      {/* New-request popup (existing alert) — fixed overlay, renders
+          above the flex column regardless of its source position. */}
       {newRequestAlert && (
         <NewRequestPopup
           alert={newRequestAlert}
@@ -215,28 +232,64 @@ export function ResidentMeetingsPage() {
         />
       )}
 
-      {/* Sticky header */}
+      {/* Fixed header (flex:0 0 auto — never moves) */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 5,
+        flex: '0 0 auto',
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px',
         background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderBottom: `1px solid ${HAIRLINE}`,
       }}>
-        <div style={{
-          fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-          color: TEXT_SECONDARY, textTransform: 'uppercase',
-        }}>
-          {lang === 'ru' ? 'Собрания собственников' : 'Mulkdorlar yig\'ilishi'}
-        </div>
-        <div style={{
-          fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
-          marginTop: 2, color: TEXT_PRIMARY,
-        }}>
-          {lang === 'ru' ? 'Голосование' : 'Ovoz berish'}
+        {/* v118.77 — back arrow + heading inline row. Back on the left,
+            explicit navigate('/') (NOT history.back so the user always
+            lands on Home, regardless of how they reached /meetings).
+            Heading text stays exactly the same; only the leading
+            back-button is new. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <button
+            onClick={() => navigate('/')}
+            aria-label={lang === 'ru' ? 'Назад' : 'Orqaga'}
+            style={{
+              width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+              background: SURFACE,
+              border: `1px solid ${HAIRLINE}`,
+              color: TEXT_PRIMARY,
+              display: 'grid', placeItems: 'center', cursor: 'pointer',
+              padding: 0, marginTop: 2,
+            }}
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
+              color: TEXT_SECONDARY, textTransform: 'uppercase',
+            }}>
+              {lang === 'ru' ? 'Собрания собственников' : 'Mulkdorlar yig\'ilishi'}
+            </div>
+            <div style={{
+              fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
+              marginTop: 2, color: TEXT_PRIMARY,
+            }}>
+              {lang === 'ru' ? 'Голосование' : 'Ovoz berish'}
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* v118.98 — inner scroller (flex:1 1 auto). Owns ALL scroll on
+          this page. overscroll-behavior:none + min-height:0 prevent the
+          iOS top-rubber-band that used to translate the document and
+          drag the sticky header with it. */}
+      <div className="meetings-scroll" style={{
+        flex: '1 1 auto',
+        minHeight: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+      }}>
       {/* Legal-weight note */}
       <LegalWeightNote
         totalArea={user?.totalArea}
@@ -277,6 +330,8 @@ export function ResidentMeetingsPage() {
           ))
         )}
       </div>
+
+      </div>{/* /meetings-scroll inner scroller */}
 
       {/* Voting modal (existing) */}
       {showVotingModal && selectedMeeting && user && (

@@ -78,5 +78,14 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- v118.35 — Export-compliance declaration required by Apple's
+	     ARR 5.1.1(f). The app uses only standard HTTPS / TLS for
+	     network comms (api.kamizo.uz + wss://api.kamizo.uz) and no
+	     proprietary or restricted cryptography. Setting this key to
+	     false eliminates the export-compliance prompt at every App
+	     Store Connect upload and avoids the "Missing encryption
+	     declaration" rejection. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

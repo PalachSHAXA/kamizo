@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type CSSProperties } from 'react';
+import { useState, useMemo, useEffect, useRef, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useModalPresence } from '../stores/modalStore';
 import {
@@ -7,6 +7,7 @@ import {
   Key, ShieldCheck, Globe, Bell, Download, Moon,
   Check, Pencil, ChevronRight, LogOut,
   X, Loader2, Eye, EyeOff, AlertCircle, Save,
+  Shield,
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -18,6 +19,12 @@ import { useBuildingStore } from '../stores/buildingStore';
 import { formatName } from '../utils/formatName';
 import { formatPhone } from '../utils/formatPhone';
 import { InstallAppSection } from '../components/InstallAppSection';
+// v118.91 — Capacitor runtime detection so the "Установить как
+// приложение" item can be hidden when we're already in the native iOS/
+// Android app (where there is nothing to "install"). Apple sometimes
+// flags such no-op rows on App Store review.
+import { Capacitor } from '@capacitor/core';
+import { RoleAvatar } from '../components/RoleAvatar';
 import { generateQRCode } from '../components/LazyQRCode';
 import { API_URL, getToken } from '../services/api/client';
 import { downloadBlob } from '../utils/downloadFile';
@@ -195,6 +202,12 @@ export function ResidentProfilePage() {
     notifValue: 'Все',
     darkMode: 'Тёмная тема',
     installApp: 'Установить как приложение',
+    privacyPolicy: 'Политика конфиденциальности',
+    legalSection: 'Юридическая информация',
+    // v118.117 — `deleteAccount*` keys removed (button + handler
+    // gone, see component body). `infoDeleteAccount` is the
+    // replacement App-Store-compliance info line shown to residents.
+    infoDeleteAccount: 'Для удаления аккаунта обратитесь в вашу управляющую компанию.',
     logout: 'Выйти из аккаунта',
     logoutConfirm: 'Выйти из аккаунта?',
     notSet: 'Не указан',
@@ -265,6 +278,10 @@ export function ResidentProfilePage() {
     notifValue: 'Hammasi',
     darkMode: 'Tungi rejim',
     installApp: 'Ilova sifatida oʼrnatish',
+    privacyPolicy: 'Maxfiylik siyosati',
+    legalSection: 'Huquqiy maʼlumotlar',
+    // v118.117 — see RU block above; replacement single info line.
+    infoDeleteAccount: 'Akkauntni oʻchirish uchun boshqaruv kompaniyangizga murojaat qiling.',
     logout: 'Akkauntdan chiqish',
     logoutConfirm: 'Akkauntdan chiqmoqchimisiz?',
     notSet: "Ko'rsatilmagan",
@@ -395,6 +412,29 @@ export function ResidentProfilePage() {
     }
   };
 
+  // v118.35 — Privacy Policy link required by both App Store and
+  // Google Play. Opens https://kamizo.uz/privacy in the system
+  // browser (Capacitor preserves window.open for external https URLs
+  // via SFSafariViewController on iOS / Chrome Custom Tabs on
+  // Android). Falls back to a regular navigation if window.open
+  // returns null (PWA / desktop).
+  const handlePrivacyPolicy = () => {
+    const url = 'https://kamizo.uz/privacy';
+    try {
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!w) window.location.href = url;
+    } catch {
+      window.location.href = url;
+    }
+  };
+
+  // v118.117 — handleDeleteAccount + the related i18n keys removed.
+  // Residents cannot self-delete (UK-managed onboarding via the
+  // government billing system); the in-app entry point was
+  // non-functional and only routed to a mailto: anyway. Apple 5.1.1(v)
+  // compliance is now satisfied by an info line under the Logout
+  // button telling the user to contact their management company.
+
   // ── Tenant management contract (Sprint 85 commit 3) ──────────────────
   // GET /api/resident/contract streams the PDF bytes. The download flow
   // mirrors the director widget's (ContractUploader.handleDownload):
@@ -445,7 +485,9 @@ export function ResidentProfilePage() {
 
   // ── render: hero / tiles / sections / logout / version ───────────────
   return (
+    // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
     <div
+      className="kz-screen"
       style={{
         minHeight: '100%',
         background: APP_BG,
@@ -481,25 +523,24 @@ export function ResidentProfilePage() {
             }}
           />
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
-              style={{
-                width: 66,
-                height: 66,
-                borderRadius: 999,
-                background: 'linear-gradient(135deg, #FB923C, #EA580C)',
-                color: '#FFFFFF',
-                fontWeight: 800,
-                fontSize: 23,
-                display: 'grid',
-                placeItems: 'center',
-                flex: '0 0 auto',
-                boxShadow: '0 6px 16px rgba(249,115,22,0.4)',
-                letterSpacing: '-0.02em',
-              }}
-              aria-hidden
-            >
-              {initials}
-            </div>
+            {/* v118.19 — was a brand-orange circle with the user's
+                initials (e.g. "ТС"). Now driven by central
+                RoleAvatar — residents see Home, executors see Key,
+                directors/admins/managers/etc see Building2, security
+                sees the boom-barrier custom icon. super_admin and any
+                future un-mapped role fall back to the initials
+                inside the same orange circle. The адмиU card on this
+                same page (around line 990) is intentionally NOT
+                switched — that's the УК (management company)
+                logo/photo fallback, not a user avatar. */}
+            <RoleAvatar
+              role={user.role}
+              name={displayName}
+              size={66}
+              iconRatio={0.46}
+              boxShadow="0 6px 16px rgba(249,115,22,0.4)"
+              style={{ fontSize: 23 }}
+            />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{
@@ -820,14 +861,64 @@ export function ResidentProfilePage() {
             label={t.darkMode}
             rightSlot={<ThemeToggle ariaLabel={t.darkMode} />}
           />
+          {/* v118.91 — hide "Установить как приложение" when we're
+              already in the native Capacitor app (iOS / Android). The
+              row only makes sense in a web browser / PWA shell, where
+              the user can actually add the app to their home screen.
+              In native there's nothing to install → no-op button is
+              both confusing for users and a potential App Store
+              review red flag. */}
+          {!Capacitor.isNativePlatform() && (
+            <SettingsRow
+              icon={<Download size={17} />}
+              label={t.installApp}
+              chevron
+              accent
+              onClick={() => setShowInstallModal(true)}
+            />
+          )}
+        </SettingsSection>
+
+        {/* v118.35 — Legal section. Privacy Policy required by both
+            stores (also linked in App Store Connect / Play Console
+            listings). Account deletion required by Apple Guideline
+            5.1.1(v) for any app with account creation. */}
+        <SettingsSection title={t.legalSection}>
           <SettingsRow
-            icon={<Download size={17} />}
-            label={t.installApp}
+            icon={<Shield size={17} />}
+            label={t.privacyPolicy}
             chevron
-            accent
-            onClick={() => setShowInstallModal(true)}
+            onClick={handlePrivacyPolicy}
           />
         </SettingsSection>
+
+        {/* v118.117 — "Удалить аккаунт" button + its two-step
+            confirmation flow + the DELETE /api/account/me fallback
+            were removed. Residents are onboarded by the property-
+            management company through a government billing system
+            and cannot self-delete; the button was non-functional
+            in practice and only routed to a mailto: anyway.
+            Replaced with a single non-interactive info line below
+            so the screen still complies with Apple guideline
+            5.1.1(v) (apps must show users how to request deletion
+            even when org-managed) — see infoDeleteAccount in i18n.
+            Director / admin / staff profiles are a separate
+            component (admin/SettingsPage.tsx) and were never wired
+            to this flow, so they stay unaffected. */}
+        <div
+          style={{
+            padding: '12px 14px',
+            background: 'transparent',
+            border: `1px dashed ${BORDER}`,
+            borderRadius: 14,
+            color: TEXT_SECONDARY,
+            fontSize: 12.5,
+            lineHeight: 1.45,
+            textAlign: 'center',
+          }}
+        >
+          {t.infoDeleteAccount}
+        </div>
 
         {/* Logout */}
         <button
@@ -1506,6 +1597,95 @@ function BottomSheet({ onClose, children }: { onClose: () => void; children: Rea
     return () => { document.body.style.overflow = prev; };
   }, []);
 
+  // v118.95 — swipe-to-dismiss (same Pointer-Events pattern as the
+  // shared Sheet.tsx v210). Drag handle + close-X header row are
+  // ALWAYS draggable; the body becomes draggable only when scrollTop
+  // === 0 + finger moves down (so internal scroll still works for
+  // sheets with long content). Threshold for dismiss: max(80px, 25%
+  // sheet height) OR downward velocity > 600 px/sec. Below threshold
+  // → snap-back via inline transition.
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ y: 0, t: 0 });
+  const dragLast = useRef({ y: 0, t: 0 });
+
+  const startDrag = (clientY: number) => {
+    const now = performance.now();
+    dragStart.current = { y: clientY, t: now };
+    dragLast.current = { y: clientY, t: now };
+    setIsDragging(true);
+  };
+  const updateDrag = (clientY: number) => {
+    const dy = Math.max(0, clientY - dragStart.current.y);
+    dragLast.current = { y: clientY, t: performance.now() };
+    setDragY(dy);
+  };
+  const endDrag = () => {
+    const el = sheetRef.current;
+    setIsDragging(false);
+    if (!el) { setDragY(0); return; }
+    const sheetH = el.clientHeight;
+    const threshold = Math.max(80, sheetH * 0.25);
+    const elapsed = Math.max(1, dragLast.current.t - dragStart.current.t);
+    const totalDy = dragLast.current.y - dragStart.current.y;
+    const velocity = (totalDy / elapsed) * 1000;
+    if (dragY > threshold || velocity > 600) {
+      setDragY(sheetH + 80);
+      window.setTimeout(() => { setDragY(0); onClose(); }, 220);
+    } else {
+      setDragY(0);
+    }
+  };
+
+  const handleDragHandlers: React.HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+      startDrag(e.clientY);
+    },
+    onPointerMove: (e) => { if (isDragging) updateDrag(e.clientY); },
+    onPointerUp: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      endDrag();
+    },
+    onPointerCancel: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      setIsDragging(false);
+      setDragY(0);
+    },
+  };
+
+  const bodyDragHandlers: React.HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const el = sheetRef.current;
+      if (el && el.scrollTop > 0) return; // user scrolling — let native scroll happen
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+      startDrag(e.clientY);
+    },
+    onPointerMove: (e) => { if (isDragging) updateDrag(e.clientY); },
+    onPointerUp: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      endDrag();
+    },
+    onPointerCancel: (e) => {
+      if (!isDragging) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      setIsDragging(false);
+      setDragY(0);
+    },
+  };
+
+  const dragStyle: React.CSSProperties = dragY > 0 ? {
+    transform: `translateY(${dragY}px)`,
+    transition: isDragging ? 'none' : 'transform 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+    touchAction: 'none',
+  } : {};
+
   return (
     <div
       style={{
@@ -1521,6 +1701,8 @@ function BottomSheet({ onClose, children }: { onClose: () => void; children: Rea
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
+        {...bodyDragHandlers}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: SURFACE,
@@ -1528,17 +1710,27 @@ function BottomSheet({ onClose, children }: { onClose: () => void; children: Rea
           borderTopRightRadius: 24,
           padding: '14px 16px calc(24px + env(safe-area-inset-bottom, 0px))',
           maxHeight: '90vh',
+          // v118.111 — added the iOS-safe momentum + rubber-band combo
+          // (see ScrollArea.tsx). Was overflowY:auto only — risked the
+          // dead-edge-at-bottom on long sheets.
           overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
           boxShadow: '0 -12px 32px rgba(28,25,23,0.18)',
           animation: 'kz-sheet-up 0.22s cubic-bezier(0.2,0,0,1) both',
+          ...dragStyle,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+        <div
+          {...handleDragHandlers}
+          style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, touchAction: 'none', cursor: 'grab' }}
+        >
           <div style={{ width: 38, height: 4, borderRadius: 2, background: '#D8CFBE' }} />
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
           aria-label="Close"
           style={{
             position: 'absolute',

@@ -1,18 +1,23 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Capacitor } from '@capacitor/core'
-import { SplashScreen } from '@capacitor/splash-screen'
+import { Keyboard } from '@capacitor/keyboard'
 import './index.css'
 import App from './App.tsx'
 
-// Bug 7 (2026-06-18) — hide the native splash with a 300ms fade once the
-// WebView has hydrated React. capacitor.config.ts sets launchAutoHide:false
-// so this is the only thing that dismisses the splash; the 2-second
-// launchShowDuration is just a safety ceiling. No-op on web/PWA.
+// v118.14 — the early SplashScreen.hide() that used to live here was
+// REMOVED. It fired right after JS-bundle parse (before React mounted
+// anything), which dismissed the native splash 300 ms BEFORE
+// NativeSplashOverlay could paint, leaving an empty/flash gap. The
+// overlay (rendered as a top-level child of App.tsx) now owns the
+// hide() call inside its own mount effect — native splash stays up
+// until the webview overlay has painted, then they cross-fade.
+//
+// Keyboard.setAccessoryBarVisible(false) still fires here (no-op on
+// web/PWA / Android; iOS-only chrome suppression). Doesn't race with
+// anything visual — purely a keyboard config call.
 if (Capacitor.isNativePlatform()) {
-  requestAnimationFrame(() => {
-    SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => {})
-  })
+  Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {})
 }
 
 function setIOSPwaGap() {

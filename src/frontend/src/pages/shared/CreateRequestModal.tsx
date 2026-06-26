@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { X, ChevronRight, User, Building2, GitBranch, MapPin } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import { branchesApi, buildingsApi, usersApi } from '../../services/api';
 import { formatAddress } from '../../utils/formatAddress';
 import type { ExecutorSpecialization, RequestPriority } from '../../types';
@@ -91,6 +92,15 @@ export function CreateRequestModal({
   }) => void;
 }) {
   const { language } = useLanguageStore();
+  // v118.10: hide the floating BottomBar while this modal is open
+  // so its sticky action bar (Отмена / Создать заявку) isn't
+  // overlapped by the bar. Reuses the same `useModalPresence`
+  // counter that the chat dialog, CancelRequestModal,
+  // FeatureLockedModal, common/Sheet, etc. already use —
+  // BottomBar.tsx reads useModalStore().count > 0 and early-returns
+  // null. On unmount the counter pops back and the bar reappears.
+  useModalPresence();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<ExecutorSpecialization>('plumber');
@@ -293,15 +303,73 @@ export function CreateRequestModal({
   const selectedBuildingData = buildings.find(b => b.id === selectedBuilding);
 
   return (
-    <div className="modal-backdrop items-end sm:items-center">
-      <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
-        <div className="flex items-center justify-between mb-6">
+    // v118.103 — restructured to true full-screen sheet on mobile so the
+    // app's MobileHeader (burger/choko/bell, z-index 10) no longer
+    // bleeds through the previous 10dvh transparent strip at the top.
+    // Layout now also hides MobileHeader while modalCount > 0, but the
+    // sheet itself paints edge-to-edge with its own safe-area-aware
+    // pinned header so the title + X never sit under the notch.
+    //   - Mobile: h:100dvh + flex column + overflow:hidden + rounded:0,
+    //     pinned title row (flex:0 0 auto) with padding-top: env(safe-
+    //     area-inset-top), inner scroller wraps the form.
+    //   - Desktop (sm:): keeps the original centered card layout via
+    //     responsive overrides — max-h:90dvh + rounded:2xl + overflow:y:auto
+    //     restored on the content; inner scroller becomes a plain block.
+    // v118.106 — two stick-at-bottom fixes for the mobile full-screen
+    // sheet shipped in v246:
+    //   1. modal-backdrop had `padding: 16px` + safe-area-bottom from
+    //      index.css:1281, pushing modal-content's bottom 16-34 px past
+    //      the viewport. `!p-0 sm:!p-4` strips that on mobile so the
+    //      h-[100dvh] sheet truly matches the viewport; desktop keeps
+    //      the 16 px gap.
+    //   2. v246's `overflow-hidden` (shorthand) lost the cascade to
+    //      .modal-content's base `overflow-y: auto` (longhand) in
+    //      index.css:1295, so the OUTER element became a second
+    //      scroller — nested scrollers + iOS WKWebView momentum =
+    //      dropped up-swipes after hitting the inner bottom. Tailwind
+    //      `!` (= !important) forces our override to win:
+    //      `!overflow-y-hidden sm:!overflow-y-auto` keeps outer locked
+    //      on mobile and restores auto on desktop.
+    <div className="modal-backdrop items-end sm:items-center !p-0 sm:!p-4">
+      {/* v118.107 — added `!max-h-[100dvh] sm:!max-h-[90dvh]`. The
+          base .modal-content CSS at index.css:1293-1294 caps every
+          shell-based modal at `max-height: 90vh; max-height: 90dvh;`
+          which on this mobile full-screen sheet pinned the sheet's
+          top 10 dvh below the viewport top — that empty band showed
+          the dark backdrop blur with the underlying "Заявки" page
+          bleeding through behind the status bar. Tailwind `!` forces
+          our override; desktop keeps the 90 dvh cap via the sm:
+          variant. */}
+      <div
+        className="modal-content w-full max-w-lg sm:mx-4 h-[100dvh] sm:h-auto !max-h-[100dvh] sm:!max-h-[90dvh] flex flex-col sm:block !overflow-y-hidden sm:!overflow-y-auto rounded-none sm:rounded-2xl p-0 sm:p-6"
+      >
+        {/* Pinned header — flex:0 0 auto on mobile, normal block on desktop.
+            v118.107 — tightened top padding from safe-area+14 → safe-area+6
+            (matches the v248 chat-header treatment). On iPhone 17 Pro Max
+            safe-area ≈ 59 px, so title sits 6 px below the status bar
+            instead of 14 px. background covers up to and behind the
+            notch because modal-content now fills the full 100 dvh
+            (v118.107 max-h override above). */}
+        <div
+          className="flex items-center justify-between border-b border-gray-100 sm:border-0 sm:mb-6"
+          style={{
+            flex: '0 0 auto',
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
+            paddingLeft: 16, paddingRight: 16, paddingBottom: 14,
+            background: 'var(--surface, #fff)',
+          }}
+        >
           <h2 className="text-lg sm:text-xl font-bold">{language === 'ru' ? 'Создать заявку' : 'Ariza yaratish'}</h2>
           <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 hover:bg-gray-100 rounded-lg" aria-label="Закрыть">
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Inner scroller — flex:1 1 auto on mobile, normal block on desktop */}
+        <div
+          className="flex-1 min-h-0 sm:min-h-fit overflow-y-auto sm:overflow-visible px-4 pt-4 pb-4 sm:p-0"
+          style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
+        >
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Category */}
           <div>
@@ -596,29 +664,71 @@ export function CreateRequestModal({
                 ? (language === 'ru' ? 'Дата и время вывоза *' : 'Chiqarish sanasi va vaqti *')
                 : (language === 'ru' ? 'Желаемое время (опционально)' : 'Istalgan vaqt (ixtiyoriy)')}
             </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            {/* v118.5: arbitrary `grid-cols-[repeat(2,minmax(0,1fr))]`
+                to escape the global mobile override at src/index.css:
+                1614-1624 which forces every .grid-cols-2 / .grid-cols-3
+                / .grid-cols-4 to `repeat(2, 1fr) !important` at ≤640 px,
+                dropping the `minmax(0, 1fr)` shrink-below-content
+                behavior. Without minmax(0, 1fr) the native
+                <input type="date"> and <select> push their grid tracks
+                to their UA-defined min-content widths (date-picker
+                arrows + select dropdown), which on a phone exceeds
+                half the modal width — and the two boxes overlap.
+                Children get `min-w-0` so they're allowed to actually
+                shrink to their track size (grid items default to
+                `min-width: auto` which alone still blocks shrinking
+                even with minmax). */}
+            {/* v118.6: gap-3 (12 px) rendered cleanly but read as
+                "flush" at iPhone Retina scale because the modal bg +
+                .glass-input's 0.8-alpha white + thin gray border
+                offer too little contrast across 12 px. Bumped to
+                gap-4 (16 px) for a clearly visible breathing strip
+                between the date input and the time select on every
+                iPhone width. v118.5 grid + min-w-0 unchanged. */}
+            {/* v118.8: items-start aligns the two columns to the top
+                of the row track explicitly (CSS Grid's default
+                align-items: normal resolves to stretch but the
+                stretching interacts with children's content sizing
+                in subtle ways — being explicit removes ambiguity).
+                Both inputs gain h-11 (44 px) below so they render
+                pixel-for-pixel the same height; `.glass-input`'s
+                min-height:44px alone allows ≥44 px which lets iOS
+                UA paint them slightly differently between a
+                <select> and <input type="date">. */}
+            <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-4 items-start">
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {language === 'ru' ? 'Дата' : 'Sana'} {category === 'trash' && <span className="text-red-500">*</span>}
                 </label>
+                {/* v118.104 — bumped 44 → 48 px (h-11 → h-12) and added
+                    line-height: 1.4. The previous h-11 forced exact
+                    44 px with .glass-input's 12 px vertical padding +
+                    1.5 px border (top+bot 3 px) → ~17 px content area.
+                    iOS WKWebView's native <select> chrome added vertical
+                    insets on top of that, clipping "Любое время" (and
+                    the date value descenders) at the bottom. 48 px
+                    gives ~21 px content area and matches the larger
+                    glass-input rhythm used elsewhere on the form. */}
                 <input
                   type="date"
                   value={scheduledDate}
                   onChange={(e) => setScheduledDate(e.target.value)}
-                  className="glass-input w-full"
+                  className="glass-input w-full h-12"
+                  style={{ lineHeight: 1.4 }}
                   min={getMinDate()}
                   max={getMaxDate()}
                   required={category === 'trash'}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {language === 'ru' ? 'Время' : 'Vaqt'} {category === 'trash' && <span className="text-red-500">*</span>}
                 </label>
                 <select
                   value={scheduledTime}
                   onChange={(e) => setScheduledTime(e.target.value)}
-                  className="glass-input w-full"
+                  className="glass-input w-full h-12"
+                  style={{ lineHeight: 1.4 }}
                   required={category === 'trash'}
                 >
                   <option value="">{category === 'trash'
@@ -633,7 +743,19 @@ export function CreateRequestModal({
           </div>
 
           {/* Actions — sticky at bottom so always visible */}
-          <div className="flex gap-3 pt-4 border-t sticky bottom-0 bg-white -mx-4 px-4 sm:-mx-6 sm:px-6 pb-1">
+          {/* v118.11: action buttons sit IN-FLOW at the end of the
+              scrollable form content — no longer sticky-pinned to
+              the modal viewport bottom. User scrolls the form to
+              the last field and the buttons appear right after, as
+              part of normal content. Sticky bg, negative margin, and
+              bottom-0 anchor all dropped — they were only needed for
+              the sticky variant. The pb-[max(0.5rem,env(safe-area-
+              inset-bottom))] STAYS so when the buttons ARE scrolled
+              into view, they clear the iOS home indicator (modal's
+              own p-4 adds another 16 px below — acceptable).
+              v118.10 useModalPresence (hides BottomBar while modal
+              is open) is unchanged. */}
+          <div className="flex gap-3 pt-4 border-t pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={onClose}
@@ -658,6 +780,7 @@ export function CreateRequestModal({
             </button>
           </div>
         </form>
+        </div>{/* /inner scroller */}
       </div>
     </div>
   );

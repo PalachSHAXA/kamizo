@@ -7,6 +7,7 @@
 // useModalPresence so the global BottomBar hides while it's open.
 
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Phone, MapPin, Clock, ArrowLeft,
   CheckCircle, Loader2, Flame, Sparkles,
@@ -124,6 +125,10 @@ const EMERGENCY_CONTACTS = (lang: 'ru' | 'uz') => [
 ];
 
 export default function ResidentUsefulContactsPage() {
+  // v118.94 — navigate for the new back arrow added to the sticky header.
+  // Page stays inside Layout (BottomBar continues to render), so this is
+  // the /guest-access pattern (v220), NOT the standalone-fullscreen one.
+  const navigate = useNavigate();
   const { token } = useAuthStore();
   const { language } = useLanguageStore();
   const { config } = useTenantStore();
@@ -476,17 +481,40 @@ export default function ResidentUsefulContactsPage() {
         WebkitBackdropFilter: 'blur(14px)',
       }}>
         <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px' }}>
-          <div style={{
-            fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-            color: TEXT_SECONDARY, textTransform: 'uppercase',
-          }}>
-            {language === 'ru' ? 'Сервисы рядом с домом' : 'Uy yonidagi xizmatlar'}
-          </div>
-          <div style={{
-            fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', marginTop: 2,
-            color: TEXT_PRIMARY,
-          }}>
-            {language === 'ru' ? 'Полезное рядом' : 'Foydali yonida'}
+          {/* v118.94 — back arrow + heading inline row. Explicit
+              navigate('/') (NOT history.back) so the user always lands on
+              Home regardless of how they reached /useful-contacts. Page
+              stays inside Layout so the BottomBar continues to render. */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+              style={{
+                width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+                background: SURFACE,
+                border: `1px solid ${BORDER}`,
+                color: TEXT_PRIMARY,
+                display: 'grid', placeItems: 'center',
+                cursor: 'pointer', padding: 0,
+              }}
+            >
+              <ArrowLeft size={19} />
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
+                color: TEXT_SECONDARY, textTransform: 'uppercase',
+              }}>
+                {language === 'ru' ? 'Сервисы рядом с домом' : 'Uy yonidagi xizmatlar'}
+              </div>
+              <div style={{
+                fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', marginTop: 2,
+                color: TEXT_PRIMARY,
+              }}>
+                {language === 'ru' ? 'Полезное рядом' : 'Foydali yonida'}
+              </div>
+            </div>
           </div>
         </div>
         {/* Category chips */}

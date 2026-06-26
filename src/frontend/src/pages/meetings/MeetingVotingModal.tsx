@@ -36,27 +36,41 @@ import { QRSignatureModal } from '../../components/QRSignatureModal';
 
 // ── shared visual tokens (literal so a rename in global CSS doesn't
 //    silently destroy this surface) ─────────────────────────────────
-const APP_BG = '#F4F0E8';
-const SURFACE = '#FFFFFF';
-const SURFACE_SUNKEN = '#F5F5F4';
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#57534E';
-const TEXT_MUTED = '#A8A29E';
-const BORDER = '#E7E5E4';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
-const STONE_50 = '#FAFAF9';
-const STONE_100 = '#F5F5F4';
-const STONE_150 = '#ECECEA';
-const STONE_200 = '#E7E5E4';
-const STONE_300 = '#D6D3D1';
-const STONE_400 = '#A8A29E';
-const AMBER_50 = '#FEF3C7';
-const AMBER_100 = '#FDE68A';
-const AMBER_600 = '#D97706';
-const AMBER_700 = '#B45309';
-const SUCCESS = '#15803D';
-const SUCCESS_BG = '#DCFCE7';
-const SUCCESS_500 = '#16A34A';
+// v118.65 — voting modal сделан theme-aware. Все 22 хардкод
+// хексa заменены на CSS var() из index.css которые автоматически
+// переключаются через html.dark. До этого модал рендерился solid
+// light (cream/white bg, dark text) даже когда вся остальная app
+// в dark теме.
+const APP_BG          = 'var(--app-bg, #F4F0E8)';
+const SURFACE         = 'var(--surface, #FFFFFF)';
+const SURFACE_SUNKEN  = 'var(--surface-sunken, #F5F5F4)';
+const TEXT_PRIMARY    = 'var(--text-primary, #1C1917)';
+const TEXT_SECONDARY  = 'var(--text-secondary, #57534E)';
+const TEXT_MUTED      = 'var(--text-muted, #A8A29E)';
+const BORDER          = 'var(--border-c, #E7E5E4)';
+const HAIRLINE        = 'var(--border-c, rgba(28,25,23,0.06))';
+// Stone scale — alt-surface chips, dividers. Маппинг к theme-aware
+// surface tokens чтобы chips/dividers сидели в правильной палитре
+// на dark теме (warm stone тёмные оттенки вместо светло-серых).
+const STONE_50  = 'var(--surface-sunken, #FAFAF9)';
+const STONE_100 = 'var(--surface-sunken, #F5F5F4)';
+const STONE_150 = 'var(--surface-2, #ECECEA)';
+const STONE_200 = 'var(--border-c, #E7E5E4)';
+const STONE_300 = 'var(--border-c, #D6D3D1)';
+const STONE_400 = 'var(--text-muted, #A8A29E)';
+// Amber accents (info banners, warning chips) → status-pending
+// палитра. Bg использует alpha-tint (0.1 light / 0.20 dark), text
+// solid amber. Читается в обеих темах.
+const AMBER_50  = 'var(--status-pending-bg, rgba(245,158,11,0.1))';
+const AMBER_100 = 'var(--status-pending-bg, rgba(245,158,11,0.18))';
+const AMBER_600 = 'var(--status-pending, #D97706)';
+const AMBER_700 = 'var(--status-pending, #B45309)';
+// Success (green "Вы проголосовали" badge, selected option)
+// → status-active. Alpha-tinted bg работает на dark surface без
+// яркого зелёного блика; text использует более насыщенный зелёный.
+const SUCCESS     = 'var(--status-active, #15803D)';
+const SUCCESS_BG  = 'var(--status-active-bg, rgba(34,197,94,0.15))';
+const SUCCESS_500 = 'var(--status-active, #16A34A)';
 const DANGER = '#B91C1C';
 const DANGER_BG = '#FEE2E2';
 const DANGER_500 = '#DC2626';
@@ -335,16 +349,29 @@ export function MeetingVotingModal({
     return (
       <div style={pageStyle()}>
         <TopBar title={lang === 'ru' ? 'Голос принят' : 'Ovoz qabul qilindi'} onBack={onClose} />
-        <BallotReceipt
-          meeting={meeting}
-          lang={lang}
-          // Use the last submission's data we cached locally: pendingVotes was cleared,
-          // so derive choices from the store (getVote).
-          getChoice={(id) => getVote(id)?.choice ?? null}
-          user={user}
-          onClose={onClose}
-          deadline={meeting.votingClosedAt}
-        />
+        {/* v118.99 — success-branch inner scroller mirrors the main
+            render: outer pageStyle is now a flex column so BallotReceipt
+            needs its own scroll container. */}
+        <div style={{
+          flex: '1 1 auto',
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
+        }}>
+          <BallotReceipt
+            meeting={meeting}
+            lang={lang}
+            // Use the last submission's data we cached locally: pendingVotes was cleared,
+            // so derive choices from the store (getVote).
+            getChoice={(id) => getVote(id)?.choice ?? null}
+            user={user}
+            onClose={onClose}
+            deadline={meeting.votingClosedAt}
+          />
+        </div>
       </div>
     );
   }
@@ -358,7 +385,20 @@ export function MeetingVotingModal({
         onInfo={() => setHelpOpen(true)}
       />
 
-      <div style={{ paddingBottom: isVotingOpen && Object.keys(pendingVotes).length > 0 ? 200 : 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
+      {/* v118.99 — inner scroller. Owns ALL scroll on the voting
+          detail page; outer is a flex column with overflow:hidden so
+          the TopBar (flex:0 0 auto) cannot drift on iOS rubber-band.
+          paddingBottom reserves room for the fixed BottomSummary
+          when voting is open, otherwise just safe-area + 24px. */}
+      <div style={{
+        flex: '1 1 auto',
+        minHeight: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: isVotingOpen && Object.keys(pendingVotes).length > 0 ? 200 : 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
+      }}>
         {/* Revote banner */}
         {allowRevote && (
           <div style={{
@@ -522,10 +562,16 @@ export function MeetingVotingModal({
 // Layout chrome
 // ─────────────────────────────────────────────────────────────────────────
 
+// v118.99 — switched from "page IS the scroller" (overflowY:auto on
+// the fixed full-screen overlay) to the v229/v232/v241 inner-scroller
+// pattern: outer is a flex column with overflow:hidden, TopBar gets
+// flex:0 0 auto and never drifts on iOS rubber-band, and the actual
+// scrollable content lives in a dedicated inner div per render branch.
 const pageStyle = (): React.CSSProperties => ({
   position: 'fixed', inset: 0, zIndex: 110,
   background: APP_BG, color: TEXT_PRIMARY,
-  overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+  display: 'flex', flexDirection: 'column',
+  overflow: 'hidden',
   letterSpacing: '-0.01em',
 });
 
@@ -538,9 +584,13 @@ const sectionTitleStyle: React.CSSProperties = {
 function TopBar({ title, subtitle, onBack, onInfo }: { title: string; subtitle?: string; onBack: () => void; onInfo?: () => void }) {
   return (
     <div style={{
-      position: 'sticky', top: 0, zIndex: 5,
+      flex: '0 0 auto',
       padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
-      background: 'rgba(245,245,244,0.85)',
+      // v118.66 — TopBar background was hardcoded
+      // rgba(245,245,244,0.85) (light glass), оставлял белую полосу
+      // на dark теме. Переход на --header-glass-bg (theme-aware:
+      // light = rgba(245,245,244,0.85), dark = rgba(28,25,23,0.85)).
+      background: 'var(--header-glass-bg, rgba(245,245,244,0.85))',
       backdropFilter: 'blur(10px)',
       WebkitBackdropFilter: 'blur(10px)',
       borderBottom: `1px solid ${HAIRLINE}`,

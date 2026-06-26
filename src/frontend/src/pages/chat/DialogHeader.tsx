@@ -118,11 +118,22 @@ export function DialogHeader({
       : 'text-gray-500';
 
   return (
+    // v118.105 — tightened the top spacing. Was
+    // `paddingTop: env(safe-area-inset-top, 0px)` on the outer +
+    // `py-2.5` (10 px) on the inner — together ~safe-area + 10 px
+    // before the avatar, which on iPhone 17 Pro Max (Dynamic-Island
+    // 59 px safe-area) read as an awkward ~22 px empty band above
+    // the header. Now: outer paddingTop folds in a fixed 6 px gap
+    // via calc(), and the inner row uses pt-0 pb-2.5 so the only
+    // top spacing above the avatar is the safe-area + that 6 px.
+    // Result on iPhone 17 Pro Max ≈ status-bar + 6 px → polished
+    // messenger-style header. Bottom 10 px keeps the divider line
+    // properly off the avatar.
     <div
       className="bg-white border-b border-gray-100 flex-shrink-0"
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
     >
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
+      <div className="flex items-center gap-2.5 px-3 pt-0 pb-2.5">
         <button
           onClick={onBack}
           className={`w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 active:bg-gray-200 rounded-[12px] transition-colors touch-manipulation ${
