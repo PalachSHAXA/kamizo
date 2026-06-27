@@ -1,4 +1,57 @@
 /* ──────────────────────────────────────────────────────────────────────
+   v118.128 — bundle Manrope locally for the splash.
+
+   src/index.css imports Manrope via fonts.googleapis.com. On a fresh
+   native install the WebView has no network/cache by the time the
+   splash mounts (~2 s after launch), so the wordmark falls back to
+   system-ui (SF Pro on iOS) — wider per-character widths combined
+   with our per-letter <span> + flex layout (kerning + letter-spacing
+   can't apply across separate spans) made "Kamizo" render as
+   "Kam izo" with visible gaps.
+
+   Below: @font-face for weights 600 + 800, latin + cyrillic subsets,
+   loaded from /fonts/ (shipped in public/fonts/). `font-display:
+   block` so the splash WAITS for the local font instead of flashing
+   the fallback — the wait is zero on native since the woff2 is
+   already on the device. unicode-range matches Google Fonts' own
+   per-subset @font-face blocks so the browser picks the right file
+   per character.
+   ────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/manrope-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/manrope-600-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/manrope-800-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/manrope-800-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
    NativeSplashOverlay — time-based splash painted in the webview.
 
    v118.127 — visuals swapped to the new claude.ai/design Kamizo Splash
@@ -162,14 +215,24 @@
   padding: 0 24px;
 }
 
+/* v118.128 — wordmark is now a single text node so the font's own
+   kerning / letter-spacing apply (per-letter spans + flex gap broke
+   that on the SF Pro fallback, producing "Kam izo"). The whole word
+   slides up + fades in as one unit at the same timing the design's
+   last-letter stagger reached. */
 .kamizo-splash .ks-wordmark {
   margin-top: 0;
   display: flex;
   align-items: baseline;
-  gap: 1px;
+  gap: 7px;
+  /* Defensive: enable OpenType kerning in case the rendering pipeline
+     skips it on flex children. */
+  font-kerning: normal;
+  font-feature-settings: "kern" 1;
 }
 
-.kamizo-splash .ks-wordmark span {
+.kamizo-splash .ks-wm-word {
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
   font-size: clamp(44px, 13vw, 60px);
   font-weight: 800;
   letter-spacing: -0.045em;
@@ -177,10 +240,11 @@
   opacity: 0;
   transform: translateY(16px);
   display: inline-block;
+  white-space: nowrap;
 }
 
-.kamizo-splash--play .ks-wordmark span {
-  animation: ks-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+.kamizo-splash--play .ks-wm-word {
+  animation: ks-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) 1.2s forwards;
 }
 
 @keyframes ks-up {
@@ -287,7 +351,7 @@
   .kamizo-splash .ks-star,
   .kamizo-splash .ks-sun,
   .kamizo-splash .ks-realsky,
-  .kamizo-splash .ks-wordmark span,
+  .kamizo-splash .ks-wm-word,
   .kamizo-splash .ks-wm-dot,
   .kamizo-splash .ks-tagline,
   .kamizo-splash .ks-loader,

@@ -194,15 +194,20 @@ function scatterStars(host: HTMLDivElement): void {
 }
 
 function buildWordmark(host: HTMLDivElement): void {
-  // Render "Kamizo" letter-by-letter with the staggered delays from
-  // the redesign (1.05 s + 0.07 s per letter), then an orange brand
-  // dot that pops in after the last letter at 1.5 s.
-  'Kamizo'.split('').forEach((ch, i) => {
-    const s = document.createElement('span');
-    s.textContent = ch;
-    s.style.animationDelay = `${(1.05 + i * 0.07).toFixed(2)}s`;
-    host.appendChild(s);
-  });
+  // v118.128 — single text node for the word, NOT per-letter spans.
+  // The per-letter-span architecture matched the source design's
+  // staggered slide-in, but on native the font fell back to SF Pro
+  // (Manrope from Google Fonts wasn't loaded by splash mount time),
+  // and kerning/letter-spacing can't apply across separate spans,
+  // so the wide-character fallback rendered "Kamizo" as "Kam izo"
+  // with visible gaps. One text node lets the font's own kerning
+  // work whichever font wins the cascade; the whole word animates
+  // as a unit (fade + slide-up) at the same timing as the design's
+  // last-letter delay. Orange brand dot still pops in after.
+  const word = document.createElement('span');
+  word.className = 'ks-wm-word';
+  word.textContent = 'Kamizo';
+  host.appendChild(word);
   const dot = document.createElement('i');
   dot.className = 'ks-wm-dot';
   host.appendChild(dot);
