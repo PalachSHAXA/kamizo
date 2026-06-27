@@ -14,6 +14,7 @@ import {
 } from './kamizoDesign';
 import { useIsMobile } from '../../../hooks/useBreakpoint';
 import { useThemeStore } from '../../../stores/themeStore';
+import { useTenantStore } from '../../../stores/tenantStore';
 import { NotificationsDropdown } from '../../../components/NotificationsDropdown';
 
 const ru = (language: string, r: string, u: string) => (language === 'ru' ? r : u);
@@ -399,11 +400,16 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
 }
 
 function QuickTiles({ onNewRequest, navigate, language, passCount = 0, vehicleCount = 0 }: any) {
+  // v118.125 — gate tile onClicks by tenant feature; without this a tile
+  // pointing at a route the tenant lacks (e.g. /vehicles on HUMO, which
+  // has no `vehicles` feature) is tappable but ProtectedRoute redirects
+  // to "/", so the user taps, screen flickers, bounces back.
+  const hasFeature = useTenantStore((s) => s.hasFeature);
   const tiles = [
-    { Icon: IWrench, label: ru(language, 'Заявка', 'Ariza'), onClick: onNewRequest },
-    { Icon: IQR, label: ru(language, 'Пропуск', 'Ruxsat'), onClick: () => navigate('/guest-access'), badge: passCount },
+    { Icon: IWrench, label: ru(language, 'Заявка', 'Ariza'), onClick: hasFeature('requests') ? onNewRequest : undefined },
+    { Icon: IQR, label: ru(language, 'Пропуск', 'Ruxsat'), onClick: hasFeature('qr') ? () => navigate('/guest-access') : undefined, badge: passCount },
     { Icon: ICard, label: ru(language, 'Оплата', 'To\'lov'), soon: true },
-    { Icon: ICar, label: ru(language, 'Авто', 'Avto'), onClick: () => navigate('/vehicles'), badge: vehicleCount },
+    { Icon: ICar, label: ru(language, 'Авто', 'Avto'), onClick: hasFeature('vehicles') ? () => navigate('/vehicles') : undefined, badge: vehicleCount },
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
@@ -613,6 +619,14 @@ interface Props {
 export function ResidentHomeDesign(props: Props) {
   const { language, name, apt, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, brand, logo = null, passCount = 0, vehicleCount = 0, needsRegistration = false, registrationMissing, onNewRequest, onTab, onMenu, onCompleteRegistration, onApprove, onOpenRequest } = props;
   const navigate = useNavigate();
+  // v118.125 — feature-gated nav. The hero carousel + quick-action tiles
+  // link to tenant-feature-gated routes (/meetings, /vehicles, /guest-
+  // access). Tenants without a feature have ProtectedRoute redirect-to-
+  // "/", so a tile that points at an unavailable route silently bounces
+  // back to home. Pull the gate here and (a) drop bouncing carousel
+  // cards entirely, (b) leave bouncing quick-tile onClick undefined so
+  // the tile renders disabled (the .disabled style was already there).
+  const hasFeature = useTenantStore((s) => s.hasFeature);
   // v118.72 — bell toggles the NotificationsDropdown panel (was: navigate
   // to /announcements). Dropdown is mounted just below the hero (anchor
   // offset 96 px) per kamizo-home.jsx prototype.
@@ -647,16 +661,23 @@ export function ResidentHomeDesign(props: Props) {
     shadow: 'rgba(14,154,171,0.5)',
     onClick: () => { if (onCompleteRegistration) onCompleteRegistration(); else navigate('/profile'); },
   };
-  const baseCards = [
+  // v118.125 — every entry below is gated by `feature`. Cards whose
+  // feature isn't enabled for this tenant are filtered out before the
+  // carousel renders; without this they'd navigate to a route that
+  // ProtectedRoute redirects to "/" → user taps, screen flickers,
+  // bounces back to home (the "broken navigation" the user reported).
+  // `null` feature means the route is always available (no gate).
+  const allBaseCards = [
     // v118.71 — silhouette 'people' → 'ballot' + richer title/sub copy to match LIVE design.
-    { id: 'voting', Icon: IUsers, silhouette: 'ballot', badge: ru(language, 'Голосование', 'Ovoz'), title: ru(language, 'Ремонт лифтов · идёт голосование', "Liftlarni ta'mirlash · ovoz berilmoqda"), sub: ru(language, 'Ваш голос · 67 м² · осталось 2 дня', "Sizning ovozingiz · 67 m² · 2 kun qoldi"), cta: ru(language, 'Проголосовать →', 'Ovoz berish →'), gradient: 'linear-gradient(150deg, #FB923C 0%, #EA580C 100%)', shadow: 'rgba(249,115,22,0.5)', onClick: () => navigate('/meetings') },
-    { id: 'guest', Icon: IQR, silhouette: 'qr', badge: 'QR', title: ru(language, 'Гостевой пропуск', 'Mehmon ruxsati'), sub: ru(language, 'QR для гостя или доставки', 'Mehmon yoki yetkazib berish uchun'), cta: ru(language, 'Создать →', 'Yaratish →'), gradient: 'linear-gradient(150deg, #34D399 0%, #15A06E 100%)', shadow: 'rgba(21,160,110,0.5)', onClick: () => navigate('/guest-access') },
+    { feature: 'meetings', id: 'voting', Icon: IUsers, silhouette: 'ballot', badge: ru(language, 'Голосование', 'Ovoz'), title: ru(language, 'Ремонт лифтов · идёт голосование', "Liftlarni ta'mirlash · ovoz berilmoqda"), sub: ru(language, 'Ваш голос · 67 м² · осталось 2 дня', "Sizning ovozingiz · 67 m² · 2 kun qoldi"), cta: ru(language, 'Проголосовать →', 'Ovoz berish →'), gradient: 'linear-gradient(150deg, #FB923C 0%, #EA580C 100%)', shadow: 'rgba(249,115,22,0.5)', onClick: () => navigate('/meetings') },
+    { feature: 'qr', id: 'guest', Icon: IQR, silhouette: 'qr', badge: 'QR', title: ru(language, 'Гостевой пропуск', 'Mehmon ruxsati'), sub: ru(language, 'QR для гостя или доставки', 'Mehmon yoki yetkazib berish uchun'), cta: ru(language, 'Создать →', 'Yaratish →'), gradient: 'linear-gradient(150deg, #34D399 0%, #15A06E 100%)', shadow: 'rgba(21,160,110,0.5)', onClick: () => navigate('/guest-access') },
     // v118.71 — sub copy expanded to match LIVE design ('и мастера дома', 'займёт 30 секунд', 'по номеру машины').
-    { id: 'contacts', Icon: IPhone, silhouette: 'phone', badge: ru(language, 'Контакты', 'Kontaktlar'), title: ru(language, 'Полезные контакты', 'Foydali kontaktlar'), sub: ru(language, 'Экстренные службы и мастера дома', "Favqulodda xizmatlar va uy ustalari"), cta: ru(language, 'Открыть →', 'Ochish →'), gradient: 'linear-gradient(150deg, #60A5FA 0%, #2F77C2 100%)', shadow: 'rgba(47,119,194,0.5)', onClick: () => navigate('/useful-contacts') },
+    { feature: null, id: 'contacts', Icon: IPhone, silhouette: 'phone', badge: ru(language, 'Контакты', 'Kontaktlar'), title: ru(language, 'Полезные контакты', 'Foydali kontaktlar'), sub: ru(language, 'Экстренные службы и мастера дома', "Favqulodda xizmatlar va uy ustalari"), cta: ru(language, 'Открыть →', 'Ochish →'), gradient: 'linear-gradient(150deg, #60A5FA 0%, #2F77C2 100%)', shadow: 'rgba(47,119,194,0.5)', onClick: () => navigate('/useful-contacts') },
     // v118.122 — was purple → unified to brand orange (matches voting card above + BottomBar CTA).
-    { id: 'rate', Icon: IStar, silhouette: 'star', badge: ru(language, 'Оценка', 'Baho'), title: ru(language, 'Оцените УК', 'Boshqaruvni baholang'), sub: ru(language, 'Раз в месяц · займёт 30 секунд', "Oyiga bir marta · 30 soniya oladi"), cta: ru(language, 'Оценить →', 'Baholash →'), gradient: 'linear-gradient(150deg, #FB923C 0%, rgb(var(--brand-rgb)) 100%)', shadow: 'rgba(var(--brand-rgb), 0.5)', onClick: () => navigate('/rate-employees') },
-    { id: 'find-car', Icon: ICar, silhouette: 'car', badge: ru(language, 'Авто', 'Avto'), title: ru(language, 'Найти владельца авто', 'Avto egasini topish'), sub: ru(language, 'Поиск соседа по номеру машины', "Mashina raqami bo'yicha qidirish"), cta: ru(language, 'Найти →', 'Topish →'), gradient: 'linear-gradient(150deg, #FBBF24 0%, #D97706 100%)', shadow: 'rgba(217,119,6,0.5)', onClick: () => navigate('/vehicles') },
+    { feature: null, id: 'rate', Icon: IStar, silhouette: 'star', badge: ru(language, 'Оценка', 'Baho'), title: ru(language, 'Оцените УК', 'Boshqaruvni baholang'), sub: ru(language, 'Раз в месяц · займёт 30 секунд', "Oyiga bir marta · 30 soniya oladi"), cta: ru(language, 'Оценить →', 'Baholash →'), gradient: 'linear-gradient(150deg, #FB923C 0%, rgb(var(--brand-rgb)) 100%)', shadow: 'rgba(var(--brand-rgb), 0.5)', onClick: () => navigate('/rate-employees') },
+    { feature: 'vehicles', id: 'find-car', Icon: ICar, silhouette: 'car', badge: ru(language, 'Авто', 'Avto'), title: ru(language, 'Найти владельца авто', 'Avto egasini topish'), sub: ru(language, 'Поиск соседа по номеру машины', "Mashina raqami bo'yicha qidirish"), cta: ru(language, 'Найти →', 'Topish →'), gradient: 'linear-gradient(150deg, #FBBF24 0%, #D97706 100%)', shadow: 'rgba(217,119,6,0.5)', onClick: () => navigate('/vehicles') },
   ];
+  const baseCards = allBaseCards.filter((c) => !c.feature || hasFeature(c.feature));
   const cards = needsRegistration ? [registrationCard, ...baseCards] : baseCards;
 
   const section: React.CSSProperties = { padding: '0 16px', marginTop: 16 };
