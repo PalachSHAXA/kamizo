@@ -1,19 +1,26 @@
-// Per-tenant brand theming.
+// Per-tenant brand theming — v118.123 PRODUCT DECISION:
 //
-// The UI chrome reads brand colors from CSS custom properties (--brand,
-// --brand-rgb, --brand-light, …) declared statically in index.css as Kamizo
-// orange. Tenants pick their own primary colour in the super-admin editor
-// (tenants.color), but it used to be stored-only and never painted — so
-// every УК looked orange regardless. This applies the tenant's colour to the
-// brand tokens at runtime so the picked colour actually themes the site.
+// The accent colour is now ALWAYS the Kamizo system orange, for EVERY
+// tenant (HUMO, choko, any), on web and native. Previously
+// applyTenantBrand() painted tenants.color over the --brand-* tokens at
+// runtime, so HUMO (#4715f9 stored) rendered the whole UI purple/blue,
+// choko (#e5ddd6 stored) bled beige into every accent, etc. That broke
+// brand consistency — when a resident moves between tenants the chrome
+// shifted colour, making the platform feel different per company.
 //
-// Called with the tenant colour on config load; called with null on the main
-// (no-tenant) domain to fall back to the static orange defaults.
+// Tenant identity now lives in NAME and LOGO only (still read straight
+// from useTenantStore.config.tenant — unchanged). The super-admin form
+// continues to store tenants.color in the DB; we just stop painting it.
+// If product reverses this decision, revert this file — every other
+// caller passes the colour through unchanged.
+//
+// applyTenantBrand() is a no-op that ALWAYS clears the inline overrides,
+// so the static Kamizo orange declared in index.css :root always wins.
 
-// Every brand token we override. Must include the full --brand-50..900 scale
-// because tailwind.config maps `primary-{50..900}` → `var(--brand-{50..900})`,
-// and the vast majority of components colour themselves via `bg-primary-*` /
-// `text-primary-*`. Anything we leave unset falls back to the orange default.
+// Brand tokens that the legacy implementation used to override per-tenant.
+// We still own the list so any older inline overrides on :root (e.g. from a
+// previous build of this app that DID paint per-tenant, persisted in the
+// runtime style attribute across an SW upgrade) get cleared on every call.
 const BRAND_VARS = [
   '--brand', '--brand-light', '--brand-dark', '--brand-rgb', '--brand-bg',
   '--brand-tint', '--sh-brand',
@@ -21,72 +28,16 @@ const BRAND_VARS = [
   '--brand-500', '--brand-600', '--brand-700', '--brand-800', '--brand-900',
 ] as const;
 
-type RGB = [number, number, number];
-
-function hexToRgb(hex: string): RGB | null {
-  const m = hex.trim().replace(/^#/, '');
-  const full = m.length === 3 ? m.split('').map((c) => c + c).join('') : m;
-  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
-  const n = parseInt(full, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-// Linear blend: t=0 → a, t=1 → b.
-function mix(a: RGB, b: RGB, t: number): RGB {
-  return [
-    Math.round(a[0] + (b[0] - a[0]) * t),
-    Math.round(a[1] + (b[1] - a[1]) * t),
-    Math.round(a[2] + (b[2] - a[2]) * t),
-  ];
-}
-
-const toHex = ([r, g, b]: RGB) =>
-  '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
-
-const WHITE: RGB = [255, 255, 255];
-const BLACK: RGB = [0, 0, 0];
-
 /**
- * Apply a tenant's primary colour to the brand CSS tokens. Pass null/undefined
- * (or an invalid colour) to clear the overrides and fall back to the static
- * orange defaults from index.css.
+ * No-op brand override — always clears any inline --brand-* declarations on
+ * :root so the static Kamizo orange in index.css always wins, regardless of
+ * which tenant the user is logged into. See file header for product context.
+ *
+ * Parameter retained so callers don't have to change; it is intentionally
+ * ignored.
  */
-export function applyTenantBrand(color?: string | null): void {
+export function applyTenantBrand(_color?: string | null): void {
+  void _color;
   const root = document.documentElement;
-  const rgb = color ? hexToRgb(color) : null;
-
-  if (!rgb) {
-    // No tenant colour → remove inline overrides so the orange defaults win.
-    BRAND_VARS.forEach((v) => root.style.removeProperty(v));
-    return;
-  }
-
-  const rgbStr = `${rgb[0]}, ${rgb[1]}, ${rgb[2]}`;
-  const set = (name: string, value: string) => root.style.setProperty(name, value);
-
-  // Tailwind-like 50..900 scale generated from the picked colour (treated as
-  // ~500): lighter shades blend toward white, darker toward black.
-  const scale: Record<number, RGB> = {
-    50: mix(rgb, WHITE, 0.95),
-    100: mix(rgb, WHITE, 0.88),
-    200: mix(rgb, WHITE, 0.74),
-    300: mix(rgb, WHITE, 0.55),
-    400: mix(rgb, WHITE, 0.30),
-    500: rgb,
-    600: mix(rgb, BLACK, 0.12),
-    700: mix(rgb, BLACK, 0.26),
-    800: mix(rgb, BLACK, 0.40),
-    900: mix(rgb, BLACK, 0.55),
-  };
-  for (const [step, value] of Object.entries(scale)) {
-    set(`--brand-${step}`, toHex(value));
-  }
-
-  set('--brand', toHex(rgb));
-  set('--brand-rgb', rgbStr);
-  set('--brand-light', toHex(scale[400]));
-  set('--brand-dark', toHex(scale[700]));
-  set('--brand-bg', toHex(scale[50]));
-  set('--brand-tint', `rgba(${rgbStr}, 0.12)`);
-  set('--sh-brand', `0 8px 22px rgba(${rgbStr}, 0.35)`);
+  BRAND_VARS.forEach((v) => root.style.removeProperty(v));
 }

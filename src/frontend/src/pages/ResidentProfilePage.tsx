@@ -381,8 +381,8 @@ export function ResidentProfilePage() {
       // "Скоро" the same way the resident HomeTab tile does. The cursor
       // already drops to 'default' below when onClick is undefined.
       sub: language === 'ru' ? 'Скоро' : 'Tez orada',
-      fg: '#7C3AED',
-      bg: 'rgba(124,58,237,0.12)',
+      fg: 'rgb(var(--brand-rgb))',
+      bg: 'var(--brand-tint, rgba(249,115,22,0.12))',
     },
   ];
 

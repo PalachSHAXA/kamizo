@@ -854,8 +854,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
               />
               <QuickTile
                 Icon={Car}
-                fg="#6366F1"
-                bg="rgba(99,102,241,0.12)"
+                fg="rgb(var(--brand-rgb))"
+                bg="var(--brand-tint, rgba(249,115,22,0.12))"
                 label={language === 'ru' ? 'Транспорт' : 'Transport'}
                 sub={
                   vehicleCount > 0

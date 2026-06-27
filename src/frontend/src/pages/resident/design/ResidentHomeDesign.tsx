@@ -414,8 +414,8 @@ function QuickTiles({ onNewRequest, navigate, language, passCount = 0, vehicleCo
         // it visibly inactive and unresponsive to tap. Matches the v127
         // ResidentProfilePage disabled-tile convention.
         <button key={i} onClick={t.onClick} disabled={!t.onClick} aria-disabled={!t.onClick} style={{ position: 'relative', background: 'var(--surface)', border: '1px solid var(--border-c)', borderRadius: 20, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: t.onClick ? 'pointer' : 'default', opacity: t.onClick ? 1 : 0.7, boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ position: 'relative', width: 46, height: 46, borderRadius: 999, background: 'var(--brand-tint)', color: 'var(--brand-dark)', display: 'grid', placeItems: 'center' }}>
-            <t.Icon size={22} stroke={1.9} />
+          <div style={{ position: 'relative', width: 46, height: 46, borderRadius: 999, background: 'var(--brand-tint)', color: 'var(--brand)', display: 'grid', placeItems: 'center' }}>
+            <t.Icon size={22} stroke={2.1} />
             {t.badge > 0 && (
               <span style={{ position: 'absolute', top: -4, right: -6, minWidth: 20, height: 20, padding: '0 6px', borderRadius: 999, background: 'var(--brand)', color: '#fff', fontSize: 11, fontWeight: 800, display: 'grid', placeItems: 'center', boxShadow: '0 2px 6px rgba(249,115,22,0.4)', border: '2px solid var(--surface)' }}>{t.badge}</span>
             )}
