@@ -1,7 +1,7 @@
 // Auth routes: login, register
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantId, setTenantForRequest } from '../../middleware/tenant';
+import { getTenantId, setTenantForRequest, getTenantSlug } from '../../middleware/tenant';
 import { checkRateLimit, getClientIdentifier } from '../../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../../middleware/cors';
 import { json, error, bilingualError, generateId, isAdminLevel } from '../../utils/helpers';
@@ -89,6 +89,43 @@ route('POST', '/api/auth/login', async (request, env) => {
   // ────────────────────────────────────────────────────────────────
   let tenantId: string | null = getTenantId(request);
   let tenantResolvedFromBody = false;
+
+  // v118.121 — Origin-header tenant pinning (defense-in-depth for web).
+  //
+  // The login endpoint runs on api.kamizo.uz, so index.ts's hostname-based
+  // setTenantForRequest() never fires (api is a well-known subdomain,
+  // skipped by getTenantSlug). For web visitors the only authoritative
+  // tenant signal is the page Origin (e.g. https://my-humo.kamizo.uz).
+  //
+  // If the request carries an Origin that resolves to a real tenant
+  // subdomain, treat that as the tenant and skip Path B's cross-tenant
+  // fan-out. Without this a stale or rogue FE on my-humo could ship any
+  // login + password and Path B would happily authenticate it against
+  // whichever tenant matched first (incident: deployed DEV_AUTOLOGIN
+  // for test-choko logged in every my-humo.kamizo.uz visitor as a
+  // choko resident).
+  //
+  // Native shell (capacitor://localhost, no Origin / apex) gets null
+  // here and falls through to body.tenantSlug → Path B as designed.
+  if (!tenantId) {
+    const origin = request.headers.get('Origin') || request.headers.get('Referer') || '';
+    if (origin) {
+      try {
+        const originHost = new URL(origin).hostname.toLowerCase();
+        const originSlug = getTenantSlug(originHost);
+        if (originSlug) {
+          const tenant = await env.DB.prepare(
+            'SELECT id FROM tenants WHERE slug = ? AND is_active = 1'
+          ).bind(originSlug).first() as { id: string } | null;
+          if (tenant) {
+            tenantId = tenant.id;
+          }
+        }
+      } catch {
+        // Malformed Origin/Referer — ignore and fall through.
+      }
+    }
+  }
 
   if (!tenantId && typeof bodyTenantSlug === 'string' && bodyTenantSlug.trim()) {
     const slug = bodyTenantSlug.trim().toLowerCase();
