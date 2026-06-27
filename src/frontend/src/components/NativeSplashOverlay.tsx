@@ -174,84 +174,10 @@ function pickTheme(): PickInfo {
   return info;
 }
 
-// Procedural skyline silhouettes — same offsets and window math as
-// the source design HTML. Kept in plain DOM-via-namespace to avoid
-// React having to manage hundreds of nested <rect>s in its reconciler.
-function buildSkyline(svg: SVGSVGElement): void {
-  const NS = 'http://www.w3.org/2000/svg';
-  const W = 420;
-  const GROUND = 360;
-  const buildings: ReadonlyArray<[number, number, number]> = [
-    [-6, 58, 168],
-    [58, 46, 96],
-    [108, 52, 210],
-    [164, 40, 40],
-    [208, 56, 150],
-    [268, 44, 250],
-    [316, 50, 108],
-    [370, 56, 196],
-  ];
-
-  buildings.forEach(([x, w, top]) => {
-    const fac = document.createElementNS(NS, 'rect');
-    fac.setAttribute('class', 'ks-bldg');
-    fac.setAttribute('x', String(x));
-    fac.setAttribute('y', String(top));
-    fac.setAttribute('width', String(w));
-    fac.setAttribute('height', String(GROUND - top));
-    fac.setAttribute('opacity', '0.94');
-    svg.appendChild(fac);
-
-    const padX = 9;
-    const winW = 9;
-    const winH = 11;
-    const gapX = 6;
-    const gapY = 9;
-    const topPad = 16;
-    const cols = Math.max(1, Math.floor((w - padX * 2 + gapX) / (winW + gapX)));
-    const realGapX = (w - padX * 2 - cols * winW) / Math.max(1, cols - 1);
-
-    const lit = document.createElementNS(NS, 'g');
-    lit.setAttribute('filter', 'url(#ks-glow)');
-
-    for (let r = 0; top + topPad + r * (winH + gapY) < GROUND - 12; r++) {
-      const wy = top + topPad + r * (winH + gapY);
-      for (let c = 0; c < cols; c++) {
-        const wx = x + padX + c * (winW + (isFinite(realGapX) ? realGapX : gapX));
-        const d = document.createElementNS(NS, 'rect');
-        d.setAttribute('class', 'ks-winbase');
-        d.setAttribute('x', wx.toFixed(1));
-        d.setAttribute('y', String(wy));
-        d.setAttribute('width', String(winW));
-        d.setAttribute('height', String(winH));
-        d.setAttribute('rx', '1.5');
-        svg.appendChild(d);
-        if (Math.random() < 0.38) {
-          const l = document.createElementNS(NS, 'rect');
-          l.setAttribute('class', 'ks-lite');
-          l.setAttribute('x', wx.toFixed(1));
-          l.setAttribute('y', String(wy));
-          l.setAttribute('width', String(winW));
-          l.setAttribute('height', String(winH));
-          l.setAttribute('rx', '1.5');
-          l.setAttribute('fill', Math.random() < 0.25 ? '#FFE3B8' : '#FDBA74');
-          const delay = 0.55 + (x / W) * 1.0 + Math.random() * 0.5;
-          (l as SVGRectElement).style.setProperty('--d', `${delay.toFixed(2)}s`);
-          lit.appendChild(l);
-        }
-      }
-    }
-    svg.appendChild(lit);
-  });
-
-  const g = document.createElementNS(NS, 'rect');
-  g.setAttribute('class', 'ks-ground');
-  g.setAttribute('x', '0');
-  g.setAttribute('y', String(GROUND - 3));
-  g.setAttribute('width', String(W));
-  g.setAttribute('height', '3');
-  svg.appendChild(g);
-}
+// v118.127 — procedural SVG skyline removed; the redesign uses only the
+// real Tashkent photo silhouette (.ks-realsky). buildSkyline /
+// .ks-skyline / .ks-bldg / .ks-winbase / .ks-ground / .ks-lite are
+// gone from JSX and CSS alike.
 
 function scatterStars(host: HTMLDivElement): void {
   for (let i = 0; i < 16; i++) {
@@ -268,14 +194,18 @@ function scatterStars(host: HTMLDivElement): void {
 }
 
 function buildWordmark(host: HTMLDivElement): void {
-  // Render "Kamizo" letter-by-letter with the same staggered delays
-  // as the design file (1.05 s + 0.07 s per letter).
+  // Render "Kamizo" letter-by-letter with the staggered delays from
+  // the redesign (1.05 s + 0.07 s per letter), then an orange brand
+  // dot that pops in after the last letter at 1.5 s.
   'Kamizo'.split('').forEach((ch, i) => {
     const s = document.createElement('span');
     s.textContent = ch;
     s.style.animationDelay = `${(1.05 + i * 0.07).toFixed(2)}s`;
     host.appendChild(s);
   });
+  const dot = document.createElement('i');
+  dot.className = 'ks-wm-dot';
+  host.appendChild(dot);
 }
 
 // Take over the native StatusBar so themeStore's earlier
@@ -323,7 +253,6 @@ export function NativeSplashOverlay() {
   const [removed, setRemoved] = useState(false);
 
   const wordmarkRef = useRef<HTMLDivElement>(null);
-  const skylineRef = useRef<SVGSVGElement>(null);
   const starfieldRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -332,27 +261,12 @@ export function NativeSplashOverlay() {
     // SPLASH theme, not the app's persisted theme. Restored on unmount.
     void takeOverStatusBarForSplash(theme);
 
-    // Procedural decorations: skyline + stars + wordmark letters.
+    // Procedural decorations: wordmark letters + dot, stars (dark only).
+    // The skyline (real photo PNG) renders directly from JSX; no SVG
+    // injection step anymore.
     if (wordmarkRef.current) {
       wordmarkRef.current.innerHTML = '';
       buildWordmark(wordmarkRef.current);
-    }
-    if (skylineRef.current) {
-      const defs = skylineRef.current.querySelector('defs');
-      skylineRef.current.innerHTML = '';
-      if (defs) {
-        skylineRef.current.appendChild(defs);
-      } else {
-        const NS = 'http://www.w3.org/2000/svg';
-        const newDefs = document.createElementNS(NS, 'defs');
-        newDefs.innerHTML =
-          '<filter id="ks-glow" x="-60%" y="-60%" width="220%" height="220%">' +
-          '<feGaussianBlur stdDeviation="2.4" result="b"/>' +
-          '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
-          '</filter>';
-        skylineRef.current.appendChild(newDefs);
-      }
-      buildSkyline(skylineRef.current);
     }
     if (starfieldRef.current) {
       starfieldRef.current.innerHTML = '';
@@ -416,21 +330,23 @@ export function NativeSplashOverlay() {
   // No more `.kamizo-splash--${theme}` class on the root (only `.play`
   // for animation gating). All per-child theme class selectors in the
   // .css are deleted alongside this rewrite.
+  // v118.127 — token shape simplified after the wordmark-only redesign:
+  //   - kmark / kmarkFilter / ringBg / ringBd dropped (no K-icon, no ring)
+  //   - bldg / winbase / ground dropped (no procedural SVG buildings)
+  //   - brandDot added (the orange dot rendered after "Kamizo")
+  //   - realskyWidth / realskyLeft per theme so the silhouette frames
+  //     the same landmarks as the design (light: 196%/44%, dark: 345%/5%)
   type ThemeTokens = {
     sky: string;
     glow: string;
     ink: string;
     ink2: string;
     muted: string;
-    ringBg: string;
-    ringBd: string;
-    kmark: string;
     trackBg: string;
-    bldg: string;
-    winbase: string;
-    ground: string;
+    brandDot: string;
     realskyOpacity: number;
-    kmarkFilter: string;
+    realskyWidth: string;
+    realskyLeft: string;
   };
   const LIGHT_TOKENS: ThemeTokens = {
     sky: 'linear-gradient(172deg, #FFF7EC 0%, #FFE8C7 54%, #FBD49C 100%)',
@@ -438,15 +354,11 @@ export function NativeSplashOverlay() {
     ink: '#2A2018',
     ink2: 'rgba(42,32,24,0.62)',
     muted: 'rgba(42,32,24,0.45)',
-    ringBg: 'rgba(255,255,255,0.55)',
-    ringBd: 'rgba(42,32,24,0.10)',
-    kmark: '#EA580C',
     trackBg: 'rgba(42,32,24,0.12)',
-    bldg: '#3E2E22',
-    winbase: '#2A1E16',
-    ground: '#33251A',
+    brandDot: '#EA580C',
     realskyOpacity: 0.92,
-    kmarkFilter: 'drop-shadow(0 6px 18px rgba(28,25,23,0.22))',
+    realskyWidth: '196%',
+    realskyLeft: '44%',
   };
   const DARK_TOKENS: ThemeTokens = {
     sky: 'linear-gradient(168deg, #4A3B30 0%, #34291F 52%, #241B14 100%)',
@@ -454,15 +366,11 @@ export function NativeSplashOverlay() {
     ink: '#F4F0E8',
     ink2: 'rgba(244,240,232,0.66)',
     muted: 'rgba(244,240,232,0.5)',
-    ringBg: 'rgba(244,240,232,0.06)',
-    ringBd: 'rgba(244,240,232,0.14)',
-    kmark: '#FDBA74',
     trackBg: 'rgba(244,240,232,0.14)',
-    bldg: '#241B14',
-    winbase: '#15100B',
-    ground: '#1A130D',
+    brandDot: '#FB923C',
     realskyOpacity: 0.7,
-    kmarkFilter: 'drop-shadow(0 6px 22px rgba(251,146,60,0.30))',
+    realskyWidth: '345%',
+    realskyLeft: '5%',
   };
   const tokens = theme === 'dark' ? DARK_TOKENS : LIGHT_TOKENS;
   const isLight = theme === 'light';
@@ -484,13 +392,8 @@ export function NativeSplashOverlay() {
     '--ks-ink': tokens.ink,
     '--ks-ink2': tokens.ink2,
     '--ks-muted': tokens.muted,
-    '--ks-ring-bg': tokens.ringBg,
-    '--ks-ring-bd': tokens.ringBd,
-    '--ks-kmark': tokens.kmark,
     '--ks-track-bg': tokens.trackBg,
-    '--ks-bldg': tokens.bldg,
-    '--ks-winbase': tokens.winbase,
-    '--ks-ground': tokens.ground,
+    '--ks-brand-dot': tokens.brandDot,
   } as React.CSSProperties;
 
   const tree = (
@@ -509,36 +412,26 @@ export function NativeSplashOverlay() {
       {isLight && <div className="ks-sun" />}
       {!isLight && <div className="ks-starfield" ref={starfieldRef} />}
 
-      {/* Real Tashkent skyline PNG, src + opacity inline. */}
+      {/* Real Tashkent skyline PNG — width / left offset / opacity all
+          inline from tokens so the framing matches the design per theme
+          (light: 196% wide centered at 44%, dark: 345% wide anchored at 5%). */}
       <img
         className="ks-realsky"
         src={isLight ? '/screens/skyline-light.png' : '/screens/skyline-dark.png'}
-        style={{ opacity: tokens.realskyOpacity }}
+        style={{
+          opacity: tokens.realskyOpacity,
+          width: tokens.realskyWidth,
+          left: tokens.realskyLeft,
+        }}
         alt=""
         aria-hidden="true"
         draggable={false}
       />
-      <svg
-        className="ks-skyline"
-        ref={skylineRef}
-        viewBox="0 0 420 360"
-        preserveAspectRatio="xMidYMax meet"
-      >
-        {/* procedural SVG buildings — display:none in CSS; kept so the
-            <defs id="ks-glow"> injection effect doesn't crash. */}
-      </svg>
 
+      {/* v118.127 — center is now wordmark + tagline only. The standalone
+          K-mark icon and its ring frame are gone; the wordmark carries the
+          brand identity via its trailing orange dot (.ks-wm-dot). */}
       <div className="ks-center">
-        {/* K-mark image — src + filter inline so neither depends on a
-            CSS class selector. Both PNGs ship from /icons/. */}
-        <img
-          className="ks-kmark-img"
-          src={isLight ? '/icons/kmark-light.png' : '/icons/kmark-dark.png'}
-          style={{ filter: tokens.kmarkFilter }}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-        />
         <div className="ks-wordmark" ref={wordmarkRef} />
         <div className="ks-tagline">Ваш дом — в телефоне</div>
       </div>
