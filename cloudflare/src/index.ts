@@ -459,6 +459,28 @@ export default {
     // machinery, so serve them directly (with one retry) and skip it entirely.
     try {
       const assetPath = new URL(request.url).pathname;
+      // v118.129 — public Privacy Policy at /privacy (App Store
+      // submission blocker). No-extension extensionless URL is
+      // rewritten to /privacy.html before we hit the SPA fallback
+      // (which would otherwise return index.html for any unknown
+      // path). Handles trailing slash too. Apex (kamizo.uz) only —
+      // tenant subdomains never collide because they don't have
+      // a /privacy of their own, and rewriting here happens before
+      // tenant resolution anyway.
+      if (
+        request.method === 'GET' &&
+        (assetPath === '/privacy' || assetPath === '/privacy/')
+      ) {
+        const rewritten = new Request(
+          new URL('/privacy.html', request.url).toString(),
+          request,
+        );
+        try {
+          return await env.ASSETS.fetch(rewritten);
+        } catch {
+          return await env.ASSETS.fetch(rewritten);
+        }
+      }
       if (request.method === 'GET' && STATIC_ASSET_RE.test(assetPath)) {
         try {
           return await env.ASSETS.fetch(request);
