@@ -170,51 +170,21 @@ function App() {
     applyTenantBrand(tenantColor);
   }, [tenantColor]);
 
-  // DEV AUTOLOGIN — REMOVE BEFORE STORE SUBMISSION
-  // Convenience for development: after every uninstall/reinstall (which
-  // resets localStorage and forces the login screen) automatically sign
-  // in as the RESIDENT test account so we land on the resident Home
-  // without re-typing credentials. Flip DEV_AUTOLOGIN to false to
-  // disable without removing the code. NOTE: this is NOT gated by
-  // import.meta.env.DEV because the iOS Capacitor build runs the
-  // production vite bundle (DEV=false), and we need the autologin in
-  // the simulator. The const flag below is the explicit kill-switch —
-  // MUST be set to false (or this block removed entirely) before any
-  // production / App Store submission.
-  //
-  // v118.108 — credentials swapped back from director
-  // (test-director-choko, v118.101) to RESIDENT (test-choko). Role-
-  // based routing in Layout sends a resident account to the resident
-  // Home, not the staff dashboard.
-  const authLogin = useAuthStore(s => s.login);
-  useEffect(() => {
-    const DEV_AUTOLOGIN = true;
-    if (!DEV_AUTOLOGIN) return;
-    if (user) return; // already authed (existing session in localStorage)
-    let cancelled = false;
-    (async () => {
-      try {
-        const outcome = await authLogin('test-choko', 'kamizo');
-        if (cancelled) return;
-        if (outcome !== 'success') {
-          // eslint-disable-next-line no-console
-          console.warn('[DEV AUTOLOGIN] outcome:', outcome);
-        }
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('[DEV AUTOLOGIN] threw:', e);
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // v118.119 — the sim-testing auto-login block that lived here is
+  // gone. It raced with zustand persist rehydration on cold start
+  // and force-signed-in as a hardcoded resident, breaking every
+  // multi-tenant flow (super-admin impersonation, real tenant admin
+  // login). Sim testing now requires manual credential entry — the
+  // correct production behaviour. The LoginPage's existing
+  // import.meta.env.DEV-gated preview buttons stay intact for quick
+  // visual checks (separate code path).
 
   const fetchNotificationsFromAPI = useNotificationStore(s => s.fetchNotificationsFromAPI);
 
   // v118.116 — Load data from API when user logs in. Was firing
   // 5 simultaneous fetches synchronously the moment `user` flipped
-  // from null → object, on cold network this overlapped with
-  // fetchConfig + the DEV_AUTOLOGIN authLogin call. The re-render
+  // from null → object, and on cold network this overlapped with
+  // fetchConfig + the prior sim-testing auto-login. The re-render
   // storm from each store's `set({isLoading:true})` + their
   // eventual responses made the UI feel frozen for 10-15 s after
   // splash on cold start. Deferring the fetches to a setTimeout(0)

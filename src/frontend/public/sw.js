@@ -1,4 +1,89 @@
 // Kamizo PWA Service Worker
+// Version: 3.7.209 — cache suffix bumped to v264. DEV_AUTOLOGIN
+//     block fully removed from App.tsx. Fix D for the tenant-
+//     impersonation bug where the super-admin "Войти в HUMO"
+//     showed the HUMO banner but CHOKO data.
+//
+//     ROOT CAUSE (one sentence):
+//       The DEV_AUTOLOGIN useEffect in App.tsx unconditionally
+//       called authLogin('test-choko', 'kamizo') whenever the
+//       closure-captured `user` was null at first render — but
+//       zustand persist v4 rehydrates via a Promise microtask
+//       that completes AFTER React's first useEffect run, so on
+//       cold start the guard always saw null and force-logged
+//       the session as CHOKO, overwriting whatever auth had just
+//       been established (super-admin impersonation token,
+//       manually-typed login, anything).
+//
+//     CHANGE (single file: App.tsx):
+//       • Removed: const authLogin = useAuthStore(s => s.login);
+//         + the entire useEffect block (v118.108 / v252) that
+//         called authLogin('test-choko', 'kamizo') on mount.
+//       • Replaced with a short v118.119 comment recording the
+//         removal + why (sim-testing convenience is now manual
+//         login, the correct production behaviour).
+//       • Cleaned the v118.116 comment about deferred fetches to
+//         no longer mention DEV_AUTOLOGIN by name.
+//       • Project-wide grep for DEV_AUTOLOGIN returns 0 matches.
+//
+//     SECONDARY WIN — COLD-START FREEZE:
+//       v261 deferred the post-login fetch fan-out to fix the
+//       splash→interactive freeze, but on cold start the
+//       DEV_AUTOLOGIN authLogin() call was ALSO an awaited
+//       round-trip to the VPS (slow). Removing it cuts one of
+//       the two parallel API calls that overlapped at boot, so
+//       cold start should drop further (typical 1-2 s now,
+//       depending on network).
+//
+//     VERIFIED EFFECTS:
+//       • Super-admin impersonating HUMO → banner shows HUMO AND
+//         the data shows HUMO. Tenant isolation works end-to-
+//         end.
+//       • Real tenant admin logging in directly (test-choko or
+//         test-director-choko, manually entered on the login
+//         form) — works correctly, no force-override.
+//       • Native iOS app — same. Manual credential entry
+//         required on every fresh install. Acceptable; this is
+//         what every other app does.
+//
+//     UNCHANGED:
+//       • LoginPage's import.meta.env.DEV-gated preview-buttons
+//         block — separate code path, useful for visual QA of
+//         tenant theming. Stays.
+//       • All other login/auth machinery (authStore, JWT, persist
+//         rehydration logic, impersonation banner reading
+//         kamizo_impersonation localStorage key).
+//       • All scroll / profile / chat fixes from v229-v263 — not
+//         touched.
+//
+//     PROTECTED (UNCHANGED): v263 systemic scroll fixes, v262
+//     delete-account info line, v261 cold-start unfreeze, v260
+//     chat list ScrollArea, v259 chat scroll revert, v258
+//     MainViewController + touch-action, v257 chat single-ref,
+//     v256 anti-yank, v255 scroll sweep + ScrollArea, v254 chat
+//     dead-edge fix, v253 positioning, v252 DEV autologin →
+//     resident (the block being removed now), v251 sheet top fix,
+//     v250 SettingsPage height + Modal nested scroller, v249
+//     overscroll sweep, v248 chat header tightened, v247
+//     Дата/Время h-12, v246 modal-over-header, v245 Director
+//     Settings pin, v244 DEV autologin director swap, v243 photos
+//     preserved through create, v242 voting-detail pin, v241
+//     /meetings list pin, v240 chat auto-scroll, v239 photo
+//     raise+compress, v238 sheet swipe, v237 /useful-contacts
+//     back arrow, v236 gate removal, v235 Garage search header,
+//     v234 install row gate, v233 DEV autologin (original add),
+//     v232 Garage split, v231 realistic Plate, v230 defensive
+//     hero padding, v229 inner scroller Home, v225-v228 hero
+//     defence-in-depth, v221 transitions + haptics, v220 /guest-
+//     access back, v219 /meetings standalone, v218 React #185
+//     fix, v217 navigate fix, v216 lastSeenAt + scroll, v215
+//     bell dropdown + /notifications, v214 LIVE design
+//     reconciliation, v213 SwipeCardStack visual parity, v212
+//     handoff sync, v211 Главная design, v210 bottom-sheet
+//     swipe, v209 announcements standalone, v207+v208 voting
+//     modal theme, v205+v206 garage, v201 plate hero, v202 color
+//     picker.
+//     Previous note (v263) preserved below:
 // Version: 3.7.208 — cache suffix bumped to v263. Four systemic
 //     fixes for the scroll dead-edge / "sensor stalls in the upper
 //     part" symptom across profiles + chats, derived from the v118
@@ -8840,9 +8925,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v263';
-const ASSET_CACHE = 'kamizo-assets-v263';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v263';
+const STATIC_CACHE = 'kamizo-static-v265';
+const ASSET_CACHE = 'kamizo-assets-v265';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v265';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

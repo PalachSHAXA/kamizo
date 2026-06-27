@@ -6,6 +6,7 @@ import { authApi, usersApi, vehiclesApi, apiRequest } from '../../../../services
 import { useLanguageStore } from '../../../../stores/languageStore';
 import { useToastStore } from '../../../../stores/toastStore';
 import type { BuildingFull } from '../../../../types';
+import { normalizeAsciiHomoglyphs } from '../../../../utils/normalizeAscii';
 import { useBackGuard } from '../../../../hooks/useBackGuard';
 import type {
   Branch,
@@ -266,7 +267,8 @@ export function useResidentsLogic() {
     if (!bldg && address) bldg = extractBuildingFromAddress(address);
     if (!bldg) return DEFAULT_PASSWORD;
     const apt = apartment || '0';
-    return `${branch}/${bldg}/${apt}`;
+    // v118.120 — normalize Cyrillic homoglyphs at synthesis time.
+    return `${branch}/${normalizeAsciiHomoglyphs(bldg)}/${normalizeAsciiHomoglyphs(apt)}`;
   };
 
   // Get password for resident
@@ -285,12 +287,12 @@ export function useResidentsLogic() {
 
     if (residentBuilding?.branchCode) {
       const bldgNum = residentBuilding?.buildingNumber?.toUpperCase() || buildingFromAddress || '';
-      if (bldgNum) return `${residentBuilding.branchCode.toUpperCase()}/${bldgNum}/${apartmentNumber}`;
+      if (bldgNum) return `${residentBuilding.branchCode.toUpperCase()}/${normalizeAsciiHomoglyphs(bldgNum)}/${normalizeAsciiHomoglyphs(apartmentNumber)}`;
     }
 
     if (resident.branch && (resident.building || buildingFromAddress)) {
       const bldgNum = resident.building?.toUpperCase() || buildingFromAddress || '';
-      return `${resident.branch.toUpperCase()}/${bldgNum}/${apartmentNumber}`;
+      return `${resident.branch.toUpperCase()}/${normalizeAsciiHomoglyphs(bldgNum)}/${normalizeAsciiHomoglyphs(apartmentNumber)}`;
     }
 
     return DEFAULT_PASSWORD;

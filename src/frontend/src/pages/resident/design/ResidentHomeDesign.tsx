@@ -185,7 +185,10 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
   // top-right next to the bell. Dark variant gets a 14-star
   // twinkle field (HERO_STARS); light variant gets the sun disc.
   const theme = useThemeStore((s) => s.theme);
-  const toggleTheme = useThemeStore((s) => s.toggle);
+  // v118.121 — toggleTheme was the home-header theme button's onClick;
+  // button gone (redundant with Profile screen's ThemeToggle), so the
+  // selector goes too. `theme` + `isLight` stay — they drive the
+  // hero's theme-aware colour tokens below.
   const isLight = theme === 'light';
   const hour = new Date().getHours();
   const greetRu = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
@@ -352,22 +355,11 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
           )}
           <div style={{ fontSize: 19, fontWeight: 700, color: wordmarkColor, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{brand || 'Kamizo'}</div>
         </div>
-        {/* v118.25 — Right cluster: theme toggle + bell, per new
-            handoff. Toggle wired to useThemeStore.toggle so one tap
-            re-themes the whole app (same store the Profile page's
-            ThemeToggle already uses). */}
+        {/* v118.121 — theme toggle removed from the home header per
+            redundancy with the Profile screen's ThemeToggle. Bell is
+            now the only right-cluster control. Wrapper kept (still
+            a flex row) so future siblings can be added cleanly. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={toggleTheme}
-            style={{ width: 44, height: 44, borderRadius: 14, background: glassBg, border: `1px solid ${glassBorder}`, display: 'grid', placeItems: 'center', cursor: 'pointer', color: onHero }}
-            aria-label={isLight ? 'Тёмная тема' : 'Светлая тема'}
-          >
-            {isLight ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14.2A8 8 0 1 1 9.8 4 6.3 6.3 0 0 0 20 14.2z" /></svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="4.2" /><path d="M12 2v2.6M12 19.4V22M2 12h2.6M19.4 12H22M4.9 4.9l1.85 1.85M17.25 17.25l1.85 1.85M4.9 19.1l1.85-1.85M17.25 6.75l1.85-1.85" /></svg>
-            )}
-          </button>
           <button onClick={onBell} style={{ position: 'relative', width: 44, height: 44, borderRadius: 14, background: bellOpen ? 'var(--brand, #F97316)' : glassBg, border: `1px solid ${glassBorder}`, display: 'grid', placeItems: 'center', cursor: 'pointer', color: bellOpen ? '#fff' : onHero }} aria-label="Уведомления">
             <IBell size={20} />
             {unread > 0 && <span style={{ position: 'absolute', top: 8, right: 9, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: '#EF4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', border: `2px solid ${heroEdge}` }}>{unread}</span>}

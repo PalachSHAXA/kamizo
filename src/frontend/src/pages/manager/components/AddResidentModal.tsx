@@ -4,6 +4,7 @@ import { useAuthStore } from '../../../stores/authStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
 import { branchesApi, buildingsApi, entrancesApi, apartmentsApi, vehiclesApi } from '../../../services/api';
+import { normalizeAsciiHomoglyphs } from '../../../utils/normalizeAscii';
 import type { AddResidentModalProps } from './types';
 
 interface BranchItem {
@@ -137,8 +138,16 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
       const apartment = apartments.find(a => a.id === selectedApartmentId);
 
       if (branch && building && apartment) {
-        const generatedLogin = `${branch.code}_${building.building_number}_${apartment.number}`.toUpperCase();
-        const generatedPassword = `${branch.code}/${building.building_number}/${apartment.number}`.toUpperCase();
+        // v118.120 — normalize Cyrillic homoglyphs (Е/А/В/etc) → Latin
+        // BEFORE the synthesis. Buildings imported from the government
+        // billing system carry Cyrillic letters in names like "8Е";
+        // without this the generated password contains Cyrillic Е but
+        // the resident types Latin E on any keyboard → PBKDF2 mismatch
+        // → can't log in. See utils/normalizeAscii.ts.
+        const bldNum = normalizeAsciiHomoglyphs(building.building_number);
+        const aptNum = normalizeAsciiHomoglyphs(apartment.number);
+        const generatedLogin = `${branch.code}_${bldNum}_${aptNum}`.toUpperCase();
+        const generatedPassword = `${branch.code}/${bldNum}/${aptNum}`.toUpperCase();
         setLogin(generatedLogin);
         setPassword(generatedPassword);
         setShowPassword(true);

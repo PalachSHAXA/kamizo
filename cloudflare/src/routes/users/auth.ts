@@ -5,7 +5,7 @@ import { getTenantId, setTenantForRequest } from '../../middleware/tenant';
 import { checkRateLimit, getClientIdentifier } from '../../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../../middleware/cors';
 import { json, error, bilingualError, generateId, isAdminLevel } from '../../utils/helpers';
-import { hashPassword, verifyPassword, createJWT, encryptPassword } from '../../utils/crypto';
+import { hashPassword, verifyPasswordTolerant, createJWT, encryptPassword } from '../../utils/crypto';
 import { isExecutorRole, isSuperAdmin } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 import { validateBody } from '../../validation/validate';
@@ -103,7 +103,7 @@ route('POST', '/api/auth/login', async (request, env) => {
       // Burn one PBKDF2 to keep the response time matched to the real
       // verify path, then reject with a specific message — knowing the
       // slug is invalid isn't sensitive (slugs are public subdomains).
-      await verifyPassword(trimmedPassword, DUMMY_HASH).catch(() => false);
+      await verifyPasswordTolerant(trimmedPassword, DUMMY_HASH).catch(() => false);
       return bilingualError(
         'Управляющая компания не найдена. Проверьте поддомен.',
         "Boshqaruv kompaniyasi topilmadi. Subdomenni tekshiring.",
@@ -196,7 +196,7 @@ route('POST', '/api/auth/login', async (request, env) => {
     const verifyResults: boolean[] = await Promise.all(
       Array.from({ length: MAX_CANDIDATES }, async (_, i) => {
         const hash = candidates[i]?.password_hash ?? DUMMY_HASH;
-        return verifyPassword(trimmedPassword, hash).catch(() => false);
+        return verifyPasswordTolerant(trimmedPassword, hash).catch(() => false);
       })
     );
 
@@ -255,7 +255,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   if (!userWithHash) {
     // Burn one PBKDF2 cycle on every no-match branch so the response
     // time matches the real verify path.
-    await verifyPassword(trimmedPassword, DUMMY_HASH).catch(() => false);
+    await verifyPasswordTolerant(trimmedPassword, DUMMY_HASH).catch(() => false);
 
     if (!tenantId) {
       // Apex / no-tenant path with no super_admin match. Tell the
@@ -277,7 +277,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   }
 
   if (!skipFinalVerify) {
-    const isValid = await verifyPassword(trimmedPassword, userWithHash.password_hash);
+    const isValid = await verifyPasswordTolerant(trimmedPassword, userWithHash.password_hash);
     if (!isValid) {
       return error('Invalid credentials', 401);
     }

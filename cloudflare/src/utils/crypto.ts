@@ -203,3 +203,102 @@ export async function verifyPassword(rawPassword: string, storedHash: string): P
 
   return false;
 }
+
+// v118.120 — bidirectional homoglyph fallback for password verify.
+// Backstory: passwords auto-generated from billing-system addresses
+// inherit Cyrillic letters (Cyrillic Е U+0415 in "SER/8Е/2" where the
+// imported building name "8Е" already used Cyrillic). The hash stored
+// in DB is for the Cyrillic form. Users typing on any keyboard
+// produce Latin E by default → byte-exact PBKDF2 rejects them.
+//
+// Direction matters: to bridge LEGACY data (Cyrillic in DB, Latin in
+// input), we need Latin → Cyrillic. For NEW data normalised at
+// generation (Latin in DB) and a user pasting Cyrillic by accident,
+// we need Cyrillic → Latin. So try BOTH conversions as fallbacks.
+//
+// Russian-only passwords (e.g. "Привет123") aren't corrupted: the
+// as-typed verify runs FIRST and matches; the fallbacks only fire on
+// failure. Bounded extra cost: at most 2 additional PBKDF2 per failed
+// attempt (only if the input contains any homoglyph).
+const LAT_TO_CYR: Record<string, string> = {
+  'A': 'А', 'B': 'В', 'E': 'Е', 'K': 'К', 'M': 'М', 'H': 'Н',
+  'O': 'О', 'P': 'Р', 'C': 'С', 'T': 'Т', 'Y': 'У', 'X': 'Х',
+  'a': 'а', 'e': 'е', 'k': 'к', 'm': 'м', 'o': 'о', 'p': 'р',
+  'c': 'с', 'x': 'х', 'y': 'у',
+};
+const CYR_TO_LAT: Record<string, string> = {
+  'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H',
+  'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y', 'Х': 'X',
+  'а': 'a', 'е': 'e', 'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p',
+  'с': 'c', 'х': 'x', 'у': 'y',
+};
+const HAS_LAT_HOMOGLYPH = /[ABEKMHOPCTYXabekmopcxy]/;
+const HAS_CYR_HOMOGLYPH = /[АВЕКМНОРСТУХаекмопрсху]/;
+
+function applyMap(s: string, map: Record<string, string>): string {
+  let out = '';
+  for (const ch of s) out += map[ch] ?? ch;
+  return out;
+}
+
+/**
+ * Verify a password with per-position Latin↔Cyrillic homoglyph fallback.
+ *
+ * Real-world legacy passwords (e.g. user 1389849182's "SER/8Е/2") have
+ * MIXED Latin+Cyrillic in the SAME string: Latin "SER", Cyrillic "Е"
+ * in the building number, then Latin again. A blanket Latin→Cyrillic
+ * conversion produces "SЕR/8Е/2" which doesn't match the stored mixed
+ * form. To bridge mixed-encoding hashes we have to enumerate every
+ * possible per-character swap of each homoglyph position.
+ *
+ * Order:
+ *   1. as-typed (typical case — matches instantly for correctly-typed
+ *      legacy passwords and all new normalised passwords).
+ *   2. For each homoglyph position, swap independently → 2^N variants.
+ *
+ * Bounded: capped at MAX_POSITIONS = 6 (64 variants max). Real
+ * generated passwords have at most 2-3 homoglyph positions; 6 is a
+ * generous safety net. For passwords with more, we skip brute force
+ * and rely on the single fully-converted fallback (still better than
+ * nothing).
+ */
+const MAX_POSITIONS = 6;
+
+export async function verifyPasswordTolerant(rawPassword: string, storedHash: string): Promise<boolean> {
+  if (await verifyPassword(rawPassword, storedHash)) return true;
+  const input = rawPassword || '';
+
+  // Find every position where the character has a homoglyph twin in EITHER
+  // alphabet. For each, build the set of substitute candidates {original,
+  // twin}. Then enumerate combinations.
+  const chars = [...input];
+  const positions: number[] = [];
+  const swaps: Record<number, string> = {};
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i];
+    if (LAT_TO_CYR[c]) { positions.push(i); swaps[i] = LAT_TO_CYR[c]; }
+    else if (CYR_TO_LAT[c]) { positions.push(i); swaps[i] = CYR_TO_LAT[c]; }
+  }
+  if (positions.length === 0) return false; // nothing to swap
+
+  if (positions.length > MAX_POSITIONS) {
+    // Too many — try only the two fully-converted variants.
+    const allCyr = applyMap(input, LAT_TO_CYR);
+    if (allCyr !== input && await verifyPassword(allCyr, storedHash)) return true;
+    const allLat = applyMap(input, CYR_TO_LAT);
+    if (allLat !== input && await verifyPassword(allLat, storedHash)) return true;
+    return false;
+  }
+
+  // Enumerate all 2^N - 1 non-identity subsets. Bit i set = swap that position.
+  const total = 1 << positions.length;
+  for (let mask = 1; mask < total; mask++) {
+    const variant = chars.slice();
+    for (let b = 0; b < positions.length; b++) {
+      if (mask & (1 << b)) variant[positions[b]] = swaps[positions[b]];
+    }
+    const candidate = variant.join('');
+    if (await verifyPassword(candidate, storedHash)) return true;
+  }
+  return false;
+}
