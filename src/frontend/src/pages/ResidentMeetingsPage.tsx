@@ -539,17 +539,23 @@ function MeetingCard({ meeting, user, lang, onOpen, calculateMeetingQuorum, calc
     };
   })();
 
-  // CTA footer right pill / link
+  // CTA footer right pill / link. v118.124 — single-source-of-truth
+  // state machine; previously this only handled the (hasVoted &&
+  // allowRevote) revote case and fell through to "Голосовать" even
+  // when the user had already voted on a no-revote meeting,
+  // contradicting the "✓ Вы проголосовали" footer on the same card.
   const ctaRight = (() => {
     if (isVotingOpen) {
-      return {
-        label: hasVoted && allowRevote
-          ? (lang === 'ru' ? 'Изменить голос' : 'Ovozni o\'zgartirish')
-          : (lang === 'ru' ? 'Голосовать' : 'Ovoz berish'),
-        solid: true,
-      };
+      if (hasVoted) {
+        return allowRevote
+          ? { label: lang === 'ru' ? 'Изменить голос' : 'Ovozni o\'zgartirish', solid: true }
+          // Voted + no revote allowed → not a CTA, just an "open card to
+          // view your vote / current tally" link. Outlined pill, not solid.
+          : { label: lang === 'ru' ? 'Посмотреть' : 'Ko\'rish', solid: false };
+      }
+      return { label: lang === 'ru' ? 'Голосовать' : 'Ovoz berish', solid: true };
     }
-    if (isClosed) return { label: lang === 'ru' ? 'Протокол' : 'Bayonnoma', solid: false };
+    if (isClosed) return { label: lang === 'ru' ? 'Результаты' : 'Natijalar', solid: false };
     return { label: lang === 'ru' ? 'Подробнее' : 'Batafsil', solid: false };
   })();
 
@@ -629,12 +635,21 @@ function MeetingCard({ meeting, user, lang, onOpen, calculateMeetingQuorum, calc
           ))}
         </div>
       ) : quorum.total === 0 ? (
+        // v118.124 — was "Голосование ещё не началось", which contradicted
+        // the "Идёт голосование" status pill above (and the "✓ Вы
+        // проголосовали" footer) when status=voting_open but the quorum
+        // calculator hasn't picked up any votes yet (race / new meeting /
+        // user voted but their area=0). The honest label depends on the
+        // actual meeting state — voting_open → "пока нет голосов",
+        // schedule_* → "голосование ещё не началось".
         <div style={{
           marginTop: 12, fontSize: 12, color: TEXT_MUTED,
           display: 'inline-flex', alignItems: 'center', gap: 6,
         }}>
           <Clock size={13} />
-          {lang === 'ru' ? 'Голосование ещё не началось' : 'Ovoz berish hali boshlanmagan'}
+          {isVotingOpen
+            ? (lang === 'ru' ? 'Пока никто не проголосовал' : 'Hali hech kim ovoz bermagan')
+            : (lang === 'ru' ? 'Голосование ещё не началось' : 'Ovoz berish hali boshlanmagan')}
         </div>
       ) : (
         <QuorumBar pct={quorumPct} threshold={threshold} lang={lang} />
