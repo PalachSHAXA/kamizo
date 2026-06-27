@@ -155,20 +155,22 @@ function App() {
   const fetchVehicles = useVehicleStore(s => s.fetchVehicles);
   const { fetchConfig } = useTenantStore();
   const tenantColor = useTenantStore(s => s.config?.tenant?.color);
+  const tenantColorSecondary = useTenantStore(s => s.config?.tenant?.color_secondary);
 
   // Load tenant config on app start.
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
 
-  // Paint the UI in the tenant's chosen primary colour. The super-admin
-  // editor stores tenants.color, and this applies it to the brand CSS
-  // tokens at runtime (see utils/tenantBrand). On the main / no-tenant
-  // domain tenantColor is undefined → the static Kamizo-orange defaults
-  // from index.css are used.
+  // v118.126 — platform-split branding. Native shell always renders
+  // Kamizo orange (one brand on the App Store); web cabinets render
+  // the УК's saved primary/secondary colours from the super-admin
+  // editor. The split is enforced inside applyTenantBrand via
+  // Capacitor.isNativePlatform(); we pass both colours unconditionally
+  // and let the util decide.
   useEffect(() => {
-    applyTenantBrand(tenantColor);
-  }, [tenantColor]);
+    applyTenantBrand(tenantColor, tenantColorSecondary);
+  }, [tenantColor, tenantColorSecondary]);
 
   // v118.119 — the sim-testing auto-login block that lived here is
   // gone. It raced with zustand persist rehydration on cold start
