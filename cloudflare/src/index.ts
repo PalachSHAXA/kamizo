@@ -459,26 +459,32 @@ export default {
     // machinery, so serve them directly (with one retry) and skip it entirely.
     try {
       const assetPath = new URL(request.url).pathname;
-      // v118.129 — public Privacy Policy at /privacy (App Store
-      // submission blocker). No-extension extensionless URL is
-      // rewritten to /privacy.html before we hit the SPA fallback
-      // (which would otherwise return index.html for any unknown
-      // path). Handles trailing slash too. Apex (kamizo.uz) only —
-      // tenant subdomains never collide because they don't have
-      // a /privacy of their own, and rewriting here happens before
-      // tenant resolution anyway.
+      // v118.129.2 — public Privacy Policy at /privacy (App Store
+      // submission blocker). We DON'T rewrite the URL — Cloudflare's
+      // ASSETS binding with the default html_handling: auto-trailing-
+      // slash already maps the extensionless /privacy URL to
+      // /privacy.html internally AND would 307-redirect any explicit
+      // /privacy.html back to /privacy, which we used to loop on. Now
+      // we just call ASSETS.fetch with the ORIGINAL request URL and
+      // return whatever it gives us — for /privacy that's the
+      // privacy.html content with status 200. The .html file ships
+      // from src/frontend/public/privacy.html (Vite copies public/
+      // verbatim to dist/, CI then copies dist/ to cloudflare/public/).
+      // SPA fallback at the end of the handler still catches anything
+      // ASSETS can't serve, so /privacy works without us treating it
+      // as a special case beyond skipping the SPA fallback.
       if (
         request.method === 'GET' &&
         (assetPath === '/privacy' || assetPath === '/privacy/')
       ) {
-        const rewritten = new Request(
-          new URL('/privacy.html', request.url).toString(),
-          request,
-        );
         try {
-          return await env.ASSETS.fetch(rewritten);
+          const resp = await env.ASSETS.fetch(request);
+          // ASSETS may return a 200 with the privacy body, OR a 308/
+          // 307 redirect to canonicalize the URL. Either way, pass it
+          // straight through so the browser ends at the right place.
+          return resp;
         } catch {
-          return await env.ASSETS.fetch(rewritten);
+          return await env.ASSETS.fetch(request);
         }
       }
       if (request.method === 'GET' && STATIC_ASSET_RE.test(assetPath)) {
