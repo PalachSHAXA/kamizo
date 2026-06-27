@@ -12,10 +12,10 @@ export function PendingApprovalCard({ request, onApprove }: PendingApprovalCardP
   };
 
   return (
-    <div className="glass-card p-4 md:p-5 border-2 border-purple-300 bg-purple-50/30">
+    <div className="glass-card p-4 md:p-5 border-2 border-orange-300 bg-orange-50/30">
       {/* Header with icon */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-500 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 md:w-12 md:h-12 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
           <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
         </div>
         <div className="flex-1 min-w-0">
@@ -51,7 +51,7 @@ export function PendingApprovalCard({ request, onApprove }: PendingApprovalCardP
       <button
         onClick={onApprove}
         className="w-full py-4 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation shadow-lg"
-        style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
+        style={{ background: 'linear-gradient(135deg, #FB923C, rgb(var(--brand-rgb)))' }}
       >
         <CheckCircle className="w-5 h-5" />
         {language === 'ru' ? 'Подтвердить выполнение' : 'Bajarilganini tasdiqlash'}

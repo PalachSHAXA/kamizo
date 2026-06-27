@@ -62,8 +62,8 @@ export function NewsWidget() {
       result.push({
         id: `meet-${m.id}`,
         icon: Vote,
-        iconColor: '#8B5CF6',
-        iconBg: 'rgba(139,92,246,0.12)',
+        iconColor: 'rgb(var(--brand-rgb))',
+        iconBg: 'rgba(var(--brand-rgb), 0.12)',
         title: m.agendaItems?.[0]?.title
           ?? (language === 'ru' ? `Собрание #${m.number}` : `Yig'ilish #${m.number}`),
         text: isVoting

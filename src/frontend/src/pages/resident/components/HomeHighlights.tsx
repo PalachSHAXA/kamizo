@@ -91,7 +91,8 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
       });
     }
 
-    // 2. Active voting — purple
+    // 2. Active voting — brand orange (v118.122 unified accent;
+    // "голосование" status badge below stays semantic-green)
     if (activeVoting) {
       const meetingTitle = activeVoting.agendaItems?.[0]?.title
         ?? (language === 'ru' ? `Собрание #${activeVoting.number}` : `Yig'ilish #${activeVoting.number}`);
@@ -104,13 +105,13 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
           : `Sizning ovozingiz${user?.totalArea ? ` · ${user.totalArea} m²` : ''}`,
         badge: language === 'ru' ? 'голосование' : 'ovoz berish',
         cta: language === 'ru' ? 'Проголосовать →' : 'Ovoz berish →',
-        gradient: 'linear-gradient(135deg, #8B5CF6, #A78BFA)',
-        shadowColor: 'rgba(139,92,246,0.35)',
+        gradient: 'linear-gradient(135deg, rgb(var(--brand-rgb)), #FB923C)',
+        shadowColor: 'rgba(var(--brand-rgb), 0.35)',
         onClick: () => navigate('/meetings'),
       });
     }
 
-    // 3. Pending approval — purple/violet
+    // 3. Pending approval — brand orange (v118.122)
     if (pendingApproval) {
       list.push({
         id: 'approve',
@@ -121,8 +122,8 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
           : `Ariza #${pendingApproval.number} baholashni kutmoqda`,
         badge: language === 'ru' ? '1 новое' : '1 yangi',
         cta: language === 'ru' ? 'Оценить →' : 'Baholash →',
-        gradient: 'linear-gradient(135deg, #6366F1, #818CF8)',
-        shadowColor: 'rgba(99,102,241,0.35)',
+        gradient: 'linear-gradient(135deg, rgb(var(--brand-rgb)), #FB923C)',
+        shadowColor: 'rgba(var(--brand-rgb), 0.35)',
         onClick: () => navigate('/?tab=requests'),
       });
     }
@@ -180,8 +181,8 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
         title: language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma',
         sub: language === 'ru' ? 'Превью и QR-код' : 'Ko\'rish va QR-kod',
         cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
-        gradient: 'linear-gradient(135deg, #8B5CF6, #A78BFA)',
-        shadowColor: 'rgba(139,92,246,0.35)',
+        gradient: 'linear-gradient(135deg, rgb(var(--brand-rgb)), #FB923C)',
+        shadowColor: 'rgba(var(--brand-rgb), 0.35)',
         onClick: () => navigate('/contract'),
       },
       {
@@ -212,8 +213,8 @@ export function HomeHighlights({ activeRequests }: { activeRequests: Request[] }
         title: language === 'ru' ? 'Оценить УК' : 'UKni baholash',
         sub: language === 'ru' ? 'Раз в месяц · 30 секунд' : 'Oyiga bir marta · 30 soniya',
         cta: language === 'ru' ? 'Открыть →' : 'Ochish →',
-        gradient: 'linear-gradient(135deg, #6366F1, #818CF8)',
-        shadowColor: 'rgba(99,102,241,0.35)',
+        gradient: 'linear-gradient(135deg, rgb(var(--brand-rgb)), #FB923C)',
+        shadowColor: 'rgba(var(--brand-rgb), 0.35)',
         onClick: () => navigate('/rate-employees'),
       },
     );
