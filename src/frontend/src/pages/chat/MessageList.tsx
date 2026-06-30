@@ -14,7 +14,7 @@
 // attached here at the right DOM nodes.
 
 import type { RefObject } from 'react';
-import { Loader2, MessageCircle } from 'lucide-react';
+import { Loader2, MessageCircle, AlertCircle } from 'lucide-react';
 import { ScrollArea } from '../../components/common/ScrollArea';
 import { MessageBubble } from './MessageBubble';
 import { DateSeparator } from './DateSeparator';
@@ -25,6 +25,8 @@ import { type ChatMessage, formatMessageTime } from './chatUtils';
 export function MessageList({
   messages,
   isLoading,
+  hasError = false,
+  onRetryLoad,
   currentUserId,
   isResident,
   isPrivateSupport,
@@ -37,6 +39,12 @@ export function MessageList({
 }: {
   messages: ChatMessage[];
   isLoading: boolean;
+  // v118.132 — load-error CTA: when true (and not loading), MessageList
+  // renders a small "Не удалось загрузить" + retry button instead of
+  // the empty-channel state. Distinguishes a genuine empty channel
+  // (hasError=false, messages=[]) from a failed/timed-out load.
+  hasError?: boolean;
+  onRetryLoad?: () => void;
   currentUserId?: string;
   isResident: boolean;
   isPrivateSupport: boolean;
@@ -75,6 +83,32 @@ export function MessageList({
       {isLoading ? (
         <div className="h-full flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
+        </div>
+      ) : hasError && messages.length === 0 ? (
+        // v118.132 — fetch failed AND we have nothing to show. Render a
+        // visible retry CTA instead of the silent empty-state, so the
+        // user can recover without restarting the app. If hasError is
+        // true but messages already loaded once, we keep showing those
+        // messages (no error overlay) and let the 15s poll heal silently.
+        <div className="h-full flex flex-col items-center justify-center px-6 text-center">
+          <div className="w-16 h-16 bg-orange-50 rounded-[20px] flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8 text-orange-400" />
+          </div>
+          <p className="text-gray-600 text-sm font-medium">
+            {language === 'ru' ? 'Не удалось загрузить сообщения' : 'Xabarlarni yuklab boʻlmadi'}
+          </p>
+          <p className="text-gray-400 text-xs mt-1">
+            {language === 'ru' ? 'Проверьте соединение и повторите' : 'Internetni tekshirib qayta urinib koʻring'}
+          </p>
+          {onRetryLoad && (
+            <button
+              type="button"
+              onClick={onRetryLoad}
+              className="mt-4 px-5 py-2.5 min-h-[44px] rounded-xl bg-orange-500 text-white text-sm font-semibold active:scale-95 touch-manipulation"
+            >
+              {language === 'ru' ? 'Повторить' : 'Qayta urinish'}
+            </button>
+          )}
         </div>
       ) : messages.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center">

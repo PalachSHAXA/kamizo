@@ -35,7 +35,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Camera, ChevronRight, MapPin, Plus, Send } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Camera, ChevronRight, MapPin, Plus, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { chatApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -74,6 +74,13 @@ export function ResidentChatView({ channel, onBack }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // v118.132 — minimal first-load failure tracking. Polling still runs
+  // silently every 15 s (existing behaviour, untouched); but on the FIRST
+  // open we surface a small retry strip if the initial fetch fails, so
+  // the resident isn't stuck staring at a blank thread waiting for the
+  // next 15 s tick. Auto-clears once any subsequent fetch succeeds.
+  const [firstFetchFailed, setFirstFetchFailed] = useState(false);
+  const firstFetchDoneRef = useRef(false);
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -100,8 +107,16 @@ export function ResidentChatView({ channel, onBack }: Props) {
       const res = await chatApi.getMessages(channel.id, 100) as { messages?: Record<string, unknown>[] };
       const list = (res.messages || []) as unknown as ChatMessage[];
       setMessages(list);
+      firstFetchDoneRef.current = true;
+      // v118.132 — any successful fetch clears the first-load failure strip.
+      setFirstFetchFailed(false);
       try { await chatApi.markRead(channel.id); } catch { /* ignore */ }
-    } catch { /* silent, retry on next poll */ }
+    } catch {
+      // v118.132 — surface the failure ONLY on the very first attempt so
+      // the resident isn't blank-screened for up to 15 s waiting for the
+      // poll. Subsequent failures stay silent (the poll keeps trying).
+      if (!firstFetchDoneRef.current) setFirstFetchFailed(true);
+    }
   }, [channel.id]);
 
   useEffect(() => { fetchMessages(); }, [fetchMessages]);
@@ -745,6 +760,37 @@ export function ResidentChatView({ channel, onBack }: Props) {
               minWidth: 0,
             }}
           >
+            {/* v118.132 — first-load failure strip. Renders only when the
+                very first fetch failed AND we still have nothing on screen.
+                Polling continues silently in the background; first success
+                clears this strip. No spinner is added — this is a minimal
+                affordance so the resident isn't blank-screened. */}
+            {firstFetchFailed && messages.length === 0 && (
+              <div
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: 10, padding: '32px 16px',
+                  color: 'var(--text-secondary, #6F6A62)',
+                }}
+              >
+                <AlertCircle size={28} style={{ color: 'var(--brand, #F97316)' }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #1C1917)' }}>
+                  {language === 'ru' ? 'Не удалось загрузить сообщения' : 'Xabarlarni yuklab boʻlmadi'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setFirstFetchFailed(false); fetchMessages(); }}
+                  style={{
+                    marginTop: 4, padding: '10px 18px', minHeight: 44,
+                    borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: 'var(--brand, #F97316)', color: '#fff',
+                    fontSize: 14, fontWeight: 600,
+                  }}
+                >
+                  {language === 'ru' ? 'Повторить' : 'Qayta urinish'}
+                </button>
+              </div>
+            )}
             {rows.map((row) => {
               if (row.kind === 'date') {
                 return (

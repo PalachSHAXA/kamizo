@@ -49,6 +49,16 @@ export function ChatView({
   const [newMessage, setNewMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  // v118.132 — fetch-error flag, used to distinguish an empty channel
+  // from a load failure. MessageList renders a retry CTA when true.
+  const [fetchError, setFetchError] = useState(false);
+  // v118.134 — H1 fix: gate setIsLoading(true) on actual channel
+  // transitions so the open-effect (which re-fires when parent
+  // re-renders propagate new callback refs through deps) does NOT
+  // flicker the spinner over a thread already on screen. Initialised
+  // to null so the FIRST open of any channel correctly triggers the
+  // spinner exactly once.
+  const prevChannelIdRef = useRef<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   // sendingRef synchronously locks the send path so a rapid double-tap can't
   // produce two API calls before React re-renders setIsSending(true). The
@@ -200,13 +210,20 @@ export function ChatView({
   const fetchMessages = useCallback(async () => {
     if (!channelId || channelId === 'undefined') {
       setIsLoading(false);
+      setFetchError(false);
       return;
     }
     try {
       const response = await chatApi.getMessages(channelId);
       setMessages(response.messages || []);
+      // v118.132 — success path clears any prior error so a transient
+      // failure followed by a poll-recovery doesn't keep the retry CTA up.
+      setFetchError(false);
     } catch (error) {
       console.error('Failed to fetch messages:', error);
+      // v118.132 — mark the error so MessageList renders the retry CTA
+      // (distinct from the legitimate "empty channel" state).
+      setFetchError(true);
     } finally {
       setIsLoading(false);
     }
@@ -222,10 +239,31 @@ export function ChatView({
     }
   }, [channelId, onMarkRead]);
 
+  // v118.134 — H1 fix: keep markAsRead callable from the open-effect
+  // WITHOUT widening that effect's deps. The effect no longer depends
+  // on markAsRead's identity; it invokes the latest version via this
+  // ref. Parent's onMarkRead reference can change across polls without
+  // re-triggering the open-effect (and thus without flickering the
+  // loading spinner over an already-loaded thread).
+  const markAsReadRef = useRef(markAsRead);
+  useEffect(() => { markAsReadRef.current = markAsRead; }, [markAsRead]);
+
   useEffect(() => {
-    setIsLoading(true);
+    // v118.134 — H1 fix: only flip the spinner on a REAL channel transition.
+    // Re-firing this effect for any other reason (parent re-render +
+    // unstable prop ref squeezed past memoization, StrictMode double-
+    // invoke, future regression) MUST NOT re-show the spinner over a
+    // thread that already has messages on screen. The 15 s background
+    // poll lives in its own effect and never touches isLoading.
+    if (prevChannelIdRef.current !== channelId) {
+      setIsLoading(true);
+      setFetchError(false);
+      prevChannelIdRef.current = channelId;
+    }
     fetchMessages();
-    markAsRead();
+    // v118.134 — ref-indirected so this effect's deps don't widen to
+    // include markAsRead's identity (see markAsReadRef declaration).
+    markAsReadRef.current();
 
     const unsubscribe = subscribeToChatMessages((message: ChatMessage & { type?: string; message_id?: string; user_id?: string; user_role?: string }) => {
       if (message.channel_id === channelId) {
@@ -256,7 +294,26 @@ export function ChatView({
     });
 
     return () => { unsubscribe(); };
-  }, [fetchMessages, channelId, markAsRead]);
+    // v118.134 — `markAsRead` removed from deps; we read it via
+    // markAsReadRef.current() above. `fetchMessages` already depends
+    // only on channelId (see its useCallback), so this effect now
+    // re-runs ONLY when the open thread truly changes.
+  }, [fetchMessages, channelId]);
+
+  // v118.132 — defensive hard-fallback. Whatever happens above (re-render
+  // race, frozen promise, missing finally), the spinner MUST NOT live
+  // past 35 s. 35 > apiRequest's 30 s AbortController, so on the happy
+  // (and even the timeout) path the normal flow still wins; this is the
+  // pure safety net. Resets on channelId change so a slow first thread
+  // doesn't poison a fast second one.
+  useEffect(() => {
+    if (!channelId || channelId === 'undefined') return;
+    const t = window.setTimeout(() => {
+      setIsLoading(false);
+      setFetchError(true);
+    }, 35_000);
+    return () => window.clearTimeout(t);
+  }, [channelId]);
 
   // Polling fallback while WebSocket is disabled.
   // Audit P0: was 10s — that's 6 req/min × N online residents → significant
@@ -615,6 +672,8 @@ export function ChatView({
       <MessageList
         messages={messages}
         isLoading={isLoading}
+        hasError={fetchError}
+        onRetryLoad={() => { setIsLoading(true); setFetchError(false); fetchMessages(); }}
         currentUserId={user?.id}
         isResident={isResident}
         isPrivateSupport={isPrivateSupport}
