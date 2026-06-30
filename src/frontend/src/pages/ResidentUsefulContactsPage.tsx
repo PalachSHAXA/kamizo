@@ -470,13 +470,13 @@ export default function ResidentUsefulContactsPage() {
       minHeight: '100%',
       background: 'var(--app-bg)',
       color: TEXT_PRIMARY,
-      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+      paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
       letterSpacing: '-0.01em',
     }}>
       {/* ── Sticky header ─────────────────────────────────────────────── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
-        background: 'rgba(244,240,232,0.92)',
+        background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
       }}>
@@ -492,9 +492,9 @@ export default function ResidentUsefulContactsPage() {
               aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
               style={{
                 width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
-                background: SURFACE,
-                border: `1px solid ${BORDER}`,
-                color: TEXT_PRIMARY,
+                background: 'var(--surface, #FFFFFF)',
+                border: '1px solid var(--border-c, #E6DFD2)',
+                color: 'var(--text-primary, #1C1917)',
                 display: 'grid', placeItems: 'center',
                 cursor: 'pointer', padding: 0,
               }}
@@ -504,13 +504,13 @@ export default function ResidentUsefulContactsPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-                color: TEXT_SECONDARY, textTransform: 'uppercase',
+                color: 'var(--text-secondary, #6F6A62)', textTransform: 'uppercase',
               }}>
                 {language === 'ru' ? 'Сервисы рядом с домом' : 'Uy yonidagi xizmatlar'}
               </div>
               <div style={{
                 fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', marginTop: 2,
-                color: TEXT_PRIMARY,
+                color: 'var(--text-primary, #1C1917)',
               }}>
                 {language === 'ru' ? 'Полезное рядом' : 'Foydali yonida'}
               </div>

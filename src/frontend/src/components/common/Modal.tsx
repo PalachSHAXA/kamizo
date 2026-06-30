@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronLeft } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useModalPresence } from '../../stores/modalStore';
 
@@ -10,6 +10,11 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   showClose?: boolean;
+  // v118.139 — optional back affordance. When provided, the header
+  // renders the v118.130 pattern (← Назад on top, title below, no X) —
+  // same shape used by executor RequestDetailsModal. Existing Modal
+  // consumers that don't pass onBack keep the original title+X header.
+  onBack?: () => void;
 }
 
 export function Modal({
@@ -19,6 +24,7 @@ export function Modal({
   children,
   size = 'md',
   showClose = true,
+  onBack,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -106,21 +112,49 @@ export function Modal({
         style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom, 0px))' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200/50 px-6 py-4 flex-shrink-0">
-          <h2 id="modal-title" className="text-xl font-bold text-gray-900">
-            {title}
-          </h2>
-          {showClose && (
+        {onBack ? (
+          // v118.139 — back-button header (executor RequestDetailsModal v118.130 pattern).
+          // ← Назад on top, title below, no X. Theme-aware via var(--text-primary)
+          // so it reads on both the white-ish light Modal and the dark
+          // (html.dark) surface that the global .bg-white\/90 override flips to.
+          <div className="border-b border-gray-200/50 px-6 pt-3 pb-3 flex-shrink-0">
             <button
-              onClick={onClose}
-              aria-label={closeLabel}
+              onClick={onBack}
+              aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
               data-modal-close
-              className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation"
+              className="inline-flex items-center gap-1 -ml-2 px-2 py-2 min-h-[44px] rounded-lg hover:bg-black/5 active:scale-95 touch-manipulation"
+              style={{ color: 'var(--text-primary, #111827)' }}
             >
-              <X className="w-5 h-5 text-gray-600" />
+              <ChevronLeft className="w-5 h-5" />
+              <span className="text-base font-medium">
+                {language === 'ru' ? 'Назад' : 'Orqaga'}
+              </span>
             </button>
-          )}
-        </div>
+            <h2
+              id="modal-title"
+              className="text-xl font-bold mt-1"
+              style={{ color: 'var(--text-primary, #111827)' }}
+            >
+              {title}
+            </h2>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between border-b border-gray-200/50 px-6 py-4 flex-shrink-0">
+            <h2 id="modal-title" className="text-xl font-bold text-gray-900">
+              {title}
+            </h2>
+            {showClose && (
+              <button
+                onClick={onClose}
+                aria-label={closeLabel}
+                data-modal-close
+                className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors touch-manipulation"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex-1 min-h-[200px] overflow-y-auto px-6 py-4">{children}</div>

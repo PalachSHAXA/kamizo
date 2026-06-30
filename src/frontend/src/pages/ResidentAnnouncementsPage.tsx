@@ -166,20 +166,13 @@ export function ResidentAnnouncementsPage() {
     : (lang === 'ru' ? 'Объявления дома' : "Uy e'lonlari");
 
   return (
-    // v118.79 — kz-screen opts into the global iOS-like page-enter
-    // slide+fade defined in index.css.
-    <div className="kz-screen" style={{
-      minHeight: '100%',
-      background: APP_BG,
-      color: TEXT_PRIMARY,
-      // v118.67 — bottom padding снижен с 124px (резерв под global
-      // BottomBar, которого больше нет — страница теперь top-level
-      // full-screen route) до 24px + safe-area-inset чтобы контент
-      // не липло к home indicator.
-      paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
-      letterSpacing: '-0.01em',
-    }}>
-      {/* ── Sticky header ─────────────────────────────────────────────── */}
+    // v118.137 — header hoisted OUT of .kz-screen so it doesn't
+    // inherit the kzPagePushIn translateX(36px) animation. Body still
+    // slides on navigation; only the header stays still. Visual design
+    // / safe-area math / sticky behaviour all unchanged — only DOM
+    // position relative to the animated wrapper moved.
+    <>
+      {/* ── Sticky header — NOW OUTSIDE kz-screen so it stays still on nav ── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
@@ -198,10 +191,10 @@ export function ResidentAnnouncementsPage() {
             aria-label={lang === 'ru' ? 'Назад' : 'Orqaga'}
             style={{
               width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
-              background: SURFACE,
-              border: `1px solid ${HAIRLINE}`,
+              background: 'var(--surface, #FFFFFF)',
+              border: '1px solid var(--border-c, rgba(28,25,23,0.06))',
               display: 'grid', placeItems: 'center', cursor: 'pointer',
-              color: TEXT_PRIMARY,
+              color: 'var(--text-primary, #1C1917)',
               padding: 0,
               marginTop: 2,
             }}
@@ -211,13 +204,13 @@ export function ResidentAnnouncementsPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-              color: TEXT_SECONDARY, textTransform: 'uppercase',
+              color: 'var(--text-secondary, #6F6A62)', textTransform: 'uppercase',
             }}>
               {eyebrow}
             </div>
             <div style={{
               fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
-              marginTop: 2, color: TEXT_PRIMARY,
+              marginTop: 2, color: 'var(--text-primary, #1C1917)',
             }}>
               {lang === 'ru' ? 'Объявления' : "E'lonlar"}
             </div>
@@ -256,6 +249,15 @@ export function ResidentAnnouncementsPage() {
           })}
         </div>
       </div>
+      {/* v118.137 — kz-screen now wraps only the body so the slide
+          animation runs on body content alone (header above stays still). */}
+      <div className="kz-screen" style={{
+        minHeight: '100%',
+        background: APP_BG,
+        color: TEXT_PRIMARY,
+        paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+        letterSpacing: '-0.01em',
+      }}>
 
       {/* ── Feed ──────────────────────────────────────────────────────── */}
       <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -275,6 +277,7 @@ export function ResidentAnnouncementsPage() {
         )}
       </div>
     </div>
+    </>
   );
 }
 

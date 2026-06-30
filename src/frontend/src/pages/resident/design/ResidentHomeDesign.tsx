@@ -688,6 +688,20 @@ export function ResidentHomeDesign(props: Props) {
   const reschedule = pendingReschedules && pendingReschedules.length > 0 ? pendingReschedules[0] : null;
 
   return (
+    // v118.137 — HomeHero (position:fixed) hoisted OUT of .kz-screen so
+    // it no longer inherits the kzPagePushIn translateX(36px) animation
+    // on page-enter. Body still slides; the hero stays rock-still on
+    // every navigation. NotificationsDropdown (popup anchored to the
+    // bell) moves with it — same conceptual header chrome.
+    // The inner-scroller body keeps its existing flex / overscroll
+    // semantics inside the kz-screen wrapper unchanged.
+    <>
+      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} logo={logo} onMenu={onMenu} onBell={() => setBell((b) => !b)} bellOpen={bell} />
+      <NotificationsDropdown
+        open={bell}
+        onClose={() => setBell(false)}
+        onSeeAll={() => { setBell(false); navigate('/notifications'); }}
+      />
     <div
       className="kz-screen"
       style={{
@@ -715,12 +729,6 @@ export function ResidentHomeDesign(props: Props) {
         marginRight: isMobile ? 'calc(50% - 50vw)' : 0,
       }}
     >
-      <HomeHero name={name} apt={apt} activeCount={activeCount} language={language} unread={unread} brand={brand} logo={logo} onMenu={onMenu} onBell={() => setBell((b) => !b)} bellOpen={bell} />
-      <NotificationsDropdown
-        open={bell}
-        onClose={() => setBell(false)}
-        onSeeAll={() => { setBell(false); navigate('/notifications'); }}
-      />
 
       {/* v118.87 — dedicated INNER SCROLLER. iOS WKWebView honors
           overscroll-behavior:none reliably on a non-document scroller
@@ -812,5 +820,6 @@ export function ResidentHomeDesign(props: Props) {
           resident route and now owns the floating-pill design. */}
       </div>{/* /home-scroll inner scroller */}
     </div>
+    </>
   );
 }

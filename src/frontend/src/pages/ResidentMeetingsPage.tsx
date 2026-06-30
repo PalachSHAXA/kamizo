@@ -204,16 +204,14 @@ export function ResidentMeetingsPage() {
 
   // ── render ──────────────────────────────────────────────────────
   return (
-    // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
-    // v118.98 — was minHeight:100% with the page itself scrolling under a
-    // position:sticky header (the header would drift on iOS rubber-band).
-    // Restructured to the v229 (Home) / v232 (Garage) pattern: flex
-    // column, header is flex:0 0 auto (truly fixed, no sticky), content
-    // lives in a dedicated inner scroller (flex:1 1 auto + minHeight:0
-    // + overflowY:auto + overscrollBehavior:none + WebkitOverflowScrolling:
-    // touch). The body/document no longer scrolls — only the inner
-    // container does — so the header is immune to any rubber-band drift.
-    <div className="kz-screen" style={{
+    // v118.137 — moved the .kz-screen class from this OUTER 100dvh
+    // wrapper to the INNER scroller below. The header (flex:0 0 auto)
+    // is no longer inside the animated container, so it stays still
+    // during the kzPagePushIn translateX(36px) page-enter slide. Body
+    // (inner scroller) still slides. Outer wrapper keeps the same
+    // flex-column layout and overflow:hidden semantics — only the
+    // animation class moved one level deeper.
+    <div style={{
       height: '100dvh',
       display: 'flex',
       flexDirection: 'column',
@@ -238,7 +236,7 @@ export function ResidentMeetingsPage() {
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px',
         background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${HAIRLINE}`,
+        borderBottom: '1px solid var(--border-c, rgba(28,25,23,0.06))',
       }}>
         {/* v118.77 — back arrow + heading inline row. Back on the left,
             explicit navigate('/') (NOT history.back so the user always
@@ -251,9 +249,9 @@ export function ResidentMeetingsPage() {
             aria-label={lang === 'ru' ? 'Назад' : 'Orqaga'}
             style={{
               width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
-              background: SURFACE,
-              border: `1px solid ${HAIRLINE}`,
-              color: TEXT_PRIMARY,
+              background: 'var(--surface, #FFFFFF)',
+              border: '1px solid var(--border-c, rgba(28,25,23,0.06))',
+              color: 'var(--text-primary, #1C1917)',
               display: 'grid', placeItems: 'center', cursor: 'pointer',
               padding: 0, marginTop: 2,
             }}
@@ -263,13 +261,13 @@ export function ResidentMeetingsPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-              color: TEXT_SECONDARY, textTransform: 'uppercase',
+              color: 'var(--text-secondary, #6F6A62)', textTransform: 'uppercase',
             }}>
               {lang === 'ru' ? 'Собрания собственников' : 'Mulkdorlar yig\'ilishi'}
             </div>
             <div style={{
               fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
-              marginTop: 2, color: TEXT_PRIMARY,
+              marginTop: 2, color: 'var(--text-primary, #1C1917)',
             }}>
               {lang === 'ru' ? 'Голосование' : 'Ovoz berish'}
             </div>
@@ -281,7 +279,7 @@ export function ResidentMeetingsPage() {
           this page. overscroll-behavior:none + min-height:0 prevent the
           iOS top-rubber-band that used to translate the document and
           drag the sticky header with it. */}
-      <div className="meetings-scroll" style={{
+      <div className="meetings-scroll kz-screen" style={{
         flex: '1 1 auto',
         minHeight: 0,
         overflowY: 'auto',

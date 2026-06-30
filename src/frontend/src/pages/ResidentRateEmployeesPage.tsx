@@ -250,27 +250,27 @@ export function ResidentRateEmployeesPage() {
       minHeight: '100%',
       background: 'var(--app-bg)',
       color: TEXT_PRIMARY,
-      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+      paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
       letterSpacing: '-0.01em',
     }}>
       {/* ── Sticky header ─────────────────────────────────────────────── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 20px 12px',
-        background: 'rgba(244,240,232,0.92)',
+        background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${HAIRLINE}`,
+        borderBottom: '1px solid var(--border-c, rgba(28,25,23,0.06))',
       }}>
         <div style={{
           fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
-          color: TEXT_MUTED, textTransform: 'uppercase',
+          color: 'var(--text-secondary, #A8A29E)', textTransform: 'uppercase',
         }}>
           {language === 'ru' ? 'Оценка сотрудников' : 'Xodimlarni baholash'}
         </div>
         <div style={{
           fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 1,
-          color: TEXT_PRIMARY,
+          color: 'var(--text-primary, #1C1917)',
         }}>
           {language === 'ru' ? 'Спасибо, что делитесь' : 'Fikringiz uchun rahmat'}
         </div>
@@ -377,6 +377,7 @@ export function ResidentRateEmployeesPage() {
       <Modal
         isOpen={showUkModal}
         onClose={() => setShowUkModal(false)}
+        onBack={() => setShowUkModal(false)}
         title={language === 'ru' ? 'Оценка управляющей компании' : 'Boshqaruv kompaniyasini baholash'}
         size="lg"
       >
@@ -407,10 +408,16 @@ export function ResidentRateEmployeesPage() {
             onChange={(e) => setUkComment(e.target.value)}
             placeholder={language === 'ru' ? 'Что можно улучшить?' : 'Nimani yaxshilash mumkin?'}
             rows={3}
+            // v118.136 — textarea uses theme-aware CSS vars (with the
+            // original hex as fallback) so html.dark in index.css can
+            // flip the surface + text to the dark palette. In light
+            // mode the fallback wins → visually identical to before.
             style={{
               width: '100%', padding: '12px 14px',
-              borderRadius: 12, border: `1px solid ${BORDER}`,
-              fontSize: 14, color: TEXT_PRIMARY, background: STONE_50,
+              borderRadius: 12, border: '1px solid var(--border-c, #E6DFD2)',
+              fontSize: 14,
+              color: 'var(--text-primary, #1C1917)',
+              background: 'var(--surface-sunken, #FBF8F2)',
               resize: 'none', outline: 'none', boxSizing: 'border-box',
               fontFamily: 'inherit',
             }}
@@ -419,11 +426,19 @@ export function ResidentRateEmployeesPage() {
             type="button"
             onClick={handleUkSubmit}
             disabled={ukOverall === 0 || ukSubmitting}
+            // v118.136 — disabled state uses theme-aware surface/text
+            // tokens so the button doesn't render as a light slab on
+            // the dark drawer. Active state (amber brand) is the same
+            // in both themes and stays unchanged.
             style={{
               marginTop: 4, padding: '14px',
               borderRadius: 14, border: 'none',
-              background: ukOverall > 0 && !ukSubmitting ? AMBER_600 : STONE_200,
-              color: ukOverall > 0 && !ukSubmitting ? '#fff' : TEXT_MUTED,
+              background: ukOverall > 0 && !ukSubmitting
+                ? AMBER_600
+                : 'var(--surface-sunken, #E6DFD2)',
+              color: ukOverall > 0 && !ukSubmitting
+                ? '#fff'
+                : 'var(--text-secondary, #A8A29E)',
               fontSize: 14.5, fontWeight: 650 as unknown as number,
               cursor: ukOverall > 0 && !ukSubmitting ? 'pointer' : 'not-allowed',
               boxShadow: ukOverall > 0 && !ukSubmitting ? STAR_GLOW : 'none',
@@ -728,10 +743,13 @@ function StarRow({
             type="button"
             onClick={() => onChange(n)}
             aria-label={`${n}/5`}
+            // v118.136 — empty-star outline uses the themed border
+            // token so it's visible against both light and dark drawer
+            // backgrounds. Filled state stays amber in both themes.
             style={{
               width: size + 4, height: size + 4,
               background: 'transparent', border: 'none', cursor: 'pointer',
-              color: filled ? AMBER_500 : STAR_EMPTY,
+              color: filled ? AMBER_500 : 'var(--border-c, #D6D3D1)',
               padding: 0, display: 'grid', placeItems: 'center',
             }}
           >
@@ -758,12 +776,16 @@ function UkStarRow({
   required?: boolean;
 }) {
   return (
+    // v118.136 — UkStarRow uses theme-aware tokens for the divider +
+    // label so dark mode lights the rating labels (Общая оценка / …)
+    // properly against the dark drawer surface. Light-mode appearance
+    // preserved via the hex fallback in each var().
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       padding: '8px 0',
-      borderBottom: `1px solid ${HAIRLINE}`,
+      borderBottom: '1px solid var(--border-c, rgba(28,25,23,0.06))',
     }}>
-      <span style={{ fontSize: 13.5, fontWeight: 600, color: TEXT_PRIMARY }}>
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary, #1C1917)' }}>
         {label}
         {required && <span style={{ color: AMBER_600, marginLeft: 4 }}>*</span>}
       </span>

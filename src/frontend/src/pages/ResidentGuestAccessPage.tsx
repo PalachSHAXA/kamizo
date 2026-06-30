@@ -132,15 +132,13 @@ export function ResidentGuestAccessPage() {
   };
 
   return (
-    // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
-    <div className="kz-screen" style={{
-      minHeight: '100%',
-      background: 'var(--app-bg)',
-      color: TEXT_PRIMARY,
-      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
-      letterSpacing: '-0.01em',
-    }}>
-      {/* ── Sticky header (back + eyebrow + title + history button) ─────────── */}
+    // v118.137 — header hoisted OUT of .kz-screen so it doesn't
+    // inherit the kzPagePushIn translateX(36px) animation. Body still
+    // slides on navigation; only the header stays still. Visual
+    // design / safe-area math / sticky behaviour all unchanged — only
+    // DOM position relative to the animated wrapper moved.
+    <>
+      {/* ── Sticky header (back + eyebrow + title + history button) — NOW OUTSIDE kz-screen ── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
@@ -159,8 +157,10 @@ export function ResidentGuestAccessPage() {
           aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
           style={{
             width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
-            background: SURFACE, border: `1px solid ${BORDER}`,
-            color: TEXT_PRIMARY, padding: 0, cursor: 'pointer',
+            background: 'var(--surface, #FFFFFF)',
+            border: '1px solid var(--border-c, #E6DFD2)',
+            color: 'var(--text-primary, #1C1917)',
+            padding: 0, cursor: 'pointer',
             display: 'grid', placeItems: 'center',
           }}
         >
@@ -169,13 +169,13 @@ export function ResidentGuestAccessPage() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-            color: TEXT_SECONDARY, textTransform: 'uppercase',
+            color: 'var(--text-secondary, #6F6A62)', textTransform: 'uppercase',
           }}>
             {language === 'ru' ? 'QR-доступ' : 'QR-kirish'}
           </div>
           <div style={{
             fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', marginTop: 2,
-            color: TEXT_PRIMARY,
+            color: 'var(--text-primary, #1C1917)',
           }}>
             {showHistorySheet
               ? (language === 'ru' ? 'Архив' : 'Arxiv')
@@ -188,10 +188,10 @@ export function ResidentGuestAccessPage() {
           aria-label={language === 'ru' ? 'История' : 'Tarix'}
           style={{
             width: 40, height: 40, borderRadius: 12,
-            background: SURFACE,
-            border: `1px solid ${BORDER}`,
+            background: 'var(--surface, #FFFFFF)',
+            border: '1px solid var(--border-c, #E6DFD2)',
             display: 'grid', placeItems: 'center',
-            color: showHistorySheet ? '#EA580C' : TEXT_SECONDARY,
+            color: showHistorySheet ? '#EA580C' : 'var(--text-secondary, #6F6A62)',
             cursor: 'pointer',
             flex: '0 0 auto',
           }}
@@ -199,6 +199,16 @@ export function ResidentGuestAccessPage() {
           <History size={18} />
         </button>
       </div>
+      {/* v118.137 — kz-screen now wraps only the body so the slide
+          animation runs on body content alone (the header above
+          stays rock-still on every navigation). */}
+      <div className="kz-screen" style={{
+        minHeight: '100%',
+        background: 'var(--app-bg)',
+        color: TEXT_PRIMARY,
+        paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
+        letterSpacing: '-0.01em',
+      }}>
 
       {/* ── Body ────────────────────────────────────────────────────── */}
       <div style={{ padding: '14px 16px' }}>
@@ -391,6 +401,7 @@ export function ResidentGuestAccessPage() {
         onConfirm={handleRevoke}
       />
     </div>
+    </>
   );
 }
 
