@@ -489,10 +489,19 @@ export function ResidentProfilePage() {
     <div
       className="kz-screen"
       style={{
-        minHeight: '100%',
+        // v118.135 — flex column that fills the viewport, so the bottom
+        // group (Выход + версия) can be pinned to the end via
+        // marginTop:auto. Removes the trailing void on tall screens
+        // (iPhone 17 Pro Max) where content was shorter than viewport
+        // and ~150px of empty scroll-zone sat below the version line.
+        // On short screens content overflows naturally and the page
+        // scrolls — version reachable, never hidden behind BottomBar.
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
         background: APP_BG,
         color: TEXT_PRIMARY,
-        paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
         letterSpacing: '-0.01em',
       }}
     >
@@ -741,7 +750,10 @@ export function ResidentProfilePage() {
       </div>
 
       {/* ── Settings sections ───────────────────────────────────────── */}
-      <div style={{ padding: '20px 16px 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* v118.135 — flex:1 0 auto so this wrapper consumes all remaining
+          vertical space below the hero/tiles; the bottom-group's
+          marginTop:auto then pushes it to the end of the column. */}
+      <div style={{ padding: '20px 16px 16px', display: 'flex', flexDirection: 'column', gap: 18, flex: '1 0 auto' }}>
         {/* Дом и квартира */}
         <SettingsSection title={t.sectionHome}>
           <SettingsRow
@@ -905,48 +917,55 @@ export function ResidentProfilePage() {
             Director / admin / staff profiles are a separate
             component (admin/SettingsPage.tsx) and were never wired
             to this flow, so they stay unaffected. */}
-        <div
-          style={{
-            padding: '12px 14px',
-            background: 'transparent',
-            border: `1px dashed ${BORDER}`,
-            borderRadius: 14,
-            color: TEXT_SECONDARY,
-            fontSize: 12.5,
-            lineHeight: 1.45,
-            textAlign: 'center',
-          }}
-        >
-          {t.infoDeleteAccount}
-        </div>
+        {/* v118.135 — bottom group pinned to the end of the flex column.
+            marginTop:auto absorbs any free vertical space between the
+            last settings section and this group, so on tall screens the
+            block sits near the BottomBar (no trailing void) and on
+            short screens it just stacks normally and the page scrolls. */}
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div
+            style={{
+              padding: '12px 14px',
+              background: 'transparent',
+              border: `1px dashed ${BORDER}`,
+              borderRadius: 14,
+              color: TEXT_SECONDARY,
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              textAlign: 'center',
+            }}
+          >
+            {t.infoDeleteAccount}
+          </div>
 
-        {/* Logout */}
-        <button
-          type="button"
-          onClick={handleLogout}
-          style={{
-            background: SURFACE,
-            border: `1px solid ${BORDER}`,
-            borderRadius: 14,
-            padding: 14,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            color: STATUS_CRITICAL,
-            fontSize: 14,
-            fontWeight: 700,
-            boxShadow: SHADOW_SM,
-            width: '100%',
-          }}
-        >
-          <LogOut size={16} /> {t.logout}
-        </button>
+          {/* Logout */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              background: SURFACE,
+              border: `1px solid ${BORDER}`,
+              borderRadius: 14,
+              padding: 14,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              color: STATUS_CRITICAL,
+              fontSize: 14,
+              fontWeight: 700,
+              boxShadow: SHADOW_SM,
+              width: '100%',
+            }}
+          >
+            <LogOut size={16} /> {t.logout}
+          </button>
 
-        {/* Version label */}
-        <div style={{ textAlign: 'center', fontSize: 11, color: TEXT_MUTED, marginTop: 2 }}>
-          Kamizo · {t.versionLabel} {APP_VERSION}
+          {/* Version label */}
+          <div style={{ textAlign: 'center', fontSize: 11, color: TEXT_MUTED, marginTop: 2 }}>
+            Kamizo · {t.versionLabel} {APP_VERSION}
+          </div>
         </div>
       </div>
 
