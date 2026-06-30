@@ -51,8 +51,22 @@ export default function RescheduleModal({
       : `#${request.number} ariza uchun yangi vaqt taklif qiling.`;
 
   return (
-    <div className="modal-backdrop">
-      <div className="glass-card p-6 w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto rounded-none sm:rounded-2xl">
+    // v118.131 — match the executor RequestDetailsModal fix:
+    //   • zIndex 10100 on the backdrop so the modal paints ABOVE the
+    //     global Header (z 10000–10002) and BottomBar (z 1000) —
+    //     useModalPresence above already hides BottomBar but this
+    //     also covers the Header.
+    //   • modal-content (95% opaque) instead of glass-card (40%
+    //     opaque + blur) — the see-through frosted glass was letting
+    //     the dashboard's stat cards / tabs / task list bleed into
+    //     the modal title row.
+    //   • safe-area top padding so the title sits clear of the notch.
+    //   • rounded-t-[20px] for the mobile sheet look.
+    <div className="modal-backdrop" style={{ zIndex: 10100 }}>
+      <div
+        className="modal-content p-6 w-full max-w-md mx-4 max-h-[100dvh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+      >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-amber-600 flex items-center gap-2">
             <RefreshCw className="w-5 h-5" />

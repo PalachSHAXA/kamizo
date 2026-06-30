@@ -1,11 +1,13 @@
 import {
   Clock, MapPin, Phone, User,
-  Play, Check, X, Star,
+  Play, Check, Star,
   CalendarDays, AlertCircle,
-  RefreshCw, Hand, XCircle
+  RefreshCw, Hand, XCircle,
+  ChevronLeft
 } from 'lucide-react';
 import { useState } from 'react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { useModalPresence } from '../../../stores/modalStore';
 import { formatAddress } from '../../../utils/formatAddress';
 import { ImageLightbox } from '../../../components/common/ImageLightbox';
 import { SPECIALIZATION_LABELS } from '../../../types';
@@ -38,6 +40,13 @@ export function RequestDetailsModal({
   formatTime
 }: RequestDetailsModalProps) {
   const { language } = useLanguageStore();
+  // v118.130 — declare modal presence so the global BottomBar
+  // hides while this focused task-detail screen is up. Same pattern
+  // ResidentNewRequestFlow uses. BottomBar reads useModalStore.count;
+  // when > 0 it removes itself from the layout. Applies to every
+  // executor category (plumber / electrician / lift / cleaning /
+  // garbage / heating / etc.) — this is the one shared screen.
+  useModalPresence();
   // Photo viewer (data: URLs can't open in a new tab — Chromium blocks them).
   const [lightbox, setLightbox] = useState<string | null>(null);
   // Can decline/release if assigned, accepted, or in_progress (for illness, etc.)
@@ -67,16 +76,31 @@ export function RequestDetailsModal({
 
   // TODO: migrate to <Modal> component
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content p-6 w-full max-w-lg mx-4 max-h-[90dvh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="text-sm text-gray-500">{language === 'ru' ? '\u0417\u0430\u044f\u0432\u043a\u0430' : 'Ariza'} #{request.number}</div>
-            <h2 className="text-xl font-bold">{request.title}</h2>
-          </div>
-          <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/30 rounded-lg touch-manipulation" aria-label="\u0417\u0430\u043a\u0440\u044b\u0442\u044c">
-            <X className="w-5 h-5" />
-          </button>
+    // v118.130 \u2014 z-index override so the modal paints ABOVE the global
+    // Header (z 10000\u201310002) and BottomBar (z 1000). Default .modal-
+    // backdrop has z-index: 100, which left both poking through and the
+    // executor saw the wrong chrome around the task detail. Inline style
+    // wins over the class declaration.
+    <div className="modal-backdrop" style={{ zIndex: 10100 }}>
+      <div
+        className="modal-content p-6 w-full max-w-lg mx-4 max-h-[100dvh] overflow-y-auto rounded-t-[20px] sm:rounded-2xl"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+      >
+        {/* v118.130 \u2014 Top-left "\u2190 \u041d\u0430\u0437\u0430\u0434" replaces the previous X close.
+            Returns to the executor task list (onClose) \u2014 same handler,
+            different affordance. min-h 44px / touch-manipulation kept
+            for tap reliability. */}
+        <button
+          onClick={onClose}
+          className="inline-flex items-center gap-1 -ml-2 px-2 py-2 min-h-[44px] text-gray-700 hover:bg-black/5 rounded-lg active:scale-95 touch-manipulation"
+          aria-label={language === 'ru' ? '\u041d\u0430\u0437\u0430\u0434' : 'Orqaga'}
+        >
+          <ChevronLeft className="w-5 h-5" />
+          <span className="text-base font-medium">{language === 'ru' ? '\u041d\u0430\u0437\u0430\u0434' : 'Orqaga'}</span>
+        </button>
+        <div className="mt-2 mb-6">
+          <div className="text-sm text-gray-500">{language === 'ru' ? '\u0417\u0430\u044f\u0432\u043a\u0430' : 'Ariza'} #{request.number}</div>
+          <h2 className="text-xl font-bold">{request.title}</h2>
         </div>
 
         {/* Active Timer Display */}

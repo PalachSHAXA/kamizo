@@ -237,7 +237,7 @@ export function ResidentFinancePage() {
     <div style={{
       minHeight: '100%',
       background: APP_BG, color: TEXT_PRIMARY,
-      paddingBottom: 'calc(124px + env(safe-area-inset-bottom, 0px))',
+      paddingBottom: 'calc(88px + env(safe-area-inset-bottom, 0px))',
       letterSpacing: '-0.01em',
     }}>
       {/* Sticky header */}

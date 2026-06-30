@@ -467,7 +467,7 @@ function ServiceSheet({ language, onPick, onClose, shell }: { language: string; 
           style={{
             position: 'relative', overflow: 'hidden', flexShrink: 0,
             background: 'linear-gradient(155deg, #33302C 0%, #1C1917 70%)',
-            padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 16px 15px', color: 'var(--text-on-dark, #F4F0E8)',
+            padding: '8px 16px 15px', color: 'var(--text-on-dark, #F4F0E8)',
             borderTopLeftRadius: RX, borderTopRightRadius: RX,
             touchAction: 'pan-y',
           }}
@@ -477,8 +477,8 @@ function ServiceSheet({ language, onPick, onClose, shell }: { language: string; 
             {/* Visible grab indicator — the pill stays as a visual
                 cue (the whole hero is now the drag surface, but
                 users still expect to see the pill). */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 12px', cursor: 'grab', pointerEvents: 'none' }} aria-hidden="true">
-              <div style={{ width: 38, height: 5, borderRadius: 999, background: 'rgba(244,240,232,0.3)' }} />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 6px', cursor: 'grab', pointerEvents: 'none' }} aria-hidden="true">
+              <div style={{ width: 32, height: 5, borderRadius: 999, background: 'rgba(244,240,232,0.3)' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
               <div>
