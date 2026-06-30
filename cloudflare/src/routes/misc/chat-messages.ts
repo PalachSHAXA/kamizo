@@ -129,18 +129,15 @@ route('GET', '/api/chat/channels/:id/messages', async (request, env, params) => 
     };
   });
 
-  // Mark as read (exclude own messages). Sprint 11 privacy fix: every user
-  // now marks only their own read row. Previously, a manager opening a
-  // private_support thread would CROSS JOIN to mark all colleagues read,
-  // which (a) cleared every manager's notification badge at once and
-  // (b) leaked colleague activity timestamps into the API. The shared
-  // "team has seen it" UX for the resident is preserved via the new
-  // `management_read` aggregate field computed in the SELECT above.
-  await env.DB.prepare(`
-    INSERT OR IGNORE INTO chat_message_reads (message_id, user_id)
-    SELECT id, ? FROM chat_messages WHERE channel_id = ? AND sender_id != ?
-  `).bind(user.id, channelId, user.id).run();
-
+  // v118.133 — mark-as-read write removed from this GET handler. Under
+  // better-sqlite3 single-writer the INSERT OR IGNORE here took the
+  // write lock and serialised concurrent thread-opens (two phones,
+  // director+resident), pending up to apiRequest's 30 s timeout. The
+  // frontend already POSTs /api/chat/channels/:id/read on every open
+  // from both ChatView and ResidentChatView; that handler performs the
+  // identical statement plus updates chat_channel_reads AND broadcasts
+  // the read receipt over the WS channel — strict superset, no
+  // functional regression. GET is now pure SELECT.
   return json({ messages: messagesWithReadBy });
 });
 
