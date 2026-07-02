@@ -37,6 +37,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom';
 import { AlertCircle, ArrowLeft, Camera, ChevronRight, MapPin, Plus, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { chatApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useRequestStore } from '../../stores/dataStore';
@@ -183,6 +184,12 @@ export function ResidentChatView({ channel, onBack }: Props) {
   // Sending a message still scrolls to bottom because the send
   // handler does it explicitly (line ~163 / 207).
   const initialScrolledRef = useRef(false);
+
+  // v118.153 — iOS-style left-edge swipe-back. Uses the same back
+  // action as the header's ← button (onBack prop when parent supplies it,
+  // otherwise navigate('/')). Passive listeners; cannot conflict with
+  // vertical scroll or the Layout touchmove guard.
+  useEdgeSwipeBack(onBack || (() => navigate('/')));
 
   useEffect(() => {
     // Reset the per-channel one-shot when switching channels so the
@@ -661,7 +668,18 @@ export function ResidentChatView({ channel, onBack }: Props) {
       {isMobile && typeof document !== 'undefined' && createPortal(headerEl, document.body)}
       {isMobile && typeof document !== 'undefined' && createPortal(composerEl, document.body)}
       <div
-        className="kz-screen"
+        // v118.149 — kz-screen REMOVED. The kzPagePushIn translateX(36px)
+        // page-enter transform made the LISTREF scroll container inside
+        // this wrapper live under a transformed ancestor → iOS WKWebView
+        // silently disabled `-webkit-overflow-scrolling: touch` momentum
+        // on it, so after settling at scrollTop=max the recognizer stayed
+        // asleep and the first up-swipe (finger down → reveal older
+        // messages at top) was dropped, feeling like "scroll up doesn't
+        // respond." Same class of bug we hoisted out for ResidentProfile
+        // in v118.147. The header/composer are already portaled to
+        // <body> (v118.114) — they never depended on this animation and
+        // are unaffected. Chat is a BottomBar tab destination, so the
+        // slide-in on entry was cosmetic, not load-bearing.
         style={isMobile ? {
           position: 'fixed',
           inset: 0,

@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import {
   AlertTriangle, ArrowLeft, Calendar, Check, CheckCircle, ChevronRight, Clock,
   Loader2, MessageSquare, RefreshCw, Shield, Vote, X,
@@ -91,6 +92,9 @@ export function ResidentMeetingsPage() {
   // standalone-fullscreen for residents (top-level Route in App.tsx,
   // no Layout chrome).
   const navigate = useNavigate();
+  // v118.153 — iOS-style left-edge swipe-back. Matches the ← header
+  // button which navigates('/') to Home.
+  useEdgeSwipeBack(() => navigate('/'));
   const { user } = useAuthStore();
   const {
     meetings,

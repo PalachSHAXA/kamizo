@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { ArrowLeft, History, QrCode, CheckCircle2, XCircle } from 'lucide-react';
 import { EmptyState, ConfirmDialog } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -44,6 +45,8 @@ export function ResidentGuestAccessPage() {
   // rendered) — unlike /vehicles, /announcements, /notifications,
   // /meetings which became standalone fullscreen.
   const navigate = useNavigate();
+  // v118.153 — iOS-style left-edge swipe-back → Home, same as ← button.
+  useEdgeSwipeBack(() => navigate('/'));
   const { user } = useAuthStore();
   const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
   const fetchGuestCodes = useGuestAccessStore(s => s.fetchGuestCodes);

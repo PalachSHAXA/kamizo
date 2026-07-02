@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useAnnouncementStore, useNotificationStore } from '../../stores/dataStore';
@@ -257,66 +257,25 @@ export function Layout() {
     return () => window.removeEventListener('open-sidebar', handleOpenSidebar);
   }, []);
 
-  // Swipe from left edge to open sidebar.
+  // v118.152 — REMOVED left-edge swipe-to-open sidebar gesture.
+  // Users reported that a left-region swipe on the resident "Заявки"
+  // (and other inner pages) was accidentally opening the drawer. The
+  // gesture also collided with iOS's own left-edge back-swipe when
+  // the user's finger landed slightly outside the OS's ~20 px zone.
+  // Drawer is still openable via the hamburger button in MobileHeader
+  // (see line ~525 below: onMenuClick → setSidebarOpen(true)) — that
+  // button renders on every route with a mobile header, including
+  // Home and all inner pages, for every role (resident/director/
+  // executor/admin/manager). Close paths unchanged: backdrop click
+  // (line ~525: onClose={() => setSidebarOpen(false)}) and route
+  // change (line ~250: setSidebarOpen(false)).
   //
-  // v118.21 — the chat page (any /chat* route) now opts OUT of this
-  // gesture. With it enabled on chat, a swipe-right-from-left-edge
-  // was popping the sidebar drawer in over the chat, exposing the
-  // resident-mode drawer's nav items ("Заявки / Собрания / Пропуска /
-  // Быстрый доступ" — same labels as the home dashboard, easy to
-  // mistake for the dashboard itself sliding underneath chat).
-  // The drawer is still openable on chat via the hamburger menu in
-  // MobileHeader; only the swipe trigger is disabled there. Other
-  // routes keep the swipe-to-open behaviour unchanged.
-  //
-  // pathnameRef lets the touchstart callback read the current route
-  // WITHOUT re-creating + re-registering the listener on every route
-  // change (the touchstart/touchend listeners would otherwise churn
-  // on every navigation, since useCallback would invalidate when
-  // location.pathname changes).
-  const pathnameRef = useRef(location.pathname);
-  useEffect(() => {
-    pathnameRef.current = location.pathname;
-  }, [location.pathname]);
-
-  const swipeRef = useRef<{ startX: number; startY: number; started: boolean }>({ startX: 0, startY: 0, started: false });
-  const handleGlobalTouchStart = useCallback((e: TouchEvent) => {
-    // Chat owns the entire screen — no edge-swipe drawer open here.
-    if (pathnameRef.current.startsWith('/chat')) return;
-    const x = e.touches[0].clientX;
-    // Only trigger from left 15px edge (avoid conflict with iOS back gesture zone ~20px)
-    if (x < 15 && !sidebarOpen) {
-      swipeRef.current = { startX: x, startY: e.touches[0].clientY, started: true };
-    }
-  }, [sidebarOpen]);
-
-  const handleGlobalTouchEnd = useCallback((e: TouchEvent) => {
-    if (!swipeRef.current.started) return;
-    // Belt-and-suspenders: in case the user starts a swipe elsewhere
-    // then navigates into chat mid-gesture, also bail at touchend.
-    if (pathnameRef.current.startsWith('/chat')) {
-      swipeRef.current.started = false;
-      return;
-    }
-    const endX = e.changedTouches[0].clientX;
-    const endY = e.changedTouches[0].clientY;
-    const diffX = endX - swipeRef.current.startX;
-    const diffY = Math.abs(endY - swipeRef.current.startY);
-    // Swipe right > 60px and mostly horizontal
-    if (diffX > 60 && diffY < diffX) {
-      setSidebarOpen(true);
-    }
-    swipeRef.current.started = false;
-  }, []);
-
-  useEffect(() => {
-    document.addEventListener('touchstart', handleGlobalTouchStart, { passive: true });
-    document.addEventListener('touchend', handleGlobalTouchEnd, { passive: true });
-    return () => {
-      document.removeEventListener('touchstart', handleGlobalTouchStart);
-      document.removeEventListener('touchend', handleGlobalTouchEnd);
-    };
-  }, [handleGlobalTouchStart, handleGlobalTouchEnd]);
+  // Deleted symbols: pathnameRef, swipeRef, handleGlobalTouchStart,
+  // handleGlobalTouchEnd, and their useEffect / useCallback wrappers
+  // (v113 sidebar swipe + v118.21 chat opt-out both retired). No
+  // other code in this file referenced them. The v118.85+v118.150
+  // touchmove-guard on mainContentRef (below) is a separate handler
+  // for elastic-overscroll protection and is untouched.
 
   // v118.85 — Belt-and-suspenders against iOS WKWebView top elastic
   // overscroll on the .main-content scroll container. CSS already has
@@ -327,6 +286,32 @@ export function Layout() {
   // scrolling (scrollTop > 0, upward drags, bottom overscroll) all
   // unaffected. Without this, content could bounce up past the fixed
   // HomeHero (v226) on resident Home.
+  //
+  // v118.150 — bug fix. Touchmove events BUBBLE from any descendant to
+  // .main-content. On the resident chat (which has its own inner
+  // scroller, listRef) .main-content itself has scrollTop === 0 (chat
+  // is full-viewport, .main-content has nothing to scroll). So every
+  // downward drag inside the chat (the physical gesture to reveal
+  // OLDER messages at top) matched `el.scrollTop <= 0 && currentY >
+  // startY`, hit preventDefault, and iOS cancelled the chat's own
+  // scroll for that touch sequence. Upward drags (scroll toward newer)
+  // didn't match the condition, so they worked. Perfect asymmetric
+  // fingerprint of this exact bug.
+  //
+  // Two safeguards now:
+  //   1. Skip when #main-content has 'chat-active'. Chat owns its own
+  //      scroller; .main-content isn't scrolling at all in that mode,
+  //      so the HomeHero-protection this handler exists for cannot
+  //      apply anyway.
+  //   2. Walk from e.target up to el. If any element in that chain is
+  //      itself a vertical scroller with overflow content
+  //      (overflow-y: auto|scroll AND scrollHeight > clientHeight),
+  //      let it handle the gesture — do NOT preventDefault. Covers any
+  //      future screen (modal, sheet, drawer) mounted inside Layout
+  //      that has its own scroller. The original HomeHero protection
+  //      still fires because the resident Home page relies on
+  //      .main-content itself scrolling (no descendant own-scroller
+  //      between the touch and .main-content).
   const mainContentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = mainContentRef.current;
@@ -334,6 +319,29 @@ export function Layout() {
     let startY = 0;
     const onTouchStart = (e: TouchEvent) => { startY = e.touches[0]?.clientY ?? 0; };
     const onTouchMove = (e: TouchEvent) => {
+      // Safeguard 1 — chat opts out of this handler entirely.
+      if (el.classList.contains('chat-active')) return;
+
+      // Safeguard 2 — if the touch originates inside a descendant
+      // scroller (its own overflow-y with scrollable content), let
+      // that scroller handle the gesture. Prevents this outer handler
+      // from cancelling inner scrolls in any current or future
+      // own-scroller screen mounted in Layout.
+      let node: Node | null = e.target as Node | null;
+      while (node && node !== el) {
+        if (node instanceof HTMLElement) {
+          const cs = window.getComputedStyle(node);
+          const overflowY = cs.overflowY;
+          if (
+            (overflowY === 'auto' || overflowY === 'scroll') &&
+            node.scrollHeight > node.clientHeight
+          ) {
+            return;
+          }
+        }
+        node = node.parentNode;
+      }
+
       const currentY = e.touches[0]?.clientY ?? 0;
       // scrollTop can briefly be negative during the bounce itself; treat <=0 as "at top".
       if (el.scrollTop <= 0 && currentY > startY) {

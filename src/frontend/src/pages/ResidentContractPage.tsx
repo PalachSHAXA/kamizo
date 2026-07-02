@@ -45,6 +45,7 @@ import {
   ArrowLeft, Check, ChevronDown, Download, FileText,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
@@ -158,6 +159,9 @@ export function ResidentContractPage() {
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
   const addToast = useToastStore(s => s.addToast);
   const navigate = useNavigate();
+  // v118.153 — iOS-style left-edge swipe-back. This page's ← button uses
+  // navigate(-1) (line ~182), so mirror that here for consistency.
+  useEdgeSwipeBack(() => navigate(-1));
 
   const [openId, setOpenId] = useState<string | null>('s1');
   const [isDownloading, setIsDownloading] = useState(false);

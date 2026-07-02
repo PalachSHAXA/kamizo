@@ -52,6 +52,20 @@ import Capacitor
 
 class MainViewController: CAPBridgeViewController {
 
+    // v118.144 — REGISTER in-app Capacitor plugins here.
+    // Capacitor 8 only auto-discovers plugins that come from SwiftPM /
+    // CocoaPods packages. For a plugin class defined directly in the App
+    // target (like SoftHaptic), the metadata on CAPBridgedPlugin is NOT
+    // enough — the bridge never scans the App target's classes, so JS
+    // calls to it would reject with "plugin not implemented on ios".
+    // capacitorDidLoad() is the documented hook for manually registering
+    // in-app plugin instances, fired after the bridge is up but before
+    // the webview loads.
+    // Docs: https://capacitorjs.com/docs/main/plugins/ios#register-the-plugin-with-capacitor
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(SoftHapticPlugin())
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 

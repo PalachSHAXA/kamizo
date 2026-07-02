@@ -485,17 +485,17 @@ export function ResidentProfilePage() {
 
   // ── render: hero / tiles / sections / logout / version ───────────────
   return (
-    // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
+    // v118.147 — kz-screen REMOVED from this page. Profile is a BottomBar
+    // tab destination (not a push-navigated route), so the kzPagePushIn
+    // translateX(36px) page-enter slide was never load-bearing UX. But the
+    // transformed wrapper INSIDE the .main-content scroller suppressed the
+    // iOS WKWebView local edge-bounce and momentum-scroll on Profile —
+    // it felt "dead" at the top/bottom edges. Without the transform, the
+    // scroll inherits .main-content's iOS-safe combo and bounces locally.
+    // The flex column + marginTop:auto bottom-group pin (v118.135 / v286)
+    // is preserved — only the className changed.
     <div
-      className="kz-screen"
       style={{
-        // v118.135 — flex column that fills the viewport, so the bottom
-        // group (Выход + версия) can be pinned to the end via
-        // marginTop:auto. Removes the trailing void on tall screens
-        // (iPhone 17 Pro Max) where content was shorter than viewport
-        // and ~150px of empty scroll-zone sat below the version line.
-        // On short screens content overflows naturally and the page
-        // scrolls — version reachable, never hidden behind BottomBar.
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',

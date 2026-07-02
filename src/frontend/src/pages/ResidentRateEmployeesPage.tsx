@@ -18,7 +18,9 @@
 // are prepended to the comment as [Tag1][Tag2] so they survive too.
 
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Send, Star as StarIcon, Check, Building2 } from 'lucide-react';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -79,6 +81,13 @@ const tagsToCommentPrefix = (tagIds: string[], lang: 'ru' | 'uz'): string => {
 };
 
 export function ResidentRateEmployeesPage() {
+  const navigate = useNavigate();
+  // v118.153 — iOS-style left-edge swipe-back. This page has no visible
+  // ← button (users normally rely on BottomBar), so the gesture is
+  // especially useful here. Goes back to Home to match the sibling
+  // full-bleed pages (/announcements, /meetings, /useful-contacts).
+  useEdgeSwipeBack(() => navigate('/'));
+
   const { user } = useAuthStore();
   const executors = useExecutorStore(s => s.executors);
   const requests = useRequestStore(s => s.requests);

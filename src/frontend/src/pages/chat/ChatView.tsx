@@ -16,6 +16,7 @@ import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { chatApi } from '../../services/api';
 import { subscribeToChatMessages } from '../../hooks/useWebSocketSync';
+import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { CHAT_CHANNEL_LABELS, type UserRole } from '../../types';
 import { ChatComposer } from './ChatComposer';
 import { QuickReplies } from './QuickReplies';
@@ -45,6 +46,13 @@ export function ChatView({
 }) {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
+
+  // v118.153 — iOS-style left-edge swipe-back on the chat thread. Fires
+  // the SAME onBack the ← header button uses (parent-supplied — for
+  // staff, ChatPage passes the "clear-selectedChannel" handler that
+  // returns to the channel list).
+  useEdgeSwipeBack(onBack);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);

@@ -15,6 +15,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { Megaphone, AlertTriangle, ChevronDown, FileText, File, Download, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore } from '../stores/dataStore';
@@ -106,6 +107,8 @@ export function ResidentAnnouncementsPage() {
   // v118.67 — навигация для back-кнопки (страница теперь top-level
   // full-screen route в App.tsx, без Layout chrome).
   const navigate = useNavigate();
+  // v118.153 — iOS-style left-edge swipe-back → Home, same as ← button.
+  useEdgeSwipeBack(() => navigate('/'));
   const { user } = useAuthStore();
   // Audit P1: was useDataStore() — subscribed to all 9 sub-stores. Now
   // reads only from useAnnouncementStore since that's the only domain

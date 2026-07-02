@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Users, Wrench, Car } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -6,11 +6,21 @@ import { useNavigate, useLocation } from 'react-router-dom';
 // component imports @capacitor/haptics — confirmed by grep gate in plan.
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { SoftHaptic } from '../services/softHaptic';
 
 const fireLightHaptic = () => {
   // Web no-op so the .catch isn't even reached on dev.
   if (!Capacitor.isNativePlatform()) return;
-  Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+  // v118.145 — P6 preset chosen by the user from the haptic tester:
+  // intensity 0.30 / sharpness 0.00 — "очень нежный, плавный" — the
+  // softest transient that still felt like a real tap. Played via the
+  // native SoftHaptic bridge (ios/App/App/SoftHaptic.swift) which fires
+  // a CHHapticTransient event with these parameters. Fallback chain
+  // unchanged: if SoftHaptic isn't registered (older binary on the
+  // device, Android, future regressions) → Haptics.impact(Light).
+  SoftHaptic.tap({ intensity: 0.30, sharpness: 0.00 }).catch(() => {
+    Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+  });
 };
 import { useLanguageStore } from '../stores/languageStore';
 import { useRequestStore, useNotificationStore } from '../stores/dataStore';
@@ -67,6 +77,51 @@ export function BottomBar() {
   // BottomBar refactor (f7062d4) which never added the md gate.
   const isMobile = useIsMobile();
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
+
+  // v118.151 — preload the current role's tab destination chunks after
+  // first paint so the first tap on each tab is instant. Layout.tsx
+  // lazy-loads every dashboard / ChatPage / Profile / Settings via
+  // React.lazy(() => import('...')); Vite emits each as a separate
+  // JS chunk, so the very FIRST visit to a tab used to trigger the
+  // chunk download + parse — user tapped, saw the PageLoader spinner
+  // (Layout.tsx:604) for 200-800 ms, then the destination rendered.
+  // Calling import() here from BottomBar warms the browser's module
+  // cache during idle CPU; the URLs match Layout's lazy() calls
+  // exactly, so bundler-level dedup means both paths hit the same
+  // cached chunk. On subsequent tap: Suspense resolves synchronously,
+  // no visible flash of the PageLoader.
+  useEffect(() => {
+    if (!user || !isMobile) return;
+    const role = user.role;
+    const preload = () => {
+      // Chat page is used by every role's Chat tab.
+      import('../pages/ChatPage').catch(() => {});
+      if (role === 'resident' || role === 'tenant' || role === 'commercial_owner') {
+        import('../pages/ResidentDashboard').catch(() => {});
+        import('../pages/ResidentProfilePage').catch(() => {});
+      } else if (role === 'director') {
+        import('../pages/DirectorDashboard').catch(() => {});
+        import('../pages/admin/SettingsPage').catch(() => {});
+      } else if (role === 'admin' || role === 'manager') {
+        import('../pages/AdminDashboard').catch(() => {});
+        import('../pages/ManagerDashboard').catch(() => {});
+        import('../pages/admin/SettingsPage').catch(() => {});
+      } else if (role === 'executor' || role === 'security') {
+        import('../pages/ExecutorDashboard').catch(() => {});
+        import('../pages/StaffProfilePage').catch(() => {});
+      } else if (role === 'department_head') {
+        import('../pages/DepartmentHeadDashboard').catch(() => {});
+        import('../pages/StaffProfilePage').catch(() => {});
+      }
+    };
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(preload, { timeout: 1500 });
+      return () => { w.cancelIdleCallback?.(id); };
+    }
+    const t = window.setTimeout(preload, 300);
+    return () => window.clearTimeout(t);
+  }, [user?.role, isMobile]);
   const [lockedFeatureKey, setLockedFeatureKey] = useState<string | null>(null);
   const hasTenant = !!config?.tenant;
 

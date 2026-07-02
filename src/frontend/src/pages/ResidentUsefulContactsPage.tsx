@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import {
   Phone, MapPin, Clock, ArrowLeft,
   CheckCircle, Loader2, Flame, Sparkles,
@@ -129,6 +130,8 @@ export default function ResidentUsefulContactsPage() {
   // Page stays inside Layout (BottomBar continues to render), so this is
   // the /guest-access pattern (v220), NOT the standalone-fullscreen one.
   const navigate = useNavigate();
+  // v118.153 — iOS-style left-edge swipe-back → Home, same as ← button.
+  useEdgeSwipeBack(() => navigate('/'));
   const { token } = useAuthStore();
   const { language } = useLanguageStore();
   const { config } = useTenantStore();

@@ -8925,9 +8925,9 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v290';
-const ASSET_CACHE = 'kamizo-assets-v290';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v290';
+const STATIC_CACHE = 'kamizo-static-v305';
+const ASSET_CACHE = 'kamizo-assets-v305';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v305';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

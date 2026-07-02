@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { Car, Plus, X, Edit2, Trash2, AlertCircle, Search, MapPin, Calendar, Building2, User, Phone, Home, MoreHorizontal, Info, ArrowLeft } from 'lucide-react';
 import { ConfirmDialog } from '../components/common';
 import { EmptyState } from '../components/common';
@@ -80,6 +81,10 @@ export function ResidentVehiclesPage() {
   const { language } = useLanguageStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  // v118.153 — iOS-style left-edge swipe-back. Matches the ← header button
+  // which navigates('/') to Home.
+  useEdgeSwipeBack(() => navigate('/'));
+
   // Same desktop guard as ResidentHomeDesign — the 100vw break-out for the
   // dark Garage hero slips under the global Sidebar on ≥md viewports.
   const isMobile = useIsMobile();

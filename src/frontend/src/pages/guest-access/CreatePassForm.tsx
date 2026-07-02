@@ -4,7 +4,7 @@
 // back up with the newly-created code so the parent can show the
 // resulting QR.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X, ArrowLeft, ChevronRight, Calendar, Clock, Car, Package, User, Users,
 } from 'lucide-react';
@@ -31,6 +31,17 @@ export function CreatePassForm({
 }) {
   // Hide the global BottomBar while this sheet is mounted.
   useModalPresence();
+
+  // v118.146 — lock background page scroll while this sheet is open so
+  // iOS rubber-band on the document doesn't drag the underlying
+  // "Пропуска" page. Restored on unmount. Pairs with overscroll-behavior:
+  // contain on the sheet's scroll container below — together they kill
+  // both axes of scroll-chaining (chained-at-edge AND document-rubber-band).
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   const { user } = useAuthStore();
   const createGuestAccessCode = useGuestAccessStore(s => s.createGuestAccessCode);
@@ -143,9 +154,16 @@ export function CreatePassForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+      {/* v118.146 — sheet is now a flex column with bounded max-height
+          and overflow:hidden (was overflow-y-auto). Header + progress
+          are flex-shrink-0 (sticky top), the body is flex-1 + min-h-0
+          + overflow-y-auto with overscrollBehavior:contain (kills
+          scroll-chaining to the background "Пропуска" page), and the
+          step-3 submit button moves into a sticky flex-shrink-0
+          footer with safe-area-inset-bottom padding. */}
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] flex flex-col overflow-hidden">
+        {/* Header — sticky */}
+        <div className="flex-shrink-0 flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             {step > 1 && (
               <button onClick={() => setStep(step - 1)} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 active:bg-gray-200 rounded-xl touch-manipulation" aria-label="Назад">
@@ -161,8 +179,8 @@ export function CreatePassForm({
           </button>
         </div>
 
-        {/* Progress */}
-        <div className="px-4 pt-4">
+        {/* Progress — sticky */}
+        <div className="flex-shrink-0 px-4 pt-4">
           <div className="flex items-center gap-2">
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex-1 flex items-center">
@@ -175,7 +193,11 @@ export function CreatePassForm({
           </div>
         </div>
 
-        <div className="p-4">
+        {/* Scrollable body — owns ALL scroll inside the sheet */}
+        <div
+          className="flex-1 min-h-0 overflow-y-auto p-4"
+          style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
+        >
           {/* Step 1: Visitor Type */}
           {step === 1 && (
             <div className="space-y-4">
@@ -385,24 +407,37 @@ export function CreatePassForm({
                 />
               </div>
 
-              {createError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-center">
-                  {createError}
-                </div>
-              )}
-
-              <button
-                onClick={handleCreate}
-                disabled={!canSubmit}
-                className="w-full py-4 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-300 text-gray-900 font-bold rounded-lg sm:rounded-xl transition-colors touch-manipulation"
-              >
-                {isCreating
-                  ? (language === 'ru' ? 'Создание...' : 'Yaratilmoqda...')
-                  : (language === 'ru' ? 'Создать пропуск' : 'Ruxsatnoma yaratish')}
-              </button>
             </div>
           )}
         </div>
+
+        {/* v118.146 — sticky footer for the step-3 submit button.
+            Outside the scrollable body so it stays in view while the
+            user fills the form. Steps 1 & 2 auto-advance on card tap
+            (no CTA), so the footer only renders on step 3.
+            safe-area-inset-bottom padding keeps the button above the
+            home indicator on iPhones with no physical Home button. */}
+        {step === 3 && (
+          <div
+            className="flex-shrink-0 border-t bg-white px-4 pt-3"
+            style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}
+          >
+            {createError && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-center">
+                {createError}
+              </div>
+            )}
+            <button
+              onClick={handleCreate}
+              disabled={!canSubmit}
+              className="w-full py-4 min-h-[44px] bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:bg-gray-300 text-gray-900 font-bold rounded-lg sm:rounded-xl transition-colors touch-manipulation"
+            >
+              {isCreating
+                ? (language === 'ru' ? 'Создание...' : 'Yaratilmoqda...')
+                : (language === 'ru' ? 'Создать пропуск' : 'Ruxsatnoma yaratish')}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
