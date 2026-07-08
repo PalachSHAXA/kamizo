@@ -8924,10 +8924,10 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.7.15';
-const STATIC_CACHE = 'kamizo-static-v305';
-const ASSET_CACHE = 'kamizo-assets-v305';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v305';
+const SW_VERSION = '3.8.0';
+const STATIC_CACHE = 'kamizo-static-v312';
+const ASSET_CACHE = 'kamizo-assets-v312';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v312';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install

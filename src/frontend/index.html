@@ -95,6 +95,29 @@
         } catch (e) { /* private mode / blocked storage — default light */ }
       })();
     </script>
+    <!-- v118.173 — native-only static splash. Synchronous, in <head>, so it
+         runs BEFORE the parser reaches the .kamizo-splash element in <body>.
+         On web (no Capacitor bridge) we inject a <style> rule that hides
+         .kamizo-splash from the very first layout — the browser never gives
+         it a paint frame, so no flash. On native, Capacitor injects
+         window.Capacitor via WKUserScript at atDocumentStart (iOS) /
+         equivalent (Android) BEFORE the document is parsed, so
+         isNativePlatform() is true, the condition is false, and the splash
+         paints unchanged. Must stay in <head> (above the <body>) for the
+         "never lays out" guarantee to hold. -->
+    <script>
+      (function () {
+        try {
+          var c = window.Capacitor;
+          var isNative = !!(c && typeof c.isNativePlatform === 'function' && c.isNativePlatform());
+          if (!isNative) {
+            var s = document.createElement('style');
+            s.textContent = '.kamizo-splash{display:none!important}';
+            document.head.appendChild(s);
+          }
+        } catch (e) { /* fail open — never block boot */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root">
