@@ -113,7 +113,7 @@ route('PATCH', '/api/vehicles/:id', async (request, env, params) => {
   if (updates.length === 0) return json({ success: true });
 
   const tenantId = getTenantId(request);
-  updates.push('updated_at = datetime("now")');
+  updates.push("updated_at = datetime('now')");
   values.push(params.id, user.id, user.id);
   if (tenantId) values.push(tenantId);
 

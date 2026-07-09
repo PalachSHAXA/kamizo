@@ -100,7 +100,7 @@ route('POST', '/api/meter-readings/:id/verify', async (request, env, params) => 
     ).bind(params.id).first() as any;
     if (reading) {
       await env.DB.prepare(
-        'UPDATE meters SET current_value = ?, updated_at = datetime("now") WHERE id = ?'
+        "UPDATE meters SET current_value = ?, updated_at = datetime('now') WHERE id = ?"
       ).bind(reading.previous_value, reading.meter_id).run();
     }
   }

@@ -142,7 +142,7 @@ route('PATCH', '/api/meters/:id', async (request, env, params) => {
     }
   }
   if (updates.length === 0) return json({ success: true });
-  updates.push('updated_at = datetime("now")');
+  updates.push("updated_at = datetime('now')");
 
   const tenantId = getTenantId(request);
   let whereClause = 'WHERE id = ?';

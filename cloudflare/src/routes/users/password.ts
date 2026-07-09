@@ -30,7 +30,7 @@ route('POST', '/api/users/me/password', async (request, env) => {
 
   const newHash = await hashPassword(new_password);
   const newPlain = env.ENCRYPTION_KEY ? await encryptPassword(new_password, env.ENCRYPTION_KEY) : null;
-  await env.DB.prepare('UPDATE users SET password_hash = ?, password_plain = ?, password_changed_at = datetime("now"), updated_at = datetime("now") WHERE id = ?')
+  await env.DB.prepare("UPDATE users SET password_hash = ?, password_plain = ?, password_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
     .bind(newHash, newPlain, user.id).run();
 
   return json({ success: true, password_changed_at: new Date().toISOString() });
@@ -74,7 +74,7 @@ route('POST', '/api/users/:id/password', async (request, env, params) => {
   const newHash = await hashPassword(new_password);
   const newPlain = env.ENCRYPTION_KEY ? await encryptPassword(new_password, env.ENCRYPTION_KEY) : null;
 
-  await env.DB.prepare(`UPDATE users SET password_hash = ?, password_plain = ?, updated_at = datetime("now") WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, newPlain, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
+  await env.DB.prepare(`UPDATE users SET password_hash = ?, password_plain = ?, updated_at = datetime('now') WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, newPlain, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
 
   return json({ success: true });
 });

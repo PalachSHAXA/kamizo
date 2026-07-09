@@ -151,7 +151,7 @@ route('PATCH', '/api/work-orders/:id', async (request, env, params) => {
 
   if (updates.length === 0) return error('No fields to update', 400);
 
-  updates.push('updated_at = datetime("now")');
+  updates.push("updated_at = datetime('now')");
   values.push(params!.id);
   if (tenantId) values.push(tenantId);
 
@@ -179,12 +179,12 @@ route('POST', '/api/work-orders/:id/status', async (request, env, params) => {
     return error('Invalid status', 400);
   }
 
-  const updates: string[] = ['status = ?', 'updated_at = datetime("now")'];
+  const updates: string[] = ['status = ?', "updated_at = datetime('now')"];
   const values: any[] = [newStatus];
 
-  if (newStatus === 'in_progress') updates.push('started_at = datetime("now")');
+  if (newStatus === 'in_progress') updates.push("started_at = datetime('now')");
   if (newStatus === 'completed') {
-    updates.push('completed_at = datetime("now")');
+    updates.push("completed_at = datetime('now')");
     const wo = await env.DB.prepare(
       `SELECT started_at FROM work_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
     ).bind(params!.id, ...(tenantId ? [tenantId] : [])).first() as any;

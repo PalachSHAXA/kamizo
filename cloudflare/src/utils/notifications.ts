@@ -39,7 +39,7 @@ export async function notifyManagers(
   // Batch all notification INSERTs into a single round-trip
   const stmts = managers.results.map((m: any) =>
     env.DB.prepare(
-      'INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, ?, ?, ?, ?, 0, datetime("now"), ?)'
+      "INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id) VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now'), ?)"
     ).bind(
       generateId(),
       m.id,

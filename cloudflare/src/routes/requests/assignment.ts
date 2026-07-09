@@ -115,8 +115,8 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
 
   if (body.status) {
     updates.push('status = ?'); values.push(body.status);
-    if (body.status === 'in_progress') updates.push('started_at = datetime("now")');
-    if (body.status === 'completed') updates.push('completed_at = datetime("now")');
+    if (body.status === 'in_progress') updates.push("started_at = datetime('now')");
+    if (body.status === 'completed') updates.push("completed_at = datetime('now')");
   }
   if (body.executor_id !== undefined) { updates.push('executor_id = ?'); values.push(body.executor_id); }
   // Sprint 60 P1: clamp rating 1-5 (FE could send arbitrary numbers, schema
@@ -127,7 +127,7 @@ route('PATCH', '/api/requests/:id', async (request, env, params) => {
     updates.push('rating = ?'); values.push(n);
   }
   if (body.feedback) { updates.push('feedback = ?'); values.push(body.feedback); }
-  updates.push('updated_at = datetime("now")');
+  updates.push("updated_at = datetime('now')");
   values.push(params.id);
   if (tenantId) values.push(tenantId);
 

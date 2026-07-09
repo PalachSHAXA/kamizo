@@ -33,7 +33,7 @@ route('PATCH', '/api/users/me', async (request, env) => {
 
   if (setClauses.length === 0) return json({ user });
 
-  setClauses.push('updated_at = datetime("now")');
+  setClauses.push("updated_at = datetime('now')");
   values.push(user.id);
 
   await env.DB.prepare(`UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`).bind(...values).run();
@@ -50,7 +50,7 @@ route('POST', '/api/users/me/contract-signed', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  await env.DB.prepare('UPDATE users SET contract_signed_at = datetime("now"), updated_at = datetime("now") WHERE id = ?')
+  await env.DB.prepare("UPDATE users SET contract_signed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
     .bind(user.id).run();
 
   return json({ success: true, contract_signed_at: new Date().toISOString() });

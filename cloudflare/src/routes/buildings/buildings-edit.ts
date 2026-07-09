@@ -69,7 +69,7 @@ route('PATCH', '/api/buildings/:id', async (request, env, params) => {
 
   if (updates.length === 0) return json({ success: true });
 
-  updates.push('updated_at = datetime("now")');
+  updates.push("updated_at = datetime('now')");
   values.push(params.id);
   const tenantId = getTenantId(request);
   if (tenantId) values.push(tenantId);

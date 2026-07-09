@@ -83,7 +83,7 @@ route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, param
 
   const tenantId = getTenantId(request);
   if (updates.length > 0) {
-    updates.push('updated_at = datetime("now")');
+    updates.push("updated_at = datetime('now')");
     values.push(params.id);
     if (tenantId) values.push(tenantId);
     await env.DB.prepare(`UPDATE marketplace_products SET ${updates.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(...values).run();
