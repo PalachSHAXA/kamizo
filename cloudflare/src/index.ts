@@ -13,7 +13,7 @@ import { setCorsOrigin, getCurrentCorsOrigin, resolveCorsOrigin, initCors } from
 import { getUser } from './middleware/auth';
 import { setTenantForRequest, getTenantSlug, setCurrentTenant } from './middleware/tenant';
 import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
-import { error, sanitizeErrorMessage } from './utils/helpers';
+import { error, sanitizeErrorMessage, bilingualError } from './utils/helpers';
 import { createRequestLogger } from './utils/logger';
 import { reportError } from './utils/sentry';
 import { registerAllRoutes } from './routes';
@@ -651,9 +651,25 @@ export default {
               reportError(err instanceof Error ? err : new Error(String(err)), {
                 requestId: log.requestId, method: request.method, path: new URL(request.url).pathname,
               }, env);
-              // Mask SQL/DB details — never expose schema info to clients
-              const safeMessage = sanitizeErrorMessage(err.message, 500);
-              return error(safeMessage, 500);
+              // v118.168 — always return a localized generic for uncaught
+              // 500s. Previously sanitizeErrorMessage() returned "Internal
+              // server error" for known SQL patterns, but its regex missed
+              // "table X has no column named Y" (only caught "no such
+              // column"), so the raw English SQL message leaked to the
+              // toast. Simpler + safer: never trust an uncaught error's
+              // message for user display. Log the raw error server-side
+              // (line above), send localized generic to the client.
+              // Specific throw-sites that WANT a user-visible message
+              // still use bilingualError() explicitly at their throw site
+              // (e.g. cancel endpoint's status-guard rejection).
+              // sanitizeErrorMessage is preserved as a legacy fallback
+              // for any callsite that still uses it.
+              void sanitizeErrorMessage;
+              return bilingualError(
+                'Внутренняя ошибка сервера',
+                "Serverning ichki xatoligi",
+                500,
+              );
             }
           }));
         } catch (outerErr: any) {
@@ -662,9 +678,13 @@ export default {
           reportError(outerErr instanceof Error ? outerErr : new Error(String(outerErr)), {
             requestId: log.requestId, method: request.method, path: new URL(request.url).pathname,
           }, env);
-          // Mask SQL/DB details — never expose schema info to clients
-          const safeMessage = sanitizeErrorMessage(outerErr.message, 500);
-          return new Response(JSON.stringify({ error: safeMessage }), {
+          // v118.168 — localized generic for the outer safety-net catch
+          // too. Bilingual shape ({error, error_ru, error_uz}) matches the
+          // inner catch above and everything the frontend's pickErrorMessage
+          // expects. Raw error is logged above via log.error / reportError.
+          const RU = 'Внутренняя ошибка сервера';
+          const UZ = "Serverning ichki xatoligi";
+          return new Response(JSON.stringify({ error: RU, error_ru: RU, error_uz: UZ }), {
             status: 500,
             headers: {
               'Content-Type': 'application/json',
