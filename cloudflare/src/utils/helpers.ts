@@ -32,6 +32,52 @@ export function bilingualError(ru: string, uz: string, status = 400) {
   return json({ error: ru, error_ru: ru, error_uz: uz }, status);
 }
 
+// Access-denied response with server-side diagnostics.
+// Body: same bilingual "Доступ запрещён" / "Kirish taqiqlangan" as
+// bilingualError — the user never sees the reason (prevents enumeration
+// of which guard denied, which would leak internal role/tenant structure).
+// The reason surfaces ONLY in:
+//   • the response header  X-Denial-Reason: <reason>   (visible in DevTools;
+//     read by our own e2e tests and support tooling, not by the frontend UI)
+//   • the server log line   {"level":"warn","message":"access_denied", ...}
+// Callers pass `request` and `user` so we can log userId/role/tenantId
+// without every guard site having to spell them out inline.
+export function accessDenied(
+  request: Request,
+  user: { id?: string; role?: string; tenant_id?: string | null } | null | undefined,
+  reason: string,
+) {
+  const url = new URL(request.url);
+  // Structured log — same JSON shape createRequestLogger emits so it's
+  // grep-able out of /opt/kamizo/logs/api.log with the same tools.
+  console.warn(JSON.stringify({
+    level: 'warn',
+    message: 'access_denied',
+    reason,
+    userId: user?.id ?? null,
+    role: user?.role ?? null,
+    tenantId: user?.tenant_id ?? null,
+    method: request.method,
+    path: url.pathname,
+    timestamp: new Date().toISOString(),
+  }));
+  const body = {
+    error: 'Доступ запрещён',
+    error_ru: 'Доступ запрещён',
+    error_uz: 'Kirish taqiqlangan',
+  };
+  return new Response(JSON.stringify(body), {
+    status: 403,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'X-Denial-Reason': reason,
+    },
+  });
+}
+
 // Generate UUID
 export function generateId() {
   return crypto.randomUUID();

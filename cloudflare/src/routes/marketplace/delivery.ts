@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../../index';
 
 // Sprint 10: N+1 killer. Each of the three executor list routes used to
@@ -37,7 +37,7 @@ route('GET', '/api/marketplace/executor/orders', async (request, env) => {
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isExecutorRole(user.role)) return error('Access denied', 403);
+  if (!user || !isExecutorRole(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   const tenantId = getTenantId(request);
   const { results } = await env.DB.prepare(`
     SELECT o.*, u.name as user_name, u.phone as user_phone,
@@ -58,7 +58,7 @@ route('GET', '/api/marketplace/executor/delivered', async (request, env) => {
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isExecutorRole(user.role)) return error('Access denied', 403);
+  if (!user || !isExecutorRole(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   if (user.specialization !== 'courier') return json({ orders: [] });
 
   const tenantId = getTenantId(request);
@@ -80,7 +80,7 @@ route('GET', '/api/marketplace/executor/available', async (request, env) => {
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isExecutorRole(user.role)) return error('Access denied', 403);
+  if (!user || !isExecutorRole(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   if (user.specialization !== 'courier') return json({ orders: [] });
 
   const tenantId = getTenantId(request);
@@ -102,7 +102,7 @@ route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, 
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isExecutorRole(user.role)) return error('Access denied', 403);
+  if (!user || !isExecutorRole(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   if (user.specialization !== 'courier') return error('Only couriers can take marketplace orders', 403);
 
   const tenantId = getTenantId(request);
@@ -141,7 +141,7 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isExecutorRole(user.role)) return error('Access denied', 403);
+  if (!user || !isExecutorRole(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const order = await env.DB.prepare(`

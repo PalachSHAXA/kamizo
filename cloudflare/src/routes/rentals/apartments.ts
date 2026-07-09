@@ -2,7 +2,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId, isManagement, canActOnRole } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement, canActOnRole } from '../../utils/helpers';
 import { hashPassword } from '../../utils/crypto';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -19,7 +19,7 @@ route('GET', '/api/rentals/my-apartments', async (request, env) => {
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (user.role !== 'tenant' && user.role !== 'commercial_owner') return error('Access denied', 403);
+  if (user.role !== 'tenant' && user.role !== 'commercial_owner') return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   // Sprint 70 P1/F6: hide soft-disabled apartments from the tenant.
@@ -66,7 +66,7 @@ route('GET', '/api/rentals/apartments', async (request, env) => {
   if (!isManagement(user)) {
     const log = createRequestLogger(request);
     log.warn('Access denied', { role: user.role, userId: user.id });
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);
@@ -92,7 +92,7 @@ route('POST', '/api/rentals/apartments', async (request, env) => {
   try {
     const user = await getUser(request, env);
     if (!user) return error('Unauthorized', 401);
-    if (!isManagement(user)) return error('Access denied', 403);
+    if (!isManagement(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
     const log = createRequestLogger(request);
     const body = await request.json() as any;
     const { name, address, apartment, ownerName, ownerPhone, ownerLogin, ownerPassword, ownerType = 'tenant', existingUserId } = body;
@@ -187,7 +187,7 @@ route('PATCH', '/api/rentals/apartments/:id', async (request, env, params) => {
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isManagement(user)) return error('Access denied', 403);
+  if (!isManagement(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   const updates: string[] = [];
@@ -225,7 +225,7 @@ route('DELETE', '/api/rentals/apartments/:id', async (request, env, params) => {
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isManagement(user)) return error('Access denied', 403);
+  if (!isManagement(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const apt = await env.DB.prepare(

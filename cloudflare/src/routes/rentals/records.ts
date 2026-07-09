@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId, isManagement } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 
 export function registerRecordRoutes() {
@@ -17,7 +17,7 @@ route('GET', '/api/rentals/records', async (request, env) => {
   if (!isManagement(user)) {
     const log = createRequestLogger(request);
     log.warn('Access denied', { role: user.role, userId: user.id });
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);
@@ -76,7 +76,7 @@ route('POST', '/api/rentals/records', async (request, env) => {
   if (!isManagement(user)) {
     const log = createRequestLogger(request);
     log.warn('Access denied', { role: user.role, userId: user.id });
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const body = await request.json() as any;
@@ -165,7 +165,7 @@ route('PATCH', '/api/rentals/records/:id', async (request, env, params) => {
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isManagement(user)) return error('Access denied', 403);
+  if (!isManagement(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   const updates: string[] = [];
@@ -193,7 +193,7 @@ route('DELETE', '/api/rentals/records/:id', async (request, env, params) => {
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isManagement(user)) return error('Access denied', 403);
+  if (!isManagement(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   await env.DB.prepare(`DELETE FROM rental_records WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();

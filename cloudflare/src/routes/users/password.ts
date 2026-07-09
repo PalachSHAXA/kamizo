@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
-import { json, error, isManagement, isAdminLevel, canActOnRole } from '../../utils/helpers';
+import { json, error, bilingualError, isManagement, isAdminLevel, canActOnRole } from '../../utils/helpers';
 import { hashPassword, verifyPassword, encryptPassword } from '../../utils/crypto';
 
 export function registerPasswordRoutes() {
@@ -127,7 +127,7 @@ route('POST', '/api/admin/reset-password', async (request, env) => {
 route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isAdminLevel(user)) return error('Access denied', 403);
+  if (!isAdminLevel(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const targetUser = await env.DB.prepare(

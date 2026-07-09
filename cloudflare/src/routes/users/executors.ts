@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
-import { json, error, getPaginationParams, createPaginatedResponse } from '../../utils/helpers';
+import { json, error, bilingualError, getPaginationParams, createPaginatedResponse } from '../../utils/helpers';
 import { isExecutorRole } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -20,7 +20,7 @@ route('GET', '/api/executors', async (request, env) => {
   const userRole = (user.role || '').trim().toLowerCase();
   if (!allowedRoles.includes(userRole)) {
     createRequestLogger(request).warn('Access denied to executors list', { role: user.role, userId: user.id });
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);
@@ -106,7 +106,7 @@ route('GET', '/api/executors/:id', async (request, env, params) => {
 
   const allowedRoles = ['admin', 'director', 'manager', 'department_head'];
   if (!allowedRoles.includes(user.role)) {
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);
@@ -130,7 +130,7 @@ route('PATCH', '/api/executors/:id/status', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
 
   if (user.id !== params.id && !['admin', 'manager'].includes(user.role)) {
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);

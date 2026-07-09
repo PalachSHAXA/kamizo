@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId, isManagement, canActOnRole, getRoleRank } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement, canActOnRole, getRoleRank } from '../../utils/helpers';
 import { hashPassword } from '../../utils/crypto';
 import { createRequestLogger } from '../../utils/logger';
 
@@ -189,7 +189,7 @@ route('POST', '/api/auth/register-bulk', async (request, env) => {
 route('GET', '/api/team/export', async (request, env) => {
   const user = await getUser(request, env);
   if (!user || !['admin', 'director'].includes(user.role)) {
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
   const tenantId = getTenantId(request);
   if (!tenantId) return error('Tenant context required for export', 401);
@@ -208,7 +208,7 @@ route('GET', '/api/team/export', async (request, env) => {
 route('POST', '/api/team/import', async (request, env) => {
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
   const tenantId = getTenantId(request);
   const raw = await request.json() as any;

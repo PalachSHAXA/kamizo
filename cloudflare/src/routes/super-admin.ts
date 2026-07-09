@@ -89,7 +89,7 @@ export function registerSuperAdminRoutes() {
 // GET /api/super-admin/banners - list all banners
 route('GET', '/api/super-admin/banners', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   const { results } = await env.DB.prepare('SELECT * FROM super_banners ORDER BY sort_order, created_at DESC LIMIT 500').all();
   return json({ banners: results });
 });
@@ -105,7 +105,7 @@ route('GET', '/api/banners', async (request, env) => {
 // POST /api/super-admin/banners - create banner
 route('POST', '/api/super-admin/banners', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   const body = await request.json() as any;
   const id = generateId();
   await env.DB.prepare(`
@@ -119,7 +119,7 @@ route('POST', '/api/super-admin/banners', async (request, env) => {
 // PATCH /api/super-admin/banners/:id - update banner
 route('PATCH', '/api/super-admin/banners/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   // Audit P2: previously this route would silently succeed (UPDATE on
   // non-existent id is a no-op in SQLite) and return null banner — easy
   // to spam with random ids and pollute logs. Now explicit 404.
@@ -145,7 +145,7 @@ route('PATCH', '/api/super-admin/banners/:id', async (request, env, params) => {
 // DELETE /api/super-admin/banners/:id
 route('DELETE', '/api/super-admin/banners/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   await env.DB.prepare('DELETE FROM super_banners WHERE id = ?').bind(params.id).run();
   return json({ success: true });
 });
@@ -155,7 +155,7 @@ route('DELETE', '/api/super-admin/banners/:id', async (request, env, params) => 
 // GET /api/super-admin/ads - list all ads across all tenants
 route('GET', '/api/super-admin/ads', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const { results } = await env.DB.prepare(`
     SELECT a.*, c.name_ru as category_name, c.icon as category_icon,
@@ -178,7 +178,7 @@ route('GET', '/api/super-admin/ads', async (request, env) => {
 // POST /api/super-admin/ads - create ONE platform ad and assign to selected tenants
 route('POST', '/api/super-admin/ads', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   if (!body.category_id || !body.title || !body.phone) {
@@ -255,7 +255,7 @@ route('POST', '/api/super-admin/ads', async (request, env) => {
 // GET /api/super-admin/ads/:id/tenants - list tenant assignments for a platform ad
 route('GET', '/api/super-admin/ads/:id/tenants', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const { results: assignments } = await env.DB.prepare(`
     SELECT ata.tenant_id, ata.enabled, ata.assigned_at,
@@ -276,7 +276,7 @@ route('GET', '/api/super-admin/ads/:id/tenants', async (request, env, params) =>
 // POST /api/super-admin/ads/:id/assign-tenants - replace tenant assignments
 route('POST', '/api/super-admin/ads/:id/assign-tenants', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   const tenantIds: string[] = body.tenant_ids || [];
@@ -313,7 +313,7 @@ route('PATCH', '/api/super-admin/ads/:id/tenants/:tenantId', async (request, env
   const isOwnTenant = ['admin', 'manager', 'director'].includes(user.role) &&
     (user as any).tenant_id === params.tenantId;
 
-  if (!isSA && !isOwnTenant) return error('Access denied', 403);
+  if (!isSA && !isOwnTenant) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   const enabled = body.enabled ? 1 : 0;
@@ -328,7 +328,7 @@ route('PATCH', '/api/super-admin/ads/:id/tenants/:tenantId', async (request, env
 // DELETE /api/super-admin/ads/:id - delete ad
 route('DELETE', '/api/super-admin/ads/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   await env.DB.prepare(`DELETE FROM ads WHERE id = ?`).bind(params.id).run();
   return json({ success: true });
@@ -337,7 +337,7 @@ route('DELETE', '/api/super-admin/ads/:id', async (request, env, params) => {
 // PATCH /api/super-admin/ads/:id/status - toggle ad status
 route('PATCH', '/api/super-admin/ads/:id/status', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   await env.DB.prepare(`UPDATE ads SET status = ?, updated_at = datetime('now') WHERE id = ?`)
@@ -349,7 +349,7 @@ route('PATCH', '/api/super-admin/ads/:id/status', async (request, env, params) =
 // GET /api/super-admin/ads/:id/views - who viewed this ad
 route('GET', '/api/super-admin/ads/:id/views', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const { results } = await env.DB.prepare(`
     SELECT v.id, v.created_at as viewed_at, u.name as user_name, u.phone as user_phone,
@@ -367,7 +367,7 @@ route('GET', '/api/super-admin/ads/:id/views', async (request, env, params) => {
 // GET /api/super-admin/ads/:id/coupons - coupons for this ad
 route('GET', '/api/super-admin/ads/:id/coupons', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const { results } = await env.DB.prepare(`
     SELECT c.*, u.name as user_name, u.phone as user_phone,
@@ -388,7 +388,7 @@ route('GET', '/api/super-admin/ads/:id/coupons', async (request, env, params) =>
 
 route('GET', '/api/tenants', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   // Sprint 85 commit 1 — the SELECT * already pulls the new
   // contract_r2_key / contract_filename / contract_uploaded_at /
@@ -412,7 +412,7 @@ route('GET', '/api/tenants', async (request, env) => {
 // POST /api/tenants - create tenant
 route('POST', '/api/tenants', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   if (!body.name || !body.slug || !body.url) {
@@ -526,7 +526,7 @@ route('POST', '/api/tenants', async (request, env) => {
 // PATCH /api/tenants/:id - update tenant
 route('PATCH', '/api/tenants/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const existing = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(params.id).first();
   if (!existing) return error('Tenant not found', 404);
@@ -590,7 +590,7 @@ route('PATCH', '/api/tenants/:id', async (request, env, params) => {
 // to also gate by tenants.is_active (F7 below).
 route('DELETE', '/api/tenants/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const existing = await env.DB.prepare(`SELECT id, slug FROM tenants WHERE id = ?`).bind(params.id).first() as any;
   if (!existing) return error('Tenant not found', 404);
@@ -616,7 +616,7 @@ route('DELETE', '/api/tenants/:id', async (request, env, params) => {
 // GET /api/super-admin/tenants/:id/details - detailed tenant data for super admin
 route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = params.id;
   // Sprint 85 commit 1 — enrich the detail row with the contract
@@ -756,7 +756,7 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
 // POST /api/super-admin/impersonate/:tenantId - get admin credentials for auto-login
 route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = params.id;
   const tenant = await env.DB.prepare(`SELECT * FROM tenants WHERE id = ?`).bind(tenantId).first() as any;
@@ -815,7 +815,7 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
 // PATCH /api/super-admin/tenants/:id/banners - toggle coming soon banners
 route('PATCH', '/api/super-admin/tenants/:id/banners', async (request, env, params) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   const updates: string[] = [];
@@ -847,7 +847,7 @@ route('PATCH', '/api/super-admin/tenants/:id/banners', async (request, env, para
 // GET /api/super-admin/analytics - cross-tenant analytics
 route('GET', '/api/super-admin/analytics', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   try {
     // Time-series helper. The previous version took raw SQL fragments

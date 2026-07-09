@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 import { isMarketplaceAdmin } from './helpers';
@@ -20,7 +20,7 @@ route('GET', '/api/marketplace/admin/orders', async (request, env) => {
   if (!user || !isMarketplaceAdmin(userRoleNorm)) {
     const log = createRequestLogger(request);
     log.warn('GET /api/marketplace/admin/orders - access denied', { userRole: user?.role, userId: user?.id });
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const url = new URL(request.url);
@@ -80,7 +80,7 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
   if (!fc.allowed) return error(fc.error!, 403);
 
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const body = await request.json() as any;

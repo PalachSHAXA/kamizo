@@ -2,7 +2,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getCacheStats } from '../../cache';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { hashPassword } from '../../utils/crypto';
 import { isSuperAdmin } from '../../index';
 
@@ -125,7 +125,7 @@ route('POST', '/api/seed', async (request, env) => {
 // POST /api/seed-kamizo-demo - create Kamizo demo tenant with full demo data
 route('POST', '/api/seed-kamizo-demo', async (request, env) => {
   const user = await getUser(request, env);
-  if (!isSuperAdmin(user)) return error('Access denied', 403);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   // Check if already exists
   const existing = await env.DB.prepare(`SELECT id FROM tenants WHERE slug = 'kamizo-demo'`).first();

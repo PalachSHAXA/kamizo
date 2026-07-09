@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 
 export function registerAdPublicRoutes() {
@@ -86,7 +86,7 @@ route('GET', '/api/ads/assigned', async (request, env) => {
 
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
-  if (!['admin', 'manager', 'director'].includes(authUser.role)) return error('Access denied', 403);
+  if (!['admin', 'manager', 'director'].includes(authUser.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = (authUser as any).tenant_id;
   if (!tenantId) return json({ ads: [] });

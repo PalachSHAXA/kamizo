@@ -262,7 +262,7 @@ route('DELETE', '/api/meetings/:id', async (request, env, params) => {
 
   const log = createRequestLogger(request);
   const authUser = await getUser(request, env);
-  if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) return error('Access denied', 403);
+  if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const meeting = await env.DB.prepare(`SELECT id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first();

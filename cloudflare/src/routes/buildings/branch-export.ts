@@ -2,7 +2,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
-import { json, error } from '../../utils/helpers';
+import { json, error, bilingualError } from '../../utils/helpers';
 
 // Sprint 72 P0/F2:
 //  - Was using `SELECT *` on users which includes password_hash, auth_token,
@@ -24,7 +24,7 @@ export function registerBranchExportRoutes() {
 route('GET', '/api/branches/:id/export', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
-    return error('Access denied', 403);
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);

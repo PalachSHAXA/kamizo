@@ -3,14 +3,14 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId, canActOnRole, getRoleRank } from '../../utils/helpers';
+import { json, error, bilingualError, generateId, canActOnRole, getRoleRank } from '../../utils/helpers';
 
 export function registerBranchImportRoutes() {
 
 // Branch Import — upsert branch + buildings + entrances + apartments + residents + staff
 route('POST', '/api/branches/import', async (request, env) => {
   const user = await getUser(request, env);
-  if (!user || !['admin', 'director', 'manager'].includes(user.role)) return error('Access denied', 403);
+  if (!user || !['admin', 'director', 'manager'].includes(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const reqUrl = new URL(request.url);

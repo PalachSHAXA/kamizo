@@ -37,7 +37,7 @@ route('GET', '/api/finance/estimates', async (request, env) => {
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   if (user.role === 'resident' || user.role === 'tenant') {
-    if (!await hasFinanceAccess(user, env, request, 'view_only')) return error('Access denied', 403);
+    if (!await hasFinanceAccess(user, env, request, 'view_only')) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);
@@ -857,7 +857,7 @@ route('POST', '/api/finance/claims/reconciliation', async (request, env) => {
     const owns = await env.DB.prepare(
       'SELECT id FROM apartments WHERE id = ? AND primary_owner_id = ?'
     ).bind(apartment_id, user.id).first();
-    if (!owns) return error('Access denied', 403);
+    if (!owns) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   } else if (!await hasFinanceAccess(user, env, request, 'view_only')) {
     return error('Finance access required', 403);
   }
@@ -1033,7 +1033,7 @@ route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env
     const owns = await env.DB.prepare(
       'SELECT id FROM apartments WHERE id = ? AND primary_owner_id = ?'
     ).bind(aptId, user.id).first();
-    if (!owns) return error('Access denied', 403);
+    if (!owns) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   } else if (!await hasFinanceAccess(user, env, request, 'view_only')) {
     return error('Finance access required', 403);
   }

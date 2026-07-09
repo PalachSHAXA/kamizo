@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 import { isMarketplaceAdmin } from './helpers';
 
@@ -13,7 +13,7 @@ route('GET', '/api/marketplace/admin/products', async (request, env) => {
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   const tenantId = getTenantId(request);
   const { results } = await env.DB.prepare(`
     SELECT p.*, c.name_ru as category_name_ru, c.icon as category_icon
@@ -28,7 +28,7 @@ route('POST', '/api/marketplace/admin/products', async (request, env) => {
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   const body = await request.json() as any;
   const id = generateId();
   const tenantId = getTenantId(request);
@@ -64,7 +64,7 @@ route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, param
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   const body = await request.json() as any;
   const updates: string[] = [];
   const values: any[] = [];
@@ -99,7 +99,7 @@ route('DELETE', '/api/marketplace/admin/products/:id', async (request, env, para
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   await env.DB.prepare(
@@ -112,7 +112,7 @@ route('POST', '/api/marketplace/admin/upload-image', async (request, env) => {
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   try {
     const contentType = request.headers.get('Content-Type') || '';
@@ -147,7 +147,7 @@ route('POST', '/api/marketplace/admin/categories', async (request, env) => {
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const body = await request.json() as any;
   const id = generateId();
@@ -168,7 +168,7 @@ route('PATCH', '/api/marketplace/admin/categories/:id', async (request, env, par
   const fc = await requireFeature('marketplace', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const body = await request.json() as any;

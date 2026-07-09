@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 import { notifyManagers } from '../../utils/notifications';
 
@@ -199,7 +199,7 @@ route('GET', '/api/marketplace/orders/:id/items', async (request, env, params) =
     const order = await env.DB.prepare(
       `SELECT id FROM marketplace_orders WHERE id = ? AND user_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
     ).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).first();
-    if (!order) return error('Access denied', 403);
+    if (!order) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   } else if (tenantId) {
     const order = await env.DB.prepare(`SELECT id FROM marketplace_orders WHERE id = ? AND tenant_id = ?`).bind(params.id, tenantId).first();
     if (!order) return error('Order not found', 404);

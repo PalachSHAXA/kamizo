@@ -3,7 +3,7 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error } from '../../utils/helpers';
+import { json, error, bilingualError } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 import { isMarketplaceAdmin } from './helpers';
 
@@ -15,7 +15,7 @@ route('GET', '/api/marketplace/admin/dashboard', async (request, env) => {
   if (!fc.allowed) return error(fc.error!, 403);
 
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const today = new Date().toISOString().slice(0, 10);
   const tenantId = getTenantId(request);
@@ -49,7 +49,7 @@ route('GET', '/api/marketplace/admin/reports', async (request, env) => {
   if (!fc.allowed) return error(fc.error!, 403);
 
   const user = await getUser(request, env);
-  if (!user || !isMarketplaceAdmin(user.role)) return error('Access denied', 403);
+  if (!user || !isMarketplaceAdmin(user.role)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const url = new URL(request.url);
   const startDate = url.searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

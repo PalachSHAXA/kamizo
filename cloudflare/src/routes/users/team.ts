@@ -3,7 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
-import { json, error, isAdminLevel, canActOnRole } from '../../utils/helpers';
+import { json, error, bilingualError, isAdminLevel, canActOnRole } from '../../utils/helpers';
 import { hashPassword, encryptPassword, decryptPassword } from '../../utils/crypto';
 
 export function registerTeamRoutes() {
@@ -12,7 +12,7 @@ export function registerTeamRoutes() {
 route('GET', '/api/team', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isAdminLevel(user)) return error('Access denied', 403);
+  if (!isAdminLevel(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const url = new URL(request.url);
   const roleFilter = url.searchParams.get('role');
@@ -124,7 +124,7 @@ route('GET', '/api/team', async (request, env) => {
 route('GET', '/api/team/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isAdminLevel(user)) return error('Access denied', 403);
+  if (!isAdminLevel(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
   const canSeePasswords = user.role === 'admin' || user.role === 'director';
@@ -157,7 +157,7 @@ route('GET', '/api/team/:id', async (request, env, params) => {
 route('PATCH', '/api/team/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isAdminLevel(user)) return error('Access denied', 403);
+  if (!isAdminLevel(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
 
@@ -230,7 +230,7 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
 route('DELETE', '/api/team/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isAdminLevel(user)) return error('Access denied', 403);
+  if (!isAdminLevel(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
 
