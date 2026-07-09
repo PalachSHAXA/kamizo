@@ -31,8 +31,8 @@ export { ownersApi, personalAccountsApi, crmResidentsApi, metersApi, meterReadin
 // Executors
 export { executorsApi } from './executors';
 
-// Requests, Reschedule, Ratings, UK Ratings, Categories, Stats, Work Orders
-export { requestsApi, rescheduleApi, ratingsApi, ukRatingsApi, categoriesApi, statsApi, workOrdersApi } from './requests';
+// Requests, Reschedule, UK Ratings, Categories, Stats, Work Orders
+export { requestsApi, rescheduleApi, ukRatingsApi, categoriesApi, statsApi, workOrdersApi } from './requests';
 
 // Meetings (simple + full OSS workflow + all sub-APIs)
 export {

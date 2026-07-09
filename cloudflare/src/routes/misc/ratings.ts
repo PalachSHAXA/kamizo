@@ -48,26 +48,34 @@ route('POST', '/api/ratings', async (request, env) => {
   ).bind(body.executor_id, 'executor', tenantId).first();
   if (!executor) return error('Executor not found in this tenant', 404);
 
+  // Frontend still sends quality === speed === politeness (single-star UI in
+  // ResidentRateEmployeesPage mirrors one value to all three axes). Prod DB
+  // collapsed the three sub-scores into one `rating` column at some point
+  // without updating this code — that mismatch is the schema drift we hit
+  // in the 04:00 UTC 500. Take whichever axis is non-null (in that order)
+  // and store as `rating`.
+  const combinedRating = quality ?? speed ?? politeness;
+
   // Dedupe — if rating from this resident for this executor already exists,
   // update it (let people change their mind) rather than inserting a duplicate.
   // Schema lacks UNIQUE constraint, so enforce at app level.
   const existing = await env.DB.prepare(
-    'SELECT id FROM employee_ratings WHERE executor_id = ? AND resident_id = ? AND tenant_id = ?'
+    'SELECT id FROM employee_ratings WHERE executor_id = ? AND rated_by = ? AND tenant_id = ?'
   ).bind(body.executor_id, user.id, tenantId).first() as any;
 
   if (existing?.id) {
     await env.DB.prepare(`
-      UPDATE employee_ratings SET quality = ?, speed = ?, politeness = ?, comment = ?, created_at = datetime('now')
+      UPDATE employee_ratings SET rating = ?, comment = ?, created_at = datetime('now')
       WHERE id = ?
-    `).bind(quality, speed, politeness, comment, existing.id).run();
+    `).bind(combinedRating, comment, existing.id).run();
     return json({ id: existing.id, updated: true });
   }
 
   const id = generateId();
   await env.DB.prepare(`
-    INSERT INTO employee_ratings (id, executor_id, resident_id, quality, speed, politeness, comment, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, body.executor_id, user.id, quality, speed, politeness, comment, tenantId).run();
+    INSERT INTO employee_ratings (id, executor_id, rated_by, rating, comment, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(id, body.executor_id, user.id, combinedRating, comment, tenantId).run();
 
   return json({ id }, 201);
 });
@@ -81,7 +89,7 @@ route('GET', '/api/ratings', async (request, env) => {
   if (!tenantId) return error('Tenant context required', 401);
 
   const { results } = await env.DB.prepare(`
-    SELECT * FROM employee_ratings WHERE resident_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 500
+    SELECT * FROM employee_ratings WHERE rated_by = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 500
   `).bind(user.id, tenantId).all();
 
   return json(results);

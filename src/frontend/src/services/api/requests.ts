@@ -184,26 +184,6 @@ export const rescheduleApi = {
   },
 };
 
-// Ratings API
-export const ratingsApi = {
-  getForExecutor: async (executorId: string) => {
-    return apiRequest<{ ratings: Record<string, unknown>[]; average: Record<string, unknown> }>(`/api/ratings?executor_id=${executorId}`);
-  },
-
-  create: async (rating: {
-    executor_id: string;
-    quality: number;
-    speed: number;
-    politeness: number;
-    comment?: string;
-  }) => {
-    return apiRequest<{ rating: Record<string, unknown> }>('/api/ratings', {
-      method: 'POST',
-      body: JSON.stringify(rating),
-    });
-  },
-};
-
 // UK Satisfaction Ratings API
 export const ukRatingsApi = {
   submitRating: async (data: {
