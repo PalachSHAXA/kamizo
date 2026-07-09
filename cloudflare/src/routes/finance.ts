@@ -883,6 +883,11 @@ route('POST', '/api/finance/claims/reconciliation', async (request, env) => {
   // Sprint 62 P1: was accepting body.resident_id without checking ownership.
   // Resident could forge any user id and stamp the claim with someone else's
   // identity. For residents, always use user.id; staff can override.
+  // Note: resolvedResidentId is computed for the response body only. Prod
+  // finance_claims has no resident_id column; the resident is identified
+  // via apartments.primary_owner_id (already JOINed above as owner_name).
+  // The ownership check earlier in this handler is what prevents forgery;
+  // this value is passed through to the response for API compatibility.
   const isStaffClaim = !(user.role === 'resident' || user.role === 'tenant');
   const resolvedResidentId = isStaffClaim
     ? (resident_id || (apartment as any)?.primary_owner_id || null)
@@ -891,9 +896,9 @@ route('POST', '/api/finance/claims/reconciliation', async (request, env) => {
   // Save claim record
   const claimId = generateId();
   await env.DB.prepare(
-    `INSERT INTO finance_claims (id, apartment_id, resident_id, claim_type, total_debt, period_from, period_to, generated_by, tenant_id)
-     VALUES (?, ?, ?, 'reconciliation', ?, ?, ?, ?, ?)`
-  ).bind(claimId, apartment_id, resolvedResidentId, totalCharged - totalPaid, period_from, period_to, user.id, tenantId || '').run();
+    `INSERT INTO finance_claims (id, apartment_id, claim_type, total_debt, period_from, period_to, generated_by, tenant_id)
+     VALUES (?, ?, 'reconciliation', ?, ?, ?, ?, ?)`
+  ).bind(claimId, apartment_id, totalCharged - totalPaid, period_from, period_to, user.id, tenantId || '').run();
 
   return json({
     claim: { id: claimId, type: 'reconciliation', resident_id: resolvedResidentId },
