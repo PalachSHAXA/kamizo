@@ -928,9 +928,13 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             </div>
           </div>
 
-          {/* ── Footer profile card ── */}
+          {/* ── Footer profile card ──
+              Bottom pad = safe-area + 6px (was + 18px). The extra 12px
+              of beige under the white card read as an empty gap in the
+              drawer; tighten it up so the card sits close to the home
+              indicator zone without touching it. */}
           <div style={{
-            padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)',
+            padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 6px)',
             background: 'var(--surface-2, #F4F0E8)',
             borderTop: '1px solid var(--border-c, #E6DFD2)',
           }}>
