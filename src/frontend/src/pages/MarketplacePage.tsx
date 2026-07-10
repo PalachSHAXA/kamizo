@@ -147,7 +147,6 @@ export function MarketplacePage() {
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProductAPI | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [deliveryNote, setDeliveryNote] = useState('');
-  const [orderSuccess, setOrderSuccess] = useState(false);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [showDeliveryRatingModal, setShowDeliveryRatingModal] = useState(false);
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
@@ -261,11 +260,18 @@ export function MarketplacePage() {
   const createOrder = async () => {
     try {
       await apiRequest('/api/marketplace/orders', { method: 'POST', body: JSON.stringify({ delivery_notes: deliveryNote }) });
-      setOrderSuccess(true); setShowOrderModal(false); setDeliveryNote('');
+      setShowOrderModal(false); setDeliveryNote('');
+      // Success toast goes through the global <Toast/> which is anchored
+      // above the BottomBar (never behind the dynamic island). Replaces
+      // the previous inline `fixed top-4` green pill that landed under
+      // the notch on iPhones with Dynamic Island.
+      addToast('success', language === 'ru' ? 'Заказ создан!' : 'Buyurtma yaratildi!');
       const [c, o] = await Promise.all([apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'), apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders')]);
       setCart(c?.cart || []); setOrders(o?.orders || []);
-      setTimeout(() => { setOrderSuccess(false); setActiveTab('orders'); }, 2000);
-    } catch { /* */ }
+      setTimeout(() => setActiveTab('orders'), 800);
+    } catch {
+      addToast('error', language === 'ru' ? 'Не удалось создать заказ' : "Buyurtma yaratilmadi");
+    }
   };
   const submitDeliveryRating = async () => {
     if (!ratingOrderId) return;
@@ -315,12 +321,6 @@ export function MarketplacePage() {
 
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
-      {orderSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[150] bg-green-500 text-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
-          <CheckCircle className="w-4 h-4" />{language === 'ru' ? 'Заказ создан!' : 'Buyurtma yaratildi!'}
-        </div>
-      )}
-
       {/* HEADER */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-2xl border-b border-gray-100/60 md:hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="px-4 pt-1.5 pb-2 flex items-center justify-between">
