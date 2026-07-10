@@ -210,50 +210,80 @@ export function MarketplaceManagerDashboard() {
   }, [fetchData]);
 
   // Save product
+  // Save product — optimistic UI. Prior version called fetchData()
+  // after every save, which flipped loading=true and swapped the
+  // whole screen for a centered spinner. Now:
+  //   • Edit: patch the row in local state immediately, close the
+  //     modal, fire PATCH in the background. On failure — restore
+  //     the pre-edit row + toast.
+  //   • Create: close the modal immediately, fire POST, then append
+  //     the server-returned product (needs the server id/timestamps).
+  //     On failure — toast, modal stays closed (the form is empty
+  //     anyway from resetProductForm).
   const saveProduct = async () => {
-    try {
-      const data = {
-        ...productForm,
-        price: parseFloat(productForm.price),
-        old_price: productForm.old_price ? parseFloat(productForm.old_price) : null,
-        stock_quantity: parseInt(productForm.stock_quantity) || 0,
-        image_url: productForm.image_url || null,
-      };
+    const data = {
+      ...productForm,
+      price: parseFloat(productForm.price),
+      old_price: productForm.old_price ? parseFloat(productForm.old_price) : null,
+      stock_quantity: parseInt(productForm.stock_quantity) || 0,
+      image_url: productForm.image_url || null,
+    };
 
-      if (editingProduct) {
-        await apiRequest(`/api/marketplace/admin/products/${editingProduct.id}`, {
+    if (editingProduct) {
+      const id = editingProduct.id;
+      const previous = products;
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data, image_url: data.image_url ?? undefined, old_price: data.old_price ?? undefined } : p));
+      setShowProductModal(false);
+      resetProductForm();
+      try {
+        await apiRequest(`/api/marketplace/admin/products/${id}`, {
           method: 'PATCH',
           body: JSON.stringify(data),
         });
-      } else {
-        await apiRequest('/api/marketplace/admin/products', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
+      } catch (error) {
+        console.error('Error saving product:', error);
+        setProducts(previous);
+        addToast('error', language === 'ru' ? 'Не удалось сохранить товар' : "Mahsulotni saqlab bo'lmadi");
       }
+      return;
+    }
 
-      await fetchData();
-      setShowProductModal(false);
-      resetProductForm();
+    // Create: close modal first so the loader flash never appears, then
+    // append the created product from the server response.
+    setShowProductModal(false);
+    resetProductForm();
+    try {
+      const resp = await apiRequest<{ product: MarketplaceProductAPI }>(
+        '/api/marketplace/admin/products',
+        { method: 'POST', body: JSON.stringify(data) }
+      );
+      if (resp?.product) setProducts(prev => [...prev, resp.product]);
     } catch (error) {
-      console.error('Error saving product:', error);
+      console.error('Error creating product:', error);
+      addToast('error', language === 'ru' ? 'Не удалось создать товар' : "Mahsulot yaratib bo'lmadi");
     }
   };
 
-  // Update stock
+  // Update stock — optimistic UI. Patch the row locally, close the
+  // modal, PATCH in the background. On failure rollback + toast.
   const updateStock = async () => {
     if (!stockProduct) return;
+    const id = stockProduct.id;
+    const newQty = parseInt(stockQuantity) || 0;
+    const previous = products;
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock_quantity: newQty } : p));
+    setShowStockModal(false);
+    setStockProduct(null);
+    setStockQuantity('');
     try {
-      await apiRequest(`/api/marketplace/admin/products/${stockProduct.id}`, {
+      await apiRequest(`/api/marketplace/admin/products/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ stock_quantity: parseInt(stockQuantity) || 0 }),
+        body: JSON.stringify({ stock_quantity: newQty }),
       });
-      await fetchData();
-      setShowStockModal(false);
-      setStockProduct(null);
-      setStockQuantity('');
     } catch (error) {
       console.error('Error updating stock:', error);
+      setProducts(previous);
+      addToast('error', language === 'ru' ? 'Не удалось обновить сток' : "Zaxirani yangilab bo'lmadi");
     }
   };
 
