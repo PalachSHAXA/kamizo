@@ -13,7 +13,7 @@ import { useToastStore } from '../stores/toastStore';
 import { useModalPresence } from '../stores/modalStore';
 
 interface MarketplaceCategoryAPI { id: string; name_ru: string; name_uz: string; icon?: string; sort_order: number; is_active: boolean; created_at: string; }
-interface MarketplaceProductAPI { id: string; category_id: string; name_ru: string; name_uz: string; description_ru?: string; description_uz?: string; price: number; old_price?: number; unit: string; stock_quantity: number; image_url?: string; is_active: boolean; is_featured: boolean; created_at: string; }
+interface MarketplaceProductAPI { id: string; category_id: string; name_ru: string; name_uz: string; description_ru?: string; description_uz?: string; price: number; old_price?: number; unit: string; stock_quantity: number; image_url?: string; is_active: boolean; is_featured: boolean; is_on_demand?: boolean; created_at: string; }
 interface MarketplaceCartItemAPI { id: string; product_id: string; quantity: number; added_at: string; }
 interface MarketplaceOrderAPI { id: string; order_number: string; resident_id: string; resident_name?: string; resident_phone?: string; resident_address?: string; resident_apartment?: string; status: MarketplaceOrderStatus; items: MarketplaceOrderItemAPI[]; total_amount: number; items_count: number; delivery_note?: string; created_at: string; rating?: number; review?: string; }
 interface MarketplaceOrderItemAPI { id: string; order_id?: string; product_id: string; product_name?: string; product_image?: string; quantity: number; price?: number; unit_price?: number; total_price?: number; }

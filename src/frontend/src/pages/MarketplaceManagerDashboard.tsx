@@ -36,6 +36,7 @@ interface MarketplaceProductAPI {
   image_url?: string;
   is_active: boolean;
   is_featured: boolean;
+  is_on_demand?: boolean;
   created_at: string;
 }
 
@@ -117,6 +118,7 @@ export function MarketplaceManagerDashboard() {
     stock_quantity: '',
     image_url: '',
     is_featured: false,
+    is_on_demand: false,
   });
 
   // Stock update modal
@@ -328,6 +330,7 @@ export function MarketplaceManagerDashboard() {
       stock_quantity: product.stock_quantity?.toString() || '0',
       image_url: product.image_url || '',
       is_featured: product.is_featured || false,
+      is_on_demand: product.is_on_demand || false,
     });
     setShowProductModal(true);
   };
@@ -347,6 +350,7 @@ export function MarketplaceManagerDashboard() {
       stock_quantity: '',
       image_url: '',
       is_featured: false,
+      is_on_demand: false,
     });
   };
 
@@ -952,7 +956,8 @@ export function MarketplaceManagerDashboard() {
                     type="number"
                     value={productForm.stock_quantity}
                     onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })}
-                    className="w-full p-3 border rounded-2xl"
+                    disabled={productForm.is_on_demand}
+                    className="w-full p-3 border rounded-2xl disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -967,6 +972,28 @@ export function MarketplaceManagerDashboard() {
                 />
                 <span className="text-gray-700">
                   {language === 'ru' ? 'Хит продаж (показывать первым)' : 'Hit mahsulot (birinchi ko\'rsatish)'}
+                </span>
+              </label>
+
+              {/* On-demand (special delivery). Toggling on zeroes the stock
+                  field and disables it — an on-demand product doesn't have
+                  a stock level; the manager negotiates a price after the
+                  resident requests it (Stage 3a-3b). */}
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={productForm.is_on_demand}
+                  onChange={(e) => setProductForm({
+                    ...productForm,
+                    is_on_demand: e.target.checked,
+                    ...(e.target.checked ? { stock_quantity: '0' } : {}),
+                  })}
+                  className="w-5 h-5 rounded border-gray-300"
+                />
+                <span className="text-gray-700">
+                  {language === 'ru'
+                    ? 'Товар под привоз (нет на складе, привозим по запросу)'
+                    : "Buyurtma bo'yicha (omborda yo'q, so'rov bo'yicha keltiramiz)"}
                 </span>
               </label>
 

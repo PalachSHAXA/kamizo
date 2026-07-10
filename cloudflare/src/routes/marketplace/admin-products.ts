@@ -43,15 +43,20 @@ route('POST', '/api/marketplace/admin/products', async (request, env) => {
     INSERT INTO marketplace_products (
       id, category_id, name_ru, name_uz, description_ru, description_uz,
       price, old_price, unit, stock_quantity,
-      image_url, is_active, is_featured, tenant_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      image_url, is_active, is_featured, is_on_demand, tenant_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, body.category_id, body.name_ru, body.name_uz || body.name_ru,
     body.description_ru || null, body.description_uz || null,
     body.price, body.old_price || null, body.unit || 'шт',
     body.stock_quantity || 0,
     body.image_url || null,
-    body.is_active !== false ? 1 : 0, body.is_featured ? 1 : 0, tenantId
+    body.is_active !== false ? 1 : 0,
+    body.is_featured ? 1 : 0,
+    // is_on_demand (migration 055): product must be ordered via
+    // POST /api/marketplace/orders/on-demand, not the cart flow.
+    body.is_on_demand ? 1 : 0,
+    tenantId,
   ).run();
 
   const created = await env.DB.prepare(
@@ -73,11 +78,12 @@ route('PATCH', '/api/marketplace/admin/products/:id', async (request, env, param
   // max_order_quantity, weight, weight_unit, images. Re-add via migration
   // when the UI starts using them.
   const fields = ['category_id', 'name_ru', 'name_uz', 'description_ru', 'description_uz', 'price', 'old_price',
-    'unit', 'stock_quantity', 'image_url', 'is_featured'];
+    'unit', 'stock_quantity', 'image_url', 'is_featured', 'is_on_demand'];
+  const boolFields = new Set(['is_featured', 'is_on_demand']);
   for (const field of fields) {
     if (body[field] !== undefined) {
       updates.push(`${field} = ?`);
-      values.push(field === 'is_featured' ? (body[field] ? 1 : 0) : body[field]);
+      values.push(boolFields.has(field) ? (body[field] ? 1 : 0) : body[field]);
     }
   }
 
