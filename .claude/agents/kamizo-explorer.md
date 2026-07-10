@@ -43,8 +43,11 @@ model: sonnet
   `registerAllRoutes()` в `cloudflare/src/routes/index.ts`.
 - `middleware/` — auth (`getUser`, `isSuperAdmin`), tenant (`getTenantId`,
   `getTenantSlug`), feature flags (`requireFeature`).
-- `utils/` — `crypto.ts` (`hashPassword`, `verifyPassword`), `id.ts`
-  (`generateId`), `cache.ts` (`invalidateOnChange`).
+- `utils/` — `crypto.ts` (`hashPassword`, `verifyPassword`), `helpers.ts`
+  (`generateId`, `json`, `error`, `isSuperAdmin`). Барррел `utils/index.ts`
+  ре-экспортирует. `cloudflare/src/cache.ts` (корень src, не `utils/`) —
+  `invalidateOnChange`; параллельно `middleware/cache-local.ts` —
+  `invalidateCache` / `getCached` / `setCache` (in-memory слой).
 - `types.ts` — общие бэкенд-типы.
 - `index.ts` — bootstrap, `runMigrations()` (создаёт `tenants`,
   `super_banners`, `meeting_vote_reconsideration_requests` в рантайме),
@@ -55,9 +58,12 @@ model: sonnet
   `resident/`, `vehicles/`.
 - `components/` — переиспользуемые (BottomBar, Toast, Layout, modals/,
   common/, layout/).
-- `stores/` — Zustand модульные (`requestStore`, `userStore`, `dataStore`
-  и т.п.). ВНИМАНИЕ: селекторы всегда конкретные (`s => s.requests`), не
-  `useDataStore()` целиком.
+- `stores/` — Zustand модульные (`requestStore`, `authStore`, `accountStore`,
+  `dataStore`, `tenantStore`, `meetingStore`, `financeStore` и т.п. — всего
+  ~30 файлов). ВНИМАНИЕ: селекторы всегда конкретные — например,
+  `useRequestStore(s => s.requests)` (см. `BottomBar.tsx:69`,
+  `Header.tsx:123`), а НЕ `useRequestStore()` целиком (barrel-подписка
+  крашит перформанс/сайт).
 - `services/api/` — API-клиенты, зеркалят бэкендовые routes.
 - `types/<domain>.ts` — типы фронта.
 - `i18n/` — переводы (`language === 'ru' ? '...' : '...'`).
@@ -70,8 +76,10 @@ model: sonnet
 Все рецепты — через мой `Grep`/`Glob` инструменты (не Bash).
 
 **1. Найти API-эндпоинт по пути.** «Где хендлер `/api/finance/claims`?»
+Kamizo использует свой DSL: `route('METHOD', '/path', handler)`, `route`
+импортируется из `../../router`. Это НЕ Express `.get()/.post()`.
 ```
-Grep: pattern=`\.(get|post|put|delete)\(['"]/?<PATH>['"]` path=`cloudflare/src/routes/` output_mode=`files_with_matches`
+Grep: pattern=`route\(['"](GET|POST|PUT|PATCH|DELETE)['"],\s*['"]<PATH>['"]` path=`cloudflare/src/routes/` output_mode=`files_with_matches`
 ```
 Затем прочитай найденный файл на нужных строках.
 
