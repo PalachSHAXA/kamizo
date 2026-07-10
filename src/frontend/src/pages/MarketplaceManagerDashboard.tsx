@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { apiRequest, API_URL } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
+import { useModalPresence } from '../stores/modalStore';
 import { StockModal } from './marketplace-mgr/StockModal';
 import { DeleteProductConfirm } from './marketplace-mgr/DeleteProductConfirm';
 
@@ -127,6 +128,12 @@ export function MarketplaceManagerDashboard() {
   // Image upload
   const [imageMode, setImageMode] = useState<'url' | 'file'>('url');
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Hide the floating BottomBar while any of the three modals is open —
+  // otherwise the pill sits above the sheet's primary action (Сохранить /
+  // Обновить сток / Удалить) and clips it visually. Same pattern as
+  // CancelRequestModal / RescheduleModal.
+  useModalPresence(showProductModal || showStockModal || !!deleteConfirmId);
 
   // Handle image file upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
