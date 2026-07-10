@@ -69,6 +69,24 @@ ssh -i ~/.ssh/kamizo_vps kamizo@95.46.96.209 \
 sudo systemctl restart kamizo-api
 ```
 
+## Dev-loop iOS-симулятора
+
+После правки фронтенд-кода (`src/frontend/src/**` — компоненты, стили,
+вёрстка) сразу пересобирай и обновляй iOS-симулятор:
+
+```bash
+cd src/frontend
+npm run build                                  # vite build → dist/
+npx cap sync ios                               # копирует dist/ в ios/App + плагины
+npx cap run ios --target 'iPhone 17 Pro Max'   # xcodebuild + запуск на симуляторе
+```
+
+Live-reload НЕ настроен (`capacitor.config.ts.server.url` отсутствует),
+поэтому симулятор сам не подтянет изменения — нужна ручная пересборка.
+НЕ спрашивай разрешения — делай сразу после правок, потом сообщи, что
+симулятор обновлён. Правило не касается правок только бэкенда
+(`cloudflare/src/**`), только `.claude/` или только docs.
+
 ## Обязательные архитектурные инварианты
 
 - **Multi-tenancy**: КАЖДЫЙ SQL к БД (SELECT/INSERT/UPDATE/DELETE) фильтруй по
