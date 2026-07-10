@@ -16,7 +16,15 @@ export interface MarketplaceOrder {
   user_id: string;
   user_name: string;
   user_phone: string;
-  status: 'new' | 'confirmed' | 'preparing' | 'ready' | 'delivering' | 'delivered';
+  status:
+    // ── Stock lifecycle ─────────────────────────────────────────
+    | 'new' | 'confirmed' | 'preparing' | 'ready' | 'delivering' | 'delivered'
+    // ── On-demand lifecycle, migration 054 ──────────────────────
+    // NB: 'cancelled' intentionally omitted from THIS literal — pre-
+    // existing bug carried over from stock section; fix in a separate
+    // commit alongside the on-demand rollout, not here.
+    | 'awaiting_price' | 'price_pending' | 'price_offered'
+    | 'price_accepted' | 'price_declined' | 'unavailable';
   total_amount: number;
   delivery_address: string;
   delivery_notes?: string;

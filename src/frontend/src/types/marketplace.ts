@@ -3,13 +3,21 @@
 // ============================================
 
 export type MarketplaceOrderStatus =
-  | 'new'           // Новый заказ
-  | 'confirmed'     // Подтверждён
-  | 'preparing'     // Готовится
-  | 'ready'         // Готов к выдаче
-  | 'delivering'    // Доставляется
-  | 'delivered'     // Доставлен
-  | 'cancelled';    // Отменён
+  // ── Stock-order lifecycle (existing) ────────────────────────
+  | 'new'              // Новый заказ
+  | 'confirmed'        // Подтверждён
+  | 'preparing'        // Готовится
+  | 'ready'            // Готов к выдаче
+  | 'delivering'       // Доставляется
+  | 'delivered'        // Доставлен
+  | 'cancelled'        // Отменён
+  // ── On-demand (special-delivery) lifecycle, migration 054 ──
+  | 'awaiting_price'   // Житель отправил заявку, УК ещё не взяла в работу
+  | 'price_pending'    // УК уточняет цену на базаре
+  | 'price_offered'    // УК назвала цену, ждём ответ жителя (24 ч)
+  | 'price_accepted'   // Житель согласен — вливается в обычный fulfillment (→ confirmed)
+  | 'price_declined'   // Житель отказался — терминал
+  | 'unavailable';     // УК не смогла достать — терминал
 
 export interface MarketplaceCategory {
   id: string;
@@ -105,6 +113,7 @@ export interface MarketplaceReview {
 }
 
 export const MARKETPLACE_ORDER_STATUS_LABELS: Record<MarketplaceOrderStatus, { label: string; labelUz: string; color: string }> = {
+  // ── Stock lifecycle (existing) ──────────────────────────────
   new: { label: 'Новый', labelUz: 'Yangi', color: 'blue' },
   confirmed: { label: 'Подтверждён', labelUz: 'Tasdiqlandi', color: 'indigo' },
   preparing: { label: 'Готовится', labelUz: 'Tayyorlanmoqda', color: 'yellow' },
@@ -112,6 +121,13 @@ export const MARKETPLACE_ORDER_STATUS_LABELS: Record<MarketplaceOrderStatus, { l
   delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'purple' },
   delivered: { label: 'Доставлен', labelUz: 'Yetkazildi', color: 'green' },
   cancelled: { label: 'Отменён', labelUz: 'Bekor qilindi', color: 'red' },
+  // ── On-demand (special-delivery) lifecycle, resident-view ──
+  awaiting_price: { label: 'Ожидает обработки', labelUz: "Ko'rib chiqilishi kutilmoqda", color: 'gray' },
+  price_pending:  { label: 'УК уточняет цену',   labelUz: 'Boshqaruv narxni aniqlamoqda', color: 'amber' },
+  price_offered:  { label: 'Цена предложена',    labelUz: 'Narx taklif qilindi',          color: 'blue' },
+  price_accepted: { label: 'Цена принята',       labelUz: 'Narx qabul qilindi',           color: 'green' },
+  price_declined: { label: 'Отклонён клиентом',  labelUz: 'Mijoz tomonidan rad etildi',   color: 'red' },
+  unavailable:    { label: 'Товар недоступен',   labelUz: 'Mahsulot mavjud emas',         color: 'gray' },
 };
 
 export const MARKETPLACE_CATEGORY_ICONS: Record<string, string> = {

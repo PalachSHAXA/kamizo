@@ -141,20 +141,42 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
 
   // Updating status
   if (status) {
-    const validStatuses = ['confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled'];
+    const validStatuses = [
+      // Stock lifecycle (existing)
+      'confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled',
+      // On-demand (special-delivery) states, migration 054
+      'awaiting_price', 'price_pending', 'price_offered',
+      'price_accepted', 'price_declined', 'unavailable',
+    ];
     if (!validStatuses.includes(status)) return error('Invalid status');
 
     // Sprint 63 P0: status transition matrix. Was allowing any → any
     // (manager could jump new → delivered, skipping packing/delivery).
     // From=any-of, To=target. 'cancelled' may be reached from any non-
     // terminal state. 'delivered' may only be reached from 'delivering'.
+    //
+    // On-demand (migration 054) path bridges into the stock pipeline at
+    // price_accepted → confirmed, so a special-delivery order that got
+    // its price agreed on goes through the same preparing/ready/delivering
+    // path as a regular in-stock order.
     const transitions: Record<string, string[]> = {
-      confirmed: ['new'],
-      preparing: ['new', 'confirmed'],
-      ready: ['preparing'],
+      // Stock lifecycle
+      confirmed:  ['new', 'price_accepted'],   // ← bridge from on-demand
+      preparing:  ['new', 'confirmed'],
+      ready:      ['preparing'],
       delivering: ['ready', 'preparing', 'confirmed'],
-      delivered: ['delivering'],
-      cancelled: ['new', 'confirmed', 'preparing', 'ready', 'delivering'],
+      delivered:  ['delivering'],
+      cancelled: [
+        'new', 'confirmed', 'preparing', 'ready', 'delivering',
+        // On-demand states cancellable while price is being negotiated
+        'awaiting_price', 'price_pending', 'price_offered',
+      ],
+      // On-demand lifecycle
+      price_pending:  ['awaiting_price'],
+      price_offered:  ['price_pending'],
+      price_accepted: ['price_offered'],
+      price_declined: ['price_offered'],
+      unavailable:    ['price_pending'],
     };
 
     const currentOrder = await env.DB.prepare(
@@ -188,11 +210,20 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
 
     const statusField = status === 'cancelled' ? 'cancelled_at' : status === 'confirmed' ? 'confirmed_at' :
       status === 'preparing' ? 'preparing_at' : status === 'ready' ? 'ready_at' :
-      status === 'delivering' ? 'delivering_at' : status === 'delivered' ? 'delivered_at' : null;
+      status === 'delivering' ? 'delivering_at' : status === 'delivered' ? 'delivered_at' :
+      status === 'price_offered' ? 'price_offered_at' :   // migration 054
+      null;
+
+    // Null-safe: the 5 other on-demand statuses (awaiting_price,
+    // price_pending, price_accepted, price_declined, unavailable) have
+    // no dedicated timestamp column — only updated_at is written for
+    // them. Without this guard the SQL would emit `SET status = ?, null
+    // = datetime('now')` and 500 on any PATCH with those statuses.
+    const stampCol = statusField ? `, ${statusField} = datetime('now')` : '';
 
     // Status precondition on UPDATE so a concurrent transition can't slip past.
     const statusUpdate = await env.DB.prepare(`
-      UPDATE marketplace_orders SET status = ?, ${statusField} = datetime('now'), updated_at = datetime('now')
+      UPDATE marketplace_orders SET status = ?${stampCol}, updated_at = datetime('now')
       WHERE id = ? AND status = ? ${tenantId ? 'AND tenant_id = ?' : ''}
     `).bind(status, params.id, currentOrder.status, ...(tenantId ? [tenantId] : [])).run();
 

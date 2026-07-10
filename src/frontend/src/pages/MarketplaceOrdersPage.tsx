@@ -41,9 +41,19 @@ interface MarketplaceOrderItemAPI {
   unit_price: number;
 }
 
-type MarketplaceOrderStatus = 'new' | 'confirmed' | 'preparing' | 'ready' | 'delivering' | 'delivered' | 'cancelled';
+type MarketplaceOrderStatus =
+  // Stock lifecycle
+  | 'new' | 'confirmed' | 'preparing' | 'ready' | 'delivering' | 'delivered' | 'cancelled'
+  // On-demand lifecycle, migration 054
+  | 'awaiting_price' | 'price_pending' | 'price_offered'
+  | 'price_accepted' | 'price_declined' | 'unavailable';
 
+// Staff-view labels — deliberately different wording from the
+// resident-view MARKETPLACE_ORDER_STATUS_LABELS in types/marketplace.ts
+// (e.g. confirmed = «Назначен» here vs «Подтверждён» there).
+// Kept as a duplicate rather than deduped; see plan Section "Дедуп-техдолг".
 const ORDER_STATUS_LABELS: Record<MarketplaceOrderStatus, { label: string; labelUz: string; color: string }> = {
+  // Stock lifecycle
   new: { label: 'Новый', labelUz: 'Yangi', color: 'blue' },
   confirmed: { label: 'Назначен', labelUz: 'Tayinlangan', color: 'indigo' },
   preparing: { label: 'Собирается', labelUz: 'Yig\'ilmoqda', color: 'yellow' },
@@ -51,6 +61,13 @@ const ORDER_STATUS_LABELS: Record<MarketplaceOrderStatus, { label: string; label
   delivering: { label: 'Доставляется', labelUz: 'Yetkazilmoqda', color: 'purple' },
   delivered: { label: 'Доставлен', labelUz: 'Yetkazildi', color: 'green' },
   cancelled: { label: 'Отменён', labelUz: 'Bekor qilindi', color: 'red' },
+  // On-demand lifecycle — staff-focused labels
+  awaiting_price: { label: 'Новая заявка на товар', labelUz: 'Yangi mahsulot arizasi',   color: 'gray' },
+  price_pending:  { label: 'Узнаю цену',            labelUz: 'Narxni aniqlamoqda',       color: 'amber' },
+  price_offered:  { label: 'Ждём ответ клиента',    labelUz: 'Mijoz javobini kutmoqda',  color: 'blue' },
+  price_accepted: { label: 'Клиент согласился',     labelUz: "Mijoz rozi bo'ldi",        color: 'green' },
+  price_declined: { label: 'Клиент отказался',      labelUz: 'Mijoz rad etdi',           color: 'red' },
+  unavailable:    { label: 'Не смогли достать',     labelUz: "Topib bo'lmadi",           color: 'gray' },
 };
 
 const ORDER_STATUS_FLOW: MarketplaceOrderStatus[] = ['new', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered'];
@@ -63,6 +80,12 @@ const STATUS_COLORS: Record<string, string> = {
   purple: 'bg-purple-100 text-purple-700',
   green: 'bg-green-100 text-green-700',
   red: 'bg-red-100 text-red-700',
+  // Added for on-demand badges (awaiting_price / unavailable → gray,
+  // price_pending → amber). Without these two, new badges would fall
+  // through Record<string,string>'s implicit undefined and render as
+  // an unstyled span.
+  gray:  'bg-gray-100 text-gray-700',
+  amber: 'bg-amber-100 text-amber-700',
 };
 
 export function MarketplaceOrdersPage() {
