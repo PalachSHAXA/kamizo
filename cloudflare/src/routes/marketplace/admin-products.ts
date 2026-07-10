@@ -133,8 +133,13 @@ route('POST', '/api/marketplace/admin/upload-image', async (request, env) => {
     if (fileExtension && !allowedExtensions.includes(fileExtension)) return error('Invalid file extension', 400);
     if (file.size > 5 * 1024 * 1024) return error('File too large. Maximum size: 5MB', 400);
 
+    // Node.js Buffer handles any size in one call. The previous
+    // `btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))` spread
+    // every byte as a separate function argument and threw
+    // "Maximum call stack size exceeded" on files bigger than the JS
+    // arg-count limit (~100 KB in practice; prod incident 2026-07-10).
     const arrayBuffer = await file.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
     return json({ image_url: `data:${file.type};base64,${base64}` });
   } catch (err) {
     const log = createRequestLogger(request);
