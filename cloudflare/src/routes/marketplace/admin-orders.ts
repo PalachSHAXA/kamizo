@@ -87,6 +87,14 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
   const tenantId = getTenantId(request);
   const body = await request.json() as any;
   const { status, comment, executor_id } = body;
+  // Fix A (Stage 3b): optional `reason` written to cancellation_reason
+  // for the three terminal statuses (cancelled, unavailable,
+  // price_declined). Empty/whitespace → null so we don't fill the
+  // column with '' vs NULL noise.
+  const reasonRaw = body?.reason;
+  const reason = typeof reasonRaw === 'string' && reasonRaw.trim().length > 0
+    ? reasonRaw.trim()
+    : null;
 
   // Assigning executor
   if (executor_id !== undefined) {
@@ -196,18 +204,31 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
     }
 
     if (status === 'cancelled') {
-      // Refund stock once. Already gated by transition matrix above —
-      // can't re-cancel because no-op fired earlier.
-      const orderItems = await env.DB.prepare(`
-        SELECT product_id, quantity FROM marketplace_order_items WHERE order_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-      `).bind(params.id, ...(tenantId ? [tenantId] : [])).all() as { results: { product_id: string, quantity: number }[] };
-      const refunds = (orderItems.results || []).map(item =>
-        env.DB.prepare(`
-          UPDATE marketplace_products SET stock_quantity = stock_quantity + ?
-          WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-        `).bind(item.quantity, item.product_id, ...(tenantId ? [tenantId] : []))
-      );
-      if (refunds.length > 0) await env.DB.batch(refunds);
+      // Fix B (Stage 3b): skip refund for on-demand orders.
+      // on-demand items were sold from is_on_demand=1 products whose
+      // stock_quantity is a phantom 0 — refunding would silently
+      // increment that phantom stock, making the product look
+      // "available" in queries that filter stock_quantity > 0.
+      // For stock orders, the existing refund path is preserved
+      // exactly as before.
+      const orderMeta = await env.DB.prepare(
+        `SELECT order_type FROM marketplace_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+      ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+
+      if (orderMeta?.order_type !== 'on_demand') {
+        // Refund stock once. Already gated by transition matrix above —
+        // can't re-cancel because no-op fired earlier.
+        const orderItems = await env.DB.prepare(`
+          SELECT product_id, quantity FROM marketplace_order_items WHERE order_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+        `).bind(params.id, ...(tenantId ? [tenantId] : [])).all() as { results: { product_id: string, quantity: number }[] };
+        const refunds = (orderItems.results || []).map(item =>
+          env.DB.prepare(`
+            UPDATE marketplace_products SET stock_quantity = stock_quantity + ?
+            WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+          `).bind(item.quantity, item.product_id, ...(tenantId ? [tenantId] : []))
+        );
+        if (refunds.length > 0) await env.DB.batch(refunds);
+      }
     }
 
     const statusField = status === 'cancelled' ? 'cancelled_at' : status === 'confirmed' ? 'confirmed_at' :
@@ -223,11 +244,24 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
     // = datetime('now')` and 500 on any PATCH with those statuses.
     const stampCol = statusField ? `, ${statusField} = datetime('now')` : '';
 
+    // Fix C (Stage 3b): store reason in cancellation_reason for the
+    // three terminal statuses. Reusing the existing column avoids a
+    // schema change — semantically "why did this order stop advancing".
+    const TERMINAL_WITH_REASON = ['cancelled', 'unavailable', 'price_declined'];
+    const shouldWriteReason = TERMINAL_WITH_REASON.includes(status) && reason !== null;
+    const reasonCol = shouldWriteReason ? `, cancellation_reason = ?` : '';
+
     // Status precondition on UPDATE so a concurrent transition can't slip past.
     const statusUpdate = await env.DB.prepare(`
-      UPDATE marketplace_orders SET status = ?${stampCol}, updated_at = datetime('now')
+      UPDATE marketplace_orders SET status = ?${stampCol}${reasonCol}, updated_at = datetime('now')
       WHERE id = ? AND status = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-    `).bind(status, params.id, currentOrder.status, ...(tenantId ? [tenantId] : [])).run();
+    `).bind(
+      status,
+      ...(shouldWriteReason ? [reason] : []),
+      params.id,
+      currentOrder.status,
+      ...(tenantId ? [tenantId] : []),
+    ).run();
 
     if (!statusUpdate.meta || statusUpdate.meta.changes === 0) {
       return error('Order status changed concurrently — retry', 409);

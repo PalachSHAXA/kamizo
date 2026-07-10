@@ -9,8 +9,9 @@
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
+import { isMarketplaceAdmin } from './helpers';
 
 export function registerOnDemandRoutes() {
   // Resident: submit a request for an on-demand (special-delivery) product.
@@ -155,6 +156,244 @@ export function registerOnDemandRoutes() {
     } catch (err) {
       log.error('On-demand order creation error', err);
       return error('Failed to create on-demand order', 500);
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // Stage 3b — price negotiation actions
+  // ────────────────────────────────────────────────────────────────
+
+  // Manager offers a price: price_pending → price_offered.
+  // Body: { unit_price: number, delivery_fee: number }
+  //
+  // On-demand orders are single-item by construction (POST /on-demand
+  // creates exactly one order_item), so a single unit_price fully
+  // describes the offer. If multi-item on-demand ever ships, this
+  // signature grows to an array.
+  route('PATCH', '/api/marketplace/admin/orders/:id/offer-price', async (request, env, params) => {
+    const fc = await requireFeature('marketplace', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
+
+    const user = await getUser(request, env);
+    const roleNorm = (user?.role || '').trim().toLowerCase();
+    if (!user || !isMarketplaceAdmin(roleNorm)) {
+      return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+    }
+
+    const log = createRequestLogger(request);
+    try {
+      const body = await request.json() as any;
+      const { unit_price, delivery_fee } = body;
+
+      if (typeof unit_price !== 'number' || unit_price < 0) {
+        return error('unit_price must be a non-negative number', 400);
+      }
+      if (typeof delivery_fee !== 'number' || delivery_fee < 0) {
+        return error('delivery_fee must be a non-negative number', 400);
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) return error('Tenant context required', 401);
+
+      const order = await env.DB.prepare(
+        `SELECT id, status, order_type FROM marketplace_orders
+         WHERE id = ? AND tenant_id = ?`
+      ).bind(params.id, tenantId).first() as any;
+      if (!order) return error('Order not found', 404);
+      if (order.order_type !== 'on_demand') return error('Not an on-demand order', 400);
+      if (order.status !== 'price_pending') {
+        return error(`Cannot offer price from status '${order.status}'`, 409);
+      }
+
+      const item = await env.DB.prepare(
+        `SELECT id, quantity FROM marketplace_order_items
+         WHERE order_id = ? AND tenant_id = ? LIMIT 1`
+      ).bind(params.id, tenantId).first() as any;
+      if (!item) return error('Order item missing', 500);
+
+      const itemTotal = unit_price * item.quantity;
+      const finalAmount = itemTotal + delivery_fee;
+
+      // Atomic batch: item price → order amounts+status → history.
+      // WHERE status='price_pending' precondition on the orders UPDATE
+      // survives concurrent transitions (two managers hitting the
+      // button — the second gets meta.changes=0 and we return 409).
+      const statements = [
+        env.DB.prepare(`
+          UPDATE marketplace_order_items
+          SET unit_price = ?, total_price = ?
+          WHERE id = ? AND tenant_id = ?
+        `).bind(unit_price, itemTotal, item.id, tenantId),
+        env.DB.prepare(`
+          UPDATE marketplace_orders
+          SET total_amount = ?, delivery_fee = ?, final_amount = ?,
+              status = 'price_offered',
+              price_offered_at = datetime('now'),
+              price_offered_expires_at = datetime('now', '+24 hours'),
+              updated_at = datetime('now')
+          WHERE id = ? AND status = 'price_pending' AND tenant_id = ?
+        `).bind(itemTotal, delivery_fee, finalAmount, params.id, tenantId),
+        env.DB.prepare(`
+          INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by, tenant_id)
+          VALUES (?, ?, 'price_offered', ?, ?, ?)
+        `).bind(
+          generateId(), params.id,
+          `Цена предложена: товар ${itemTotal} сум + доставка ${delivery_fee} сум = ${finalAmount} сум`,
+          user.id, tenantId,
+        ),
+      ];
+
+      const results = await env.DB.batch(statements);
+      const orderUpdate = results[1] as any;
+      if (!orderUpdate.meta || orderUpdate.meta.changes === 0) {
+        return error('Order status changed concurrently — retry', 409);
+      }
+
+      log.info('On-demand price offered', {
+        orderId: params.id, unit_price, delivery_fee, finalAmount, managerId: user.id,
+      });
+
+      return json({
+        success: true,
+        order: {
+          id: params.id,
+          status: 'price_offered',
+          total_amount: itemTotal,
+          delivery_fee,
+          final_amount: finalAmount,
+        },
+      });
+    } catch (err) {
+      log.error('offer-price error', err);
+      return error('Failed to offer price', 500);
+    }
+  });
+
+  // Resident accepts the offered price: price_offered → confirmed
+  // via the intermediate price_accepted (matrix respects both hops).
+  //
+  // Ownership + state check: this resident, this order, on_demand,
+  // status=price_offered. Two-step batched transitions so the matrix
+  // isn't bypassed and history records both semantic events.
+  route('POST', '/api/marketplace/orders/:id/accept-price', async (request, env, params) => {
+    const fc = await requireFeature('marketplace', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
+
+    const user = await getUser(request, env);
+    if (!user) return error('Unauthorized', 401);
+
+    const log = createRequestLogger(request);
+    try {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return error('Tenant context required', 401);
+
+      const order = await env.DB.prepare(
+        `SELECT id, status, order_type, user_id FROM marketplace_orders
+         WHERE id = ? AND tenant_id = ?`
+      ).bind(params.id, tenantId).first() as any;
+      if (!order) return error('Order not found', 404);
+      if (order.user_id !== user.id) return error('Not your order', 403);
+      if (order.order_type !== 'on_demand') return error('Not an on-demand order', 400);
+      if (order.status !== 'price_offered') {
+        return error(`Cannot accept price from status '${order.status}'`, 409);
+      }
+
+      // Both UPDATEs use their own status precondition. The second
+      // UPDATE runs against the row the first UPDATE just wrote —
+      // atomic within the batch. If the row was mutated concurrently
+      // between statements, the second UPDATE's WHERE fails and we
+      // detect meta.changes=0 → return 409.
+      const statements = [
+        env.DB.prepare(`
+          UPDATE marketplace_orders
+          SET status = 'price_accepted', updated_at = datetime('now')
+          WHERE id = ? AND status = 'price_offered' AND user_id = ? AND tenant_id = ?
+        `).bind(params.id, user.id, tenantId),
+        env.DB.prepare(`
+          INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by, tenant_id)
+          VALUES (?, ?, 'price_accepted', 'Цена принята клиентом', ?, ?)
+        `).bind(generateId(), params.id, user.id, tenantId),
+        env.DB.prepare(`
+          UPDATE marketplace_orders
+          SET status = 'confirmed', confirmed_at = datetime('now'), updated_at = datetime('now')
+          WHERE id = ? AND status = 'price_accepted' AND user_id = ? AND tenant_id = ?
+        `).bind(params.id, user.id, tenantId),
+        env.DB.prepare(`
+          INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by, tenant_id)
+          VALUES (?, ?, 'confirmed', 'Заказ подтверждён и принят в работу', ?, ?)
+        `).bind(generateId(), params.id, user.id, tenantId),
+      ];
+
+      const results = await env.DB.batch(statements);
+      const finalUpdate = results[2] as any;
+      if (!finalUpdate.meta || finalUpdate.meta.changes === 0) {
+        return error('Order status changed concurrently — retry', 409);
+      }
+
+      log.info('On-demand price accepted', { orderId: params.id, userId: user.id });
+      return json({ success: true, order: { id: params.id, status: 'confirmed' } });
+    } catch (err) {
+      log.error('accept-price error', err);
+      return error('Failed to accept price', 500);
+    }
+  });
+
+  // Resident declines the offered price: price_offered → price_declined
+  // (terminal). Optional reason stored in cancellation_reason (same
+  // column, semantically fits "why this negotiation ended").
+  route('POST', '/api/marketplace/orders/:id/decline-price', async (request, env, params) => {
+    const fc = await requireFeature('marketplace', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
+
+    const user = await getUser(request, env);
+    if (!user) return error('Unauthorized', 401);
+
+    const log = createRequestLogger(request);
+    try {
+      const body = await request.json().catch(() => ({})) as any;
+      const reason = body?.reason && typeof body.reason === 'string' ? body.reason.trim() : null;
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) return error('Tenant context required', 401);
+
+      const order = await env.DB.prepare(
+        `SELECT id, status, order_type, user_id FROM marketplace_orders
+         WHERE id = ? AND tenant_id = ?`
+      ).bind(params.id, tenantId).first() as any;
+      if (!order) return error('Order not found', 404);
+      if (order.user_id !== user.id) return error('Not your order', 403);
+      if (order.order_type !== 'on_demand') return error('Not an on-demand order', 400);
+      if (order.status !== 'price_offered') {
+        return error(`Cannot decline price from status '${order.status}'`, 409);
+      }
+
+      const statements = [
+        env.DB.prepare(`
+          UPDATE marketplace_orders
+          SET status = 'price_declined', cancellation_reason = ?, updated_at = datetime('now')
+          WHERE id = ? AND status = 'price_offered' AND user_id = ? AND tenant_id = ?
+        `).bind(reason || null, params.id, user.id, tenantId),
+        env.DB.prepare(`
+          INSERT INTO marketplace_order_history (id, order_id, status, comment, changed_by, tenant_id)
+          VALUES (?, ?, 'price_declined', ?, ?, ?)
+        `).bind(
+          generateId(), params.id,
+          reason ? `Клиент отказался: ${reason}` : 'Клиент отказался',
+          user.id, tenantId,
+        ),
+      ];
+
+      const results = await env.DB.batch(statements);
+      const upd = results[0] as any;
+      if (!upd.meta || upd.meta.changes === 0) {
+        return error('Order status changed concurrently — retry', 409);
+      }
+
+      log.info('On-demand price declined', { orderId: params.id, userId: user.id, hasReason: !!reason });
+      return json({ success: true, order: { id: params.id, status: 'price_declined' } });
+    } catch (err) {
+      log.error('decline-price error', err);
+      return error('Failed to decline price', 500);
     }
   });
 }
