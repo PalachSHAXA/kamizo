@@ -52,8 +52,10 @@ Grep: pattern=`(SELECT|INSERT INTO|UPDATE|DELETE FROM)\s+\w+` path=`cloudflare/s
 из body, а брать `getUser().id`.
 
 **Что искать:**
+Kamizo использует свой DSL: `route('METHOD', '/path', handler)`, `route`
+импортируется из `../../router`. НЕ Express `.post()/.put()`.
 ```
-Grep: pattern=`\.(post|put|patch|delete)\(` path=`cloudflare/src/routes/` -n
+Grep: pattern=`route\(['"](POST|PUT|PATCH|DELETE)['"]` path=`cloudflare/src/routes/` -n
 ```
 Для каждого мутирующего роута прочитать хендлер. Красные флаги:
 - `body.userId`, `body.residentId`, `body.ownerId` используются в SQL без
@@ -112,9 +114,16 @@ Grep: pattern=`AIza[0-9A-Za-z_-]{35}` path=`.` -n
 ### 5. Sensitive в логах и API-ответах (HIGH)
 
 **Что искать в API-ответах:**
+Kamizo использует helper `json(...)` из `utils/helpers.ts` (импорт:
+`import { json, error } from '../../utils/helpers'`) — **основной канал
+ответа**, ~568 мест в `cloudflare/src/routes/`. `return json({...})`,
+`return json(results)` и т.п. Плюс встречаются `c.json`/`.send`/прямой
+`Response.json`.
 ```
-Grep: pattern=`\.(json|send|c\.json)\(` path=`cloudflare/src/routes/` -n
+Grep: pattern=`(return\s+json\(|\bc\.json\(|\.json\(|\.send\()` path=`cloudflare/src/routes/` -n
 ```
+Игнорируй `request.json()` / `await ...json() as any` — это парсер тела
+запроса, не response.
 Для роутов, отдающих `users` / `residents` / `admins`, проверить в ответе
 `SELECT`:
 - `password_hash` — CRITICAL если возвращается.
