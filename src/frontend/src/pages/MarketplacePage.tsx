@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { useTenantStore } from '../stores/tenantStore';
 import { useToastStore } from '../stores/toastStore';
+import { useModalPresence } from '../stores/modalStore';
 
 interface MarketplaceCategoryAPI { id: string; name_ru: string; name_uz: string; icon?: string; sort_order: number; is_active: boolean; created_at: string; }
 interface MarketplaceProductAPI { id: string; category_id: string; name_ru: string; name_uz: string; description_ru?: string; description_uz?: string; price: number; old_price?: number; unit: string; stock_quantity: number; image_url?: string; is_active: boolean; is_featured: boolean; created_at: string; }
@@ -155,6 +156,20 @@ export function MarketplacePage() {
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrderAPI | null>(null);
   const [banners, setBanners] = useState<{ id: string; title: string; description?: string; image_url?: string; link_url?: string }[]>([]);
+
+  // Hide the floating BottomBar while any of the marketplace modals /
+  // bottom sheets is open — the checkout sheet's «Оформить заказ» primary
+  // action, cancel confirm, and product/order detail overlays all
+  // anchor to the viewport bottom and were being visually clipped by
+  // the pill. Same pattern as CancelRequestModal / marketplace_manager
+  // dashboard.
+  useModalPresence(
+    showOrderModal ||
+    !!selectedProduct ||
+    !!cancellingOrderId ||
+    showDeliveryRatingModal ||
+    !!selectedOrder
+  );
 
   const fetchData = useCallback(async () => {
     try {
