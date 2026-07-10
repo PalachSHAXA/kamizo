@@ -135,8 +135,13 @@ export function StaffProfilePage() {
 
   return (
     <div className="max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 -mx-4 -mt-4 md:mx-auto md:mt-0">
-      {/* User Card Header */}
-      <div className="relative overflow-hidden bg-white">
+      {/* User Card Header — sticky at the top of the scroll container so
+          it stays pinned while the content list scrolls under it. bg-white
+          + z-30 make sure the cards can't peek through the semi-transparent
+          radial gradient overlay above the pinned surface. Layout hides the
+          global MobileHeader on /profile for every role, so nothing stacks
+          on top of this. */}
+      <div className="relative overflow-hidden bg-white sticky top-0 z-30 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
         <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at top right, rgb(var(--brand-rgb)), transparent 70%)' }} />
         <div className="relative px-5 pb-5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
           <div className="flex items-center gap-4">

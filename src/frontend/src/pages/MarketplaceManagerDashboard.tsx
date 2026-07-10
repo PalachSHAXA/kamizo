@@ -566,7 +566,7 @@ export function MarketplaceManagerDashboard() {
                 </h3>
                 <div className="space-y-2">
                   {outOfStockProducts.map(product => (
-                    <div key={product.id} className="bg-red-50 rounded-xl p-3 flex items-center justify-between">
+                    <div key={product.id} className="bg-red-50 rounded-2xl p-3 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{CATEGORY_ICONS[product.category_id] || '📦'}</span>
                         <div>
@@ -601,7 +601,7 @@ export function MarketplaceManagerDashboard() {
                 </h3>
                 <div className="space-y-2">
                   {lowStockProducts.map(product => (
-                    <div key={product.id} className="bg-yellow-50 rounded-xl p-3 flex items-center justify-between">
+                    <div key={product.id} className="bg-yellow-50 rounded-2xl p-3 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{CATEGORY_ICONS[product.category_id] || '📦'}</span>
                         <div>
@@ -634,7 +634,7 @@ export function MarketplaceManagerDashboard() {
               </h3>
               <div className="space-y-2">
                 {products.filter(p => p.stock_quantity >= 10).map(product => (
-                  <div key={product.id} className="bg-white rounded-xl p-3 flex items-center justify-between shadow-sm">
+                  <div key={product.id} className="bg-white rounded-2xl p-3 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{CATEGORY_ICONS[product.category_id] || '📦'}</span>
                       <div>
@@ -699,7 +699,7 @@ export function MarketplaceManagerDashboard() {
                 <select
                   value={productForm.category_id}
                   onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                  className="w-full p-3 border rounded-xl"
+                  className="w-full p-3 border rounded-2xl"
                   required
                 >
                   <option value="">{language === 'ru' ? 'Выберите категорию' : 'Kategoriya tanlang'}</option>
@@ -750,7 +750,7 @@ export function MarketplaceManagerDashboard() {
                 {imageMode === 'file' && (
                   <div className="space-y-2">
                     <label className="block w-full">
-                      <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
+                      <div className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-colors ${
                         uploadingImage
                           ? 'border-primary-300 bg-primary-50'
                           : 'border-gray-300 hover:border-primary-400 hover:bg-primary-50'
@@ -792,7 +792,7 @@ export function MarketplaceManagerDashboard() {
                     value={productForm.image_url}
                     onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
                     placeholder="https://..."
-                    className="w-full p-3 border rounded-xl"
+                    className="w-full p-3 border rounded-2xl"
                   />
                 )}
 
@@ -822,7 +822,7 @@ export function MarketplaceManagerDashboard() {
                   type="text"
                   value={productForm.name_ru}
                   onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
-                  className="w-full p-3 border rounded-xl"
+                  className="w-full p-3 border rounded-2xl"
                   required
                 />
               </div>
@@ -836,7 +836,7 @@ export function MarketplaceManagerDashboard() {
                   type="text"
                   value={productForm.name_uz}
                   onChange={(e) => setProductForm({ ...productForm, name_uz: e.target.value })}
-                  className="w-full p-3 border rounded-xl"
+                  className="w-full p-3 border rounded-2xl"
                   required
                 />
               </div>
@@ -849,7 +849,7 @@ export function MarketplaceManagerDashboard() {
                 <textarea
                   value={productForm.description_ru}
                   onChange={(e) => setProductForm({ ...productForm, description_ru: e.target.value })}
-                  className="w-full p-3 border rounded-xl resize-none"
+                  className="w-full p-3 border rounded-2xl resize-none"
                   rows={2}
                 />
               </div>
@@ -862,7 +862,7 @@ export function MarketplaceManagerDashboard() {
                 <textarea
                   value={productForm.description_uz}
                   onChange={(e) => setProductForm({ ...productForm, description_uz: e.target.value })}
-                  className="w-full p-3 border rounded-xl resize-none"
+                  className="w-full p-3 border rounded-2xl resize-none"
                   rows={2}
                 />
               </div>
@@ -877,7 +877,7 @@ export function MarketplaceManagerDashboard() {
                     type="number"
                     value={productForm.price}
                     onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                    className="w-full p-3 border rounded-xl"
+                    className="w-full p-3 border rounded-2xl"
                     required
                   />
                 </div>
@@ -889,7 +889,7 @@ export function MarketplaceManagerDashboard() {
                     type="number"
                     value={productForm.old_price}
                     onChange={(e) => setProductForm({ ...productForm, old_price: e.target.value })}
-                    className="w-full p-3 border rounded-xl"
+                    className="w-full p-3 border rounded-2xl"
                   />
                 </div>
               </div>
@@ -903,7 +903,7 @@ export function MarketplaceManagerDashboard() {
                   <select
                     value={productForm.unit}
                     onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
-                    className="w-full p-3 border rounded-xl"
+                    className="w-full p-3 border rounded-2xl"
                   >
                     <option value="шт">шт</option>
                     <option value="кг">кг</option>
@@ -919,7 +919,7 @@ export function MarketplaceManagerDashboard() {
                     type="number"
                     value={productForm.stock_quantity}
                     onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })}
-                    className="w-full p-3 border rounded-xl"
+                    className="w-full p-3 border rounded-2xl"
                   />
                 </div>
               </div>
@@ -941,7 +941,7 @@ export function MarketplaceManagerDashboard() {
               <button
                 onClick={saveProduct}
                 disabled={!productForm.category_id || !productForm.name_ru || !productForm.name_uz || !productForm.price}
-                className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-primary-600 text-white rounded-2xl font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 {editingProduct
                   ? (language === 'ru' ? 'Сохранить изменения' : 'O\'zgarishlarni saqlash')

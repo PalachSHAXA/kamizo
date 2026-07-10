@@ -173,48 +173,39 @@ export function MarketplaceOrdersPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 sm:p-4">
+      {/* Quick Stats — три в ряд на всех устройствах (было стопкой на
+          мобилке). Икона сверху / число крупно / подпись — как на
+          дашборде marketplace_manager для консистентности. */}
+      <div className="grid grid-cols-3 gap-2 p-3 sm:p-4">
         <div
-          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all flex flex-col items-start gap-1.5"
           onClick={() => setStatusFilter('new')}
         >
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <ShoppingCart className="w-4 h-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{newOrdersCount}</p>
-              <p className="text-xs text-gray-500">{language === 'ru' ? 'Новых' : 'Yangi'}</p>
-            </div>
+          <div className="p-1.5 bg-blue-100 rounded-lg">
+            <ShoppingCart className="w-3.5 h-3.5 text-blue-600" />
           </div>
+          <p className="text-lg font-bold text-gray-900 leading-tight">{newOrdersCount}</p>
+          <p className="text-[11px] text-gray-500 leading-tight">{language === 'ru' ? 'Новых' : 'Yangi'}</p>
         </div>
         <div
-          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all flex flex-col items-start gap-1.5"
           onClick={() => setStatusFilter('confirmed')}
         >
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Package className="w-4 h-4 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{inProgressCount}</p>
-              <p className="text-xs text-gray-500">{language === 'ru' ? 'В работе' : 'Ishda'}</p>
-            </div>
+          <div className="p-1.5 bg-yellow-100 rounded-lg">
+            <Package className="w-3.5 h-3.5 text-yellow-600" />
           </div>
+          <p className="text-lg font-bold text-gray-900 leading-tight">{inProgressCount}</p>
+          <p className="text-[11px] text-gray-500 leading-tight">{language === 'ru' ? 'В работе' : 'Ishda'}</p>
         </div>
         <div
-          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/60 cursor-pointer hover:border-white transition-all flex flex-col items-start gap-1.5"
           onClick={() => setStatusFilter('delivering')}
         >
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <User className="w-4 h-4 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{deliveringCount}</p>
-              <p className="text-xs text-gray-500">{language === 'ru' ? 'Доставка' : 'Yetkazish'}</p>
-            </div>
+          <div className="p-1.5 bg-purple-100 rounded-lg">
+            <User className="w-3.5 h-3.5 text-purple-600" />
           </div>
+          <p className="text-lg font-bold text-gray-900 leading-tight">{deliveringCount}</p>
+          <p className="text-[11px] text-gray-500 leading-tight">{language === 'ru' ? 'Доставка' : 'Yetkazish'}</p>
         </div>
       </div>
 
@@ -228,7 +219,7 @@ export function MarketplaceOrdersPage() {
               placeholder={language === 'ru' ? 'Поиск заказов...' : 'Buyurtma qidirish...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500"
+              className="w-full h-11 pl-10 pr-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
             />
           </div>
         </div>
@@ -237,7 +228,7 @@ export function MarketplaceOrdersPage() {
         <div className="flex gap-2 overflow-x-auto pb-2">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
               statusFilter === 'all'
                 ? 'bg-primary-600 text-white'
                 : 'bg-gray-100 text-gray-600'
@@ -252,7 +243,7 @@ export function MarketplaceOrdersPage() {
               <button
                 key={key}
                 onClick={() => setStatusFilter(key as MarketplaceOrderStatus)}
-                className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
                   statusFilter === key
                     ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-600'
@@ -397,7 +388,7 @@ export function MarketplaceOrdersPage() {
               </div>
 
               {/* Customer Info */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+              <div className="bg-gray-50 rounded-2xl p-4 mb-4">
                 <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
                   {language === 'ru' ? 'Клиент' : 'Mijoz'}
                 </h4>
@@ -421,7 +412,7 @@ export function MarketplaceOrdersPage() {
 
               {/* Executor Info */}
               {selectedOrder.executor_name ? (
-                <div className="bg-indigo-50 rounded-xl p-4 mb-4">
+                <div className="bg-indigo-50 rounded-2xl p-4 mb-4">
                   <h4 className="text-xs font-medium text-indigo-600 uppercase mb-2">
                     {language === 'ru' ? 'Исполнитель' : 'Ijrochi'}
                   </h4>
@@ -434,7 +425,7 @@ export function MarketplaceOrdersPage() {
                   )}
                 </div>
               ) : (
-                <div className="bg-yellow-50 rounded-xl p-4 mb-4">
+                <div className="bg-yellow-50 rounded-2xl p-4 mb-4">
                   <p className="text-sm text-yellow-700 text-center">
                     {language === 'ru' ? 'Исполнитель не назначен' : 'Ijrochi tayinlanmagan'}
                   </p>
@@ -447,7 +438,7 @@ export function MarketplaceOrdersPage() {
               </h3>
               <div className="space-y-3 mb-4">
                 {(selectedOrder.items || []).map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3 bg-white rounded-xl p-3 border">
+                  <div key={idx} className="flex items-center gap-3 bg-white rounded-2xl p-3 border">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
                       {item.product_image ? (
                         <img src={item.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
@@ -471,7 +462,7 @@ export function MarketplaceOrdersPage() {
               </div>
 
               {/* Total */}
-              <div className="bg-primary-50 rounded-xl p-4 mb-4">
+              <div className="bg-primary-50 rounded-2xl p-4 mb-4">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-gray-700">
                     {language === 'ru' ? 'Итого:' : 'Jami:'}
@@ -484,7 +475,7 @@ export function MarketplaceOrdersPage() {
 
               {/* Rating and Review */}
               {selectedOrder.status === 'delivered' && selectedOrder.rating && (
-                <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                <div className="p-4 bg-yellow-50 rounded-2xl border border-yellow-200">
                   <h3 className="font-medium text-yellow-800 mb-2">
                     {language === 'ru' ? 'Оценка клиента' : 'Mijoz bahosi'}
                   </h3>
@@ -513,7 +504,7 @@ export function MarketplaceOrdersPage() {
                 {selectedOrder.status === 'new' && (
                   <button
                     onClick={() => setShowAssignModal(selectedOrder)}
-                    className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-primary-600 text-white rounded-2xl font-medium flex items-center justify-center gap-2"
                   >
                     <UserPlus className="w-5 h-5" />
                     {language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}
@@ -522,7 +513,7 @@ export function MarketplaceOrdersPage() {
                 {selectedOrder.status === 'new' && (
                   <button
                     onClick={() => updateOrderStatus(selectedOrder.id, 'cancelled')}
-                    className="px-4 py-3 bg-red-50 text-red-600 rounded-xl font-medium"
+                    className="px-4 py-3 bg-red-50 text-red-600 rounded-2xl font-medium"
                   >
                     {language === 'ru' ? 'Отменить' : 'Bekor'}
                   </button>
@@ -561,7 +552,7 @@ export function MarketplaceOrdersPage() {
                   <button
                     key={executor.id}
                     onClick={() => assignExecutor(showAssignModal.id, executor.id)}
-                    className="w-full p-4 bg-gray-50 rounded-xl flex items-center gap-3 hover:bg-primary-50 transition-colors text-left"
+                    className="w-full p-4 bg-gray-50 rounded-2xl flex items-center gap-3 hover:bg-primary-50 transition-colors text-left"
                   >
                     <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
                       <User className="w-5 h-5 text-primary-600" />
