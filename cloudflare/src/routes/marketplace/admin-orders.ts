@@ -25,6 +25,7 @@ route('GET', '/api/marketplace/admin/orders', async (request, env) => {
 
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
+  const orderType = url.searchParams.get('order_type');   // 'stock' | 'on_demand'
   const page = parseInt(url.searchParams.get('page') || '1');
   const limit = parseInt(url.searchParams.get('limit') || '20');
   const offset = (page - 1) * limit;
@@ -34,6 +35,7 @@ route('GET', '/api/marketplace/admin/orders', async (request, env) => {
   const params: any[] = [];
   if (tenantId) { whereClause += ' AND o.tenant_id = ?'; params.push(tenantId); }
   if (status) { whereClause += ' AND o.status = ?'; params.push(status); }
+  if (orderType) { whereClause += ' AND o.order_type = ?'; params.push(orderType); }
 
   const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM marketplace_orders o ${whereClause}`).bind(...params).first() as any;
   const total = countResult?.total || 0;
