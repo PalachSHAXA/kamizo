@@ -892,6 +892,19 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                 onClick={() => go('/finance/charges')}
                 isLast={false}
               />
+              {/* Marketplace — hidden when tenant.features has no
+                  'marketplace'; other rows in this block are always-on
+                  base functions, so gating this one keeps the row list
+                  clean for УК that don't run the shop. Route + backend
+                  are the same MarketplacePage / /api/marketplace/*. */}
+              {hasFeature('marketplace') && (
+                <NavRow
+                  Icon={ShoppingBag}
+                  label={language === 'ru' ? 'Маркет для дома' : "Uy uchun market"}
+                  onClick={() => go('/marketplace')}
+                  isLast={false}
+                />
+              )}
               <NavRow
                 Icon={Star}
                 label={language === 'ru' ? 'Оценить сотрудников' : 'Xodimlarni baholash'}
