@@ -133,8 +133,19 @@ export function StaffProfilePage() {
     }
   };
 
+  // marketplace_manager /profile runs under `page-content-full-bleed`
+  // (see Layout.tsx isStaffSettingsFullBleed) — main-content has no side
+  // padding for them, so we must NOT apply the -mx-4 negative-margin
+  // compensation (it would drag content off-screen). Every other staff
+  // role still gets main-content padding, so keep the compensation.
+  const isMarketplaceMgr = user.role === 'marketplace_manager';
+  const wrapperClass = isMarketplaceMgr
+    ? 'max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 md:mt-0'
+    : 'max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 -mx-4 -mt-4 md:mx-auto md:mt-0';
+  const contentPad = isMarketplaceMgr ? 'px-3' : 'px-4';
+
   return (
-    <div className="max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 -mx-4 -mt-4 md:mx-auto md:mt-0">
+    <div className={wrapperClass}>
       {/* User Card Header — sticky at the top of the scroll container so
           it stays pinned while the content list scrolls under it. bg-white
           + z-30 make sure the cards can't peek through the semi-transparent
@@ -169,13 +180,13 @@ export function StaffProfilePage() {
 
       {/* Success Message */}
       {successMessage && (
-        <div className="mx-4 mt-3 p-3 bg-green-50 text-green-700 rounded-[14px] flex items-center gap-2 animate-fade-in">
+        <div className={`${contentPad === 'px-3' ? 'mx-3' : 'mx-4'} mt-3 p-3 bg-green-50 text-green-700 rounded-[14px] flex items-center gap-2 animate-fade-in`}>
           <CheckCircle className="w-5 h-5" />
           {successMessage}
         </div>
       )}
 
-      <div className="px-4 mt-4 space-y-4">
+      <div className={`${contentPad} mt-4 space-y-4`}>
         {/* Personal Info */}
         <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
           <div className="px-4 pt-4 pb-2">

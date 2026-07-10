@@ -482,7 +482,11 @@ export function Layout() {
   // Extended to `/settings` too — SettingsPage is registered on both
   // routes, and reaching it via the sidebar (/settings) was still
   // stacking MobileHeader over the page's own pinned header.
-  const isStaffSettingsFullBleed = ['admin', 'director', 'manager', 'department_head'].includes(user?.role || '')
+  // marketplace_manager lands on StaffProfilePage on /profile and needs
+  // the same full-bleed treatment so its sticky avatar header and
+  // content cards go edge-to-edge instead of leaving beige main-content
+  // padding on the sides.
+  const isStaffSettingsFullBleed = ['admin', 'director', 'manager', 'department_head', 'marketplace_manager'].includes(user?.role || '')
     && (location.pathname === '/profile' || location.pathname === '/settings');
   const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance || isStaffSettingsFullBleed;
 
