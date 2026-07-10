@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useSettingsStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -14,6 +14,11 @@ import { ContractUploader } from '../../components/contracts/ContractUploader';
 
 export function SettingsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Show back button only on the sidebar entry (/settings). Users who
+  // land on /profile via the BottomBar are already on their tab home
+  // — no back arrow needed there. Same component, two routes.
+  const showBackButton = location.pathname === '/settings';
   const settings = useSettingsStore(s => s.settings);
   const updateSettings = useSettingsStore(s => s.updateSettings);
   const { user, updateUserProfile } = useAuthStore();
@@ -322,17 +327,13 @@ export function SettingsPage() {
     //     ALL scroll; tabs + settings forms scroll inside it.
     //   • Bottom safe-area + BottomBar reserve via paddingBottom.
     <div style={{
-      // v118.106 — was `height: 100dvh` which exceeded main-content's
-      // available height (main-content reserves
-      // `padding-bottom: calc(var(--bottom-bar-h) + 16px)` for the
-      // floating BottomBar). SettingsPage spilled past the BottomBar,
-      // got clipped by main-content's overflow, and the inner scroller's
-      // bottommost pixels sat hidden behind the BottomBar — scrollTop=
-      // max landed at an invisible position and iOS WKWebView's gesture
-      // recogniser stuck. Subtract the BottomBar reservation so the
-      // page fits ABOVE the bar and the inner scroller's bottom edge
-      // is the actual visible edge.
-      height: 'calc(100dvh - var(--bottom-bar-h, 64px) - 16px)',
+      // Full-viewport height. The inner scroller pads itself by
+      // (--bottom-bar-h + 24px) so its content ends UNDER the floating
+      // BottomBar, letting the bar's backdrop-blur render page content
+      // instead of the bare `--app-bg` beige. (Prior clip issue at
+      // scrollTop=max was resolved by the padding, not by trimming
+      // the outer height.)
+      height: '100dvh',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
@@ -356,18 +357,19 @@ export function SettingsPage() {
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--border-c, #E6DFD2)',
       }}>
-        {/* Back button shown to every role. Sidebar users (director /
-            admin / manager on /settings) also need a way back to their
-            role dashboard — the previous isSuperAdmin gate left them
-            stranded with no header nav. navigate('/') routes each role
-            to its own dashboard via RoleRouter. */}
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
-        </button>
+        {/* Icon-only back button, shown only on the /settings route (i.e.
+            when the user arrived via the sidebar). On /profile — reached
+            via the BottomBar's "Профиль" tab — no back button, the tab
+            IS the home. */}
+        {showBackButton && (
+          <button
+            onClick={() => navigate('/')}
+            aria-label={language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
+            className="mb-2 w-9 h-9 rounded-full grid place-items-center text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        )}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
@@ -396,13 +398,11 @@ export function SettingsPage() {
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch',
         paddingLeft: 12, paddingRight: 12, paddingTop: 12,
-        // v118.106 — outer wrapper now subtracts var(--bottom-bar-h)
-        // from its height, so the inner scroller's bottom edge is the
-        // actual visible boundary. The previous 96 + safe-area reserve
-        // was compensating for the BottomBar that lived BELOW this
-        // page — now the page lives ABOVE the bar, just need a
-        // breathing 24 px gap for the last field.
-        paddingBottom: 24,
+        // Pad the bottom of the scroller by BottomBar height + breathing
+        // room so the last field can scroll ABOVE the bar and the bar's
+        // blur backdrop always renders real page content — no beige
+        // strip visible under the floating pill.
+        paddingBottom: 'calc(var(--bottom-bar-h, 64px) + 24px)',
       }}>
       <div className="space-y-4 md:space-y-6">
 
