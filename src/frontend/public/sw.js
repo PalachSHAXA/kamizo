@@ -8925,7 +8925,7 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.8.0';
-const STATIC_CACHE = 'kamizo-static-v314';
+const STATIC_CACHE = 'kamizo-static-v315';
 const ASSET_CACHE = 'kamizo-assets-v312';
 const DYNAMIC_CACHE = 'kamizo-dynamic-v312';
 const MAX_DYNAMIC_CACHE_SIZE = 50;

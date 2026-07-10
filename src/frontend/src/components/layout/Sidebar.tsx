@@ -929,12 +929,13 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
           </div>
 
           {/* ── Footer profile card ──
-              Bottom pad = safe-area + 6px (was + 18px). The extra 12px
-              of beige under the white card read as an empty gap in the
-              drawer; tighten it up so the card sits close to the home
-              indicator zone without touching it. */}
+              Bottom pad = pure safe-area (was + 6px, was + 18px). Any
+              extra additive offset reads as a beige gap under the white
+              card in the drawer; drop it entirely so the card sits
+              flush against the home-indicator safe zone. Fallback 8px
+              covers Android where safe-area-inset-bottom = 0. */}
           <div style={{
-            padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 6px)',
+            padding: '10px 16px env(safe-area-inset-bottom, 8px)',
             background: 'var(--surface-2, #F4F0E8)',
             borderTop: '1px solid var(--border-c, #E6DFD2)',
           }}>
