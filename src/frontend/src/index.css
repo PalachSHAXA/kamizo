@@ -741,6 +741,15 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
   }
 }
 
+/* Tenant logo chip: transparent by default so the mark reads directly
+   against the beige app-bg; only in dark mode fall back to a white
+   fill because the brown sidebar sky can swallow dark logos. */
+.tenant-logo-badge { background: transparent; }
+html.dark .tenant-logo-badge {
+  background: #FFFFFF;
+  box-shadow: 0 6px 16px rgba(28,25,23,0.25);
+}
+
 body {
   font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
   background: var(--app-bg);

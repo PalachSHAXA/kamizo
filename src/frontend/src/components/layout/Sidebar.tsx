@@ -712,11 +712,12 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
               {/* When the УК has uploaded a logo we render it as a 50px chip;
                   otherwise fall back to the orange Building2 gradient. */}
               {tenantLogo ? (
-                <div style={{
+                // Fill only in dark theme (brown sidebar sky can swallow
+                // dark logos); in light theme the logo reads directly.
+                <div className="tenant-logo-badge" style={{
                   width: 50, height: 50, borderRadius: 15,
-                  background: '#FFFFFF', display: 'grid', placeItems: 'center',
+                  display: 'grid', placeItems: 'center',
                   flex: '0 0 auto', overflow: 'hidden',
-                  boxShadow: '0 6px 16px rgba(28,25,23,0.25)',
                 }}>
                   <img
                     src={tenantLogo}

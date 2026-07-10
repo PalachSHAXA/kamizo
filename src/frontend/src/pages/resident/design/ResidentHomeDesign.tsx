@@ -342,10 +342,9 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
              break at the inter-word space and stack vertically. */}
         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
           {logo ? (
-            // Real УК logo from tenants.logo (data:image/…;base64,…) routed
-            // through useTenantStore. White inner background mirrors the
-            // sidebar chip so transparent PNGs read on either sky.
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#FFFFFF', display: 'grid', placeItems: 'center', overflow: 'hidden', flex: '0 0 auto', border: '1px solid rgba(249,115,22,0.4)' }}>
+            // Real УК logo from tenants.logo, rendered without a fill so
+            // it matches the compact header on other screens.
+            <div style={{ width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', overflow: 'hidden', flex: '0 0 auto' }}>
               <img src={logo} alt={brand || 'Kamizo'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
           ) : (
