@@ -257,22 +257,27 @@ export function MarketplaceManagerDashboard() {
     }
   };
 
-  // Delete product — single confirm state, single API call. The prior
-  // implementation had TWO state variables (deleteConfirmId +
-  // pendingDeleteId) and TWO confirm modals stacked; the first
-  // «Удалить» tap only swapped states and re-opened an identical modal
-  // on top, so the user had to tap «Удалить» twice for anything to
-  // happen. Now the single modal wired to deleteConfirmId hits the API
-  // on the first confirm tap.
+  // Delete product — single confirm modal, optimistic UI. The prior
+  // implementation had TWO state variables and TWO confirm modals
+  // stacked (first tap swapped states and re-opened an identical
+  // modal, so the user had to tap «Удалить» twice for anything to
+  // happen). It also called fetchData() after DELETE which flipped
+  // loading=true and showed a full-screen spinner instead of the row
+  // vanishing instantly. Now: modal closes, row disappears from the
+  // local products array immediately, API fires in the background,
+  // and on failure we roll the row back + surface a toast.
   const confirmDeleteProduct = async () => {
     if (!deleteConfirmId) return;
     const id = deleteConfirmId;
     setDeleteConfirmId(null);
+    const previous = products;
+    setProducts(prev => prev.filter(p => p.id !== id));
     try {
       await apiRequest(`/api/marketplace/admin/products/${id}`, { method: 'DELETE' });
-      await fetchData();
     } catch (error) {
       console.error('Error deleting product:', error);
+      setProducts(previous);
+      addToast('error', language === 'ru' ? 'Не удалось удалить товар' : "Mahsulotni o'chirib bo'lmadi");
     }
   };
 
