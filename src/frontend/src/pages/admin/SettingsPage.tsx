@@ -356,15 +356,18 @@ export function SettingsPage() {
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--border-c, #E6DFD2)',
       }}>
-        {isSuperAdmin && (
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
-          </button>
-        )}
+        {/* Back button shown to every role. Sidebar users (director /
+            admin / manager on /settings) also need a way back to their
+            role dashboard — the previous isSuperAdmin gate left them
+            stranded with no header nav. navigate('/') routes each role
+            to its own dashboard via RoleRouter. */}
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
+        </button>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">

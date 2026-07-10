@@ -479,8 +479,11 @@ export function Layout() {
   // top of the SettingsPage's own safe-area header (which would let the
   // status bar collide with the page title). Page paints its own
   // notch-aware header instead.
-  const isStaffSettingsFullBleed = ['admin', 'director', 'manager'].includes(user?.role || '')
-    && location.pathname === '/profile';
+  // Extended to `/settings` too — SettingsPage is registered on both
+  // routes, and reaching it via the sidebar (/settings) was still
+  // stacking MobileHeader over the page's own pinned header.
+  const isStaffSettingsFullBleed = ['admin', 'director', 'manager', 'department_head'].includes(user?.role || '')
+    && (location.pathname === '/profile' || location.pathname === '/settings');
   const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance || isStaffSettingsFullBleed;
 
   // Whether the MobileHeader is rendered (same condition as below).
