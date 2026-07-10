@@ -796,18 +796,22 @@ export function MarketplaceManagerDashboard() {
                   />
                 )}
 
-                {/* Image preview */}
+                {/* Image preview — soft rounded thumbnail with a subtle
+                    remove button (was a bright red 32px pill that looked
+                    aggressive on top of the photo; now a translucent dark
+                    24px chip, iOS-style). */}
                 {productForm.image_url && (
                   <div className="mt-3 relative inline-block">
-                    <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 border">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200">
                       <img src={productForm.image_url} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                     <button
                       type="button"
                       onClick={() => setProductForm({ ...productForm, image_url: '' })}
-                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      aria-label={language === 'ru' ? 'Удалить изображение' : "Rasmni o'chirish"}
+                      className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm text-white shadow-[0_2px_6px_rgba(0,0,0,0.25)] flex items-center justify-center transition-colors"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3 h-3" strokeWidth={2.5} />
                     </button>
                   </div>
                 )}
