@@ -370,40 +370,31 @@ export function MarketplaceManagerDashboard() {
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 sm:p-4">
-        <div className="bg-white rounded-xl p-3 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-primary-100 rounded-lg">
-              <Package className="w-4 h-4 text-primary-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{products.length}</p>
-              <p className="text-xs text-gray-500">{language === 'ru' ? 'Товаров' : 'Mahsulot'}</p>
-            </div>
+      {/* Quick Stats — три в ряд на всех устройствах (было стопкой на мобилке).
+          Компактный вертикальный layout: иконка сверху, число крупно,
+          подпись мелко. На узких экранах помещается стабильно, не растекается
+          на всю высоту первой ширмы. */}
+      <div className="grid grid-cols-3 gap-2 p-3 sm:p-4">
+        <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-start gap-1.5">
+          <div className="p-1.5 bg-primary-100 rounded-lg">
+            <Package className="w-3.5 h-3.5 text-primary-600" />
           </div>
+          <p className="text-lg font-bold text-gray-900 leading-tight">{products.length}</p>
+          <p className="text-[11px] text-gray-500 leading-tight">{language === 'ru' ? 'Товаров' : 'Mahsulot'}</p>
         </div>
-        <div className="bg-white rounded-xl p-3 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertTriangle className="w-4 h-4 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{lowStockProducts.length}</p>
-              <p className="text-xs text-gray-500">{language === 'ru' ? 'Мало' : 'Kam'}</p>
-            </div>
+        <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-start gap-1.5">
+          <div className="p-1.5 bg-yellow-100 rounded-lg">
+            <AlertTriangle className="w-3.5 h-3.5 text-yellow-600" />
           </div>
+          <p className="text-lg font-bold text-gray-900 leading-tight">{lowStockProducts.length}</p>
+          <p className="text-[11px] text-gray-500 leading-tight">{language === 'ru' ? 'Мало' : 'Kam'}</p>
         </div>
-        <div className="bg-white rounded-xl p-3 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <TrendingUp className="w-4 h-4 text-red-600" />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{outOfStockProducts.length}</p>
-              <p className="text-xs text-gray-500">{language === 'ru' ? 'Нет' : 'Yo\'q'}</p>
-            </div>
+        <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-start gap-1.5">
+          <div className="p-1.5 bg-red-100 rounded-lg">
+            <TrendingUp className="w-3.5 h-3.5 text-red-600" />
           </div>
+          <p className="text-lg font-bold text-gray-900 leading-tight">{outOfStockProducts.length}</p>
+          <p className="text-[11px] text-gray-500 leading-tight">{language === 'ru' ? 'Нет' : 'Yo\'q'}</p>
         </div>
       </div>
 
@@ -447,7 +438,7 @@ export function MarketplaceManagerDashboard() {
                   placeholder={language === 'ru' ? 'Поиск товаров...' : 'Mahsulot qidirish...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500"
+                  className="w-full h-11 pl-10 pr-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
                 />
               </div>
               <button
@@ -455,17 +446,20 @@ export function MarketplaceManagerDashboard() {
                   resetProductForm();
                   setShowProductModal(true);
                 }}
-                className="px-4 py-2.5 min-h-[44px] touch-manipulation active:scale-95 bg-primary-600 text-white rounded-lg sm:rounded-xl font-medium flex items-center gap-2"
+                aria-label={language === 'ru' ? 'Добавить товар' : "Mahsulot qo'shish"}
+                className="w-11 h-11 touch-manipulation active:scale-95 bg-primary-600 text-white rounded-2xl flex items-center justify-center shrink-0"
               >
                 <Plus className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Category filter */}
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+            {/* Category filter — чуть больше padding и gap, чтобы чипсы
+                дышали и не обрезались на узких экранах. Горизонтальный
+                скролл сохраняет всю линейку — категорий может быть много. */}
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
               <button
                 onClick={() => setCategoryFilter('all')}
-                className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap ${
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
                   categoryFilter === 'all'
                     ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-600'
@@ -477,7 +471,7 @@ export function MarketplaceManagerDashboard() {
                 <button
                   key={cat.id}
                   onClick={() => setCategoryFilter(cat.id)}
-                  className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap flex items-center gap-1 ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap shrink-0 flex items-center gap-1.5 transition-colors ${
                     categoryFilter === cat.id
                       ? 'bg-primary-600 text-white'
                       : 'bg-gray-100 text-gray-600'
@@ -491,7 +485,7 @@ export function MarketplaceManagerDashboard() {
 
             <div className="space-y-3">
               {filteredProducts.map(product => (
-                <div key={product.id} className="bg-white rounded-xl p-4 shadow-sm">
+                <div key={product.id} className="bg-white rounded-2xl p-4 shadow-sm">
                   <div className="flex gap-3">
                     <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {product.image_url ? (
