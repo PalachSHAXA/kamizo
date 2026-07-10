@@ -78,7 +78,9 @@ sudo systemctl restart kamizo-api
 cd src/frontend
 npm run build                                  # vite build → dist/
 npx cap sync ios                               # копирует dist/ в ios/App + плагины
-npx cap run ios --target 'iPhone 17 Pro Max'   # xcodebuild + запуск на симуляторе
+# резолвим UUID по имени — cap run не принимает имя напрямую (падает с
+# Invalid target ID, но exit code 0 — не полагайся на exit-код).
+npx cap run ios --target "$(xcrun simctl list devices available | grep -m1 'iPhone 17 Pro Max' | grep -oE '[0-9A-F-]{36}')"
 ```
 
 Live-reload НЕ настроен (`capacitor.config.ts.server.url` отсутствует),
