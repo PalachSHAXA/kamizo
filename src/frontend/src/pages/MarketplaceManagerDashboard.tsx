@@ -257,22 +257,23 @@ export function MarketplaceManagerDashboard() {
     }
   };
 
-  // Delete product with confirmation state
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const deleteProduct = async (productId: string) => {
-    setPendingDeleteId(productId);
-  };
+  // Delete product — single confirm state, single API call. The prior
+  // implementation had TWO state variables (deleteConfirmId +
+  // pendingDeleteId) and TWO confirm modals stacked; the first
+  // «Удалить» tap only swapped states and re-opened an identical modal
+  // on top, so the user had to tap «Удалить» twice for anything to
+  // happen. Now the single modal wired to deleteConfirmId hits the API
+  // on the first confirm tap.
   const confirmDeleteProduct = async () => {
-    if (!pendingDeleteId) return;
+    if (!deleteConfirmId) return;
+    const id = deleteConfirmId;
+    setDeleteConfirmId(null);
     try {
-      await apiRequest(`/api/marketplace/admin/products/${pendingDeleteId}`, { method: 'DELETE' });
+      await apiRequest(`/api/marketplace/admin/products/${id}`, { method: 'DELETE' });
       await fetchData();
     } catch (error) {
       console.error('Error deleting product:', error);
-    } finally {
-      setPendingDeleteId(null);
     }
-    setDeleteConfirmId(null);
   };
 
   // Edit product
@@ -346,13 +347,6 @@ export function MarketplaceManagerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {pendingDeleteId && (
-        <DeleteProductConfirm
-          language={language}
-          onCancel={() => setPendingDeleteId(null)}
-          onConfirm={confirmDeleteProduct}
-        />
-      )}
       {/* Header */}
       <div className="bg-white border-b px-4 py-4">
         <div className="flex items-center gap-3">
@@ -972,7 +966,7 @@ export function MarketplaceManagerDashboard() {
           language={language}
           variant="destructive-z300"
           onCancel={() => setDeleteConfirmId(null)}
-          onConfirm={() => deleteProduct(deleteConfirmId)}
+          onConfirm={confirmDeleteProduct}
         />
       )}
     </div>
