@@ -216,9 +216,10 @@ Example Samsung S10:
 
 ## ИЗВЕСТНЫЕ ПРОБЛЕМЫ KAMIZO
 
-### Android PWA — зазор под BottomBar
-**Причина:** `env(safe-area-inset-bottom) = 0px` на Android. Между viewport bottom (793px) и screen bottom (852px) = 59px Android navbar. Body background (#fff7ed gradient) просвечивает.
-**Фикс:** `body { background: white }` на мобилке. `theme-color: #FFFFFF` в manifest.
+### Android PWA — зазор под BottomBar (исторический, уже устранён)
+**Причина:** `env(safe-area-inset-bottom) = 0px` на Android. Между viewport bottom и screen bottom — 48-59px Android navbar. Раньше body просвечивал сквозь него.
+**Текущее решение (уже в проде):** единый токен `--app-bg: #F4F0E8` (warm beige, `src/frontend/src/index.css:163`, дарк — `#1A1612` на `:root[data-theme=dark]`). `html`, `body`, `#root`, `.layout-root` все красят `var(--app-bg)` — прозрачных слоёв, куда может «пробиться» дефолтный серый браузера, нет. `#fff7ed` в токенах существует, но это `--brand-bg` (акцент), не body.
+**Если снова заметишь зазор:** значит какой-то из этих 4 селекторов потерял `background: var(--app-bg)`. Грепни `grep -n "background" src/frontend/src/index.css` и сверь с 4-мя якорями выше.
 
 ### iPhone PWA — BottomBar плывёт
 **Причина:** `height: 100%` вместо `100dvh` в CSS. PWA standalone viewport != browser viewport.
@@ -235,5 +236,8 @@ Example Samsung S10:
 ```bash
 cd src/frontend && npx tsc --noEmit   # 0 ошибок
 npm run build                          # успешная сборка
-cd cloudflare && npx wrangler deploy   # деплой (с подтверждения)
 ```
+
+**Деплой** (только с подтверждения):
+- **Фронт (это то, что чинит adapter — CSS/JSX)**: `cd cloudflare && npx wrangler deploy` после сборки и `cp -r dist/. cloudflare/public/`. См. CLAUDE.md, обязательна пост-деплой bundle-проверка через skill `kamizo-post-deploy-verify`.
+- **Backend**: НЕ через wrangler — через `rsync -avz cloudflare/src/ kamizo@95.46.96.209:/opt/kamizo/app/server-src/` + `sudo systemctl restart kamizo-api`. Adapter обычно не трогает backend, но если правка задела `cloudflare/src/**` — путь другой.
