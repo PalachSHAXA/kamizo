@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { lazyWithRetry } from '../../utils/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useAnnouncementStore, useNotificationStore } from '../../stores/dataStore';
@@ -110,62 +111,62 @@ const PageLoader = () => (
 );
 
 // Lazy loaded pages - code splitting for optimal bundle size
-const ManagerDashboard = lazy(() => import('../../pages/ManagerDashboard').then(m => ({ default: m.ManagerDashboard })));
-const DepartmentHeadDashboard = lazy(() => import('../../pages/DepartmentHeadDashboard').then(m => ({ default: m.DepartmentHeadDashboard })));
-const ExecutorDashboard = lazy(() => import('../../pages/ExecutorDashboard').then(m => ({ default: m.ExecutorDashboard })));
-const ExecutorSchedulePage = lazy(() => import('../../pages/ExecutorSchedulePage').then(m => ({ default: m.ExecutorSchedulePage })));
-const ExecutorStatsPage = lazy(() => import('../../pages/ExecutorStatsPage').then(m => ({ default: m.ExecutorStatsPage })));
-const ExecutorAnnouncementsPage = lazy(() => import('../../pages/ExecutorAnnouncementsPage').then(m => ({ default: m.ExecutorAnnouncementsPage })));
-const ResidentDashboard = lazy(() => import('../../pages/ResidentDashboard').then(m => ({ default: m.ResidentDashboard })));
-const AdminDashboard = lazy(() => import('../../pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
-const DirectorDashboard = lazy(() => import('../../pages/DirectorDashboard').then(m => ({ default: m.DirectorDashboard })));
-const BuildingsPage = lazy(() => import('../../pages/BuildingsPage').then(m => ({ default: m.BuildingsPage })));
-const AnnouncementsPage = lazy(() => import('../../pages/AnnouncementsPage').then(m => ({ default: m.AnnouncementsPage })));
-const MeetingsPage = lazy(() => import('../../pages/MeetingsPage').then(m => ({ default: m.MeetingsPage })));
-const ResidentAnnouncementsPage = lazy(() => import('../../pages/ResidentAnnouncementsPage').then(m => ({ default: m.ResidentAnnouncementsPage })));
-const ResidentMeetingsPage = lazy(() => import('../../pages/ResidentMeetingsPage').then(m => ({ default: m.ResidentMeetingsPage })));
-const ResidentRateEmployeesPage = lazy(() => import('../../pages/ResidentRateEmployeesPage').then(m => ({ default: m.ResidentRateEmployeesPage })));
-const WorkOrdersPage = lazy(() => import('../../pages/WorkOrdersPage').then(m => ({ default: m.WorkOrdersPage })));
-const TrainingsPage = lazy(() => import('../../pages/TrainingsPage'));
-const ColleaguesSection = lazy(() => import('../../pages/ColleaguesSection').then(m => ({ default: m.ColleaguesSection })));
-const ResidentVehiclesPage = lazy(() => import('../../pages/ResidentVehiclesPage').then(m => ({ default: m.ResidentVehiclesPage })));
+const ManagerDashboard = lazyWithRetry(() => import('../../pages/ManagerDashboard').then(m => ({ default: m.ManagerDashboard })));
+const DepartmentHeadDashboard = lazyWithRetry(() => import('../../pages/DepartmentHeadDashboard').then(m => ({ default: m.DepartmentHeadDashboard })));
+const ExecutorDashboard = lazyWithRetry(() => import('../../pages/ExecutorDashboard').then(m => ({ default: m.ExecutorDashboard })));
+const ExecutorSchedulePage = lazyWithRetry(() => import('../../pages/ExecutorSchedulePage').then(m => ({ default: m.ExecutorSchedulePage })));
+const ExecutorStatsPage = lazyWithRetry(() => import('../../pages/ExecutorStatsPage').then(m => ({ default: m.ExecutorStatsPage })));
+const ExecutorAnnouncementsPage = lazyWithRetry(() => import('../../pages/ExecutorAnnouncementsPage').then(m => ({ default: m.ExecutorAnnouncementsPage })));
+const ResidentDashboard = lazyWithRetry(() => import('../../pages/ResidentDashboard').then(m => ({ default: m.ResidentDashboard })));
+const AdminDashboard = lazyWithRetry(() => import('../../pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const DirectorDashboard = lazyWithRetry(() => import('../../pages/DirectorDashboard').then(m => ({ default: m.DirectorDashboard })));
+const BuildingsPage = lazyWithRetry(() => import('../../pages/BuildingsPage').then(m => ({ default: m.BuildingsPage })));
+const AnnouncementsPage = lazyWithRetry(() => import('../../pages/AnnouncementsPage').then(m => ({ default: m.AnnouncementsPage })));
+const MeetingsPage = lazyWithRetry(() => import('../../pages/MeetingsPage').then(m => ({ default: m.MeetingsPage })));
+const ResidentAnnouncementsPage = lazyWithRetry(() => import('../../pages/ResidentAnnouncementsPage').then(m => ({ default: m.ResidentAnnouncementsPage })));
+const ResidentMeetingsPage = lazyWithRetry(() => import('../../pages/ResidentMeetingsPage').then(m => ({ default: m.ResidentMeetingsPage })));
+const ResidentRateEmployeesPage = lazyWithRetry(() => import('../../pages/ResidentRateEmployeesPage').then(m => ({ default: m.ResidentRateEmployeesPage })));
+const WorkOrdersPage = lazyWithRetry(() => import('../../pages/WorkOrdersPage').then(m => ({ default: m.WorkOrdersPage })));
+const TrainingsPage = lazyWithRetry(() => import('../../pages/TrainingsPage'));
+const ColleaguesSection = lazyWithRetry(() => import('../../pages/ColleaguesSection').then(m => ({ default: m.ColleaguesSection })));
+const ResidentVehiclesPage = lazyWithRetry(() => import('../../pages/ResidentVehiclesPage').then(m => ({ default: m.ResidentVehiclesPage })));
 // v118.36 — AddCarPage is mounted as a TOP-LEVEL route in App.tsx
 // (outside the Layout shell) so it owns the whole viewport without
 // the app drawer header or bottom nav bar. The lazy import lives
 // in App.tsx — removed from here to avoid duplicate loading.
-const VehicleSearchPage = lazy(() => import('../../pages/VehicleSearchPage').then(m => ({ default: m.VehicleSearchPage })));
-const ResidentGuestAccessPage = lazy(() => import('../../pages/ResidentGuestAccessPage').then(m => ({ default: m.ResidentGuestAccessPage })));
-const GuardQRScannerPage = lazy(() => import('../../pages/GuardQRScannerPage').then(m => ({ default: m.GuardQRScannerPage })));
-const ManagerGuestAccessPage = lazy(() => import('../../pages/ManagerGuestAccessPage').then(m => ({ default: m.ManagerGuestAccessPage })));
-const ResidentsPage = lazy(() => import('../../pages/ResidentsPage').then(m => ({ default: m.ResidentsPage })));
-const ChatPage = lazy(() => import('../../pages/ChatPage').then(m => ({ default: m.ChatPage })));
-const ResidentProfilePage = lazy(() => import('../../pages/ResidentProfilePage').then(m => ({ default: m.ResidentProfilePage })));
-const StaffProfilePage = lazy(() => import('../../pages/StaffProfilePage').then(m => ({ default: m.StaffProfilePage })));
-const ResidentContractPage = lazy(() => import('../../pages/ResidentContractPage').then(m => ({ default: m.ResidentContractPage })));
-const ResidentUsefulContactsPage = lazy(() => import('../../pages/ResidentUsefulContactsPage'));
-const AdvertiserDashboard = lazy(() => import('../../pages/AdvertiserDashboard').then(m => ({ default: m.AdvertiserDashboard })));
-const NotepadPage = lazy(() => import('../../pages/NotepadPage').then(m => ({ default: m.NotepadPage })));
-const TenantDashboard = lazy(() => import('../../pages/tenant/TenantDashboard').then(m => ({ default: m.TenantDashboard })));
-const ExecutorsPage = lazy(() => import('../../pages/shared/ExecutorsPage').then(m => ({ default: m.ExecutorsPage })));
-const RequestsPage = lazy(() => import('../../pages/shared/RequestsPage').then(m => ({ default: m.RequestsPage })));
-const RentalsPage = lazy(() => import('../../pages/manager/RentalsPage').then(m => ({ default: m.RentalsPage })));
-const TeamPage = lazy(() => import('../../pages/admin/TeamPage').then(m => ({ default: m.TeamPage })));
-const ReportsPage = lazy(() => import('../../pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
-const SettingsPage = lazy(() => import('../../pages/admin/SettingsPage').then(m => ({ default: m.SettingsPage })));
-const MonitoringPage = lazy(() => import('../../pages/admin/MonitoringPage').then(m => ({ default: m.MonitoringPage })));
-const MarketplacePage = lazy(() => import('../../pages/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
-const MarketplaceManagerDashboard = lazy(() => import('../../pages/MarketplaceManagerDashboard').then(m => ({ default: m.MarketplaceManagerDashboard })));
-const MarketplaceOrdersPage = lazy(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
-const SuperAdminDashboard = lazy(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
-const PaymentsPage = lazy(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
+const VehicleSearchPage = lazyWithRetry(() => import('../../pages/VehicleSearchPage').then(m => ({ default: m.VehicleSearchPage })));
+const ResidentGuestAccessPage = lazyWithRetry(() => import('../../pages/ResidentGuestAccessPage').then(m => ({ default: m.ResidentGuestAccessPage })));
+const GuardQRScannerPage = lazyWithRetry(() => import('../../pages/GuardQRScannerPage').then(m => ({ default: m.GuardQRScannerPage })));
+const ManagerGuestAccessPage = lazyWithRetry(() => import('../../pages/ManagerGuestAccessPage').then(m => ({ default: m.ManagerGuestAccessPage })));
+const ResidentsPage = lazyWithRetry(() => import('../../pages/ResidentsPage').then(m => ({ default: m.ResidentsPage })));
+const ChatPage = lazyWithRetry(() => import('../../pages/ChatPage').then(m => ({ default: m.ChatPage })));
+const ResidentProfilePage = lazyWithRetry(() => import('../../pages/ResidentProfilePage').then(m => ({ default: m.ResidentProfilePage })));
+const StaffProfilePage = lazyWithRetry(() => import('../../pages/StaffProfilePage').then(m => ({ default: m.StaffProfilePage })));
+const ResidentContractPage = lazyWithRetry(() => import('../../pages/ResidentContractPage').then(m => ({ default: m.ResidentContractPage })));
+const ResidentUsefulContactsPage = lazyWithRetry(() => import('../../pages/ResidentUsefulContactsPage'));
+const AdvertiserDashboard = lazyWithRetry(() => import('../../pages/AdvertiserDashboard').then(m => ({ default: m.AdvertiserDashboard })));
+const NotepadPage = lazyWithRetry(() => import('../../pages/NotepadPage').then(m => ({ default: m.NotepadPage })));
+const TenantDashboard = lazyWithRetry(() => import('../../pages/tenant/TenantDashboard').then(m => ({ default: m.TenantDashboard })));
+const ExecutorsPage = lazyWithRetry(() => import('../../pages/shared/ExecutorsPage').then(m => ({ default: m.ExecutorsPage })));
+const RequestsPage = lazyWithRetry(() => import('../../pages/shared/RequestsPage').then(m => ({ default: m.RequestsPage })));
+const RentalsPage = lazyWithRetry(() => import('../../pages/manager/RentalsPage').then(m => ({ default: m.RentalsPage })));
+const TeamPage = lazyWithRetry(() => import('../../pages/admin/TeamPage').then(m => ({ default: m.TeamPage })));
+const ReportsPage = lazyWithRetry(() => import('../../pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const SettingsPage = lazyWithRetry(() => import('../../pages/admin/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const MonitoringPage = lazyWithRetry(() => import('../../pages/admin/MonitoringPage').then(m => ({ default: m.MonitoringPage })));
+const MarketplacePage = lazyWithRetry(() => import('../../pages/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
+const MarketplaceManagerDashboard = lazyWithRetry(() => import('../../pages/MarketplaceManagerDashboard').then(m => ({ default: m.MarketplaceManagerDashboard })));
+const MarketplaceOrdersPage = lazyWithRetry(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
+const SuperAdminDashboard = lazyWithRetry(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
+const PaymentsPage = lazyWithRetry(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
 // Finance module pages
-const FinanceEstimatesPage = lazy(() => import('../../pages/finance/EstimatesPage'));
-const FinanceChargesPage = lazy(() => import('../../pages/finance/ChargesPage'));
-const FinanceDebtorsPage = lazy(() => import('../../pages/finance/DebtorsPage'));
-const FinanceIncomePage = lazy(() => import('../../pages/finance/IncomePage'));
-const FinanceMaterialsPage = lazy(() => import('../../pages/finance/MaterialsPage'));
-const FinanceSettingsPage = lazy(() => import('../../pages/finance/SettingsPage'));
-const FinanceExpensesPage = lazy(() => import('../../pages/finance/ExpensesPage'));
+const FinanceEstimatesPage = lazyWithRetry(() => import('../../pages/finance/EstimatesPage'));
+const FinanceChargesPage = lazyWithRetry(() => import('../../pages/finance/ChargesPage'));
+const FinanceDebtorsPage = lazyWithRetry(() => import('../../pages/finance/DebtorsPage'));
+const FinanceIncomePage = lazyWithRetry(() => import('../../pages/finance/IncomePage'));
+const FinanceMaterialsPage = lazyWithRetry(() => import('../../pages/finance/MaterialsPage'));
+const FinanceSettingsPage = lazyWithRetry(() => import('../../pages/finance/SettingsPage'));
+const FinanceExpensesPage = lazyWithRetry(() => import('../../pages/finance/ExpensesPage'));
 
 export function Layout() {
   const location = useLocation();
@@ -568,20 +569,33 @@ export function Layout() {
 
         <main id="main-content" role="main" className={isResidentFullBleed ? 'page-content page-content-full-bleed' : 'px-3 py-3 md:p-6 lg:p-7 xl:p-8 page-content'}>
           <Suspense fallback={<PageLoader />}>
-            {/* Re-mount the routed subtree on every pathname change so
-                the .page-transition CSS animation (opacity-only fade,
-                ~220ms ease-out) fires on every navigation. The wrapper
-                is intentionally INSIDE <main> + INSIDE <Suspense>:
-                  - It's NOT an ancestor of the portaled BottomBar
-                    (createPortal → document.body) or the sibling
-                    MobileHeader → those stay rock-still during the
-                    fade.
-                  - The animation is opacity-only, never transform, so
-                    routed pages that contain their own position:fixed
-                    overlays (e.g. ResidentContractPage's sticky bottom
-                    bar) keep being anchored to the viewport, not to
-                    this wrapper.
-                Honors prefers-reduced-motion via the CSS rule. */}
+            {/* v118.169 — reverted the v118.163 <AnimatedOutlet> cross-fade.
+                The outlet pinned <Routes location={someSnapshot}> so its
+                inner subtree read from the pinned location snapshot, not
+                the live router. That broke every query-param-based tab
+                switch on the resident BottomBar (Заявки uses '/?tab=
+                requests' — same pathname, only search changes). The
+                outlet's guard was pathname-only → search-only navs never
+                triggered a swap, pages state stayed on the initial
+                snapshot, useSearchParams inside the pinned Routes returned
+                the OLD search, ResidentDashboard's activeTab stayed 'home'
+                forever. Symptom: BottomBar highlights Заявки but the
+                screen still renders Home.
+
+                Back to the pre-v118.163 approach: <div key=pathname>
+                triggers a fresh mount only on pathname change; <Routes>
+                is NOT pinned, so it reads the live router location and
+                query params flow through normally. The .page-transition
+                CSS class provides the same 220 ms opacity fade the app
+                had before v118.163 — see the .page-transition rule in
+                index.css. Same iOS-safety guarantees preserved:
+                  - Opacity-only, no transform → no WKWebView momentum-
+                    scroll breakage on descendants.
+                  - BottomBar (portaled to document.body) and MobileHeader
+                    (sibling of <main>) sit OUTSIDE this wrapper — they
+                    stay rock-still during the fade.
+                  - position:fixed overlays inside pages still anchor to
+                    the viewport, not this wrapper (no transform). */}
             <div key={location.pathname} className="page-transition">
             <Routes>
               <Route path="/" element={getDashboard()} />

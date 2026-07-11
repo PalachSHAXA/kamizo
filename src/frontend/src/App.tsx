@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useCRMStore } from './stores/crmStore';
@@ -26,11 +27,11 @@ import { NavigationDirectionTracker } from './components/NavigationDirectionTrac
 // and no bottom navigation bar. Same pattern as /login. Lazy-loaded
 // because it's a leaf screen reached only from the garage's "Add"
 // button — keeps the main bundle small.
-const AddCarPage = lazy(() => import('./pages/AddCarPage'));
+const AddCarPage = lazyWithRetry(() => import('./pages/AddCarPage'));
 // v118.63 — ResidentVehiclesPage (гараж) выведен из Layout: должен
 // быть full-screen без top header (drawer + bell) и без bottom nav.
 // Той же схеме как AddCarPage. Named export → требуется .then().
-const ResidentVehiclesPage = lazy(() =>
+const ResidentVehiclesPage = lazyWithRetry(() =>
   import('./pages/ResidentVehiclesPage').then((m) => ({ default: m.ResidentVehiclesPage }))
 );
 // v118.67 — ResidentAnnouncementsPage тоже full-screen для residents.
@@ -38,14 +39,14 @@ const ResidentVehiclesPage = lazy(() =>
 // и т.д.) через их Sidebar nav — для них нужен Layout chrome. Поэтому
 // делаем role-split: resident → full-screen, остальные → fall through
 // в Layout (через AnnouncementsRoleSplit ниже в JSX).
-const ResidentAnnouncementsPage = lazy(() =>
+const ResidentAnnouncementsPage = lazyWithRetry(() =>
   import('./pages/ResidentAnnouncementsPage').then((m) => ({ default: m.ResidentAnnouncementsPage }))
 );
 // v118.72 — /notifications standalone page for residents. Same role-split
 // pattern as /announcements (v118.67): residents → full-screen, staff fall
 // through to Layout which currently 404s for /notifications (no staff
 // notifications page exists yet; that's a future addition).
-const NotificationsPage = lazy(() =>
+const NotificationsPage = lazyWithRetry(() =>
   import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage }))
 );
 // v118.77 — /meetings standalone page for residents. Role-split shape
@@ -53,7 +54,7 @@ const NotificationsPage = lazy(() =>
 // → full-screen ResidentMeetingsPage; staff/tenant/commercial_owner fall
 // through to Layout (whose nested /meetings Route hands them off to
 // MeetingsPage via getMeetingsPage()).
-const ResidentMeetingsPage = lazy(() =>
+const ResidentMeetingsPage = lazyWithRetry(() =>
   import('./pages/ResidentMeetingsPage').then((m) => ({ default: m.ResidentMeetingsPage }))
 );
 
@@ -223,6 +224,26 @@ function App() {
   return (
     <>
       <ThemeProvider />
+      {/* v118.166 — hoisted ABOVE the routing tree so React commits its
+          portal (createPortal → document.body) synchronously on the
+          first render, before Layout/BottomBar's own portal call. Both
+          land on document.body in the same commit, but the order the
+          React sub-tree visits them matters for the mid-mount frame:
+          overlay mounted first → its DOM node exists before BottomBar's
+          → z-index:9999 wins from the start. Belt-and-braces with the
+          `body.app-booting` guard that hides the bottom bar during the
+          boot window anyway.
+
+          The overlay renders on every launch on top of everything and
+          self-unmounts after ~3 s. Theme is picked by local clock time
+          (07–19 → light, else dark) so the splash matches morning vs
+          evening regardless of the iOS appearance setting. The native
+          @capacitor/splash-screen is configured neutral cream + launch
+          AutoHide:false; this component calls SplashScreen.hide() from
+          a `playing + 2 RAFs` gated effect so the user sees a single
+          seamless splash with zero coverage gap. See
+          NativeSplashOverlay.tsx. */}
+      <NativeSplashOverlay />
       <ErrorBoundary>
         <BrowserRouter>
           {/* v118.79 — stamps body.dataset.nav with push/pop so CSS
@@ -299,15 +320,11 @@ function App() {
         </BrowserRouter>
       </ErrorBoundary>
       <Toast />
-      {/* v118.13 — webview splash overlay. Renders on every launch on
-          top of everything; self-unmounts after ~3 s. Theme is picked
-          by local clock time (07–19 → light, else dark) so the splash
-          matches morning vs evening regardless of the iOS appearance
-          setting. The native @capacitor/splash-screen is configured
-          neutral cream + launchAutoHide:false; this component calls
-          SplashScreen.hide() in its useEffect so the user sees a
-          single seamless splash. See NativeSplashOverlay.tsx. */}
-      <NativeSplashOverlay />
+      {/* v118.166 — NativeSplashOverlay moved to BEFORE the routing
+          tree (see above) so its portal commits before
+          BottomBar's — same DOM target (document.body), but earlier
+          in React's commit order. The old placement here has been
+          removed to avoid a duplicate mount. */}
     </>
   );
 }

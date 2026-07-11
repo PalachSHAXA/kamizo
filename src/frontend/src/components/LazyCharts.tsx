@@ -1,20 +1,21 @@
-import { lazy, Suspense, type ComponentProps } from 'react';
+import { Suspense, type ComponentProps } from 'react';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 // Direct import for Cell - it must be synchronous inside Pie
 import { Cell as RechartsCell } from 'recharts';
 
 // Lazy load recharts components
-const LazyLineChart = lazy(() => import('recharts').then(module => ({ default: module.LineChart })));
-const LazyBarChart = lazy(() => import('recharts').then(module => ({ default: module.BarChart })));
-const LazyPieChart = lazy(() => import('recharts').then(module => ({ default: module.PieChart })));
-const LazyLine = lazy(() => import('recharts').then(module => ({ default: module.Line })));
-const LazyBar = lazy(() => import('recharts').then(module => ({ default: module.Bar })));
-const LazyPie = lazy(() => import('recharts').then(module => ({ default: module.Pie })));
-const LazyXAxis = lazy(() => import('recharts').then(module => ({ default: module.XAxis })));
-const LazyYAxis = lazy(() => import('recharts').then(module => ({ default: module.YAxis })));
-const LazyCartesianGrid = lazy(() => import('recharts').then(module => ({ default: module.CartesianGrid })));
-const LazyTooltip = lazy(() => import('recharts').then(module => ({ default: module.Tooltip })));
-const LazyLegend = lazy(() => import('recharts').then(module => ({ default: module.Legend })));
-const LazyResponsiveContainer = lazy(() => import('recharts').then(module => ({ default: module.ResponsiveContainer })));
+const LazyLineChart = lazyWithRetry(() => import('recharts').then(module => ({ default: module.LineChart })));
+const LazyBarChart = lazyWithRetry(() => import('recharts').then(module => ({ default: module.BarChart })));
+const LazyPieChart = lazyWithRetry(() => import('recharts').then(module => ({ default: module.PieChart })));
+const LazyLine = lazyWithRetry(() => import('recharts').then(module => ({ default: module.Line })));
+const LazyBar = lazyWithRetry(() => import('recharts').then(module => ({ default: module.Bar })));
+const LazyPie = lazyWithRetry(() => import('recharts').then(module => ({ default: module.Pie })));
+const LazyXAxis = lazyWithRetry(() => import('recharts').then(module => ({ default: module.XAxis })));
+const LazyYAxis = lazyWithRetry(() => import('recharts').then(module => ({ default: module.YAxis })));
+const LazyCartesianGrid = lazyWithRetry(() => import('recharts').then(module => ({ default: module.CartesianGrid })));
+const LazyTooltip = lazyWithRetry(() => import('recharts').then(module => ({ default: module.Tooltip })));
+const LazyLegend = lazyWithRetry(() => import('recharts').then(module => ({ default: module.Legend })));
+const LazyResponsiveContainer = lazyWithRetry(() => import('recharts').then(module => ({ default: module.ResponsiveContainer })));
 
 // Loading placeholder
 const ChartLoader = () => (
@@ -100,8 +101,8 @@ export const ResponsiveContainer = (props: ComponentProps<typeof LazyResponsiveC
 export const Cell = RechartsCell;
 
 // Area chart components
-const LazyAreaChart = lazy(() => import('recharts').then(module => ({ default: module.AreaChart })));
-const LazyArea = lazy(() => import('recharts').then(module => ({ default: module.Area })));
+const LazyAreaChart = lazyWithRetry(() => import('recharts').then(module => ({ default: module.AreaChart })));
+const LazyArea = lazyWithRetry(() => import('recharts').then(module => ({ default: module.Area })));
 
 export const AreaChart = (props: ComponentProps<typeof LazyAreaChart>) => (
   <Suspense fallback={<ChartLoader />}>
