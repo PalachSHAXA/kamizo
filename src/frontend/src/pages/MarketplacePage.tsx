@@ -561,10 +561,35 @@ export function MarketplacePage() {
 
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
-      {/* HEADER */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-2xl border-b border-gray-100/60 md:hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      {/* HEADER — sticky, "остаётся на месте" при скролле карточек товаров.
+          bg-white (не /95): полупрозрачный фон + backdrop-blur на iOS
+          WKWebView иногда воспринимался как «уплывает» — визуально
+          сквозь заголовок просвечивают карточки. Полная непрозрачность
+          убирает эту иллюзию.
+          willChange: 'transform' форсирует создание composite-слоя —
+          лекарство от известного sticky-глюка Safari, когда прилипание
+          «отваливается» после первого overscroll. */}
+      <div
+        className="sticky top-0 z-40 bg-white border-b border-gray-100 md:hidden"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', willChange: 'transform' }}
+      >
         <div className="px-4 pt-1.5 pb-2 flex items-center justify-between">
-          <button onClick={() => navigate('/')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}>
+          <button
+            onClick={() => {
+              // Иерархичный возврат (2026-07-11): из под-таба (Избранное /
+              // Корзина / Заказы) отходим сначала на корневой таб магазина
+              // «Магазин», а не сразу на Главную. Так житель не «вылетает»
+              // из магазина случайным нажатием ←, если он глубоко залез
+              // внутрь. Со shop-таба ← уводит на /.
+              if (activeTab !== 'shop') {
+                setActiveTab('shop');
+              } else {
+                navigate('/');
+              }
+            }}
+            className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center active:scale-90 transition-transform touch-manipulation"
+            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+          >
             <ArrowLeft className="w-[18px] h-[18px] text-gray-700" />
           </button>
           <div className="text-center">
