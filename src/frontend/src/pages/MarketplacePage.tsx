@@ -6,18 +6,50 @@ import {
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { useTenantStore } from '../stores/tenantStore';
 import { useToastStore } from '../stores/toastStore';
 import { useModalPresence } from '../stores/modalStore';
+// Единая правда о жизненном цикле заказа — импортируем канонический
+// union (все 13 статусов включая on-demand — Этап 2, миграция 054).
+// Раньше локальный `type` в этом файле знал только 7 stock-статусов,
+// поэтому on-demand-заявки после Этапа 3 показывались как «Заказ
+// оформлен / 0 сум» (fallback m[status] || m.new в getOrderStatusMessage).
+import type { MarketplaceOrderStatus } from '../types/marketplace';
 
 interface MarketplaceCategoryAPI { id: string; name_ru: string; name_uz: string; icon?: string; sort_order: number; is_active: boolean; created_at: string; }
 interface MarketplaceProductAPI { id: string; category_id: string; name_ru: string; name_uz: string; description_ru?: string; description_uz?: string; price: number; old_price?: number; unit: string; stock_quantity: number; image_url?: string; is_active: boolean; is_featured: boolean; is_on_demand?: boolean; created_at: string; }
 interface MarketplaceCartItemAPI { id: string; product_id: string; quantity: number; added_at: string; }
-interface MarketplaceOrderAPI { id: string; order_number: string; resident_id: string; resident_name?: string; resident_phone?: string; resident_address?: string; resident_apartment?: string; status: MarketplaceOrderStatus; items: MarketplaceOrderItemAPI[]; total_amount: number; items_count: number; delivery_note?: string; created_at: string; rating?: number; review?: string; }
+interface MarketplaceOrderAPI {
+  id: string;
+  order_number: string;
+  resident_id: string;
+  resident_name?: string;
+  resident_phone?: string;
+  resident_address?: string;
+  resident_apartment?: string;
+  status: MarketplaceOrderStatus;
+  items: MarketplaceOrderItemAPI[];
+  total_amount: number;
+  items_count: number;
+  delivery_note?: string;
+  created_at: string;
+  rating?: number;
+  review?: string;
+  // On-demand fields (migration 054). `order_type` gates all
+  // negotiation UI; `delivery_fee` + `final_amount` split the offered
+  // price for the resident; `price_offered_expires_at` powers the
+  // 24-h deadline; `cancellation_reason` shows the manager's note
+  // for terminal statuses (price_declined / unavailable / cancelled).
+  order_type?: 'stock' | 'on_demand';
+  delivery_fee?: number;
+  final_amount?: number;
+  price_offered_at?: string | null;
+  price_offered_expires_at?: string | null;
+  cancellation_reason?: string | null;
+}
 interface MarketplaceOrderItemAPI { id: string; order_id?: string; product_id: string; product_name?: string; product_image?: string; quantity: number; price?: number; unit_price?: number; total_price?: number; }
-type MarketplaceOrderStatus = 'new' | 'confirmed' | 'preparing' | 'ready' | 'delivering' | 'delivered' | 'cancelled';
 
 const ORDER_STAGES = [
   { id: 'created', statuses: ['new'], labelRu: 'Новый', labelUz: 'Yangi', icon: ShoppingBag },
@@ -28,16 +60,26 @@ const ORDER_STAGES = [
   { id: 'delivered', statuses: ['delivered'], labelRu: 'Получен', labelUz: 'Qabul', icon: CheckCircle },
 ];
 
+// Returns -1 for statuses that don't belong on the stock progress bar
+// (cancelled + all on-demand states). Callers check `si < 0` and skip
+// rendering the bar. Previous version returned 0 for unknown statuses,
+// which highlighted «Новый» for on-demand заявок in negotiation.
 function getOrderStageIndex(status: MarketplaceOrderStatus): number {
   if (status === 'cancelled') return -1;
   for (let i = 0; i < ORDER_STAGES.length; i++) {
     if (ORDER_STAGES[i].statuses.includes(status)) return i;
   }
-  return 0;
+  return -1;
 }
 
+// Resident-view labels — cover BOTH stock and on-demand lifecycles.
+// On-demand phrasing is deliberately жителе-центричное ("ждём УК" vs
+// generic "Ожидает обработки" из types/marketplace.ts) — этот словарь
+// живёт в компоненте потому что дефолтный резидент-словарь-Record из
+// types/marketplace.ts используется другими view'ами тоже.
 function getOrderStatusMessage(status: MarketplaceOrderStatus, lang: 'ru' | 'uz'): { title: string; subtitle: string } {
-  const m: Record<string, { ru: [string, string]; uz: [string, string] }> = {
+  const m: Record<MarketplaceOrderStatus, { ru: [string, string]; uz: [string, string] }> = {
+    // Stock lifecycle
     new: { ru: ['Заказ оформлен', 'Ожидаем подтверждения'], uz: ['Buyurtma yaratildi', 'Tasdiqlanishini kutmoqdamiz'] },
     confirmed: { ru: ['Заказ принят', 'Начинаем сборку'], uz: ['Buyurtma qabul qilindi', 'Yig\'ishni boshlaymiz'] },
     preparing: { ru: ['Собираем заказ', 'Скоро будет готов'], uz: ['Buyurtma yig\'ilmoqda', 'Tez orada tayyor bo\'ladi'] },
@@ -45,6 +87,13 @@ function getOrderStatusMessage(status: MarketplaceOrderStatus, lang: 'ru' | 'uz'
     delivering: { ru: ['Курьер в пути', 'Скоро будет у вас'], uz: ['Kuryer yo\'lda', 'Tez orada sizda bo\'ladi'] },
     delivered: { ru: ['Доставлен', 'Приятного аппетита!'], uz: ['Yetkazildi', 'Yoqimli ishtaha!'] },
     cancelled: { ru: ['Отменён', ''], uz: ['Bekor qilindi', ''] },
+    // On-demand lifecycle (Этап 4b) — резидент-центричные фразы
+    awaiting_price: { ru: ['Заявка отправлена', 'Ждём УК'],           uz: ['Ariza yuborildi',       'Boshqaruvni kutmoqdamiz'] },
+    price_pending:  { ru: ['УК уточняет цену', 'Скоро назовут стоимость'], uz: ['Boshqaruv narxni aniqlamoqda', 'Tez orada narx aytiladi'] },
+    price_offered:  { ru: ['Цена предложена', 'Ответьте — согласны или нет'], uz: ['Narx taklif qilindi', 'Rozimisiz yoki yo\'q — javob bering'] },
+    price_accepted: { ru: ['Цена принята', 'УК начала обработку'],    uz: ['Narx qabul qilindi',   'Boshqaruv ishga tushdi'] },
+    price_declined: { ru: ['Вы отказались', 'Заявка закрыта'],        uz: ['Siz rad etdingiz',     'Ariza yopildi'] },
+    unavailable:    { ru: ['УК не смогла достать', 'Товар недоступен'], uz: ["Boshqaruv topib bo'lmadi", 'Mahsulot mavjud emas'] },
   };
   const v = m[status] || m.new;
   const [title, subtitle] = lang === 'ru' ? v.ru : v.uz;
@@ -249,6 +298,28 @@ export function MarketplacePage() {
     if (id) { const o = orders.find(x => x.id === id); if (o?.status === 'delivered') { setRatingOrderId(id); setShowDeliveryRatingModal(true); sessionStorage.removeItem('open_delivery_rating_for_order'); } }
   }, [orders]);
 
+  // Bug A deeplink (Этап 4b, 2026-07-11): push-нотификации
+  // marketplace_order приходят с data.url = `/marketplace?orderId=…`.
+  // Раньше sw.js открывал `/`, и житель попадал в магазин без
+  // контекста. Теперь SW уводит сюда — а мы читаем query, включаем
+  // таб «Заказы» и открываем карточку. history.replaceState стирает
+  // ?orderId=, чтобы кнопка «Назад» не гоняла между тем же экраном.
+  const location = useLocation();
+  useEffect(() => {
+    if (!orders.length || !location.search) return;
+    const params = new URLSearchParams(location.search);
+    const oid = params.get('orderId');
+    if (!oid) return;
+    const target = orders.find(o => o.id === oid);
+    if (target) {
+      setActiveTab('orders');
+      setSelectedOrder(target);
+    }
+    // Чистим query в любом случае — orphan-параметр в адресе только
+    // мешает: рефреш экрана снова триггернёт открытие.
+    window.history.replaceState({}, '', location.pathname);
+  }, [orders, location.search, location.pathname]);
+
   const removeFromCart = useCallback(async (productId: string) => {
     try { await apiRequest(`/api/marketplace/cart/${productId}`, { method: 'DELETE' }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
   }, []);
@@ -368,6 +439,47 @@ export function MarketplacePage() {
     if (!confirm(language === 'ru' ? 'Отменить заказ?' : 'Bekor qilish?')) return;
     try { setCancellingOrderId(orderId); await apiRequest(`/api/marketplace/orders/${orderId}/cancel`, { method: 'POST', body: JSON.stringify({ reason: language === 'ru' ? 'Отменено' : 'Bekor qilindi' }) }); const r = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders'); setOrders(r?.orders || []); } catch { addToast('error', language === 'ru' ? 'Ошибка' : 'Xato'); } finally { setCancellingOrderId(null); }
   };
+
+  // Этап 4b: on-demand-цена — accept/decline.
+  // Backend: POST /orders/:id/accept-price делает price_offered →
+  // price_accepted → confirmed (batched), заказ вливается в обычный
+  // fulfillment. POST /orders/:id/decline-price: price_offered →
+  // price_declined, cancellation_reason опционален.
+  const [priceActionOrderId, setPriceActionOrderId] = useState<string | null>(null);
+  // После accept/decline закрываем модалку — житель попадает обратно
+  // в список, где карточка уже с новым статусом (confirmed после моста
+  // price_accepted→confirmed или price_declined). Toast остаётся видимым
+  // и служит подтверждением действия. Refetch выполняется ДО закрытия,
+  // чтобы список успел обновиться и открытый ранее прогресс-бар исчез.
+  const acceptPriceOffer = useCallback(async (orderId: string) => {
+    setPriceActionOrderId(orderId);
+    try {
+      await apiRequest(`/api/marketplace/orders/${orderId}/accept-price`, { method: 'POST' });
+      const r = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
+      setOrders(r?.orders || []);
+      setSelectedOrder(null);
+      addToast('success', language === 'ru' ? 'Заказ подтверждён, УК везёт' : "Buyurtma tasdiqlandi, boshqaruv olib keladi");
+    } catch {
+      addToast('error', language === 'ru' ? 'Не удалось подтвердить' : "Tasdiqlab bo'lmadi");
+    } finally {
+      setPriceActionOrderId(null);
+    }
+  }, [addToast, language]);
+  const declinePriceOffer = useCallback(async (orderId: string) => {
+    if (!confirm(language === 'ru' ? 'Отказаться от цены?' : 'Narxdan voz kechish?')) return;
+    setPriceActionOrderId(orderId);
+    try {
+      await apiRequest(`/api/marketplace/orders/${orderId}/decline-price`, { method: 'POST', body: JSON.stringify({}) });
+      const r = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
+      setOrders(r?.orders || []);
+      setSelectedOrder(null);
+      addToast('info', language === 'ru' ? 'Вы отказались' : 'Siz rad etdingiz');
+    } catch {
+      addToast('error', language === 'ru' ? 'Не удалось отправить отказ' : "Rad etib bo'lmadi");
+    } finally {
+      setPriceActionOrderId(null);
+    }
+  }, [addToast, language]);
 
   const filteredProducts = useMemo(
     () => products.filter(p =>
@@ -781,13 +893,22 @@ export function MarketplacePage() {
               {activeOrders.map(order => {
                 const si = getOrderStageIndex(order.status);
                 const sm = getOrderStatusMessage(order.status, language);
+                const cardOnDemand = order.order_type === 'on_demand';
+                const cardPreOffer = cardOnDemand && (order.status === 'awaiting_price' || order.status === 'price_pending');
+                const cardOffered = cardOnDemand && order.status === 'price_offered';
+                const cardAmount = order.final_amount ?? order.total_amount;
                 return (
                   <div key={order.id} className="glass-card p-4 hover:shadow-lg transition-shadow cursor-pointer active:scale-[0.99]" onClick={() => setSelectedOrder(order)}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-900">#{order.order_number}</span>
-                          <span className="text-xs font-medium text-primary-700 bg-primary-100 px-2.5 py-0.5 rounded-full">{sm.title}</span>
+                          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${cardOffered ? 'bg-amber-100 text-amber-800' : 'bg-primary-100 text-primary-700'}`}>{sm.title}</span>
+                          {cardOnDemand && (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                              {language === 'ru' ? 'Под привоз' : 'Buyurtma'}
+                            </span>
+                          )}
                         </div>
                         {sm.subtitle && <p className="text-[12px] text-gray-500 mt-0.5">{sm.subtitle}</p>}
                         <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-2">
@@ -798,16 +919,28 @@ export function MarketplacePage() {
                           <span>{new Date(order.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                      <span className="text-[15px] font-bold text-gray-900 shrink-0">{fmt(order.total_amount)}</span>
+                      {!cardPreOffer && (
+                        <span className={`text-[15px] font-bold shrink-0 ${cardOffered ? 'text-amber-700' : 'text-gray-900'}`}>{fmt(cardAmount)}</span>
+                      )}
                     </div>
-                    <div className="mt-3">
-                      <div className="flex items-center gap-1">{ORDER_STAGES.map((s, i) => <div key={s.id} className="flex-1"><div className={`w-full h-[3px] rounded-full transition-colors ${si >= i ? 'bg-primary-500' : 'bg-gray-200'}`} /></div>)}</div>
-                      <div className="flex justify-between mt-1"><span className="text-xs text-gray-400">{language === 'ru' ? 'Новый' : 'Yangi'}</span><span className="text-xs text-gray-400">{language === 'ru' ? 'Получен' : 'Qabul'}</span></div>
-                    </div>
+                    {/* stock-progress-бар рисуем только когда заказ действительно
+                        в stock-жизненном цикле. Для on-demand до price_accepted
+                        цикл про сборку и доставку неприменим. */}
+                    {si >= 0 && (
+                      <div className="mt-3">
+                        <div className="flex items-center gap-1">{ORDER_STAGES.map((s, i) => <div key={s.id} className="flex-1"><div className={`w-full h-[3px] rounded-full transition-colors ${si >= i ? 'bg-primary-500' : 'bg-gray-200'}`} /></div>)}</div>
+                        <div className="flex justify-between mt-1"><span className="text-xs text-gray-400">{language === 'ru' ? 'Новый' : 'Yangi'}</span><span className="text-xs text-gray-400">{language === 'ru' ? 'Получен' : 'Qabul'}</span></div>
+                      </div>
+                    )}
                     <div className="mt-3 flex items-center gap-1.5">
                       {(order.items || []).slice(0, 4).map((it, i) => <div key={it.id || i} className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">{it.product_image ? <img src={it.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-xs text-white">{getProductEmoji(it.product_name || '', '')}</span></div>}</div>)}
                       {(order.items || []).length > 4 && <span className="text-xs text-gray-400 ml-1">+{(order.items || []).length - 4}</span>}
                       <div className="flex-1" />
+                      {cardOffered && (
+                        <span className="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-[11px] font-semibold">
+                          {language === 'ru' ? 'Ответьте на цену' : 'Narxga javob bering'}
+                        </span>
+                      )}
                       {['new', 'confirmed'].includes(order.status) && <button onClick={(e) => { e.stopPropagation(); cancelOrder(order.id); }} disabled={cancellingOrderId === order.id} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[12px] font-medium disabled:opacity-50 hover:bg-red-100 transition-colors">{language === 'ru' ? 'Отменить' : 'Bekor'}</button>}
                     </div>
                   </div>
@@ -1016,6 +1149,14 @@ export function MarketplacePage() {
         const sm = getOrderStatusMessage(selectedOrder.status, language as 'ru' | 'uz');
         const items = selectedOrder.items || [];
         const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+        // Этап 4b: on-demand — своя ветка UX. На awaiting_price/price_pending
+        // прайса ещё нет, `total_amount` = 0 — прячем сумму. На price_offered
+        // показываем разбивку и кнопки согласия/отказа.
+        const isOnDemand = selectedOrder.order_type === 'on_demand';
+        const isPriceOffered = isOnDemand && selectedOrder.status === 'price_offered';
+        const isPricePreOffer =
+          isOnDemand && (selectedOrder.status === 'awaiting_price' || selectedOrder.status === 'price_pending');
+        const priceActionPending = priceActionOrderId === selectedOrder.id;
         return (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center" onClick={() => setSelectedOrder(null)}>
             <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -1036,15 +1177,25 @@ export function MarketplacePage() {
 
               {/* Status progress */}
               <div className="px-5 py-4 border-b border-gray-100">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <span className={`text-[12px] font-semibold px-3 py-1 rounded-full ${
                     selectedOrder.status === 'cancelled' ? 'bg-red-100 text-red-700' :
                     selectedOrder.status === 'delivered' ? 'bg-green-100 text-green-700' :
                     'bg-primary-100 text-primary-700'
                   }`}>{sm.title}</span>
-                  {sm.subtitle && <span className="text-[12px] text-gray-500">{sm.subtitle}</span>}
+                  {isOnDemand && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      {language === 'ru' ? 'Под привоз' : 'Buyurtma'}
+                    </span>
+                  )}
+                  {sm.subtitle && <span className="text-[12px] text-gray-500 w-full">{sm.subtitle}</span>}
                 </div>
-                {selectedOrder.status !== 'cancelled' && (
+                {/* Прогресс-бар со сборкой/доставкой имеет смысл только
+                    для stock-заказа и для on-demand, доехавшего до
+                    confirmed+ (price_accepted → confirmed мост). До этого
+                    (awaiting_price / price_pending / price_offered) —
+                    крупный текстовый статус, без «Новый → Получен». */}
+                {selectedOrder.status !== 'cancelled' && si >= 0 && (
                   <div className="space-y-2">
                     {ORDER_STAGES.map((stage, i) => {
                       const isActive = si >= i;
@@ -1068,6 +1219,13 @@ export function MarketplacePage() {
                     })}
                   </div>
                 )}
+                {/* Причина отказа — на unavailable / price_declined /
+                    cancelled менеджер мог оставить пояснение. */}
+                {selectedOrder.cancellation_reason && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-[12px] text-red-800">
+                    <span className="font-semibold">{language === 'ru' ? 'Причина:' : 'Sabab:'}</span> {selectedOrder.cancellation_reason}
+                  </div>
+                )}
               </div>
 
               {/* Items list */}
@@ -1076,18 +1234,31 @@ export function MarketplacePage() {
                   {language === 'ru' ? `Товары (${totalQty})` : `Mahsulotlar (${totalQty})`}
                 </h3>
                 <div className="space-y-3">
-                  {items.map((item, idx) => (
-                    <div key={item.id || idx} className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">
-                        {item.product_image ? <img src={item.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-lg text-white">{getProductEmoji(item.product_name || '', '')}</span></div>}
+                  {items.map((item, idx) => {
+                    const unit = item.unit_price ?? item.price ?? 0;
+                    // На awaiting_price / price_pending прайса ещё нет —
+                    // и на бэке item.unit_price = 0 как плейсхолдер.
+                    // Показывать «1 × 0 сум» жителю бессмысленно.
+                    const priceUnknown = isPricePreOffer && !unit;
+                    return (
+                      <div key={item.id || idx} className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden shrink-0 border border-gray-100">
+                          {item.product_image ? <img src={item.product_image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center"><span className="text-lg text-white">{getProductEmoji(item.product_name || '', '')}</span></div>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-gray-900 truncate">{item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}</p>
+                          <p className="text-[12px] text-gray-500">
+                            {priceUnknown
+                              ? `${item.quantity} × ${language === 'ru' ? 'цена уточняется' : 'narx aniqlanmoqda'}`
+                              : `${item.quantity} × ${fmt(unit)}`}
+                          </p>
+                        </div>
+                        {!priceUnknown && (
+                          <span className="text-[13px] font-bold text-gray-900 shrink-0">{fmt(item.total_price || unit * item.quantity)}</span>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-gray-900 truncate">{item.product_name || (language === 'ru' ? 'Товар' : 'Mahsulot')}</p>
-                        <p className="text-[12px] text-gray-500">{item.quantity} × {fmt(item.unit_price || item.price || 0)}</p>
-                      </div>
-                      <span className="text-[13px] font-bold text-gray-900 shrink-0">{fmt(item.total_price || (item.unit_price || item.price || 0) * item.quantity)}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1099,10 +1270,67 @@ export function MarketplacePage() {
                     <p className="text-[12px] text-gray-600">{selectedOrder.delivery_note}</p>
                   </div>
                 )}
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[15px] font-medium text-gray-600">{language === 'ru' ? 'Итого' : 'Jami'}</span>
-                  <span className="text-[20px] font-extrabold text-primary-600">{fmt(selectedOrder.total_amount)}</span>
-                </div>
+
+                {/* Этап 4b: price-offer negotiation. Разбивка (товар +
+                    доставка = итого), 24-часовой дедлайн и две кнопки:
+                    accept (→ POST /accept-price, заказ станет confirmed)
+                    и decline (→ POST /decline-price, price_declined). */}
+                {isPriceOffered && (
+                  <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                    <div className="text-[12px] font-bold text-amber-900 uppercase tracking-wide mb-3">
+                      {language === 'ru' ? 'УК назвала цену' : 'Boshqaruv narx aytdi'}
+                    </div>
+                    <div className="space-y-1.5 text-[13px]">
+                      <div className="flex justify-between text-amber-900">
+                        <span>{language === 'ru' ? 'Товар' : 'Mahsulot'}</span>
+                        <span className="font-medium">{fmt(selectedOrder.total_amount || 0)}</span>
+                      </div>
+                      <div className="flex justify-between text-amber-900">
+                        <span>{language === 'ru' ? 'Доставка' : 'Yetkazish'}</span>
+                        <span className="font-medium">{fmt(selectedOrder.delivery_fee || 0)}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 mt-2 border-t border-amber-200">
+                        <span className="text-[14px] font-semibold text-amber-900">{language === 'ru' ? 'Итого' : 'Jami'}</span>
+                        <span className="text-[18px] font-extrabold text-amber-700">{fmt(selectedOrder.final_amount ?? (selectedOrder.total_amount || 0) + (selectedOrder.delivery_fee || 0))}</span>
+                      </div>
+                    </div>
+                    {selectedOrder.price_offered_expires_at && (
+                      <p className="mt-3 text-[12px] text-amber-800">
+                        <span className="font-semibold">{language === 'ru' ? 'Ответьте до' : 'Javob bering'}</span>{' '}
+                        {new Date(selectedOrder.price_offered_expires_at).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 mt-4">
+                      <button
+                        onClick={() => acceptPriceOffer(selectedOrder.id)}
+                        disabled={priceActionPending}
+                        className="py-3 bg-primary-600 text-white rounded-[14px] text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        {priceActionPending
+                          ? (language === 'ru' ? 'Отправляем…' : 'Yuborilmoqda…')
+                          : (language === 'ru' ? 'Согласен' : 'Roziman')}
+                      </button>
+                      <button
+                        onClick={() => declinePriceOffer(selectedOrder.id)}
+                        disabled={priceActionPending}
+                        className="py-3 bg-white text-amber-800 border border-amber-300 rounded-[14px] text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                      >
+                        <X className="w-4 h-4" />
+                        {language === 'ru' ? 'Отказаться' : 'Rad etish'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Итого прячем в pre-offer (цена ещё 0) и когда мы уже
+                    показали разбивку в блоке согласования выше. */}
+                {!isPricePreOffer && !isPriceOffered && (
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[15px] font-medium text-gray-600">{language === 'ru' ? 'Итого' : 'Jami'}</span>
+                    <span className="text-[20px] font-extrabold text-primary-600">{fmt(selectedOrder.final_amount ?? selectedOrder.total_amount)}</span>
+                  </div>
+                )}
 
                 {/* Rating */}
                 {selectedOrder.status === 'delivered' && selectedOrder.rating && (
