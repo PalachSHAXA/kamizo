@@ -8925,7 +8925,7 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.8.0';
-const STATIC_CACHE = 'kamizo-static-v329';
+const STATIC_CACHE = 'kamizo-static-v332';
 const ASSET_CACHE = 'kamizo-assets-v312';
 const DYNAMIC_CACHE = 'kamizo-dynamic-v312';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
@@ -9153,6 +9153,14 @@ self.addEventListener('push', (event) => {
       { action: 'view', title: '📋 Подробнее' }
     ];
     options.requireInteraction = true;
+  } else if (notificationData.type === 'marketplace_order') {
+    // Bug A (2026-07-11): раньше action-кнопки не добавлялись — тап по
+    // пушу шёл через дефолт notificationclick, а он открывал `data.url`
+    // из бэка (тогда всегда `/`). Теперь бэк присылает
+    // `/marketplace?orderId=...`, а тут даём явную «Посмотреть».
+    options.actions = [
+      { action: 'view', title: '👁 Посмотреть' }
+    ];
   }
 
   event.waitUntil(
@@ -9184,6 +9192,12 @@ self.addEventListener('notificationclick', (event) => {
     urlToOpen = `/chat?channelId=${data.channelId}`;
   } else if (action === 'vote' && data.meetingId) {
     urlToOpen = `/meetings?meetingId=${data.meetingId}&action=vote`;
+  } else if (action === 'view' && data.orderId) {
+    // Bug A (2026-07-11): marketplace_order-пуш — «Посмотреть» ведёт
+    // на резидентскую вкладку заказов с ?orderId=…, MarketplacePage
+    // читает query и открывает модалку заказа. Раньше action-ветки
+    // не было и тап проваливался в дефолт `data.url` = «/».
+    urlToOpen = `/marketplace?orderId=${data.orderId}`;
   }
 
   if (urlToOpen) {

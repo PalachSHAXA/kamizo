@@ -141,8 +141,13 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
           VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, 0, datetime('now'), ?)
         `).bind(generateId(), order.user_id, custBody, JSON.stringify({ order_id: params.id }), tenantId).run();
         sendPushNotification(env, order.user_id, {
+          // Bug A (2026-07-11): resident's «Посмотреть» opened `/` — a
+          // dead deeplink. `/marketplace?orderId=X` is read by
+          // MarketplacePage and auto-opens the order-detail modal.
           title: '🛒 Заказ подтверждён', body: custBody, type: 'marketplace_order',
-          tag: `order-status-${params.id}`, data: { orderId: params.id, url: '/' }, requireInteraction: false
+          tag: `order-status-${params.id}`,
+          data: { orderId: params.id, url: `/marketplace?orderId=${params.id}` },
+          requireInteraction: false,
         }).catch(() => {});
       }
     }
@@ -276,11 +281,23 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
       `SELECT user_id, order_number FROM marketplace_orders WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
     ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
     if (order) {
+      // Human-readable RU labels for the push body. Covers both stock
+      // and on-demand lifecycles (migration 054); without the on-demand
+      // half we shipped bodies like "Заказ MP-XXX price_pending" — raw
+      // enum leaked to the resident's lockscreen (Bug B, 2026-07-11).
       const statusLabels: Record<string, string> = {
         confirmed: 'подтверждён', preparing: 'готовится', ready: 'готов к выдаче',
-        delivering: 'доставляется', delivered: 'доставлен', cancelled: 'отменён'
+        delivering: 'доставляется', delivered: 'доставлен', cancelled: 'отменён',
+        awaiting_price: 'принят в обработку',
+        price_pending:  'УК уточняет цену',
+        price_offered:  'цена предложена — ответьте',
+        price_accepted: 'цена принята',
+        price_declined: 'вы отказались от цены',
+        unavailable:    'товар недоступен',
       };
-      const notifBody = `Заказ ${order.order_number} ${statusLabels[status]}`;
+      // Fallback to the raw status only as a last resort so we never
+      // send `undefined` in the body.
+      const notifBody = `Заказ ${order.order_number} ${statusLabels[status] || status}`;
       await env.DB.prepare(`
         INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
         VALUES (?, ?, 'marketplace_order', 'Статус заказа', ?, ?, 0, datetime('now'), ?)
@@ -288,7 +305,10 @@ route('PATCH', '/api/marketplace/admin/orders/:id', async (request, env, params)
       sendPushNotification(env, order.user_id, {
         title: status === 'cancelled' ? '❌ Заказ отменён' : '🛒 Статус заказа',
         body: notifBody, type: 'marketplace_order', tag: `order-status-${params.id}`,
-        data: { orderId: params.id, url: '/' }, requireInteraction: status === 'delivered' || status === 'cancelled'
+        // Bug A (2026-07-11): route «Посмотреть» to the resident's own
+        // marketplace-orders view via ?orderId= (was `/`, went nowhere).
+        data: { orderId: params.id, url: `/marketplace?orderId=${params.id}` },
+        requireInteraction: status === 'delivered' || status === 'cancelled',
       }).catch(() => {});
     }
   }

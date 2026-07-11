@@ -131,7 +131,10 @@ route('POST', '/api/marketplace/executor/orders/:id/take', async (request, env, 
   `).bind(generateId(), order.user_id, execTakeBody, JSON.stringify({ order_id: params.id }), tenantId).run();
   sendPushNotification(env, order.user_id, {
     title: '🛒 Заказ подтверждён', body: execTakeBody, type: 'marketplace_order',
-    tag: `order-status-${params.id}`, data: { orderId: params.id, url: '/' }, requireInteraction: false
+    tag: `order-status-${params.id}`,
+    // Bug A (2026-07-11): «Посмотреть» уводил на «/» — теперь на карточку заказа.
+    data: { orderId: params.id, url: `/marketplace?orderId=${params.id}` },
+    requireInteraction: false,
   }).catch(() => {});
 
   return json({ success: true });
@@ -191,7 +194,9 @@ route('PATCH', '/api/marketplace/executor/orders/:id', async (request, env, para
   sendPushNotification(env, order.user_id, {
     title: status === 'delivered' ? '✅ Заказ доставлен' : '🛒 Статус заказа',
     body: execStatusBody, type: 'marketplace_order', tag: `order-status-${params.id}`,
-    data: { orderId: params.id, url: '/' }, requireInteraction: status === 'delivered'
+    // Bug A (2026-07-11): resident deeplink to the order card.
+    data: { orderId: params.id, url: `/marketplace?orderId=${params.id}` },
+    requireInteraction: status === 'delivered',
   }).catch(() => {});
 
   return json({ success: true });
