@@ -575,7 +575,11 @@ export function MarketplacePage() {
   );
   const featured = useMemo(() => products.filter(p => p.is_featured), [products]);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" /></div>;
+  // 2026-07-11: раньше здесь стоял early-return со спиннером на пустом
+  // экране пока грузились данные. Пользователи видели «бежевый экран
+  // с крутилкой» — плохой UX. Теперь header/поиск/категории рендерятся
+  // сразу, а вместо product-grid показывается skeleton (см. shop-таб
+  // ниже). Данные пришли — skeleton заменяется реальным контентом.
 
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
@@ -780,6 +784,31 @@ export function MarketplacePage() {
             </div>
           )}
 
+          {/* Skeleton grid — показывается пока грузятся товары.
+              Повторяет структуру реальной карточки (фото + 2 строки
+              имени + рейтинг + цена + кнопка), 6 плейсхолдеров в той
+              же сетке (2/3/4/5 колонок по breakpoint'ам). Использует
+              tailwind animate-pulse, ничего экзотического.
+              Условие: loading=true И грид ещё пуст (после первой
+              загрузки products уже заполнены, skeleton не нужен —
+              обновления идут сзади). */}
+          {loading && products.length === 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {[0, 1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="bg-white rounded-[18px] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                  <div className="aspect-square bg-gray-200 animate-pulse" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-3 bg-gray-200 rounded w-3/4 animate-pulse" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse mt-2" />
+                    <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse mt-2" />
+                    <div className="h-9 bg-gray-200 rounded-[12px] animate-pulse mt-2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {filteredProducts.length > 0 && (
             <>
               {!selectedCategory && !searchQuery && featured.length > 0 && <div className="text-[15px] font-bold text-gray-900 mb-2 px-0.5">{language === 'ru' ? 'Все товары' : 'Barcha mahsulotlar'} <span className="text-[13px] font-normal text-gray-400">{filteredProducts.length} {language === 'ru' ? 'шт.' : 'dona'}</span></div>}
@@ -849,7 +878,7 @@ export function MarketplacePage() {
               </div>
             </>
           )}
-          {filteredProducts.length === 0 && (
+          {!loading && filteredProducts.length === 0 && (
             <EmptyState
               icon={<ShoppingBag className="w-12 h-12" />}
               title={language === 'ru' ? 'Нет товаров' : 'Mahsulotlar yo\'q'}
