@@ -232,20 +232,21 @@ export function MarketplacePage() {
   });
   const [onDemandSubmitting, setOnDemandSubmitting] = useState(false);
 
-  // Hide the floating BottomBar while any of the marketplace modals /
-  // bottom sheets is open — the checkout sheet's «Оформить заказ» primary
-  // action, cancel confirm, and product/order detail overlays all
-  // anchor to the viewport bottom and were being visually clipped by
-  // the pill. Same pattern as CancelRequestModal / marketplace_manager
-  // dashboard.
-  useModalPresence(
-    showOrderModal ||
-    !!selectedProduct ||
-    !!cancellingOrderId ||
-    showDeliveryRatingModal ||
-    !!selectedOrder ||
-    !!onDemandProduct
-  );
+  // BottomBar hidden for the entire /marketplace route (2026-07-11).
+  // Marketplace is a self-contained context-screen: it has its own
+  // sub-navigation (Магазин / Избранное / Корзина / Заказы), its own
+  // «Назад» button up top, and — in the shop tab — a floating cart
+  // pill anchored to the bottom. Rendering the global resident
+  // BottomBar underneath duplicates navigation and visually competes
+  // with the cart pill for attention. Hiding it unconditionally is
+  // simpler than juggling per-tab / per-modal flags (previous version
+  // did that and still left the shop-with-cart case looking crowded).
+  //
+  // Cart pill offset (`bottom: calc(var(--bottom-bar-h,64px)+8px)`)
+  // is intentionally kept — the CSS var already includes
+  // env(safe-area-inset-bottom), which gives a comfortable margin
+  // above the iOS home indicator whether the bar is present or not.
+  useModalPresence(true);
 
   const fetchData = useCallback(async () => {
     try {

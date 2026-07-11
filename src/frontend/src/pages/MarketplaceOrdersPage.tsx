@@ -7,6 +7,7 @@ import { formatName } from '../utils/formatName';
 import { useLanguageStore } from '../stores/languageStore';
 import { useExecutorStore } from '../stores/dataStore';
 import { useToastStore } from '../stores/toastStore';
+import { useModalPresence } from '../stores/modalStore';
 import { apiRequest } from '../services/api';
 
 // Types for API responses
@@ -115,6 +116,19 @@ export function MarketplaceOrdersPage() {
   const [showUnavailableModal, setShowUnavailableModal] = useState<MarketplaceOrderAPI | null>(null);
   const [unavailableReason, setUnavailableReason] = useState('');
   const [unavailableSubmitting, setUnavailableSubmitting] = useState(false);
+
+  // Hide the resident/staff BottomBar while any of this page's full-
+  // screen bottom-sheet modals is open — order detail, assign-executor,
+  // set-price, mark-unavailable. Same pattern as the marketplace_manager
+  // dashboard (009b9f01) and the resident MarketplacePage checkout —
+  // without this the pill peeks under the sheet's primary action button
+  // ("Взять в работу" / "Отправить клиенту").
+  useModalPresence(
+    !!selectedOrder ||
+    !!showAssignModal ||
+    !!showPriceModal ||
+    !!showUnavailableModal
+  );
 
   // Fetch orders — supports ?order_type=stock|on_demand filter (Stage 3a).
   const fetchOrders = useCallback(async () => {
