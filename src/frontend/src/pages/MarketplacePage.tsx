@@ -156,6 +156,21 @@ export function MarketplacePage() {
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrderAPI | null>(null);
   const [banners, setBanners] = useState<{ id: string; title: string; description?: string; image_url?: string; link_url?: string }[]>([]);
 
+  // On-demand order request modal (Stage 4a). Opened when the resident
+  // taps «Заказать под привоз» on an is_on_demand=1 product. The form
+  // demands delivery_address + delivery_phone (backend rejects empty —
+  // resident profile fields may be null) and posts to
+  // /api/marketplace/orders/on-demand.
+  const [onDemandProduct, setOnDemandProduct] = useState<MarketplaceProductAPI | null>(null);
+  const [onDemandForm, setOnDemandForm] = useState({
+    quantity: '1',
+    delivery_address: '',
+    delivery_apartment: '',
+    delivery_phone: '',
+    delivery_notes: '',
+  });
+  const [onDemandSubmitting, setOnDemandSubmitting] = useState(false);
+
   // Hide the floating BottomBar while any of the marketplace modals /
   // bottom sheets is open — the checkout sheet's «Оформить заказ» primary
   // action, cancel confirm, and product/order detail overlays all
@@ -167,7 +182,8 @@ export function MarketplacePage() {
     !!selectedProduct ||
     !!cancellingOrderId ||
     showDeliveryRatingModal ||
-    !!selectedOrder
+    !!selectedOrder ||
+    !!onDemandProduct
   );
 
   const fetchData = useCallback(async () => {
@@ -236,9 +252,75 @@ export function MarketplacePage() {
   const removeFromCart = useCallback(async (productId: string) => {
     try { await apiRequest(`/api/marketplace/cart/${productId}`, { method: 'DELETE' }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
   }, []);
+  // On-demand order: open the request modal instead of cart-adding.
+  // Pre-fills quantity=1 and any address/phone fields the user already
+  // has on file (they may be empty — the backend enforces address/phone
+  // as required, the modal marks them accordingly).
+  const requestOnDemand = useCallback((product: MarketplaceProductAPI) => {
+    setOnDemandForm({
+      quantity: '1',
+      delivery_address: user?.address || '',
+      delivery_apartment: user?.apartment || '',
+      delivery_phone: user?.phone || '',
+      delivery_notes: '',
+    });
+    setOnDemandProduct(product);
+  }, [user]);
+
   const addToCart = useCallback(async (productId: string) => {
+    // Route on-demand products to the request modal — cart flow can't
+    // handle them (backend rejects cart-add for is_on_demand=1). Users
+    // that hit this via mini quick-add / featured banner / selected-
+    // product modal get the same modal experience as the main grid.
+    const product = products.find(p => p.id === productId);
+    if (product?.is_on_demand) {
+      requestOnDemand(product);
+      return;
+    }
     try { await apiRequest('/api/marketplace/cart', { method: 'POST', body: JSON.stringify({ product_id: productId, quantity: 1 }) }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
-  }, []);
+  }, [products, requestOnDemand]);
+
+  // Submit the on-demand form → POST /api/marketplace/orders/on-demand.
+  // Address + phone are required; empty submission would 400 on the
+  // server, but we short-circuit with a toast for a nicer UX.
+  const submitOnDemand = useCallback(async () => {
+    if (!onDemandProduct) return;
+    const address = onDemandForm.delivery_address.trim();
+    const phone = onDemandForm.delivery_phone.trim();
+    const qty = parseInt(onDemandForm.quantity, 10);
+    if (!address) { addToast('warning', language === 'ru' ? 'Укажите адрес доставки' : 'Yetkazish manzilini kiriting'); return; }
+    if (!phone)   { addToast('warning', language === 'ru' ? 'Укажите телефон' : 'Telefon raqamini kiriting'); return; }
+    if (!qty || qty < 1) { addToast('warning', language === 'ru' ? 'Количество должно быть больше 0' : "Miqdor 0 dan katta bo'lishi kerak"); return; }
+
+    setOnDemandSubmitting(true);
+    try {
+      await apiRequest('/api/marketplace/orders/on-demand', {
+        method: 'POST',
+        body: JSON.stringify({
+          product_id: onDemandProduct.id,
+          quantity: qty,
+          delivery_address: address,
+          delivery_apartment: onDemandForm.delivery_apartment.trim() || undefined,
+          delivery_phone: phone,
+          delivery_notes: onDemandForm.delivery_notes.trim() || undefined,
+        }),
+      });
+      // Refetch orders so the resident sees the new awaiting_price entry
+      // when they switch to the «Заказы» tab.
+      const o = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
+      setOrders(o?.orders || []);
+      setOnDemandProduct(null);
+      addToast('success', language === 'ru'
+        ? 'Заявка отправлена, УК свяжется по цене'
+        : "Ariza yuborildi, boshqaruv narx haqida bog'lanadi");
+    } catch {
+      addToast('error', language === 'ru'
+        ? 'Не удалось отправить заявку'
+        : "Arizani yuborib bo'lmadi");
+    } finally {
+      setOnDemandSubmitting(false);
+    }
+  }, [onDemandProduct, onDemandForm, addToast, language]);
   const updateCartQuantity = useCallback(async (productId: string, qty: number) => {
     if (qty <= 0) { await removeFromCart(productId); return; }
     try { await apiRequest('/api/marketplace/cart', { method: 'POST', body: JSON.stringify({ product_id: productId, quantity: qty }) }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
@@ -512,9 +594,16 @@ export function MarketplacePage() {
                         <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform" aria-label={language === 'ru' ? 'В избранное' : 'Sevimlilarga'}>
                           <Heart className={`w-[15px] h-[15px] ${fav ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} strokeWidth={1.8} />
                         </button>
-                        {p.is_featured && disc === 0 && <div className="absolute top-2 left-2 bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">ХИТ</div>}
-                        {disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
-                        {p.stock_quantity === 0 && <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center"><span className="text-white text-[12px] font-bold bg-gray-900/60 px-3 py-1 rounded-full">{language === 'ru' ? 'Нет в наличии' : 'Mavjud emas'}</span></div>}
+                        {/* On-demand badge takes priority over ХИТ / discount:
+                            the product isn't a regular stock item, so the
+                            "special delivery" hint is more relevant. */}
+                        {p.is_on_demand && <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">{language === 'ru' ? 'Под заказ' : 'Buyurtma'}</div>}
+                        {!p.is_on_demand && p.is_featured && disc === 0 && <div className="absolute top-2 left-2 bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">ХИТ</div>}
+                        {!p.is_on_demand && disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
+                        {/* "Out of stock" overlay only for real stock items —
+                            an on-demand product has stock_quantity=0 by design,
+                            not because it ran out. */}
+                        {!p.is_on_demand && p.stock_quantity === 0 && <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center"><span className="text-white text-[12px] font-bold bg-gray-900/60 px-3 py-1 rounded-full">{language === 'ru' ? 'Нет в наличии' : 'Mavjud emas'}</span></div>}
                       </div>
                       <div className="p-3">
                         <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-2 min-h-[36px] leading-snug">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
@@ -524,12 +613,21 @@ export function MarketplacePage() {
                           <span className="text-xs text-gray-400">({getProductRating(p.id).count})</span>
                         </div>
                         <div className="mt-2">
-                          <div className="flex items-baseline gap-1.5">
-                            <p className="font-extrabold text-[15px] text-gray-900">{fmt(p.price)}</p>
-                            {p.old_price && <p className="text-xs text-gray-400 line-through">{fmt(p.old_price)}</p>}
-                          </div>
+                          {p.is_on_demand ? (
+                            <p className="font-extrabold text-[15px] text-amber-600">{language === 'ru' ? 'Цена по запросу' : "So'rov bo'yicha"}</p>
+                          ) : (
+                            <div className="flex items-baseline gap-1.5">
+                              <p className="font-extrabold text-[15px] text-gray-900">{fmt(p.price)}</p>
+                              {p.old_price && <p className="text-xs text-gray-400 line-through">{fmt(p.old_price)}</p>}
+                            </div>
+                          )}
                           <div className="mt-2">
-                            {qty > 0 ? (
+                            {p.is_on_demand ? (
+                              <button onClick={() => requestOnDemand(p)} className="w-full py-2 rounded-[12px] flex items-center justify-center gap-1.5 text-[13px] font-semibold active:scale-[0.97] transition-transform bg-amber-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.25)]">
+                                <ShoppingBag className="w-4 h-4" />
+                                <span>{language === 'ru' ? 'Заказать под привоз' : 'Buyurtma qilish'}</span>
+                              </button>
+                            ) : qty > 0 ? (
                               <div className="flex items-center justify-between bg-gray-50 rounded-[12px] p-1">
                                 <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
                                 <span className="text-[14px] font-bold text-gray-900">{qty}</span>
@@ -583,8 +681,9 @@ export function MarketplacePage() {
                       <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform">
                         <Heart className="w-[15px] h-[15px] fill-red-500 text-red-500" strokeWidth={1.8} />
                       </button>
-                      {disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
-                      {p.stock_quantity === 0 && <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center"><span className="text-white text-[12px] font-bold bg-gray-900/60 px-3 py-1 rounded-full">{language === 'ru' ? 'Нет в наличии' : 'Mavjud emas'}</span></div>}
+                      {p.is_on_demand && <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">{language === 'ru' ? 'Под заказ' : 'Buyurtma'}</div>}
+                      {!p.is_on_demand && disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
+                      {!p.is_on_demand && p.stock_quantity === 0 && <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center"><span className="text-white text-[12px] font-bold bg-gray-900/60 px-3 py-1 rounded-full">{language === 'ru' ? 'Нет в наличии' : 'Mavjud emas'}</span></div>}
                     </div>
                     <div className="p-3">
                       <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-2 min-h-[36px] leading-snug">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
@@ -593,12 +692,21 @@ export function MarketplacePage() {
                         <span className="text-xs font-semibold text-gray-700">{getProductRating(p.id).rating}</span>
                       </div>
                       <div className="mt-2">
-                        <div className="flex items-baseline gap-1.5">
-                          <p className="font-extrabold text-[15px] text-gray-900">{fmt(p.price)}</p>
-                          {p.old_price && <p className="text-xs text-gray-400 line-through">{fmt(p.old_price)}</p>}
-                        </div>
+                        {p.is_on_demand ? (
+                          <p className="font-extrabold text-[15px] text-amber-600">{language === 'ru' ? 'Цена по запросу' : "So'rov bo'yicha"}</p>
+                        ) : (
+                          <div className="flex items-baseline gap-1.5">
+                            <p className="font-extrabold text-[15px] text-gray-900">{fmt(p.price)}</p>
+                            {p.old_price && <p className="text-xs text-gray-400 line-through">{fmt(p.old_price)}</p>}
+                          </div>
+                        )}
                         <div className="mt-2">
-                          {qty > 0 ? (
+                          {p.is_on_demand ? (
+                            <button onClick={() => requestOnDemand(p)} className="w-full py-2 rounded-[12px] flex items-center justify-center gap-1.5 text-[13px] font-semibold active:scale-[0.97] transition-transform bg-amber-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.25)]">
+                              <ShoppingBag className="w-4 h-4" />
+                              <span>{language === 'ru' ? 'Заказать под привоз' : 'Buyurtma qilish'}</span>
+                            </button>
+                          ) : qty > 0 ? (
                             <div className="flex items-center justify-between bg-gray-50 rounded-[12px] p-1">
                               <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm"><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
                               <span className="text-[14px] font-bold text-gray-900">{qty}</span>
@@ -773,10 +881,114 @@ export function MarketplacePage() {
               <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
               {(language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz) && <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz}</p>}
               <div className="flex items-end justify-between mt-3 mb-4">
-                <div><p className="text-[22px] font-extrabold text-primary-600">{fmt(selectedProduct.price)}</p>{selectedProduct.old_price && <p className="text-[13px] text-gray-400 line-through">{fmt(selectedProduct.old_price)}</p>}</div>
-                <div className="text-right"><p className="text-[12px] text-gray-400">{selectedProduct.unit}</p><p className={`text-[12px] font-medium ${selectedProduct.stock_quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{selectedProduct.stock_quantity > 0 ? (language === 'ru' ? 'В наличии' : 'Mavjud') : (language === 'ru' ? 'Нет в наличии' : 'Mavjud emas')}</p></div>
+                {selectedProduct.is_on_demand ? (
+                  <div>
+                    <p className="text-[22px] font-extrabold text-amber-600">{language === 'ru' ? 'Цена по запросу' : "So'rov bo'yicha"}</p>
+                    <p className="text-[12px] text-gray-500">{language === 'ru' ? 'УК свяжется и назовёт цену' : "Boshqaruv bog'lanib narxni aytadi"}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div><p className="text-[22px] font-extrabold text-primary-600">{fmt(selectedProduct.price)}</p>{selectedProduct.old_price && <p className="text-[13px] text-gray-400 line-through">{fmt(selectedProduct.old_price)}</p>}</div>
+                    <div className="text-right"><p className="text-[12px] text-gray-400">{selectedProduct.unit}</p><p className={`text-[12px] font-medium ${selectedProduct.stock_quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{selectedProduct.stock_quantity > 0 ? (language === 'ru' ? 'В наличии' : 'Mavjud') : (language === 'ru' ? 'Нет в наличии' : 'Mavjud emas')}</p></div>
+                  </>
+                )}
               </div>
-              <button onClick={() => { addToCart(selectedProduct.id); setSelectedProduct(null); }} disabled={selectedProduct.stock_quantity === 0} className="w-full py-3.5 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:bg-gray-200 disabled:text-gray-400 shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]"><ShoppingCart className="w-5 h-5" />{language === 'ru' ? 'В корзину' : 'Savatga'}</button>
+              {selectedProduct.is_on_demand ? (
+                <button onClick={() => { const p = selectedProduct; setSelectedProduct(null); requestOnDemand(p); }} className="w-full py-3.5 bg-amber-500 text-white rounded-[14px] font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_4px_12px_rgba(245,158,11,0.3)]"><ShoppingBag className="w-5 h-5" />{language === 'ru' ? 'Заказать под привоз' : 'Buyurtma qilish'}</button>
+              ) : (
+                <button onClick={() => { addToCart(selectedProduct.id); setSelectedProduct(null); }} disabled={selectedProduct.stock_quantity === 0} className="w-full py-3.5 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:bg-gray-200 disabled:text-gray-400 shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]"><ShoppingCart className="w-5 h-5" />{language === 'ru' ? 'В корзину' : 'Savatga'}</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ON-DEMAND REQUEST MODAL (Stage 4a) */}
+      {onDemandProduct && (
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => !onDemandSubmitting && setOnDemandProduct(null)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
+            <div className="p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h2 className="text-[17px] font-bold text-gray-900">{language === 'ru' ? 'Заказать под привоз' : 'Buyurtma qilish'}</h2>
+                  <p className="text-[13px] text-gray-500 mt-0.5">{language === 'ru' ? onDemandProduct.name_ru : onDemandProduct.name_uz}</p>
+                </div>
+                <button onClick={() => !onDemandSubmitting && setOnDemandProduct(null)} className="p-1 -mr-1" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-[14px] p-3 mb-4">
+                <p className="text-[13px] text-amber-900 leading-snug">{language === 'ru' ? 'УК свяжется с вами по цене товара и доставки. После вашего согласия — привезём.' : "Boshqaruv siz bilan mahsulot va yetkazish narxi bo'yicha bog'lanadi. Roziligingizdan keyin keltiramiz."}</p>
+              </div>
+
+              {/* Quantity */}
+              <div className="mb-3">
+                <label className="text-[12px] font-semibold text-gray-700 mb-1 block">{language === 'ru' ? 'Количество' : 'Miqdor'}</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={onDemandForm.quantity}
+                  onChange={e => setOnDemandForm({ ...onDemandForm, quantity: e.target.value })}
+                  className="w-full p-3 border border-gray-200 rounded-[14px] text-[14px]"
+                />
+              </div>
+
+              {/* Address (required) */}
+              <div className="mb-3">
+                <label className="text-[12px] font-semibold text-gray-700 mb-1 block">{language === 'ru' ? 'Адрес доставки *' : "Yetkazish manzili *"}</label>
+                <input
+                  type="text"
+                  value={onDemandForm.delivery_address}
+                  onChange={e => setOnDemandForm({ ...onDemandForm, delivery_address: e.target.value })}
+                  placeholder={language === 'ru' ? 'Улица, дом' : "Ko'cha, uy"}
+                  className="w-full p-3 border border-gray-200 rounded-[14px] text-[14px]"
+                />
+              </div>
+
+              {/* Apartment (optional) */}
+              <div className="mb-3">
+                <label className="text-[12px] font-semibold text-gray-700 mb-1 block">{language === 'ru' ? 'Квартира' : 'Xonadon'}</label>
+                <input
+                  type="text"
+                  value={onDemandForm.delivery_apartment}
+                  onChange={e => setOnDemandForm({ ...onDemandForm, delivery_apartment: e.target.value })}
+                  className="w-full p-3 border border-gray-200 rounded-[14px] text-[14px]"
+                />
+              </div>
+
+              {/* Phone (required) */}
+              <div className="mb-3">
+                <label className="text-[12px] font-semibold text-gray-700 mb-1 block">{language === 'ru' ? 'Телефон *' : "Telefon *"}</label>
+                <input
+                  type="tel"
+                  value={onDemandForm.delivery_phone}
+                  onChange={e => setOnDemandForm({ ...onDemandForm, delivery_phone: e.target.value })}
+                  placeholder="+998 90 123 45 67"
+                  className="w-full p-3 border border-gray-200 rounded-[14px] text-[14px]"
+                />
+              </div>
+
+              {/* Notes (optional) */}
+              <div className="mb-4">
+                <label className="text-[12px] font-semibold text-gray-700 mb-1 block">{language === 'ru' ? 'Уточнения (модель, цвет, размер…)' : "Qo'shimcha (model, rang, o'lcham…)"}</label>
+                <textarea
+                  rows={2}
+                  value={onDemandForm.delivery_notes}
+                  onChange={e => setOnDemandForm({ ...onDemandForm, delivery_notes: e.target.value })}
+                  className="w-full p-3 border border-gray-200 rounded-[14px] resize-none text-[14px]"
+                />
+              </div>
+
+              <button
+                onClick={submitOnDemand}
+                disabled={onDemandSubmitting}
+                className="w-full py-3.5 bg-amber-500 text-white rounded-[14px] font-semibold text-[15px] active:scale-[0.98] transition-transform shadow-[0_4px_12px_rgba(245,158,11,0.3)] disabled:bg-gray-300 disabled:shadow-none"
+              >
+                {onDemandSubmitting
+                  ? (language === 'ru' ? 'Отправка…' : "Yuborilmoqda…")
+                  : (language === 'ru' ? 'Отправить заявку' : 'Arizani yuborish')}
+              </button>
             </div>
           </div>
         </div>
