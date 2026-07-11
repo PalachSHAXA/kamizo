@@ -260,10 +260,9 @@ export function MarketplacePage() {
   // simpler than juggling per-tab / per-modal flags (previous version
   // did that and still left the shop-with-cart case looking crowded).
   //
-  // Cart pill offset (`bottom: calc(var(--bottom-bar-h,64px)+8px)`)
-  // is intentionally kept — the CSS var already includes
-  // env(safe-area-inset-bottom), which gives a comfortable margin
-  // above the iOS home indicator whether the bar is present or not.
+  // Cart pill (shop tab) sits on `calc(env(safe-area-inset-bottom)+12px)` —
+  // just above the iOS home-indicator, no dependency on --bottom-bar-h
+  // anymore (the bar is hidden here).
   useModalPresence(true);
 
   const fetchData = useCallback(async () => {
@@ -1109,7 +1108,14 @@ export function MarketplacePage() {
 
       {/* FLOATING CART */}
       {activeTab === 'shop' && cartCount > 0 && (
-        <div className="fixed left-4 right-4 z-40 md:hidden" style={{ bottom: 'calc(var(--bottom-bar-h, 64px) + 8px)' }}>
+        // Bottom offset (2026-07-11): раньше плашка отступала на
+        // `--bottom-bar-h` — оставляла место под глобальный BottomBar.
+        // BottomBar теперь скрыт на /marketplace (useModalPresence(true)
+        // выше), и его высота под плашкой превращалась в пустоту.
+        // Убираем зависимость от --bottom-bar-h — оставляем только
+        // safe-area (home-indicator на iPhone) + 12px, чтобы плашка
+        // не липла к жестовой полоске.
+        <div className="fixed left-4 right-4 z-40 md:hidden" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
           <button onClick={() => setActiveTab('cart')} className="w-full bg-primary-500 text-white rounded-[16px] p-3.5 flex items-center justify-between shadow-[0_4px_20px_rgba(var(--brand-rgb),0.35)] active:scale-[0.98] transition-transform touch-manipulation">
             <div className="flex items-center gap-2.5"><div className="w-8 h-8 bg-white/20 rounded-[10px] flex items-center justify-center"><ShoppingCart className="w-[18px] h-[18px]" /></div><span className="font-semibold text-[14px]">{cartCount} {language === 'ru' ? 'товаров' : 'mahsulot'}</span></div>
             <span className="font-bold text-[15px]">{fmt(cartTotal)}</span>
