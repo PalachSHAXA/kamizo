@@ -6,6 +6,7 @@ import { EmptyState } from '../components/common';
 import { formatName } from '../utils/formatName';
 import { useLanguageStore } from '../stores/languageStore';
 import { useExecutorStore } from '../stores/dataStore';
+import { useToastStore } from '../stores/toastStore';
 import { apiRequest } from '../services/api';
 
 // Types for API responses
@@ -23,12 +24,18 @@ interface MarketplaceOrderAPI {
   executor_phone?: string;
   items: MarketplaceOrderItemAPI[];
   total_amount: number;
+  delivery_fee?: number;
   final_amount: number;
   items_count: number;
   delivery_notes?: string;
   created_at: string;
   rating?: number;
   review?: string;
+  // On-demand fields (migration 054, populated only when order_type='on_demand')
+  order_type?: 'stock' | 'on_demand';
+  price_offered_at?: string | null;
+  price_offered_expires_at?: string | null;
+  cancellation_reason?: string | null;
 }
 
 interface MarketplaceOrderItemAPI {
@@ -90,6 +97,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function MarketplaceOrdersPage() {
   const { language } = useLanguageStore();
+  const addToast = useToastStore(s => s.addToast);
   const executors = useExecutorStore(s => s.executors);
   const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
 
@@ -99,19 +107,28 @@ export function MarketplaceOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<MarketplaceOrderStatus | 'all'>('all');
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrderAPI | null>(null);
   const [showAssignModal, setShowAssignModal] = useState<MarketplaceOrderAPI | null>(null);
+  // On-demand extension (Stage 5b)
+  const [orderTypeFilter, setOrderTypeFilter] = useState<'all' | 'stock' | 'on_demand'>('all');
+  const [showPriceModal, setShowPriceModal] = useState<MarketplaceOrderAPI | null>(null);
+  const [priceForm, setPriceForm] = useState({ unit_price: '', delivery_fee: '' });
+  const [priceSubmitting, setPriceSubmitting] = useState(false);
+  const [showUnavailableModal, setShowUnavailableModal] = useState<MarketplaceOrderAPI | null>(null);
+  const [unavailableReason, setUnavailableReason] = useState('');
+  const [unavailableSubmitting, setUnavailableSubmitting] = useState(false);
 
-  // Fetch orders
+  // Fetch orders — supports ?order_type=stock|on_demand filter (Stage 3a).
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/admin/orders');
+      const qs = orderTypeFilter === 'all' ? '' : `?order_type=${orderTypeFilter}`;
+      const response = await apiRequest<{ orders: MarketplaceOrderAPI[] }>(`/api/marketplace/admin/orders${qs}`);
       setOrders(response?.orders || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [orderTypeFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -147,6 +164,77 @@ export function MarketplaceOrdersPage() {
       setSelectedOrder(null);
     } catch (error) {
       console.error('Error updating order:', error);
+    }
+  };
+
+  // On-demand: open «Назвать цену» modal, prefill empty (manager fills in).
+  const openPriceModal = (order: MarketplaceOrderAPI) => {
+    setPriceForm({ unit_price: '', delivery_fee: '' });
+    setShowPriceModal(order);
+  };
+
+  // Submit price offer → PATCH /offer-price (Stage 3b endpoint). On success
+  // status transitions to price_offered, price_offered_at / expires_at are
+  // stamped server-side, resident gets to accept/decline.
+  const submitPriceOffer = async () => {
+    if (!showPriceModal) return;
+    const unit = parseFloat(priceForm.unit_price);
+    const fee = parseFloat(priceForm.delivery_fee);
+    if (!Number.isFinite(unit) || unit < 0) {
+      addToast('warning', language === 'ru' ? 'Укажите цену товара' : 'Mahsulot narxini kiriting');
+      return;
+    }
+    if (!Number.isFinite(fee) || fee < 0) {
+      addToast('warning', language === 'ru' ? 'Укажите стоимость доставки' : 'Yetkazish narxini kiriting');
+      return;
+    }
+    setPriceSubmitting(true);
+    try {
+      await apiRequest(`/api/marketplace/admin/orders/${showPriceModal.id}/offer-price`, {
+        method: 'PATCH',
+        body: JSON.stringify({ unit_price: unit, delivery_fee: fee }),
+      });
+      setShowPriceModal(null);
+      setSelectedOrder(null);
+      await fetchOrders();
+      addToast('success', language === 'ru' ? 'Цена отправлена клиенту' : 'Narx mijozga yuborildi');
+    } catch (error) {
+      console.error('Error submitting price offer:', error);
+      addToast('error', language === 'ru' ? 'Не удалось отправить цену' : "Narxni yuborib bo'lmadi");
+    } finally {
+      setPriceSubmitting(false);
+    }
+  };
+
+  // On-demand: mark as unavailable with a required reason (backend Fix A/C
+  // writes reason to cancellation_reason for terminal statuses).
+  const openUnavailableModal = (order: MarketplaceOrderAPI) => {
+    setUnavailableReason('');
+    setShowUnavailableModal(order);
+  };
+
+  const submitUnavailable = async () => {
+    if (!showUnavailableModal) return;
+    const reason = unavailableReason.trim();
+    if (!reason) {
+      addToast('warning', language === 'ru' ? 'Укажите причину' : 'Sababni ko\'rsating');
+      return;
+    }
+    setUnavailableSubmitting(true);
+    try {
+      await apiRequest(`/api/marketplace/admin/orders/${showUnavailableModal.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'unavailable', reason }),
+      });
+      setShowUnavailableModal(null);
+      setSelectedOrder(null);
+      await fetchOrders();
+      addToast('success', language === 'ru' ? 'Клиент уведомлён' : 'Mijoz xabardor qilindi');
+    } catch (error) {
+      console.error('Error marking unavailable:', error);
+      addToast('error', language === 'ru' ? 'Не удалось отметить' : "Belgilab bo'lmadi");
+    } finally {
+      setUnavailableSubmitting(false);
     }
   };
 
@@ -247,6 +335,27 @@ export function MarketplaceOrdersPage() {
           </div>
         </div>
 
+        {/* Order-type segment (Stage 5b): all / stock / on-demand.
+            Sends order_type query param to backend; the same order-type
+            source is the discriminator column added in migration 054. */}
+        <div className="flex gap-2 mb-2">
+          {(['all', 'stock', 'on_demand'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setOrderTypeFilter(t)}
+              className={`flex-1 px-3 py-2 rounded-2xl text-sm font-medium transition-colors ${
+                orderTypeFilter === t
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {t === 'all' && (language === 'ru' ? 'Все' : 'Hammasi')}
+              {t === 'stock' && (language === 'ru' ? 'Со склада' : 'Ombordan')}
+              {t === 'on_demand' && (language === 'ru' ? 'Под привоз' : 'Buyurtma')}
+            </button>
+          ))}
+        </div>
+
         {/* Status filter pills */}
         <div className="flex gap-2 overflow-x-auto pb-2">
           <button
@@ -291,11 +400,16 @@ export function MarketplaceOrdersPage() {
                 onClick={() => setSelectedOrder(order)}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-gray-900">#{order.order_number}</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[statusInfo?.color] || 'bg-gray-100 text-gray-700'}`}>
                       {language === 'ru' ? statusInfo?.label : statusInfo?.labelUz}
                     </span>
+                    {order.order_type === 'on_demand' && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                        {language === 'ru' ? 'Под привоз' : 'Buyurtma'}
+                      </span>
+                    )}
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-400" />
                 </div>
@@ -308,6 +422,14 @@ export function MarketplaceOrdersPage() {
                   <MapPin className="w-4 h-4" />
                   <span>{order.delivery_address || 'Адрес не указан'}{order.apartment ? `, кв. ${order.apartment}` : ''}</span>
                 </div>
+
+                {/* Resident notes — critical for on-demand (product spec:
+                    "with 13mm chuck", "any red one", etc.). */}
+                {order.delivery_notes && (
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-100 rounded-lg text-sm text-amber-900">
+                    <span className="font-semibold">{language === 'ru' ? 'От клиента:' : 'Mijozdan:'}</span> {order.delivery_notes}
+                  </div>
+                )}
 
                 {/* Executor info */}
                 {order.executor_name && (
@@ -328,12 +450,26 @@ export function MarketplaceOrdersPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500">{order.items_count || order.items?.length || 0} товаров</span>
-                    <span className="font-bold text-primary-600">{formatPrice(order.final_amount || order.total_amount)}</span>
+                    {/* Hide amount for early on-demand stages — total is 0
+                        until manager sets the price. Once price_offered
+                        or later, show the offered final. */}
+                    {!(order.order_type === 'on_demand' && (order.status === 'awaiting_price' || order.status === 'price_pending')) && (
+                      <span className="font-bold text-primary-600">{formatPrice(order.final_amount || order.total_amount)}</span>
+                    )}
                   </div>
                 </div>
+
+                {/* On-demand price breakdown once the offer was made. */}
+                {order.order_type === 'on_demand' && (order.status === 'price_offered' || order.status === 'price_accepted' || order.status === 'confirmed' || order.status === 'preparing' || order.status === 'ready' || order.status === 'delivering' || order.status === 'delivered') && (order.total_amount || order.delivery_fee) ? (
+                  <div className="mt-2 text-xs text-gray-500">
+                    {language === 'ru' ? 'Товар' : 'Mahsulot'} {formatPrice(order.total_amount || 0)}
+                    {' + '}
+                    {language === 'ru' ? 'доставка' : 'yetkazish'} {formatPrice(order.delivery_fee || 0)}
+                  </div>
+                ) : null}
               </div>
 
-              {/* Action button - assign if new, otherwise no quick action */}
+              {/* Action button — stock flow */}
               {order.status === 'new' && (
                 <button
                   onClick={(e) => {
@@ -345,6 +481,46 @@ export function MarketplaceOrdersPage() {
                   <UserPlus className="w-4 h-4" />
                   {language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}
                 </button>
+              )}
+
+              {/* On-demand flow actions (Stage 5b) */}
+              {order.status === 'awaiting_price' && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); updateOrderStatus(order.id, 'price_pending'); }}
+                  className="w-full py-3 bg-amber-50 text-amber-700 font-medium border-t hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  {language === 'ru' ? 'Взять в работу' : 'Ishga olish'}
+                </button>
+              )}
+              {order.status === 'price_pending' && (
+                <div className="grid grid-cols-2 border-t">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openPriceModal(order); }}
+                    className="py-3 bg-primary-50 text-primary-700 font-medium hover:bg-primary-100 transition-colors flex items-center justify-center gap-2 border-r"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {language === 'ru' ? 'Назвать цену' : 'Narx aytish'}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openUnavailableModal(order); }}
+                    className="py-3 bg-gray-50 text-gray-700 font-medium hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    {language === 'ru' ? 'Не смог достать' : "Topib bo'lmadi"}
+                  </button>
+                </div>
+              )}
+              {order.status === 'price_offered' && (
+                <div className="w-full py-3 bg-amber-50 text-amber-800 text-sm border-t flex items-center justify-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  {language === 'ru' ? 'Ждём ответа клиента' : 'Mijoz javobini kutmoqda'}
+                  {order.price_offered_expires_at && (
+                    <span className="text-amber-600">
+                      · {language === 'ru' ? 'до' : 'gacha'} {new Date(order.price_offered_expires_at).toLocaleString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -605,6 +781,133 @@ export function MarketplaceOrdersPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offer Price Modal (Stage 5b) — manager enters unit_price + delivery_fee
+          for an on-demand order in price_pending; posts to /offer-price. */}
+      {showPriceModal && (() => {
+        const item = (showPriceModal.items || [])[0];
+        const qty = item?.quantity || 1;
+        const unit = parseFloat(priceForm.unit_price) || 0;
+        const fee = parseFloat(priceForm.delivery_fee) || 0;
+        const itemTotal = unit * qty;
+        const final = itemTotal + fee;
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto">
+              <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
+                <h2 className="font-bold text-lg">{language === 'ru' ? 'Назвать цену' : 'Narx aytish'}</h2>
+                <button onClick={() => !priceSubmitting && setShowPriceModal(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 space-y-3">
+                {/* What was requested — reminder for the manager */}
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3">
+                  <div className="text-xs text-amber-900 font-semibold mb-1">
+                    {language === 'ru' ? 'Заказ' : 'Buyurtma'} #{showPriceModal.order_number}
+                  </div>
+                  <div className="text-sm text-gray-900">
+                    {item?.product_name || '—'} × {qty}
+                  </div>
+                  {showPriceModal.delivery_notes && (
+                    <div className="text-sm text-gray-700 mt-1">
+                      <span className="font-medium">{language === 'ru' ? 'Уточнение:' : "Aniqlik:"}</span> {showPriceModal.delivery_notes}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                    {language === 'ru' ? 'Цена товара за 1 шт (сум)' : "1 dona narxi (so'm)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={priceForm.unit_price}
+                    onChange={e => setPriceForm({ ...priceForm, unit_price: e.target.value })}
+                    className="w-full p-3 border border-gray-200 rounded-2xl text-sm"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                    {language === 'ru' ? 'Стоимость доставки (сум)' : "Yetkazish narxi (so'm)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={priceForm.delivery_fee}
+                    onChange={e => setPriceForm({ ...priceForm, delivery_fee: e.target.value })}
+                    className="w-full p-3 border border-gray-200 rounded-2xl text-sm"
+                    placeholder="0"
+                  />
+                </div>
+
+                {/* Live breakdown — same numbers the resident will see. */}
+                <div className="bg-gray-50 rounded-2xl p-3 text-sm">
+                  <div className="flex justify-between text-gray-600 mb-1">
+                    <span>{language === 'ru' ? 'Товар' : 'Mahsulot'} × {qty}</span>
+                    <span>{formatPrice(itemTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600 mb-2">
+                    <span>{language === 'ru' ? 'Доставка' : 'Yetkazish'}</span>
+                    <span>{formatPrice(fee)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-200">
+                    <span>{language === 'ru' ? 'Итого' : 'Jami'}</span>
+                    <span className="text-primary-600">{formatPrice(final)}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={submitPriceOffer}
+                  disabled={priceSubmitting}
+                  className="w-full py-3 bg-primary-600 text-white rounded-2xl font-semibold hover:bg-primary-700 transition-colors disabled:bg-gray-300"
+                >
+                  {priceSubmitting
+                    ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
+                    : (language === 'ru' ? 'Отправить клиенту' : 'Mijozga yuborish')}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Mark Unavailable Modal (Stage 5b) */}
+      {showUnavailableModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl">
+            <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
+              <h2 className="font-bold text-lg">{language === 'ru' ? 'Не смог достать' : "Topib bo'lmadi"}</h2>
+              <button onClick={() => !unavailableSubmitting && setShowUnavailableModal(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-sm text-gray-600">
+                {language === 'ru' ? 'Причина будет отправлена клиенту.' : 'Sabab mijozga yuboriladi.'}
+              </div>
+              <textarea
+                rows={3}
+                value={unavailableReason}
+                onChange={e => setUnavailableReason(e.target.value)}
+                placeholder={language === 'ru' ? 'Например: нет у поставщиков, снят с производства…' : 'Masalan: yetkazib beruvchilarda yo\'q...'}
+                className="w-full p-3 border border-gray-200 rounded-2xl text-sm resize-none"
+              />
+              <button
+                onClick={submitUnavailable}
+                disabled={unavailableSubmitting}
+                className="w-full py-3 bg-gray-600 text-white rounded-2xl font-semibold hover:bg-gray-700 transition-colors disabled:bg-gray-300"
+              >
+                {unavailableSubmitting
+                  ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
+                  : (language === 'ru' ? 'Подтвердить' : 'Tasdiqlash')}
+              </button>
             </div>
           </div>
         </div>
