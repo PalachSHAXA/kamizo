@@ -1,0 +1,21 @@
+[Unit]
+Description=Kamizo — auto-cancel expired on-demand price offers
+After=kamizo-api.service
+# We only read/write kamizo.db; the API service uses WAL and does not
+# need to be up for us to run, but keeping After= reflects logical
+# ordering (this task is meaningless without live data being written).
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kamizo-marketplace-expire-offers.sh
+# Journal captures both the "found N orders" line and the per-order
+# details for postmortem. Pair with:
+#   journalctl -u kamizo-marketplace-expire-offers.service -n 30
+StandardOutput=journal
+StandardError=journal
+# The script writes to /opt/kamizo/data/kamizo.db which is owned by
+# the kamizo user in the current setup, matching kamizo-backup-*.
+# If ownership ever changes, switch these to root and adjust the DB
+# path permissions accordingly.
+User=kamizo
+Group=kamizo

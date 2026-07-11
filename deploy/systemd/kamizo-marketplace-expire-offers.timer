@@ -1,0 +1,18 @@
+[Unit]
+Description=Run kamizo on-demand price-offer expiry check every 15 min
+
+[Timer]
+# Every 15 minutes, on the quarter-hour: :00, :15, :30, :45.
+# For a 24-hour deadline, up-to-15-minute latency is comfortably below
+# any human-perceived expectation. A tighter cadence buys nothing but
+# more journal noise.
+OnCalendar=*:0/15
+# If the machine was off across the intended fire time (reboot, host
+# migration), catch up on next boot instead of silently skipping.
+Persistent=true
+# Small jitter so a fleet of instances (if we ever run more than one)
+# does not hammer the DB in lockstep.
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target
