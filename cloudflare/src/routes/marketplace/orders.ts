@@ -22,6 +22,18 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
   try {
     const body = await request.json() as any;
     const { delivery_date, delivery_time_slot, delivery_notes, payment_method } = body;
+
+    // Bug fix 2026-07-11: раньше стоковые заказы брали адрес из
+    // user-профиля (user.address || ''); если у резидента поле было
+    // пустое — заказ уходил без адреса, менеджер видел «Адрес не
+    // указан». Теперь required-поля приходят из body (симметрично
+    // on-demand.ts). Optional-поля (apartment/entrance/floor) — по
+    // прежнему могут прийти из body или fallback'ом на профиль.
+    const deliveryAddress = typeof body.delivery_address === 'string' ? body.delivery_address.trim() : '';
+    const deliveryPhone   = typeof body.delivery_phone   === 'string' ? body.delivery_phone.trim()   : '';
+    if (!deliveryAddress) return error('delivery_address required', 400);
+    if (!deliveryPhone)   return error('delivery_phone required', 400);
+
     const tenantId = getTenantId(request);
     log.info('Creating order', { userId: user.id, userName: user.name });
 
@@ -56,6 +68,12 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
     const orderId = generateId();
 
     const statements = [];
+    // Required поля (address/phone) — только из body, уже валидированы
+    // выше. Optional (apartment/entrance/floor) — body имеет приоритет,
+    // если пусто — фолбэк на user-профиль (сохраняет старое поведение,
+    // не ломает существующий фронт для этих некритичных полей).
+    const optionalField = (v: any, fallback: any) =>
+      typeof v === 'string' && v.trim() ? v.trim() : (fallback || '');
     statements.push(env.DB.prepare(`
       INSERT INTO marketplace_orders (
         id, order_number, user_id, status, total_amount, delivery_fee, final_amount,
@@ -64,7 +82,11 @@ route('POST', '/api/marketplace/orders', async (request, env) => {
       ) VALUES (?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       orderId, orderNumber, user.id, totalAmount, deliveryFee, finalAmount,
-      user.address || '', user.apartment || '', user.entrance || '', user.floor || '', user.phone || '',
+      deliveryAddress,
+      optionalField(body.delivery_apartment, user.apartment),
+      optionalField(body.delivery_entrance,  user.entrance),
+      optionalField(body.delivery_floor,     user.floor),
+      deliveryPhone,
       delivery_date || null, delivery_time_slot || null, delivery_notes || null, payment_method || 'cash', tenantId
     ));
 

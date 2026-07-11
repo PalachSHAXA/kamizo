@@ -195,7 +195,19 @@ export function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProductAPI | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
-  const [deliveryNote, setDeliveryNote] = useState('');
+  // Bug fix 2026-07-11: раньше заказы уходили в БД с пустым
+  // delivery_address/phone, если у резидента профиль был не заполнен —
+  // orders.ts брал user.address/phone напрямую, менеджер получал
+  // «Адрес не указан». Теперь принимаем адрес и телефон из формы
+  // (pre-fill из профиля если что-то есть) — по тому же паттерну, что
+  // on-demand-модалка (Stage 4a) уже использует.
+  const [orderForm, setOrderForm] = useState({
+    delivery_address: '',
+    delivery_apartment: '',
+    delivery_phone: '',
+    delivery_notes: '',
+  });
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [showDeliveryRatingModal, setShowDeliveryRatingModal] = useState(false);
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
@@ -410,10 +422,41 @@ export function MarketplacePage() {
       });
     }
   }, []);
+  // Открытие checkout-модалки: pre-fill формы из user-профиля.
+  // У большинства жителей поля пусты — тогда форма ожидает ручного
+  // ввода. Раньше эту функцию заменял inline `setShowOrderModal(true)`
+  // без сброса — форма могла удержать заметку прошлого заказа.
+  const openOrderModal = useCallback(() => {
+    setOrderForm({
+      delivery_address:   user?.address   || '',
+      delivery_apartment: user?.apartment || '',
+      delivery_phone:     user?.phone     || '',
+      delivery_notes:     '',
+    });
+    setShowOrderModal(true);
+  }, [user]);
+
   const createOrder = async () => {
+    const address = orderForm.delivery_address.trim();
+    const phone   = orderForm.delivery_phone.trim();
+    // Клиентская валидация — то же, что on-demand-модалка (Stage 4a).
+    // Бэк тоже валидирует (400) — этот guard просто чтобы не гонять
+    // сеть впустую и дать понятный warning жителю.
+    if (!address) { addToast('warning', language === 'ru' ? 'Укажите адрес доставки' : 'Yetkazish manzilini kiriting'); return; }
+    if (!phone)   { addToast('warning', language === 'ru' ? 'Укажите телефон' : 'Telefon raqamini kiriting'); return; }
+
+    setOrderSubmitting(true);
     try {
-      await apiRequest('/api/marketplace/orders', { method: 'POST', body: JSON.stringify({ delivery_notes: deliveryNote }) });
-      setShowOrderModal(false); setDeliveryNote('');
+      await apiRequest('/api/marketplace/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          delivery_address:   address,
+          delivery_apartment: orderForm.delivery_apartment.trim() || undefined,
+          delivery_phone:     phone,
+          delivery_notes:     orderForm.delivery_notes.trim() || undefined,
+        }),
+      });
+      setShowOrderModal(false);
       // Success toast goes through the global <Toast/> which is anchored
       // above the BottomBar (never behind the dynamic island). Replaces
       // the previous inline `fixed top-4` green pill that landed under
@@ -424,6 +467,8 @@ export function MarketplacePage() {
       setTimeout(() => setActiveTab('orders'), 800);
     } catch {
       addToast('error', language === 'ru' ? 'Не удалось создать заказ' : "Buyurtma yaratilmadi");
+    } finally {
+      setOrderSubmitting(false);
     }
   };
   const submitDeliveryRating = async () => {
@@ -877,7 +922,7 @@ export function MarketplacePage() {
               <div className="bg-white rounded-[18px] p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
                 <div className="flex items-center justify-between mb-1 text-[13px] text-gray-500"><span>{language === 'ru' ? 'Товаров:' : 'Mahsulotlar:'}</span><span className="font-medium">{cartCount} {language === 'ru' ? 'шт' : 'dona'}</span></div>
                 <div className="flex items-center justify-between mb-3"><span className="text-[16px] font-bold text-gray-900">{language === 'ru' ? 'Итого' : 'Jami'}</span><span className="text-[18px] font-extrabold text-primary-600">{fmt(cartTotal)}</span></div>
-                <button onClick={() => setShowOrderModal(true)} className="w-full py-3 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] active:scale-[0.98] transition-transform shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]">{language === 'ru' ? 'Оформить заказ' : 'Buyurtma berish'}</button>
+                <button onClick={openOrderModal} className="w-full py-3 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] active:scale-[0.98] transition-transform shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]">{language === 'ru' ? 'Оформить заказ' : 'Buyurtma berish'}</button>
               </div>
             </>
           )}
@@ -1127,17 +1172,78 @@ export function MarketplacePage() {
         </div>
       )}
 
-      {/* ORDER MODAL */}
+      {/* ORDER MODAL — checkout with address + phone form (Bug fix 2026-07-11) */}
       {showOrderModal && (
-        <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => setShowOrderModal(false)}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px]" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => !orderSubmitting && setShowOrderModal(false)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-4">
-              <h2 className="text-[17px] font-bold text-gray-900 mb-4">{language === 'ru' ? 'Оформление' : 'Rasmiylashtirish'}</h2>
-              <div className="bg-gray-50 rounded-[14px] p-3.5 mb-3"><p className="text-[12px] text-gray-400 mb-1">{language === 'ru' ? 'Адрес' : 'Manzil'}</p><p className="text-[14px] font-semibold text-gray-900">{user?.address || '—'}, {language === 'ru' ? 'кв.' : 'xon.'} {user?.apartment || '—'}</p></div>
-              <textarea value={deliveryNote} onChange={e => setDeliveryNote(e.target.value)} placeholder={language === 'ru' ? 'Комментарий...' : 'Izoh...'} className="w-full p-3 border border-gray-200 rounded-[14px] resize-none text-[14px] mb-3" rows={2} />
-              <div className="flex items-center justify-between p-3.5 bg-primary-50 rounded-[14px] mb-4"><span className="text-[14px] font-medium text-gray-700">{language === 'ru' ? 'Итого' : 'Jami'}</span><span className="text-[18px] font-extrabold text-primary-600">{fmt(cartTotal)}</span></div>
-              <button onClick={createOrder} className="w-full py-3.5 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] active:scale-[0.98] transition-transform shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]">{language === 'ru' ? 'Подтвердить' : 'Tasdiqlash'}</button>
+              <h2 className="text-[17px] font-bold text-gray-900 mb-3">{language === 'ru' ? 'Оформление' : 'Rasmiylashtirish'}</h2>
+
+              <div className="space-y-3 mb-3">
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 mb-1 block">
+                    {language === 'ru' ? 'Адрес доставки' : 'Yetkazish manzili'} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={orderForm.delivery_address}
+                    onChange={e => setOrderForm({ ...orderForm, delivery_address: e.target.value })}
+                    placeholder={language === 'ru' ? 'ул. Название, д. 12' : "Ko'cha nomi, uy raqami"}
+                    className="w-full p-3 border border-gray-200 rounded-[14px] text-[14px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 mb-1 block">
+                    {language === 'ru' ? 'Квартира' : 'Xonadon'}
+                  </label>
+                  <input
+                    type="text"
+                    value={orderForm.delivery_apartment}
+                    onChange={e => setOrderForm({ ...orderForm, delivery_apartment: e.target.value })}
+                    placeholder={language === 'ru' ? 'номер квартиры' : 'xonadon raqami'}
+                    className="w-full p-3 border border-gray-200 rounded-[14px] text-[14px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 mb-1 block">
+                    {language === 'ru' ? 'Телефон' : 'Telefon'} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={orderForm.delivery_phone}
+                    onChange={e => setOrderForm({ ...orderForm, delivery_phone: e.target.value })}
+                    placeholder="+998 90 123-45-67"
+                    className="w-full p-3 border border-gray-200 rounded-[14px] text-[14px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 mb-1 block">
+                    {language === 'ru' ? 'Комментарий' : 'Izoh'}
+                  </label>
+                  <textarea
+                    value={orderForm.delivery_notes}
+                    onChange={e => setOrderForm({ ...orderForm, delivery_notes: e.target.value })}
+                    placeholder={language === 'ru' ? 'Например: домофон, этаж, время...' : "Masalan: domofon, qavat, vaqt..."}
+                    className="w-full p-3 border border-gray-200 rounded-[14px] resize-none text-[14px]"
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3.5 bg-primary-50 rounded-[14px] mb-4">
+                <span className="text-[14px] font-medium text-gray-700">{language === 'ru' ? 'Итого' : 'Jami'}</span>
+                <span className="text-[18px] font-extrabold text-primary-600">{fmt(cartTotal)}</span>
+              </div>
+              <button
+                onClick={createOrder}
+                disabled={orderSubmitting}
+                className="w-full py-3.5 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] active:scale-[0.98] transition-transform disabled:opacity-60 shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]"
+              >
+                {orderSubmitting
+                  ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
+                  : (language === 'ru' ? 'Подтвердить' : 'Tasdiqlash')}
+              </button>
             </div>
           </div>
         </div>
