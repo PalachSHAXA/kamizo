@@ -138,32 +138,32 @@ function getProductEmoji(name: string, categoryId: string): string {
   return CATEGORY_ICONS[categoryId] || '📦';
 }
 
+// Overlay-имя товара удалено 2026-07-11 — тот же дубликат <h3> под
+// фото, что и в ProductPhoto. Оставляем только градиентный фон +
+// emoji по центру.
 const ProductCardPlaceholder = memo(function ProductCardPlaceholder({ name, categoryId, size = 'md' }: { name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
   const gradient = CATEGORY_GRADIENTS[categoryId] || 'from-gray-400 to-gray-500';
   const emoji = getProductEmoji(name, categoryId);
   const emojiSize = { xs: 'text-xl', sm: 'text-3xl', md: 'text-4xl', lg: 'text-5xl', xl: 'text-7xl' }[size];
   return (
-    <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-end justify-end relative overflow-hidden`}>
+    <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden`}>
       <div className="absolute inset-0 opacity-15" style={{ backgroundImage: 'radial-gradient(ellipse at 20% 20%, white 0%, transparent 60%)' }} />
       <span className={`${emojiSize} absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 drop-shadow-lg`}>{emoji}</span>
-      {size !== 'xs' && (
-        <div className="relative z-10 w-full px-2 pb-2 pt-6 bg-gradient-to-t from-black/40 to-transparent">
-          <span className={`text-white font-semibold leading-tight line-clamp-2 drop-shadow ${size === 'sm' ? 'text-xs' : size === 'md' ? 'text-xs' : size === 'lg' ? 'text-xs' : 'text-[13px]'}`}>{name}</span>
-        </div>
-      )}
     </div>
   );
 });
 
-function ProductPhoto({ src, name, size = 'md' }: { src: string; name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
+// `size` and `categoryId` остаются в сигнатуре для совместимости с
+// call-sites'ами (все места передают их) — фактически ProductPhoto
+// сейчас использует только src и name (alt). Раньше `size` управлял
+// overlay-именем поверх фото (удалён 2026-07-11 как дубликат <h3>
+// под фото — он затемнял картинку и на длинных названиях давал
+// торчащий справа «хвост» вида «…00» через сбойный line-clamp-1
+// в WKWebView).
+function ProductPhoto({ src, name }: { src: string; name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
   return (
     <div className="w-full h-full relative overflow-hidden bg-gray-50">
       <img src={src} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-      {size !== 'xs' && size !== 'sm' && (
-        <div className="absolute bottom-0 left-0 right-0 px-2 pb-2 pt-6 bg-gradient-to-t from-black/50 to-transparent">
-          <span className={`text-white font-semibold leading-tight line-clamp-1 drop-shadow ${size === 'lg' ? 'text-xs' : 'text-[13px]'}`}>{name}</span>
-        </div>
-      )}
     </div>
   );
 }
