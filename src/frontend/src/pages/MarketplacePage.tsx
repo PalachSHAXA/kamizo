@@ -187,6 +187,24 @@ export function MarketplacePage() {
   const [activeTab, setActiveTab] = useState<'shop' | 'favorites' | 'cart' | 'orders'>('shop');
   const [categories, setCategories] = useState<MarketplaceCategoryAPI[]>([]);
   const [products, setProducts] = useState<MarketplaceProductAPI[]>([]);
+
+  // Нормализация булевых полей: SQLite отдаёт integer 0/1 для is_on_demand,
+  // is_featured, is_active. TypeScript интерфейс объявляет их boolean,
+  // но реальные значения на runtime — числа. В JSX это ломается на
+  // паттерне `{p.is_on_demand && <badge>}`: если поле = 0, React рендерит
+  // `0` как отдельный text-node прямо в родителе (photoWrap div). Два
+  // таких `0` рядом = визуальные "00" справа от фото + flex-контейнер
+  // сжимает картинку, освобождая место под эти "0"-ноды (~17px). Один
+  // раз каст в fetchData — весь класс бага закрыт для всех точек рендера
+  // (grid / featured / favorites / detail-modal / mini-scroll).
+  //
+  // stock_quantity, price, old_price сравниваются как числа — оставляем.
+  const normalizeProduct = (p: MarketplaceProductAPI): MarketplaceProductAPI => ({
+    ...p,
+    is_on_demand: !!p.is_on_demand,
+    is_featured: !!p.is_featured,
+    is_active: !!p.is_active,
+  });
   const [cart, setCart] = useState<MarketplaceCartItemAPI[]>([]);
   const [orders, setOrders] = useState<MarketplaceOrderAPI[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -256,7 +274,7 @@ export function MarketplacePage() {
         apiRequest<{ products: MarketplaceProductAPI[]; total: number }>('/api/marketplace/products'),
       ]);
       setCategories(categoriesRes?.categories || []);
-      setProducts(productsRes?.products || []);
+      setProducts((productsRes?.products || []).map(normalizeProduct));
       if (user) {
         try {
           const [cartRes, ordersRes, favoritesRes] = await Promise.all([
