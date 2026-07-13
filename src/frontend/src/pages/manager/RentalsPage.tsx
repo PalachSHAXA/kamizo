@@ -5,6 +5,7 @@ import { pluralWithCount } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useRentalStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import { branchesApi, buildingsApi, usersApi, apiRequest } from '../../services/api';
 import { useToastStore } from '../../stores/toastStore';
 
@@ -59,8 +60,15 @@ export function RentalsPage() {
   const [showAddRecordModal, setShowAddRecordModal] = useState(false);
   const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
   const [showCredentials, setShowCredentials] = useState<{ login: string; password: string } | null>(null);
-  const [deleteConfirmApartment, setDeleteConfirmApartment] = useState<{ id: string; ownerLogin: string } | null>(null);
-  const [deletePassword, setDeletePassword] = useState('');
+  // Delete-gate: было подтверждение по паролю владельца (ownerPassword),
+  // но пароль возвращается сервером только один раз при создании — после
+  // F5 в state его нет, и гейт вечно возвращал «Неверный пароль», делая
+  // удаление невозможным. Заменили на подтверждение вводом номера
+  // квартиры (GitHub-стиль): менеджер сверяет с тем, что видит на
+  // карточке. Серверная защита сохранена: DELETE endpoint требует
+  // isManagement(user) + requireFeature('rentals') на бэке.
+  const [deleteConfirmApartment, setDeleteConfirmApartment] = useState<{ id: string; ownerLogin: string; apartmentNumber: string } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
   const [newApartment, setNewApartment] = useState({
@@ -86,6 +94,18 @@ export function RentalsPage() {
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [loadingResidents, setLoadingResidents] = useState(false);
+
+  // BottomBar (fixed;bottom:-25px) перекрывал кнопку «Удалить» в
+  // модалке подтверждения — «Удалить» уходил под BottomBar, тап
+  // не проходил (сработал только Enter). Скрываем BottomBar пока
+  // открыта ЛЮБАЯ модалка раздела аренды.
+  useModalPresence(
+    !!deleteConfirmApartment ||
+    !!selectedApartment ||
+    showAddApartmentModal ||
+    showAddRecordModal ||
+    !!showCredentials
+  );
 
   // Load branches when modal opens
   useEffect(() => {
@@ -221,11 +241,14 @@ export function RentalsPage() {
   const handleDeleteConfirm = async () => {
     if (!deleteConfirmApartment) return;
 
-    // Find apartment to get stored password
-    const apartment = rentalApartments.find(a => a.id === deleteConfirmApartment.id);
-
-    if (!apartment || apartment.ownerPassword !== deletePassword) {
-      setDeleteError(language === 'ru' ? 'Неверный пароль' : 'Noto\'g\'ri parol');
+    // Гейт: введённая строка должна ТОЧНО совпасть с номером
+    // квартиры. `trim()` — на случай, если пользователь скопировал
+    // с пробелом. Case-sensitivity не важна: номера — цифры.
+    if (deleteConfirmText.trim() !== deleteConfirmApartment.apartmentNumber) {
+      setDeleteError(language === 'ru'
+        ? 'Введите номер квартиры точно так, как показан на карточке'
+        : 'Xonadon raqamini kartochkadagi kabi kiriting'
+      );
       return;
     }
 
@@ -236,7 +259,7 @@ export function RentalsPage() {
       removeUser(deleteConfirmApartment.ownerLogin);
 
       setDeleteConfirmApartment(null);
-      setDeletePassword('');
+      setDeleteConfirmText('');
       setDeleteError('');
     } catch {
       setDeleteError(language === 'ru' ? 'Ошибка удаления' : 'O\'chirish xatosi');
@@ -368,7 +391,29 @@ export function RentalsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {rentalApartments.map((apartment) => {
             const records = getApartmentRecords(apartment.id);
-            const activeRecord = records.find(r => new Date(r.checkOutDate) >= new Date());
+            // Три состояния статуса (было: только "Занята" по check_out
+            // >= today — так будущая бронь показывалась как «занята
+            // прямо сейчас», вводя менеджера в заблуждение).
+            //
+            //   currentGuest     — реально живёт сейчас: check_in ≤ today ≤ check_out
+            //   upcomingBooking  — ближайшая будущая бронь: check_in > today
+            //                      (сортируем по check_in ASC — берём первую)
+            //
+            // Приоритет отображения: currentGuest > upcomingBooking.
+            // Если есть и то, и другое (в квартире живут, но уже есть
+            // следующий заезд), показываем «Занята» + текущего гостя
+            // + отдельной мелкой строкой «Следующая бронь: X, DD.MM».
+            const todayMidnight = (() => {
+              const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+            })();
+            const currentGuest = records.find(r => {
+              const ci = new Date(r.checkInDate);
+              const co = new Date(r.checkOutDate);
+              return ci <= todayMidnight && todayMidnight <= co;
+            });
+            const upcomingBooking = records
+              .filter(r => new Date(r.checkInDate) > todayMidnight)
+              .sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime())[0];
 
             return (
               <div
@@ -381,8 +426,18 @@ export function RentalsPage() {
                     <h3 className="font-semibold text-lg mb-1">{apartment.name}</h3>
                     <div className="text-sm text-gray-500">{apartment.address}, {language === 'ru' ? 'кв.' : 'xon.'} {apartment.apartment}</div>
                   </div>
-                  {activeRecord ? (
+                  {currentGuest ? (
                     <span className="badge badge-progress">{language === 'ru' ? 'Занята' : 'Band'}</span>
+                  ) : upcomingBooking ? (
+                    // "Забронирована" — новое состояние. Ни .badge-progress
+                    // (оранжевый — читается как «занята»), ни .badge-done
+                    // (зелёный — читается как «свободна»). Синий / жёлтый
+                    // = «есть план, сейчас пусто». В глобальном index.css
+                    // нет подходящего класса, используем inline tailwind
+                    // (не будем плодить .badge-info ради одного места).
+                    <span className="badge bg-amber-100 text-amber-800">
+                      {language === 'ru' ? 'Забронирована' : 'Bron qilingan'}
+                    </span>
                   ) : (
                     <span className="badge badge-done">{language === 'ru' ? 'Свободна' : 'Bo\'sh'}</span>
                   )}
@@ -406,17 +461,37 @@ export function RentalsPage() {
                     )}
                   </div>
                 </div>
-                {activeRecord && (
+                {currentGuest && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="text-xs text-gray-500">{language === 'ru' ? 'Текущий гость:' : 'Joriy mehmon:'}</div>
-                    <div className="text-sm font-medium">{activeRecord.guestNames}</div>
-                    <div className="text-xs text-gray-500">{language === 'ru' ? 'до' : 'gacha'} {formatDate(activeRecord.checkOutDate)}</div>
+                    <div className="text-sm font-medium">{currentGuest.guestNames}</div>
+                    <div className="text-xs text-gray-500">{language === 'ru' ? 'до' : 'gacha'} {formatDate(currentGuest.checkOutDate)}</div>
+                    {upcomingBooking && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        {language === 'ru' ? 'Следующая бронь:' : 'Keyingi bron:'}{' '}
+                        {upcomingBooking.guestNames}, {formatDate(upcomingBooking.checkInDate)}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!currentGuest && upcomingBooking && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="text-xs text-gray-500">{language === 'ru' ? 'Заезд:' : 'Kelish:'}</div>
+                    <div className="text-sm font-medium">{upcomingBooking.guestNames}</div>
+                    <div className="text-xs text-gray-500">
+                      {language === 'ru' ? 'с' : 'dan'} {formatDate(upcomingBooking.checkInDate)}{' '}
+                      {language === 'ru' ? 'по' : 'gacha'} {formatDate(upcomingBooking.checkOutDate)}
+                    </div>
                   </div>
                 )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setDeleteConfirmApartment({ id: apartment.id, ownerLogin: apartment.ownerLogin });
+                    setDeleteConfirmApartment({
+                      id: apartment.id,
+                      ownerLogin: apartment.ownerLogin,
+                      apartmentNumber: apartment.apartment,
+                    });
                   }}
                   className="mt-3 text-xs text-red-500 hover:text-red-700"
                 >
@@ -457,18 +532,12 @@ export function RentalsPage() {
                     <div className="font-medium">{apartment.ownerName}</div>
                     <div className="text-sm text-gray-600">{apartment.ownerPhone}</div>
                     <div className="mt-3 pt-3 border-t border-gray-200">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-xs text-gray-400">{language === 'ru' ? 'Логин' : 'Login'}</div>
-                          <div className="font-mono text-sm font-medium text-gray-700">{apartment.ownerLogin}</div>
-                        </div>
-                        {(user?.role === 'director' || user?.role === 'admin' || user?.role === 'manager') && (
-                        <div>
-                          <div className="text-xs text-gray-400">{language === 'ru' ? 'Пароль' : 'Parol'}</div>
-                          <div className="font-mono text-sm font-medium text-gray-700">{apartment.ownerPassword || '—'}</div>
-                        </div>
-                        )}
-                      </div>
+                      {/* Столбец «Пароль» удалён — сервер возвращает
+                          пароль только один раз при создании (POST
+                          /api/rentals/apartments), в GET-ответе его нет,
+                          после F5 всегда «—». Оставили только логин. */}
+                      <div className="text-xs text-gray-400">{language === 'ru' ? 'Логин' : 'Login'}</div>
+                      <div className="font-mono text-sm font-medium text-gray-700">{apartment.ownerLogin}</div>
                     </div>
                   </div>
 
@@ -480,10 +549,27 @@ export function RentalsPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {records.map(record => {
-                        const isActive = new Date(record.checkOutDate) >= new Date();
+                      {(() => {
+                        // Та же логика 3-х состояний, что и на карточке
+                        // квартиры (см. rentalApartments.map). Раньше
+                        // единственная переменная `isActive = check_out >=
+                        // today` красила будущую бронь в зелёный «активно»,
+                        // хотя гость ещё не заехал.
+                        const _tm = new Date(); _tm.setHours(0, 0, 0, 0);
+                        return records.map(record => {
+                          const ci = new Date(record.checkInDate);
+                          const co = new Date(record.checkOutDate);
+                          const isCurrent = ci <= _tm && _tm <= co;
+                          const isFuture = ci > _tm;
+                          // isPast = co < _tm  (не используется в JSX
+                          // напрямую — это default-состояние)
+                          const cardCls = isCurrent
+                            ? 'border-orange-200 bg-orange-50'
+                            : isFuture
+                              ? 'border-amber-200 bg-amber-50'
+                              : 'border-gray-200 bg-gray-50';
                         return (
-                          <div key={record.id} className={`p-4 rounded-xl border ${isActive ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
+                          <div key={record.id} className={`p-4 rounded-xl border ${cardCls}`}>
                             <div className="flex items-start justify-between">
                               <div>
                                 <div className="font-medium">{record.guestNames}</div>
@@ -491,7 +577,21 @@ export function RentalsPage() {
                               </div>
                               <div className="text-right">
                                 <div className="font-semibold text-green-600">{formatAmount(record.amount, record.currency)}</div>
-                                {isActive && <StatusBadge status="active" size="sm">{language === 'ru' ? 'Активно' : 'Faol'}</StatusBadge>}
+                                {isCurrent && (
+                                  <span className="badge badge-progress text-xs mt-1 inline-block">
+                                    {language === 'ru' ? 'Активна' : 'Faol'}
+                                  </span>
+                                )}
+                                {isFuture && (
+                                  <span className="badge bg-amber-100 text-amber-800 text-xs mt-1 inline-block">
+                                    {language === 'ru' ? 'Будущая' : 'Kelayotgan'}
+                                  </span>
+                                )}
+                                {!isCurrent && !isFuture && (
+                                  <span className="badge bg-gray-100 text-gray-600 text-xs mt-1 inline-block">
+                                    {language === 'ru' ? 'Прошедшая' : 'O\'tgan'}
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
@@ -517,7 +617,8 @@ export function RentalsPage() {
                             </button>
                           </div>
                         );
-                      })}
+                        });
+                      })()}
                     </div>
                   )}
 
@@ -874,20 +975,31 @@ export function RentalsPage() {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-red-600" />
             </div>
-            <h2 className="text-xl font-bold mb-2 text-center">{language === 'ru' ? 'Подтвердите удаление' : 'O\'chirishni tasdiqlang'}</h2>
-            <p className="text-gray-500 mb-6 text-center">
-              {language === 'ru' ? 'Введите пароль владельца квартиры для подтверждения удаления' : 'O\'chirishni tasdiqlash uchun xonadon egasining parolini kiriting'}
+            <h2 className="text-xl font-bold mb-2 text-center">
+              {language === 'ru' ? 'Удалить квартиру' : 'Xonadonni o\'chirish'}
+              {' №'}{deleteConfirmApartment.apartmentNumber}?
+            </h2>
+            <p className="text-gray-500 mb-4 text-sm text-center">
+              {language === 'ru'
+                ? 'Будет удалена квартира и вся история аренды (гости, паспортные данные, платежи). Действие необратимо.'
+                : "Xonadon va uning barcha ijara tarixi (mehmonlar, pasport ma'lumotlari, to'lovlar) o'chiriladi. Bu qaytarilmas amaldir."}
             </p>
             <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-2">
+                {language === 'ru'
+                  ? <>Введите <span className="font-mono font-semibold">{deleteConfirmApartment.apartmentNumber}</span> для подтверждения:</>
+                  : <>Tasdiqlash uchun <span className="font-mono font-semibold">{deleteConfirmApartment.apartmentNumber}</span> kiriting:</>}
+              </label>
               <input
-                type="password"
-                value={deletePassword}
+                type="text"
+                value={deleteConfirmText}
                 onChange={e => {
-                  setDeletePassword(e.target.value);
+                  setDeleteConfirmText(e.target.value);
                   setDeleteError('');
                 }}
-                placeholder={language === 'ru' ? 'Пароль владельца' : 'Egasi paroli'}
+                placeholder={deleteConfirmApartment.apartmentNumber}
                 className="glass-input w-full"
+                autoFocus
               />
               {deleteError && (
                 <p className="text-red-500 text-sm mt-2">{deleteError}</p>
@@ -897,7 +1009,7 @@ export function RentalsPage() {
               <button
                 onClick={() => {
                   setDeleteConfirmApartment(null);
-                  setDeletePassword('');
+                  setDeleteConfirmText('');
                   setDeleteError('');
                 }}
                 className="btn-secondary flex-1"
@@ -906,7 +1018,8 @@ export function RentalsPage() {
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-medium transition-colors"
+                disabled={deleteConfirmText.trim() !== deleteConfirmApartment.apartmentNumber}
+                className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-xl font-medium transition-colors"
               >
                 {language === 'ru' ? 'Удалить' : 'O\'chirish'}
               </button>
