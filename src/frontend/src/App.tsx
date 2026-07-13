@@ -217,13 +217,12 @@ function App() {
       if (user.role === 'resident' && has('vehicles')) {
         fetchVehicles();
       }
-      // /api/notifications защищён `chat` фичей на бэке (тот же
-      // канал доставки, что и chat-уведомления). Без гейта —
-      // 403 каждые 30 сек на тенанте без chat.
-      if (has('chat')) {
-        fetchNotificationsFromAPI();
-        notifInterval = window.setInterval(fetchNotificationsFromAPI, 30000);
-      }
+      // /api/notifications — общий транспорт для ВСЕХ типов уведомлений
+      // (announcement, meeting, marketplace_order, request_*,
+      // guest_pass_revoked, rental_*). Не гейтится фичей — тенант без
+      // chat всё равно должен получать уведомления о своих заявках.
+      fetchNotificationsFromAPI();
+      notifInterval = window.setInterval(fetchNotificationsFromAPI, 30000);
     }, 0);
 
     return () => {

@@ -4,7 +4,7 @@
 import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
-import { getTenantId, requireFeature } from '../middleware/tenant';
+import { getTenantId } from '../middleware/tenant';
 import { json, error, generateId, isManagement } from '../utils/helpers';
 import { createRequestLogger } from '../utils/logger';
 
@@ -17,11 +17,12 @@ export function registerNotificationRoutes() {
 
 // ==================== NOTIFICATIONS ROUTES ====================
 
-// Get notifications for current user
+// Get notifications for current user.
+// Не гейтится фичей: /api/notifications — общий транспорт для ВСЕХ типов
+// уведомлений (announcement, meeting, marketplace_order, request_*,
+// guest_pass_revoked, rental_*). Гейт по `chat` отрезал уведомления
+// тенантам без чата — они не получали ничего, даже о своих заявках.
 route('GET', '/api/notifications', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -50,11 +51,8 @@ route('GET', '/api/notifications', async (request, env) => {
   return json({ notifications });
 });
 
-// Get unread count
+// Get unread count. Не гейтится — см. коммент к GET /api/notifications выше.
 route('GET', '/api/notifications/count', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -70,9 +68,6 @@ route('GET', '/api/notifications/count', async (request, env) => {
 
 // Create notification (management only)
 route('POST', '/api/notifications', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) return error('Management access required', 403);
 
@@ -109,9 +104,6 @@ route('POST', '/api/notifications', async (request, env) => {
 
 // Mark notification as read
 route('PATCH', '/api/notifications/:id/read', async (request, env, params) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -131,9 +123,6 @@ route('PATCH', '/api/notifications/:id/read', async (request, env, params) => {
 
 // Mark all notifications as read
 route('POST', '/api/notifications/read-all', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -148,9 +137,6 @@ route('POST', '/api/notifications/read-all', async (request, env) => {
 
 // Delete notification
 route('DELETE', '/api/notifications/:id', async (request, env, params) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -270,9 +256,6 @@ route('POST', '/api/upload', async (request, env) => {
 
 // Push: Subscribe
 route('POST', '/api/push/subscribe', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) {
     return error('Unauthorized', 401);
@@ -338,9 +321,6 @@ route('POST', '/api/push/subscribe', async (request, env) => {
 
 // Push: Unsubscribe
 route('POST', '/api/push/unsubscribe', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -356,9 +336,6 @@ route('POST', '/api/push/unsubscribe', async (request, env) => {
 
 // Push: Get subscription status
 route('GET', '/api/push/status', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -906,9 +883,6 @@ async function sendPushNotificationBatch(
 
 // Push: Send test notification (for debugging)
 route('POST', '/api/push/test', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
 
@@ -925,9 +899,6 @@ route('POST', '/api/push/test', async (request, env) => {
 
 // Push: Send notification to specific user (admin only)
 route('POST', '/api/push/send', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) {
     return error('Admin access required', 403);
@@ -958,9 +929,6 @@ route('POST', '/api/push/send', async (request, env) => {
 
 // Push: Broadcast notification to multiple users (admin only)
 route('POST', '/api/push/broadcast', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!authUser || !['admin', 'director', 'manager'].includes(authUser.role)) {
     return error('Admin access required', 403);
@@ -1026,9 +994,6 @@ route('POST', '/api/push/broadcast', async (request, env) => {
 
 // Send notification to multiple users
 route('POST', '/api/notifications/broadcast', async (request, env) => {
-  const fc = await requireFeature('chat', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-
   const authUser = await getUser(request, env);
   if (!isManagement(authUser)) {
     return error('Manager access required', 403);
