@@ -202,16 +202,28 @@ function App() {
 
     const launchFetches = window.setTimeout(() => {
       if (cancelled) return;
+      // Feature-guard: не дёргаем API отключённых фич — backend вернёт
+      // 403 «Feature X is not available in your plan», сторы поймают
+      // это toast'ом. Пример пострадавшего: my-humo (4 фичи из 16) —
+      // резидент видел красные ошибки на входе. Проверяем
+      // синхронно через getState(), потому что мы уже внутри
+      // setTimeout — вызвать хук здесь нельзя.
+      const has = useTenantStore.getState().hasFeature;
       fetchBuildings();
       if (['admin', 'manager', 'department_head', 'dispatcher'].includes(user.role)) {
         fetchExecutors();
       }
-      fetchRequests();
-      if (user.role === 'resident') {
+      if (has('requests')) fetchRequests();
+      if (user.role === 'resident' && has('vehicles')) {
         fetchVehicles();
       }
-      fetchNotificationsFromAPI();
-      notifInterval = window.setInterval(fetchNotificationsFromAPI, 30000);
+      // /api/notifications защищён `chat` фичей на бэке (тот же
+      // канал доставки, что и chat-уведомления). Без гейта —
+      // 403 каждые 30 сек на тенанте без chat.
+      if (has('chat')) {
+        fetchNotificationsFromAPI();
+        notifInterval = window.setInterval(fetchNotificationsFromAPI, 30000);
+      }
     }, 0);
 
     return () => {

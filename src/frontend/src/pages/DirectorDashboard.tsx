@@ -69,13 +69,17 @@ export function DirectorDashboard() {
     }
   };
 
-  // Load data on mount — fetch all in parallel for faster initial load
+  // Load data on mount — fetch all in parallel for faster initial load.
+  // Feature-guard для `requests` / `meetings`: если у тенанта фича
+  // отключена, backend вернёт 403 и стор поймает toast (см. useFeatureFetch).
+  // executors/buildings/teamData фичами не гейтятся — они системные.
   useEffect(() => {
+    const has = useTenantStore.getState().hasFeature;
     Promise.all([
-      fetchRequests(),
+      has('requests') ? fetchRequests() : Promise.resolve(),
       fetchExecutors(),
       fetchBuildings(),
-      fetchMeetings(),
+      has('meetings') ? fetchMeetings() : Promise.resolve(),
       loadTeamData(),
     ]);
   }, [fetchRequests, fetchExecutors, fetchBuildings, fetchMeetings]);

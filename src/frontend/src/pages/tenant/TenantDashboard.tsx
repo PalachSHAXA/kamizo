@@ -3,6 +3,7 @@ import { Key, Calendar, ChevronLeft, ChevronRight, Users, Home, Banknote, Trendi
 import { useAuthStore } from '../../stores/authStore';
 import { useRentalStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useTenantStore } from '../../stores/tenantStore';
 import { pluralWithCount } from '../../utils/plural';
 
 // USD to UZS fallback rate — update this constant or move to tenant config when dynamic rates are needed
@@ -14,13 +15,17 @@ export function TenantDashboard() {
   const rentalRecords = useRentalStore(s => s.rentalRecords);
   const fetchMyRentals = useRentalStore(s => s.fetchMyRentals);
   const { language } = useLanguageStore();
+  const hasRentals = useTenantStore(s => s.hasFeature('rentals'));
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch my apartments on mount
+  // Fetch my apartments on mount. Инвариант: role tenant/commercial_owner
+  // создаётся только через RentalsPage (rentals-фича), но если тенант
+  // впоследствии лишится фичи — не бьём 403.
   useEffect(() => {
+    if (!hasRentals) { setIsLoading(false); return; }
     const loadData = async () => {
       setIsLoading(true);
       try {
@@ -32,7 +37,7 @@ export function TenantDashboard() {
       }
     };
     loadData();
-  }, [fetchMyRentals]);
+  }, [fetchMyRentals, hasRentals]);
 
   // Get apartments owned by this tenant (now filtered by ownerId = user.id from backend)
   const myApartments = rentalApartments;

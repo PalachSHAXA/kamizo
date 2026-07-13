@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useFeatureFetch } from '../stores/useFeatureFetch';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../types';
 import type { ExecutorSpecialization } from '../types';
 
@@ -28,11 +29,13 @@ export function DepartmentHeadDashboard() {
   const isLoadingExecutors = useExecutorStore(s => s.isLoadingExecutors);
   const { language } = useLanguageStore();
 
-  // Fetch data on mount
+  // Fetch data on mount. Feature-guard для `requests` — на урезанном
+  // тарифе backend вернёт 403 и стор поймает toast. Executors — не
+  // фича, они системные.
+  useFeatureFetch('requests', fetchRequests);
   useEffect(() => {
-    fetchRequests();
     fetchExecutors();
-  }, [fetchRequests, fetchExecutors]);
+  }, [fetchExecutors]);
 
   // Get department specialization from user
   const departmentSpecialization = user?.specialization || 'plumber';

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore, useRequestStore } from '../stores/dataStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { apiRequest } from '../services/api';
 import { formatName } from '../utils/formatName';
 import type { PopupType } from '../components/PopupNotification';
@@ -170,6 +171,11 @@ export function usePopupNotifications() {
     if (!user || user.role !== 'resident') {
       return;
     }
+    // Feature-gate: poll бьёт /api/marketplace/orders каждые 30с
+    // — на тенанте без marketplace это 403 навсегда.
+    if (!useTenantStore.getState().hasFeature('marketplace')) {
+      return;
+    }
 
     // Track last known statuses
     const lastKnownStatusesKey = 'marketplace_order_statuses';
@@ -313,6 +319,11 @@ export function usePopupNotifications() {
   // Check for new vote reconsideration requests (for residents) - with polling
   useEffect(() => {
     if (!user || user.role !== 'resident') {
+      return;
+    }
+    // Feature-gate: poll бьёт /api/meetings/reconsideration-requests/me
+    // каждые 15с — на тенанте без meetings это 403 навсегда.
+    if (!useTenantStore.getState().hasFeature('meetings')) {
       return;
     }
 

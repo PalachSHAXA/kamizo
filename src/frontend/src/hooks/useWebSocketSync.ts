@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useExecutorStore, useAnnouncementStore } from '../stores/dataStore';
 import { useMeetingStore } from '../stores/meetingStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { useToastStore } from '../stores/toastStore';
 import { pushNotifications } from '../services/pushNotifications';
 import { WS_URL } from '../services/api/client';
@@ -107,8 +108,14 @@ export function useWebSocketSync() {
     if (now - lastSyncRef.current < SYNC_DEBOUNCE) return;
     lastSyncRef.current = now;
 
+    // Feature-gate: без гейта фон-синхронизация летит на каждый mount/
+    // visibility/WS-connected и получает 403 на тенанте с урезанными
+    // фичами. `useTenantStore.getState().hasFeature` синхронный, не
+    // подписка — deps не портятся.
+    const has = useTenantStore.getState().hasFeature;
     try {
-      const promises: Promise<void>[] = [fetchRequestsRef.current()];
+      const promises: Promise<void>[] = [];
+      if (has('requests')) promises.push(fetchRequestsRef.current());
       if (includeExecutors && ['manager', 'admin', 'director', 'dispatcher', 'department_head'].includes(u.role)) {
         promises.push(fetchExecutorsRef.current());
       }
@@ -121,6 +128,7 @@ export function useWebSocketSync() {
   const syncMeetings = useCallback(async () => {
     const u = userRef.current;
     if (!u || u.role === 'super_admin') return;
+    if (!useTenantStore.getState().hasFeature('meetings')) return;
     try {
       await fetchMeetingsRef.current();
     } catch (error) {
@@ -229,7 +237,9 @@ export function useWebSocketSync() {
               break;
 
             case 'announcement_update':
-              await fetchAnnouncementsRef.current();
+              if (useTenantStore.getState().hasFeature('announcements')) {
+                await fetchAnnouncementsRef.current();
+              }
               break;
 
             case 'chat_message':
@@ -247,7 +257,9 @@ export function useWebSocketSync() {
               break;
 
             case 'reschedule_update':
-              await fetchPendingReschedulesRef.current();
+              if (useTenantStore.getState().hasFeature('requests')) {
+                await fetchPendingReschedulesRef.current();
+              }
               if (message.data?.reschedule) {
                 emitRescheduleUpdate(message.data.reschedule as Record<string, unknown>);
               }

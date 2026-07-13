@@ -17,6 +17,7 @@ import { ProtectedRoute } from '../ProtectedRoute';
 import { OnboardingWizard } from '../OnboardingWizard';
 import { useOverlayStore, useCanShowOverlay } from '../../stores/overlayStore';
 import { useModalStore } from '../../stores/modalStore';
+import { useFeatureFetch } from '../../stores/useFeatureFetch';
 import { OnboardingTooltips } from '../OnboardingTooltips';
 import { settingsApi } from '../../services/api/settings';
 import { Loader2, ArrowLeft, ShieldAlert, Home, MapPinOff } from 'lucide-react';
@@ -238,12 +239,14 @@ export function Layout() {
 
   // Deep linking is supported — users can bookmark and share URLs directly
 
-  // Fetch announcements on mount (for badge in sidebar) - skip for super_admin
-  useEffect(() => {
-    if (user?.role !== 'super_admin') {
-      fetchAnnouncements();
-    }
-  }, [fetchAnnouncements, user?.role]);
+  // Fetch announcements on mount (for badge in sidebar) — skip for
+  // super_admin AND for tenants where `announcements` feature is off.
+  // Раньше дёргали безусловно → у tenants на урезанном тарифе (пример:
+  // my-humo, 4 фичи из 16) backend возвращал 403 «Feature not
+  // available», announcementStore ловил toast'ом и показывал жителю.
+  useFeatureFetch('announcements', () => {
+    if (user?.role !== 'super_admin') fetchAnnouncements();
+  }, [user?.role]);
 
   // Close sidebar when route changes on mobile
   useEffect(() => {

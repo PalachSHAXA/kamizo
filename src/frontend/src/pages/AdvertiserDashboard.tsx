@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { Switch } from '../components/ui';
 import { CouponsModal } from './advertiser/CouponsModal';
 import { API_URL } from '../services/api/client';
@@ -173,6 +174,14 @@ export function AdvertiserDashboard() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    // Feature-guard: /api/ads/* защищено `marketplace` на бэке. Без
+    // проверки — 403 при заходе на страницу у тенанта без marketplace.
+    // Дашборд рендерится, но пустой; catch поймает 403 тихо через
+    // `catRes.ok ? …`, но лишний сетевой шум не нужен.
+    if (!useTenantStore.getState().hasFeature('marketplace')) {
+      setLoading(false);
+      return;
+    }
     try {
       const [catRes, dashRes, adsRes, branchRes, buildingsRes] = await Promise.all([
         fetch(`${API_BASE}/api/ads/categories`, { headers: { Authorization: `Bearer ${token}` } }),

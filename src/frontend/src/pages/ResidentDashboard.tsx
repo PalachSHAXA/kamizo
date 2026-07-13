@@ -9,6 +9,7 @@ import { useRequestStore, useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useTenantStore } from '../stores/tenantStore';
+import { useFeatureFetch } from '../stores/useFeatureFetch';
 import { useFinanceStore } from '../stores/financeStore';
 import { useVehicleStore } from '../stores/vehicleStore';
 import { useGuestAccessStore } from '../stores/guestAccessStore';
@@ -136,11 +137,11 @@ export function ResidentDashboard() {
     }
   }, [requests]);
 
-  // Fetch announcements and meetings for home screen
-  useEffect(() => {
-    fetchAnnouncements();
-    fetchMeetings();
-  }, [fetchAnnouncements, fetchMeetings]);
+  // Fetch announcements and meetings for home screen — только если
+  // включены в тарифе. Если фичи нет, backend вернёт 403 и
+  // announcementStore покажет красный toast жителю. Пропускаем.
+  useFeatureFetch('announcements', fetchAnnouncements);
+  useFeatureFetch('meetings', fetchMeetings);
 
   useEffect(() => {
     // v128 — uses the apartment_id field added to /api/auth/login +

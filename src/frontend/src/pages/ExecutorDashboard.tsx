@@ -9,6 +9,7 @@ import { useRequestStore } from '../stores/requestStore';
 import { useExecutorStore } from '../stores/executorStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { executorsApi } from '../services/api';
 import type { Request, RescheduleRequest } from '../types';
 import { DeclineRequestModal } from '../components/modals/DeclineRequestModal';
@@ -77,19 +78,23 @@ export function ExecutorDashboard() {
     updateMarketplaceOrderStatus,
   } = useMarketplaceOrders();
 
-  // Fetch requests and pending reschedules from D1 database on mount and poll every 30 seconds
+  // Fetch requests and pending reschedules from D1 database on mount
+  // and poll every 30 seconds. Feature-guard: `requests` для основных
+  // fetch'ей, `marketplace` для courier-специфичных — если у тенанта
+  // отключено, backend возвращает 403.
   useEffect(() => {
     const isCourier = user?.specialization === 'courier';
+    const has = useTenantStore.getState().hasFeature;
+    const wantsMarketplace = isCourier && has('marketplace');
     Promise.all([
-      fetchRequests(),
-      fetchPendingReschedules(),
-      // Only fetch marketplace orders for couriers
-      ...(isCourier ? [fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders(), fetchDeliveredMarketplaceOrders()] : []),
+      has('requests') ? fetchRequests() : Promise.resolve(),
+      has('requests') ? fetchPendingReschedules() : Promise.resolve(),
+      ...(wantsMarketplace ? [fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders(), fetchDeliveredMarketplaceOrders()] : []),
     ]);
     const interval = setInterval(() => {
       Promise.all([
-        fetchPendingReschedules(),
-        ...(isCourier ? [fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders(), fetchDeliveredMarketplaceOrders()] : []),
+        has('requests') ? fetchPendingReschedules() : Promise.resolve(),
+        ...(wantsMarketplace ? [fetchMarketplaceOrders(), fetchAvailableMarketplaceOrders(), fetchDeliveredMarketplaceOrders()] : []),
       ]);
     }, 30000);
     return () => clearInterval(interval);

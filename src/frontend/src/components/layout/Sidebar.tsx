@@ -17,6 +17,7 @@ import { useModalPresence } from '../../stores/modalStore';
 import { useRequestStore, useAnnouncementStore, useExecutorStore, useVehicleStore, useGuestAccessStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { useTenantStore } from '../../stores/tenantStore';
+import { useFeatureFetch } from '../../stores/useFeatureFetch';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { AppLogo } from '../common/AppLogo';
 import { chatApi } from '../../services/api';
@@ -157,9 +158,16 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
   }, [user]);
 
-  // Initial fetch and polling every 30 seconds (WebSocket handles real-time)
-  useEffect(() => {
+  // Initial fetch and polling every 30 seconds (WebSocket handles real-time).
+  // Gate: feature `chat` — если у тенанта отключено, backend вернёт 403,
+  // catch поглотит тихо (только console.error), но лишние сетевые
+  // запросы каждые 30 сек не нужны.
+  useFeatureFetch('chat', () => {
     fetchChatUnreadCount();
+  }, [fetchChatUnreadCount]);
+  useEffect(() => {
+    const enabled = useTenantStore.getState().hasFeature('chat');
+    if (!enabled) return;
     const interval = setInterval(fetchChatUnreadCount, 30000);
     return () => clearInterval(interval);
   }, [fetchChatUnreadCount]);
