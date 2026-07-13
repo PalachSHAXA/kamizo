@@ -1,31 +1,34 @@
 import { useRef } from 'react';
-import { Lock, Sparkles, ArrowUpRight, MessageCircle } from 'lucide-react';
+import { Lock, Sparkles, ArrowUpRight, MessageCircle, Phone } from 'lucide-react';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { useAuthStore } from '../stores/authStore';
 import { useModalPresence } from '../stores/modalStore';
 
-// Feature registry: key → { name, description, plan }
+// Один источник истины для sales-контакта. Меняется в одном месте.
+const SALES_EMAIL = 'sales@kamizo.uz';
+
+// Feature registry: key → { name, description, plan }.
+// plan значения выровнены с PLAN_FEATURES в admin/components/types.ts —
+// показываем минимальный тариф, в котором эта фича появляется.
 const FEATURE_REGISTRY: Record<string, { ru: { name: string; desc: string }; uz: { name: string; desc: string }; plan: string }> = {
+  // ── Basic-фичи (доступны на всех тарифах) ─────────────────────
+  qr: {
+    ru: { name: 'QR-доступ', desc: 'Пропуска для гостей по QR-коду' },
+    uz: { name: 'QR-o\'tish', desc: 'Mehmonlar uchun QR-kod bo\'yicha o\'tkazmalar' },
+    plan: 'Basic',
+  },
+  notepad: {
+    ru: { name: 'Заметки', desc: 'Личные заметки и напоминания' },
+    uz: { name: 'Yozuvlar', desc: 'Shaxsiy yozuvlar va eslatmalar' },
+    plan: 'Basic',
+  },
+
+  // ── Pro-фичи ───────────────────────────────────────────────────
   marketplace: {
     ru: { name: 'Маркетплейс', desc: 'Заказывайте товары для дома с быстрой доставкой прямо в приложении' },
     uz: { name: 'Marketplace', desc: 'Uyga tovarlarni tez yetkazib berish bilan ilovadan to\'g\'ridan-to\'g\'ri buyurtma qiling' },
     plan: 'Pro',
-  },
-  analytics: {
-    ru: { name: 'Аналитика и отчёты', desc: 'Детальные отчёты, графики и KPI по работе вашего ЖК' },
-    uz: { name: 'Analitika va hisobotlar', desc: 'Uy-joy majmuangiz bo\'yicha batafsil hisobotlar, grafiklar va KPI' },
-    plan: 'Enterprise',
-  },
-  video: {
-    ru: { name: 'Видеонаблюдение', desc: 'Камеры в реальном времени и архив записей прямо в приложении' },
-    uz: { name: 'Video nazorat', desc: 'Real vaqtda kameralar va ilova ichida yozuvlar arxivi' },
-    plan: 'Enterprise',
-  },
-  smart_home: {
-    ru: { name: 'Умный дом', desc: 'Управление IoT-устройствами и автоматизация жилого комплекса' },
-    uz: { name: 'Aqlli uy', desc: 'IoT qurilmalarini boshqarish va turar-joy majmuasini avtomatlashtirish' },
-    plan: 'Enterprise',
   },
   chat: {
     ru: { name: 'Чат', desc: 'Общение с управляющей компанией в реальном времени' },
@@ -37,24 +40,63 @@ const FEATURE_REGISTRY: Record<string, { ru: { name: string; desc: string }; uz:
     uz: { name: 'Uy egalari yig\'ilishlari', desc: 'Onlayn ovoz berish va uy egalari yig\'ilishlari bayonnomalari' },
     plan: 'Pro',
   },
-  rentals: {
-    ru: { name: 'Аренда помещений', desc: 'Управление арендой коммерческих и жилых помещений' },
-    uz: { name: 'Xonalarni ijaraga berish', desc: 'Tijorat va turar-joy xonalarini ijaraga berish boshqaruvi' },
+  announcements: {
+    ru: { name: 'Объявления', desc: 'Новости и объявления от управляющей компании' },
+    uz: { name: 'E\'lonlar', desc: 'Boshqaruv kompaniyasidan yangiliklar va e\'lonlar' },
     plan: 'Pro',
+  },
+  vehicles: {
+    ru: { name: 'Транспорт', desc: 'Учёт автомобилей жильцов и парковочных мест' },
+    uz: { name: 'Transport', desc: 'Yashovchilarning avtomobillari va turargohlarni hisobga olish' },
+    plan: 'Pro',
+  },
+  'useful-contacts': {
+    ru: { name: 'Полезное рядом', desc: 'Аптеки, магазины и сервисы вашего района' },
+    uz: { name: 'Foydali xizmatlar', desc: 'Yaqin atrofdagi dorixona, do\'kon va xizmatlar' },
+    plan: 'Pro',
+  },
+  communal: {
+    ru: { name: 'Коммунальные платежи', desc: 'Показания счётчиков и квитанции' },
+    uz: { name: 'Kommunal to\'lovlar', desc: 'Hisoblagichlar ko\'rsatkichlari va kvitansiyalar' },
+    plan: 'Pro',
+  },
+  reports: {
+    ru: { name: 'Отчёты', desc: 'Аналитика по заявкам, платежам и работе УК' },
+    uz: { name: 'Hisobotlar', desc: 'Arizalar, to\'lovlar va boshqaruv ishi bo\'yicha analitika' },
+    plan: 'Pro',
+  },
+
+  // ── Enterprise-фичи ───────────────────────────────────────────
+  rentals: {
+    ru: { name: 'Аренда квартир', desc: 'Посуточная аренда: гости, паспорта, платежи и история заездов' },
+    uz: { name: 'Kvartira ijarasi', desc: 'Kunlik ijara: mehmonlar, pasport, to\'lovlar va kirish tarixi' },
+    plan: 'Enterprise',
   },
   trainings: {
     ru: { name: 'Обучение сотрудников', desc: 'Онлайн-курсы и тренинги для вашей команды' },
     uz: { name: 'Xodimlarni o\'qitish', desc: 'Jamoangiz uchun onlayn kurslar va treninglar' },
-    plan: 'Pro',
+    plan: 'Enterprise',
+  },
+  colleagues: {
+    ru: { name: 'Сотрудники', desc: 'Управление командой и правами доступа' },
+    uz: { name: 'Xodimlar', desc: 'Jamoani va kirish huquqlarini boshqarish' },
+    plan: 'Enterprise',
+  },
+  advertiser: {
+    ru: { name: 'Реклама', desc: 'Размещение рекламы для локального бизнеса' },
+    uz: { name: 'Reklama', desc: 'Mahalliy biznes uchun reklama joylashtirish' },
+    plan: 'Enterprise',
   },
 };
 
 const PLAN_COLORS: Record<string, string> = {
+  Basic: 'from-slate-500 to-slate-600',
   Pro: 'from-violet-500 to-purple-600',
   Enterprise: 'from-amber-500 to-orange-600',
 };
 
 const PLAN_BADGE_COLORS: Record<string, string> = {
+  Basic: 'bg-slate-100 text-slate-700',
   Pro: 'bg-violet-100 text-violet-700',
   Enterprise: 'bg-amber-100 text-amber-700',
 };
@@ -74,6 +116,8 @@ export function FeatureLockedModal({ isOpen, onClose, featureName, featureKey }:
   const { config } = useTenantStore();
   const { user } = useAuthStore();
   const tenantName = config?.tenant?.name || 'УК';
+  const tenantPhone = config?.tenant?.admin_phone || null;
+  const hasChatFeature = config?.features.includes('chat') ?? false;
   const swipeRef = useRef<{ startY: number; startX: number } | null>(null);
 
   if (!isOpen) return null;
@@ -108,11 +152,31 @@ export function FeatureLockedModal({ isOpen, onClose, featureName, featureKey }:
   const gradientClass = plan ? (PLAN_COLORS[plan] || PLAN_COLORS.Pro) : null;
   const badgeClass = plan ? (PLAN_BADGE_COLORS[plan] || PLAN_BADGE_COLORS.Pro) : null;
 
+  // Резидентский CTA: чат → tel → nothing.
+  const residentCta: 'chat' | 'phone' | null =
+    hasChatFeature ? 'chat' : (tenantPhone ? 'phone' : null);
+
   const handleContactUK = () => {
     onClose();
-    // Navigate to chat if available
-    window.location.hash = '/chat';
+    if (residentCta === 'chat') {
+      window.location.hash = '/chat';
+    } else if (residentCta === 'phone' && tenantPhone) {
+      window.location.href = `tel:${tenantPhone}`;
+    }
   };
+
+  // Админский CTA: mailto с готовым письмом. Открывается почтовый
+  // клиент (нативный mail, gmail в вебе, etc.) с заполненным to/subject/body.
+  const mailtoUpgrade = (() => {
+    if (!featureInfo) return null;
+    const subject = `Подключение раздела «${featureInfo.name}»`;
+    const body =
+      `Здравствуйте!\n\n` +
+      `Компания: ${tenantName}\n` +
+      `Хотим подключить раздел «${featureInfo.name}» (тариф ${featureInfo.plan}).\n\n` +
+      `Свяжитесь с нами.`;
+    return `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  })();
 
   return (
     <div
@@ -176,7 +240,7 @@ export function FeatureLockedModal({ isOpen, onClose, featureName, featureKey }:
 
           {/* CTA buttons */}
           <div className="flex flex-col gap-2.5 pb-2">
-            {isResidentRole && featureInfo && (
+            {isResidentRole && featureInfo && residentCta && (
               <>
                 <p className="text-[12px] text-gray-400 text-center -mb-1">
                   {t(`Попросите ${tenantName} повысить план`, `${tenantName}dan rejani yangilashni so'rang`)}
@@ -185,17 +249,24 @@ export function FeatureLockedModal({ isOpen, onClose, featureName, featureKey }:
                   onClick={handleContactUK}
                   className="w-full py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.97] transition-all touch-manipulation"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  {t('Написать в УК', 'UK ga yozish')}
+                  {residentCta === 'chat' ? (
+                    <>
+                      <MessageCircle className="w-4 h-4" />
+                      {t('Написать в УК', 'UK ga yozish')}
+                    </>
+                  ) : (
+                    <>
+                      <Phone className="w-4 h-4" />
+                      {t('Позвонить в УК', 'UKga qo\'ng\'iroq qilish')}
+                    </>
+                  )}
                 </button>
               </>
             )}
 
-            {isAdminRole && featureInfo && (
+            {isAdminRole && featureInfo && mailtoUpgrade && (
               <a
-                href="https://kamizo.uz/pricing"
-                target="_blank"
-                rel="noopener noreferrer"
+                href={mailtoUpgrade}
                 onClick={onClose}
                 className={`w-full py-3.5 bg-gradient-to-r ${gradientClass || 'from-primary-500 to-primary-600'} text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.97] transition-all touch-manipulation`}
               >

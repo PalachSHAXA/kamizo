@@ -97,6 +97,7 @@ function buildConfigResponse(tenant: Record<string, unknown>, context: 'tenant' 
       plan: tenant.plan,
       logo: tenant.logo || null,
       is_demo: tenant.is_demo === 1 || tenant.is_demo === true,
+      admin_phone: (tenant.admin_phone as string | null) || null,
       show_useful_contacts_banner: tenant.show_useful_contacts_banner !== 0 ? 1 : 0,
       show_marketplace_banner: tenant.show_marketplace_banner !== 0 ? 1 : 0,
       contract: hasContract ? {
