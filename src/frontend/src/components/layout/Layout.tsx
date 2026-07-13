@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useLocation, Link, useNavigate } from 'react-r
 import { useAuthStore } from '../../stores/authStore';
 import { useAnnouncementStore, useNotificationStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useTenantStore } from '../../stores/tenantStore';
 import { usePopupNotifications } from '../../hooks/usePopupNotifications';
 import { useWebSocketSync } from '../../hooks/useWebSocketSync';
 import { Sidebar } from './Sidebar';
@@ -173,6 +174,15 @@ export function Layout() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { language } = useLanguageStore();
+  // Sprint 87 — гейт по загрузке tenant config. Пока не подгружен
+  // (или упал и нет валидного cache) — не рендерим каркас: NativeSplashOverlay
+  // остаётся на месте, hasFeature=false для всех, feature-fetches не
+  // летят. Иначе на нативе / медленной сети UI успевал показать
+  // чужие пункты меню (utечка с прошлого тенанта) или спамил 403.
+  const isConfigFetched = useTenantStore(s => s.isConfigFetched);
+  const configError = useTenantStore(s => s.error);
+  const hasCachedTenant = useTenantStore(s => !!s.config?.tenant);
+  const refetchConfig = useTenantStore(s => s.fetchConfig);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Audit P0: was useDataStore() — subscribed to all 9 sub-stores so a
   // vehicle or rental update re-rendered the entire layout. Now focused.
@@ -512,6 +522,32 @@ export function Layout() {
     && location.pathname !== '/marketplace'
     && location.pathname !== '/profile'
     && location.pathname !== '/chat';
+
+  // Sprint 87 splash-gate — рендер каркаса только после подгрузки
+  // tenant config (или cached fallback). NativeSplashOverlay,
+  // портованный к document.body, остаётся видимым в этом промежутке.
+  if (!isConfigFetched) {
+    if (configError && !hasCachedTenant) {
+      return (
+        <div
+          className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
+          style={{ background: 'var(--app-bg, #F4F0E8)' }}
+        >
+          <ShieldAlert className="w-12 h-12 text-red-500 mb-4" />
+          <h1 className="text-lg font-semibold mb-2">
+            {language === 'ru' ? 'Не удалось загрузить конфигурацию' : 'Konfiguratsiyani yuklab bo\'lmadi'}
+          </h1>
+          <p className="text-sm text-gray-600 mb-6 max-w-xs">
+            {language === 'ru' ? 'Проверьте подключение к интернету и попробуйте снова.' : 'Internetga ulanishni tekshiring va qayta urinib ko\'ring.'}
+          </p>
+          <button onClick={() => void refetchConfig()} className="btn-primary">
+            {language === 'ru' ? 'Повторить' : 'Qayta urinish'}
+          </button>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div

@@ -178,6 +178,18 @@ export const useAuthStore = create<AuthState>()(
         }).catch(() => { /* non-critical */ });
         authApi.logout();
         set({ user: null, token: null, error: null });
+        // Sprint 87 — очистка tenantStore + всех persist-ключей
+        // tenant-config-*. Без этого на нативе (один origin capacitor://
+        // localhost на все тенанты) следующий юзер поднимет кэш
+        // предыдущего и увидит его фичи до подгрузки нового config.
+        import('./tenantStore').then(({ useTenantStore }) => {
+          useTenantStore.getState().clear();
+        }).catch(() => { /* non-critical */ });
+        try {
+          Object.keys(localStorage)
+            .filter((k) => k === 'tenant-config' || k.startsWith('tenant-config-'))
+            .forEach((k) => localStorage.removeItem(k));
+        } catch { /* private mode */ }
       },
 
       register: async (userData) => {

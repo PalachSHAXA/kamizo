@@ -70,7 +70,7 @@ route('GET', '/api/public/tenant-exists', async (request, env) => {
 //     no-Origin case. No leak about WHY the lookup failed.
 //   • A token's tenantId still has to match an active tenant row —
 //     we filter on is_active = 1 to refuse stale/disabled workspaces.
-function buildConfigResponse(tenant: Record<string, unknown>) {
+function buildConfigResponse(tenant: Record<string, unknown>, context: 'tenant' | 'apex' | 'unresolved' = 'tenant') {
   let features: string[] = [];
   try {
     features = JSON.parse((tenant.features as string) || '[]');
@@ -105,9 +105,16 @@ function buildConfigResponse(tenant: Record<string, unknown>) {
         uploaded_by_name: (tenant._contract_uploaded_by_name as string | null) || null,
       } : null,
     },
-    features
+    features,
+    context,
   });
 }
+
+// KNOWN_APEX — единственный список доменов, для которых main-app с
+// открытыми фичами; всё остальное с tenant=null → 'unresolved'
+// (native pre-login, чужие домены). Ключ используется фронтом:
+// hasFeature для tenant=null возвращает true ТОЛЬКО при context='apex'.
+const KNOWN_APEX_HOSTS = new Set(['kamizo.uz', 'app.kamizo.uz', 'www.kamizo.uz']);
 
 route('GET', '/api/tenant/config', async (request, env) => {
   // 1. Origin / subdomain path (browser PWA, VPS [node-port] patch).
@@ -189,9 +196,23 @@ route('GET', '/api/tenant/config', async (request, env) => {
     // Malformed Origin / DB hiccup → fall through to the no-tenant response.
   }
 
-  // 3. Nothing matched. Same response as before this change for
-  //    every existing caller that didn't have an Origin slug.
-  return json({ tenant: null, features: [] });
+  // 3. Nothing matched. Разделяем apex (главный сайт, все фичи) и
+  //    unresolved (нативный клиент до логина, чужой домен, ошибка).
+  //    Фронт использует context для решения, разрешать ли фичи при
+  //    tenant=null. Без этого различия hasFeature на нативе до логина
+  //    возвращал true на всё, а на apex — то же самое; теперь
+  //    единый источник истины на бэке.
+  let context: 'apex' | 'unresolved' = 'unresolved';
+  try {
+    const originForContext = request.headers.get('Origin') || request.headers.get('Referer') || '';
+    if (originForContext) {
+      const h = new URL(originForContext).hostname;
+      if (KNOWN_APEX_HOSTS.has(h)) context = 'apex';
+    }
+  } catch {
+    // Malformed Origin — оставляем unresolved.
+  }
+  return json({ tenant: null, features: [], context });
 });
 
 // Metrics Dashboard (Admin only)

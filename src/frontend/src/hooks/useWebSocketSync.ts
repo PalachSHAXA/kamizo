@@ -57,6 +57,12 @@ export function useWebSocketSync() {
   const WEBSOCKET_ENABLED = false;
 
   const { user, token } = useAuthStore();
+  // Race-condition guard: без ожидания подгрузки tenant_config
+  // `hasFeature(...)` возвращает true (main-domain fallback),
+  // и syncMeetings/syncData бьют 403 на subdomain с урезанными фичами.
+  // Подписка (не getState) заставляет useEffect ре-запуститься когда
+  // config подгрузился и гейт станет корректным.
+  const isConfigFetched = useTenantStore(s => s.isConfigFetched);
   // Audit P0: was useDataStore() barrel. This hook lives on every page so a
   // single sub-store change anywhere re-ran the sync effect. Focused
   // selectors keep the deps stable and limit re-renders.
@@ -340,6 +346,11 @@ export function useWebSocketSync() {
       return;
     }
 
+    // Layout уже гейтит рендер по isConfigFetched (Sprint 87), но
+    // держим defensive-guard здесь: если хук окажется смонтирован в
+    // другом месте, sync не побежит с пустым config.
+    if (!isConfigFetched) return;
+
     // Initial data fetch (always, even if WS disabled)
     syncData();
     syncMeetings();
@@ -359,9 +370,9 @@ export function useWebSocketSync() {
       stopHeartbeat();
       connectingRef.current = false;
     };
-    // Only re-run when user ID or token actually change (not reference)
+    // Only re-run when user ID / token / config-loaded actually change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, token]);
+  }, [user?.id, token, isConfigFetched]);
 
   // Handle visibility change — reconnect if disconnected
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { API_URL, getToken } from '../services/api/client';
 
 export interface TenantConfig {
@@ -12,12 +12,7 @@ export interface TenantConfig {
     plan: string;
     logo: string | null;
     is_demo: boolean;
-    // Sprint 85 commit 2 — per-tenant contract metadata. Populated by
-    // /api/tenant/config when the tenant row has a contract_r2_key.
-    // Used by the director-dashboard ContractUploader widget and
-    // (commit 3) the resident profile download row. Bytes are NEVER
-    // sent here — they stream from /api/admin/tenant/contract or
-    // /api/resident/contract.
+    admin_phone?: string | null;
     contract?: {
       filename: string | null;
       uploaded_at: string | null;
@@ -25,74 +20,163 @@ export interface TenantConfig {
     } | null;
   } | null;
   features: string[];
+  // Sprint 87 — backend-provided discriminator для случая tenant=null.
+  // 'tenant'     — tenant существует (path 1/2/2.5)
+  // 'apex'       — главный сайт kamizo.uz/app.kamizo.uz/www.kamizo.uz — все фичи
+  // 'unresolved' — не смогли определить тенант (нативный клиент до логина,
+  //                чужой домен, ошибка) — фичей нет
+  context?: 'tenant' | 'apex' | 'unresolved';
 }
 
 interface TenantState {
   config: TenantConfig | null;
+  fetchedAt: number;              // ms epoch последнего успешного fetch (для 24h TTL)
   isLoading: boolean;
   isConfigFetched: boolean;
+  isStale: boolean;                // true → используем cached fallback (offline mode)
   error: string | null;
   fetchConfig: () => Promise<void>;
   hasFeature: (feature: string) => boolean;
+  clear: () => void;
 }
+
+// Раскладываем tenantId из JWT без верификации подписи — только для
+// key/rehydrate-match. Верификация происходит на бэке при каждом запросе.
+function decodeJWTTenantId(token: string): string | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return (payload?.tenantId as string) || null;
+  } catch {
+    return null;
+  }
+}
+
+const PER_ATTEMPT_TIMEOUT_MS = 4000;
+const RETRY_PAUSES_MS = [1000, 2000];
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export const useTenantStore = create<TenantState>()(
   persist(
     (set, get) => ({
       config: null,
+      fetchedAt: 0,
       isLoading: false,
       isConfigFetched: false,
+      isStale: false,
       error: null,
 
       fetchConfig: async () => {
         set({ isLoading: true, error: null });
-        try {
-          // API_URL is hardcoded to https://api.kamizo.uz in client.ts —
-          // critical for the Capacitor native app whose WebView origin
-          // is https://localhost / capacitor://localhost. The previous
-          // `window.location.origin` fallback resolved to the bundled-
-          // asset host and 404'd in native, leaving every UK card blank
-          // and feature-gating defaulting to "allow all".
-          //
-          // Include the JWT when present so the backend's JWT-fallback
-          // path can resolve the user's tenant when the Origin header
-          // doesn't (i.e. unified mobile app, where Origin is
-          // https://localhost rather than a tenant subdomain).
-          const token = getToken();
-          const headers: HeadersInit = {};
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-          const response = await fetch(`${API_URL}/api/tenant/config`, { headers });
-
-          if (!response.ok) {
-            throw new Error('Failed to fetch tenant config');
+        // 3 попытки: 4с timeout + пауза 1с + 4с + пауза 2с + 4с = ≤15с worst
+        for (let i = 0; i <= RETRY_PAUSES_MS.length; i++) {
+          try {
+            const ctrl = new AbortController();
+            const timeoutId = setTimeout(() => ctrl.abort(), PER_ATTEMPT_TIMEOUT_MS);
+            const token = getToken();
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+            const response = await fetch(`${API_URL}/api/tenant/config`, { headers, signal: ctrl.signal });
+            clearTimeout(timeoutId);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const config = (await response.json()) as TenantConfig;
+            set({
+              config,
+              fetchedAt: Date.now(),
+              isLoading: false,
+              isConfigFetched: true,
+              isStale: false,
+              error: null,
+            });
+            return;
+          } catch (e) {
+            if (i < RETRY_PAUSES_MS.length) {
+              await new Promise((r) => setTimeout(r, RETRY_PAUSES_MS[i]));
+            }
           }
+        }
 
-          const config = await response.json();
-          set({ config, isLoading: false, isConfigFetched: true });
-        } catch (error: unknown) {
-          console.error('Error fetching tenant config:', error);
+        // Все попытки провалились. Кэш можно использовать только если
+        // tenant_id из JWT совпадает с cached.tenant.id — иначе
+        // получим утечку между тенантами на нативе (один origin).
+        const cached = get().config;
+        const currentJwtTenantId = decodeJWTTenantId(getToken() || '');
+        if (cached?.tenant && cached.tenant.id === currentJwtTenantId) {
           set({
             isLoading: false,
             isConfigFetched: true,
-            error: (error as Error).message,
-            config: { tenant: null, features: [] }
+            isStale: true,
+            error: 'Работаем в оффлайн-режиме',
+          });
+        } else {
+          set({
+            isLoading: false,
+            isConfigFetched: false,
+            isStale: false,
+            error: 'Не удалось загрузить конфигурацию',
+            config: null,
           });
         }
       },
 
       hasFeature: (feature: string) => {
-        const config = get().config;
-        if (!config || !config.tenant) {
-          // If no tenant (main domain), allow all features
-          return true;
+        const { config, isConfigFetched } = get();
+        // Гейт до подгрузки — false (кроме apex, который резолвится ниже).
+        if (!isConfigFetched) return false;
+        if (!config?.tenant) {
+          // Backend сказал, что мы на apex (главный сайт) — все фичи.
+          // Всё остальное с null-tenant — false (native pre-login, чужой домен, ошибка).
+          return config?.context === 'apex';
         }
         return config.features.includes(feature);
       },
+
+      clear: () => {
+        set({
+          config: null,
+          fetchedAt: 0,
+          isLoading: false,
+          isConfigFetched: false,
+          isStale: false,
+          error: null,
+        });
+      },
     }),
     {
-      name: 'tenant-config',
-      version: 1,
-      partialize: (state) => ({ config: state.config }),
-    }
-  )
+      // Ключ по tenant_id из JWT — иначе на нативе один localStorage на
+      // всех тенантов и сотрудник choko поднимет кэш myhelper.
+      // При отсутствии токена (pre-login, apex-браузер) — 'anon' bucket.
+      name: (() => {
+        try {
+          const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
+          const tid = token ? decodeJWTTenantId(token) : null;
+          return tid ? `tenant-config-${tid}` : 'tenant-config-anon';
+        } catch {
+          return 'tenant-config-anon';
+        }
+      })(),
+      version: 2,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ config: state.config, fetchedAt: state.fetchedAt }),
+      onRehydrateStorage: () => (state) => {
+        // Сверяем cached.tenant.id с JWT.tenantId. Если не совпало —
+        // сбрасываем кэш (защита от утечки между тенантами в нативе).
+        if (!state) return;
+        if (!state.config?.tenant) return;
+        const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
+        const jwtTid = token ? decodeJWTTenantId(token) : null;
+        if (state.config.tenant.id !== jwtTid) {
+          state.config = null;
+          state.fetchedAt = 0;
+          state.isConfigFetched = false;
+          return;
+        }
+        // TTL 24ч — свежий cache сразу поднимает isConfigFetched=true
+        // (мгновенный старт без splash), fetchConfig() всё равно освежит.
+        const fresh = state.fetchedAt && Date.now() - state.fetchedAt < CACHE_TTL_MS;
+        if (fresh) state.isConfigFetched = true;
+      },
+    },
+  ),
 );
