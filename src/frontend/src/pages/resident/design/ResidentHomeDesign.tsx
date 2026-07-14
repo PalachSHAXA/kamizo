@@ -404,19 +404,14 @@ function QuickTiles({ onNewRequest, navigate, language, passCount = 0, vehicleCo
   // has no `vehicles` feature) is tappable but ProtectedRoute redirects
   // to "/", so the user taps, screen flickers, bounces back.
   const hasFeature = useTenantStore((s) => s.hasFeature);
-  // "Оплата" tile removed until online payments actually ship. Prior
-  // versions rendered it as a locked/soon tile — Apple guideline 2.2
-  // rejects non-functional teasers on the main surface, and it was a
-  // repeated cause of previous rejection cycles. When payments are
-  // live, reintroduce it with a real onClick (e.g. navigate('/finance/
-  // charges')) — do NOT bring back a soon:true visual placeholder.
   const tiles = [
     { Icon: IWrench, label: ru(language, 'Заявка', 'Ariza'), onClick: hasFeature('requests') ? onNewRequest : undefined },
     { Icon: IQR, label: ru(language, 'Пропуск', 'Ruxsat'), onClick: hasFeature('qr') ? () => navigate('/guest-access') : undefined, badge: passCount },
+    { Icon: ICard, label: ru(language, 'Оплата', 'To\'lov'), soon: true },
     { Icon: ICar, label: ru(language, 'Авто', 'Avto'), onClick: hasFeature('vehicles') ? () => navigate('/vehicles') : undefined, badge: vehicleCount },
   ];
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
       {tiles.map((t, i) => (
         // v129 P1 — "Оплата" was a soon-flagged tile (Lock icon) but
         // the button still kept registering active-state taps. disabled
