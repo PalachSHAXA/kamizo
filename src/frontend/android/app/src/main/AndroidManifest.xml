@@ -27,6 +27,27 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!--
+          Sprint 87 Phase 0 — FCM display defaults. Used by
+          @capacitor/push-notifications' bundled MessagingService (merged
+          into this manifest from the plugin AAR) when a push arrives:
+          the OS tray uses these to render the notification icon + tint
+          and to route it into the correct NotificationChannel.
+
+          `default_notification_channel_id` MUST match the channel id
+          created in MainActivity.onCreate() below. `default_notification_icon`
+          must be a monochrome white-on-transparent drawable (Android
+          renders every non-white pixel as a solid white square on the
+          status bar from API 21+).
+
+          These entries are inert until google-services.json + Firebase
+          project are provisioned in Phase 1; assembleDebug is
+          unaffected by their presence.
+        -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="kamizo_default" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon"       android:resource="@drawable/ic_stat_kamizo" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color"      android:resource="@color/brand_orange" />
     </application>
 
     <!-- Permissions -->

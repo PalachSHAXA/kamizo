@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Sprint 87 Phase 0 — Kamizo brand orange, mirrors the CSS
+      variable `brand` (#F97316) from src/frontend/src/index.css. Used
+      by the FCM `default_notification_color` meta-data in
+      AndroidManifest so the notification icon tint matches the app's
+      visual identity. Add other brand palette entries here as needed.
+    -->
+    <color name="brand_orange">#F97316</color>
+</resources>

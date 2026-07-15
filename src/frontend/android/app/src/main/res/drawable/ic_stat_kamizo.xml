@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sprint 87 Phase 0 — placeholder monochrome notification icon for
+  Android status bar. Simple filled circle (24×24 dp) — Android tints
+  every non-transparent pixel white regardless of source color, so the
+  visual is a solid white dot on the status bar until Phase 2 replaces
+  this with a proper "K" glyph from the brand kit.
+
+  Referenced by FCM meta-data `default_notification_icon` in
+  AndroidManifest.xml. Fills in for missing @drawable ref so
+  assembleDebug's AAPT resource-link step succeeds.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z"/>
+</vector>
