@@ -84,6 +84,14 @@
   -webkit-font-smoothing: antialiased;
   transition: background 0.5s ease, opacity 0.4s ease;
   opacity: 1;
+  /* Sprint 87 — promote to compositor layer so the opacity transition
+     runs on the GPU thread. Some Android WebView builds (Chromium 103
+     ships as the emulator's default WebView) drop opacity transitions
+     on non-composited layers under load, leaving the splash visually
+     opaque even after data-ks-fading="true" is applied. Removing this
+     is safe on any modern engine; keeping it costs one extra layer
+     for the ~3 s the splash is on screen. */
+  will-change: opacity;
   pointer-events: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -111,10 +119,20 @@
   50%      { opacity: 1;    }
 }
 
-/* ── Sun (light theme only — conditionally rendered) ── */
+/* ── Sun (light theme only — conditionally rendered) ──
+   v118.155 — safe-area-aware positioning. Was `top: 9%` (fixed
+   percentage of viewport height), which put the sun's top edge at
+   ~76 pt on both iPhone 13 Pro (844 pt) and 15 Pro (852 pt) — very
+   close to the ~47/59 pt notch/Dynamic Island. Combined with the
+   ambient glow's top-right radial (`.ks-glow`) that has a different
+   center-of-mass, the composite read as clipped/off-position on
+   shorter iPhones. Using `max(9%, safe-area + 3vh)` keeps the
+   original 9% design on devices where the safe area is small, and
+   pushes the sun down proportionally on devices with a taller
+   status-bar zone. `right: 9%` stays — horizontal % scales fine. */
 .kamizo-splash .ks-sun {
   position: absolute;
-  top: 9%;
+  top: max(9%, calc(env(safe-area-inset-top, 0px) + 3vh));
   right: 9%;
   width: clamp(120px, 36vw, 180px);
   height: clamp(120px, 36vw, 180px);
@@ -224,7 +242,12 @@
   margin-top: 0;
   display: flex;
   align-items: baseline;
-  gap: 7px;
+  /* v118.155 — flex gap dropped. The dot's own `margin-left: 0.14em`
+     is now the sole spacer between word and dot, so spacing scales
+     proportionally with font-size across all screen widths. Was
+     `gap: 7px` (fixed) which stacked with the dot's margin, making
+     total spacing look right on wide screens but too tight on narrow. */
+  gap: 0;
   /* Defensive: enable OpenType kerning in case the rendering pipeline
      skips it on flex children. */
   font-kerning: normal;
@@ -253,7 +276,13 @@
 
 /* Orange brand dot that follows the wordmark — appended in the .tsx
    buildWordmark, pops in at 1.5 s. Sized + offset to match the
-   design's baseline alignment. */
+   design's baseline alignment.
+   v118.155 — offsets are now em-based so they SCALE WITH THE WORDMARK
+   FONT-SIZE (which clamps 44 → 60 px across screen widths). Previous
+   fixed `margin-left: 7px; margin-bottom: 12px` looked correctly close
+   to the word on 60 px wordmarks (large screens) but visibly detached
+   on 44 px wordmarks (smaller screens) — the user's "stray orange dot"
+   report on iPhone 13 Pro. Same visual outcome on every device now. */
 .kamizo-splash .ks-wm-dot {
   width: clamp(10px, 3vw, 13px);
   height: clamp(10px, 3vw, 13px);
@@ -261,8 +290,8 @@
   background: var(--ks-brand-dot);
   display: inline-block;
   align-self: flex-end;
-  margin-left: 7px;
-  margin-bottom: 12px;
+  margin-left: 0.14em;
+  margin-bottom: 0.22em;
   opacity: 0;
   transform: scale(0);
 }
@@ -276,7 +305,10 @@
 }
 
 .kamizo-splash .ks-tagline {
-  margin-top: 12px;
+  /* v118.155 — em-based so it scales with its own font-size
+     (clamp 13→16 px). Was fixed 12 px which looked tight on
+     larger screens and roomy on smaller ones. */
+  margin-top: 0.75em;
   font-size: clamp(13px, 3.8vw, 16px);
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -345,12 +377,23 @@
   color: var(--ks-muted);
 }
 
-/* ── Reduced motion: show all elements at final state, drop animations. */
+/* ── Reduced motion: show all elements at final state, drop animations.
+   v118.156 — FIX: the previous catch-all `transform: translateX(-50%)
+   translateY(0) !important` was applied to EVERY element in the list,
+   translating each one by 50% of ITS OWN width. That's fine for
+   .ks-realsky (which uses translateX(-50%) as its centering technique),
+   but on .ks-wm-word (~200 px wide) it shifts the "Kamizo" wordmark
+   ~100 px to the LEFT under reduced-motion, while the tiny .ks-wm-dot
+   (~13 px) only shifts ~6 px. Visually: the dot appears "detached and
+   floating far to the right of the word" — the exact 13 Pro bug the
+   user reported. iOS "Settings → Accessibility → Motion → Reduce
+   Motion" was ON on that device. Fix: reset ONLY the elements that
+   need identity to `transform: none`; keep .ks-realsky's translateX
+   for its centering. */
 @media (prefers-reduced-motion: reduce) {
   .kamizo-splash .ks-glow,
   .kamizo-splash .ks-star,
   .kamizo-splash .ks-sun,
-  .kamizo-splash .ks-realsky,
   .kamizo-splash .ks-wm-word,
   .kamizo-splash .ks-wm-dot,
   .kamizo-splash .ks-tagline,
@@ -358,11 +401,14 @@
   .kamizo-splash .ks-track i {
     animation: none !important;
     opacity: 1 !important;
-    transform: translateX(-50%) translateY(0) !important;
+    transform: none !important;
   }
   .kamizo-splash .ks-realsky {
-    /* The reset above forces translateX(-50%); other elements that
-       don't need it just collapse to identity via this catch-all. */
+    animation: none !important;
+    opacity: 1 !important;
+    /* Skyline PNG uses translateX(-50%) as its horizontal-centering
+       technique (see .ks-realsky base rule + ks-realsky-rise keyframe).
+       Under reduced-motion we keep it at that centered position. */
     transform: translateX(-50%) !important;
   }
 }

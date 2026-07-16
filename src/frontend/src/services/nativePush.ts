@@ -25,6 +25,25 @@
 import { Capacitor } from '@capacitor/core';
 import { apiRequest, API_URL } from './api/client';
 
+// ── Phase-gate flag ─────────────────────────────────────────────────
+// FCM_ENABLED controls whether initializeNativePush() runs the Android
+// FCM path. Kept FALSE until Sprint 87 Phase 1 provisions Firebase
+// Console + drops google-services.json into src/frontend/android/app/
+// and applies the com.google.gms.google-services gradle plugin.
+//
+// Why: @capacitor/push-notifications' Android register() calls
+// FirebaseMessaging.getInstance() unguarded (PushNotificationsPlugin.
+// java:103). With no google-services.json, no default FirebaseApp
+// exists → the SDK throws java.lang.IllegalStateException at the JVM
+// layer, ABOVE the Capacitor bridge's promise-reject handler → the
+// process crashes (AndroidRuntime FATAL EXCEPTION). Our JS-side
+// try/catch in initializeNativePush() cannot catch a native crash.
+//
+// FLIP TO TRUE when Phase 1 lands — Android will then register
+// normally. iOS is unaffected by this flag either way (APNs, no
+// Firebase dependency). No other code change is required at Phase 1.
+const FCM_ENABLED = false as boolean;
+
 // Lazy-imported so the chunk only loads on native builds. The
 // dynamic import lets the bundler split it out of the main bundle
 // (the static guard isNative() doesn't actually allow tree-shaking).
@@ -78,6 +97,18 @@ export async function initializeNativePush(opts: PushInitOptions = {}): Promise<
   if (!isNative()) return;
   const plat = platform();
   if (!plat) return;
+
+  // Phase-gate: on Android, skip the ENTIRE init when FCM is not
+  // provisioned yet. We don't even ask for the POST_NOTIFICATIONS
+  // permission — asking for a permission whose only consumer would
+  // crash the process is a worse UX than not asking. iOS (APNs) is
+  // never gated by this flag; see FCM_ENABLED comment at top of file.
+  // When Phase 1 flips FCM_ENABLED to true, this branch becomes a
+  // no-op and Android takes the same path as iOS below.
+  if (plat === 'android' && !FCM_ENABLED) {
+    console.log('[push] Android FCM disabled until Phase 1, skipping register');
+    return;
+  }
 
   const plugin = await getPushPlugin();
   if (!plugin) return;

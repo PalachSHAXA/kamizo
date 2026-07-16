@@ -235,28 +235,31 @@ function App() {
   return (
     <>
       <ThemeProvider />
-      {/* v118.166 — hoisted ABOVE the routing tree so React commits its
-          portal (createPortal → document.body) synchronously on the
-          first render, before Layout/BottomBar's own portal call. Both
-          land on document.body in the same commit, but the order the
-          React sub-tree visits them matters for the mid-mount frame:
-          overlay mounted first → its DOM node exists before BottomBar's
-          → z-index:9999 wins from the start. Belt-and-braces with the
-          `body.app-booting` guard that hides the bottom bar during the
-          boot window anyway.
-
-          The overlay renders on every launch on top of everything and
-          self-unmounts after ~3 s. Theme is picked by local clock time
-          (07–19 → light, else dark) so the splash matches morning vs
-          evening regardless of the iOS appearance setting. The native
-          @capacitor/splash-screen is configured neutral cream + launch
-          AutoHide:false; this component calls SplashScreen.hide() from
-          a `playing + 2 RAFs` gated effect so the user sees a single
-          seamless splash with zero coverage gap. See
-          NativeSplashOverlay.tsx. */}
-      <NativeSplashOverlay />
       <ErrorBoundary>
         <BrowserRouter>
+          {/* v118.166 + Sprint 87 cold-start fix — kept as the FIRST
+              child of BrowserRouter so its createPortal(→ document.body)
+              still commits BEFORE Layout/BottomBar's own portal calls
+              (mount order relative to BottomBar is preserved — both
+              are descendants of BrowserRouter now, but NativeSplashOverlay
+              is earlier in the child list, so its DOM node lands first
+              and z-index:9999 wins from the start). Moved INSIDE the
+              router — instead of ABOVE it — so it can call useLocation()
+              to trip the /login route-bypass dismiss criterion (see the
+              canDismiss block-comment in NativeSplashOverlay.tsx).
+              Belt-and-braces with `body.app-booting` which hides the
+              bottom bar during the boot window anyway.
+
+              The overlay renders on every launch on top of everything
+              and self-unmounts on ANY of: config resolved / on /login /
+              config error with no cache / 20 s hard-timeout backstop.
+              Theme is picked by local clock time (07–19 → light, else
+              dark). The native @capacitor/splash-screen is configured
+              neutral cream + launch AutoHide:false; this component
+              calls SplashScreen.hide() from a `playing + 2 RAFs`
+              gated effect so the user sees a single seamless splash
+              with zero coverage gap. See NativeSplashOverlay.tsx. */}
+          <NativeSplashOverlay />
           {/* v118.79 — stamps body.dataset.nav with push/pop so CSS
               can pick the correct slide direction on each route change. */}
           <NavigationDirectionTracker />

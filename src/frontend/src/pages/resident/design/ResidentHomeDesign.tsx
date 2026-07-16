@@ -449,9 +449,9 @@ function ApprovalCard({ req, language, onApprove, onDetails }: any) {
     ? (dur ? `${req.executorName} · ${ru(language, 'работа заняла', 'ish davom etdi')} ${dur}` : req.executorName)
     : null;
   return (
-    <div style={{ background: 'linear-gradient(135deg, #FFF3EA 0%, #FFE6D2 100%)', border: '1px solid var(--brand-200)', borderRadius: 20, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
+    <div style={{ background: 'var(--card-approve-bg)', border: '1px solid var(--card-approve-border)', borderRadius: 20, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 13, background: '#fff', color: 'var(--brand-dark)', display: 'grid', placeItems: 'center', flex: '0 0 auto', boxShadow: '0 0 0 4px rgba(249,115,22,0.12)' }}><ICheck size={22} stroke={2.4} /></div>
+        <div style={{ width: 44, height: 44, borderRadius: 13, background: 'var(--card-approve-icon-bg)', color: 'var(--brand-dark)', display: 'grid', placeItems: 'center', flex: '0 0 auto', boxShadow: '0 0 0 4px var(--card-approve-icon-halo)' }}><ICheck size={22} stroke={2.4} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '0.04em', color: 'var(--brand-dark)', textTransform: 'uppercase' }}>{ru(language, 'Ждёт вашей оценки', 'Bahoyingiz kutilmoqda')}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>{req.title} · #{req.number}</div>
@@ -635,6 +635,21 @@ export function ResidentHomeDesign(props: Props) {
   // hero ends up covering the global navigation. Drop the break-out for ≥md;
   // main-content's own width/margin already manages the column on desktop.
   const isMobile = useIsMobile();
+  // v118.87 + Android scroll fix — the inner-scroller pattern (.home-scroll
+  // with overflow-y:auto) exists to isolate iOS WKWebView's rubber-band
+  // bounce from .main-content. On Android/Chromium there is no such bounce,
+  // AND with viewport-fit=cover, 100dvh resolves to the FULL DISPLAY height
+  // (~1107 px on this Pixel emu), not the visible viewport (~845 px) — so
+  // .kz-screen at 100dvh was 262 px taller than the visible area,
+  // .home-scroll's content fit inside its own bounded height
+  // (scrollHeight === clientHeight), and .home-scroll captured every
+  // vertical touch WITHOUT SCROLLING, starving the outer .main-content
+  // (which has legit ~342 px of overflow that would scroll fine if it
+  // received the gesture). Fix: on Android ONLY, drop the inner-scroller
+  // + let .kz-screen size to content; .main-content — the mechanism proven
+  // to work on Requests / Profile / every other page — takes the scroll.
+  // On iOS, keep the exact existing v118.87 behaviour.
+  const isAndroid = Capacitor.getPlatform() === 'android';
 
   // No theme-color override on Home — the rule is now: light/beige status
   // bar on EVERY page (no exceptions). The global default in index.html
@@ -704,17 +719,28 @@ export function ResidentHomeDesign(props: Props) {
     <div
       className="kz-screen"
       style={{
-        // v118.87 — wrapper now fills the container with a flex column
-        // so the dedicated INNER SCROLLER (.home-scroll, below) can take
-        // the remaining height as a controlled scroll context. The fixed
-        // hero is a sibling of the scroller (NOT inside it) so iOS
-        // WKWebView's bounce on the scroller cannot translate the hero.
-        // iOS reliably honors `overscroll-behavior: none` on a
-        // non-document scroller, which it ignores on .main-content's
-        // document-coupled scrolling — moving the home scroll inwards
-        // is the fix the previous 4 defence-in-depth layers couldn't be.
-        height: '100%',
-        minHeight: '100%',
+        // v118.87 + Android scroll fix (platform-split).
+        //
+        // iOS (WebKit): keep the v118.87 bounded flex-column so
+        // .home-scroll (flex:1 min-height:0) has a definite basis to
+        // shrink into — needed to isolate the iOS rubber-band bounce.
+        // `height:'100%'` here works because WebKit resolves the
+        // percentage against the auto-height ancestor chain leniently
+        // enough that .home-scroll gets a bounded flex-item. This is
+        // the ORIGINAL, pre-100dvh behaviour — the 100dvh attempt was
+        // WRONG on Chromium because with viewport-fit=cover, 100dvh =
+        // full display extent (~1107 px on Pixel emu) not the visible
+        // viewport (~845 px). .kz-screen was 262 px taller than the
+        // usable area → .home-scroll never overflowed itself + captured
+        // touches without scrolling. Fully reverted here.
+        //
+        // Android (Chromium): `height:'auto'` so .kz-screen sizes to its
+        // content. .home-scroll below drops overflow-y:auto on Android
+        // (see next block), content flows to <main> which overflows the
+        // outer .main-content — .main-content is the scroll owner, same
+        // path Requests / Profile / every other page uses today.
+        height: isAndroid ? 'auto' : '100%',
+        minHeight: isAndroid ? undefined : '100%',
         background: 'var(--app-bg)',
         position: 'relative',
         display: 'flex',
@@ -745,12 +771,32 @@ export function ResidentHomeDesign(props: Props) {
       <div
         className="home-scroll"
         style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          overscrollBehavior: 'contain',
-          WebkitOverflowScrolling: 'touch',
+          // iOS (WebKit): v118.87 inner-scroller — flex-fills its bounded
+          // parent, overflow-y:auto owns the scroll, overscroll-behavior +
+          // -webkit-overflow-scrolling:touch isolate the WKWebView bounce
+          // from .main-content. Byte-identical to today's behaviour.
+          //
+          // Android (Chromium): NOT a scroller. No flex-grow / min-height:0
+          // (there's no bounded parent anyway — .kz-screen is 'auto'), NO
+          // overflow properties at all (see CSS spec: if EITHER axis is
+          // non-`visible`, the `visible` axis is coerced to `auto` — so
+          // `overflow-y:visible` with `overflow-x:hidden` STILL creates
+          // a scroll container. Dropping BOTH is the only way to make
+          // .home-scroll not a scroll container so Chromium won't route
+          // touches here). No overscroll override, no -webkit-overflow-
+          // scrolling. Content flows to <main> → outer .main-content
+          // handles the scroll — the mechanism proven to work on
+          // Requests / Profile / every other page today.
+          //
+          // paddingTop / paddingBottom kept on BOTH platforms — they
+          // reserve space for the fixed HomeHero above and the BottomBar
+          // below. Non-scroller elements can still carry padding.
+          flex: isAndroid ? undefined : 1,
+          minHeight: isAndroid ? undefined : 0,
+          overflowY: isAndroid ? undefined : 'auto',
+          overflowX: isAndroid ? undefined : 'hidden',
+          overscrollBehavior: isAndroid ? undefined : 'contain',
+          WebkitOverflowScrolling: isAndroid ? undefined : 'touch',
           paddingTop: 'var(--home-hero-h, 220px)',
           paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
         }}

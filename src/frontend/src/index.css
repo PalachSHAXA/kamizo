@@ -71,6 +71,17 @@
   --brand-100: #FFEDD5;
   --brand-200: #FED7AA;
   --brand-500: #F97316;
+
+  /* ApprovalCard tokens ("Ждёт вашей оценки" card on resident Home).
+     Light values MUST match the previous hardcoded design exactly —
+     bug 2026-07-16 was NOT a light-mode issue, only dark. The dark
+     overrides live under html.dark below. Consumers: ResidentHome-
+     Design.tsx `ApprovalCard` only (single-use component, blast
+     radius limited to that render). */
+  --card-approve-bg: linear-gradient(135deg, #FFF3EA 0%, #FFE6D2 100%);
+  --card-approve-border: #FED7AA;
+  --card-approve-icon-bg: #ffffff;
+  --card-approve-icon-halo: rgba(249, 115, 22, 0.12);
   --text-on-dark: #F4F0E8;
   --text-muted: #9CA3AF;
   --stone-300: #D6D3D1;
@@ -233,6 +244,17 @@ html.dark {
   --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.55);
   --sh-brand: 0 8px 22px rgba(249, 115, 22, 0.45);
   --brand-tint: rgba(234, 88, 12, 0.18);
+
+  /* ApprovalCard dark overrides — mirror the surface/border/tint
+     mechanism used by MeetingWidget / AnnMini / QuickTiles today.
+     Warm-tinted dark surface keeps the brand-accent identity of the
+     light peach card while providing readable contrast for the
+     theme-aware text tokens (--text-primary #F4F0E8, --text-secondary
+     #B8B2A8) that render inside it. */
+  --card-approve-bg: linear-gradient(135deg, rgba(234, 88, 12, 0.18) 0%, rgba(234, 88, 12, 0.10) 100%), #25201A;
+  --card-approve-border: rgba(234, 88, 12, 0.30);
+  --card-approve-icon-bg: #2C2620;
+  --card-approve-icon-halo: rgba(249, 115, 22, 0.22);
 
   /* text hierarchy */
   --text-primary:   #F4F0E8;

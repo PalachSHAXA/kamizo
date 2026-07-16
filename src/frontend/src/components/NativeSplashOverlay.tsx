@@ -37,6 +37,8 @@
 //       hour value).
 
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useTenantStore } from '../stores/tenantStore';
 import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -250,12 +252,70 @@ async function restoreAppStatusBar(): Promise<void> {
 // → tagline 1.5–2.2 → loader 1.7); we add a small buffer then fade.
 const OVERLAY_LIFETIME_MS = 2600;
 const FADE_OUT_MS = 400;
+// Sprint 87 cold-start splash-hang backstop. If none of the three
+// dismiss criteria (isConfigFetched / on /login / configError-no-cache)
+// trip within this window from mount, we force an error state on the
+// tenantStore so the reactive chain unmounts the splash and Layout's
+// existing «Не удалось загрузить» + «Повторить» card takes the screen.
+// 20 s comfortably exceeds tenantStore's worst-case retry budget
+// (3 × 4 s attempts + 1 s + 2 s pauses ≈ 15 s), so this only fires
+// when fetchConfig is genuinely stuck (promise never settles, weird
+// mid-flight cancellation, WebView networking wedged). Chosen over
+// forcing setFading(true) alone because a bare unmount at t=20 s
+// while (!isConfigFetched && !configError) would drop the user into
+// Layout returning null → blank body. Setting error routes them into
+// Layout's error card path instead — always actionable.
+const HARD_TIMEOUT_MS = 20000;
 
 export function NativeSplashOverlay() {
+  // v118.172 — web-safe early return. On any browser context (admin
+  // panel, УК panel, resident PWA login on desktop / mobile web), the
+  // overlay must not render — it covered the screen for ~3s on every
+  // page-load, which is a native-only UX. Safe against the Rules of
+  // Hooks because Capacitor.isNativePlatform() is constant per app
+  // session — same value returned every render, so the early return
+  // is stable across the component's lifetime. Same idiom is already
+  // used by PushNotificationPrompt.tsx and InstallAppSection.tsx.
+  // Native (iOS / Android) path below is untouched.
+  if (!Capacitor.isNativePlatform()) return null;
+
   const [pickInfo] = useState<PickInfo>(pickTheme);
   const theme = pickInfo.theme;
   const [fading, setFading] = useState(false);
   const [removed, setRemoved] = useState(false);
+  // Sprint 87 — держим splash пока !isConfigFetched. После 4с без
+  // ответа показываем "Загружаем..." чтобы юзер не решил, что залипло.
+  //
+  // Sprint 87 cold-start fix — the splash now has THREE independent
+  // dismiss criteria (any one suffices). The original single criterion
+  // (`isConfigFetched === true`) stranded users forever on a fresh
+  // install with no persisted tenant cache when the config fetch never
+  // settled (flaky network, WebView networking wedged). The other two:
+  //
+  //   • onLoginRoute — LoginPage lives at /login OUTSIDE Layout and is
+  //     tenant-agnostic; ProtectedRoute's Navigate('/login') has
+  //     already fired by the time we're mounted with no user/token.
+  //     Getting the splash out of its way lets the user sign in even
+  //     when tenant config is still unresolved.
+  //
+  //   • errorNoCache — mirrors Layout.tsx:530's condition
+  //     (!isConfigFetched && configError && !hasCachedTenant). When
+  //     Layout is about to render its «Не удалось загрузить» + повтор
+  //     card, we should get out of the way so the user can see + tap
+  //     Повторить.
+  //
+  // A fourth backstop lives in a separate useEffect below (hard-
+  // timeout) that flips tenantStore into an error state after 20 s
+  // if the app hasn't already found any of these exit paths — that
+  // triggers the errorNoCache branch here.
+  const isConfigFetched = useTenantStore(s => s.isConfigFetched);
+  const configError = useTenantStore(s => s.error);
+  const hasCachedTenant = useTenantStore(s => !!s.config?.tenant);
+  const location = useLocation();
+  const onLoginRoute = location.pathname === '/login';
+  const errorNoCache = !!configError && !hasCachedTenant;
+  const canDismiss = isConfigFetched || onLoginRoute || errorNoCache;
+  const [showSlowLoadHint, setShowSlowLoadHint] = useState(false);
 
   const wordmarkRef = useRef<HTMLDivElement>(null);
   const starfieldRef = useRef<HTMLDivElement>(null);
@@ -278,34 +338,119 @@ export function NativeSplashOverlay() {
       scatterStars(starfieldRef.current);
     }
 
-    // Hide the native iOS / Android splash now that the webview has
-    // rendered our overlay. requestAnimationFrame stagger so the
-    // overlay paints at least one frame before the native splash
-    // starts fading.
-    if (Capacitor.isNativePlatform()) {
-      requestAnimationFrame(() => {
-        SplashScreen.hide({ fadeOutDuration: 100 }).catch(() => {});
-      });
-    }
+    // v118.166 — SplashScreen.hide() MOVED out of this effect.
+    // Previously fired after a single requestAnimationFrame, which
+    // dismissed the native splash before this overlay had reached full
+    // opacity (its own fade-in gate is `playing` state, set in a
+    // SEPARATE effect on a further RAF). Result: a ~1s window where
+    // native splash was gone, overlay was still opacity 0, and the
+    // BottomBar portal (outside #root, so not gated by app-booting
+    // opacity:0) showed cream + tab bar with no content. Now we hide
+    // native splash only AFTER `playing` flips true AND 2 RAFs elapse
+    // — see the dedicated effect below. Cross-fade guarantee: overlay
+    // is opaque before the native splash starts its fade-out.
 
-    const fadeTimer = window.setTimeout(() => setFading(true), OVERLAY_LIFETIME_MS);
-    const removeTimer = window.setTimeout(
-      () => setRemoved(true),
-      OVERLAY_LIFETIME_MS + FADE_OUT_MS
-    );
+    // Sprint 87 — таймер отложен: fade вызывается только когда И анимация
+    // (>=OVERLAY_LIFETIME_MS) отработала И tenant config подгружен. Логика
+    // ниже в отдельном effect'е — здесь только "плохо-грузится" хинт.
+    const slowHintTimer = window.setTimeout(() => setShowSlowLoadHint(true), 4000);
     return () => {
-      window.clearTimeout(fadeTimer);
-      window.clearTimeout(removeTimer);
+      window.clearTimeout(slowHintTimer);
       // Restore the app's persisted-theme status bar config.
       void restoreAppStatusBar();
     };
   }, [theme]);
+
+  // Splash dismiss — Sprint 87 cold-start fix + removeTimer-race fix.
+  //
+  // canDismiss trips on any of: isConfigFetched === true (happy path)
+  // OR onLoginRoute (tenant-agnostic screen) OR errorNoCache (Layout's
+  // error card about to render). See the block-comment on canDismiss
+  // above for full rationale + the hard-timeout backstop below.
+  //
+  // CRITICAL: deps are [canDismiss, removed], NOT [canDismiss, fading].
+  // The earlier `[canDismiss, fading]` shape had a race: when `fadeTimer`
+  // fired → setFading(true) → React re-render → cleanup cancelled the
+  // still-pending removeTimer. The new effect body then early-exited on
+  // `if (fading) return;`, so removeTimer was never rescheduled and
+  // setRemoved(true) never fired — the component stayed mounted forever
+  // with `fading=true`. Keying on `removed` instead means the effect
+  // doesn't re-run when fading flips (fading isn't a dep), so the
+  // removeTimer stays alive across the fade. The early exit is dropped
+  // because `removed` state gate (line ~469: if (removed) return null)
+  // already handles the terminal case.
+  const mountTimeRef = useRef<number>(Date.now());
+  useEffect(() => {
+    if (removed) return;
+    if (!canDismiss) return;  // hold splash until any exit criterion is met
+    const elapsed = Date.now() - mountTimeRef.current;
+    const remaining = Math.max(0, OVERLAY_LIFETIME_MS - elapsed);
+    const fadeTimer = window.setTimeout(() => setFading(true), remaining);
+    const removeTimer = window.setTimeout(() => setRemoved(true), remaining + FADE_OUT_MS);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(removeTimer);
+    };
+  }, [canDismiss, removed]);
+
+  // Sprint 87 hard-timeout backstop. Fires once, HARD_TIMEOUT_MS after
+  // mount, ONLY if none of the three canDismiss criteria have tripped
+  // by then AND we're not already on /login. Rather than force-fade
+  // the overlay (which would reveal Layout returning null → blank
+  // body when isConfigFetched=false && !configError), we flip the
+  // tenantStore into the "fetch failed, no cache" error state that
+  // Layout.tsx:530 already knows how to render. That in turn flips
+  // errorNoCache=true above → the normal dismiss effect fades the
+  // splash → Layout paints its «Повторить» card. User is always
+  // handed an actionable state, never a broken shell.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const id = window.setTimeout(() => {
+      const s = useTenantStore.getState();
+      if (s.isConfigFetched) return;                       // resolved cleanly, splash already lifting
+      if (s.error) return;                                 // error-fallback branch already active
+      if (window.location.pathname === '/login') return;   // route-bypass already active
+      useTenantStore.setState({
+        isLoading: false,
+        isConfigFetched: false,
+        error: 'Не удалось загрузить конфигурацию',
+      });
+    }, HARD_TIMEOUT_MS);
+    return () => window.clearTimeout(id);
+  }, []);
 
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setPlaying(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  // v118.166 — dismiss the native splash AFTER `playing` is true AND
+  // 2 RAFs have elapsed. The overlay's CSS opacity animation is driven
+  // off `playing`; by the time this fires, one paint frame has locked
+  // in the animation start and the next paint has begun rendering the
+  // opaque overlay body — the native splash below can now fade with
+  // no visible gap. Idempotent + fire-once semantics because we gate
+  // on `playing === true` and the ref, so any re-run (Strict Mode
+  // double-invoke, theme change) doesn't re-fire hide().
+  const nativeSplashHiddenRef = useRef(false);
+  useEffect(() => {
+    if (!playing) return;
+    if (!Capacitor.isNativePlatform()) return;
+    if (nativeSplashHiddenRef.current) return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (nativeSplashHiddenRef.current) return;
+        nativeSplashHiddenRef.current = true;
+        SplashScreen.hide({ fadeOutDuration: 100 }).catch(() => {});
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [playing]);
 
   if (removed) return null;
 
@@ -443,7 +588,9 @@ export function NativeSplashOverlay() {
 
       <div className="ks-loader">
         <div className="ks-track"><i /></div>
-        <div className="ks-loadtxt">Загрузка</div>
+        <div className="ks-loadtxt">
+          {showSlowLoadHint && !isConfigFetched ? 'Загружаем…' : 'Загрузка'}
+        </div>
       </div>
 
       {/* v118.35 — debug strip + [CLEAR] button removed for store
