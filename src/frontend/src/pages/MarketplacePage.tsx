@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
-  CheckCircle, ShoppingBag, Star, ArrowLeft, Truck
+  CheckCircle, ShoppingBag, Star, ArrowLeft, Truck,
+  MessageCircle, Phone,
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -181,7 +182,20 @@ export function MarketplacePage() {
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
-  useTenantStore();
+  // Three-state gating (Sprint 87 v4). Route no longer carries
+  // requiredFeature="marketplace" — this page decides what to render:
+  //  • !hasMarketplace                       → resident-facing stub
+  //  • hasMarketplace && products.length===0 → educational empty
+  //  • hasMarketplace && products.length>0   → normal shop
+  //
+  // Selecting the DERIVED boolean via s.hasFeature('marketplace') (not
+  // the hasFeature function reference) so the component re-renders
+  // when tenant.config.features flips mid-session. Selecting a stable
+  // function reference alone would miss the change.
+  const hasMarketplace = useTenantStore(s => s.hasFeature('marketplace'));
+  const tenantName = useTenantStore(s => s.config?.tenant?.name) || 'УК';
+  const tenantPhone = useTenantStore(s => s.config?.tenant?.admin_phone) || null;
+  const hasChatFeature = useTenantStore(s => s.hasFeature('chat'));
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<'shop' | 'favorites' | 'cart' | 'orders'>('shop');
@@ -266,6 +280,12 @@ export function MarketplacePage() {
   useModalPresence(true);
 
   const fetchData = useCallback(async () => {
+    // STATE 1 gate — do NOT hit /api/marketplace/* endpoints when the
+    // tenant doesn't have the feature. Every marketplace route on the
+    // backend starts with requireFeature('marketplace') → 403 → error
+    // toast racing the stub render. Bail before the fetch cascade.
+    // setLoading(false) so the stub isn't hidden behind a spinner.
+    if (!hasMarketplace) { setLoading(false); return; }
     try {
       setLoading(true);
       const [categoriesRes, productsRes] = await Promise.all([
@@ -293,7 +313,7 @@ export function MarketplacePage() {
       const bannersRes = await apiRequest<{ banners: { id: string; title: string; description?: string; image_url?: string; link_url?: string }[] }>('/api/banners?placement=marketplace');
       setBanners(bannersRes?.banners || []);
     } catch { /* banner fetch failed */ }
-  }, [user]);
+  }, [user, hasMarketplace]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -302,6 +322,9 @@ export function MarketplacePage() {
     [orders]
   );
   useEffect(() => {
+    // STATE 1 gate — no /api/marketplace/orders polling for tenants
+    // without the feature (would 403 every 10s).
+    if (!hasMarketplace) return;
     if (!user) return;
     if (!hasActiveOrders) return;
     const interval = setInterval(async () => {
@@ -311,7 +334,7 @@ export function MarketplacePage() {
       } catch { /* ignore */ }
     }, 10000);
     return () => clearInterval(interval);
-  }, [user, hasActiveOrders]);
+  }, [user, hasActiveOrders, hasMarketplace]);
 
   useEffect(() => {
     const handler = (e: CustomEvent<{ orderId: string }>) => {
@@ -579,6 +602,24 @@ export function MarketplacePage() {
   // с крутилкой» — плохой UX. Теперь header/поиск/категории рендерятся
   // сразу, а вместо product-grid показывается skeleton (см. shop-таб
   // ниже). Данные пришли — skeleton заменяется реальным контентом.
+
+  // STATE 1 branch — render the resident-facing stub instead of the
+  // shop when the tenant doesn't have the marketplace feature. Placed
+  // AFTER all hooks (Rules of Hooks), BEFORE the JSX so the shop-
+  // specific derived state below never gets referenced. fetchData and
+  // the polling effect already skipped their /api calls above, so no
+  // 403 error toasts race the stub render.
+  if (!hasMarketplace) {
+    return (
+      <MarketplaceUnavailableStub
+        language={language === 'ru' ? 'ru' : 'uz'}
+        tenantName={tenantName}
+        tenantPhone={tenantPhone}
+        hasChatFeature={hasChatFeature}
+        navigate={navigate}
+      />
+    );
+  }
 
   return (
     <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
@@ -878,11 +919,33 @@ export function MarketplacePage() {
             </>
           )}
           {!loading && filteredProducts.length === 0 && (
-            <EmptyState
-              icon={<ShoppingBag className="w-12 h-12" />}
-              title={language === 'ru' ? 'Нет товаров' : 'Mahsulotlar yo\'q'}
-              description={language === 'ru' ? 'Товары не найдены' : 'Topilmadi'}
-            />
+            products.length === 0 ? (
+              // STATE 2 — feature enabled, catalog empty. Only claims
+              // capabilities that actually ship today: cash on receipt
+              // + УК-courier delivery. No online-payment, no time-of-
+              // day delivery guarantees. УК adds items via its own
+              // admin surface (/marketplace-products).
+              <EmptyState
+                icon={<ShoppingBag className="w-12 h-12" />}
+                title={language === 'ru'
+                  ? 'Каталог управляющей компании пока пуст'
+                  : "Boshqaruv kompaniyasining katalogi hozircha bo'sh"}
+                description={language === 'ru'
+                  ? 'Когда УК добавит товары, вы сможете заказывать их в приложении. Курьер УК привозит заказ, оплата принимается при получении.'
+                  : "BK katalogga tovarlar qo'shganda, siz ularni ilovada buyurtma qila olasiz. BK kuryeri buyurtmani olib keladi, to'lov olgan paytda qabul qilinadi."}
+              />
+            ) : (
+              // Filter/search returned nothing — different case, so
+              // different copy. Products exist in the catalog, they're
+              // just hidden by current filter/search.
+              <EmptyState
+                icon={<ShoppingBag className="w-12 h-12" />}
+                title={language === 'ru' ? 'Ничего не найдено' : 'Topilmadi'}
+                description={language === 'ru'
+                  ? 'Попробуйте изменить фильтр или поиск'
+                  : "Filtr yoki qidiruvni o'zgartirib ko'ring"}
+              />
+            )
           )}
         </div>
       )}
@@ -1571,6 +1634,103 @@ export function MarketplacePage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// STATE 1 stub — resident-facing full-page screen shown when the
+// tenant does NOT have the marketplace feature. Deliberately does NOT
+// reuse FeatureLockedModal for two reasons:
+//   (a) FeatureLockedModal is `fixed inset-0 bg-black/40` — as page
+//       content that renders as a dim overlay on a blank page, not as
+//       a proper screen.
+//   (b) FeatureLockedModal's registry copy says «Доступно на плане Pro»
+//       + «Попросите УК повысить план» — that's admin-oriented plan-
+//       upsell language. Residents cannot buy plans and shouldn't see
+//       pricing.
+//
+// Copy claims only what actually works today: courier delivery by
+// УК, cash on receipt. No online-payment, no delivery-time promises.
+// CTA mirrors FeatureLockedModal's residentCta ladder: chat if the
+// tenant has the chat feature, tel: to admin_phone otherwise, silent
+// omission if neither (better than a dead link).
+function MarketplaceUnavailableStub({
+  language, tenantName, tenantPhone, hasChatFeature, navigate,
+}: {
+  language: 'ru' | 'uz';
+  tenantName: string;
+  tenantPhone: string | null;
+  hasChatFeature: boolean;
+  navigate: (to: string) => void;
+}) {
+  const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
+  const cta: 'chat' | 'phone' | null =
+    hasChatFeature ? 'chat' : (tenantPhone ? 'phone' : null);
+
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="px-4 pt-4 pb-3 border-b border-gray-100 flex items-center gap-2">
+        {/* navigate('/') not navigate(-1): if the user arrived via a
+            typed URL, history is empty and navigate(-1) leaves the
+            app. Always land on home. */}
+        <button
+          onClick={() => navigate('/')}
+          className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+          aria-label={t('Назад', 'Orqaga')}
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-700" />
+        </button>
+        <h1 className="text-[16px] font-bold text-gray-900">
+          {t('Маркет для дома', 'Uy uchun market')}
+        </h1>
+      </div>
+
+      <div className="px-4 pt-6 pb-24 max-w-[560px] mx-auto">
+        <div className="w-16 h-16 rounded-full bg-primary-50 flex items-center justify-center mx-auto mb-4">
+          <ShoppingBag className="w-8 h-8 text-primary-500" />
+        </div>
+        <h2 className="text-[18px] font-bold text-gray-900 text-center mb-2">
+          {t(
+            `${tenantName} пока не подключила маркет`,
+            `${tenantName} hozircha marketni ulamagan`
+          )}
+        </h2>
+        <p className="text-[14px] text-gray-600 leading-relaxed text-center mb-6">
+          {t(
+            'Когда УК подключит раздел, вы сможете заказывать товары для дома прямо в приложении. Курьер УК привозит заказ, оплата принимается при получении.',
+            "BK bo'limni ulaganda, siz uy uchun tovarlarni to'g'ridan-to'g'ri ilovada buyurtma qila olasiz. BK kuryeri buyurtmani olib keladi, to'lov olgan paytda qabul qilinadi."
+          )}
+        </p>
+
+        {cta === 'chat' && (
+          <button
+            onClick={() => navigate('/chat')}
+            className="w-full py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.97] transition-all touch-manipulation"
+          >
+            <MessageCircle className="w-4 h-4" />
+            {t('Написать в УК', 'UKga yozish')}
+          </button>
+        )}
+
+        {cta === 'phone' && tenantPhone && (
+          <a
+            href={`tel:${tenantPhone}`}
+            className="w-full py-3.5 bg-primary-500 text-white font-semibold rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.97] transition-all touch-manipulation"
+          >
+            <Phone className="w-4 h-4" />
+            {t('Позвонить в УК', 'UKga qoʼngʼiroq qilish')}
+          </a>
+        )}
+
+        {cta === null && (
+          <p className="text-[13px] text-gray-500 text-center">
+            {t(
+              `Чтобы обсудить подключение — обратитесь в ${tenantName}.`,
+              `Ulanishni muhokama qilish uchun — ${tenantName}ga murojaat qiling.`
+            )}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

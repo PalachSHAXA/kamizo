@@ -900,19 +900,25 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                 onClick={() => go('/finance/charges')}
                 isLast={false}
               />
-              {/* Marketplace — hidden when tenant.features has no
-                  'marketplace'; other rows in this block are always-on
-                  base functions, so gating this one keeps the row list
-                  clean for УК that don't run the shop. Route + backend
-                  are the same MarketplacePage / /api/marketplace/*. */}
-              {hasFeature('marketplace') && (
-                <NavRow
-                  Icon={ShoppingBag}
-                  label={language === 'ru' ? 'Маркет для дома' : "Uy uchun market"}
-                  onClick={() => go('/marketplace')}
-                  isLast={false}
-                />
-              )}
+              {/* Marketplace — always visible. MarketplacePage decides
+                  what to render:
+                    (1) tenant.features NO 'marketplace' → resident-
+                        facing full-page stub (what the section gives
+                        you + chat/tel CTA). NOT the admin-oriented
+                        FeatureLockedModal — no plan/pricing language.
+                    (2) feature on, 0 products → educational empty
+                        state (order in-app, cash on receipt, courier
+                        delivery by УК).
+                    (3) feature on, N products → normal shop grid.
+                  ProtectedRoute for /marketplace no longer carries
+                  requiredFeature — check moved into the page so the
+                  stub can render for tenants without the feature. */}
+              <NavRow
+                Icon={ShoppingBag}
+                label={language === 'ru' ? 'Маркет для дома' : "Uy uchun market"}
+                onClick={() => go('/marketplace')}
+                isLast={false}
+              />
               <NavRow
                 Icon={Star}
                 label={language === 'ru' ? 'Оценить сотрудников' : 'Xodimlarni baholash'}

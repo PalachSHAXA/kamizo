@@ -800,8 +800,15 @@ export function Layout() {
                   <MonitoringPage />
                 </ProtectedRoute>
               } />
+              {/* Sprint 87 v4 — /marketplace no longer carries
+                  requiredFeature. Check moved into MarketplacePage so
+                  a resident whose tenant hasn't enabled the feature
+                  sees a purpose-built stub instead of Navigate('/').
+                  Staff surfaces /marketplace-orders and /marketplace-
+                  products keep the route-level gate — those views have
+                  no meaningful stub. */}
               <Route path="/marketplace" element={
-                <ProtectedRoute requiredFeature="marketplace">
+                <ProtectedRoute>
                   <MarketplacePage />
                 </ProtectedRoute>
               } />
