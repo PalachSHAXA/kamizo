@@ -42,6 +42,8 @@ import { useTenantStore } from '../stores/tenantStore';
 import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { Haptics } from '@capacitor/haptics';
+import { SoftHaptic } from '../services/softHaptic';
 import './NativeSplashOverlay.css';
 
 type Theme = 'light' | 'dark';
@@ -251,7 +253,38 @@ async function restoreAppStatusBar(): Promise<void> {
 // animation cascade finishes around 2.4 s (ring 0.35 → wordmark 1.5
 // → tagline 1.5–2.2 → loader 1.7); we add a small buffer then fade.
 const OVERLAY_LIFETIME_MS = 2600;
-const FADE_OUT_MS = 400;
+// Sprint 87 v2 — visual exit lengthened from 400 → 700 ms. Combined
+// with the CSS transform: scale(1)→scale(1.06) + opacity fade in
+// NativeSplashOverlay.css, splash now feels like it "opens into the
+// app" rather than blinking off. Peak of the haptic ramp coincides
+// with fadeTimer moment, then decays across this 700 ms window.
+const FADE_OUT_MS = 700;
+
+// Sprint 87 v3 — haptic-on-dismiss choreography (iOS only).
+// ONE CHHapticContinuous event with intensity + sharpness parameter
+// curves, NOT a transient series (v2 experiment reverted — discrete
+// taps read as separate pulses instead of one wave). A ~1.9 s
+// continuous event at varying low-to-medium intensity is well under
+// the 30 s Apple API cap and clean of attenuation on modern iPhones;
+// the very first ~100 ms at 0.05 is the desired "barely perceptible"
+// start of the crescendo.
+//
+// Build (1200 ms): concave-up rise 0.05 → 0.55, sharpness 0.20 →
+//   0.55. Reads as "something is coming".
+// Peak (140 ms = decayMs × 0.20): sustained 0.55/0.55.
+// Decay (560 ms): concave-down fall to 0. Coincides with the visual
+//   fade+scale exit.
+//
+// Fires from a SEPARATE timer scheduled inside the same dismiss
+// effect as fadeTimer/removeTimer (cleared in the same cleanup) so
+// deps stay [canDismiss, removed] byte-identical to commit 69d2d3e1.
+const HAPTIC_FULL_BUILD_MS = 1200;
+const HAPTIC_DECAY_MS = 700;
+// If runway to fadeTimer is shorter than this, we skip the build
+// entirely and play only the peak+decay (buildMs=0). 300 ms is the
+// minimum build that still reads as "something is coming" rather
+// than as a single spike — below that a build is worse than nothing.
+const HAPTIC_MIN_BUILD_MS = 300;
 // Sprint 87 cold-start splash-hang backstop. If none of the three
 // dismiss criteria (isConfigFetched / on /login / configError-no-cache)
 // trip within this window from mount, we force an error state on the
@@ -380,18 +413,110 @@ export function NativeSplashOverlay() {
   // because `removed` state gate (line ~469: if (removed) return null)
   // already handles the terminal case.
   const mountTimeRef = useRef<number>(Date.now());
+  // Sprint 87 haptic-on-dismiss refs. Kept fresh by separate tiny
+  // effects (below) so the fadeTimer callback can read latest values
+  // WITHOUT the dismiss effect taking them as deps. Adding
+  // isConfigFetched to the dismiss effect's deps would re-run it mid-
+  // fade — the exact race commit 69d2d3e1 stabilised. Traced case:
+  // /login route, slow network — fade starts at 2600 ms with no
+  // haptic, config lands at 2700 ms, effect re-runs, and the haptic
+  // fires 100 ms INTO the fade while removeTimer slips to 3100 ms.
+  // Do NOT let that happen. Deps stay [canDismiss, removed], the ref
+  // pattern is the escape hatch.
+  const isConfigFetchedRef = useRef(isConfigFetched);
+  useEffect(() => { isConfigFetchedRef.current = isConfigFetched; }, [isConfigFetched]);
+  const hapticFiredRef = useRef(false);
+
   useEffect(() => {
     if (removed) return;
     if (!canDismiss) return;  // hold splash until any exit criterion is met
     const elapsed = Date.now() - mountTimeRef.current;
     const remaining = Math.max(0, OVERLAY_LIFETIME_MS - elapsed);
-    const fadeTimer = window.setTimeout(() => setFading(true), remaining);
+
+    // Sprint 87 v2 — choreographed haptic on dismiss (iOS only). The
+    // build STARTS well before the visual fade begins, so the user
+    // FEELS something coming and THEN the splash exits. On healthy
+    // network (remaining=2400 ms):
+    //   • hapticTimer fires at t=1200 ms from now → t=1400 ms from mount
+    //   • buildMs=1200: 24 rising transients
+    //   • peak coincides with fadeTimer at t=2600 ms
+    //   • decayMs=700: 14 falling transients across the visual exit
+    //   • last transient at t=3300 ms; removeTimer also at t=3300 ms
+    //
+    // Short-runway path — if remaining is small, we NEVER delay the
+    // fade to make room for the build. Instead:
+    //   • remaining ≥ 1200 ms: full choreo (buildMs=1200, decayMs=700).
+    //   • 300 ≤ remaining < 1200: compressed build (buildMs=remaining,
+    //     hapticStartAt=0 → fires immediately). Feels "shorter build"
+    //     but still reads as building.
+    //   • remaining < 300 ms: skip build entirely (buildMs=0,
+    //     hapticStartAt=remaining). Only the 700 ms peak+decay plays,
+    //     starting AT fadeTimer moment. Below 300 ms a build reads as
+    //     a single spike rather than "coming" — worse than skipping.
+    //
+    // Gate: hapticFiredRef + isConfigFetchedRef. See the gates comment
+    // on the fadeTimer callback below for the full truth table
+    // (errorNoCache → no haptic, 20 s hard-cap → no haptic, /login on
+    // healthy net → haptic, web → no haptic).
+    const isNative = Capacitor.isNativePlatform();
+    const plat = isNative ? Capacitor.getPlatform() : 'web';
+    const isIOS = plat === 'ios';
+    const isAndroid = plat === 'android';
+
+    const hapticLeadMs = Math.min(HAPTIC_FULL_BUILD_MS, remaining);
+    const buildMs = hapticLeadMs >= HAPTIC_MIN_BUILD_MS ? hapticLeadMs : 0;
+    const hapticStartAt = remaining - buildMs;
+
+    // Timer variable declared as number|0 so cleanup can uniformly
+    // clearTimeout it regardless of whether we scheduled the iOS ramp.
+    let hapticTimer = 0;
+    if (isIOS) {
+      hapticTimer = window.setTimeout(() => {
+        if (hapticFiredRef.current) return;
+        if (!isConfigFetchedRef.current) return;
+        hapticFiredRef.current = true;
+        SoftHaptic.playDismiss({ buildMs, decayMs: HAPTIC_DECAY_MS }).catch(() => {});
+      }, hapticStartAt);
+    }
+
+    const fadeTimer = window.setTimeout(() => {
+      setFading(true);
+      // Android — single short tick at peak (fadeTimer moment).
+      // Consistent with commit 69d2d3e1 BottomBar Android path: 10 ms
+      // tick, NOT the harsh Haptics.impact(Light) we fixed. Android
+      // has no SoftHaptic ramp equivalent (no LRA primitive
+      // composition via @capacitor/haptics), and stretching a
+      // Vibrator.vibrate() into a 1.9 s waveform would produce
+      // exactly the alarm/incoming-call feel Apple's HIG discourages.
+      // Honest ceiling: single tick.
+      if (!isAndroid) return;
+      if (hapticFiredRef.current) return;
+      if (!isConfigFetchedRef.current) return;
+      hapticFiredRef.current = true;
+      Haptics.vibrate({ duration: 10 }).catch(() => {});
+    }, remaining);
+
     const removeTimer = window.setTimeout(() => setRemoved(true), remaining + FADE_OUT_MS);
+
     return () => {
+      if (hapticTimer) window.clearTimeout(hapticTimer);
       window.clearTimeout(fadeTimer);
       window.clearTimeout(removeTimer);
     };
   }, [canDismiss, removed]);
+
+  // Sprint 87 — pre-warm the CHHapticEngine on mount so the first
+  // haptic of the session (splash-dismiss) plays at full amplitude.
+  // Without warm-up the Taptic hardware takes a few ms to settle after
+  // cold start and the first pattern reads as attenuated. splash-mount
+  // is ≥2.6 s before fadeTimer fires — the engine has ample time to
+  // settle. Web + Android early-return; warmup is iOS-only (Android
+  // uses @capacitor/haptics.vibrate which needs no priming).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (Capacitor.getPlatform() !== 'ios') return;
+    SoftHaptic.warmup().catch(() => {});
+  }, []);
 
   // Sprint 87 hard-timeout backstop. Fires once, HARD_TIMEOUT_MS after
   // mount, ONLY if none of the three canDismiss criteria have tripped

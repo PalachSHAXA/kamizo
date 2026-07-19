@@ -54,8 +54,18 @@ function decodeJWTTenantId(token: string): string | null {
   }
 }
 
-const PER_ATTEMPT_TIMEOUT_MS = 4000;
-const RETRY_PAUSES_MS = [1000, 2000];
+// Sprint 87 — surface network failure faster on splash. Was 3 attempts
+// × 4 s + [1 s, 2 s] pauses = 15 s worst-case, which stranded users on
+// splash for ~15 s on dead-but-connected WiFi (route lost mid-flight).
+// Cut to 2 attempts × 3.5 s + one 1 s pause = 8 s retry budget;
+// +400 ms fade in NativeSplashOverlay ⇒ 8.4 s to the error card on
+// truly dead network. Single-packet blip resilience preserved via the
+// second attempt. Healthy-network path is unchanged — attempt №1 wins
+// in ~200 ms, well below both timeouts. The 20 s hard-cap backstop in
+// NativeSplashOverlay stays > retry budget, so the store's own error
+// branch still wins first.
+const PER_ATTEMPT_TIMEOUT_MS = 3500;
+const RETRY_PAUSES_MS = [1000];
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export const useTenantStore = create<TenantState>()(

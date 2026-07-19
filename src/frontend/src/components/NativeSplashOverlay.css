@@ -82,22 +82,36 @@
   background: var(--ks-sky, #F4F0E8);
   font-family: "Manrope", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  transition: background 0.5s ease, opacity 0.4s ease;
+  /* Sprint 87 v2 — visual exit is now opacity + subtle scale-up over
+     700 ms ease-out, so the splash "opens into the app" instead of
+     blinking off. Coincides with the peak+decay phase of the iOS
+     haptic ramp (see NativeSplashOverlay.tsx HAPTIC_DECAY_MS). Both
+     properties are on the compositor (opacity + transform) — no
+     layout thrash, GPU-cheap even on older iPhones on cold start. */
+  transition: background 0.5s ease,
+              opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
   opacity: 1;
-  /* Sprint 87 — promote to compositor layer so the opacity transition
-     runs on the GPU thread. Some Android WebView builds (Chromium 103
-     ships as the emulator's default WebView) drop opacity transitions
-     on non-composited layers under load, leaving the splash visually
-     opaque even after data-ks-fading="true" is applied. Removing this
-     is safe on any modern engine; keeping it costs one extra layer
-     for the ~3 s the splash is on screen. */
-  will-change: opacity;
+  transform: scale(1);
+  /* Sprint 87 — promote to compositor layer so the opacity+transform
+     transition runs on the GPU thread. Some Android WebView builds
+     (Chromium 103 ships as the emulator's default WebView) drop
+     opacity transitions on non-composited layers under load, leaving
+     the splash visually opaque even after data-ks-fading="true" is
+     applied. Removing this is safe on any modern engine; keeping it
+     costs one extra layer for the ~3.3 s the splash is on screen. */
+  will-change: opacity, transform;
   pointer-events: none;
   -webkit-tap-highlight-color: transparent;
 }
 
 .kamizo-splash[data-ks-fading="true"] {
   opacity: 0;
+  /* 1.06 scale-up — subtle enough to read as "expanding into the app"
+     rather than as a bounce or a zoom. Combined with the ease-out
+     curve (fast start, slow finish) the motion feels like the splash
+     dilates and dissolves at once. */
+  transform: scale(1.06);
 }
 
 .kamizo-splash * {
