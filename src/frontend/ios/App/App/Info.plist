@@ -2,22 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CAPACITOR_DEBUG</key>
+	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ru</string>
 	<key>CFBundleDisplayName</key>
-        <string>Kamizo</string>
-	<!-- Privacy descriptions (iOS requires these to be set for any
-	     capability used by the app, even if accessed via a Capacitor
-	     plugin or web API. Without the matching key in Info.plist,
-	     the system prompt crashes the app on first invocation.) -->
-	<key>NSCameraUsageDescription</key>
-	<string>Доступ к камере используется для сканирования QR-кодов пропусков на охране.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Доступ к фотографиям нужен для прикрепления изображений к заявкам в управляющую компанию.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Kamizo сохраняет скачанные документы (договоры, акты) в фотогалерею.</string>
+	<string>Kamizo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -32,7 +22,23 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Kamizo использует камеру для сканирования QR-кодов пропусков охраной, фотографирования проблем при подаче заявок в управляющую компанию и отправки фото в чат с УК.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Kamizo сохраняет скачанные документы (договор управления, акты сверки, платёжные документы) и полученный QR-код гостевого пропуска в фотогалерею.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Kamizo обращается к фотографиям для прикрепления снимков к заявкам в управляющую компанию и отправки изображений в чат с УК.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -48,44 +54,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<!-- v130 — required for files written to Documents/ via @capacitor/
-	     filesystem to show up under "On My iPhone → Kamizo" in the Files
-	     app. Without UIFileSharingEnabled, the Documents directory is
-	     hidden; without LSSupportsOpeningDocumentsInPlace, iOS opens a
-	     copy instead of the original file when the user taps it. Both
-	     keys are recommended by Apple for any app that produces
-	     user-facing documents (contracts, receipts, exports). -->
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-	<!-- Sprint 86 — APNs / Push Notifications. `remote-notification` lets
-	     iOS wake the app in the background for silent content-available
-	     pushes (e.g. badge updates), as a companion to the standard
-	     foreground/alert path. Required for the @capacitor/push-
-	     notifications register() call to succeed on a freshly-installed
-	     build. -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
-	<!-- v118.35 — Export-compliance declaration required by Apple's
-	     ARR 5.1.1(f). The app uses only standard HTTPS / TLS for
-	     network comms (api.kamizo.uz + wss://api.kamizo.uz) and no
-	     proprietary or restricted cryptography. Setting this key to
-	     false eliminates the export-compliance prompt at every App
-	     Store Connect upload and avoids the "Missing encryption
-	     declaration" rejection. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>
