@@ -82,6 +82,37 @@
   --card-approve-border: #FED7AA;
   --card-approve-icon-bg: #ffffff;
   --card-approve-icon-halo: rgba(249, 115, 22, 0.12);
+
+  /* ResidentFinancePage "Оплата" tokens. Light values MUST be byte-
+     identical to the file's top-of-file constants — bug 2026-07-19 was
+     a dark-mode-only regression (whole page rendered light). Consumers:
+     src/pages/finance/ResidentFinancePage.tsx (single file, all sub-
+     components module-local, no exports leak — grep-verified). Balance-
+     card gradients (green/red/brown) are NOT tokenised: the card is
+     intentionally dark in BOTH themes ("premium hero" per handoff
+     §09-oplata) — flipping it to cream in light would be a regression.
+     Same for BRAND, TEXT_ON_DARK (used only inside the dark balance
+     card), SHADOW_BRAND. Status colours ARE tokenised because 0.12-
+     alpha tint over #25201A drops STATUS_PENDING contrast to 2.89:1
+     (below AA-Normal for the 10 px bold badge label). Dark values use
+     Tailwind-400 versions of the same hues + slightly bumped alpha,
+     landing above 5:1 comfortably. */
+  --finance-app-bg: #F4F0E8;
+  --finance-surface: #FFFFFF;
+  --finance-text-primary: #1C1917;
+  --finance-text-secondary: #6F6A62;
+  --finance-text-muted: #A8A29E;
+  --finance-border: rgba(28,25,23,0.08);
+  --finance-hairline: rgba(28,25,23,0.06);
+  --finance-shadow-sm: 0 1px 2px rgba(28,25,23,0.04);
+  --finance-skeleton-bg: #EDE7DB;
+  --finance-status-active:      #15A06E;
+  --finance-status-active-bg:   rgba(21,160,110,0.12);
+  --finance-status-pending:     #B45309;
+  --finance-status-pending-bg:  rgba(180,83,9,0.12);
+  --finance-status-critical:    #E2483D;
+  --finance-status-critical-bg: rgba(226,72,61,0.12);
+
   --text-on-dark: #F4F0E8;
   --text-muted: #9CA3AF;
   --stone-300: #D6D3D1;
@@ -255,6 +286,33 @@ html.dark {
   --card-approve-border: rgba(234, 88, 12, 0.30);
   --card-approve-icon-bg: #2C2620;
   --card-approve-icon-halo: rgba(249, 115, 22, 0.22);
+
+  /* ResidentFinancePage "Оплата" dark overrides. App-bg + surface +
+     border + hairline mirror the tenant-wide dark palette (--app-bg
+     #1A1612, --surface #25201A) so the page reads consistent with Home
+     / Requests / chat. Text tokens land in the same #F4F0E8 / #B8B2A8
+     / #8C8779 family as global --text-* so amounts and headings read
+     at parity with request cards. Shadow flipped from ink-alpha
+     (invisible on dark) to true-black 0.35 — a subtle depth cue that
+     actually renders on #25201A. Status colours bumped to Tailwind-400
+     versions of the same hues + alpha 0.16-0.18 so the 10 px bold
+     badge label clears 5:1 (fixes the AA-Normal failure — see :root
+     comment for the light-mode contrast math). */
+  --finance-app-bg: #1A1612;
+  --finance-surface: #25201A;
+  --finance-text-primary: #F4F0E8;
+  --finance-text-secondary: #B8B2A8;
+  --finance-text-muted: #8C8779;
+  --finance-border: rgba(244,240,232,0.10);
+  --finance-hairline: rgba(244,240,232,0.08);
+  --finance-shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+  --finance-skeleton-bg: #2C2620;
+  --finance-status-active:      #4ADE80;
+  --finance-status-active-bg:   rgba(74,222,128,0.16);
+  --finance-status-pending:     #FBBF24;
+  --finance-status-pending-bg:  rgba(251,191,36,0.16);
+  --finance-status-critical:    #F87171;
+  --finance-status-critical-bg: rgba(248,113,113,0.18);
 
   /* text hierarchy */
   --text-primary:   #F4F0E8;

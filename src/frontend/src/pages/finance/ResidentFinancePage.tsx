@@ -21,24 +21,38 @@ import { useToastStore } from '../../stores/toastStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { financeApi } from '../../services/api/finance';
 
-// ── tokens (literal so a global rename can't silently break the surface)
-const APP_BG = '#F4F0E8';
-const SURFACE = '#FFFFFF';
-const TEXT_PRIMARY = '#1C1917';
-const TEXT_SECONDARY = '#6F6A62';
-const TEXT_MUTED = '#A8A29E';
+// ── tokens
+// Theme-adaptive tokens flow through CSS vars declared in index.css
+// (:root + html.dark). Fallbacks preserve the original literals byte-
+// for-byte so if a var is ever unset, light-theme rendering matches
+// pre-fix pixel-for-pixel. Dark theme flips them via html.dark. Only
+// theme-adaptive palette moved:
+//  • Surface / borders / text  → theme-aware (page was reading light in dark mode).
+//  • Status badges (paid / pending / overdue) → theme-aware because
+//    the 0.12-alpha tint over #25201A dark surface drops the pending
+//    badge to 2.89:1 (below AA-Normal on 10 px bold text).
+// Theme-INVARIANT and intentionally left as literals:
+//  • BRAND / BRAND_DARK / SHADOW_BRAND — brand accent, same in both.
+//  • TEXT_ON_DARK — text on the ALWAYS-dark balance-card gradient.
+//  • Balance-card gradients + glows — the card is a "premium hero"
+//    dark surface in BOTH themes (design handoff §09-oplata).
+const APP_BG = 'var(--finance-app-bg, #F4F0E8)';
+const SURFACE = 'var(--finance-surface, #FFFFFF)';
+const TEXT_PRIMARY = 'var(--finance-text-primary, #1C1917)';
+const TEXT_SECONDARY = 'var(--finance-text-secondary, #6F6A62)';
+const TEXT_MUTED = 'var(--finance-text-muted, #A8A29E)';
 const TEXT_ON_DARK = '#F4F0E8';
-const BORDER_C = 'rgba(28,25,23,0.08)';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
+const BORDER_C = 'var(--finance-border, rgba(28,25,23,0.08))';
+const HAIRLINE = 'var(--finance-hairline, rgba(28,25,23,0.06))';
 const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
-const STATUS_ACTIVE = '#15A06E';
-const STATUS_ACTIVE_BG = 'rgba(21,160,110,0.12)';
-const STATUS_PENDING = '#B45309';
-const STATUS_PENDING_BG = 'rgba(180,83,9,0.12)';
-const STATUS_CRITICAL = '#E2483D';
-const STATUS_CRITICAL_BG = 'rgba(226,72,61,0.12)';
-const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
+const STATUS_ACTIVE = 'var(--finance-status-active, #15A06E)';
+const STATUS_ACTIVE_BG = 'var(--finance-status-active-bg, rgba(21,160,110,0.12))';
+const STATUS_PENDING = 'var(--finance-status-pending, #B45309)';
+const STATUS_PENDING_BG = 'var(--finance-status-pending-bg, rgba(180,83,9,0.12))';
+const STATUS_CRITICAL = 'var(--finance-status-critical, #E2483D)';
+const STATUS_CRITICAL_BG = 'var(--finance-status-critical-bg, rgba(226,72,61,0.12))';
+const SHADOW_SM = 'var(--finance-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 const SHADOW_BRAND = '0 8px 22px rgba(249,115,22,0.32)';
 const RADIUS_XL = 22;
 const RADIUS_LG = 16;
@@ -693,10 +707,10 @@ function ChargesSkeleton() {
           padding: 15, display: 'flex', alignItems: 'center', gap: 12,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ height: 14, width: '60%', borderRadius: 6, background: '#EDE7DB' }} />
-            <div style={{ height: 10, width: '40%', borderRadius: 6, background: '#EDE7DB', marginTop: 6 }} />
+            <div style={{ height: 14, width: '60%', borderRadius: 6, background: 'var(--finance-skeleton-bg, #EDE7DB)' }} />
+            <div style={{ height: 10, width: '40%', borderRadius: 6, background: 'var(--finance-skeleton-bg, #EDE7DB)', marginTop: 6 }} />
           </div>
-          <div style={{ height: 18, width: 70, borderRadius: 6, background: '#EDE7DB' }} />
+          <div style={{ height: 18, width: 70, borderRadius: 6, background: 'var(--finance-skeleton-bg, #EDE7DB)' }} />
         </div>
       ))}
     </div>

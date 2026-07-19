@@ -26,6 +26,51 @@ export function AppLogo({ size = 'md', forceDefault = false }: AppLogoProps) {
     );
   }
 
+  // Middle rung — tenant exists but hasn't uploaded a logo yet: render
+  // a letter-chip from the УК name (first letter, uppercase). Mirrors
+  // HomeHero's inline chip (ResidentHomeDesign.tsx:344-355) so a
+  // brand-new tenant like "choko" gets a consistent "C" placeholder on
+  // EVERY screen (Home, Requests, Sidebar, …) instead of a Kamizo "K"
+  // on some and a "C" on others. HomeHero's own comment says it best:
+  // "a brand-new tenant without a logo doesn't impersonate the Kamizo
+  // brandmark" — that intent was never propagated here; this closes it.
+  //
+  // Colours mirror HomeHero literally (rgba(249,115,22,…) — Kamizo
+  // orange). CSS-var-driven tint would let the chip react to per-tenant
+  // brand on web, but HomeHero itself uses literal orange, so matching
+  // it keeps both surfaces identical. Broader var-based cleanup is a
+  // separate ticket that would need to touch HomeHero too.
+  //
+  // Guarded by `!forceDefault` so LoginPage (pre-auth Kamizo mark) and
+  // ResidentUsefulContactsPage partner block (deliberate Kamizo brand
+  // endorsement) keep rendering the Kamizo "K" as before — both pass
+  // forceDefault.
+  const letterSizeClasses = {
+    sm: 'text-base',
+    md: 'text-lg',
+    lg: 'text-2xl',
+    xl: 'text-3xl md:text-4xl',
+    'xl-login': 'text-4xl',
+  };
+  const initial = tenant?.name?.trim()?.charAt(0)?.toUpperCase();
+  if (!forceDefault && initial) {
+    return (
+      <div
+        className={`${sizeClasses[size]} ${letterSizeClasses[size]} flex-shrink-0 grid place-items-center rounded-2xl font-extrabold tracking-tight`}
+        style={{
+          background: 'rgba(249,115,22,0.22)',
+          border: '1px solid rgba(249,115,22,0.4)',
+          color: 'var(--brand-dark, #C2410C)',
+        }}
+        aria-label={tenant?.name || ''}
+      >
+        {initial}
+      </div>
+    );
+  }
+
+  // Bottom rung — no tenant name at all OR forceDefault=true: Kamizo
+  // brand mark. Unchanged.
   return (
     <img
       src="/icons/favicon-192x192.png"

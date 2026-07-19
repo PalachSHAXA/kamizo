@@ -11,6 +11,27 @@ import { SoftHaptic } from '../services/softHaptic';
 const fireLightHaptic = () => {
   // Web no-op so the .catch isn't even reached on dev.
   if (!Capacitor.isNativePlatform()) return;
+
+  // Android — soft, short tick. Root cause of the "too harsh" feel on
+  // Android: SoftHaptic has no Android counterpart, so SoftHaptic.tap()
+  // rejects immediately and the .catch() below fires Haptics.impact(Light)
+  // — which on Android resolves to VibrationEffect.createWaveform(
+  // [0,50], [0,110], -1): a 50 ms pulse at ~43% amplitude through the
+  // S24 Ultra's LRA. 50 ms is above the ~15 ms perceptual threshold for
+  // "sustained vibration" → reads as a firm buzz, not a click. Fix: use
+  // Haptics.vibrate({duration:10}) — 10 ms one-shot at DEFAULT_AMPLITUDE.
+  // Under the perceptual threshold; LRA barely spins up before the pulse
+  // ends → reads as a tick, not a buzz. Closest we get to iOS SoftHaptic
+  // without shipping an Android native bridge on top of VibrationEffect
+  // .Composition.PRIMITIVE_TICK. iOS path below stays byte-identical —
+  // this branch evaluates false on iOS and control lands on the same
+  // SoftHaptic.tap() call as before with the same intensity/sharpness/
+  // fallback chain.
+  if (Capacitor.getPlatform() === 'android') {
+    Haptics.vibrate({ duration: 10 }).catch(() => {});
+    return;
+  }
+
   // v118.145 — P6 preset chosen by the user from the haptic tester:
   // intensity 0.30 / sharpness 0.00 — "очень нежный, плавный" — the
   // softest transient that still felt like a real tap. Played via the
