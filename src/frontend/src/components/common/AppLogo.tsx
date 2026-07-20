@@ -5,6 +5,20 @@ interface AppLogoProps {
   forceDefault?: boolean;
 }
 
+// Single-source-of-truth for the tenant-logo chip shape. Matches
+// HomeHero's inline `borderRadius: 10` on a 34×34 chip (~29% ratio) —
+// a squircle, NOT a full circle. Bug 2026-07-20: AppLogo used
+// `rounded-2xl` (16px fixed) which on the small size (32×32) resolves
+// to a FULL CIRCLE, and on larger sizes to progressively less-round
+// shapes — so the chip visibly changed shape across screens. Using a
+// percentage keeps the ratio constant across every AppLogo size and
+// matches HomeHero exactly without depending on pixel arithmetic.
+// Applies to rung 1 (uploaded tenant image cropped to squircle) and
+// rung 2 (letter fallback). Rung 3 (Kamizo forceDefault via .png with
+// object-contain) intentionally has NO radius class and is not
+// affected — the PNG defines its own bounds.
+const LOGO_RADIUS_CLASS = 'rounded-[30%]';
+
 export function AppLogo({ size = 'md', forceDefault = false }: AppLogoProps) {
   const tenant = useTenantStore((s) => s.config?.tenant);
 
@@ -21,7 +35,7 @@ export function AppLogo({ size = 'md', forceDefault = false }: AppLogoProps) {
       <img
         src={tenant.logo}
         alt={tenant.name}
-        className={`${sizeClasses[size]} flex-shrink-0 object-cover rounded-2xl`}
+        className={`${sizeClasses[size]} ${LOGO_RADIUS_CLASS} flex-shrink-0 object-cover`}
       />
     );
   }
@@ -56,7 +70,7 @@ export function AppLogo({ size = 'md', forceDefault = false }: AppLogoProps) {
   if (!forceDefault && initial) {
     return (
       <div
-        className={`${sizeClasses[size]} ${letterSizeClasses[size]} flex-shrink-0 grid place-items-center rounded-2xl font-extrabold tracking-tight`}
+        className={`${sizeClasses[size]} ${letterSizeClasses[size]} ${LOGO_RADIUS_CLASS} flex-shrink-0 grid place-items-center font-extrabold tracking-tight`}
         style={{
           background: 'rgba(249,115,22,0.22)',
           border: '1px solid rgba(249,115,22,0.4)',

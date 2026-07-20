@@ -113,6 +113,42 @@
   --finance-status-critical:    #E2483D;
   --finance-status-critical-bg: rgba(226,72,61,0.12);
 
+  /* MarketplacePage "Маркет для дома" tokens. Light values mirror the
+     Tailwind palette values the page's classes resolve to today —
+     byte-identical, so light-theme rendering is unchanged. Consumers:
+     src/pages/MarketplacePage.tsx (shop + MarketplaceUnavailableStub)
+     scoped via the .marketplace-page class on both root divs. Dark
+     overrides below flip surfaces / text / borders / status backdrops
+     to the tenant-wide dark palette. Brand primary-* / gradient hex
+     literals are NOT tokenised — they stay brand-orange in both
+     themes. EmptyState (shared component in components/common) is
+     styled by the .text-gray-* rules under html.dark .marketplace-
+     page, so its usage inside marketplace switches with the page
+     without changing EmptyState itself (Notepad / VehicleSearchPage /
+     MeetingsPage / ColleaguesSection / etc. keep the light-only
+     appearance until they get their own scope class). */
+  --marketplace-page-bg:        #F8F8FA;
+  --marketplace-surface:        #FFFFFF;
+  --marketplace-surface-2:      #F9FAFB;
+  --marketplace-surface-sunken: #F3F4F6;
+  --marketplace-surface-dark:   #111827;
+  --marketplace-text-primary:   #111827;
+  --marketplace-text-secondary: #374151;
+  --marketplace-text-tertiary:  #4B5563;
+  --marketplace-text-body:      #6B7280;
+  --marketplace-text-muted:     #9CA3AF;
+  --marketplace-text-disabled:  #D1D5DB;
+  --marketplace-text-faint:     #E5E7EB;
+  --marketplace-border:         #E5E7EB;
+  --marketplace-hairline:       #F3F4F6;
+  --marketplace-skeleton-bg:    #E5E7EB;
+  --marketplace-status-success:       #15803D;
+  --marketplace-status-success-bg:    #DCFCE7;
+  --marketplace-status-danger:        #DC2626;
+  --marketplace-status-danger-bg:     #FEE2E2;
+  --marketplace-status-danger-strong: #EF4444;
+  --marketplace-status-warning-bg:    #FEFCE8;
+
   --text-on-dark: #F4F0E8;
   --text-muted: #9CA3AF;
   --stone-300: #D6D3D1;
@@ -313,6 +349,38 @@ html.dark {
   --finance-status-pending-bg:  rgba(251,191,36,0.16);
   --finance-status-critical:    #F87171;
   --finance-status-critical-bg: rgba(248,113,113,0.18);
+
+  /* MarketplacePage dark overrides. App-bg + surface + text mirror the
+     tenant-wide dark palette so shop / stub read consistent with the
+     rest of the app. Text-muted bumped from the default #8C8779 to
+     #B8B2A8 to clear AA-Normal (4.5:1) for 14 px metadata lines that
+     otherwise dropped to ~3.8:1 on the dark surface. Skeleton pulse
+     uses #322C25 — visible against #25201A surface for the animate-
+     pulse cycle without being loud. Status backdrops swap opaque
+     Tailwind red-100/green-100 hues to tinted composites over the
+     dark surface — Tailwind-400 text sitting on ~0.16-0.18 alpha
+     backgrounds clears 5:1+ on the composited result. */
+  --marketplace-page-bg:        #1A1612;
+  --marketplace-surface:        #25201A;
+  --marketplace-surface-2:      #2C2620;
+  --marketplace-surface-sunken: #322C25;
+  --marketplace-surface-dark:   #0F0C08;
+  --marketplace-text-primary:   #F4F0E8;
+  --marketplace-text-secondary: #D6CFC0;
+  --marketplace-text-tertiary:  #B8B2A8;
+  --marketplace-text-body:      #A8A29E;
+  --marketplace-text-muted:     #B8B2A8;
+  --marketplace-text-disabled:  #6B665C;
+  --marketplace-text-faint:     #4A4540;
+  --marketplace-border:         rgba(244,240,232,0.10);
+  --marketplace-hairline:       rgba(244,240,232,0.06);
+  --marketplace-skeleton-bg:    #322C25;
+  --marketplace-status-success:       #4ADE80;
+  --marketplace-status-success-bg:    rgba(74,222,128,0.16);
+  --marketplace-status-danger:        #F87171;
+  --marketplace-status-danger-bg:     rgba(248,113,113,0.18);
+  --marketplace-status-danger-strong: #F87171;
+  --marketplace-status-warning-bg:    rgba(251,191,36,0.16);
 
   /* text hierarchy */
   --text-primary:   #F4F0E8;
@@ -2742,3 +2810,82 @@ body[data-nav="pop"] .kz-screen { animation: kzPagePopIn 280ms cubic-bezier(0.32
   .kz-screen,
   body[data-nav] .kz-screen { animation: kzPageFadeIn 140ms ease-out both; }
 }
+/* ─────────────────────────────────────────────────────────────────
+   MarketplacePage — dark theme overrides.
+
+   MarketplacePage is heavy-Tailwind (~200+ hardcoded bg-white /
+   text-gray-* / border-gray-* / bg-red-100 uses across the shop
+   grid + product cards + banners + cart + orders tabs). Rather
+   than rewrite every className to inline styles with var(), we
+   scope Tailwind overrides via the .marketplace-page class the
+   page adds on its two root divs (shop root + MarketplaceUnavail-
+   ableStub root).
+
+   Every rule below is gated on `html.dark .marketplace-page` — so
+   OTHER pages that use the same Tailwind classes (bg-white etc.)
+   are NOT affected. Light theme rendering is untouched.
+
+   EmptyState (shared component in components/common) hardcodes
+   text-gray-300/400/500 and no bg — those are covered by the
+   text-gray-* rules below when EmptyState renders inside the
+   marketplace scope. On any other page that uses EmptyState
+   (Notepad, VehicleSearchPage, MeetingsPage, etc.) the light
+   Tailwind palette continues to apply until those pages get their
+   own scope class.
+
+   Brand primary-* / gradient hex (from-[#E8621A] etc.) are NOT
+   overridden — they stay brand-orange in both themes.
+   ───────────────────────────────────────────────────────────────── */
+
+html.dark .marketplace-page {
+  background-color: var(--marketplace-page-bg);
+  color: var(--marketplace-text-primary);
+}
+
+/* Surfaces */
+html.dark .marketplace-page .bg-white          { background-color: var(--marketplace-surface); }
+html.dark .marketplace-page .bg-\[\#F8F8FA\]   { background-color: var(--marketplace-page-bg); }
+html.dark .marketplace-page .bg-gray-50        { background-color: var(--marketplace-surface-2); }
+html.dark .marketplace-page .bg-gray-100       { background-color: var(--marketplace-surface-sunken); }
+html.dark .marketplace-page .bg-gray-200       { background-color: var(--marketplace-skeleton-bg); }
+html.dark .marketplace-page .bg-gray-300       { background-color: var(--marketplace-surface-sunken); }
+html.dark .marketplace-page .bg-gray-900       { background-color: var(--marketplace-surface-dark); }
+
+/* Text — matched to Tailwind's gray palette semantics */
+html.dark .marketplace-page .text-gray-900     { color: var(--marketplace-text-primary); }
+html.dark .marketplace-page .text-gray-800     { color: var(--marketplace-text-primary); }
+html.dark .marketplace-page .text-gray-700     { color: var(--marketplace-text-secondary); }
+html.dark .marketplace-page .text-gray-600     { color: var(--marketplace-text-tertiary); }
+html.dark .marketplace-page .text-gray-500     { color: var(--marketplace-text-body); }
+html.dark .marketplace-page .text-gray-400     { color: var(--marketplace-text-muted); }
+html.dark .marketplace-page .text-gray-300     { color: var(--marketplace-text-disabled); }
+html.dark .marketplace-page .text-gray-200     { color: var(--marketplace-text-faint); }
+
+/* Borders */
+html.dark .marketplace-page .border-gray-200   { border-color: var(--marketplace-border); }
+html.dark .marketplace-page .border-gray-100   { border-color: var(--marketplace-hairline); }
+
+/* Status — opaque light chips → tinted dark composite. Green/red/
+   amber text swapped to Tailwind-400 (lighter hues) to clear ~5:1
+   on the composited dark backdrops. Same swap pattern used by the
+   Finance page (--finance-status-*). */
+html.dark .marketplace-page .bg-green-100      { background-color: var(--marketplace-status-success-bg); }
+html.dark .marketplace-page .text-green-600,
+html.dark .marketplace-page .text-green-700    { color: var(--marketplace-status-success); }
+
+html.dark .marketplace-page .bg-red-50,
+html.dark .marketplace-page .bg-red-100        { background-color: var(--marketplace-status-danger-bg); }
+html.dark .marketplace-page .text-red-500,
+html.dark .marketplace-page .text-red-600,
+html.dark .marketplace-page .text-red-700      { color: var(--marketplace-status-danger); }
+html.dark .marketplace-page .bg-red-500        { background-color: var(--marketplace-status-danger-strong); }
+html.dark .marketplace-page .border-red-100    { border-color: var(--marketplace-status-danger-bg); }
+
+html.dark .marketplace-page .bg-yellow-50      { background-color: var(--marketplace-status-warning-bg); }
+
+/* MarketplaceUnavailableStub — uses bg-primary-50 for the icon
+   halo. On dark surface that light peach reads too bright; swap
+   to a subtle brand-tint that matches the tenant-wide dark chip
+   palette (see --brand-tint override). Scoped so we don't touch
+   bg-primary-50 elsewhere. */
+html.dark .marketplace-page .bg-primary-50     { background-color: var(--brand-tint); }

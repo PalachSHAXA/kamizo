@@ -622,7 +622,13 @@ export function MarketplacePage() {
   }
 
   return (
-    <div className="pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
+    // marketplace-page scope class — enables dark-theme overrides in
+    // index.css (bg-white → --marketplace-surface, text-gray-* →
+    // --marketplace-text-*, status backdrops → dark composites).
+    // Scoped so we don't bleed on other pages that use the same
+    // Tailwind classes. See index.css "MarketplacePage — dark theme
+    // overrides" block for the full override list.
+    <div className="marketplace-page pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
       {/* HEADER — sticky, "остаётся на месте" при скролле карточек товаров.
           bg-white (не /95): полупрозрачный фон + backdrop-blur на iOS
           WKWebView иногда воспринимался как «уплывает» — визуально
@@ -1668,7 +1674,10 @@ function MarketplaceUnavailableStub({
     hasChatFeature ? 'chat' : (tenantPhone ? 'phone' : null);
 
   return (
-    <div className="min-h-screen bg-white">
+    // marketplace-page scope class — same rationale as the shop root:
+    // bg-white / text-gray-* / border-gray-* here get overridden in
+    // dark theme via the .marketplace-page selectors in index.css.
+    <div className="marketplace-page min-h-screen bg-white">
       <div className="px-4 pt-4 pb-3 border-b border-gray-100 flex items-center gap-2">
         {/* navigate('/') not navigate(-1): if the user arrived via a
             typed URL, history is empty and navigate(-1) leaves the
