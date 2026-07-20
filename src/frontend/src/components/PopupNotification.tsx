@@ -69,17 +69,23 @@ export function PopupNotification({
   };
 
   const getBgColor = () => {
+    // Sprint 87 v5 — .popup-notification + per-type modifier class
+    // enable dark-theme overrides in index.css. Bug 2026-07-20: card
+    // gradient (from-*-50 pale tints) stayed light in dark mode while
+    // the global `html.dark .text-gray-* !important` rules at index.
+    // css:544-550 flipped title/message text to cream — 1.08:1
+    // contrast (invisible). Scope keeps the light theme byte-identical.
     switch (type) {
       case 'announcement_urgent':
-        return 'bg-gradient-to-br from-red-50 to-orange-50 border-red-200';
+        return 'popup-notification popup-notification--urgent bg-gradient-to-br from-red-50 to-orange-50 border-red-200';
       case 'announcement_meeting':
-        return 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200';
+        return 'popup-notification popup-notification--meeting bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200';
       case 'request_completed':
-        return 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200';
+        return 'popup-notification popup-notification--completed bg-gradient-to-br from-green-50 to-emerald-50 border-green-200';
       case 'delivery_completed':
-        return 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200';
+        return 'popup-notification popup-notification--delivery bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200';
       default:
-        return 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200';
+        return 'popup-notification popup-notification--info bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200';
     }
   };
 

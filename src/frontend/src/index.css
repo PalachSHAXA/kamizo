@@ -2889,3 +2889,77 @@ html.dark .marketplace-page .bg-yellow-50      { background-color: var(--marketp
    palette (see --brand-tint override). Scoped so we don't touch
    bg-primary-50 elsewhere. */
 html.dark .marketplace-page .bg-primary-50     { background-color: var(--brand-tint); }
+
+/* ─────────────────────────────────────────────────────────────────
+   PopupNotification — dark theme overrides.
+
+   PopupNotification (components/PopupNotification.tsx) uses Tailwind
+   from-{color}-50 gradient tints for all 5 popup types. In light
+   theme those pale gradients + text-gray-900 (near-black) = 16:1
+   contrast — fine. In dark theme:
+     • Card bg stays light mint / peach / etc (Tailwind classes not
+       overridden globally).
+     • Text color is FLIPPED to cream by the global
+       `html.dark .text-gray-* !important` rules at lines 544-550
+       (see block above).
+     • Result: cream text on pale mint card = 1.08:1 contrast —
+       effectively invisible. Confirmed WCAG catastrophic failure on
+       every popup type.
+
+   Fix: scope card + icon halo dark overrides via the .popup-
+   notification class (added on the card div per-type by getBgColor()
+   in PopupNotification.tsx). Text colors already flip via the global
+   rules; with a dark card underneath the flipped-cream text lands at
+   ~14:1 contrast on title, ~7:1 on message.
+
+   Kept .popup-notification--<type> per-type so each popup keeps its
+   semantic hue (green / red / blue / orange / yellow) as a subtle
+   tint on the dark surface — matches how the light theme conveys
+   type via the -50 tints.
+
+   Action buttons (bg-{color}-500 + text-white) have a pre-existing
+   contrast failure in BOTH themes — 2-3:1 vs 4.5:1 required. NOT
+   fixed here (would change the light theme too); separate ticket. */
+
+/* Icon halo — bg-white on the dark card reads as a bright disc.
+   Swap to the dark chip surface. Scope keeps other bg-white uses
+   intact. */
+html.dark .popup-notification .bg-white {
+  background-color: #2C2620;
+}
+
+/* Per-type card overrides: dark composite (semi-transparent hue over
+   #25201A dark surface) + matching border tint. Selector specificity
+   0,2,0 wins over Tailwind's 0,1,0 utility classes without !important. */
+html.dark .popup-notification--urgent {
+  background-image: linear-gradient(to bottom right, rgba(239,68,68,0.14) 0%, rgba(249,115,22,0.10) 100%);
+  background-color: #25201A;
+  border-color: rgba(239,68,68,0.32);
+}
+html.dark .popup-notification--meeting {
+  background-image: linear-gradient(to bottom right, rgba(59,130,246,0.14) 0%, rgba(99,102,241,0.10) 100%);
+  background-color: #25201A;
+  border-color: rgba(59,130,246,0.32);
+}
+html.dark .popup-notification--completed {
+  background-image: linear-gradient(to bottom right, rgba(74,222,128,0.14) 0%, rgba(52,211,153,0.10) 100%);
+  background-color: #25201A;
+  border-color: rgba(74,222,128,0.32);
+}
+html.dark .popup-notification--delivery {
+  background-image: linear-gradient(to bottom right, rgba(249,115,22,0.14) 0%, rgba(251,191,36,0.10) 100%);
+  background-color: #25201A;
+  border-color: rgba(249,115,22,0.32);
+}
+html.dark .popup-notification--info {
+  background-image: linear-gradient(to bottom right, rgba(234,179,8,0.14) 0%, rgba(251,191,36,0.10) 100%);
+  background-color: #25201A;
+  border-color: rgba(234,179,8,0.32);
+}
+
+/* Note: text colors (title text-gray-900, message text-gray-600,
+   Close text-gray-500) are handled by the existing global
+   `html.dark .text-gray-* !important` rules at line 544-550 —
+   they flip to cream / warm-gray automatically. On the dark card
+   above, they land at 5-14:1 contrast. No additional overrides
+   needed here. */
