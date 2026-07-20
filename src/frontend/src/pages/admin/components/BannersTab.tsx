@@ -102,7 +102,7 @@ export function BannersTab({ banners, isLoadingBanners, loadBanners }: BannersTa
                   <span className={`px-2 py-1 rounded-lg text-xs font-bold flex-shrink-0 ${
                     banner.placement === 'marketplace' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
                   }`}>
-                    {banner.placement === 'marketplace' ? 'Маркет для дома' : 'Полезные контакты'}
+                    {banner.placement === 'marketplace' ? 'Маркет УК' : 'Полезные контакты'}
                   </span>
                 </div>
 
@@ -181,7 +181,7 @@ export function BannersTab({ banners, isLoadingBanners, loadBanners }: BannersTa
               <label className="block text-sm font-medium mb-1">Размещение</label>
               <div className="flex gap-2">
                 {[
-                  { value: 'marketplace', label: 'Маркет для дома' },
+                  { value: 'marketplace', label: 'Маркет УК' },
                   { value: 'useful-contacts', label: 'Полезные контакты' },
                 ].map(opt => (
                   <button

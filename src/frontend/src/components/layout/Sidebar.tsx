@@ -356,7 +356,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/contract', icon: ScrollText, label: language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma' },
         // ℹ️ Информация
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar', section: language === 'ru' ? 'Информация' : 'Ma\'lumot' },
-        { path: '/marketplace', icon: Headphones, label: language === 'ru' ? 'Маркет для дома' : 'Uy uchun market' },
+        { path: '/marketplace', icon: Headphones, label: language === 'ru' ? 'Маркет УК' : 'BK marketi' },
         { path: '/rate-employees', icon: Star, label: language === 'ru' ? 'Оценить УК' : 'UK ni baholash' },
         // /trainings intentionally NOT in the resident drawer — that surface
         // is for staff training (executors / managers), residents have no
@@ -379,7 +379,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar' },
-        { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Магазин' : 'Do\'kon' },
+        { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Маркет УК' : 'BK marketi' },
       ];
     }
     if (user?.role === 'super_admin') {
@@ -549,7 +549,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   // Get friendly name for a locked feature
   const getFeatureName = (path: string): string => {
     const nameMap: Record<string, Record<string, string>> = {
-      '/marketplace': { ru: 'Маркет для дома', uz: 'Uy uchun market' },
+      '/marketplace': { ru: 'Маркет УК', uz: 'BK marketi' },
       '/chat': { ru: 'Чат', uz: 'Chat' },
       '/meetings': { ru: 'Собрания', uz: 'Yig\'ilishlar' },
       '/announcements': { ru: 'Объявления', uz: 'E\'lonlar' },
@@ -915,7 +915,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                   stub can render for tenants without the feature. */}
               <NavRow
                 Icon={ShoppingBag}
-                label={language === 'ru' ? 'Маркет для дома' : "Uy uchun market"}
+                label={language === 'ru' ? 'Маркет УК' : 'BK marketi'}
                 onClick={() => go('/marketplace')}
                 isLast={false}
               />

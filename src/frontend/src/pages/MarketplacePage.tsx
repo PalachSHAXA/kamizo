@@ -639,9 +639,25 @@ export function MarketplacePage() {
           «отваливается» после первого overscroll. */}
       <div
         className="sticky top-0 z-40 bg-white border-b border-gray-100 md:hidden"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', willChange: 'transform' }}
+        style={{
+          // Defensive: env(safe-area-inset-top) covers notched iOS
+          // (~47 px on iPhones with Dynamic Island). On Android
+          // WebView with capacitor.config overlaysWebView:false the
+          // WebView already sits below the status bar and this
+          // returns 0. The +4 px is a fallback breathing gap so the
+          // title has visible clearance even if a WebView reports
+          // safe-area 0 while the status bar still overlaps (rare
+          // Chromium quirk observed on some Android emulator images).
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4px)',
+          willChange: 'transform',
+        }}
       >
-        <div className="px-4 pt-1.5 pb-2 flex items-center justify-between">
+        {/* Compact single-row chrome: back / title / actions. No
+            subtitle here — the product pitch + shipping/payment
+            expectations are merged into the STATE 2 empty-state
+            description below, so the header stays lightweight and
+            doesn't dominate the top of the screen. */}
+        <div className="px-4 pt-1.5 pb-1.5 flex items-center justify-between">
           <button
             onClick={() => {
               // Иерархичный возврат (2026-07-11): из под-таба (Избранное /
@@ -660,10 +676,9 @@ export function MarketplacePage() {
           >
             <ArrowLeft className="w-[18px] h-[18px] text-gray-700" />
           </button>
-          <div className="text-center">
-            <h1 className="text-[16px] font-bold text-gray-900">{language === 'ru' ? 'Магазин' : 'Do\'kon'}</h1>
-            <p className="text-xs font-medium text-primary-500">{language === 'ru' ? 'Доставка в квартиру' : 'Kvartirangizga yetkazamiz'}</p>
-          </div>
+          <h1 className="text-[16px] font-bold text-gray-900">
+            {language === 'ru' ? 'Маркет УК' : 'BK marketi'}
+          </h1>
           <div className="flex gap-2">
             {activeOrders.length > 0 && (
               <button onClick={() => setActiveTab('orders')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? `Активные заказы, ${activeOrders.length}` : `Faol buyurtmalar, ${activeOrders.length}`}>
@@ -926,19 +941,22 @@ export function MarketplacePage() {
           )}
           {!loading && filteredProducts.length === 0 && (
             products.length === 0 ? (
-              // STATE 2 — feature enabled, catalog empty. Only claims
-              // capabilities that actually ship today: cash on receipt
-              // + УК-courier delivery. No online-payment, no time-of-
-              // day delivery guarantees. УК adds items via its own
-              // admin surface (/marketplace-products).
+              // STATE 2 — feature enabled, catalog empty. Copy merges
+              // the product pitch (previously stacked in the header as
+              // a marketing tagline) with the empty-state message —
+              // one coherent paragraph: what the section is → how it
+              // works (delivery + payment) → current state (empty).
+              // Only claims capabilities that actually ship today:
+              // cash on receipt + УК-courier delivery. The ~15 min
+              // figure is expectation-setting, not a contractual SLA.
               <EmptyState
                 icon={<ShoppingBag className="w-12 h-12" />}
                 title={language === 'ru'
-                  ? 'Каталог управляющей компании пока пуст'
-                  : "Boshqaruv kompaniyasining katalogi hozircha bo'sh"}
+                  ? 'Каталог пока пуст'
+                  : "Katalog hozircha bo'sh"}
                 description={language === 'ru'
-                  ? 'Когда УК добавит товары, вы сможете заказывать их в приложении. Курьер УК привозит заказ, оплата принимается при получении.'
-                  : "BK katalogga tovarlar qo'shganda, siz ularni ilovada buyurtma qila olasiz. BK kuryeri buyurtmani olib keladi, to'lov olgan paytda qabul qilinadi."}
+                  ? 'Отборные товары по хорошим ценам для жителей ЖК. Курьер УК привозит до двери примерно за 15 минут, оплата — при получении. Как только УК добавит товары, они появятся здесь.'
+                  : "JK aholisi uchun yaxshi narxlarda saralangan mahsulotlar. BK kuryeri eshikkacha taxminan 15 daqiqada olib keladi, to'lov — olgan paytda. BK tovarlar qo'shgach, ular shu yerda paydo bo'ladi."}
               />
             ) : (
               // Filter/search returned nothing — different case, so
@@ -1690,7 +1708,7 @@ function MarketplaceUnavailableStub({
           <ArrowLeft className="w-5 h-5 text-gray-700" />
         </button>
         <h1 className="text-[16px] font-bold text-gray-900">
-          {t('Маркет для дома', 'Uy uchun market')}
+          {t('Маркет УК', 'BK marketi')}
         </h1>
       </div>
 

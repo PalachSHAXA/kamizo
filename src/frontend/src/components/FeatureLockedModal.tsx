@@ -26,8 +26,8 @@ const FEATURE_REGISTRY: Record<string, { ru: { name: string; desc: string }; uz:
 
   // ── Pro-фичи ───────────────────────────────────────────────────
   marketplace: {
-    ru: { name: 'Маркетплейс', desc: 'Заказывайте товары для дома с быстрой доставкой прямо в приложении' },
-    uz: { name: 'Marketplace', desc: 'Uyga tovarlarni tez yetkazib berish bilan ilovadan to\'g\'ridan-to\'g\'ri buyurtma qiling' },
+    ru: { name: 'Маркет УК', desc: 'Заказывайте товары для дома с быстрой доставкой прямо в приложении' },
+    uz: { name: 'BK marketi', desc: 'Uyga tovarlarni tez yetkazib berish bilan ilovadan to\'g\'ridan-to\'g\'ri buyurtma qiling' },
     plan: 'Pro',
   },
   chat: {
