@@ -159,6 +159,11 @@ const MonitoringPage = lazyWithRetry(() => import('../../pages/admin/MonitoringP
 const MarketplacePage = lazyWithRetry(() => import('../../pages/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
 const MarketplaceManagerDashboard = lazyWithRetry(() => import('../../pages/MarketplaceManagerDashboard').then(m => ({ default: m.MarketplaceManagerDashboard })));
 const MarketplaceOrdersPage = lazyWithRetry(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
+// Resident-facing apartment-rentals announcement page. Static info
+// screen — feature does not exist for any tenant. NOT to be confused
+// with RentalsPage above, which is the УК-side contract table (admin/
+// manager/director only, contains residents' personal data).
+const ApartmentRentalsPage = lazyWithRetry(() => import('../../pages/ApartmentRentalsPage').then(m => ({ default: m.ApartmentRentalsPage })));
 const SuperAdminDashboard = lazyWithRetry(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
 const PaymentsPage = lazyWithRetry(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
 // Finance module pages
@@ -520,6 +525,7 @@ export function Layout() {
     && modalCount === 0
     && !isResidentFullBleed
     && location.pathname !== '/marketplace'
+    && location.pathname !== '/apartment-rentals'
     && location.pathname !== '/profile'
     && location.pathname !== '/chat';
 
@@ -810,6 +816,17 @@ export function Layout() {
               <Route path="/marketplace" element={
                 <ProtectedRoute>
                   <MarketplacePage />
+                </ProtectedRoute>
+              } />
+              {/* Resident-facing apartment-rentals announcement. Auth
+                  only, no requiredFeature, no role restriction — the
+                  feature does not exist for any tenant, so there is
+                  nothing to enable. The screen itself says "в
+                  разработке". Distinct from /rentals (RentalsPage, УК-
+                  side contract table) which stays admin-only. */}
+              <Route path="/apartment-rentals" element={
+                <ProtectedRoute>
+                  <ApartmentRentalsPage />
                 </ProtectedRoute>
               } />
               <Route path="/marketplace-orders" element={

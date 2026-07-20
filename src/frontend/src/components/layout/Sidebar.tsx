@@ -919,6 +919,21 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
                 onClick={() => go('/marketplace')}
                 isLast={false}
               />
+              {/* Apartment rentals — resident-facing announcement.
+                  Feature doesn't exist for any tenant; tapping opens
+                  ApartmentRentalsPage, a static "в разработке" screen.
+                  No lock affordance in the row — NavRow doesn't have
+                  one, and Home QuickTiles' padlock convention is for
+                  non-functional buttons. This button IS functional
+                  (opens a real screen), so a plain row matches the
+                  Marketplace pattern above. Distinct from /rentals
+                  (RentalsPage, admin-only УК contract table). */}
+              <NavRow
+                Icon={Key}
+                label={language === 'ru' ? 'Аренда квартир' : 'Kvartira ijarasi'}
+                onClick={() => go('/apartment-rentals')}
+                isLast={false}
+              />
               <NavRow
                 Icon={Star}
                 label={language === 'ru' ? 'Оценить сотрудников' : 'Xodimlarni baholash'}
