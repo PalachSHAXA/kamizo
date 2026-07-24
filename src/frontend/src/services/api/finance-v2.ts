@@ -151,9 +151,22 @@ export interface MyChargeRow {
 export interface MyBalance {
   total_charged: number;
   total_paid: number;
-  debt: number;      // должен УК (charged − paid > 0)
+  total_penalties?: number; // Sprint 7
+  debt: number;      // должен УК (charged + penalties − paid > 0)
   overpaid: number;  // УК должна вернуть
   net: number;
+}
+
+export interface PenaltyRow {
+  id: string;
+  charge_id: string;
+  apartment_id: string;
+  principal_amount: number;
+  penalty_rate: number;
+  days_overdue: number;
+  penalty_amount: number;
+  status: 'accrued' | 'paid' | 'waived' | 'cancelled';
+  calculated_at: string;
 }
 
 export interface MyApartmentRow {
@@ -164,13 +177,48 @@ export interface MyApartmentRow {
 }
 
 export const residentFinanceApi = {
-  /** Одним вызовом — все квартиры юзера + начисления + правильный баланс. */
+  /** Одним вызовом — все квартиры юзера + начисления + пени + правильный баланс. */
   getMy: () =>
     apiRequest<{
       apartments: MyApartmentRow[];
       charges: MyChargeRow[];
+      penalties?: PenaltyRow[];  // Sprint 7
       balance: MyBalance;
     }>('/api/finance/my-charges'),
+};
+
+// ── Sprint 7: пени за просрочку ──────────────────────────────────────
+
+export interface PenaltySettings {
+  enabled: boolean;
+  daily_rate: number;      // 0.001 = 0.1% в день
+  grace_days: number;      // сколько дней после due_date до начала капанья
+  max_multiplier: number;  // потолок = principal × N
+}
+
+export const penaltyApi = {
+  getSettings: () => apiRequest<PenaltySettings>('/api/finance/penalty-settings'),
+
+  updateSettings: (body: PenaltySettings) => {
+    invalidateCache('/api/finance/penalty-settings');
+    return apiRequest<{ ok: boolean } & PenaltySettings>(
+      '/api/finance/penalty-settings',
+      { method: 'PUT', body: JSON.stringify(body) }
+    );
+  },
+
+  listByApartment: (apartmentId: string) =>
+    apiRequest<{ penalties: (PenaltyRow & { charge_period?: string })[] }>(
+      `/api/finance/apartments/${apartmentId}/penalties`
+    ),
+
+  waive: (id: string, reason?: string) => {
+    invalidateCache('/api/finance');
+    return apiRequest<{ ok: boolean }>(
+      `/api/finance/penalties/${id}/waive`,
+      { method: 'POST', body: JSON.stringify({ reason }) }
+    );
+  },
 };
 
 // ── Sprint 6: Fact-reports (ст.29 ЗРУ-581) ──────────────────────────

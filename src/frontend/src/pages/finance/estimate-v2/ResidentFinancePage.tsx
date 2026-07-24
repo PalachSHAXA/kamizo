@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { residentFinanceApi, type MyChargeRow, type MyBalance, type MyApartmentRow } from '../../../services/api';
+import { residentFinanceApi, type MyChargeRow, type MyBalance, type MyApartmentRow, type PenaltyRow } from '../../../services/api';
 import { useAuthStore } from '../../../stores/authStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useTenantStore } from '../../../stores/tenantStore';
@@ -155,8 +155,9 @@ export function ResidentFinancePage() {
   const [error, setError] = useState<string | null>(null);
   const [apartments, setApartments] = useState<MyApartmentRow[]>([]);
   const [charges, setCharges] = useState<MyChargeRow[]>([]);
+  const [penalties, setPenalties] = useState<PenaltyRow[]>([]);
   const [balance, setBalance] = useState<MyBalance>({
-    total_charged: 0, total_paid: 0, debt: 0, overpaid: 0, net: 0,
+    total_charged: 0, total_paid: 0, total_penalties: 0, debt: 0, overpaid: 0, net: 0,
   });
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -169,6 +170,7 @@ export function ResidentFinancePage() {
         if (cancelled) return;
         setApartments(data.apartments);
         setCharges(data.charges);
+        setPenalties(data.penalties || []);
         setBalance(data.balance);
       })
       .catch((e) => {
@@ -250,17 +252,55 @@ export function ResidentFinancePage() {
         <div className="text-3xl font-bold mt-1 tabular-nums">
           {fmt(balance.debt > 0 ? balance.debt : balance.overpaid)} сум
         </div>
-        <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+        <div className={`grid gap-2 mt-4 text-xs ${(balance.total_penalties || 0) > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <div className="bg-white/15 rounded-lg p-2">
-            <div className="opacity-80">{isRu ? 'Всего начислено' : 'Jami hisoblangan'}</div>
+            <div className="opacity-80">{isRu ? 'Начислено' : 'Hisoblangan'}</div>
             <div className="font-semibold tabular-nums text-sm mt-0.5">{fmt(balance.total_charged)}</div>
           </div>
           <div className="bg-white/15 rounded-lg p-2">
-            <div className="opacity-80">{isRu ? 'Всего оплачено' : 'Jami to\'langan'}</div>
+            <div className="opacity-80">{isRu ? 'Оплачено' : 'To\'langan'}</div>
             <div className="font-semibold tabular-nums text-sm mt-0.5">{fmt(balance.total_paid)}</div>
           </div>
+          {(balance.total_penalties || 0) > 0 && (
+            <div className="bg-white/25 rounded-lg p-2 ring-1 ring-white/40">
+              <div className="opacity-80">{isRu ? 'Пени' : 'Peni'}</div>
+              <div className="font-semibold tabular-nums text-sm mt-0.5">{fmt(balance.total_penalties || 0)}</div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Penalty details (только если есть) */}
+      {penalties.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3">
+          <div className="text-xs font-semibold text-amber-900 uppercase tracking-wide mb-2">
+            {isRu ? 'Пени за просрочку' : 'Kechikish uchun peni'}
+          </div>
+          <div className="space-y-2">
+            {penalties.map((p) => {
+              const ch = charges.find(c => c.id === p.charge_id);
+              return (
+                <div key={p.id} className="flex justify-between text-xs">
+                  <div className="text-amber-900">
+                    {ch ? formatPeriod(ch.period, isRu) : p.charge_id.slice(0, 6)}
+                    <span className="text-amber-700 ml-2">
+                      {isRu ? `${p.days_overdue} дн. просрочки` : `${p.days_overdue} kun kechikish`}
+                    </span>
+                  </div>
+                  <div className="font-semibold tabular-nums text-amber-900">
+                    {fmt(p.penalty_amount)} сум
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-[10px] text-amber-700 mt-2 leading-relaxed">
+            {isRu
+              ? 'Пени начисляются согласно ПКМ №930 после 30-дневного grace-периода. Оплатите основной долг — пени тоже спишутся.'
+              : 'Peni VMQ-930 ga muvofiq 30 kun grace davridan keyin hisoblanadi. Asosiy qarzni to\'lang.'}
+          </div>
+        </div>
+      )}
 
       {/* Charges list */}
       <div className="space-y-2">

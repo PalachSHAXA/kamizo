@@ -649,21 +649,44 @@ route('GET', '/api/finance/my-charges', async (request, env) => {
      LIMIT 200`
   ).bind(...aptIds, ...(tenantId ? [tenantId] : [])).all() as any;
 
+  // Sprint 7: пени по квартирам жителя. Берём только status='accrued' —
+  // waived/paid/cancelled не участвуют в балансе. Один snapshot на charge
+  // держит последнее актуальное значение (гарантирует cron-хендлер выше).
+  const { results: penalties } = await env.DB.prepare(
+    `SELECT id, charge_id, apartment_id, principal_amount, penalty_rate,
+            days_overdue, penalty_amount, status, calculated_at
+     FROM finance_penalties
+     WHERE apartment_id IN (${placeholders})
+       AND status = 'accrued'
+       ${tenantId ? 'AND tenant_id = ?' : ''}
+     ORDER BY calculated_at DESC`
+  ).bind(...aptIds, ...(tenantId ? [tenantId] : [])).all() as any;
+  // Оставляем только последний snapshot per charge_id (защита от старых записей,
+  // если cron ещё не почистил дубли — их не должно быть, но на всякий).
+  const latestPerCharge = new Map<string, any>();
+  for (const p of (penalties || []) as any[]) {
+    if (!latestPerCharge.has(p.charge_id)) latestPerCharge.set(p.charge_id, p);
+  }
+  const activePenalties = Array.from(latestPerCharge.values());
+  const totalPenalties = activePenalties.reduce((s, p) => s + (p.penalty_amount || 0), 0);
+
   // Правильный расчёт баланса (backend GET .../balance путает знаки —
   // см. audit item overpaid/debt). Здесь однозначно:
-  //   netBalance = charged − paid
+  //   netBalance = charged + penalties − paid
   //   > 0 → долг жителя (должен УК)
   //   < 0 → переплата (УК должна вернуть)
   const totalCharged = (charges || []).reduce((s: number, c: any) => s + (c.amount || 0), 0);
   const totalPaid = (charges || []).reduce((s: number, c: any) => s + (c.paid_amount || 0), 0);
-  const net = totalCharged - totalPaid;
+  const net = totalCharged + totalPenalties - totalPaid;
 
   return json({
     apartments: myApts,
     charges: charges || [],
+    penalties: activePenalties,
     balance: {
       total_charged: totalCharged,
       total_paid: totalPaid,
+      total_penalties: totalPenalties,
       debt: net > 0 ? net : 0,
       overpaid: net < 0 ? Math.abs(net) : 0,
       net,
@@ -978,6 +1001,216 @@ route('GET', '/api/finance/fact-reports/:id', async (request, env, params) => {
     uk_income_fact: row.uk_income_fact,
     generated_by: row.generated_by,
     generated_at: row.generated_at,
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// Sprint 7: Пени за просрочку (ПКМ №930 + гл.29 ГК РУз).
+//
+// Модель работы:
+//   1. У тенанта в finance_penalty_settings хранятся daily_rate (напр.
+//      0.001), grace_days (30), max_multiplier (1.0), enabled bool.
+//   2. Daily cron POST /api/finance/cron/apply-penalties идёт по всем
+//      неоплаченным charges со статусом overdue/partial (или pending +
+//      due_date < now − grace_days).
+//   3. Для каждого считает days_overdue = (now − due_date) − grace_days.
+//      penalty = min(principal × rate × days, principal × max_mult).
+//   4. Пишет строку в finance_penalties (idempotent per date — если за
+//      сегодня уже есть snapshot для charge, обновляет её вместо вставки).
+//
+// Пени не смешиваются с charges — они отдельная сущность, легко списываются
+// (waive) без изменения истории начислений.
+// ────────────────────────────────────────────────────────────────────
+
+async function getPenaltySettings(env: Env, tenantId: string): Promise<{
+  enabled: boolean;
+  daily_rate: number;
+  grace_days: number;
+  max_multiplier: number;
+}> {
+  const row = await env.DB.prepare(
+    `SELECT enabled, daily_rate, grace_days, max_multiplier
+     FROM finance_penalty_settings WHERE tenant_id = ? LIMIT 1`
+  ).bind(tenantId).first() as any;
+  return {
+    enabled: Boolean(row?.enabled),
+    daily_rate: Number(row?.daily_rate ?? 0.001),
+    grace_days: Number(row?.grace_days ?? 30),
+    max_multiplier: Number(row?.max_multiplier ?? 1.0),
+  };
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const a = new Date(fromIso).getTime();
+  const b = new Date(toIso).getTime();
+  if (isNaN(a) || isNaN(b)) return 0;
+  return Math.max(0, Math.floor((b - a) / 86400000));
+}
+
+// GET/PUT settings — admin/director управляет ставками.
+route('GET', '/api/finance/penalty-settings', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const tenantId = getTenantId(request) || '';
+  const s = await getPenaltySettings(env, tenantId);
+  return json(s);
+});
+
+route('PUT', '/api/finance/penalty-settings', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+
+  const body = await request.json() as any;
+  const tenantId = getTenantId(request) || '';
+  const enabled = body.enabled ? 1 : 0;
+  const daily_rate = Number(body.daily_rate ?? 0.001);
+  const grace_days = Math.max(0, Math.floor(Number(body.grace_days ?? 30)));
+  const max_multiplier = Math.max(0, Number(body.max_multiplier ?? 1.0));
+
+  if (daily_rate < 0 || daily_rate > 0.1) return error('daily_rate вне диапазона [0, 0.1]');
+  if (max_multiplier > 10) return error('max_multiplier не может быть > 10');
+
+  await env.DB.prepare(
+    `INSERT INTO finance_penalty_settings (tenant_id, enabled, daily_rate, grace_days, max_multiplier, updated_by, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(tenant_id) DO UPDATE SET
+       enabled = excluded.enabled,
+       daily_rate = excluded.daily_rate,
+       grace_days = excluded.grace_days,
+       max_multiplier = excluded.max_multiplier,
+       updated_by = excluded.updated_by,
+       updated_at = datetime('now')`
+  ).bind(tenantId, enabled, daily_rate, grace_days, max_multiplier, user.id).run();
+
+  return json({ ok: true, enabled: Boolean(enabled), daily_rate, grace_days, max_multiplier });
+});
+
+// GET по одной квартире — все её пени (для драйла в UI).
+route('GET', '/api/finance/apartments/:id/penalties', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const tenantId = getTenantId(request);
+  const { results } = await env.DB.prepare(
+    `SELECT p.*, c.period AS charge_period
+     FROM finance_penalties p
+     LEFT JOIN finance_charges c ON c.id = p.charge_id
+     WHERE p.apartment_id = ? ${tenantId ? 'AND p.tenant_id = ?' : ''}
+     ORDER BY p.calculated_at DESC LIMIT 500`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).all();
+
+  return json({ penalties: results || [] });
+});
+
+// Waive penalty — admin/director может списать (соц. случаи, ошибки).
+route('POST', '/api/finance/penalties/:id/waive', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+
+  const body = await request.json().catch(() => ({})) as any;
+  const tenantId = getTenantId(request);
+  const res = await env.DB.prepare(
+    `UPDATE finance_penalties
+     SET status = 'waived',
+         waived_by = ?,
+         waived_reason = ?
+     WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(user.id, body.reason || null, params.id, ...(tenantId ? [tenantId] : [])).run();
+
+  return json({ ok: true, changes: (res.meta as any)?.changes || 0 });
+});
+
+// CRON: daily apply. Скан идёт по всем тенантам, у кого enabled=1.
+route('POST', '/api/finance/cron/apply-penalties', async (request, env) => {
+  const secret = request.headers.get('X-Cron-Secret');
+  if (!env.CRON_SECRET) return error('CRON_SECRET not configured on server', 500);
+  if (secret !== env.CRON_SECRET) return error('Forbidden', 403);
+
+  // Все тенанты с включёнными пенями
+  const { results: settings } = await env.DB.prepare(
+    `SELECT tenant_id, daily_rate, grace_days, max_multiplier
+     FROM finance_penalty_settings
+     WHERE enabled = 1`
+  ).all() as any;
+
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const nowIso = new Date().toISOString();
+  let scanned = 0, applied = 0, updated = 0, capped = 0;
+
+  for (const s of (settings || []) as any[]) {
+    const tenantId = s.tenant_id;
+    const rate = Number(s.daily_rate);
+    const grace = Number(s.grace_days);
+    const maxMult = Number(s.max_multiplier);
+
+    // Просроченные charges (не полностью оплаченные + прошло больше grace_days)
+    const { results: overdue } = await env.DB.prepare(
+      `SELECT id, apartment_id, amount, paid_amount, due_date
+       FROM finance_charges
+       WHERE tenant_id = ?
+         AND due_date IS NOT NULL
+         AND date(due_date) < date(?, '-' || ? || ' days')
+         AND amount > COALESCE(paid_amount, 0)`
+    ).bind(tenantId, today, grace).all() as any;
+
+    for (const c of (overdue || []) as any[]) {
+      scanned++;
+      const principal = Number(c.amount) - Number(c.paid_amount || 0);
+      if (principal <= 0) continue;
+
+      const days = daysBetween(c.due_date, nowIso) - grace;
+      if (days <= 0) continue;
+
+      let penalty = principal * rate * days;
+      const cap = principal * maxMult;
+      const wasCapped = penalty > cap;
+      if (wasCapped) { penalty = cap; capped++; }
+      const penaltyRounded = Math.round(penalty);
+      if (penaltyRounded <= 0) continue;
+
+      // Идемпотентность за сутки: если сегодня уже есть snapshot — UPDATE вместо INSERT.
+      const existing = await env.DB.prepare(
+        `SELECT id FROM finance_penalties
+         WHERE charge_id = ? AND date(calculated_at) = date(?)
+         LIMIT 1`
+      ).bind(c.id, today).first() as any;
+
+      if (existing) {
+        await env.DB.prepare(
+          `UPDATE finance_penalties
+           SET principal_amount = ?, penalty_rate = ?, days_overdue = ?, penalty_amount = ?, calculated_at = datetime('now')
+           WHERE id = ?`
+        ).bind(principal, rate, days, penaltyRounded, existing.id).run();
+        updated++;
+      } else {
+        await env.DB.prepare(
+          `INSERT INTO finance_penalties
+             (id, charge_id, apartment_id, tenant_id, principal_amount, penalty_rate, days_overdue, penalty_amount, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'accrued')`
+        ).bind(
+          generateId(), c.id, c.apartment_id, tenantId,
+          principal, rate, days, penaltyRounded
+        ).run();
+        applied++;
+      }
+    }
+  }
+
+  return json({
+    ok: true,
+    date: today,
+    tenants_processed: (settings || []).length,
+    charges_scanned: scanned,
+    penalties_created: applied,
+    penalties_updated: updated,
+    charges_capped: capped,
   });
 });
 
