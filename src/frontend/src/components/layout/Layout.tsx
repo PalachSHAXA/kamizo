@@ -158,6 +158,7 @@ const FinanceEstimatesPage = lazy(() => import('../../pages/finance/EstimatesPag
 // Sprint 3: новый v2-мастер создания сметы (штат + доходы + Ташкентский минимум)
 const EstimateV2WizardPage = lazy(() => import('../../pages/finance/estimate-v2/EstimateV2WizardPage').then(m => ({ default: m.EstimateV2WizardPage })));
 const ResidentFinancePage = lazy(() => import('../../pages/finance/estimate-v2/ResidentFinancePage').then(m => ({ default: m.ResidentFinancePage })));
+const FactReportPage = lazy(() => import('../../pages/finance/estimate-v2/FactReportPage').then(m => ({ default: m.FactReportPage })));
 const FinanceChargesPage = lazy(() => import('../../pages/finance/ChargesPage'));
 const FinanceDebtorsPage = lazy(() => import('../../pages/finance/DebtorsPage'));
 const FinanceIncomePage = lazy(() => import('../../pages/finance/IncomePage'));
@@ -558,6 +559,13 @@ export function Layout() {
                   requiredFeature НЕ ставим — резиденты должны видеть свои
                   начисления даже если 'communal' выключен для админ-панели
                   (тот же принцип, что в GET /api/finance/apartments/:id/balance). */}
+              {/* Sprint 6: Факт-отчёт собственникам (ст.29 ЗРУ-581).
+                  admin/director/manager могут построить, все жильцы — увидеть. */}
+              <Route path="/finance/reports/fact" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant', 'commercial_owner']} requiredFeature="communal">
+                  <FactReportPage />
+                </ProtectedRoute>
+              } />
               <Route path="/finance/my" element={
                 <ProtectedRoute allowedRoles={['resident', 'tenant', 'commercial_owner']}>
                   <ResidentFinancePage />

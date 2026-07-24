@@ -172,3 +172,60 @@ export const residentFinanceApi = {
       balance: MyBalance;
     }>('/api/finance/my-charges'),
 };
+
+// ── Sprint 6: Fact-reports (ст.29 ЗРУ-581) ──────────────────────────
+
+export interface FactReportRow {
+  name: string;
+  legal_code?: string | null;
+  prior_debt: number;
+  accrued: number;
+  paid: number;
+  arrears: number;
+}
+
+export interface FactReportPayload {
+  building: { id: string; name: string; address?: string };
+  period_from: string;   // YYYY-MM
+  period_to: string;     // YYYY-MM
+  rows: FactReportRow[];
+  totals: { prior_debt: number; accrued: number; paid: number; arrears: number };
+  uk_income_plan: number;
+  uk_income_fact: number;
+  charges_count?: number;
+  payments_count?: number;
+  id?: string;
+  generated_by?: string;
+  generated_at?: string;
+}
+
+export const factReportApi = {
+  preview: (params: { building_id: string; period_from: string; period_to: string }) => {
+    const qs = new URLSearchParams(params).toString();
+    return apiRequest<FactReportPayload>(`/api/finance/fact-reports/preview?${qs}`);
+  },
+
+  save: (body: { building_id: string; period_from: string; period_to: string }) => {
+    invalidateCache('/api/finance/fact-reports');
+    return apiRequest<FactReportPayload>(
+      '/api/finance/fact-reports',
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  },
+
+  list: (buildingId?: string) => {
+    const qs = buildingId ? `?building_id=${encodeURIComponent(buildingId)}` : '';
+    return apiRequest<{ reports: Array<{
+      id: string;
+      building_id: string;
+      period_from: string;
+      period_to: string;
+      uk_income_plan: number;
+      uk_income_fact: number;
+      generated_by: string;
+      generated_at: string;
+    }> }>(`/api/finance/fact-reports${qs}`);
+  },
+
+  get: (id: string) => apiRequest<FactReportPayload>(`/api/finance/fact-reports/${id}`),
+};

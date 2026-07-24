@@ -671,4 +671,314 @@ route('GET', '/api/finance/my-charges', async (request, env) => {
   });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// Sprint 6: Факт-отчёт по ст.29 ЗРУ-581.
+//
+// По закону УК обязана раз в год (а по решению собрания — чаще) публиковать
+// собственникам отчёт: сколько начислено / оплачено / осталось долгов по
+// каждой статье сметы + сколько собственно доход УК (план vs факт).
+//
+// Строим отчёт агрегацией finance_charges.amount_breakdown (там JSON с
+// per-item раскладкой начисления) + finance_payments за период, разбитый
+// pro-rata по item'ам пропорционально их доле в accrued.
+//
+// Endpoints:
+//   GET  /api/finance/fact-reports/preview?building_id=X&period_from=YYYY-MM&period_to=YYYY-MM
+//        → пересчитать на лету, без записи (для UI preview)
+//   POST /api/finance/fact-reports
+//        → сохранить снепшот в finance_fact_reports (для истории/шаринга)
+//   GET  /api/finance/fact-reports?building_id=X
+//        → список сохранённых снепшотов
+//   GET  /api/finance/fact-reports/:id
+//        → один сохранённый снепшот
+// ────────────────────────────────────────────────────────────────────
+
+type FactRow = {
+  name: string;
+  legal_code?: string | null;
+  prior_debt: number;
+  accrued: number;
+  paid: number;
+  arrears: number;
+};
+
+async function buildFactReport(
+  env: Env,
+  tenantId: string | null,
+  buildingId: string,
+  periodFrom: string,
+  periodTo: string,
+): Promise<{
+  rows: FactRow[];
+  totals: { prior_debt: number; accrued: number; paid: number; arrears: number };
+  uk_income_plan: number;
+  uk_income_fact: number;
+  charges_count: number;
+  payments_count: number;
+}> {
+  const tenantWhereC = tenantId ? 'AND c.tenant_id = ?' : '';
+  const tenantWhereP = tenantId ? 'AND p.tenant_id = ?' : '';
+  const tenantParams = tenantId ? [tenantId] : [];
+
+  // Все charges по домy за период. period в формате YYYY-MM — сравниваем как строки (лексикографический = хронологический для этого формата).
+  const { results: charges } = await env.DB.prepare(
+    `SELECT c.id, c.apartment_id, c.period, c.amount, c.paid_amount, c.amount_breakdown
+     FROM finance_charges c
+     JOIN apartments a ON a.id = c.apartment_id
+     WHERE a.building_id = ?
+       AND c.period >= ? AND c.period <= ?
+       ${tenantWhereC}`
+  ).bind(buildingId, periodFrom, periodTo, ...tenantParams).all() as any;
+
+  // Долг ДО периода (prior_debt) — суммы charges с period < periodFrom, минус их paid_amount.
+  const priorRow = await env.DB.prepare(
+    `SELECT COALESCE(SUM(c.amount - c.paid_amount), 0) AS prior_debt
+     FROM finance_charges c
+     JOIN apartments a ON a.id = c.apartment_id
+     WHERE a.building_id = ?
+       AND c.period < ?
+       ${tenantWhereC}`
+  ).bind(buildingId, periodFrom, ...tenantParams).first() as any;
+  const totalPriorDebt = Number(priorRow?.prior_debt || 0);
+
+  // Payments за период (по датам, а не period)
+  const paidRow = await env.DB.prepare(
+    `SELECT COALESCE(SUM(p.amount), 0) AS paid
+     FROM finance_payments p
+     JOIN apartments a ON a.id = p.apartment_id
+     WHERE a.building_id = ?
+       AND date(p.payment_date) >= date(? || '-01')
+       AND date(p.payment_date) < date(? || '-01', '+1 month')
+       ${tenantWhereP}`
+  ).bind(buildingId, periodFrom, periodTo, ...tenantParams).first() as any;
+  const totalPaid = Number(paidRow?.paid || 0);
+
+  const paymentsCountRow = await env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM finance_payments p
+     JOIN apartments a ON a.id = p.apartment_id
+     WHERE a.building_id = ?
+       AND date(p.payment_date) >= date(? || '-01')
+       AND date(p.payment_date) < date(? || '-01', '+1 month')
+       ${tenantWhereP}`
+  ).bind(buildingId, periodFrom, periodTo, ...tenantParams).first() as any;
+
+  // Aggregate per-item из amount_breakdown. Каждый charge содержит либо
+  // JSON [{name, amount}, ...], либо null (тогда идёт одной строкой "Прочее").
+  const perItem = new Map<string, { name: string; legal_code?: string | null; accrued: number }>();
+  let totalAccrued = 0;
+  for (const c of (charges || []) as any[]) {
+    const amount = Number(c.amount || 0);
+    totalAccrued += amount;
+    let breakdown: any = null;
+    try { breakdown = c.amount_breakdown ? JSON.parse(c.amount_breakdown) : null; } catch { /* keep null */ }
+    if (Array.isArray(breakdown) && breakdown.length) {
+      for (const item of breakdown) {
+        const name = String(item.name || item.category || 'Прочее');
+        const amt = Number(item.amount || 0);
+        const key = name.toLowerCase().trim();
+        const prev = perItem.get(key);
+        if (prev) prev.accrued += amt;
+        else perItem.set(key, { name, legal_code: item.legal_code || null, accrued: amt });
+      }
+    } else {
+      const key = 'прочие услуги';
+      const prev = perItem.get(key);
+      if (prev) prev.accrued += amount;
+      else perItem.set(key, { name: 'Прочие услуги', legal_code: null, accrued: amount });
+    }
+  }
+
+  // Разбираем прошлый долг и оплаты pro-rata по доле статей в accrued.
+  const rows: FactRow[] = [];
+  for (const item of perItem.values()) {
+    const share = totalAccrued > 0 ? item.accrued / totalAccrued : 0;
+    const paidShare = totalPaid * share;
+    const priorShare = totalPriorDebt * share;
+    rows.push({
+      name: item.name,
+      legal_code: item.legal_code,
+      prior_debt: Math.round(priorShare),
+      accrued: Math.round(item.accrued),
+      paid: Math.round(paidShare),
+      arrears: Math.round(priorShare + item.accrued - paidShare),
+    });
+  }
+  rows.sort((a, b) => b.accrued - a.accrued);
+
+  // Доход УК (прибыль): sum по finance_estimates.uk_profit_percent × total_expenses / 12 за месяцы периода.
+  // План — из активной сметы. Факт — фактически поступившие paid × (uk_profit_percent / (1 + uk_profit_percent)) — приближение.
+  const est = await env.DB.prepare(
+    `SELECT uk_profit_percent, umumiy_year FROM finance_estimates
+     WHERE building_id = ? AND status = 'active'
+       ${tenantId ? 'AND tenant_id = ?' : ''}
+     ORDER BY effective_date DESC, created_at DESC LIMIT 1`
+  ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
+  const profitPct = Number(est?.uk_profit_percent || 0);
+  const monthsInPeriod = countMonthsInclusive(periodFrom, periodTo);
+  const uk_income_plan = est?.umumiy_year
+    ? Math.round((Number(est.umumiy_year) * profitPct / 100 / 12) * monthsInPeriod)
+    : 0;
+  const uk_income_fact = profitPct > 0
+    ? Math.round(totalPaid * (profitPct / (100 + profitPct)))
+    : 0;
+
+  return {
+    rows,
+    totals: {
+      prior_debt: Math.round(totalPriorDebt),
+      accrued: Math.round(totalAccrued),
+      paid: Math.round(totalPaid),
+      arrears: Math.round(totalPriorDebt + totalAccrued - totalPaid),
+    },
+    uk_income_plan,
+    uk_income_fact,
+    charges_count: (charges || []).length,
+    payments_count: Number(paymentsCountRow?.n || 0),
+  };
+}
+
+function countMonthsInclusive(from: string, to: string): number {
+  // 'YYYY-MM' - 'YYYY-MM' → inclusive months count
+  const [fy, fm] = from.split('-').map(Number);
+  const [ty, tm] = to.split('-').map(Number);
+  if (!fy || !fm || !ty || !tm) return 1;
+  return Math.max(1, (ty - fy) * 12 + (tm - fm) + 1);
+}
+
+// GET preview — быстрый пересчёт без записи (для UI).
+route('GET', '/api/finance/fact-reports/preview', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const url = new URL(request.url);
+  const buildingId = url.searchParams.get('building_id');
+  const periodFrom = url.searchParams.get('period_from');
+  const periodTo = url.searchParams.get('period_to');
+  if (!buildingId || !periodFrom || !periodTo) {
+    return error('building_id, period_from, period_to required (YYYY-MM)');
+  }
+  if (!/^\d{4}-\d{2}$/.test(periodFrom) || !/^\d{4}-\d{2}$/.test(periodTo)) {
+    return error('period_from/period_to must be YYYY-MM');
+  }
+
+  const tenantId = getTenantId(request);
+  // sanity — building принадлежит тенанту
+  const b = await env.DB.prepare(
+    `SELECT id, name, address FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+  ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!b) return error('Building not found', 404);
+
+  const report = await buildFactReport(env, tenantId, buildingId, periodFrom, periodTo);
+  return json({
+    building: b,
+    period_from: periodFrom,
+    period_to: periodTo,
+    ...report,
+  });
+});
+
+// POST — сохранить снепшот в finance_fact_reports.
+route('POST', '/api/finance/fact-reports', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+
+  const body = await request.json() as any;
+  const { building_id, period_from, period_to } = body;
+  if (!building_id || !period_from || !period_to) return error('building_id, period_from, period_to required');
+
+  const tenantId = getTenantId(request);
+  const b = await env.DB.prepare(
+    `SELECT id FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+  ).bind(building_id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!b) return error('Building not found', 404);
+
+  const report = await buildFactReport(env, tenantId, building_id, period_from, period_to);
+  const id = generateId();
+
+  await env.DB.prepare(
+    `INSERT INTO finance_fact_reports (
+       id, building_id, period_from, period_to, rows_json,
+       uk_income_plan, uk_income_fact, generated_by, tenant_id
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    id, building_id, period_from, period_to, JSON.stringify(report.rows),
+    report.uk_income_plan, report.uk_income_fact, user.id, tenantId || ''
+  ).run();
+
+  return json({ id, ...report }, 201);
+});
+
+// GET — список сохранённых снепшотов по дому.
+route('GET', '/api/finance/fact-reports', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const url = new URL(request.url);
+  const buildingId = url.searchParams.get('building_id');
+  const tenantId = getTenantId(request);
+
+  const where: string[] = [];
+  const params: any[] = [];
+  if (buildingId) { where.push('building_id = ?'); params.push(buildingId); }
+  if (tenantId)   { where.push('tenant_id   = ?'); params.push(tenantId); }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const { results } = await env.DB.prepare(
+    `SELECT id, building_id, period_from, period_to, uk_income_plan, uk_income_fact,
+            generated_by, generated_at
+     FROM finance_fact_reports
+     ${whereSql}
+     ORDER BY generated_at DESC LIMIT 100`
+  ).bind(...params).all();
+
+  return json({ reports: results || [] });
+});
+
+// GET :id — один снепшот (для повторного просмотра/печати старого отчёта).
+route('GET', '/api/finance/fact-reports/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+
+  const tenantId = getTenantId(request);
+  const row = await env.DB.prepare(
+    `SELECT r.*, b.name AS building_name, b.address AS building_address
+     FROM finance_fact_reports r
+     LEFT JOIN buildings b ON b.id = r.building_id
+     WHERE r.id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''} LIMIT 1`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!row) return error('Not found', 404);
+
+  let rows: FactRow[] = [];
+  try { rows = row.rows_json ? JSON.parse(row.rows_json) : []; } catch { rows = []; }
+
+  const totals = rows.reduce((acc, r) => ({
+    prior_debt: acc.prior_debt + Number(r.prior_debt || 0),
+    accrued:    acc.accrued    + Number(r.accrued || 0),
+    paid:       acc.paid       + Number(r.paid || 0),
+    arrears:    acc.arrears    + Number(r.arrears || 0),
+  }), { prior_debt: 0, accrued: 0, paid: 0, arrears: 0 });
+
+  return json({
+    id: row.id,
+    building: { id: row.building_id, name: row.building_name, address: row.building_address },
+    period_from: row.period_from,
+    period_to: row.period_to,
+    rows,
+    totals,
+    uk_income_plan: row.uk_income_plan,
+    uk_income_fact: row.uk_income_fact,
+    generated_by: row.generated_by,
+    generated_at: row.generated_at,
+  });
+});
+
 } // end registerFinanceV2Routes
