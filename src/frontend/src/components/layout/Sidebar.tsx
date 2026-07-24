@@ -402,7 +402,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
         { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
-        { path: '/rentals', icon: Key, label: language === 'ru' ? 'Аренда квартир' : 'Kvartira ijarasi' },
+        { path: '/rentals', icon: Key, label: language === 'ru' ? 'Договоры краткосрочной аренды' : 'Qisqa muddatli ijara shartnomalari' },
         // Коммуникации
         { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
         { path: '/meetings', icon: Vote, label: t('meetings.title') },

@@ -163,11 +163,17 @@ const MonitoringPage = lazyWithRetry(() => import('../../pages/admin/MonitoringP
 const MarketplacePage = lazyWithRetry(() => import('../../pages/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
 const MarketplaceManagerDashboard = lazyWithRetry(() => import('../../pages/MarketplaceManagerDashboard').then(m => ({ default: m.MarketplaceManagerDashboard })));
 const MarketplaceOrdersPage = lazyWithRetry(() => import('../../pages/MarketplaceOrdersPage').then(m => ({ default: m.MarketplaceOrdersPage })));
-// Resident-facing apartment-rentals announcement page. Static info
-// screen — feature does not exist for any tenant. NOT to be confused
-// with RentalsPage above, which is the УК-side contract table (admin/
-// manager/director only, contains residents' personal data).
-const ApartmentRentalsPage = lazyWithRetry(() => import('../../pages/ApartmentRentalsPage').then(m => ({ default: m.ApartmentRentalsPage })));
+// Sprint 88 — resident rentals marketplace (Editorial direction).
+// Four pages under /apartment-rentals/*. Feed page renders the flag-OFF
+// gate itself, so ProtectedRoute doesn't need requiredFeature — the
+// gate is a real, styled page, not a redirect. Static side-effect
+// import primes the dev mock at module load (Vite tree-shakes in prod;
+// same pattern the marketplace mock uses at Sprint 87).
+import '../../pages/rentals/__devMock';
+const RentalsFeedPage = lazyWithRetry(() => import('../../pages/rentals/RentalsFeedPage').then(m => ({ default: m.RentalsFeedPage })));
+const RentalListingDetailPage = lazyWithRetry(() => import('../../pages/rentals/RentalListingDetailPage').then(m => ({ default: m.RentalListingDetailPage })));
+const RentalCreatePage = lazyWithRetry(() => import('../../pages/rentals/RentalCreatePage').then(m => ({ default: m.RentalCreatePage })));
+const RentalMyListingsPage = lazyWithRetry(() => import('../../pages/rentals/RentalMyListingsPage').then(m => ({ default: m.RentalMyListingsPage })));
 const SuperAdminDashboard = lazyWithRetry(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
 const PaymentsPage = lazyWithRetry(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
 // Finance module pages
@@ -822,15 +828,29 @@ export function Layout() {
                   <MarketplacePage />
                 </ProtectedRoute>
               } />
-              {/* Resident-facing apartment-rentals announcement. Auth
-                  only, no requiredFeature, no role restriction — the
-                  feature does not exist for any tenant, so there is
-                  nothing to enable. The screen itself says "в
-                  разработке". Distinct from /rentals (RentalsPage, УК-
+              {/* Sprint 88 — resident rentals marketplace, Editorial.
+                  Feed page owns the flag-OFF gate itself (three-state
+                  render), so no requiredFeature — the gate is a real
+                  styled page. Distinct from /rentals (RentalsPage, УК-
                   side contract table) which stays admin-only. */}
               <Route path="/apartment-rentals" element={
                 <ProtectedRoute>
-                  <ApartmentRentalsPage />
+                  <RentalsFeedPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/apartment-rentals/create" element={
+                <ProtectedRoute>
+                  <RentalCreatePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/apartment-rentals/mine" element={
+                <ProtectedRoute>
+                  <RentalMyListingsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/apartment-rentals/:id" element={
+                <ProtectedRoute>
+                  <RentalListingDetailPage />
                 </ProtectedRoute>
               } />
               <Route path="/marketplace-orders" element={

@@ -68,8 +68,8 @@ const FEATURE_REGISTRY: Record<string, { ru: { name: string; desc: string }; uz:
 
   // ── Enterprise-фичи ───────────────────────────────────────────
   rentals: {
-    ru: { name: 'Аренда квартир', desc: 'Посуточная аренда: гости, паспорта, платежи и история заездов' },
-    uz: { name: 'Kvartira ijarasi', desc: 'Kunlik ijara: mehmonlar, pasport, to\'lovlar va kirish tarixi' },
+    ru: { name: 'Договоры краткосрочной аренды', desc: 'Посуточная аренда: гости, паспорта, платежи и история заездов' },
+    uz: { name: 'Qisqa muddatli ijara shartnomalari', desc: 'Kunlik ijara: mehmonlar, pasport, to\'lovlar va kirish tarixi' },
     plan: 'Enterprise',
   },
   trainings: {

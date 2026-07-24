@@ -364,7 +364,7 @@ export function RentalsPage() {
             <Home className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Аренда квартир' : 'Xonadonlar ijarasi'}</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{language === 'ru' ? 'Договоры краткосрочной аренды' : 'Qisqa muddatli ijara shartnomalari'}</h1>
             <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Управление арендаторами' : 'Ijarachilarni boshqarish'}</p>
           </div>
         </div>

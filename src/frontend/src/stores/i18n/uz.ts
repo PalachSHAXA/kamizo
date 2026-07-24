@@ -28,7 +28,7 @@ export const uz: Record<string, string> = {
   'nav.services': 'Xizmatlar',
   'nav.profile': 'Profil',
   'nav.more': 'Ko\'proq',
-  'nav.rentals': 'Kvartira ijarasi',
+  'nav.rentals': 'Qisqa muddatli ijara shartnomalari',
   'nav.myApartments': 'Mening kvartiram',
   'nav.accounts': 'Shaxsiy hisoblar',
   'nav.owners': 'Mulkdorlar',
@@ -128,7 +128,7 @@ export const uz: Record<string, string> = {
   'common.noData': 'Ma\'lumot yo\'q',
 
   // Rentals
-  'rental.title': 'Kvartira ijarasi',
+  'rental.title': 'Qisqa muddatli ijara shartnomalari',
   'rental.addApartment': 'Kvartira qo\'shish',
   'rental.noApartments': 'Kvartiralar hali yo\'q',
   'rental.addFirst': 'Ijarani boshqarish uchun birinchi kvartirani qo\'shing',

@@ -29,7 +29,7 @@ export const ru: Record<string, string> = {
   'nav.services': 'Услуги',
   'nav.profile': 'Профиль',
   'nav.more': 'Ещё',
-  'nav.rentals': 'Аренда квартир',
+  'nav.rentals': 'Договоры краткосрочной аренды',
   'nav.myApartments': 'Мои квартиры',
   'nav.accounts': 'Лицевые счета',
   'nav.owners': 'Собственники',
@@ -129,7 +129,7 @@ export const ru: Record<string, string> = {
   'common.noData': 'Нет данных',
 
   // Rentals
-  'rental.title': 'Аренда квартир',
+  'rental.title': 'Договоры краткосрочной аренды',
   'rental.addApartment': 'Добавить квартиру',
   'rental.noApartments': 'Квартир пока нет',
   'rental.addFirst': 'Добавьте первую квартиру для управления арендой',
