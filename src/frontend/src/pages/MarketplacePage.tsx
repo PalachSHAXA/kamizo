@@ -12,6 +12,10 @@ import { apiRequest } from '../services/api';
 import { useTenantStore } from '../stores/tenantStore';
 import { useToastStore } from '../stores/toastStore';
 import { useModalPresence } from '../stores/modalStore';
+import { MarketplaceBottomBar } from './marketplace/MarketplaceBottomBar';
+import { IS_MOCK, MOCK_CATEGORIES, MOCK_PRODUCTS } from './marketplace/__devMock';
+import { Capacitor } from '@capacitor/core';
+import { Keyboard } from '@capacitor/keyboard';
 // Единая правда о жизненном цикле заказа — импортируем канонический
 // union (все 13 статусов включая on-demand — Этап 2, миграция 054).
 // Раньше локальный `type` в этом файле знал только 7 stock-статусов,
@@ -279,6 +283,136 @@ export function MarketplacePage() {
   // anymore (the bar is hidden here).
   useModalPresence(true);
 
+  // Sprint 87 v11 — Android keyboard: reserve bottom space equal to
+  // the reported keyboardHeight so the sheet's scrollable container
+  // gains overflow, THEN scroll the focused input into view.
+  //
+  // Why the v10 fix didn't work: capacitor.config.ts sets
+  // `Keyboard.resize:'native'`, which USED to shrink the Android
+  // WebView so `100dvh` reflected the keyboard-shrunken viewport.
+  // Chromium ≥ 118 changed the edge-to-edge WindowInsets behavior:
+  // the plugin's setDecorFitsSystemWindows(false) no longer causes a
+  // WebView resize; the keyboard is now drawn over the WebView and
+  // 100dvh/100vh/100svh all keep reporting the pre-keyboard height.
+  // Result: `max-h-[90dvh] overflow-y-auto` on the sheet has nothing
+  // to overflow, and `scrollIntoView` from the v10 handler is a
+  // silent no-op. Confirmed empirically on the emulator: the sheet's
+  // top edge and top form fields are pixel-identical with and
+  // without the keyboard open.
+  //
+  // iOS WKWebView still resizes cleanly, so this v11 fix is guarded
+  // by `isNativePlatform() && getPlatform()==='android'` for the
+  // padding half — no-op on iOS/web/dev. The focusin scroll runs
+  // on all platforms; behavior:'auto' rather than 'smooth' because
+  // a smooth scroll can be interrupted by the browser's own delayed
+  // scroll adjustments and leave the caret partway.
+  //
+  // Strategy: use Keyboard.addListener('keyboardDidShow') to read
+  // the actual keyboardHeight, write it to a CSS custom property on
+  // <html> (--kz-kb-h), and consume it as `padding-bottom` on the
+  // three sheet scrollers via inline style. That creates real
+  // overflow. On keyboardDidHide the custom property is cleared,
+  // padding collapses, sheet returns to its natural height.
+  //
+  // Guards: only runs while a form-bearing sheet is open (same
+  // OR-chain as v10). If a NEW form-bearing sheet is added, add
+  // its state to `hasFormSheetOpen` below AND add the
+  // paddingBottom-consuming style to its scrollable container.
+  useEffect(() => {
+    const hasFormSheetOpen = showOrderModal || !!onDemandProduct || showDeliveryRatingModal;
+    if (!hasFormSheetOpen) return;
+
+    const isAndroidNative =
+      Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
+    // ── focusin scroll-into-view (native + web) ─────────────────
+    // 300 ms because on Android keyboardDidShow can fire up to
+    // ~250 ms after focusin (the OS keyboard animation), and we
+    // want padding-bottom in place before we scroll. behavior:'auto'
+    // is atomic — 'smooth' can be cancelled mid-flight by the
+    // WebView's own scroll adjustments and lose the target.
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
+      setTimeout(() => {
+        try {
+          target.scrollIntoView({ block: 'center', behavior: 'auto' });
+        } catch {
+          try { target.scrollIntoView(); } catch { /* give up */ }
+        }
+      }, 300);
+    };
+    window.addEventListener('focusin', onFocus);
+
+    // ── native keyboard listeners (Android only) ────────────────
+    // iOS's WKWebView resize path still works and dvh shrinks
+    // correctly. Reserving padding on top would double-shrink the
+    // sheet. So iOS skips this branch and only the focusin handler
+    // above runs (matching v10 for iOS).
+    //
+    // Subscription race: Keyboard.addListener() returns a Promise
+    // that resolves to a PluginListenerHandle. If the effect
+    // cleanup runs BEFORE that promise resolves — e.g. the user
+    // dismisses the sheet in <1 tick — the listener still gets
+    // registered by Capacitor, but cleanup already saw a null
+    // handle and did nothing. On every sheet open/close the effect
+    // re-runs and stacks a new stray listener. `cancelled` flag
+    // guards this: if the promise resolves after cleanup already
+    // set cancelled=true, we immediately remove the just-attached
+    // handle instead of storing it.
+    let cancelled = false;
+    let showSub: { remove: () => Promise<void> } | null = null;
+    let hideSub: { remove: () => Promise<void> } | null = null;
+    if (isAndroidNative) {
+      const setKbHeight = (px: number) => {
+        document.documentElement.style.setProperty('--kz-kb-h', `${px}px`);
+      };
+      // Set to 0 on start so the CSS var always has a defined value
+      // (initial paint before the first keyboardDidShow fires).
+      setKbHeight(0);
+
+      Keyboard.addListener('keyboardDidShow', (info) => {
+        setKbHeight(info.keyboardHeight || 0);
+      })
+        .then((sub) => {
+          if (cancelled) {
+            // Effect cleaned up before addListener resolved — remove
+            // the freshly-registered handle to prevent leaks across
+            // sheet open/close cycles.
+            sub.remove().catch(() => {});
+          } else {
+            showSub = sub;
+          }
+        })
+        .catch(() => { /* plugin unavailable / permission — no-op */ });
+
+      Keyboard.addListener('keyboardDidHide', () => {
+        setKbHeight(0);
+      })
+        .then((sub) => {
+          if (cancelled) {
+            sub.remove().catch(() => {});
+          } else {
+            hideSub = sub;
+          }
+        })
+        .catch(() => { /* no-op */ });
+    }
+
+    return () => {
+      // Mark first so any in-flight addListener promises that
+      // resolve AFTER unmount clean themselves up (see above).
+      cancelled = true;
+      window.removeEventListener('focusin', onFocus);
+      if (isAndroidNative) {
+        document.documentElement.style.removeProperty('--kz-kb-h');
+        showSub?.remove().catch(() => {});
+        hideSub?.remove().catch(() => {});
+      }
+    };
+  }, [showOrderModal, onDemandProduct, showDeliveryRatingModal]);
+
   const fetchData = useCallback(async () => {
     // STATE 1 gate — do NOT hit /api/marketplace/* endpoints when the
     // tenant doesn't have the feature. Every marketplace route on the
@@ -286,6 +420,11 @@ export function MarketplacePage() {
     // toast racing the stub render. Bail before the fetch cascade.
     // setLoading(false) so the stub isn't hidden behind a spinner.
     if (!hasMarketplace) { setLoading(false); return; }
+    if (IS_MOCK) {
+      setCategories(MOCK_CATEGORIES);
+      setProducts(MOCK_PRODUCTS.map(normalizeProduct));
+      setLoading(false); return;
+    }
     try {
       setLoading(true);
       const [categoriesRes, productsRes] = await Promise.all([
@@ -597,6 +736,36 @@ export function MarketplacePage() {
   );
   const featured = useMemo(() => products.filter(p => p.is_featured), [products]);
 
+  // Sprint 87 v7 — editorial redesign helpers.
+  //
+  // featuredProduct — deterministic pick when 0..N products are flagged.
+  //   • 0 featured (most common — no УК sets the flag today) → null →
+  //     the whole featured section is skipped without collapsing layout.
+  //   • ≥1 featured → newest first (created_at desc). Newest is most
+  //     likely the "current promo". No sort_order column exists on
+  //     marketplace_products (only on marketplace_categories), so
+  //     created_at desc is the deterministic tiebreaker.
+  const featuredProduct = useMemo(() => {
+    if (featured.length === 0) return null;
+    return [...featured].sort(
+      (a, b) => (b.created_at || '').localeCompare(a.created_at || '')
+    )[0];
+  }, [featured]);
+
+  // categoryMap — id → localized category name, used to derive the
+  // per-card "kicker" eyebrow ("Клининг", "Для дома") from a product's
+  // category_id without a backend change. Products with null
+  // category_id OR a category_id that points at a deleted/inactive
+  // category resolve to undefined here — the render check `{kicker &&
+  // ...}` then omits the eyebrow entirely (no empty span, no gap).
+  const categoryMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of categories) {
+      m.set(c.id, language === 'ru' ? c.name_ru : c.name_uz);
+    }
+    return m;
+  }, [categories, language]);
+
   // 2026-07-11: раньше здесь стоял early-return со спиннером на пустом
   // экране пока грузились данные. Пользователи видели «бежевый экран
   // с крутилкой» — плохой UX. Теперь header/поиск/категории рендерятся
@@ -621,6 +790,23 @@ export function MarketplacePage() {
     );
   }
 
+  // BUG 1 (Sprint 87 v9) — hide MarketplaceBottomBar while any inline
+  // sheet on this page is open. The bar sits at zIndex:1000; sheets
+  // use z-[110]; without this the bar covers the sheet's primary
+  // action row. `cart`/`activeTab==='cart'` is NOT a modal — it's an
+  // in-page tab view — so it's intentionally excluded.
+  //
+  // ⚠️ MAINTENANCE: any NEW full-screen modal added to this page MUST
+  // be added to this OR-chain, or the bar will start covering it again.
+  // Grep for `useState.*null` + `showXxxModal` when adding modals.
+  const anyModalOpen = !!(
+    selectedProduct ||
+    onDemandProduct ||
+    showOrderModal ||
+    selectedOrder ||
+    showDeliveryRatingModal
+  );
+
   return (
     // marketplace-page scope class — enables dark-theme overrides in
     // index.css (bg-white → --marketplace-surface, text-gray-* →
@@ -628,7 +814,11 @@ export function MarketplacePage() {
     // Scoped so we don't bleed on other pages that use the same
     // Tailwind classes. See index.css "MarketplacePage — dark theme
     // overrides" block for the full override list.
-    <div className="marketplace-page pb-24 md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
+    // Bottom padding via arbitrary Tailwind value so md:pb-0 can still
+    // override it on desktop (the bar is mobile-only). ~96px covers the
+    // pill height + breathing room; env(safe-area-inset-bottom) covers
+    // the iOS home indicator.
+    <div className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
       {/* HEADER — sticky, "остаётся на месте" при скролле карточек товаров.
           bg-white (не /95): полупрозрачный фон + backdrop-blur на iOS
           WKWebView иногда воспринимался как «уплывает» — визуально
@@ -652,59 +842,137 @@ export function MarketplacePage() {
           willChange: 'transform',
         }}
       >
-        {/* Compact single-row chrome: back / title / actions. No
-            subtitle here — the product pitch + shipping/payment
-            expectations are merged into the STATE 2 empty-state
-            description below, so the header stays lightweight and
-            doesn't dominate the top of the screen. */}
-        <div className="px-4 pt-1.5 pb-1.5 flex items-center justify-between">
-          <button
-            onClick={() => {
-              // Иерархичный возврат (2026-07-11): из под-таба (Избранное /
-              // Корзина / Заказы) отходим сначала на корневой таб магазина
-              // «Магазин», а не сразу на Главную. Так житель не «вылетает»
-              // из магазина случайным нажатием ←, если он глубоко залез
-              // внутрь. Со shop-таба ← уводит на /.
-              if (activeTab !== 'shop') {
-                setActiveTab('shop');
-              } else {
-                navigate('/');
-              }
-            }}
-            className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center active:scale-90 transition-transform touch-manipulation"
-            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
-          >
-            <ArrowLeft className="w-[18px] h-[18px] text-gray-700" />
-          </button>
-          <h1 className="text-[16px] font-bold text-gray-900">
+        {/* Sprint 87 v9 — editorial header from screens/10-marketplace.html.
+            Title row + Search-with-Favorites row + sliding-underline
+            category tabs. Categories moved OUT of the SHOP block into
+            this sticky header so they follow the design's layered
+            surface; they still only render in shop mode (the favorites
+            grid intentionally does not filter by category — that's the
+            approved current behaviour and left untouched). */}
+
+        {/* Title row — «Маркет УК.» with the period as a brand-orange
+            accent, per the design. Oversized editorial typography
+            (27px / 800 / -0.03em) so the marketplace has a hero-name
+            feel distinct from the plain «Заявки»/«Дом» headers. */}
+        <div className="px-5 pt-3 pb-3">
+          <h1 className="text-[27px] font-extrabold text-gray-900" style={{ letterSpacing: '-0.03em', lineHeight: 1 }}>
             {language === 'ru' ? 'Маркет УК' : 'BK marketi'}
+            <span className="text-primary-500">.</span>
           </h1>
-          <div className="flex gap-2">
-            {activeOrders.length > 0 && (
-              <button onClick={() => setActiveTab('orders')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? `Активные заказы, ${activeOrders.length}` : `Faol buyurtmalar, ${activeOrders.length}`}>
-                <Package className="w-[18px] h-[18px] text-gray-700" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-white">{activeOrders.length}</span>
-              </button>
-            )}
-            <button onClick={() => setActiveTab('cart')} className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center relative active:scale-90 transition-transform touch-manipulation" aria-label={language === 'ru' ? `Корзина, ${cartCount} товаров` : `Savat, ${cartCount} mahsulot`}>
-              <ShoppingCart className="w-[18px] h-[18px] text-gray-700" />
-              {/* Sprint 36: red badge replaced with brand-orange to
-                  match the rest of the resident UI. Red was reading as
-                  "warning" when really it just meant "count". */}
-              {cartCount > 0 && <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-gradient-to-br from-[#E8621A] to-[#F59E0B] rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 border-2 border-white">{cartCount > 9 ? '9+' : cartCount}</span>}
-            </button>
-          </div>
         </div>
-        {activeTab !== 'shop' && (
-          <div className="px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-hide">
-            {([
-              { id: 'shop' as const, label: language === 'ru' ? 'Магазин' : 'Do\'kon' },
-              { id: 'favorites' as const, label: `${language === 'ru' ? 'Избранное' : 'Sevimli'}${favorites.length > 0 ? ` (${favorites.length})` : ''}` },
-              { id: 'cart' as const, label: `${language === 'ru' ? 'Корзина' : 'Savat'}${cartCount > 0 ? ` (${cartCount})` : ''}` },
-              { id: 'orders' as const, label: `${language === 'ru' ? 'Заказы' : 'Buyurtma'}${orders.length > 0 ? ` (${orders.length})` : ''}` },
-            ]).map(t => (
-              <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-3.5 py-1.5 rounded-[12px] text-[13px] font-semibold transition-all whitespace-nowrap shrink-0 ${activeTab === t.id ? 'bg-primary-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>{t.label}</button>
-            ))}
+
+        {/* Search + Favorites row — both are "card-material chips" per
+            the design. Search input is the primary chip that filters
+            products live via `searchQuery`. Избранное chip is the
+            mode toggle: tap once → activeTab='favorites' (orange
+            gradient bg); tap again → back to 'shop'. Count badge is
+            always rendered (design shows 0 in dim state). */}
+        <div className="px-5 pb-3 flex items-center gap-2.5 overflow-x-auto scrollbar-hide">
+          {/* Search input styled as chip — real <input>, live filter.
+              min-w-[180px] keeps the field usable even when Избранное
+              chip wraps into horizontal-scroll on narrow phones. */}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4 pointer-events-none" />
+            <input
+              type="search"
+              inputMode="search"
+              autoComplete="off"
+              placeholder={language === 'ru' ? 'Поиск товаров…' : 'Mahsulot qidirish…'}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 rounded-[14px] bg-white border border-gray-200 text-[13.5px] font-semibold text-gray-600 placeholder:text-gray-500 focus:outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-500/20"
+              style={{ boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)' }}
+              aria-label={language === 'ru' ? 'Поиск товаров' : 'Mahsulot qidirish'}
+            />
+          </div>
+
+          {/* Favorites toggle chip. Inline gradient/shadow for the
+              active state — Tailwind can't embed the exact
+              `linear-gradient(150deg,...)` inline colour stops the
+              design specifies. Neutral state uses the same
+              card-material treatment as the search chip so the row
+              reads as a matching pair. Count badge uses the same
+              gradient family in inactive state; goes to 28%-opacity
+              white on the orange chip when active. */}
+          <button
+            onClick={() => setActiveTab(activeTab === 'favorites' ? 'shop' : 'favorites')}
+            className={`flex-shrink-0 h-11 px-4 rounded-[14px] flex items-center gap-2 text-[13.5px] font-bold cursor-pointer transition-all ${
+              activeTab === 'favorites'
+                ? 'text-white border-0'
+                : 'text-gray-600 border border-gray-200 bg-white'
+            }`}
+            style={
+              activeTab === 'favorites'
+                ? { background: 'linear-gradient(150deg,#FB923C,#EA580C)', boxShadow: '0 8px 16px -8px rgba(249,115,22,0.6)' }
+                : { boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)' }
+            }
+            aria-label={language === 'ru' ? 'Избранное' : 'Sevimli'}
+            aria-pressed={activeTab === 'favorites'}
+          >
+            <Heart className="w-4 h-4" fill="currentColor" />
+            <span>{language === 'ru' ? 'Избранное' : 'Sevimli'}</span>
+            <span
+              className="min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-extrabold grid place-items-center text-white"
+              style={{
+                background:
+                  activeTab === 'favorites' ? 'rgba(255,255,255,0.28)' : 'var(--brand, #F97316)',
+              }}
+            >
+              {favorites.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Category text-tabs with sliding underline (design v9).
+            Rendered only in shop mode — the favorites grid renders
+            without category-filter semantics today and that's out of
+            scope for the header rewrite. Moved here from the old
+            SHOP block so the header contains all of title + search +
+            categories in one sticky surface. */}
+        {activeTab === 'shop' && (
+          <div className="flex gap-6 overflow-x-auto scrollbar-hide px-5 border-b border-gray-100">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className="relative flex-shrink-0 bg-transparent border-none cursor-pointer pb-3 text-[16px] whitespace-nowrap"
+              style={{
+                color: !selectedCategory ? 'var(--marketplace-text-primary)' : 'var(--marketplace-text-muted)',
+                fontWeight: !selectedCategory ? 800 : 650,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {language === 'ru' ? 'Всё' : 'Hammasi'}
+              {!selectedCategory && (
+                <span
+                  aria-hidden
+                  className="absolute left-0 right-0 -bottom-px h-[3px] rounded-[3px]"
+                  style={{ background: 'var(--brand)' }}
+                />
+              )}
+            </button>
+            {categories.map(cat => {
+              const on = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(on ? null : cat.id)}
+                  className="relative flex-shrink-0 bg-transparent border-none cursor-pointer pb-3 text-[16px] whitespace-nowrap"
+                  style={{
+                    color: on ? 'var(--marketplace-text-primary)' : 'var(--marketplace-text-muted)',
+                    fontWeight: on ? 800 : 650,
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {language === 'ru' ? cat.name_ru : cat.name_uz}
+                  {on && (
+                    <span
+                      aria-hidden
+                      className="absolute left-0 right-0 -bottom-px h-[3px] rounded-[3px]"
+                      style={{ background: 'var(--brand)' }}
+                    />
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -726,9 +994,15 @@ export function MarketplacePage() {
         </div>
       </div>
 
-      {/* SHOP */}
+      {/* SHOP — search + categories moved to the mobile sticky header
+          (design v9, md:hidden). Desktop (≥ md) does NOT render the
+          mobile header, so search + categories are restored here for
+          the desktop path only, using the pre-session pill-style
+          markup verbatim from HEAD. Mobile hides this block (`hidden
+          md:block`), desktop hides the mobile header — no overlap,
+          no duplication. */}
       {activeTab === 'shop' && (
-        <div className="px-4 pt-3 pb-4">
+        <div className="hidden md:block px-4 pt-3 pb-4">
           <div className="relative mb-3">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-[18px] h-[18px]" />
             <input type="search" inputMode="search" autoComplete="off" placeholder={language === 'ru' ? 'Поиск товаров...' : 'Mahsulot qidirish...'} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-[14px] bg-white border border-gray-100 text-[14px] placeholder:text-gray-400 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-300 shadow-[0_1px_3px_rgba(0,0,0,0.04)]" aria-label={language === 'ru' ? 'Поиск товаров' : 'Mahsulot qidirish'} />
@@ -743,7 +1017,10 @@ export function MarketplacePage() {
               </button>
             ))}
           </div>
-
+        </div>
+      )}
+      {activeTab === 'shop' && (
+        <div className="px-4 pt-3 pb-4">
           {/* Banners */}
           {!selectedCategory && !searchQuery && banners.length > 0 && (
             <div className="mb-4 space-y-3">
@@ -778,70 +1055,126 @@ export function MarketplacePage() {
             </div>
           )}
 
-          {!selectedCategory && !searchQuery && featured.length > 0 && (
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-2.5 px-0.5">
-                <span className="text-[16px] font-bold text-gray-900 flex items-center gap-1.5">🔥 {language === 'ru' ? 'Популярное' : 'Mashhur'}</span>
-                <button onClick={() => setSelectedCategory(null)} className="text-[13px] font-semibold text-primary-500">{language === 'ru' ? 'Все →' : 'Hammasi →'}</button>
+          {/* Sprint 87 v7 — editorial featured story. Replaces the
+              old "Популярное" section (big-card + horizontal-scroll
+              fallback for 2..N featured). Now: ONE deterministic
+              featured product (see featuredProduct memo — newest
+              is_featured product), rendered as a 260px full-bleed
+              editorial card. Skipped entirely when featuredProduct
+              is null — no empty card, no layout collapse. Also
+              gated by !selectedCategory && !searchQuery (same as
+              before) so filtered views focus on the filter result. */}
+          {!selectedCategory && !searchQuery && featuredProduct && (
+            <button
+              onClick={() => setSelectedProduct(featuredProduct)}
+              className="block w-full text-left border-none p-0 mb-5 relative overflow-hidden active:scale-[0.99] transition-transform"
+              style={{
+                height: 260,
+                borderRadius: 28,
+                background: 'linear-gradient(125deg, #EA580C 0%, #F97316 55%, #FDBA74 100%)',
+                boxShadow: '0 20px 40px -18px rgba(234,88,12,0.6)',
+                cursor: 'pointer',
+              }}
+            >
+              {/* Product image OR gradient-only fallback. When
+                  image_url is null, the brand gradient background
+                  above is what shows — no "no image" placeholder. */}
+              {featuredProduct.image_url && (
+                <img
+                  src={featuredProduct.image_url}
+                  alt={language === 'ru' ? featuredProduct.name_ru : featuredProduct.name_uz}
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ opacity: 0.85 }}
+                />
+              )}
+              {/* Sprint 87 v8 — dark scrim so white text/kicker stay
+                  legible over ANY photo, including bright/light ones
+                  (e.g. clean-carpet photos on Химчистка). Darkens
+                  top-left where the kicker sits AND bottom where the
+                  title + price live, leaves the middle-right showcase
+                  area clean. Only applied when there's actually an
+                  image — the gradient-only fallback already contrasts
+                  against white. */}
+              {featuredProduct.image_url && (
+                <div
+                  aria-hidden
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(0,0,0,0.38) 0%, rgba(0,0,0,0.05) 35%, rgba(0,0,0,0.15) 60%, rgba(0,0,0,0.60) 100%)',
+                  }}
+                />
+              )}
+              <div className="absolute inset-0 box-border p-6 flex flex-col">
+                {/* Kicker eyebrow — derived from category name.
+                    If the product has no category, the pill is
+                    just "Акция" (a generic promo label) so the
+                    top-left isn't empty. Show discount only if
+                    old_price is present. */}
+                <div className="flex gap-2 self-start flex-wrap">
+                  <span
+                    className="text-[12px] font-extrabold tracking-[0.03em] text-white px-3.5 py-1.5 rounded-full"
+                    style={{ background: 'rgba(0,0,0,0.24)' }}
+                  >
+                    {(featuredProduct.category_id && categoryMap.get(featuredProduct.category_id)) ||
+                      (language === 'ru' ? 'Акция' : 'Aksiya')}
+                  </span>
+                  {featuredProduct.old_price && (
+                    <span
+                      className="text-[12px] font-extrabold text-white px-3.5 py-1.5 rounded-full"
+                      style={{ background: 'rgba(0,0,0,0.24)' }}
+                    >
+                      −{Math.round((1 - featuredProduct.price / featuredProduct.old_price) * 100)}%
+                    </span>
+                  )}
+                </div>
+                <div className="mt-auto">
+                  <div
+                    className="text-[34px] font-extrabold text-white"
+                    style={{ letterSpacing: '-0.03em', lineHeight: 1 }}
+                  >
+                    {language === 'ru' ? featuredProduct.name_ru : featuredProduct.name_uz}
+                  </div>
+                  {(featuredProduct.description_ru || featuredProduct.description_uz) && (
+                    <div
+                      className="text-[14.5px] font-semibold mt-2 max-w-[260px]"
+                      style={{ color: 'rgba(255,255,255,0.9)', lineHeight: 1.35 }}
+                    >
+                      {language === 'ru'
+                        ? (featuredProduct.description_ru || '')
+                        : (featuredProduct.description_uz || '')}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 mt-4">
+                    <span
+                      className="text-[15px] font-extrabold whitespace-nowrap px-[18px] py-2.5 rounded-full bg-white"
+                      style={{ color: '#C2410C' }}
+                    >
+                      {featuredProduct.price === 0
+                        ? (language === 'ru' ? 'Бесплатно' : 'Bepul')
+                        // fmt() already appends " сум" / " so'm" (line
+                        // 587) — appending it again produced «от 250 000
+                        // сум сум». Just prefix «от » in ru.
+                        : `${language === 'ru' ? 'от ' : ''}${fmt(featuredProduct.price)}`}
+                    </span>
+                  </div>
+                </div>
               </div>
-              {/* Large featured card */}
-              {featured[0] && (
-                <div className="mb-3 bg-white rounded-[20px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.08)] cursor-pointer active:scale-[0.99] transition-transform" onClick={() => setSelectedProduct(featured[0])}>
-                  <div className="relative aspect-[2/1] bg-gradient-to-br from-primary-50 to-primary-100/50 flex items-center justify-center">
-                    {featured[0].image_url ? <ProductPhoto src={featured[0].image_url} name={language === 'ru' ? featured[0].name_ru : featured[0].name_uz} categoryId={featured[0].category_id} size="xl" /> : <ProductCardPlaceholder name={language === 'ru' ? featured[0].name_ru : featured[0].name_uz} categoryId={featured[0].category_id} size="xl" />}
-                    {featured[0].old_price && <div className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-[10px]">-{Math.round((1 - featured[0].price / featured[0].old_price) * 100)}%</div>}
-                    {!featured[0].old_price && <div className="absolute top-3 left-3 bg-primary-500 text-white text-xs font-bold px-2.5 py-1 rounded-[10px]">ХИТ</div>}
-                  </div>
-                  <div className="p-3.5">
-                    <h3 className="font-bold text-[15px] text-gray-900 line-clamp-1">{language === 'ru' ? featured[0].name_ru : featured[0].name_uz}</h3>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                      <span className="text-[12px] font-semibold text-gray-700">{getProductRating(featured[0].id).rating}</span>
-                      <span className="text-[12px] text-gray-400">({getProductRating(featured[0].id).count})</span>
-                    </div>
-                    <div className="flex items-end justify-between mt-2">
-                      <div>
-                        <span className="font-extrabold text-[18px] text-gray-900">{fmt(featured[0].price)}</span>
-                        {featured[0].old_price && <p className="text-[12px] text-gray-400 line-through">{fmt(featured[0].old_price)}</p>}
-                      </div>
-                      {getCartQty(featured[0].id) > 0 ? (
-                        <div className="flex items-center gap-1.5">
-                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) - 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-gray-100 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
-                          <span className="text-[14px] font-bold text-gray-900 w-5 text-center">{getCartQty(featured[0].id)}</span>
-                          <button onClick={e => { e.stopPropagation(); updateCartQuantity(featured[0].id, getCartQty(featured[0].id) + 1); }} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}><Plus className="w-3.5 h-3.5 text-white" /></button>
-                        </div>
-                      ) : (
-                        <button onClick={e => { e.stopPropagation(); addToCart(featured[0].id); }} className="px-4 py-2 rounded-[12px] bg-primary-500 text-white text-[13px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]"><Plus className="w-4 h-4" />{language === 'ru' ? 'В корзину' : 'Savatga'}</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {/* Horizontal scroll of smaller featured */}
-              {featured.length > 1 && (
-                <div className="relative">
-                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                  {featured.slice(1, 7).map(p => (
-                    <div key={p.id} className="w-[140px] shrink-0 bg-white rounded-[16px] overflow-hidden shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
-                      <div className="aspect-square bg-gray-50 flex items-center justify-center cursor-pointer relative" onClick={() => setSelectedProduct(p)}>
-                        {p.image_url ? <ProductPhoto src={p.image_url} name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="sm" /> : <ProductCardPlaceholder name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="sm" />}
-                        {p.old_price && <div className="absolute top-1.5 left-1.5 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-md">-{Math.round((1 - p.price / p.old_price) * 100)}%</div>}
-                      </div>
-                      <div className="p-2">
-                        <h3 className="font-medium text-[12px] text-gray-900 line-clamp-2 min-h-[30px] leading-tight">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
-                        <div className="flex items-end justify-between mt-1.5">
-                          <span className="font-bold text-[13px] text-gray-900">{fmt(p.price)}</span>
-                          {getCartQty(p.id) > 0 ? <span className="text-xs font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded-full">{getCartQty(p.id)}</span> : (
-                            <button onClick={e => { e.stopPropagation(); addToCart(p.id); }} className="w-7 h-7 rounded-full bg-primary-500 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'В корзину' : 'Savatga'}><Plus className="w-3.5 h-3.5 text-white" /></button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none" />
-                </div>
-              )}
+            </button>
+          )}
+
+          {/* Section label + count */}
+          {(filteredProducts.length > 0 || (!loading && products.length > 0)) && (
+            <div className="flex items-baseline justify-between mb-3 px-0.5">
+              <span className="text-[13px] font-extrabold tracking-[0.14em] uppercase text-gray-500">
+                {selectedCategory
+                  ? (categoryMap.get(selectedCategory) || (language === 'ru' ? 'Категория' : 'Kategoriya'))
+                  : (language === 'ru' ? 'Предложения' : 'Takliflar')}
+              </span>
+              <span className="text-[13px] font-bold text-gray-400">
+                {String(filteredProducts.length).padStart(2, '0')}
+              </span>
             </div>
           )}
 
@@ -870,74 +1203,237 @@ export function MarketplacePage() {
             </div>
           )}
 
+          {/* Sprint 87 v7 — editorial landscape product feed. Replaces
+              the 2/3/4/5-col grid with vertical stacks of large
+              landscape cards (122px cover left / body right).
+              Preserves all functional behaviour:
+                • Add-to-cart / quantity-stepper for stock items
+                • "Заказать под привоз" for on-demand (is_on_demand=1)
+                • "Нет в наличии" overlay for out-of-stock stock items
+                • Discount % badge on cover when old_price is set
+                • Favorite toggle in top-right of body area
+                • Kicker eyebrow from category name — omitted when
+                  product has no category_id or the id references a
+                  deleted/inactive category (categoryMap.get returns
+                  undefined → {kicker && ...} skips)
+              OMITTED per Sprint 87 v7 design decision:
+                • Rating (4.9 stars) — no aggregated avg_rating in
+                  the /api/marketplace/products list response.
+                  Adding it needs 5 lines on backend: LEFT JOIN
+                  (SELECT product_id, AVG(rating) FROM marketplace_
+                  reviews WHERE is_visible=1 GROUP BY product_id).
+                • Sold count ("128 заказов") — no sold_count field.
+                  Adding it needs LEFT JOIN (SELECT product_id, SUM
+                  (quantity) FROM marketplace_order_items WHERE
+                  status='delivered' GROUP BY product_id).
+                Both live in a comment near the render so future
+                add-back is a small task, not a rediscovery. */}
           {filteredProducts.length > 0 && (
-            <>
-              {!selectedCategory && !searchQuery && featured.length > 0 && <div className="text-[15px] font-bold text-gray-900 mb-2 px-0.5">{language === 'ru' ? 'Все товары' : 'Barcha mahsulotlar'} <span className="text-[13px] font-normal text-gray-400">{filteredProducts.length} {language === 'ru' ? 'шт.' : 'dona'}</span></div>}
-              <div key={selectedCategory || searchQuery || 'all'} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 stagger-children">
-                {filteredProducts.map(p => {
-                  const qty = getCartQty(p.id);
-                  const fav = favorites.includes(p.id);
-                  const disc = p.old_price ? Math.round((1 - p.price / p.old_price) * 100) : 0;
-                  return (
-                    <div key={p.id} className="bg-white rounded-[18px] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform">
-                      <div className="relative aspect-square bg-gray-50 flex items-center justify-center cursor-pointer" onClick={() => setSelectedProduct(p)}>
-                        {p.image_url ? <ProductPhoto src={p.image_url} name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="lg" /> : <ProductCardPlaceholder name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="lg" />}
-                        <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform" aria-label={language === 'ru' ? 'В избранное' : 'Sevimlilarga'}>
-                          <Heart className={`w-[15px] h-[15px] ${fav ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} strokeWidth={1.8} />
+            <div
+              key={selectedCategory || searchQuery || 'all'}
+              className="flex flex-col gap-4 stagger-children"
+            >
+              {filteredProducts.map(p => {
+                const qty = getCartQty(p.id);
+                const fav = favorites.includes(p.id);
+                const disc = p.old_price ? Math.round((1 - p.price / p.old_price) * 100) : 0;
+                // Kicker from category name — undefined if product has
+                // no category_id or points at a deleted/inactive one.
+                const kicker = p.category_id ? categoryMap.get(p.category_id) : undefined;
+                return (
+                  <div
+                    key={p.id}
+                    className="relative flex bg-white rounded-[24px] border border-gray-200 overflow-hidden active:scale-[0.99] transition-transform"
+                    style={{
+                      minHeight: 150,
+                      boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)',
+                    }}
+                  >
+                    {/* Cover — 122px landscape strip. Real image_url
+                        when present, brand-orange gradient fallback
+                        otherwise. Same button surface as tap-target
+                        to open detail. */}
+                    <button
+                      onClick={() => setSelectedProduct(p)}
+                      className="border-none p-0 cursor-pointer relative"
+                      style={{
+                        flex: '0 0 122px',
+                        background: p.image_url
+                          ? undefined
+                          : 'linear-gradient(145deg, #FDBA74, #EA580C)',
+                      }}
+                      aria-label={language === 'ru' ? p.name_ru : p.name_uz}
+                    >
+                      {p.image_url && (
+                        <img
+                          src={p.image_url}
+                          alt={language === 'ru' ? p.name_ru : p.name_uz}
+                          loading="lazy"
+                          decoding="async"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      )}
+                      {/* Priority: on-demand > discount > out-of-stock. */}
+                      {p.is_on_demand && (
+                        <span
+                          className="absolute top-2.5 left-2.5 text-[11px] font-extrabold text-white px-2.5 py-1 rounded-full"
+                          style={{ background: 'rgba(0,0,0,0.28)' }}
+                        >
+                          {language === 'ru' ? 'Под заказ' : 'Buyurtma'}
+                        </span>
+                      )}
+                      {!p.is_on_demand && disc > 0 && (
+                        <span
+                          className="absolute top-2.5 left-2.5 text-[11px] font-extrabold text-white px-2.5 py-1 rounded-full"
+                          style={{ background: 'rgba(0,0,0,0.28)' }}
+                        >
+                          −{disc}%
+                        </span>
+                      )}
+                      {!p.is_on_demand && p.stock_quantity === 0 && (
+                        <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center">
+                          <span className="text-white text-[11px] font-bold bg-gray-900/60 px-2.5 py-1 rounded-full">
+                            {language === 'ru' ? 'Нет' : "Yo'q"}
+                          </span>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Body — kicker / title / description / price / CTA */}
+                    <div className="flex-1 min-w-0 flex flex-col" style={{ padding: '14px 14px 14px 16px' }}>
+                      <div className="flex items-start justify-between gap-2">
+                        {/* Kicker or empty span (self-align) so the
+                            heart icon stays right-flush even without
+                            a category. Empty span takes 0 width. */}
+                        {kicker ? (
+                          <span
+                            className="text-[10.5px] font-extrabold uppercase text-primary-700"
+                            style={{ letterSpacing: '0.12em' }}
+                          >
+                            {kicker}
+                          </span>
+                        ) : (
+                          <span aria-hidden />
+                        )}
+                        <button
+                          onClick={() => toggleFavorite(p.id)}
+                          className="bg-transparent border-none cursor-pointer p-0 -mt-0.5"
+                          aria-label={language === 'ru' ? 'В избранное' : 'Sevimlilarga'}
+                        >
+                          <Heart
+                            className={`w-[19px] h-[19px] ${fav ? 'fill-primary-500 text-primary-500' : 'text-gray-400'}`}
+                            strokeWidth={1.9}
+                          />
                         </button>
-                        {/* On-demand badge takes priority over ХИТ / discount:
-                            the product isn't a regular stock item, so the
-                            "special delivery" hint is more relevant. */}
-                        {p.is_on_demand && <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">{language === 'ru' ? 'Под заказ' : 'Buyurtma'}</div>}
-                        {!p.is_on_demand && p.is_featured && disc === 0 && <div className="absolute top-2 left-2 bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">ХИТ</div>}
-                        {!p.is_on_demand && disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
-                        {/* "Out of stock" overlay only for real stock items —
-                            an on-demand product has stock_quantity=0 by design,
-                            not because it ran out. */}
-                        {!p.is_on_demand && p.stock_quantity === 0 && <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center"><span className="text-white text-[12px] font-bold bg-gray-900/60 px-3 py-1 rounded-full">{language === 'ru' ? 'Нет в наличии' : 'Mavjud emas'}</span></div>}
                       </div>
-                      <div className="p-3">
-                        <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-2 min-h-[36px] leading-snug">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
-                        <div className="flex items-center gap-1 mt-1.5">
-                          <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                          <span className="text-xs font-semibold text-gray-700">{getProductRating(p.id).rating}</span>
-                          <span className="text-xs text-gray-400">({getProductRating(p.id).count})</span>
+                      <div
+                        className="text-[18px] font-extrabold text-gray-900 mt-1.5"
+                        style={{ letterSpacing: '-0.02em', lineHeight: 1.15 }}
+                      >
+                        {language === 'ru' ? p.name_ru : p.name_uz}
+                      </div>
+                      {(p.description_ru || p.description_uz) && (
+                        <div className="text-[13px] text-gray-600 mt-1 line-clamp-1">
+                          {language === 'ru' ? p.description_ru : p.description_uz}
                         </div>
-                        <div className="mt-2">
-                          {p.is_on_demand ? (
-                            <p className="font-extrabold text-[15px] text-amber-600">{language === 'ru' ? 'Цена по запросу' : "So'rov bo'yicha"}</p>
-                          ) : (
-                            <div className="flex items-baseline gap-1.5">
-                              <p className="font-extrabold text-[15px] text-gray-900">{fmt(p.price)}</p>
-                              {p.old_price && <p className="text-xs text-gray-400 line-through">{fmt(p.old_price)}</p>}
-                            </div>
+                      )}
+                      {/* Rating + sold count would go here. See block
+                          comment above the grid for the backend work
+                          (~10 lines total) that lights this up. */}
+                      <div className="flex items-end justify-between mt-auto pt-3">
+                        <div className="flex flex-col" style={{ lineHeight: 1.05 }}>
+                          {p.old_price && (
+                            <span className="text-[12px] text-gray-400 line-through">
+                              {fmt(p.old_price)}
+                            </span>
                           )}
-                          <div className="mt-2">
-                            {p.is_on_demand ? (
-                              <button onClick={() => requestOnDemand(p)} className="w-full py-2 rounded-[12px] flex items-center justify-center gap-1.5 text-[13px] font-semibold active:scale-[0.97] transition-transform bg-amber-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.25)]">
-                                <ShoppingBag className="w-4 h-4" />
-                                <span>{language === 'ru' ? 'Заказать под привоз' : 'Buyurtma qilish'}</span>
-                              </button>
-                            ) : qty > 0 ? (
-                              <div className="flex items-center justify-between bg-gray-50 rounded-[12px] p-1">
-                                <button onClick={() => updateCartQuantity(p.id, qty - 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3.5 h-3.5 text-gray-600" /></button>
-                                <span className="text-[14px] font-bold text-gray-900">{qty}</span>
-                                <button onClick={() => updateCartQuantity(p.id, qty + 1)} className="min-w-[44px] min-h-[44px] rounded-[10px] bg-primary-500 flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}><Plus className="w-3.5 h-3.5 text-white" /></button>
-                              </div>
-                            ) : (
-                              <button onClick={() => addToCart(p.id)} disabled={p.stock_quantity === 0} className={`w-full py-2 rounded-[12px] flex items-center justify-center gap-1.5 text-[13px] font-semibold active:scale-[0.97] transition-transform ${p.stock_quantity === 0 ? 'bg-gray-100 text-gray-400' : 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.25)]'}`}>
-                                <Plus className="w-4 h-4" />
-                                <span>{language === 'ru' ? 'В корзину' : 'Savatga'}</span>
-                              </button>
-                            )}
-                          </div>
+                          {p.is_on_demand ? (
+                            <span
+                              className="text-[15px] font-extrabold text-amber-600"
+                              style={{ letterSpacing: '-0.01em' }}
+                            >
+                              {language === 'ru' ? 'По запросу' : "So'rov"}
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[19px] font-extrabold ${p.price === 0 ? 'text-green-700' : 'text-gray-900'}`}
+                              style={{ letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}
+                            >
+                              {p.price === 0
+                                ? (language === 'ru' ? 'Бесплатно' : 'Bepul')
+                                : fmt(p.price)}
+                            </span>
+                          )}
                         </div>
+                        {/* CTA — priority: on-demand button > qty
+                            stepper > add-to-cart button > disabled
+                            (out-of-stock).
+                            NOTE: gradient CTA white text on
+                            from-#FB923C to-#EA580C computes to
+                            ~2.85:1 contrast — fails AA-Normal but
+                            matches the mockup + the pre-existing
+                            bg-primary-500 pattern used across the
+                            app. Palette-wide brand-contrast fix is
+                            a separate ticket. */}
+                        {p.is_on_demand ? (
+                          <button
+                            onClick={() => requestOnDemand(p)}
+                            className="flex items-center gap-1.5 rounded-full text-white border-none cursor-pointer text-[13.5px] font-semibold flex-shrink-0"
+                            style={{
+                              height: 40,
+                              padding: '0 16px 0 14px',
+                              background: 'linear-gradient(150deg, #EA580C, #9A3412)',
+                              boxShadow: '0 8px 16px -8px rgba(249,115,22,0.7)',
+                            }}
+                          >
+                            <ShoppingBag className="w-4 h-4" strokeWidth={2.6} />
+                            <span>{language === 'ru' ? 'Заказать' : 'Buyurtma'}</span>
+                          </button>
+                        ) : qty > 0 ? (
+                          <div className="flex items-center gap-1.5 bg-gray-50 rounded-full p-1">
+                            <button
+                              onClick={() => updateCartQuantity(p.id, qty - 1)}
+                              className="w-9 h-9 rounded-full bg-white flex items-center justify-center active:scale-90 transition-transform shadow-sm border-none cursor-pointer"
+                              aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}
+                            >
+                              <Minus className="w-3.5 h-3.5 text-gray-600" />
+                            </button>
+                            <span className="text-[14px] font-bold text-gray-900 min-w-[16px] text-center">{qty}</span>
+                            <button
+                              onClick={() => updateCartQuantity(p.id, qty + 1)}
+                              className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform border-none cursor-pointer"
+                              style={{ background: 'linear-gradient(150deg, #EA580C, #9A3412)' }}
+                              aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}
+                            >
+                              <Plus className="w-3.5 h-3.5 text-white" strokeWidth={2.6} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => addToCart(p.id)}
+                            disabled={p.stock_quantity === 0}
+                            className={`flex items-center gap-1.5 rounded-full border-none cursor-pointer text-[13.5px] font-semibold flex-shrink-0 ${p.stock_quantity === 0 ? 'bg-gray-100 text-gray-400' : 'text-white'}`}
+                            style={{
+                              height: 40,
+                              padding: '0 16px 0 14px',
+                              background: p.stock_quantity === 0
+                                ? undefined
+                                : 'linear-gradient(150deg, #FB923C, #EA580C)',
+                              boxShadow: p.stock_quantity === 0
+                                ? undefined
+                                : '0 8px 16px -8px rgba(249,115,22,0.7)',
+                            }}
+                          >
+                            <Plus className="w-4 h-4" strokeWidth={2.6} />
+                            <span>{language === 'ru' ? 'В корзину' : 'Savatga'}</span>
+                          </button>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                  </div>
+                );
+              })}
+            </div>
           )}
           {!loading && filteredProducts.length === 0 && (
             products.length === 0 ? (
@@ -1193,22 +1689,28 @@ export function MarketplacePage() {
         </div>
       )}
 
-      {/* FLOATING CART */}
-      {activeTab === 'shop' && cartCount > 0 && (
-        // Bottom offset (2026-07-11): раньше плашка отступала на
-        // `--bottom-bar-h` — оставляла место под глобальный BottomBar.
-        // BottomBar теперь скрыт на /marketplace (useModalPresence(true)
-        // выше), и его высота под плашкой превращалась в пустоту.
-        // Убираем зависимость от --bottom-bar-h — оставляем только
-        // safe-area (home-indicator на iPhone) + 12px, чтобы плашка
-        // не липла к жестовой полоске.
-        <div className="fixed left-4 right-4 z-40 md:hidden" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
-          <button onClick={() => setActiveTab('cart')} className="w-full bg-primary-500 text-white rounded-[16px] p-3.5 flex items-center justify-between shadow-[0_4px_20px_rgba(var(--brand-rgb),0.35)] active:scale-[0.98] transition-transform touch-manipulation">
-            <div className="flex items-center gap-2.5"><div className="w-8 h-8 bg-white/20 rounded-[10px] flex items-center justify-center"><ShoppingCart className="w-[18px] h-[18px]" /></div><span className="font-semibold text-[14px]">{cartCount} {language === 'ru' ? 'товаров' : 'mahsulot'}</span></div>
-            <span className="font-bold text-[15px]">{fmt(cartTotal)}</span>
-          </button>
-        </div>
-      )}
+      {/* Sprint 87 v8 — floating cart pill dropped. Corresponding
+          shortcut lives permanently in MarketplaceBottomBar (Корзина
+          tab has always-visible label + orange-gradient count badge),
+          so this pill would sit right on top of it and duplicate the
+          shortcut. */}
+
+      {/* MarketplaceBottomBar — /marketplace-scoped nav. Mounted here
+          rather than in Layout because it needs the sub-tab state
+          (Корзина/Заказы) that lives on this component. */}
+      <MarketplaceBottomBar
+        activeTab={activeTab}
+        cartCount={cartCount}
+        activeOrdersCount={activeOrders.length}
+        language={language === 'ru' ? 'ru' : 'uz'}
+        hidden={anyModalOpen}
+        // Товары = shop landing = ALL products. Clear filter + search so
+        // stale state from a previous session doesn't hide the storefront.
+        onShop={() => { setSelectedCategory(null); setSearchQuery(''); setActiveTab('shop'); }}
+        onOrders={() => setActiveTab('orders')}
+        onCart={() => setActiveTab('cart')}
+        onBack={() => navigate('/')}
+      />
 
       {/* PRODUCT DETAIL */}
       {/* TODO: Refactor to use <Modal> component */}
@@ -1250,7 +1752,11 @@ export function MarketplacePage() {
       {/* ON-DEMAND REQUEST MODAL (Stage 4a) */}
       {onDemandProduct && (
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => !onDemandSubmitting && setOnDemandProduct(null)}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div
+            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto"
+            style={{ paddingBottom: 'var(--kz-kb-h, 0px)' }}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-4">
               <div className="flex items-start justify-between mb-3">
@@ -1341,7 +1847,11 @@ export function MarketplacePage() {
       {/* ORDER MODAL — checkout with address + phone form (Bug fix 2026-07-11) */}
       {showOrderModal && (
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => !orderSubmitting && setShowOrderModal(false)}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div
+            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto"
+            style={{ paddingBottom: 'var(--kz-kb-h, 0px)' }}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-4">
               <h2 className="text-[17px] font-bold text-gray-900 mb-3">{language === 'ru' ? 'Оформление' : 'Rasmiylashtirish'}</h2>
@@ -1640,7 +2150,18 @@ export function MarketplacePage() {
       {/* RATING MODAL */}
       {showDeliveryRatingModal && ratingOrderId && (
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => { setShowDeliveryRatingModal(false); setRatingOrderId(null); }}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px]" onClick={e => e.stopPropagation()}>
+          <div
+            // v11 — added max-h + overflow-y-auto to match the other
+            // two sheets. Without an overflow container, the review
+            // textarea at the bottom would sit behind the keyboard
+            // even after we reserve padding, because a fixed-position
+            // sheet with no scroll cannot expose the padded region.
+            // Content is short (5 stars + label + textarea + 2
+            // buttons) so 90dvh is never actually consumed.
+            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto"
+            style={{ paddingBottom: 'var(--kz-kb-h, 0px)' }}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
             <div className="p-5">
               <div className="text-center mb-5">

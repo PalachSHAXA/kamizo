@@ -15,6 +15,10 @@ import { PerformanceMonitor } from '../PerformanceMonitor';
 import { BottomBar } from '../BottomBar';
 import { OfflineIndicator } from '../OfflineIndicator';
 import { ProtectedRoute } from '../ProtectedRoute';
+// DEV-ONLY marketplace mock. Static side-effect import — the module
+// gates itself on `import.meta.env.DEV && VITE_MOCK_MARKETPLACE==='1'`,
+// so prod builds tree-shake the body. Trivially deletable.
+import '../../pages/marketplace/__devMock';
 import { OnboardingWizard } from '../OnboardingWizard';
 import { useOverlayStore, useCanShowOverlay } from '../../stores/overlayStore';
 import { useModalStore } from '../../stores/modalStore';

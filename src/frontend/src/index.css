@@ -2883,6 +2883,26 @@ html.dark .marketplace-page .border-red-100    { border-color: var(--marketplace
 
 html.dark .marketplace-page .bg-yellow-50      { background-color: var(--marketplace-status-warning-bg); }
 
+/* Amber text (used by on-demand "По запросу" price + on-demand
+   badges in the redesign v7 landscape cards). Tailwind's amber-600
+   (#D97706) drops to ~3.5:1 on the dark card surface — bump to
+   amber-400 #FBBF24 which lands ~9.7:1 vs #25201A. Covers amber-500
+   through amber-800 (all read as "warning-ish" and get the same
+   treatment). */
+html.dark .marketplace-page .text-amber-500,
+html.dark .marketplace-page .text-amber-600,
+html.dark .marketplace-page .text-amber-700,
+html.dark .marketplace-page .text-amber-800    { color: #FBBF24; }
+
+/* Sprint 87 v7 — kicker eyebrow. Light theme uses primary-700
+   (#C2410C) so 10.5px eyebrow clears AA-Normal on white
+   (5.18:1); dark theme flips to primary-400 (#FB923C) which lands
+   7.14:1 on the dark card surface #25201A. Same "darker-on-light,
+   lighter-on-dark" pattern the design system uses elsewhere for
+   accent text. Scoped so bg/text-primary-700 usage outside
+   .marketplace-page keeps its normal Tailwind resolution. */
+html.dark .marketplace-page .text-primary-700  { color: #FB923C; }
+
 /* MarketplaceUnavailableStub — uses bg-primary-50 for the icon
    halo. On dark surface that light peach reads too bright; swap
    to a subtle brand-tint that matches the tenant-wide dark chip

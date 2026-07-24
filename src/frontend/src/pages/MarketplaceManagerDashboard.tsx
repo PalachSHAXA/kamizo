@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Package, Plus, Edit2, Trash2, Search,
-  X, TrendingUp, AlertTriangle, BarChart3, ImagePlus, Upload, Link
+  X, TrendingUp, AlertTriangle, BarChart3, ImagePlus, Upload, Link,
+  Grid3x3,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -127,6 +128,20 @@ export function MarketplaceManagerDashboard() {
   const [stockProduct, setStockProduct] = useState<MarketplaceProductAPI | null>(null);
   const [stockQuantity, setStockQuantity] = useState('');
 
+  // Category modal — added in the "categories tab" work. Follows the
+  // same modal-presence + edit-vs-create dual-mode pattern as the
+  // product modal above; sharing state naming to keep the two forms
+  // recognisable when read side-by-side.
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<MarketplaceCategoryAPI | null>(null);
+  const [categoryDeleteId, setCategoryDeleteId] = useState<string | null>(null);
+  const [categoryForm, setCategoryForm] = useState({
+    name_ru: '',
+    name_uz: '',
+    icon: '📦',
+    sort_order: '99',
+  });
+
   // Image upload
   const [imageMode, setImageMode] = useState<'url' | 'file'>('url');
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -135,7 +150,7 @@ export function MarketplaceManagerDashboard() {
   // otherwise the pill sits above the sheet's primary action (Сохранить /
   // Обновить сток / Удалить) and clips it visually. Same pattern as
   // CancelRequestModal / RescheduleModal.
-  useModalPresence(showProductModal || showStockModal || !!deleteConfirmId);
+  useModalPresence(showProductModal || showStockModal || !!deleteConfirmId || showCategoryModal || !!categoryDeleteId);
 
   // Handle image file upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -354,6 +369,109 @@ export function MarketplaceManagerDashboard() {
     });
   };
 
+  // ── Category form / delete flow ────────────────────────────────
+  //
+  // parent_id is NOT surfaced in the form: the resident-side
+  // MarketplacePage renders a FLAT category tabs strip and doesn't
+  // traverse children. Exposing parent_id here would let admins
+  // create hierarchies the app can't render (parents + children
+  // appearing as flat siblings on the resident tabs). Backend
+  // defaults parent_id to null; leaving it null keeps categories
+  // usable end-to-end. Unlock when the resident side ships
+  // hierarchy rendering.
+  //
+  // is_active is NOT a form field either: deletion is soft (PATCH
+  // is_active=false, same as products at admin-products.ts:112)
+  // and is triggered by the delete button in the list; there's no
+  // separate "disable" concept for admins to reason about.
+  const productsInCategory = useCallback(
+    (categoryId: string) => products.filter(p => p.category_id === categoryId).length,
+    [products]
+  );
+
+  const resetCategoryForm = () => {
+    setEditingCategory(null);
+    setCategoryForm({ name_ru: '', name_uz: '', icon: '📦', sort_order: '99' });
+  };
+
+  const openCategoryCreate = () => {
+    resetCategoryForm();
+    setShowCategoryModal(true);
+  };
+
+  const openCategoryEdit = (cat: MarketplaceCategoryAPI) => {
+    setEditingCategory(cat);
+    setCategoryForm({
+      name_ru: cat.name_ru,
+      name_uz: cat.name_uz || '',
+      icon: cat.icon || '📦',
+      sort_order: (cat.sort_order ?? 99).toString(),
+    });
+    setShowCategoryModal(true);
+  };
+
+  const handleSubmitCategory = async () => {
+    if (!categoryForm.name_ru.trim()) {
+      addToast('warning', language === 'ru' ? 'Название обязательно' : 'Nomi majburiy');
+      return;
+    }
+    const parsedSort = parseInt(categoryForm.sort_order, 10);
+    const body = {
+      name_ru: categoryForm.name_ru.trim(),
+      name_uz: categoryForm.name_uz.trim() || categoryForm.name_ru.trim(),
+      icon: categoryForm.icon.trim() || '📦',
+      sort_order: Number.isFinite(parsedSort) ? parsedSort : 99,
+    };
+    try {
+      if (editingCategory) {
+        await apiRequest(`/api/marketplace/admin/categories/${editingCategory.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        });
+      } else {
+        await apiRequest('/api/marketplace/admin/categories', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+      }
+      addToast('success', language === 'ru'
+        ? (editingCategory ? 'Категория обновлена' : 'Категория создана')
+        : (editingCategory ? "Kategoriya yangilandi" : "Kategoriya yaratildi"));
+      resetCategoryForm();
+      setShowCategoryModal(false);
+      await fetchData();
+    } catch (e) {
+      addToast('error', (e as Error).message || (language === 'ru' ? 'Ошибка' : 'Xato'));
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    // Block-on-in-use enforced at the button (disabled + tooltip),
+    // but re-check here in case race conditions: another admin adds
+    // a product to this category between button paint and click.
+    // Upgrade path if a tenant complains about manual reassignment:
+    // add a "move products to <other category>" dropdown to the
+    // confirm modal, then batch-UPDATE products backend-side before
+    // the PATCH is_active=false. Backend change ~5 lines.
+    if (productsInCategory(id) > 0) {
+      addToast('warning', language === 'ru'
+        ? `Сначала перенесите товары в другую категорию`
+        : "Avval mahsulotlarni boshqa kategoriyaga o'tkazing");
+      return;
+    }
+    try {
+      await apiRequest(`/api/marketplace/admin/categories/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: false }),
+      });
+      addToast('success', language === 'ru' ? 'Категория удалена' : "Kategoriya o'chirildi");
+      setCategoryDeleteId(null);
+      await fetchData();
+    } catch (e) {
+      addToast('error', (e as Error).message || (language === 'ru' ? 'Ошибка' : 'Xato'));
+    }
+  };
+
   // Filter products
   const filteredProducts = products.filter(product => {
     const matchesCategory = categoryFilter === 'all' || product.category_id === categoryFilter;
@@ -373,6 +491,7 @@ export function MarketplaceManagerDashboard() {
 
   const tabs = [
     { id: 'products' as const, label: language === 'ru' ? 'Товары' : 'Mahsulotlar', icon: Package, count: products.length },
+    { id: 'categories' as const, label: language === 'ru' ? 'Категории' : 'Kategoriyalar', icon: Grid3x3, count: categories.length },
     { id: 'stock' as const, label: language === 'ru' ? 'Склад' : 'Ombor', icon: BarChart3, count: lowStockProducts.length + outOfStockProducts.length },
   ];
 
@@ -584,6 +703,102 @@ export function MarketplaceManagerDashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Categories Tab — added to fix the "УК can't create a
+            product without categories, but there's no UI to create
+            categories" gap. Backend endpoints have been available
+            since day one; only the frontend was missing.
+            Structure mirrors the Products tab conventions above
+            (header row + list rows + create/edit modal). */}
+        {activeTab === 'categories' && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">
+                {language === 'ru' ? 'Категории' : 'Kategoriyalar'}
+              </h2>
+              <button
+                onClick={openCategoryCreate}
+                className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-primary-600 text-white text-sm font-medium active:scale-95 transition-transform"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{language === 'ru' ? 'Новая' : 'Yangi'}</span>
+              </button>
+            </div>
+
+            {categories.length === 0 ? (
+              <div className="text-center py-12 px-4">
+                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                  <Grid3x3 className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 font-medium mb-1">
+                  {language === 'ru' ? 'Ещё нет категорий' : "Hali kategoriyalar yo'q"}
+                </p>
+                <p className="text-sm text-gray-400 max-w-sm mx-auto">
+                  {language === 'ru'
+                    ? 'Создайте первую категорию, чтобы добавлять товары. Например: «Клининг», «Для дома», «Продукты».'
+                    : "Mahsulot qo'shish uchun birinchi kategoriyani yarating. Masalan: «Tozalash», «Uy uchun», «Mahsulotlar»."}
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {categories.map(cat => {
+                  const inUse = productsInCategory(cat.id);
+                  return (
+                    <li
+                      key={cat.id}
+                      className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center gap-3"
+                    >
+                      <span className="text-3xl flex-shrink-0" aria-hidden>
+                        {cat.icon || '📦'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 truncate">
+                          {language === 'ru' ? cat.name_ru : (cat.name_uz || cat.name_ru)}
+                        </div>
+                        {cat.name_uz && cat.name_uz !== cat.name_ru && (
+                          <div className="text-xs text-gray-500 truncate">
+                            {language === 'ru' ? cat.name_uz : cat.name_ru}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {inUse > 0
+                            ? (language === 'ru' ? `${inUse} товар(ов)` : `${inUse} ta mahsulot`)
+                            : (language === 'ru' ? 'нет товаров' : "mahsulot yo'q")}
+                          <span className="mx-1.5 text-gray-300">·</span>
+                          {language === 'ru' ? 'порядок' : 'tartib'} {cat.sort_order ?? 99}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => openCategoryEdit(cat)}
+                        className="p-2 rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+                        aria-label={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
+                      >
+                        <Edit2 className="w-4 h-4 text-gray-600" />
+                      </button>
+                      <button
+                        onClick={() => inUse === 0 && setCategoryDeleteId(cat.id)}
+                        disabled={inUse > 0}
+                        title={inUse > 0
+                          ? (language === 'ru'
+                            ? `Сначала перенесите ${inUse} товар(ов) в другую категорию`
+                            : `Avval ${inUse} ta mahsulotni boshqa kategoriyaga o'tkazing`)
+                          : (language === 'ru' ? 'Удалить категорию' : "Kategoriyani o'chirish")}
+                        className={`p-2 rounded-full active:scale-90 transition-transform ${
+                          inUse > 0
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
+                        aria-label={language === 'ru' ? 'Удалить' : "O'chirish"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
 
@@ -1030,6 +1245,165 @@ export function MarketplaceManagerDashboard() {
           onCancel={() => setDeleteConfirmId(null)}
           onConfirm={confirmDeleteProduct}
         />
+      )}
+
+      {/* Category create / edit modal */}
+      {showCategoryModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50"
+          onClick={() => { setShowCategoryModal(false); resetCategoryForm(); }}
+        >
+          <div
+            className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+              <h2 className="text-lg font-bold">
+                {editingCategory
+                  ? (language === 'ru' ? 'Редактировать категорию' : 'Kategoriyani tahrirlash')
+                  : (language === 'ru' ? 'Новая категория' : 'Yangi kategoriya')}
+              </h2>
+              <button
+                onClick={() => { setShowCategoryModal(false); resetCategoryForm(); }}
+                className="p-2 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Name RU (required) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {language === 'ru' ? 'Название (RU)' : 'Nom (RU)'} *
+                </label>
+                <input
+                  type="text"
+                  value={categoryForm.name_ru}
+                  onChange={e => setCategoryForm({ ...categoryForm, name_ru: e.target.value })}
+                  className="w-full p-3 border border-gray-200 rounded-2xl"
+                  placeholder={language === 'ru' ? 'Например: Клининг' : 'Masalan: Tozalash'}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* Name UZ (optional — defaults to RU) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {language === 'ru' ? 'Название (UZ)' : 'Nom (UZ)'}
+                </label>
+                <input
+                  type="text"
+                  value={categoryForm.name_uz}
+                  onChange={e => setCategoryForm({ ...categoryForm, name_uz: e.target.value })}
+                  className="w-full p-3 border border-gray-200 rounded-2xl"
+                  placeholder={language === 'ru' ? 'Если пусто — как RU' : "Bo'sh bo'lsa — RU dan olinadi"}
+                />
+              </div>
+
+              {/* Icon — emoji only per admin-products.ts:170 default '📦' */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {language === 'ru' ? 'Иконка (эмодзи)' : 'Ikonka (emoji)'}
+                </label>
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center flex-shrink-0" aria-hidden>
+                    {categoryForm.icon || '📦'}
+                  </span>
+                  <input
+                    type="text"
+                    value={categoryForm.icon}
+                    onChange={e => setCategoryForm({ ...categoryForm, icon: e.target.value })}
+                    className="flex-1 p-3 border border-gray-200 rounded-2xl"
+                    placeholder="📦"
+                    maxLength={4}
+                  />
+                </div>
+              </div>
+
+              {/* Sort order — 0..99, lower = higher in the strip */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {language === 'ru' ? 'Порядок' : 'Tartib'}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={categoryForm.sort_order}
+                  onChange={e => setCategoryForm({ ...categoryForm, sort_order: e.target.value })}
+                  className="w-full p-3 border border-gray-200 rounded-2xl"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {language === 'ru'
+                    ? 'Меньше — выше в списке. По умолчанию 99.'
+                    : "Kichikroq — yuqoriroq ro'yxatda. Standart 99."}
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => { setShowCategoryModal(false); resetCategoryForm(); }}
+                  className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-700 font-medium"
+                >
+                  {language === 'ru' ? 'Отмена' : 'Bekor'}
+                </button>
+                <button
+                  onClick={handleSubmitCategory}
+                  disabled={!categoryForm.name_ru.trim()}
+                  className={`flex-1 py-3 rounded-2xl font-medium ${
+                    categoryForm.name_ru.trim()
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {editingCategory
+                    ? (language === 'ru' ? 'Сохранить' : 'Saqlash')
+                    : (language === 'ru' ? 'Создать' : 'Yaratish')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category delete confirm — only reachable when count === 0
+          (button is disabled otherwise). Extra double-check for
+          race conditions in handleDeleteCategory. */}
+      {categoryDeleteId && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setCategoryDeleteId(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-sm w-full p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2">
+              {language === 'ru' ? 'Удалить категорию?' : "Kategoriyani o'chirilsinmi?"}
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              {language === 'ru'
+                ? 'Категория будет скрыта из списка. Восстановить через API.'
+                : "Kategoriya ro'yxatdan yashiriladi. API orqali tiklash mumkin."}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCategoryDeleteId(null)}
+                className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-700 font-medium"
+              >
+                {language === 'ru' ? 'Отмена' : 'Bekor'}
+              </button>
+              <button
+                onClick={() => handleDeleteCategory(categoryDeleteId)}
+                className="flex-1 py-3 rounded-2xl bg-red-600 text-white font-medium"
+              >
+                {language === 'ru' ? 'Удалить' : "O'chirish"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
