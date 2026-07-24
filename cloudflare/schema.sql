@@ -203,6 +203,9 @@ CREATE TABLE IF NOT EXISTS apartments (
   status TEXT DEFAULT 'occupied' CHECK (status IN ('occupied', 'vacant', 'rented', 'renovation', 'commercial')),
   is_commercial INTEGER DEFAULT 0,
   property_type TEXT DEFAULT 'commercial' CHECK (property_type IN ('commercial','non_commercial')),
+  -- Estimate v2 type flags (migration 048). residential = !is_commercial && !is_basement && !is_parking
+  is_basement INTEGER DEFAULT 0,
+  is_parking INTEGER DEFAULT 0,
 
   -- References
   primary_owner_id TEXT,
