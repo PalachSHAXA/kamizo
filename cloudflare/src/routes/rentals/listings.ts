@@ -35,6 +35,13 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, bilingualError, generateId, isManagement } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
+// Notifications — canonical shape per requests/assignment.ts:65-79:
+// notifyManagers() batches per-tenant fan-out (insert + push).
+// sendPushNotification() handles single-recipient; own INSERT INTO
+// notifications alongside to guarantee an in-app row lands even for
+// recipients without push subscriptions (mirrors assignment.ts pattern).
+import { sendPushNotification } from '../notifications';
+import { notifyManagers } from '../../utils/notifications';
 
 // Server-side photo cap: 1 MB decoded per photo (marketplace uses 5 MB
 // but rentals expect residents to upload multiple photos per listing;
@@ -383,10 +390,41 @@ route('POST', '/api/rentals/listings', async (request, env) => {
            (SELECT p.id FROM rental_listing_photos p WHERE p.listing_id = l.id ORDER BY p.sort_order ASC LIMIT 1) AS cover_photo_id
     FROM rental_listings l LEFT JOIN users u ON u.id = l.publisher_user_id
     WHERE l.id = ? ${tenantId ? 'AND l.tenant_id = ?' : ''}
-  `).bind(id, ...(tenantId ? [tenantId] : [])).first();
+  `).bind(id, ...(tenantId ? [tenantId] : [])).first() as any;
 
-  return json({ listing: shapeListingRow(created as any, { includePhone: true }) }, 201);
+  // Notify tenant managers/admins/directors that a new listing needs
+  // triage. Fire-and-forget: a push/insert failure must never fail the
+  // create request. Same shape as requests/assignment.ts:65-79.
+  // notifyManagers batches the INSERTs (in-app rows land even when a
+  // recipient has no push subscriptions) then fires push in parallel.
+  const summary = `${roomsLabelRu(created?.rooms)} · ${fmtSumRu(created?.price_monthly)} сум/мес · ${created?.publisher_name || 'житель'}`;
+  // I18N NOTE: title/body below are RU-only pending app-wide
+  // localization of notification bodies (users.language column exists,
+  // no existing site reads it — flip all notification sites at once so
+  // recipients don't see mixed languages).
+  notifyManagers(env, tenantId, {
+    title: '🏠 Новое объявление в аренду',
+    body: summary,
+    type: 'rental_listing_created',
+    tag: `rental-listing-created-${id}`,
+    data: { listingId: id, url: '/rentals-moderation' },
+  }).catch((err) => { console.error('notifyManagers (rental create) failed:', err); });
+
+  return json({ listing: shapeListingRow(created, { includePhone: true }) }, 201);
 });
+
+// Body-formatting helpers — mirror the same terse phrasing marketplace's
+// push notifications use. Russian-only for now (matches existing pattern
+// in requests/*, notifications.ts). users.language exists — swap-in is
+// trivial in v1.1 if we decide to localise notification bodies.
+function roomsLabelRu(rooms: number | null | undefined): string {
+  if (rooms === 0) return 'Студия';
+  if (rooms === 4) return '4+ комн';
+  return `${rooms ?? '?'}-комн`;
+}
+function fmtSumRu(n: number | null | undefined): string {
+  return new Intl.NumberFormat('ru-RU').format(Number(n) || 0);
+}
 
 // ═════════════════════════════════════════════════════════════════
 // PATCH /api/rentals/listings/:id — edit whitelisted fields
@@ -495,6 +533,34 @@ route('POST', '/api/rentals/listings/:id/state', async (request, env, params) =>
                                   hidden_at = datetime('now'), updated_at = datetime('now')
        WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
     ).bind(reason, user.id, params.id, ...(tenantId ? [tenantId] : [])).run();
+    // Notify the OWNER that their listing was hidden. Include the
+    // reason inline so they don't have to open the app to learn why —
+    // otherwise the reason "sits in the DB and the resident only sees
+    // it if they happen to navigate back" (pre-launch audit).
+    // Double insert (push + direct DB) mirrors requests/assignment.ts:
+    // sendPushNotification writes an in-app row only when the user has
+    // push subs, so the direct INSERT is what guarantees the row exists
+    // for a push-less user or a failed push.
+    // I18N NOTE: RU-only pending app-wide notification localization
+    // (see rental_listing_created site above for context).
+    const hideTitle = '🔒 Ваше объявление скрыто модерацией';
+    const hideBody = reason
+      ? `Причина: ${reason}. Откройте, чтобы посмотреть.`
+      : 'Откройте объявление, чтобы посмотреть подробности.';
+    sendPushNotification(env, row.publisher_user_id, {
+      title: hideTitle, body: hideBody, type: 'rental_listing_hidden',
+      tag: `rental-listing-hidden-${params.id}`,
+      data: { listingId: params.id, url: `/apartment-rentals/${params.id}` },
+      requireInteraction: true,
+    }).catch((err) => { console.error('push (rental hide) failed:', err); });
+    env.DB.prepare(
+      `INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+       VALUES (?, ?, 'rental_listing_hidden', ?, ?, ?, 0, datetime('now'), ?)`
+    ).bind(
+      generateId(), row.publisher_user_id, hideTitle, hideBody,
+      JSON.stringify({ listing_id: params.id, hidden_reason: reason, url: `/apartment-rentals/${params.id}` }),
+      tenantId || ''
+    ).run().catch((err) => { console.error('notification insert (rental hide) failed:', err); });
   } else {
     // Any non-hidden transition clears the hidden_* fields so a
     // subsequently un-hidden listing doesn't retain a stale reason.
@@ -503,6 +569,31 @@ route('POST', '/api/rentals/listings/:id/state', async (request, env, params) =>
                                   hidden_at = NULL, updated_at = datetime('now')
        WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
     ).bind(target, params.id, ...(tenantId ? [tenantId] : [])).run();
+    // Notify owner on RESTORE only — hidden → non-hidden is
+    // management-only per canTransition (line 71-72), so this fires only
+    // when a manager unhides. Owner's own transitions (active↔rented,
+    // active↔archived) they initiated themselves; don't spam them.
+    // Restore-not-notify also skips restore-via-owner: canTransition
+    // makes that impossible, but the guard is explicit anyway.
+    if (from === 'hidden' && mgmt && row.publisher_user_id !== user.id) {
+      // I18N NOTE: RU-only pending app-wide notification localization
+      // (see rental_listing_created site above for context).
+      const restoreTitle = '✅ Ваше объявление снова опубликовано';
+      const restoreBody = 'Управляющая компания вернула его в ленту.';
+      sendPushNotification(env, row.publisher_user_id, {
+        title: restoreTitle, body: restoreBody, type: 'rental_listing_restored',
+        tag: `rental-listing-restored-${params.id}`,
+        data: { listingId: params.id, url: `/apartment-rentals/${params.id}` },
+      }).catch((err) => { console.error('push (rental restore) failed:', err); });
+      env.DB.prepare(
+        `INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at, tenant_id)
+         VALUES (?, ?, 'rental_listing_restored', ?, ?, ?, 0, datetime('now'), ?)`
+      ).bind(
+        generateId(), row.publisher_user_id, restoreTitle, restoreBody,
+        JSON.stringify({ listing_id: params.id, url: `/apartment-rentals/${params.id}` }),
+        tenantId || ''
+      ).run().catch((err) => { console.error('notification insert (rental restore) failed:', err); });
+    }
   }
 
   return json({ success: true, state: target });
