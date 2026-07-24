@@ -41,7 +41,7 @@ if [ -n "$MIGRATION_FILE" ]; then
 fi
 
 say "rsyncing cloudflare/src/ → $HOST:$REMOTE_DIR"
-rsync -avz --delete -e "ssh -i $KEY" \
+rsync -avz -e "ssh -i $KEY" \
   --exclude=__tests__ --exclude='*.test.ts' \
   "$REPO/cloudflare/src/" "$HOST:$REMOTE_DIR"
 
