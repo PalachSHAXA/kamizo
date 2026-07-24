@@ -7,6 +7,7 @@ import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import {
   FileSpreadsheet,
+  FileText,
   Plus,
   Trash2,
   ChevronRight,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { formatAmount } from '../../utils/formatCurrency';
 import { generateEstimateExcel } from '../../utils/generateEstimateExcel';
+import { generateEstimatePdf } from '../../utils/generateEstimatePdf';
 
 // ── Default expense articles (real УК template) ──
 const DEFAULT_EXPENSE_ARTICLES: Array<{ name_ru: string; name_uz: string }> = [
@@ -878,6 +880,24 @@ export default function EstimatesPage() {
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 {t('Скачать Excel', 'Excel yuklash')}
+              </button>
+              {/* Sprint 8: PDF-экспорт через window.print */}
+              <button
+                onClick={() => {
+                  if (currentEstimate) {
+                    generateEstimatePdf(
+                      currentEstimate as unknown as Record<string, unknown>,
+                      detailItems as unknown as Parameters<typeof generateEstimatePdf>[1],
+                      buildings as Parameters<typeof generateEstimatePdf>[2],
+                      language as 'ru' | 'uz',
+                      tenantName,
+                    );
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+              >
+                <FileText className="w-4 h-4" />
+                {t('Печать / PDF', 'Chop / PDF')}
               </button>
               {currentEstimate.show_profit_to_residents === 1 && (
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">

@@ -649,17 +649,25 @@ route('GET', '/api/finance/my-charges', async (request, env) => {
      LIMIT 200`
   ).bind(...aptIds, ...(tenantId ? [tenantId] : [])).all() as any;
 
-  // Sprint 7: пени по квартирам жителя. Берём только status='accrued' —
-  // waived/paid/cancelled не участвуют в балансе. Один snapshot на charge
-  // держит последнее актуальное значение (гарантирует cron-хендлер выше).
+  // Sprint 7 + hotfix: пени по квартирам жителя. Считаем только те, у
+  // которых родительский charge всё ещё имеет непогашенный долг
+  // (amount > paid_amount). Иначе пеня «зависает» после того как житель
+  // погасил основной долг, но cron ещё не пометил её cancelled/paid —
+  // и net_balance никогда не обнуляется.
+  //
+  // JOIN на finance_charges + фильтр в SQL: пеня видна ↔ основной долг > 0.
+  // Автопометка cancelled происходит в apply-penalties cron (см. ниже),
+  // но этот SQL защищает баланс жителя от гонки до следующего прогона.
   const { results: penalties } = await env.DB.prepare(
-    `SELECT id, charge_id, apartment_id, principal_amount, penalty_rate,
-            days_overdue, penalty_amount, status, calculated_at
-     FROM finance_penalties
-     WHERE apartment_id IN (${placeholders})
-       AND status = 'accrued'
-       ${tenantId ? 'AND tenant_id = ?' : ''}
-     ORDER BY calculated_at DESC`
+    `SELECT p.id, p.charge_id, p.apartment_id, p.principal_amount, p.penalty_rate,
+            p.days_overdue, p.penalty_amount, p.status, p.calculated_at
+     FROM finance_penalties p
+     JOIN finance_charges c ON c.id = p.charge_id
+     WHERE p.apartment_id IN (${placeholders})
+       AND p.status = 'accrued'
+       AND c.amount > COALESCE(c.paid_amount, 0)
+       ${tenantId ? 'AND p.tenant_id = ?' : ''}
+     ORDER BY p.calculated_at DESC`
   ).bind(...aptIds, ...(tenantId ? [tenantId] : [])).all() as any;
   // Оставляем только последний snapshot per charge_id (защита от старых записей,
   // если cron ещё не почистил дубли — их не должно быть, но на всякий).
@@ -1142,13 +1150,29 @@ route('POST', '/api/finance/cron/apply-penalties', async (request, env) => {
 
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const nowIso = new Date().toISOString();
-  let scanned = 0, applied = 0, updated = 0, capped = 0;
+  let scanned = 0, applied = 0, updated = 0, capped = 0, cancelled = 0;
 
   for (const s of (settings || []) as any[]) {
     const tenantId = s.tenant_id;
     const rate = Number(s.daily_rate);
     const grace = Number(s.grace_days);
     const maxMult = Number(s.max_multiplier);
+
+    // Hotfix: сначала пробегаемся по «повисшим» пеням — тем, чей charge
+    // уже полностью оплачен (amount ≤ paid_amount). Помечаем их
+    // status='cancelled', чтобы админ-UI/аудит показал историю, а
+    // резидентский баланс перестал их учитывать.
+    const cancelRes = await env.DB.prepare(
+      `UPDATE finance_penalties
+       SET status = 'cancelled'
+       WHERE tenant_id = ?
+         AND status = 'accrued'
+         AND charge_id IN (
+           SELECT id FROM finance_charges
+           WHERE tenant_id = ? AND amount <= COALESCE(paid_amount, 0)
+         )`
+    ).bind(tenantId, tenantId).run();
+    cancelled += (cancelRes.meta as any)?.changes || 0;
 
     // Просроченные charges (не полностью оплаченные + прошло больше grace_days)
     const { results: overdue } = await env.DB.prepare(
@@ -1210,6 +1234,7 @@ route('POST', '/api/finance/cron/apply-penalties', async (request, env) => {
     charges_scanned: scanned,
     penalties_created: applied,
     penalties_updated: updated,
+    penalties_cancelled: cancelled,   // hotfix: авто-отмена по оплаченным charges
     charges_capped: capped,
   });
 });
