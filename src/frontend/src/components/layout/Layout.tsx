@@ -155,6 +155,8 @@ const SuperAdminDashboard = lazy(() => import('../../pages/admin/SuperAdminDashb
 const PaymentsPage = lazy(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
 // Finance module pages
 const FinanceEstimatesPage = lazy(() => import('../../pages/finance/EstimatesPage'));
+// Sprint 3: новый v2-мастер создания сметы (штат + доходы + Ташкентский минимум)
+const EstimateV2WizardPage = lazy(() => import('../../pages/finance/estimate-v2/EstimateV2WizardPage').then(m => ({ default: m.EstimateV2WizardPage })));
 const FinanceChargesPage = lazy(() => import('../../pages/finance/ChargesPage'));
 const FinanceDebtorsPage = lazy(() => import('../../pages/finance/DebtorsPage'));
 const FinanceIncomePage = lazy(() => import('../../pages/finance/IncomePage'));
@@ -542,6 +544,13 @@ export function Layout() {
               <Route path="/finance/estimates" element={
                 <ProtectedRoute allowedRoles={['admin', 'director', 'manager']} requiredFeature="communal">
                   <FinanceEstimatesPage />
+                </ProtectedRoute>
+              } />
+              {/* Sprint 3: v2 wizard. admin/director only — соответствует
+                  isAdminLevel guard'у в POST /api/finance/estimates/v2. */}
+              <Route path="/finance/estimates/v2/new" element={
+                <ProtectedRoute allowedRoles={['admin', 'director']} requiredFeature="communal">
+                  <EstimateV2WizardPage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/charges" element={
