@@ -283,21 +283,34 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
     'SELECT * FROM finance_estimate_items WHERE estimate_id = ? ORDER BY sort_order'
   ).bind(estimate_id).all();
 
-  // Get all apartments for this building (include is_commercial flag)
+  // Get all apartments for this building. v2 добавил флаги is_basement/is_parking
+  // (migration 057) — читаем их наравне с legacy is_commercial/property_type.
   const { results: apartments } = await env.DB.prepare(
-    `SELECT id, number, total_area, living_area, property_type, is_commercial, status FROM apartments WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    `SELECT id, number, total_area, living_area, property_type,
+            is_commercial, is_basement, is_parking, status
+     FROM apartments WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(estimate.building_id as string, ...(tenantId ? [tenantId] : [])).all();
 
   const period = estimate.period as string;
 
-  // Rate hierarchy: specific rates from estimate, fallback to per-sqm rates
-  const commercialRate = Number(estimate.commercial_rate) || 0;       // rate for commercial premises per sqm
-  const basementRate = Number(estimate.basement_rate) || 0;           // rate for basement per sqm
-  // parking_rate was read here but never applied to charges — dropped.
-  // If parking-space billing is wired up later, re-add and use it in
-  // the parking branch below.
-  const residentialRate = Number(estimate.commercial_rate_per_sqm) || 0;     // residential rate per sqm
-  const nonResidentialRate = Number(estimate.non_commercial_rate_per_sqm) || 0; // non-residential rate per sqm
+  // Rate hierarchy зависит от модели сметы:
+  //   legacy         — старый расчётный tariff (commercial_rate_per_sqm)
+  //   TARIFF_CALCULATED / TARIFF_MANUAL / TARIFF_FLAT (v2, migration 057) —
+  //     tariff_approved (утверждённый собранием) > tariff_resident (расчётный)
+  //     для жилых. Нежилые/подвал/парковка — те же per-line rate поля
+  //     (commercial_rate / basement_rate / parking_rate).
+  const modelKind = String(estimate.model || 'legacy');
+  const isV2Model = modelKind !== 'legacy';
+
+  const commercialRate = Number(estimate.commercial_rate) || 0;
+  const basementRate = Number(estimate.basement_rate) || 0;
+  const parkingRate = Number(estimate.parking_rate) || 0;                    // per-parking-spot rate (v2)
+  const nonResidentialRate = Number(estimate.non_commercial_rate_per_sqm) || 0;
+
+  // Жилой тариф: для v2 берём approved > resident; для legacy — старое поле.
+  const residentialRate = isV2Model
+    ? (Number(estimate.tariff_approved) || Number(estimate.tariff_resident) || 0)
+    : (Number(estimate.commercial_rate_per_sqm) || 0);
 
   // Calculate last day of month for due_date
   const [year, month] = period.split('-').map(Number);
@@ -309,8 +322,14 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
   ).bind(period, estimate_id, ...(tenantId ? [tenantId] : [])).all();
   const existingAptIds = new Set((existingCharges || []).map((c: any) => c.apartment_id));
 
-  // Build all INSERT statements, skipping duplicates
-  const totalEstimate = estimate.total_amount as number;
+  // Build all INSERT statements, skipping duplicates.
+  // v2 сметы не пишут total_amount на estimate — считаем сумму по items
+  // (только expenses, доходы не входят в totalEstimate для breakdown).
+  const totalEstimate = isV2Model
+    ? (items as Array<Record<string, unknown>>)
+        .filter(i => (i.kind || 'expense') === 'expense')
+        .reduce((s, i) => s + (Number(i.amount) || 0), 0)
+    : (estimate.total_amount as number);
   const chargeStmts: ReturnType<D1Database['prepare']>[] = [];
 
   for (const apt of apartments) {
@@ -319,14 +338,24 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
     if (area <= 0) continue;
     if (existingAptIds.has(a.id as string)) continue; // skip duplicates
 
-    // Determine rate based on apartment type
+    // Determine rate based on apartment type. Приоритет флагов v2 (is_parking,
+    // is_basement, is_commercial) над старым property_type — во всех случаях
+    // повторяем cascade из плана: parking → basement → commercial → residential.
     let rate: number;
     let propertyType: string;
+    let isFlat: boolean = false; // parking биллится за место (не за м²)
 
-    if (a.is_commercial) {
+    if (a.is_parking) {
+      rate = parkingRate;
+      propertyType = 'non_commercial';
+      isFlat = true;
+    } else if (a.is_basement || a.property_type === 'basement') {
+      rate = basementRate > 0 ? basementRate : nonResidentialRate;
+      propertyType = 'non_commercial';
+    } else if (a.is_commercial) {
       rate = commercialRate > 0 ? commercialRate : nonResidentialRate;
       propertyType = 'commercial';
-    } else if (a.property_type === 'non_commercial' || a.property_type === 'basement') {
+    } else if (a.property_type === 'non_commercial') {
       rate = basementRate > 0 ? basementRate : nonResidentialRate;
       propertyType = 'non_commercial';
     } else {
@@ -334,7 +363,10 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
       propertyType = 'residential';
     }
 
-    const baseAmount = Math.round(area * rate * 100) / 100;
+    // Parking = фиксированная сумма/место, остальные = area × rate.
+    const baseAmount = isFlat
+      ? Math.round(rate * 100) / 100
+      : Math.round(area * rate * 100) / 100;
 
     const itemBreakdown = items.map((item: Record<string, unknown>) => ({
       name: item.name,
