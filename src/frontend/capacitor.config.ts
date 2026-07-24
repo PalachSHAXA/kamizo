@@ -43,11 +43,23 @@ const config: CapacitorConfig = {
       // its themed overlay. The native splash is now intentionally
       // brief + brand-neutral cream so the seam between native and
       // overlay is invisible regardless of which theme the overlay
-      // picks. launchShowDuration lowered from 2000 → 600 ms as a
-      // safety FLOOR (only matters if the JS hide call never fires —
-      // shouldn't happen, but guarantees no >0.6s native splash). JS
-      // hide typically fires <300 ms after webview boots.
-      launchShowDuration: 600,
+      // picks.
+      //
+      // v118.166 — raised 600 → 3000 ms as a WIDER safety CEILING
+      // (the previous "floor" framing was wrong — with
+      // launchAutoHide:false, this value acts as the auto-dismiss
+      // timeout that fires if JS hide() never gets called). On iOS
+      // 26+ / newer WKWebView, the plugin occasionally auto-dismisses
+      // early despite launchAutoHide:false, and slow real-device
+      // boots have JS hide() firing >600ms after mount. The native
+      // splash was dropping out before NativeSplashOverlay reached
+      // full opacity, producing the ~1s empty-shell flash with the
+      // portaled BottomBar visible. 3000ms is generous headroom:
+      // JS-controlled dismissal (now gated on `playing` + 2 RAFs in
+      // NativeSplashOverlay.tsx per v118.166) still wins on every
+      // healthy boot; the ceiling only takes effect on degenerate
+      // startups where JS never gets that far.
+      launchShowDuration: 3000,
       launchAutoHide: false,
       backgroundColor: '#F4F0E8',
       showSpinner: false,

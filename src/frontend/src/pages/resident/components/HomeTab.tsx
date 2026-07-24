@@ -209,10 +209,13 @@ export function HomeTab({
         </div>
       )}
 
-      {/* Payment (online payment is "coming soon" — shown honestly) */}
-      <div className={sec}>
-        <PaymentCard language={language} />
-      </div>
+      {/* v118.158 — Payment card HIDDEN for App Store submission.
+          The card shows a disabled "Оплатить онлайн СКОРО" state, which
+          Apple discourages. Restore this block once online payments ship:
+            <div className={sec}>
+              <PaymentCard language={language} />
+            </div>
+      */}
 
       {/* Announcements — only when there are unread ones */}
       {latestAnnouncements && latestAnnouncements.length > 0 && (

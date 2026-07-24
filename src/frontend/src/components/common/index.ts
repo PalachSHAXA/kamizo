@@ -1,5 +1,6 @@
 export { AppLogo } from './AppLogo';
 export { LanguageSwitcher } from './LanguageSwitcher';
+export { RUFlag } from './RUFlag';
 export { Modal } from './Modal';
 export { ScrollArea } from './ScrollArea';
 export { EmptyState } from './EmptyState';

@@ -84,6 +84,17 @@ export function ResidentDashboard() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [requestToCancel, setRequestToCancel] = useState<Request | null>(null);
+  // v118.164 — defensive refetch when the request-details modal opens.
+  // Closes the client-server drift window that made stale requests show
+  // a cancel button (guard passed on cached `assigned`/`accepted` status
+  // while the server had already moved the row to `in_progress` or
+  // `cancelled`). Fetch is fire-and-forget: the store update lands in
+  // ~200ms — well before the user can tap the action button in the sheet.
+  useEffect(() => {
+    if (selectedRequest?.id) {
+      fetchRequests();
+    }
+  }, [selectedRequest?.id, fetchRequests]);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [requestToReschedule, setRequestToReschedule] = useState<Request | null>(null);
   const [showRescheduleResponseModal, setShowRescheduleResponseModal] = useState(false);
@@ -219,9 +230,16 @@ export function ResidentDashboard() {
     return list.filter(a => !a.viewedBy?.includes(userId)).slice(0, 3);
   }, [getAnnouncementsForResidents, userLogin, userBuilding, userEntrance, userFloor, userBranch, userApartment, userId]);
 
-  // Get upcoming meetings (voting open or schedule confirmed)
+  // v118.159 — widened to also include voting_closed + results_published
+  // so ResidentHomeDesign's dynamic voting hero card can show the "итоги"
+  // states. MeetingWidget render site is separately guarded to keep only
+  // the 3 active states, so it doesn't misfire with a stale "Голосование"
+  // badge on a closed meeting.
   const activeMeetings = useMemo(
-    () => meetings.filter(m => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)),
+    () => meetings.filter(m => [
+      'schedule_poll_open', 'schedule_confirmed', 'voting_open',
+      'voting_closed', 'results_published',
+    ].includes(m.status)),
     [meetings],
   );
 
@@ -296,6 +314,7 @@ export function ResidentDashboard() {
             language={language}
             name={firstName}
             apt={formatAddress(user?.address, user?.apartment)}
+            totalArea={user?.totalArea}
             activeCount={activeRequests.length}
             pendingApproval={pendingApproval}
             pendingReschedules={pendingReschedules}
@@ -306,7 +325,13 @@ export function ResidentDashboard() {
             logo={tenantLogo}
             passCount={passCount}
             vehicleCount={vehicleCount}
-            needsRegistration={!user?.passwordChangedAt}
+            // v118.158 — "Завершите регистрацию" card SUPPRESSED for App
+            // Store submission. The big "Не заполнено: пароль" prompt
+            // reads as "app is incomplete" to reviewers even though it's
+            // just nudging residents to change their default password.
+            // Restore `!user?.passwordChangedAt` after App Store approval:
+            //   needsRegistration={!user?.passwordChangedAt}
+            needsRegistration={false}
             registrationMissing={language === 'ru' ? 'пароль' : 'parol'}
             onNewRequest={() => setShowAllServices(true)}
             onTab={switchTab}

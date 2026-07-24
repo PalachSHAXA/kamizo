@@ -779,6 +779,14 @@ export const useRequestStore = create<RequestState>()(
         await requestsApi.cancel(requestId, reason);
       } catch (error) {
         useToastStore.getState().addToast('error', (error as Error).message || 'Не удалось отменить заявку');
+        // v118.164 — force a refetch so the UI immediately syncs to the
+        // real server status. This covers the stale-cache case where the
+        // client sent cancel for a `new` row that had already been
+        // transitioned to `cancelled` / `in_progress` server-side; the
+        // toast tells the user what happened, and the refetch removes
+        // the stale entry from the Active tab / hides the cancel button
+        // so a follow-up tap doesn't trigger the same error again.
+        void get().fetchRequests();
         return; // keep request in its previous state
       }
 

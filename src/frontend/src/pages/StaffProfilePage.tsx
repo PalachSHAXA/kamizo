@@ -8,6 +8,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { ThemeToggle } from '../components/common';
+import { RUFlag } from '../components/common/RUFlag';
+import { UZFlag } from './vehicles/UZFlag';
 import { formatName } from '../utils/formatName';
 
 const ROLE_CONFIG: Record<string, { labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string; bgColor: string }> = {
@@ -285,12 +287,12 @@ export function StaffProfilePage() {
           <div className="px-4 pb-4 flex gap-3">
             <button onClick={() => setLanguage('ru')}
               className={`flex-1 p-3 rounded-[14px] border-2 transition-all flex items-center gap-2.5 ${language === 'ru' ? 'border-primary-400 bg-primary-50' : 'border-gray-200 active:border-primary-300'}`}>
-              <span className="text-xl">🇷🇺</span>
+              <RUFlag className="w-6 h-4" />
               <span className="font-medium text-sm">Русский</span>
             </button>
             <button onClick={() => setLanguage('uz')}
               className={`flex-1 p-3 rounded-[14px] border-2 transition-all flex items-center gap-2.5 ${language === 'uz' ? 'border-primary-400 bg-primary-50' : 'border-gray-200 active:border-primary-300'}`}>
-              <span className="text-xl">🇺🇿</span>
+              <UZFlag className="w-6 h-4" />
               <span className="font-medium text-sm">O'zbekcha</span>
             </button>
           </div>

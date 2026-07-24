@@ -4,6 +4,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { AppLogo } from '../components/common/AppLogo';
+import { RUFlag } from '../components/common/RUFlag';
+import { UZFlag } from './vehicles/UZFlag';
 
 // Demo account definitions (without passwords — passwords filled at click time)
 type DemoAccount = { login: string; role: string; labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string };
@@ -69,9 +71,13 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
-  const languages: { code: Language; label: string; flag: string }[] = [
-    { code: 'ru', label: 'RU', flag: '🇷🇺' },
-    { code: 'uz', label: 'UZ', flag: '🇺🇿' },
+  // v118.157 — flag is now a React node (SVG) instead of an emoji string.
+  // Emoji flags rendered inconsistently across iOS / Android WebViews at
+  // the ~14 px pill size and made the Uzbek flag unrecognisable to users.
+  // SVGs render identically everywhere and are crisp at any size.
+  const languages: { code: Language; label: string; flag: React.ReactNode }[] = [
+    { code: 'ru', label: 'RU', flag: <RUFlag className="w-4 h-3" /> },
+    { code: 'uz', label: 'UZ', flag: <UZFlag className="w-4 h-3" /> },
   ];
 
   // Track which workspace row is in-flight, so we can show a spinner on
@@ -231,7 +237,7 @@ export function LoginPage() {
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                <span className="text-[12px]">{lang.flag}</span>
+                <span className="flex items-center">{lang.flag}</span>
                 <span className="text-[12px]">{lang.label}</span>
               </button>
             ))}

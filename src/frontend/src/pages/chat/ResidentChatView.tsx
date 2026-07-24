@@ -668,18 +668,17 @@ export function ResidentChatView({ channel, onBack }: Props) {
       {isMobile && typeof document !== 'undefined' && createPortal(headerEl, document.body)}
       {isMobile && typeof document !== 'undefined' && createPortal(composerEl, document.body)}
       <div
-        // v118.149 — kz-screen REMOVED. The kzPagePushIn translateX(36px)
-        // page-enter transform made the LISTREF scroll container inside
-        // this wrapper live under a transformed ancestor → iOS WKWebView
-        // silently disabled `-webkit-overflow-scrolling: touch` momentum
-        // on it, so after settling at scrollTop=max the recognizer stayed
-        // asleep and the first up-swipe (finger down → reveal older
-        // messages at top) was dropped, feeling like "scroll up doesn't
-        // respond." Same class of bug we hoisted out for ResidentProfile
-        // in v118.147. The header/composer are already portaled to
-        // <body> (v118.114) — they never depended on this animation and
-        // are unaffected. Chat is a BottomBar tab destination, so the
-        // slide-in on entry was cosmetic, not load-bearing.
+        // v118.154 — kz-screen RESTORED after the keyframe (index.css:2647)
+        // was rewritten to opacity-only. Previous v118.149 removal was
+        // required when kzPagePushIn used translateX(36px) — that
+        // transform on the ancestor of listRef killed WKWebView
+        // -webkit-overflow-scrolling: touch momentum, which is what
+        // dropped the first up-swipe to reveal older messages. Opacity
+        // doesn't create a "transformed containing block" in WebKit, so
+        // descendant momentum is preserved. Chat thread now gets the
+        // soft page-enter fade like other kz-screen pages without the
+        // scroll-dead regression. Header/composer stay portaled to body.
+        className="kz-screen"
         style={isMobile ? {
           position: 'fixed',
           inset: 0,

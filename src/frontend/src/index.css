@@ -21,6 +21,11 @@
   --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
   --duration-fast: 0.18s;
   --duration-base: 0.22s;
+  /* v118.163 — page-level cross-fade duration. Consumed by the
+     .animated-outlet-page-{in,out} keyframes at the bottom of this
+     file. AnimatedOutlet's JS timer waits ~320ms to unmount, giving
+     ~20ms overshoot vs this 300ms CSS animation to survive RAF quirks. */
+  --duration-page: 0.30s;
 
   /* ── Semantic status palette — single source of truth ──
      Use these for ALL status-like UI (badges, banners, counts, indicators).
@@ -880,6 +885,17 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 #root.app-booting.app-mounted {
   opacity: 1;
   transform: translateY(0);
+}
+/* v118.166 — hide the portaled BottomBar during the boot window.
+   BottomBar renders via createPortal(document.body) so it lives OUTSIDE
+   #root and is NOT affected by the #root.app-booting opacity:0 gate.
+   Between native splash dismissal and NativeSplashOverlay reaching full
+   opacity, the tab bar was leaking into the flash on top of the cream
+   app-bg. `body.app-booting` is set alongside the root class in
+   main.tsx and torn down together. visibility (not display) keeps the
+   portal's layout so no reflow spike on removal. */
+body.app-booting .kz-bottombar-portal {
+  visibility: hidden;
 }
 @media (prefers-reduced-motion: reduce) {
   #root.app-booting {
@@ -2801,15 +2817,81 @@ input.kamizo-plate-char::placeholder {
    semantics after animation. During animation itself a non-identity
    transform is still applied (correct — the page enter / pop animation
    intentionally translates the whole shell). */
-@keyframes kzPagePushIn { from { transform: translateX(36px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes kzPagePopIn  { from { transform: translateX(-36px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* v118.154 — Page-enter animation is now OPACITY-ONLY (transform removed).
+   Previous translateX(36px) → none was killing iOS WKWebView
+   -webkit-overflow-scrolling: touch momentum on any scroll container that
+   lived UNDER a .kz-screen ancestor — the exact bug that forced us to
+   hoist .kz-screen off ResidentChatView (v118.149) and ResidentProfilePage
+   (v118.147). Opacity does NOT place the layer into a "transformed
+   containing block" state in WebKit, so descendant momentum scrolling is
+   preserved. Push + pop directions animate identically now (both opacity
+   fade). If a directional cue becomes essential later, add it via a
+   portaled overlay above the shell — never via a transform on the shell. */
+@keyframes kzPagePushIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kzPagePopIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes kzPageFadeIn { from { opacity: 0; } to { opacity: 1; } }
-.kz-screen { animation: kzPagePushIn 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
-body[data-nav="pop"] .kz-screen { animation: kzPagePopIn 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+.kz-screen { animation: kzPagePushIn 200ms ease-out both; }
+body[data-nav="pop"] .kz-screen { animation: kzPagePopIn 200ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
   .kz-screen,
-  body[data-nav] .kz-screen { animation: kzPageFadeIn 140ms ease-out both; }
+  body[data-nav] .kz-screen { animation: kzPageFadeIn 100ms ease-out both; }
 }
+
+/* v118.163 — Cross-fade page transitions (component: AnimatedOutlet).
+   Old page fades opacity 1 → 0 in-place while the new page fades
+   opacity 0 → 1 on top. No transforms on either layer — preserves iOS
+   WKWebView -webkit-overflow-scrolling: touch momentum on any scroll
+   container underneath. See the v118.154 comment above and the
+   AnimatedOutlet source for the full constraint doc. */
+.animated-outlet {
+  position: relative;
+}
+
+.animated-outlet-page-in {
+  /* Normal flow → drives the container's natural height. z-index 2
+     keeps this layer above the fading outgoing overlay so its
+     appearing content is what the eye tracks. */
+  position: relative;
+  z-index: 2;
+  animation: aoFadeIn var(--duration-page, 0.30s) var(--ease-emphasized, ease-out) both;
+  will-change: opacity;
+}
+
+.animated-outlet-page-out {
+  /* Absolute overlay → out of flow (doesn't fight the incoming page
+     for height) and inset:0 fills the container so the fade covers
+     what the eye was tracking. pointer-events:none prevents accidental
+     taps on the disappearing UI. */
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  animation: aoFadeOut var(--duration-page, 0.30s) var(--ease-emphasized, ease-out) both;
+  will-change: opacity;
+}
+
+@keyframes aoFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes aoFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Instant swap: no fade animation, no lingering overlay. */
+  .animated-outlet-page-in,
+  .animated-outlet-page-out {
+    animation: none;
+    will-change: auto;
+  }
+  .animated-outlet-page-out {
+    display: none;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────
    MarketplacePage — dark theme overrides.
 

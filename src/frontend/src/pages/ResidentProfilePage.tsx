@@ -376,11 +376,13 @@ export function ResidentProfilePage() {
     {
       Icon: Star,
       label: t.tileBonus,
-      // v127 P0 — was a dead button (no onClick, no visual disabled state).
-      // Resident-side bonuses program isn't shipped yet, so flag it as
-      // "Скоро" the same way the resident HomeTab tile does. The cursor
-      // already drops to 'default' below when onClick is undefined.
-      sub: language === 'ru' ? 'Скоро' : 'Tez orada',
+      // v118.167 — was `sub: 'Скоро' / 'Tez orada'` (v127 P0) to visually
+      // signal the tile is disabled while the bonuses program isn't
+      // shipped. Removed the sub text to comply with App Store guideline
+      // 2.2 (no user-visible "coming soon" phrasing). Tile still reads
+      // as disabled because onClick is undefined → cursor:default, no
+      // hover feedback, no tap side-effect. Silent placeholder.
+      sub: undefined,
       fg: 'rgb(var(--brand-rgb))',
       bg: 'var(--brand-tint, rgba(249,115,22,0.12))',
     },
@@ -485,16 +487,17 @@ export function ResidentProfilePage() {
 
   // ── render: hero / tiles / sections / logout / version ───────────────
   return (
-    // v118.147 — kz-screen REMOVED from this page. Profile is a BottomBar
-    // tab destination (not a push-navigated route), so the kzPagePushIn
-    // translateX(36px) page-enter slide was never load-bearing UX. But the
-    // transformed wrapper INSIDE the .main-content scroller suppressed the
-    // iOS WKWebView local edge-bounce and momentum-scroll on Profile —
-    // it felt "dead" at the top/bottom edges. Without the transform, the
-    // scroll inherits .main-content's iOS-safe combo and bounces locally.
-    // The flex column + marginTop:auto bottom-group pin (v118.135 / v286)
-    // is preserved — only the className changed.
+    // v118.154 — kz-screen RESTORED after the keyframe was rewritten to
+    // opacity-only (index.css:2647). The previous v118.147 removal was
+    // needed when kzPagePushIn used translateX(36px) — that transform
+    // ancestor killed WKWebView momentum scrolling on .main-content
+    // descendants including this Profile page. Opacity does NOT create
+    // a transformed containing block, so momentum + local edge-bounce
+    // are preserved. Now the Profile page gets the soft cross-fade
+    // page-enter treatment like other kz-screen pages, without the
+    // scroll-dead-edge regression.
     <div
+      className="kz-screen"
       style={{
         minHeight: '100dvh',
         display: 'flex',
@@ -1680,6 +1683,14 @@ function BottomSheet({ onClose, children }: { onClose: () => void; children: Rea
   const bodyDragHandlers: React.HTMLAttributes<HTMLDivElement> = {
     onPointerDown: (e) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
+      // v118.161 — bail out when tap target is (or is inside) an
+      // interactive element, so setPointerCapture below doesn't hijack
+      // the pointer sequence and suppress the click. See sibling comment
+      // in RequestDetailsModal for the full analysis (iOS WKWebView
+      // pointer-capture quirk). Affects EditProfile / PasswordModal /
+      // QR pass / InstallApp — every sheet mounted through this shared
+      // BottomSheet wrapper.
+      if (e.target instanceof HTMLElement && e.target.closest('button, a, input, textarea, select, [role="button"], [data-no-drag]')) return;
       const el = sheetRef.current;
       if (el && el.scrollTop > 0) return; // user scrolling — let native scroll happen
       try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }

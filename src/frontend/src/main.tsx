@@ -49,19 +49,43 @@ setIOSPwaGap();
 // positioning. The class is a one-shot entrance hook anyway, not a
 // permanent state.
 const rootEl = document.getElementById('root')!
-rootEl.classList.add('app-booting')
+// v118.172 — app-booting startup fade + BottomBar-portal hide are a
+// NATIVE-only mechanism. They exist to bridge the seam between the
+// native SplashScreen plugin and NativeSplashOverlay's paint frame
+// (see v118.166 comments below). On any browser context (admin panel,
+// УК panel, resident web login), the native splash doesn't exist and
+// NativeSplashOverlay early-returns null (v118.172 in that file), so
+// the 340ms opacity fade + 600ms containing-block window is pure dead
+// weight — a delay before the admin sees their dashboard for no visual
+// payoff. Gate the whole class-add / RAF / class-remove sequence on
+// isNativePlatform() so web loads with instant paint.
+if (Capacitor.isNativePlatform()) {
+  rootEl.classList.add('app-booting')
+  // v118.166 — mirror the boot flag on <body> so global portaled chrome
+  // (BottomBar via createPortal → document.body) can be hidden during
+  // the boot window via a CSS rule keyed on `body.app-booting`. Root's
+  // opacity:0 gate doesn't reach portaled siblings; without this class
+  // the BottomBar was visible for ~1s between native-splash dismissal
+  // and NativeSplashOverlay reaching full opacity, producing the empty
+  // pink+tabbar flash. Removed together with the root class after the
+  // same 600ms window.
+  document.body.classList.add('app-booting')
+}
 createRoot(rootEl).render(
   <StrictMode>
     <App />
   </StrictMode>,
 )
-requestAnimationFrame(() => {
+if (Capacitor.isNativePlatform()) {
   requestAnimationFrame(() => {
-    rootEl.classList.add('app-mounted')
-    // The CSS transition is 0.34s; 600ms safely covers it on slow devices
-    // and clears the lingering containing-block trigger.
-    window.setTimeout(() => {
-      rootEl.classList.remove('app-booting', 'app-mounted')
-    }, 600)
+    requestAnimationFrame(() => {
+      rootEl.classList.add('app-mounted')
+      // The CSS transition is 0.34s; 600ms safely covers it on slow devices
+      // and clears the lingering containing-block trigger.
+      window.setTimeout(() => {
+        rootEl.classList.remove('app-booting', 'app-mounted')
+        document.body.classList.remove('app-booting')
+      }, 600)
+    })
   })
-})
+}

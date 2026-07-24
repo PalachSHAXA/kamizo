@@ -6,6 +6,8 @@ import { useSettingsStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useTenantStore } from '../../stores/tenantStore';
+import { RUFlag } from '../../components/common/RUFlag';
+import { UZFlag } from '../vehicles/UZFlag';
 import { Modal, ThemeToggle } from '../../components/common';
 import { Switch } from '../../components/ui';
 import { apiRequest, usersApi } from '../../services/api';
@@ -560,7 +562,7 @@ export function SettingsPage() {
                     : 'border-gray-200 hover:border-primary-300'
                 }`}
               >
-                <div className="text-2xl mb-1">🇷🇺</div>
+                <div className="mb-1 flex justify-center"><RUFlag className="w-8 h-5" /></div>
                 <div className="font-medium">Русский</div>
               </button>
               <button
@@ -571,7 +573,7 @@ export function SettingsPage() {
                     : 'border-gray-200 hover:border-primary-300'
                 }`}
               >
-                <div className="text-2xl mb-1">🇺🇿</div>
+                <div className="mb-1 flex justify-center"><UZFlag className="w-8 h-5" /></div>
                 <div className="font-medium">O'zbekcha</div>
               </button>
             </div>

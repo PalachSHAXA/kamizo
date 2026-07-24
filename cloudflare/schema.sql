@@ -663,15 +663,24 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 
 -- Request history/log
+-- v118.168 — aligned with production reality. Production DB has been
+-- running with `changed_by` / `changed_at` (not `user_id` / `created_at`)
+-- and extra `old_executor_id` / `new_executor_id` columns since the
+-- initial commit. The prior shape declared here was aspirational, not
+-- what actually shipped. Aligning the declaration so any new tenant DB
+-- provisioned from this file gets the correct shape and matches the
+-- INSERT in cloudflare/src/routes/requests/approval.ts.
 CREATE TABLE IF NOT EXISTS request_history (
   id TEXT PRIMARY KEY,
   request_id TEXT NOT NULL REFERENCES requests(id),
-  user_id TEXT NOT NULL REFERENCES users(id),
   action TEXT NOT NULL,
   old_status TEXT,
   new_status TEXT,
+  old_executor_id TEXT REFERENCES users(id),
+  new_executor_id TEXT REFERENCES users(id),
   comment TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
+  changed_by TEXT REFERENCES users(id),
+  changed_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT ''
 );
 

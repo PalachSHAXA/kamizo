@@ -659,15 +659,20 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 
 -- Request history/log
+-- v118.168 — aligned with production reality. See sibling comment in
+-- cloudflare/schema.sql for the full explanation. Same table shape,
+-- FK-less for D1-compatible provisioning.
 CREATE TABLE IF NOT EXISTS request_history (
   id TEXT PRIMARY KEY,
   request_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
   action TEXT NOT NULL,
   old_status TEXT,
   new_status TEXT,
+  old_executor_id TEXT,
+  new_executor_id TEXT,
   comment TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
+  changed_by TEXT,
+  changed_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT ''
 );
 

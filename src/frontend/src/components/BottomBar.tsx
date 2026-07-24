@@ -479,7 +479,15 @@ export function BottomBar() {
   ) : null;
 
   const bar = (
+    // v118.166 — .kz-bottombar-portal class is the CSS target for the
+    // boot-flash guard in index.css: while `body.app-booting` is set
+    // (main.tsx flips it during the ~600ms app entrance), this portal
+    // is `visibility: hidden`. Prevents the bar from leaking into the
+    // native-splash → webview-overlay handoff window, where BottomBar
+    // was visible (portaled outside #root's opacity:0 gate) while the
+    // overlay hadn't reached full opacity yet.
     <div
+      className="kz-bottombar-portal"
       role="navigation"
       aria-label={language === 'ru' ? 'Нижняя навигация' : 'Pastki navigatsiya'}
       style={{

@@ -9,11 +9,19 @@ const icons = {
   info: Info,
 };
 
-const colors = {
-  success: 'text-green-400 border-green-400/30',
-  error: 'text-red-400 border-red-400/30',
-  warning: 'text-yellow-400 border-yellow-400/30',
-  info: 'text-blue-400 border-blue-400/30',
+// v118.164 — Kamizo-native palette. Previous toast used glassmorphism
+// (backdrop-blur-xl + bg-white/10 + text-white) which read as an iOS
+// liquid-glass overlay on the warm off-white pages: illegible contrast,
+// wrong aesthetic. Each type now maps to a semantic status token from
+// index.css and the shell uses the same tokens as RequestDetailsModal /
+// HomeHero / MeetingWidget: solid --surface, 1px --border-c, 5px colored
+// left stripe carrying the type, --text-primary for the message, icon
+// coloured to match the stripe, X close in --text-secondary at 60%.
+const accents: Record<keyof typeof icons, string> = {
+  success: 'var(--status-active, #16A34A)',
+  error:   'var(--status-critical, #DC2626)',
+  warning: 'var(--status-pending, #D97706)',
+  info:    'var(--status-info, #2F77C2)',
 };
 
 function ToastItem({ id, type, message }: { id: string; type: keyof typeof icons; message: string }) {
@@ -30,17 +38,54 @@ function ToastItem({ id, type, message }: { id: string; type: keyof typeof icons
   };
 
   const Icon = icons[type] || Info;
+  const accent = accents[type] || accents.info;
 
   return (
     <div
-      className={`flex items-start gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl bg-white/10 shadow-lg transition-all duration-200 ${colors[type]} ${
-        visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'
-      }`}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: '12px 14px',
+        borderRadius: 14,
+        background: 'var(--surface, #FFFFFF)',
+        border: '1px solid var(--border-c, #E6DFD2)',
+        borderLeft: `5px solid ${accent}`,
+        boxShadow: 'var(--shadow-md, 0 4px 16px rgba(28,25,23,0.08))',
+        transform: visible ? 'translateX(0)' : 'translateX(32px)',
+        opacity: visible ? 1 : 0,
+        transition:
+          'transform 200ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms cubic-bezier(0.2, 0, 0, 1)',
+      }}
     >
-      <Icon className="w-5 h-5 mt-0.5 shrink-0" />
-      <span className="text-sm text-white flex-1">{message}</span>
-      <button onClick={handleClose} className="text-white/50 hover:text-white shrink-0" aria-label="Закрыть">
-        <X className="w-4 h-4" />
+      <Icon size={18} style={{ marginTop: 2, color: accent, flexShrink: 0 }} />
+      <span
+        style={{
+          fontSize: 14,
+          lineHeight: 1.4,
+          color: 'var(--text-primary, #1C1917)',
+          flex: 1,
+          wordBreak: 'break-word',
+        }}
+      >
+        {message}
+      </span>
+      <button
+        onClick={handleClose}
+        aria-label="Закрыть"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          color: 'var(--text-secondary, #6F6A62)',
+          opacity: 0.6,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        <X size={16} />
       </button>
     </div>
   );
@@ -52,7 +97,10 @@ export default function Toast() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed right-4 z-[150] flex flex-col gap-2 max-w-sm w-full pointer-events-auto md:bottom-4" style={{ bottom: 'calc(var(--bottom-bar-h, 64px) + 12px)' }}>
+    <div
+      className="fixed right-4 z-[150] flex flex-col gap-2 max-w-sm w-full pointer-events-auto md:bottom-4"
+      style={{ bottom: 'calc(var(--bottom-bar-h, 64px) + 12px)' }}
+    >
       {toasts.map((t) => (
         <ToastItem key={t.id} {...t} />
       ))}

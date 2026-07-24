@@ -16,6 +16,7 @@ import {
   Wrench, Droplet, Truck, Hammer, Scissors, Laptop,
   Bug, Briefcase, Wind, Heart, Car, Star, Package,
 } from 'lucide-react';
+import { AppLogo } from '../components/common/AppLogo';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
@@ -845,23 +846,31 @@ function EmptyPartners({ language, hasFilter }: { language: string; hasFilter: b
       background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 18,
       padding: '40px 24px', textAlign: 'center', boxShadow: SHADOW_SM,
     }}>
-      <div style={{
-        width: 60, height: 60, borderRadius: 999,
-        background: SURFACE_SUNKEN, color: TEXT_MUTED,
-        margin: '0 auto 12px',
-        display: 'grid', placeItems: 'center',
-      }}>
-        <Briefcase size={28} />
+      {/* v118.160 — brand icon instead of muted-briefcase chip. The
+          Kamizo mark (favicon-192x192.png via AppLogo forceDefault) sits
+          in place of the previous grey circle so the empty state reads
+          as a Kamizo promise, not a generic "no data" placeholder. */}
+      <div style={{ margin: '0 auto 12px', display: 'flex', justifyContent: 'center' }}>
+        <AppLogo size="lg" forceDefault />
       </div>
+      {/* v118.167 — "Партнёры появятся скоро" / "tez orada paydo
+          bo'ladi" softened to a neutral empty-data label. App Store
+          guideline 2.2 flags any user-visible "coming soon" phrasing;
+          "появятся скоро" was borderline (data-empty state, not a
+          feature-flag lock, but the wording still reads as a coming-
+          soon promise). The neutral form describes the current data
+          state without promising future functionality. */}
       <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 4 }}>
         {hasFilter
           ? (language === 'ru' ? 'В этой категории пока пусто' : "Bu kategoriyada hozircha bo'sh")
-          : (language === 'ru' ? 'Партнёры появятся скоро' : "Hamkorlar tez orada paydo bo'ladi")}
+          : (language === 'ru' ? 'Пока нет партнёров' : "Hamkorlar hozircha yo'q")}
       </div>
       <div style={{ fontSize: 12.5, color: TEXT_SECONDARY, lineHeight: 1.5 }}>
         {hasFilter
           ? (language === 'ru' ? 'Попробуйте выбрать другую категорию' : 'Boshqa kategoriyani tanlab koʻring')
-          : (language === 'ru' ? 'Мы отбираем лучших специалистов для вас' : 'Sizga eng yaxshi mutaxassislarni tanlamoqdamiz')}
+          : (language === 'ru'
+              ? 'Kamizo создаёт для вас лучшие условия для сервиса от своих партнёров'
+              : "Kamizo siz uchun o'z hamkorlaridan eng yaxshi xizmat shartlarini yaratadi")}
       </div>
     </div>
   );

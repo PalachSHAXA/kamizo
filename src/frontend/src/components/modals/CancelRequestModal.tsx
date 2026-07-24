@@ -48,13 +48,32 @@ export function CancelRequestModal({ isOpen, onClose, request, onCancel }: Cance
 
   return (
     <div className="modal-backdrop">
-      <div className="glass-card p-6 w-full max-w-md mx-4">
+      {/* v118.165 — replaced .glass-card (40% white + backdrop-filter: blur
+          12px in the @supports branch that iOS WKWebView hits) with solid
+          Kamizo modal-surface tokens matching RequestDetailsModal /
+          HomeHero / MeetingWidget. The .glass-card CSS class is left
+          defined in index.css (unreferenced now — MarketplacePage uses
+          .glass-card-solid, a different class), so intentional glass-look
+          surfaces stay available if ever needed. */}
+      <div
+        className="p-6 w-full max-w-md mx-4"
+        style={{
+          background: 'var(--themed-surface, var(--surface, #FFFFFF))',
+          border: '1px solid var(--themed-border-c, var(--border-c, #E6DFD2))',
+          borderRadius: 16,
+          boxShadow: 'var(--themed-shadow-md, var(--shadow-md, 0 14px 36px -10px rgba(28,25,23,0.18)))',
+        }}
+      >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-red-600 flex items-center gap-2">
             <Ban className="w-5 h-5" />
             {language === 'ru' ? 'Отменить заявку' : 'Arizani bekor qilish'}
           </h2>
-          <button onClick={handleClose} className="p-2 hover:bg-white/30 active:bg-white/50 rounded-lg touch-manipulation" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
+          {/* v118.165 — was hover:bg-white/30 active:bg-white/50 which
+              was invisible on the newly-opaque surface (white-on-white).
+              Stone-100/200 is the neutral hover tint the rest of the
+              codebase uses for close-X buttons on light surfaces. */}
+          <button onClick={handleClose} className="p-2 hover:bg-stone-100 active:bg-stone-200 rounded-lg touch-manipulation" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}>
             <X className="w-5 h-5" />
           </button>
         </div>

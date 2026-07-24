@@ -4,7 +4,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
-import { json, error, generateId } from '../../utils/helpers';
+import { json, error, generateId, bilingualError } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 
 export function registerApprovalRoutes() {
@@ -139,20 +139,64 @@ route('POST', '/api/requests/:id/cancel', async (request, env, params) => {
   const canManagerCancel = requestData.status !== 'completed';
 
   if (isResident && requestData.resident_id !== user.id) return error('Forbidden', 403);
-  if (isResident && !canResidentCancel) return error('Cannot cancel request in this status', 400);
-  if (!isResident && !canManagerCancel) return error('Cannot cancel completed request', 400);
+  // v118.164 — bilingualError so the frontend's pickErrorMessage() shows
+  // localized text (RU/UZ) instead of the raw English fallback. Ownership
+  // check above stays as English `error()` because it's a security-tier
+  // failure users shouldn't see friendly copy for (403 shouldn't leak a
+  // human-facing message that hints at cross-tenant access surfaces).
+  if (isResident && !canResidentCancel) return bilingualError(
+    'Заявку нельзя отменить в этом статусе',
+    "Ushbu holatda arizani bekor qilib bo'lmaydi",
+    400,
+  );
+  if (!isResident && !canManagerCancel) return bilingualError(
+    'Нельзя отменить завершённую заявку',
+    "Yakunlangan arizani bekor qilib bo'lmaydi",
+    400,
+  );
 
   const cancelledBy = isResident ? 'resident' : user.role;
 
-  await env.DB.prepare(`
-    UPDATE requests SET status = 'cancelled', updated_at = datetime('now')
-    WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
+  // v118.168 — request_history schema fix + transaction.
+  //
+  // The production DB was seeded from an older schema variant whose
+  // columns are `changed_by` / `changed_at` (not `user_id` / `created_at`
+  // as declared in the repo's schema.sql). The mismatch has existed
+  // since the initial commit; it never blew up because until v118.161
+  // fixed the sheet-button pointer-capture bug, no user could actually
+  // trigger the cancel that fires this INSERT. With the button working,
+  // the INSERT would throw "table request_history has no column named
+  // user_id", leaving the request in a half-cancelled state (UPDATE had
+  // already committed above the failed INSERT — no transaction).
+  //
+  // Fix: (1) use the ACTUAL column names on the production table;
+  //      (2) wrap the two writes in a transaction so either both land
+  //          or neither does. shim-sqlite exposes BEGIN/COMMIT/ROLLBACK
+  //          via prepare().run() like any other statement.
+  //
+  // schema.sql + schema_no_fk.sql are updated in the same commit so any
+  // new tenant DB provisioned from them gets the correct shape.
+  try {
+    await env.DB.prepare('BEGIN').run();
+    await env.DB.prepare(`
+      UPDATE requests SET status = 'cancelled', updated_at = datetime('now')
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+    `).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
 
-  await env.DB.prepare(`
-    INSERT INTO request_history (id, request_id, user_id, action, old_status, new_status, comment, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `).bind(generateId(), params.id, user.id, 'cancelled', requestData.status, 'cancelled', `Отменена (${cancelledBy}): ${reason}`).run();
+    await env.DB.prepare(`
+      INSERT INTO request_history (id, request_id, changed_by, action, old_status, new_status, comment, changed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(generateId(), params.id, user.id, 'cancelled', requestData.status, 'cancelled', `Отменена (${cancelledBy}): ${reason}`).run();
+    await env.DB.prepare('COMMIT').run();
+  } catch (err) {
+    await env.DB.prepare('ROLLBACK').run().catch(() => {});
+    console.error(JSON.stringify({ level: 'error', message: 'cancel-request tx failed', requestId: params.id, error: String(err) }));
+    return bilingualError(
+      'Не удалось отменить заявку. Попробуйте ещё раз.',
+      "Arizani bekor qilib bo'lmadi. Qayta urinib ko'ring.",
+      500,
+    );
+  }
 
   // Notify executor + resident when manager/admin cancels.
   // Previously we only inserted into the notifications table — pushes were

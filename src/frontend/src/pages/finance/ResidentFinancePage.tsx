@@ -234,16 +234,19 @@ export function ResidentFinancePage() {
     || '—';
   const headerEyebrow = `${apartmentLabel} · ${buildingLabel}`;
 
+  // v118.158 — "скоро" / "tez orada" phrasing removed from user-facing
+  // toasts for App Store submission. The messages now describe the
+  // in-person / cash-office flow that residents actually use today.
   const handlePay = () => {
     addToast('info', lang === 'ru'
-      ? 'Онлайн-оплата скоро. Сейчас доступна оплата в кассе УК.'
-      : 'Onlayn to\'lov tez orada. Hozir BK kassasidan to\'lash mumkin.');
+      ? 'Оплата ЖКУ принимается в кассе управляющей компании.'
+      : 'KKX to\'lovi boshqaruv kompaniyasi kassasida qabul qilinadi.');
   };
 
   const handleReconciliation = () => {
     addToast('info', lang === 'ru'
-      ? 'Акт сверки скоро. Запросите его у УК.'
-      : 'Solishtirish dalolatnomasi tez orada. BK dan so\'rab oling.');
+      ? 'Для получения акта сверки обратитесь в управляющую компанию.'
+      : 'Solishtirish dalolatnomasini olish uchun boshqaruv kompaniyasiga murojaat qiling.');
   };
 
   // ── render ──────────────────────────────────────────────────────
@@ -475,7 +478,7 @@ function BalanceCard({
           <button
             type="button"
             onClick={onPay}
-            aria-label={lang === 'ru' ? 'Оплатить (онлайн-оплата скоро)' : 'To\'lov (tez orada)'}
+            aria-label={lang === 'ru' ? 'Оплатить в кассе управляющей компании' : 'Boshqaruv kompaniyasi kassasida to\'lash'}
             style={{
               width: '100%', marginTop: 16, padding: 14,
               borderRadius: RADIUS_MD, border: 'none',

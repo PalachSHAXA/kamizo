@@ -188,6 +188,18 @@ export function RequestDetailsModal({
     onPointerDown: (e) => {
       if (!isMobileViewport()) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
+      // v118.161 — bail out when the tap target is (or is inside) an
+      // interactive element. Without this, setPointerCapture(pointerId)
+      // below hijacks the pointer sequence for a tap on any child
+      // button/link/input, and iOS WKWebView then fails to synthesize
+      // the click on the actual target — so "Отменить заявку" and
+      // "Принять работу" buttons silently did nothing when the sheet
+      // was unscrolled (scrollTop === 0 → capture path was hit). Drag
+      // on empty sheet body still works because a drag starts on a
+      // non-interactive area and the guard doesn't trip. Apply the same
+      // guard in ResidentProfilePage's BottomSheet (same pattern used
+      // for EditProfile / PasswordModal / QR pass / InstallApp sheets).
+      if (e.target instanceof HTMLElement && e.target.closest('button, a, input, textarea, select, [role="button"], [data-no-drag]')) return;
       const el = sheetBodyRef.current;
       if (el && el.scrollTop > 0) return; // user скроллит внутри — не перехватываем
       try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {/* noop */}

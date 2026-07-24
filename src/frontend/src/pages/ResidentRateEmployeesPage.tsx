@@ -19,7 +19,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Star as StarIcon, Check, Building2 } from 'lucide-react';
+import { Send, Star as StarIcon, Check, Building2, ArrowLeft } from 'lucide-react';
 import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useExecutorStore } from '../stores/dataStore';
@@ -263,6 +263,14 @@ export function ResidentRateEmployeesPage() {
       letterSpacing: '-0.01em',
     }}>
       {/* ── Sticky header ─────────────────────────────────────────────── */}
+      {/* v118.170 — back button added (top-left, 40×40, same shape as
+          ResidentUsefulContactsPage and ResidentVehiclesPage garage
+          header). Previously the sticky header was title-only with no
+          exit affordance: BottomBar reads Home-active on this route,
+          useEdgeSwipeBack works but is invisible, so residents felt
+          trapped on the page. Layout is now a flex row: back button
+          40×40 on the left + a flex:1 text column carrying the
+          eyebrow + title stack. Nothing else on the screen changes. */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 20px 12px',
@@ -271,17 +279,35 @@ export function ResidentRateEmployeesPage() {
         WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--border-c, rgba(28,25,23,0.06))',
       }}>
-        <div style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
-          color: 'var(--text-secondary, #A8A29E)', textTransform: 'uppercase',
-        }}>
-          {language === 'ru' ? 'Оценка сотрудников' : 'Xodimlarni baholash'}
-        </div>
-        <div style={{
-          fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 1,
-          color: 'var(--text-primary, #1C1917)',
-        }}>
-          {language === 'ru' ? 'Спасибо, что делитесь' : 'Fikringiz uchun rahmat'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => navigate('/')}
+            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+            style={{
+              width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+              background: 'var(--surface, #FFFFFF)',
+              border: '1px solid var(--border-c, #E6DFD2)',
+              color: 'var(--text-primary, #1C1917)',
+              display: 'grid', placeItems: 'center',
+              cursor: 'pointer', padding: 0,
+            }}
+          >
+            <ArrowLeft size={19} />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+              color: 'var(--text-secondary, #A8A29E)', textTransform: 'uppercase',
+            }}>
+              {language === 'ru' ? 'Оценка сотрудников' : 'Xodimlarni baholash'}
+            </div>
+            <div style={{
+              fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 1,
+              color: 'var(--text-primary, #1C1917)',
+            }}>
+              {language === 'ru' ? 'Спасибо, что делитесь' : 'Fikringiz uchun rahmat'}
+            </div>
+          </div>
         </div>
       </div>
 

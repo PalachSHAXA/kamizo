@@ -404,6 +404,23 @@ function QuickTiles({ onNewRequest, navigate, language, passCount = 0, vehicleCo
   // has no `vehicles` feature) is tappable but ProtectedRoute redirects
   // to "/", so the user taps, screen flickers, bounces back.
   const hasFeature = useTenantStore((s) => s.hasFeature);
+  // v118.167 — "Оплата" tile RESTORED as a locked-visual-only tile.
+  // The v118.158 removal was over-conservative; Apple's guideline 2.2
+  // targets "coming soon" TEXT + non-functional UI, not neutral lock
+  // indicators. This entry has:
+  //   • soon: true → renders the small lock icon overlay in the tile
+  //     corner (see tile render below at line ~432). NO "СКОРО" /
+  //     "Coming Soon" / "в разработке" text badge — the badge string
+  //     that used to accompany the lock has been dropped.
+  //   • onClick omitted → the button is disabled + aria-disabled +
+  //     cursor:default + opacity 0.7 + no-op tap. Non-clickable.
+  //   • Tapping does absolutely nothing: no navigation, no toast, no
+  //     modal, no route to a placeholder screen (the payment placeholder
+  //     screens BalanceCard/PaymentCard remain gated behind `{false}`
+  //     and are unreachable from any user-facing surface).
+  // When the payments integration ships, replace `soon: true` with an
+  // `onClick: () => navigate('/finance/charges')` (or the real gateway
+  // route) and drop `soon`.
   const tiles = [
     { Icon: IWrench, label: ru(language, 'Заявка', 'Ariza'), onClick: hasFeature('requests') ? onNewRequest : undefined },
     { Icon: IQR, label: ru(language, 'Пропуск', 'Ruxsat'), onClick: hasFeature('qr') ? () => navigate('/guest-access') : undefined, badge: passCount },
@@ -646,6 +663,11 @@ interface Props {
   language: string;
   name: string;
   apt: string;
+  /** Resident's total apartment area in m². Used by the dynamic voting
+      hero card (v118.159) to render "Ваш голос · N м²" instead of the
+      old hardcoded "67 м²". Undefined when the user hasn't been assigned
+      an area yet — the card falls back to "—" in that case. */
+  totalArea?: number;
   activeCount: number;
   pendingApproval: any[];
   pendingReschedules: any[];
@@ -670,7 +692,7 @@ interface Props {
 }
 
 export function ResidentHomeDesign(props: Props) {
-  const { language, name, apt, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, brand, logo = null, passCount = 0, vehicleCount = 0, needsRegistration = false, registrationMissing, onNewRequest, onTab, onMenu, onCompleteRegistration, onApprove, onOpenRequest } = props;
+  const { language, name, apt, totalArea, activeCount, pendingApproval, pendingReschedules, meeting, announcements, unread = 0, brand, logo = null, passCount = 0, vehicleCount = 0, needsRegistration = false, registrationMissing, onNewRequest, onTab, onMenu, onCompleteRegistration, onApprove, onOpenRequest } = props;
   const navigate = useNavigate();
   // v118.125 — feature-gated nav. The hero carousel + quick-action tiles
   // link to tenant-feature-gated routes (/meetings, /vehicles, /guest-
@@ -735,9 +757,17 @@ export function ResidentHomeDesign(props: Props) {
   // ProtectedRoute redirects to "/" → user taps, screen flickers,
   // bounces back to home (the "broken navigation" the user reported).
   // `null` feature means the route is always available (no gate).
+  // v118.159 — voting hero card is now BUILT from real meeting data
+  // (props.meeting → activeMeetings[0] filtered in ResidentDashboard).
+  // The static "Ремонт лифтов · идёт голосование · 67 м² · осталось 2
+  // дня" placeholder that used to sit at the top of allBaseCards is
+  // gone; see votingCard below for the five status-driven branches
+  // (schedule_poll_open, schedule_confirmed, voting_open, voting_closed,
+  // results_published) + an empty-state fallback so the card slot
+  // never collapses. The pattern is ported from HomeHighlights.tsx
+  // which had the correct dynamic version already but was mounted
+  // through the dead-code HomeTab path.
   const allBaseCards = [
-    // v118.71 — silhouette 'people' → 'ballot' + richer title/sub copy to match LIVE design.
-    { feature: 'meetings', id: 'voting', Icon: IUsers, silhouette: 'ballot', badge: ru(language, 'Голосование', 'Ovoz'), title: ru(language, 'Ремонт лифтов · идёт голосование', "Liftlarni ta'mirlash · ovoz berilmoqda"), sub: ru(language, 'Ваш голос · 67 м² · осталось 2 дня', "Sizning ovozingiz · 67 m² · 2 kun qoldi"), cta: ru(language, 'Проголосовать →', 'Ovoz berish →'), gradient: 'linear-gradient(150deg, #FB923C 0%, #EA580C 100%)', shadow: 'rgba(249,115,22,0.5)', onClick: () => navigate('/meetings') },
     { feature: 'qr', id: 'guest', Icon: IQR, silhouette: 'qr', badge: 'QR', title: ru(language, 'Гостевой пропуск', 'Mehmon ruxsati'), sub: ru(language, 'QR для гостя или доставки', 'Mehmon yoki yetkazib berish uchun'), cta: ru(language, 'Создать →', 'Yaratish →'), gradient: 'linear-gradient(150deg, #34D399 0%, #15A06E 100%)', shadow: 'rgba(21,160,110,0.5)', onClick: () => navigate('/guest-access') },
     // v118.71 — sub copy expanded to match LIVE design ('и мастера дома', 'займёт 30 секунд', 'по номеру машины').
     { feature: null, id: 'contacts', Icon: IPhone, silhouette: 'phone', badge: ru(language, 'Контакты', 'Kontaktlar'), title: ru(language, 'Полезные контакты', 'Foydali kontaktlar'), sub: ru(language, 'Экстренные службы и мастера дома', "Favqulodda xizmatlar va uy ustalari"), cta: ru(language, 'Открыть →', 'Ochish →'), gradient: 'linear-gradient(150deg, #60A5FA 0%, #2F77C2 100%)', shadow: 'rgba(47,119,194,0.5)', onClick: () => navigate('/useful-contacts') },
@@ -745,7 +775,131 @@ export function ResidentHomeDesign(props: Props) {
     { feature: null, id: 'rate', Icon: IStar, silhouette: 'star', badge: ru(language, 'Оценка', 'Baho'), title: ru(language, 'Оцените УК', 'Boshqaruvni baholang'), sub: ru(language, 'Раз в месяц · займёт 30 секунд', "Oyiga bir marta · 30 soniya oladi"), cta: ru(language, 'Оценить →', 'Baholash →'), gradient: 'linear-gradient(150deg, #FB923C 0%, rgb(var(--brand-rgb)) 100%)', shadow: 'rgba(var(--brand-rgb), 0.5)', onClick: () => navigate('/rate-employees') },
     { feature: 'vehicles', id: 'find-car', Icon: ICar, silhouette: 'car', badge: ru(language, 'Авто', 'Avto'), title: ru(language, 'Найти владельца авто', 'Avto egasini topish'), sub: ru(language, 'Поиск соседа по номеру машины', "Mashina raqami bo'yicha qidirish"), cta: ru(language, 'Найти →', 'Topish →'), gradient: 'linear-gradient(150deg, #FBBF24 0%, #D97706 100%)', shadow: 'rgba(217,119,6,0.5)', onClick: () => navigate('/vehicles') },
   ];
-  const baseCards = allBaseCards.filter((c) => !c.feature || hasFeature(c.feature));
+  // v118.159 — dynamic voting hero card built from props.meeting.
+  //
+  // Prepended to baseCards so it sits at position 0 in the swipe stack —
+  // same slot the static "Ремонт лифтов" placeholder used to occupy.
+  // Only rendered when the tenant has the `meetings` feature enabled;
+  // when there is no active/recent meeting an empty-state variant is
+  // shown so the slot never collapses (per product ask).
+  const votingCard = (() => {
+    if (!hasFeature('meetings')) return null;
+
+    const shared = {
+      feature: 'meetings',
+      id: 'voting',
+      Icon: IUsers,
+      silhouette: 'ballot',
+      // Same orange gradient the old static entry used, so the visual
+      // slot stays consistent across the transition.
+      gradient: 'linear-gradient(150deg, #FB923C 0%, #EA580C 100%)',
+      shadow: 'rgba(249,115,22,0.5)',
+      onClick: () => navigate('/meetings'),
+    };
+
+    const m = meeting;
+    const agendaTitle: string | undefined = m?.agendaItems?.[0]?.title;
+    const status: string | undefined = m?.status;
+
+    const locale = language === 'ru' ? 'ru-RU' : 'uz-UZ';
+    const fmtDate = (iso?: string) => {
+      if (!iso) return '';
+      try { return new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'long' }); }
+      catch { return ''; }
+    };
+    const fmtDateTime = (iso?: string) => {
+      if (!iso) return '';
+      try { return new Date(iso).toLocaleString(locale, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); }
+      catch { return ''; }
+    };
+    const daysUntil = (iso?: string) => {
+      if (!iso) return 0;
+      const d = new Date(iso).getTime() - Date.now();
+      return Math.max(0, Math.ceil(d / 86_400_000));
+    };
+    const genericTitle = ru(language, 'Собрание собственников', "Mulk egalari yig'ilishi");
+
+    if (status === 'schedule_poll_open') {
+      const endsAt = m?.schedulePollEndsAt || m?.schedule_poll_ends_at;
+      return {
+        ...shared,
+        badge: ru(language, 'Опрос', "So'rovnoma"),
+        title: agendaTitle || genericTitle,
+        sub: ru(language, `Выбор даты · до ${fmtDate(endsAt)}`, `Sana tanlash · ${fmtDate(endsAt)} gacha`),
+        cta: ru(language, 'Выбрать дату →', 'Sana tanlash →'),
+      };
+    }
+
+    if (status === 'schedule_confirmed') {
+      const when = m?.confirmedDateTime || m?.confirmed_date_time;
+      const loc = m?.location ? ` · ${m.location}` : '';
+      return {
+        ...shared,
+        badge: ru(language, 'Предстоит', 'Yaqinda'),
+        title: agendaTitle || genericTitle,
+        sub: ru(language, `Собрание ${fmtDateTime(when)}${loc}`, `Yig'ilish ${fmtDateTime(when)}${loc}`),
+        cta: ru(language, 'Открыть →', 'Ochish →'),
+      };
+    }
+
+    if (status === 'voting_open') {
+      const endsAt = m?.votingClosedAt || m?.voting_closed_at;
+      const days = daysUntil(endsAt);
+      const area = typeof totalArea === 'number' && totalArea > 0
+        ? ru(language, `${totalArea} м²`, `${totalArea} m²`)
+        : '—';
+      return {
+        ...shared,
+        badge: ru(language, 'Голосование', 'Ovoz berish'),
+        title: agendaTitle || genericTitle,
+        sub: ru(
+          language,
+          `Ваш голос · ${area} · осталось ${days} дн.`,
+          `Sizning ovozingiz · ${area} · ${days} kun qoldi`,
+        ),
+        cta: ru(language, 'Проголосовать →', 'Ovoz berish →'),
+      };
+    }
+
+    if (status === 'voting_closed') {
+      return {
+        ...shared,
+        badge: ru(language, 'Итоги', 'Natijalar'),
+        title: agendaTitle || genericTitle,
+        sub: ru(language, 'Голосование завершено · ждём итогов', "Ovoz berish tugadi · natijalarni kutmoqdamiz"),
+        cta: ru(language, 'Открыть →', 'Ochish →'),
+      };
+    }
+
+    if (status === 'results_published') {
+      return {
+        ...shared,
+        badge: ru(language, 'Итоги', 'Natijalar'),
+        title: agendaTitle || genericTitle,
+        sub: ru(language, 'Итоги голосования готовы', 'Ovoz berish natijalari tayyor'),
+        cta: ru(language, "Смотреть итоги →", "Natijalarni ko'rish →"),
+      };
+    }
+
+    // Empty state — meeting is null, or its status is draft /
+    // pending_moderation / protocol_generated / protocol_approved /
+    // cancelled (none of which are meaningful to a resident). The card
+    // slot must NEVER collapse, so we render a stable "coming soon"
+    // variant that keeps the swipe stack layout stable and softly
+    // educates the resident that this space is where meetings appear.
+    return {
+      ...shared,
+      badge: ru(language, 'Голосования', 'Ovoz berish'),
+      title: ru(language, 'Здесь появятся ваши голосования', "Sizning ovoz berishlaringiz shu yerda paydo bo'ladi"),
+      sub: ru(language, 'Когда УК запустит собрание собственников, оно появится здесь', "BK mulk egalari yig'ilishini boshlagach, u shu yerda ko'rinadi"),
+      cta: ru(language, 'Подробнее →', 'Batafsil →'),
+    };
+  })();
+
+  const baseCards = [
+    ...(votingCard ? [votingCard] : []),
+    ...allBaseCards.filter((c) => !c.feature || hasFeature(c.feature)),
+  ];
   const cards = needsRegistration ? [registrationCard, ...baseCards] : baseCards;
 
   const section: React.CSSProperties = { padding: '0 16px', marginTop: 16 };
@@ -890,17 +1044,31 @@ export function ResidentHomeDesign(props: Props) {
         </div>
       )}
 
-      {meeting && (
+      {/* v118.159 — MeetingWidget hardcodes a "Голосование" badge, so
+          restrict it to the three genuinely-active statuses (matches its
+          old effective scope before ResidentDashboard widened the parent
+          filter to also include voting_closed + results_published for
+          the swipe-stack hero). Those two "результаты" states are now
+          fully handled by the dynamic voting card in the swipe stack. */}
+      {meeting && ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(meeting.status) && (
         <div style={section}>
           <div style={secLabel}><span style={secTitle}>{ru(language, 'Собрание', 'Yig\'ilish')}</span><span style={secMore} onClick={() => navigate('/meetings')}>{ru(language, 'Все →', 'Barchasi →')}</span></div>
           <MeetingWidget meeting={meeting} language={language} onOpen={() => navigate('/meetings')} />
         </div>
       )}
 
-      <div style={section}>
-        <div style={secLabel}><span style={secTitle}>{ru(language, 'Оплата', 'To\'lov')}</span></div>
-        <BalanceCard language={language} />
-      </div>
+      {/* v118.158 — "Оплата" / BalanceCard section HIDDEN for App Store
+          submission. Online payments are still under development
+          (disabled "Оплатить онлайн" button + "Онлайн-оплата и счётчики
+          в разработке" strapline). Apple review guidelines discourage
+          prominently displaying "coming soon" UI. Restore this block
+          when payments ship. */}
+      {false && (
+        <div style={section}>
+          <div style={secLabel}><span style={secTitle}>{ru(language, 'Оплата', 'To\'lov')}</span></div>
+          <BalanceCard language={language} />
+        </div>
+      )}
 
       {announcements && announcements.length > 0 && (
         <div style={section}>
