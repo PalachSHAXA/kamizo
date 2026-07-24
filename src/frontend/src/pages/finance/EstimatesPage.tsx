@@ -2,10 +2,12 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useTenantStore } from '../../stores/tenantStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import {
   FileSpreadsheet,
+  FileText,
   Plus,
   Trash2,
   ChevronRight,
@@ -20,6 +22,7 @@ import {
 } from 'lucide-react';
 import { formatAmount } from '../../utils/formatCurrency';
 import { generateEstimateExcel } from '../../utils/generateEstimateExcel';
+import { generateEstimatePdf } from '../../utils/generateEstimatePdf';
 
 // ── Default expense articles (real УК template) ──
 const DEFAULT_EXPENSE_ARTICLES: Array<{ name_ru: string; name_uz: string }> = [
@@ -51,6 +54,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function EstimatesPage() {
   const language = useLanguageStore((s) => s.language);
+  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
   const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
 
   const estimates = useFinanceStore((s) => s.estimates);
@@ -313,13 +317,23 @@ export default function EstimatesPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">{t('Создать смету', 'Smeta yaratish')}</span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Sprint 3: новый 4-шаговый мастер v2 (штат + доходы + гос. минимум). */}
+          <a
+            href="/finance/estimates/v2/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 border border-primary-300 text-primary-600 rounded-xl hover:bg-primary-50 transition-colors font-medium text-sm"
+            title={t('Новый мастер расчёта тарифа с проверкой Ташкентского минимума', 'Toshkent minimumini tekshirish bilan yangi tarif ustasi')}
+          >
+            ✨ {t('Мастер v2', 'v2 usta')}
+          </a>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('Создать смету', 'Smeta yaratish')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -857,7 +871,8 @@ export default function EstimatesPage() {
                       currentEstimate,
                       detailItems,
                       buildings as Array<Record<string, unknown>>,
-                      language as 'ru' | 'uz'
+                      language as 'ru' | 'uz',
+                      tenantName,  // Sprint 4: реальное имя УК в шапку
                     );
                   }
                 }}
@@ -865,6 +880,24 @@ export default function EstimatesPage() {
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 {t('Скачать Excel', 'Excel yuklash')}
+              </button>
+              {/* Sprint 8: PDF-экспорт через window.print */}
+              <button
+                onClick={() => {
+                  if (currentEstimate) {
+                    generateEstimatePdf(
+                      currentEstimate as unknown as Record<string, unknown>,
+                      detailItems as unknown as Parameters<typeof generateEstimatePdf>[1],
+                      buildings as Parameters<typeof generateEstimatePdf>[2],
+                      language as 'ru' | 'uz',
+                      tenantName,
+                    );
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+              >
+                <FileText className="w-4 h-4" />
+                {t('Печать / PDF', 'Chop / PDF')}
               </button>
               {currentEstimate.show_profit_to_residents === 1 && (
                 <span className="inline-flex items-center gap-1 text-xs text-gray-500">

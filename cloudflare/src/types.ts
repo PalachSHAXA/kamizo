@@ -12,6 +12,9 @@ export interface Env {
   EMERGENCY_RESET_SECRET?: string;
   SETUP_TOKEN?: string;
   SUPERADMIN_BOOTSTRAP_PASSWORD?: string;
+  // Sprint 5 Task 3: секрет для VPS-cron endpoint'а auto-billing.
+  // Setup: /opt/kamizo/app/.env → CRON_SECRET=<random 32 bytes>
+  CRON_SECRET?: string;
   ASSETS: Fetcher;
   RATE_LIMITER: KVNamespace;
   CONNECTION_MANAGER: DurableObjectNamespace;

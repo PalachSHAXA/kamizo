@@ -174,6 +174,10 @@ const FinanceIncomePage = lazyWithRetry(() => import('../../pages/finance/Income
 const FinanceMaterialsPage = lazyWithRetry(() => import('../../pages/finance/MaterialsPage'));
 const FinanceSettingsPage = lazyWithRetry(() => import('../../pages/finance/SettingsPage'));
 const FinanceExpensesPage = lazyWithRetry(() => import('../../pages/finance/ExpensesPage'));
+// Sprint 3-6 v2: wizard, resident finance page, fact-report
+const EstimateV2WizardPage = lazyWithRetry(() => import('../../pages/finance/estimate-v2/EstimateV2WizardPage').then(m => ({ default: m.EstimateV2WizardPage })));
+const ResidentFinancePage = lazyWithRetry(() => import('../../pages/finance/estimate-v2/ResidentFinancePage').then(m => ({ default: m.ResidentFinancePage })));
+const FactReportPage = lazyWithRetry(() => import('../../pages/finance/estimate-v2/FactReportPage').then(m => ({ default: m.FactReportPage })));
 
 export function Layout() {
   const location = useLocation();
@@ -769,6 +773,24 @@ export function Layout() {
               <Route path="/finance/estimates" element={
                 <ProtectedRoute allowedRoles={['admin', 'director', 'manager']} requiredFeature="communal">
                   <FinanceEstimatesPage />
+                </ProtectedRoute>
+              } />
+              {/* Sprint 3 v2 wizard — admin/director only */}
+              <Route path="/finance/estimates/v2/new" element={
+                <ProtectedRoute allowedRoles={['admin', 'director']} requiredFeature="communal">
+                  <EstimateV2WizardPage />
+                </ProtectedRoute>
+              } />
+              {/* Sprint 6: факт-отчёт ст.29 ЗРУ-581 */}
+              <Route path="/finance/reports/fact" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant', 'commercial_owner']} requiredFeature="communal">
+                  <FactReportPage />
+                </ProtectedRoute>
+              } />
+              {/* Sprint 4: резидентская «Мои начисления» */}
+              <Route path="/finance/my" element={
+                <ProtectedRoute allowedRoles={['resident', 'tenant', 'commercial_owner']}>
+                  <ResidentFinancePage />
                 </ProtectedRoute>
               } />
               <Route path="/finance/charges" element={
