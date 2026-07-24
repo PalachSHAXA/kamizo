@@ -402,6 +402,213 @@ route('GET', '/api/finance/estimates/:id/full', async (request, env, params) => 
 });
 
 // ────────────────────────────────────────────────────────────────────
+// Sync personal_accounts.current_debt/balance/last_payment из finance_charges
+// и finance_payments. personal_accounts живёт отдельно от finance_charges —
+// раньше поле `current_debt` заполнялось только вручную через PATCH и
+// расходилось с реальностью. Функция синхронизирует одним UPDATE-JOIN'ом
+// все ЛС конкретного дома (или все дома тенанта если building_id=null).
+//
+// Вызывается: (1) из ручного endpoint'а /api/finance/sync-accounts (для
+// админа) и (2) из cron auto-billing после генерации всех charges.
+// ────────────────────────────────────────────────────────────────────
+
+async function syncPersonalAccounts(env: Env, tenantId: string | null, buildingId?: string | null): Promise<{ updated: number }> {
+  // Один UPDATE ... FROM (SELECT ...) — SQLite 3.33+ поддерживает.
+  // Обновляем apartments-level agg: charged - paid = current_debt, а также
+  // last_payment_date/amount берём из максимального finance_payments.
+  const params: any[] = [];
+  let where = '1=1';
+  if (tenantId) { where += ' AND pa.tenant_id = ?'; params.push(tenantId); }
+  if (buildingId) { where += ' AND pa.building_id = ?'; params.push(buildingId); }
+
+  const res = await env.DB.prepare(
+    `UPDATE personal_accounts AS pa
+     SET current_debt = COALESCE((
+           SELECT SUM(c.amount) - SUM(c.paid_amount)
+           FROM finance_charges c
+           WHERE c.apartment_id = pa.apartment_id
+             ${tenantId ? 'AND c.tenant_id = pa.tenant_id' : ''}
+         ), 0),
+         balance = COALESCE((
+           SELECT SUM(c.paid_amount) - SUM(c.amount)
+           FROM finance_charges c
+           WHERE c.apartment_id = pa.apartment_id
+             ${tenantId ? 'AND c.tenant_id = pa.tenant_id' : ''}
+         ), 0),
+         last_payment_date = (
+           SELECT MAX(p.payment_date)
+           FROM finance_payments p
+           WHERE p.apartment_id = pa.apartment_id
+             ${tenantId ? 'AND p.tenant_id = pa.tenant_id' : ''}
+         ),
+         updated_at = datetime('now')
+     WHERE ${where}`
+  ).bind(...params).run();
+
+  return { updated: (res.meta as any)?.changes || 0 };
+}
+
+// Ручной endpoint пересчёта — admin/director может дёрнуть после подозрения
+// на дрейф (например, ручные правки в БД через sqlite3).
+route('POST', '/api/finance/sync-accounts', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  if (!isAdminLevel(user)) return error('Admin or director access required', 403);
+
+  const tenantId = getTenantId(request);
+  const url = new URL(request.url);
+  const buildingId = url.searchParams.get('building_id');
+
+  const result = await syncPersonalAccounts(env, tenantId, buildingId);
+  return json({ ok: true, ...result });
+});
+
+// ────────────────────────────────────────────────────────────────────
+// CRON: monthly auto-billing. Триггерится с VPS через systemd timer
+// (или crontab) 1-го числа каждого месяца:
+//
+//   # /etc/cron.d/kamizo-monthly-billing (или systemd .timer)
+//   0 6 1 * * kamizo curl -s -X POST \
+//     -H "X-Cron-Secret: $CRON_SECRET" \
+//     https://api.kamizo.uz/api/finance/cron/generate-monthly
+//
+// Скрипт итерирует все active v2-сметы во всех тенантах, для каждой
+// вызывает существующую логику генерации charges (POST /charges/generate
+// сам идемпотентен: не создаёт дубликаты на пару (estimate_id, apt, period)).
+// Возвращает суммарный отчёт.
+// ────────────────────────────────────────────────────────────────────
+
+route('POST', '/api/finance/cron/generate-monthly', async (request, env) => {
+  const secret = request.headers.get('X-Cron-Secret');
+  if (!env.CRON_SECRET) return error('CRON_SECRET not configured on server', 500);
+  if (secret !== env.CRON_SECRET) return error('Forbidden', 403);
+
+  const url = new URL(request.url);
+  const overridePeriod = url.searchParams.get('period'); // для ручного запуска: ?period=2026-08
+  const now = new Date();
+  const period = overridePeriod
+    || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  // Все активные v2-сметы (легаси не трогаем — их менеджер сам генерит вручную)
+  const { results: estimates } = await env.DB.prepare(
+    `SELECT id, tenant_id, building_id, period AS estimate_period, model
+     FROM finance_estimates
+     WHERE status = 'active'
+       AND model IN ('TARIFF_CALCULATED', 'TARIFF_MANUAL', 'TARIFF_FLAT')`
+  ).all() as any;
+
+  const report: Array<{ estimate_id: string; tenant_id: string; building_id: string; generated: number; skipped: number; error?: string }> = [];
+
+  for (const est of (estimates || []) as any[]) {
+    try {
+      // Все квартиры дома
+      const { results: apartments } = await env.DB.prepare(
+        `SELECT id, total_area, property_type, is_commercial, is_basement, is_parking
+         FROM apartments WHERE building_id = ? AND tenant_id = ?`
+      ).bind(est.building_id, est.tenant_id).all() as any;
+
+      // Уже сгенерированные на этот период (идемпотентность)
+      const { results: existing } = await env.DB.prepare(
+        `SELECT apartment_id FROM finance_charges
+         WHERE estimate_id = ? AND period = ? AND tenant_id = ?`
+      ).bind(est.id, period, est.tenant_id).all() as any;
+      const existingSet = new Set((existing || []).map((c: any) => c.apartment_id));
+
+      // Тянем полную смету для расчёта (с новыми колонками v2)
+      const full = await env.DB.prepare(
+        `SELECT * FROM finance_estimates WHERE id = ?`
+      ).bind(est.id).first() as any;
+
+      const commercialRate = Number(full.commercial_rate) || 0;
+      const basementRate = Number(full.basement_rate) || 0;
+      const parkingRate = Number(full.parking_rate) || 0;
+      const nonResidentialRate = Number(full.non_commercial_rate_per_sqm) || 0;
+      const residentialRate = Number(full.tariff_approved) || Number(full.tariff_resident) || 0;
+
+      const { results: itemsRaw } = await env.DB.prepare(
+        `SELECT name, amount, kind FROM finance_estimate_items WHERE estimate_id = ?`
+      ).bind(est.id).all() as any;
+      const items = (itemsRaw || []).filter((i: any) => (i.kind || 'expense') === 'expense');
+      const totalItems = items.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
+
+      const [year, month] = period.split('-').map(Number);
+      const dueDate = new Date(year, month, 0).toISOString().slice(0, 10);
+
+      const stmts: any[] = [];
+      let generated = 0, skipped = 0;
+
+      for (const apt of (apartments || []) as any[]) {
+        if (existingSet.has(apt.id)) { skipped++; continue; }
+        const area = Number(apt.total_area) || 0;
+        if (area <= 0 && !apt.is_parking) { skipped++; continue; }
+
+        let rate: number, propertyType: string, isFlat = false;
+        if (apt.is_parking) { rate = parkingRate; propertyType = 'non_commercial'; isFlat = true; }
+        else if (apt.is_basement || apt.property_type === 'basement') { rate = basementRate > 0 ? basementRate : nonResidentialRate; propertyType = 'non_commercial'; }
+        else if (apt.is_commercial) { rate = commercialRate > 0 ? commercialRate : nonResidentialRate; propertyType = 'commercial'; }
+        else if (apt.property_type === 'non_commercial') { rate = basementRate > 0 ? basementRate : nonResidentialRate; propertyType = 'non_commercial'; }
+        else { rate = residentialRate; propertyType = 'residential'; }
+
+        const baseAmount = isFlat ? Math.round(rate * 100) / 100 : Math.round(area * rate * 100) / 100;
+        if (baseAmount <= 0) { skipped++; continue; }
+
+        const itemBreakdown = items.map((it: any) => ({
+          name: it.name,
+          share: totalItems > 0 ? Math.round((Number(it.amount) / totalItems) * baseAmount * 100) / 100 : 0,
+        }));
+        const breakdown = { area_sqm: area, rate_per_sqm: rate, base_amount: baseAmount, property_type: propertyType, items: itemBreakdown };
+        const dbPropertyType = propertyType === 'non_commercial' ? 'non_commercial' : 'commercial';
+
+        stmts.push(env.DB.prepare(
+          `INSERT INTO finance_charges (id, apartment_id, estimate_id, period, amount, amount_breakdown, property_type, area_sqm, rate_per_sqm, status, due_date, tenant_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+        ).bind(
+          generateId(), apt.id, est.id, period, baseAmount,
+          JSON.stringify(breakdown), dbPropertyType, area, rate, dueDate, est.tenant_id
+        ));
+        generated++;
+      }
+
+      // Batch insert
+      const BATCH = 100;
+      for (let i = 0; i < stmts.length; i += BATCH) {
+        await env.DB.batch(stmts.slice(i, i + BATCH));
+      }
+
+      report.push({ estimate_id: est.id, tenant_id: est.tenant_id, building_id: est.building_id, generated, skipped });
+    } catch (e: any) {
+      report.push({ estimate_id: est.id, tenant_id: est.tenant_id, building_id: est.building_id, generated: 0, skipped: 0, error: e?.message || String(e) });
+    }
+  }
+
+  const totalGenerated = report.reduce((s, r) => s + r.generated, 0);
+  const totalSkipped = report.reduce((s, r) => s + r.skipped, 0);
+  const errors = report.filter(r => r.error).length;
+
+  // После генерации charges — синхронизируем personal_accounts по всем
+  // тенантам, где что-то поменялось (иначе current_debt будет вечно врать).
+  const touchedTenants = Array.from(new Set(report.filter(r => r.generated > 0).map(r => r.tenant_id)));
+  let paSyncTotal = 0;
+  for (const tid of touchedTenants) {
+    try {
+      const s = await syncPersonalAccounts(env, tid || null);
+      paSyncTotal += s.updated;
+    } catch { /* silent */ }
+  }
+
+  return json({
+    ok: true,
+    period,
+    estimates_processed: report.length,
+    charges_generated: totalGenerated,
+    charges_skipped_existing: totalSkipped,
+    errors,
+    personal_accounts_synced: paSyncTotal,
+    report,
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────
 // Resident: одним запросом — все свои начисления + баланс.
 // Работает без apartment_id — резолвим квартиры по primary_owner_id.
 // Раньше frontend вынужден был передавать user.id как apartment_id

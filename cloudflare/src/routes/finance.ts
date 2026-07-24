@@ -4,6 +4,7 @@ import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, bilingualError, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
+import { sendPushNotification } from './notifications';
 
 // ── Helper: finance access check ──────────────────────────────────
 
@@ -420,6 +421,34 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
         `Доход предприятия от сметы (${generated} квартир, ${profitPercent}%)`,
         'estimate', estimate_id, user.id, tenantId || ''
       ).run();
+    }
+  }
+
+  // Sprint 5 Task 2: пуш-нотификация жителям (только новые charges, не existing).
+  // Fire-and-forget: любая ошибка отправки не должна ронять response.
+  // Отправляем одним запросом на каждого owner_id — если у юзера несколько квартир,
+  // он получит один push с общей суммой.
+  if (generated > 0) {
+    const { results: ownersRows } = await env.DB.prepare(
+      `SELECT DISTINCT a.primary_owner_id AS owner_id, SUM(c.amount) AS total
+       FROM finance_charges c
+       JOIN apartments a ON a.id = c.apartment_id
+       WHERE c.estimate_id = ? AND c.period = ? AND a.primary_owner_id IS NOT NULL
+         ${tenantId ? 'AND c.tenant_id = ?' : ''}
+       GROUP BY a.primary_owner_id`
+    ).bind(estimate_id, period, ...(tenantId ? [tenantId] : [])).all() as any;
+
+    const periodTitle = new Date(period + '-01').toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    for (const row of (ownersRows || []) as Array<{ owner_id: string; total: number }>) {
+      if (!row.owner_id) continue;
+      const amountStr = Math.round(row.total || 0).toLocaleString('ru-RU');
+      sendPushNotification(env, row.owner_id, {
+        title: `💰 Начисление за ${periodTitle}`,
+        body: `К оплате: ${amountStr} сум. Открыть квитанцию →`,
+        type: 'finance_charge_created',
+        tag: `charge-${estimate_id}-${period}`,
+        data: { url: '/finance/my' },
+      }).catch(() => { /* silent */ });
     }
   }
 
@@ -1078,6 +1107,10 @@ route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env
 
   const totalCharged = totals?.total_charged || 0;
   const totalPaid = totals?.total_paid || 0;
+  // Sprint 5 P0: balance = charged − paid. Положительный балланс = ДОЛГ
+  // (юзер должен УК), отрицательный = ПЕРЕПЛАТА (УК должна вернуть).
+  // Раньше поля overpaid/debt были перепутаны — код называл долг переплатой
+  // и наоборот. Виджет баланса жителю показывал бред. Фикс: правильные знаки.
   const balance = totalCharged - totalPaid;
 
   // Charges by month
@@ -1092,8 +1125,9 @@ route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env
       total_charged: totalCharged,
       total_paid: totalPaid,
       balance,
-      overpaid: balance > 0 ? balance : 0,
-      debt: balance < 0 ? Math.abs(balance) : 0,
+      // Sprint 5 P0 fix: правильные знаки.
+      debt:     balance > 0 ? balance          : 0,   // charged > paid → должен УК
+      overpaid: balance < 0 ? Math.abs(balance) : 0,  // paid > charged → переплата
     },
     charges_by_month: chargesByMonth,
   });
