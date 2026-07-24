@@ -133,3 +133,42 @@ export const estimateV2Api = {
       building: { floors?: number; has_elevator?: boolean; has_pumps?: boolean };
     }>(`/api/finance/estimates/${estimateId}/full`),
 };
+
+// ── Resident-facing endpoints ────────────────────────────────────────
+
+export interface MyChargeRow {
+  id: string;
+  apartment_id: string;
+  period: string;
+  amount: number;
+  paid_amount: number;
+  amount_breakdown: string | null;   // JSON string
+  status: string;
+  due_date: string | null;
+  created_at: string;
+}
+
+export interface MyBalance {
+  total_charged: number;
+  total_paid: number;
+  debt: number;      // должен УК (charged − paid > 0)
+  overpaid: number;  // УК должна вернуть
+  net: number;
+}
+
+export interface MyApartmentRow {
+  id: string;
+  number: string;
+  total_area: number;
+  building_id: string;
+}
+
+export const residentFinanceApi = {
+  /** Одним вызовом — все квартиры юзера + начисления + правильный баланс. */
+  getMy: () =>
+    apiRequest<{
+      apartments: MyApartmentRow[];
+      charges: MyChargeRow[];
+      balance: MyBalance;
+    }>('/api/finance/my-charges'),
+};

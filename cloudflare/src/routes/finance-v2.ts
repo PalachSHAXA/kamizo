@@ -401,4 +401,67 @@ route('GET', '/api/finance/estimates/:id/full', async (request, env, params) => 
   });
 });
 
+// ────────────────────────────────────────────────────────────────────
+// Resident: одним запросом — все свои начисления + баланс.
+// Работает без apartment_id — резолвим квартиры по primary_owner_id.
+// Раньше frontend вынужден был передавать user.id как apartment_id
+// (см. B-046 в аудите), и виджет тихо получал 403.
+// ────────────────────────────────────────────────────────────────────
+
+route('GET', '/api/finance/my-charges', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+
+  // Все квартиры, где юзер = primary_owner. Тенант отфильтруется через
+  // общий фильтр tenant_id ниже.
+  const { results: myApts } = await env.DB.prepare(
+    `SELECT id, number, total_area, building_id
+     FROM apartments
+     WHERE primary_owner_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(user.id, ...(tenantId ? [tenantId] : [])).all() as any;
+
+  const aptIds = (myApts || []).map((a: any) => a.id);
+  if (aptIds.length === 0) {
+    return json({
+      apartments: [],
+      charges: [],
+      balance: { total_charged: 0, total_paid: 0, debt: 0, overpaid: 0 },
+    });
+  }
+
+  // Начисления по всем квартирам за 24 последних месяца
+  const placeholders = aptIds.map(() => '?').join(',');
+  const { results: charges } = await env.DB.prepare(
+    `SELECT c.id, c.apartment_id, c.period, c.amount, c.paid_amount,
+            c.amount_breakdown, c.status, c.due_date, c.created_at
+     FROM finance_charges c
+     WHERE c.apartment_id IN (${placeholders})
+       ${tenantId ? 'AND c.tenant_id = ?' : ''}
+     ORDER BY c.period DESC, c.created_at DESC
+     LIMIT 200`
+  ).bind(...aptIds, ...(tenantId ? [tenantId] : [])).all() as any;
+
+  // Правильный расчёт баланса (backend GET .../balance путает знаки —
+  // см. audit item overpaid/debt). Здесь однозначно:
+  //   netBalance = charged − paid
+  //   > 0 → долг жителя (должен УК)
+  //   < 0 → переплата (УК должна вернуть)
+  const totalCharged = (charges || []).reduce((s: number, c: any) => s + (c.amount || 0), 0);
+  const totalPaid = (charges || []).reduce((s: number, c: any) => s + (c.paid_amount || 0), 0);
+  const net = totalCharged - totalPaid;
+
+  return json({
+    apartments: myApts,
+    charges: charges || [],
+    balance: {
+      total_charged: totalCharged,
+      total_paid: totalPaid,
+      debt: net > 0 ? net : 0,
+      overpaid: net < 0 ? Math.abs(net) : 0,
+      net,
+    },
+  });
+});
+
 } // end registerFinanceV2Routes

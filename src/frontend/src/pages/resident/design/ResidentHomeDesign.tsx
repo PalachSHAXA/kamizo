@@ -184,18 +184,72 @@ function MeetingWidget({ meeting, language, onOpen }: any) {
 }
 
 function BalanceCard({ language }: any) {
+  // Sprint 4: подтягиваем реальный баланс через residentFinanceApi.getMy().
+  // Клик по карточке → /finance/my (детальная страница с квитанциями).
+  const [balance, setBalance] = useState<{ debt: number; overpaid: number; total_charged: number; total_paid: number } | null>(null);
+  const [loading, setLoading] = useState(true);
   const month = new Date().toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { month: 'long' });
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let cancelled = false;
+    import('../../../services/api').then(({ residentFinanceApi }) => {
+      residentFinanceApi.getMy()
+        .then((data) => { if (!cancelled) setBalance(data.balance); })
+        .catch(() => { /* silent: карточка просто останется в загрузке/no-data */ })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const debt = balance?.debt || 0;
+  const overpaid = balance?.overpaid || 0;
+  const hasData = balance !== null && (balance.total_charged > 0 || balance.total_paid > 0);
+  const primaryAmount = debt > 0 ? debt : overpaid;
+  const primaryLabel = debt > 0
+    ? ru(language, 'К оплате', 'To\'lash kerak')
+    : overpaid > 0
+      ? ru(language, 'Переплата', 'Ortiqcha to\'lov')
+      : ru(language, 'Нет задолженности', 'Qarz yo\'q');
+
   return (
-    <div style={{ background: 'var(--dark-surface)', borderRadius: 20, padding: 18, color: 'var(--text-on-dark)', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-md)' }}>
-      <div style={{ position: 'absolute', right: -30, top: -30, width: 130, height: 130, borderRadius: 999, background: 'rgba(249,115,22,0.16)' }} />
+    <div
+      onClick={() => navigate('/finance/my')}
+      style={{ background: 'var(--dark-surface)', borderRadius: 20, padding: 18, color: 'var(--text-on-dark)', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-md)', cursor: 'pointer' }}
+    >
+      <div style={{ position: 'absolute', right: -30, top: -30, width: 130, height: 130, borderRadius: 999, background: debt > 0 ? 'rgba(239,68,68,0.18)' : 'rgba(16,185,129,0.16)' }} />
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', color: 'rgba(244,240,232,0.6)', textTransform: 'uppercase' }}>{ru(language, `Оплата ЖКУ · ${month}`, `To'lov · ${month}`)}</div>
-        <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 999, background: 'rgba(244,240,232,0.12)', color: 'rgba(244,240,232,0.8)', textTransform: 'uppercase' }}>{ru(language, 'Скоро', 'Tez')}</span>
+        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', color: 'rgba(244,240,232,0.6)', textTransform: 'uppercase' }}>
+          {ru(language, `Оплата ЖКУ · ${month}`, `To'lov · ${month}`)}
+        </div>
+        <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 999, background: 'rgba(244,240,232,0.12)', color: 'rgba(244,240,232,0.8)', textTransform: 'uppercase' }}>
+          {ru(language, 'Открыть', 'Ochish')} →
+        </span>
       </div>
-      <div style={{ position: 'relative', fontSize: 13.5, color: 'rgba(244,240,232,0.7)', marginTop: 12 }}>{ru(language, 'Онлайн-оплата и счётчики — в разработке', 'Onlayn to\'lov — ishlanmoqda')}</div>
-      <button disabled style={{ position: 'relative', width: '100%', marginTop: 14, padding: 12, borderRadius: 14, border: 'none', cursor: 'not-allowed', background: 'var(--brand)', color: '#fff', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: 0.6 }}>
-        {ru(language, 'Оплатить онлайн', 'Onlayn to\'lash')} <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: 'rgba(255,255,255,0.25)' }}>{ru(language, 'СКОРО', 'TEZ')}</span>
-      </button>
+
+      {loading ? (
+        <div style={{ position: 'relative', fontSize: 13.5, color: 'rgba(244,240,232,0.5)', marginTop: 12 }}>
+          {ru(language, 'Загрузка...', 'Yuklanmoqda...')}
+        </div>
+      ) : hasData ? (
+        <>
+          <div style={{ position: 'relative', fontSize: 11, color: 'rgba(244,240,232,0.6)', marginTop: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {primaryLabel}
+          </div>
+          <div style={{ position: 'relative', fontSize: 26, fontWeight: 800, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+            {Math.round(primaryAmount).toLocaleString('ru-RU').replace(/,/g, ' ')} сум
+          </div>
+          <div style={{ position: 'relative', fontSize: 11.5, color: 'rgba(244,240,232,0.55)', marginTop: 6 }}>
+            {ru(language,
+              `Начислено ${Math.round(balance!.total_charged).toLocaleString('ru-RU').replace(/,/g, ' ')} · Оплачено ${Math.round(balance!.total_paid).toLocaleString('ru-RU').replace(/,/g, ' ')}`,
+              `Hisoblangan ${Math.round(balance!.total_charged).toLocaleString('ru-RU').replace(/,/g, ' ')} · To'langan ${Math.round(balance!.total_paid).toLocaleString('ru-RU').replace(/,/g, ' ')}`)}
+          </div>
+        </>
+      ) : (
+        <div style={{ position: 'relative', fontSize: 13.5, color: 'rgba(244,240,232,0.7)', marginTop: 12 }}>
+          {ru(language, 'Начислений пока нет', 'Hozircha hisoblar yo\'q')}
+        </div>
+      )}
     </div>
   );
 }

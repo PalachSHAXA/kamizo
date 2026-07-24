@@ -65,10 +65,11 @@ export { paymentsApi } from './payments';
 
 // Finance module
 export { financeApi } from './finance';
-export { estimateV2Api } from './finance-v2';
+export { estimateV2Api, residentFinanceApi } from './finance-v2';
 export type {
   EstimateModelV2, StaffPositionV2, ExpenseLineV2, IncomeStreamV2,
   ExpenseSection, ItemUnit, IncomeType, EstimateResultV2, EstimateWarning,
+  MyChargeRow, MyBalance, MyApartmentRow,
 } from './finance-v2';
 
 // Settings, Notifications, Tenant

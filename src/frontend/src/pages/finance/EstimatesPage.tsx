@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useTenantStore } from '../../stores/tenantStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import {
@@ -51,6 +52,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function EstimatesPage() {
   const language = useLanguageStore((s) => s.language);
+  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
   const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
 
   const estimates = useFinanceStore((s) => s.estimates);
@@ -867,7 +869,8 @@ export default function EstimatesPage() {
                       currentEstimate,
                       detailItems,
                       buildings as Array<Record<string, unknown>>,
-                      language as 'ru' | 'uz'
+                      language as 'ru' | 'uz',
+                      tenantName,  // Sprint 4: реальное имя УК в шапку
                     );
                   }
                 }}
