@@ -19,7 +19,8 @@ import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
 import { RentalsBottomBar } from './RentalsBottomBar';
-import { MOCK_USER_ID } from './__devMock';
+// MOCK_USER_ID intentionally NOT imported — see note on RentalListingDetailPage.
+// No usage in this file today; keeping the removal explicit as a guard.
 import { neighbourKicker, type RentalListingUI, type RentalListingPhotoAPI, type RentalState } from './types';
 import { rentalsApi } from './api';
 

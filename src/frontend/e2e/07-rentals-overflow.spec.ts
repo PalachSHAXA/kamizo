@@ -74,6 +74,30 @@ const RENTALS_SCREENS: Array<{ path: string; label: string; setup?: (p: Page) =>
   { path: '/apartment-rentals/rl-02', label: 'detail (rl-02, neighbour)' },
   { path: '/apartment-rentals/rl-05', label: 'detail (rl-05, hidden by УК)' },
   { path: '/apartment-rentals/create', label: 'create step 1 (photos)' },
+  // Sprint 88 — manager moderation surface. Route is role-gated, but in
+  // dev the mock primes a resident user; the mock also primes tenant
+  // features so hasFeature('rental_listings') is true — the page still
+  // renders (ProtectedRoute redirects would surface as a different URL
+  // and thus test failure). The overflow gate is what we care about here,
+  // not the role gate itself (see wire-test for that).
+  // Sprint 88 — manager moderation surface. Route is role-gated
+  // (admin/manager/director); `?role=manager` param instructs the
+  // rentals mock to prime the auth store with that role, which lets
+  // ProtectedRoute pass. Ignored in prod builds. Tap each tab to
+  // verify the tab-row layout at every filled state.
+  { path: '/rentals-moderation?role=manager', label: 'moderation (all tabs sequentially)', setup: async (p) => {
+      for (const label of ['Скрытые', 'Сданные', 'Архив', 'Активные']) {
+        const tab = p.locator(`button:has-text("${label}")`).first();
+        if (await tab.count()) { await tab.click(); await p.waitForTimeout(150); }
+      }
+  } },
+  // Hide sheet open — hide-reason textarea + reason-length counter
+  // must not push the sheet past the viewport.
+  { path: '/rentals-moderation?role=manager', label: 'moderation with hide-sheet open', setup: async (p) => {
+      // Wait for at least one active card, then hit the red "Скрыть" button.
+      const hide = p.locator('button:has-text("Скрыть")').first();
+      if (await hide.count()) { await hide.click(); await p.waitForTimeout(200); }
+  } },
 ];
 
 for (const width of WIDTHS) {

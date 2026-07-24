@@ -156,6 +156,8 @@ const TenantDashboard = lazyWithRetry(() => import('../../pages/tenant/TenantDas
 const ExecutorsPage = lazyWithRetry(() => import('../../pages/shared/ExecutorsPage').then(m => ({ default: m.ExecutorsPage })));
 const RequestsPage = lazyWithRetry(() => import('../../pages/shared/RequestsPage').then(m => ({ default: m.RequestsPage })));
 const RentalsPage = lazyWithRetry(() => import('../../pages/manager/RentalsPage').then(m => ({ default: m.RentalsPage })));
+// Sprint 88 — resident rentals moderation surface (manager-side).
+const RentalsModerationPage = lazyWithRetry(() => import('../../pages/manager/RentalsModerationPage').then(m => ({ default: m.RentalsModerationPage })));
 const TeamPage = lazyWithRetry(() => import('../../pages/admin/TeamPage').then(m => ({ default: m.TeamPage })));
 const ReportsPage = lazyWithRetry(() => import('../../pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const SettingsPage = lazyWithRetry(() => import('../../pages/admin/SettingsPage').then(m => ({ default: m.SettingsPage })));
@@ -669,6 +671,18 @@ export function Layout() {
               <Route path="/rentals" element={
                 <ProtectedRoute allowedRoles={['admin', 'manager', 'director']} requiredFeature="rentals">
                   <RentalsPage />
+                </ProtectedRoute>
+              } />
+              {/* Sprint 88 — УК moderation surface for the resident
+                  rentals marketplace. Distinct from /rentals (contract
+                  log) — this one moderates resident-published listings
+                  gated by rental_listings, not staff-created records.
+                  Server also enforces isManagement() on the state-hide
+                  branch, so a resident hitting the route or a resident
+                  token calling POST /state {hidden} both refuse. */}
+              <Route path="/rentals-moderation" element={
+                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']} requiredFeature="rental_listings">
+                  <RentalsModerationPage />
                 </ProtectedRoute>
               } />
               <Route path="/buildings" element={

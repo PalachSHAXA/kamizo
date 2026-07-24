@@ -24,7 +24,9 @@ import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
 import { RentalsBottomBar } from './RentalsBottomBar';
 import { useAndroidKbSpacer } from './useAndroidKbSpacer';
-import { MOCK_USER_ID, MOCK_TENANT_ID } from './__devMock';
+// MOCK_USER_ID / MOCK_TENANT_ID intentionally NOT imported here — see
+// note on RentalListingDetailPage. Any top-level import forces the
+// __devMock chunk into the prod bundle even though it's never invoked.
 import { neighbourKicker, type RentalListingPhotoAPI, type RentalListingUI } from './types';
 import { rentalsApi } from './api';
 
@@ -377,7 +379,7 @@ export function RentalsFeedPage() {
               key={l.id}
               listing={l}
               photos={photosByListing[l.id] || []}
-              isOwn={l.publisher_user_id === (user?.id || MOCK_USER_ID)}
+              isOwn={l.publisher_user_id === (user?.id || '')}
               isFav={favorites.includes(l.id)}
               onToggleFav={() => toggleFav(l.id)}
               onOpen={() => navigate(`/apartment-rentals/${l.id}`)}

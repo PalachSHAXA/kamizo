@@ -115,6 +115,32 @@ export const rentalsApi = {
     };
   },
 
+  // ── Tenant-wide listings by state (management moderation view) ────
+  //     Same underlying endpoint as listActive() but with an explicit
+  //     state param. Servers side scopes by tenant_id via getTenantId;
+  //     a resident calling this would see only listings visible to
+  //     residents (active-only, tenant-wide). A manager sees every
+  //     state across every publisher. Cover photos are N+1-fetched, so
+  //     the moderation page pays the same load cost as the feed.
+  async listByState(state: RentalState): Promise<ListingsWithPhotos> {
+    if (IS_MOCK) {
+      const rows = MOCK_LISTINGS.filter(l => l.state === state);
+      return {
+        listings: rows.map(normalizeListing),
+        photosByListing: indexPhotos(MOCK_PHOTOS.filter(p => rows.some(l => l.id === p.listing_id))),
+      };
+    }
+    const resp = await apiRequest<{ listings: RentalListingAPI[] }>(
+      `/api/rentals/listings?state=${encodeURIComponent(state)}`
+    );
+    const listings = resp.listings || [];
+    const photosByListing = await fetchCoverPhotosFor(listings);
+    return {
+      listings: listings.map(normalizeListing),
+      photosByListing,
+    };
+  },
+
   // ── My listings (all states, owned by current user) ────────────────
   async listMine(): Promise<ListingsWithPhotos> {
     if (IS_MOCK) {

@@ -26,7 +26,11 @@ import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
 import { useAndroidKbSpacer } from './useAndroidKbSpacer';
-import { MOCK_USER_ID } from './__devMock';
+// MOCK_USER_ID intentionally NOT imported here: any top-level reference
+// forces Rollup to keep the __devMock chunk in prod. Runtime is safe —
+// ProtectedRoute means `user` is non-null on this route, so the OR-
+// fallback below never fires. The empty-string fallback is only for the
+// impossible "user removed mid-render" case.
 import { neighbourKicker, type RentalReportReason, type RentalListingUI, type RentalListingPhotoAPI } from './types';
 import { rentalsApi } from './api';
 
@@ -125,7 +129,7 @@ export function RentalListingDetailPage() {
     );
   }
 
-  const isOwn = listing.publisher_user_id === (user?.id || MOCK_USER_ID);
+  const isOwn = listing.publisher_user_id === (user?.id || '');
   const roomsText =
     listing.rooms === 0 ? t(language, 'Студия', 'Studiya')
     : listing.rooms === 4 ? '4+ комн'

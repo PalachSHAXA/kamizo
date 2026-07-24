@@ -7,7 +7,7 @@ import {
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
   X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock, CreditCard,
-  FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck,
+  FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck, ShieldAlert,
   ChevronDown, ChevronRight, Globe, Send, Check
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
@@ -403,6 +403,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
         { path: '/rentals', icon: Key, label: language === 'ru' ? 'Договоры краткосрочной аренды' : 'Qisqa muddatli ijara shartnomalari' },
+        { path: '/rentals-moderation', icon: ShieldAlert, label: language === 'ru' ? 'Модерация объявлений' : "E'lonlarni moderatsiya" },
         // Коммуникации
         { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
         { path: '/meetings', icon: Vote, label: t('meetings.title') },
@@ -436,7 +437,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
         { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
-        { path: '/rentals', icon: Key, label: language === 'ru' ? 'Аренда' : 'Ijara' },
+        { path: '/rentals', icon: Key, label: language === 'ru' ? 'Договоры краткосрочной аренды' : 'Qisqa muddatli ijara shartnomalari' },
+        { path: '/rentals-moderation', icon: ShieldAlert, label: language === 'ru' ? 'Модерация объявлений' : "E'lonlarni moderatsiya" },
         // Коммуникации
         { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
         { path: '/meetings', icon: Vote, label: t('meetings.title') },
@@ -488,6 +490,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
       { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
       { path: '/rentals', icon: Key, label: t('nav.rentals') },
+      { path: '/rentals-moderation', icon: ShieldAlert, label: language === 'ru' ? 'Модерация объявлений' : "E'lonlarni moderatsiya" },
       // Коммуникации
       { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
       { path: '/meetings', icon: Vote, label: t('meetings.title') },
@@ -555,7 +558,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       '/announcements': { ru: 'Объявления', uz: 'E\'lonlar' },
       '/trainings': { ru: 'Обучение', uz: 'O\'qitish' },
       '/colleagues': { ru: 'Коллеги', uz: 'Hamkasblar' },
-      '/rentals': { ru: 'Аренда', uz: 'Ijara' },
+      '/rentals': { ru: 'Договоры краткосрочной аренды', uz: 'Qisqa muddatli ijara shartnomalari' },
+      '/rentals-moderation': { ru: 'Модерация объявлений', uz: "E'lonlarni moderatsiya" },
       '/vehicles': { ru: 'Авто', uz: 'Avto' },
       '/vehicle-search': { ru: 'Поиск авто', uz: 'Avto qidirish' },
       '/useful-contacts': { ru: 'Полезные контакты', uz: 'Foydali kontaktlar' },

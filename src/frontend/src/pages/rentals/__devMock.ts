@@ -26,9 +26,23 @@ import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import type { RentalListingAPI, RentalListingPhotoAPI, RentalListingReportAPI } from './types';
 
-// ── State resolution ────────────────────────────────────────────────
-function resolveState(): 'off' | 'empty' | 'populated' | null {
-  if (!import.meta.env.DEV) return null;
+// ── Build-time gate — mirrors marketplace/__devMock.ts pattern ──────
+// IS_MOCK is a PURE INLINE EXPRESSION Rollup constant-folds. In prod
+// builds `import.meta.env.DEV` is folded to `false`, so IS_MOCK
+// becomes `false && …` → `false` — a build-time literal. Every
+// `if (IS_MOCK)` block in this module (and in api.ts) then becomes
+// dead code and Rollup eliminates it, taking MOCK_LISTINGS_POPULATED,
+// MOCK_PHOTOS_POPULATED, resolveMockRole, resolveMockState, and every
+// unsplash literal with it. Verified via grep on dist/.
+//
+// Consequence: to activate the mock at all, VITE_MOCK_RENTALS_STATE
+// must be set at BUILD time. URL param `?rentals=off|empty|populated`
+// only VARIES the state within an already-mock-active dev run; it
+// cannot turn the mock on if the env var was absent at build.
+export const IS_MOCK =
+  import.meta.env.DEV && !!import.meta.env.VITE_MOCK_RENTALS_STATE;
+
+function resolveMockState(): 'off' | 'empty' | 'populated' {
   let url: string | null = null;
   try {
     if (typeof window !== 'undefined') {
@@ -36,16 +50,17 @@ function resolveState(): 'off' | 'empty' | 'populated' | null {
     }
   } catch { /* SSR / no window — ignore */ }
   const env = import.meta.env.VITE_MOCK_RENTALS_STATE as string | undefined;
-  const candidate = url || env || null;
+  const candidate = url || env || 'populated';
   if (candidate === 'off' || candidate === 'empty' || candidate === 'populated') {
     return candidate;
   }
-  return null;
+  return 'populated';
 }
 
-const STATE = resolveState();
-export const IS_MOCK = STATE !== null;
-export const MOCK_STATE = STATE;
+// Ternary IS_MOCK ? … : null — with IS_MOCK constant-folded to false in
+// prod, the whole call to resolveMockState is dead code and gets dropped.
+export const MOCK_STATE: 'off' | 'empty' | 'populated' | null =
+  IS_MOCK ? resolveMockState() : null;
 
 // Current mock user id — this is the "resident viewing the app" for
 // mock purposes. Their own listing appears in the feed marked «ваше»
@@ -229,6 +244,24 @@ export const MOCK_PHOTOS: RentalListingPhotoAPI[] =
 export const MOCK_REPORTS: RentalListingReportAPI[] =
   MOCK_STATE === 'populated' ? MOCK_REPORTS_POPULATED : [];
 
+// Dev-only role override — `?role=manager` (or admin/director) primes
+// the mock user with that role instead of `resident`. Used by the
+// Playwright overflow spec to visit `/rentals-moderation`, which is
+// role-gated.
+//
+// Belt-and-suspenders gate: the CALLER (below) is inside `if (IS_MOCK)`,
+// which is a build-time-foldable false in prod → this function's call
+// site is dead code and Rollup drops the function. The body ALSO
+// short-circuits on !import.meta.env.DEV as a runtime backstop in case
+// some other code path ever reaches it (nothing does today).
+function resolveMockRole(): 'admin' | 'director' | 'manager' | 'resident' {
+  if (!import.meta.env.DEV) return 'resident';
+  if (typeof window === 'undefined') return 'resident';
+  const r = new URLSearchParams(window.location.search).get('role');
+  if (r === 'admin' || r === 'director' || r === 'manager') return r;
+  return 'resident';
+}
+
 // ── Prime stores at module load ─────────────────────────────────────
 if (IS_MOCK) {
   // Auth: seed a mock user IF none already primed (marketplace mock
@@ -239,10 +272,11 @@ if (IS_MOCK) {
         id: MOCK_USER_ID,
         login: 'dev-mock',
         name: 'Dev Preview',
-        role: 'resident',
+        role: resolveMockRole(),
         phone: '+998 90 000 00 00',
         address: 'ул. Проспект, 1',
         apartment: '12',
+        tenant_id: MOCK_TENANT_ID,
       } as any,
       token: 'dev-mock-token',
     } as any);
