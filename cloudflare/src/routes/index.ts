@@ -12,6 +12,7 @@ import { registerRentalRoutes } from './rentals';
 import { registerNotificationRoutes } from './notifications';
 import { registerMiscRoutes } from './misc';
 import { registerFinanceRoutes } from './finance';
+import { registerFinanceV2Routes } from './finance-v2';
 import { registerTenantContractRoutes } from './tenants/contracts';
 import { registerDeviceRoutes } from './devices';
 
@@ -25,6 +26,7 @@ export function registerAllRoutes() {
   registerTrainingRoutes();
   registerNotificationRoutes();
   registerFinanceRoutes();
+  registerFinanceV2Routes();
   registerMiscRoutes();
   registerSuperAdminRoutes();
   // Sprint 85 commit 1 — tenant contract PDF upload/download/delete.

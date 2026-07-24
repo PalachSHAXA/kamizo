@@ -5,6 +5,7 @@ import { useLanguageStore } from '../../stores/languageStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import { teamApi } from '../../services/api';
+import { PenaltySettingsCard } from './estimate-v2/PenaltySettingsCard';
 
 interface UserItem {
   id: string;
@@ -162,6 +163,9 @@ export default function SettingsPage() {
           {t('Дать доступ', 'Ruxsat berish')}
         </button>
       </div>
+
+      {/* Sprint 7: настройка пеней за просрочку */}
+      <PenaltySettingsCard />
 
       {/* Table / Empty */}
       {loadError && financeAccess.length === 0 ? (

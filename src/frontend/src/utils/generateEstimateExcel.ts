@@ -57,9 +57,13 @@ export async function generateEstimateExcel(
   estimate: Record<string, unknown>,
   estimateItems: Record<string, unknown>[],
   buildings: Array<{ id: string; name: string; totalArea: number; livingArea: number; commonArea?: number; [key: string]: unknown }>,
-  language: 'ru' | 'uz'
+  language: 'ru' | 'uz',
+  // Sprint 4: tenant name for header — раньше было хардкодом "Kamizo".
+  // Правая колонка шапки всегда "Kamizo · Управление домом" (это наш SaaS-бренд).
+  tenantName?: string
 ): Promise<void> {
   const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
+  const uk = tenantName || 'Kamizo';
 
   // Lazy-load ExcelJS only when this exporter runs (admin export action).
   // See header comment for context.
@@ -84,12 +88,18 @@ export async function generateEstimateExcel(
   cellApprove.alignment = { horizontal: 'center', vertical: 'middle' };
   r++;
 
-  // Row 2: Директор
-  ws1.mergeCells(r, 1, r, 4);
+  // Row 2: Директор УК (левая часть) + Kamizo лого-подпись (правая)
+  // Слева: "Директор ООО «<tenantName>»" — берётся из tenantStore.
+  // Справа: "Kamizo · Управление домом" — фиксированный бренд платформы.
   const cellDirector = ws1.getCell(r, 1);
-  cellDirector.value = t('Директор ООО «Kamizo»', 'MChJ «Kamizo» direktori');
+  ws1.mergeCells(r, 1, r, 3);
+  cellDirector.value = t(`Директор ООО «${uk}»`, `MChJ «${uk}» direktori`);
   cellDirector.font = { ...FONT_BODY };
-  cellDirector.alignment = { horizontal: 'center', vertical: 'middle' };
+  cellDirector.alignment = { horizontal: 'left', vertical: 'middle' };
+  const cellPlatform = ws1.getCell(r, 4);
+  cellPlatform.value = t('Kamizo · Управление домом', 'Kamizo · Uy boshqaruvi');
+  cellPlatform.font = { ...FONT_BODY, italic: true, color: { argb: 'FF9CA3AF' } };
+  cellPlatform.alignment = { horizontal: 'right', vertical: 'middle' };
   r++;
 
   // Row 3: ___
