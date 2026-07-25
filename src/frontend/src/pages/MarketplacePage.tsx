@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
 import { CardSkeleton } from '../components/CardSkeleton';
+import { SuccessScreen } from '../components/SuccessScreen';
+import { PullToRefresh } from '../components/PullToRefresh';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -268,6 +270,13 @@ export function MarketplacePage() {
     delivery_notes: '',
   });
   const [onDemandSubmitting, setOnDemandSubmitting] = useState(false);
+
+  // Post-submit success overlay. `null` → normal render. `'on-demand'`
+  // → success screen with «Заявка отправлена» copy. `'checkout'` →
+  // success screen with «Заказ создан» copy. Dismissing routes the
+  // user to Orders or back to Shop, replacing the prior toast+auto-
+  // switch pattern for a full editorial confirmation.
+  const [successKind, setSuccessKind] = useState<'on-demand' | 'checkout' | null>(null);
 
   // BottomBar hidden for the entire /marketplace route (2026-07-11).
   // Marketplace is a self-contained context-screen: it has its own
@@ -574,9 +583,9 @@ export function MarketplacePage() {
       const o = await apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders');
       setOrders(o?.orders || []);
       setOnDemandProduct(null);
-      addToast('success', language === 'ru'
-        ? 'Заявка отправлена, УК свяжется по цене'
-        : "Ariza yuborildi, boshqaruv narx haqida bog'lanadi");
+      // Success feedback: full-screen <SuccessScreen> overlay instead
+      // of the previous toast. Error path unchanged.
+      setSuccessKind('on-demand');
     } catch {
       addToast('error', language === 'ru'
         ? 'Не удалось отправить заявку'
@@ -638,14 +647,14 @@ export function MarketplacePage() {
         }),
       });
       setShowOrderModal(false);
-      // Success toast goes through the global <Toast/> which is anchored
-      // above the BottomBar (never behind the dynamic island). Replaces
-      // the previous inline `fixed top-4` green pill that landed under
-      // the notch on iPhones with Dynamic Island.
-      addToast('success', language === 'ru' ? 'Заказ создан!' : 'Buyurtma yaratildi!');
+      // Full-screen success confirmation via <SuccessScreen> — replaces
+      // the toast + delayed auto-switch to Orders. The success screen's
+      // primary CTA takes the resident to Orders explicitly; secondary
+      // returns to the shop. Error path (toast) unchanged so failures
+      // are still surfaced loudly.
       const [c, o] = await Promise.all([apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'), apiRequest<{ orders: MarketplaceOrderAPI[] }>('/api/marketplace/orders')]);
       setCart(c?.cart || []); setOrders(o?.orders || []);
-      setTimeout(() => setActiveTab('orders'), 800);
+      setSuccessKind('checkout');
     } catch {
       addToast('error', language === 'ru' ? 'Не удалось создать заказ' : "Buyurtma yaratilmadi");
     } finally {
@@ -805,7 +814,8 @@ export function MarketplacePage() {
     onDemandProduct ||
     showOrderModal ||
     selectedOrder ||
-    showDeliveryRatingModal
+    showDeliveryRatingModal ||
+    successKind
   );
 
   return (
@@ -819,6 +829,7 @@ export function MarketplacePage() {
     // override it on desktop (the bar is mobile-only). ~96px covers the
     // pill height + breathing room; env(safe-area-inset-bottom) covers
     // the iOS home indicator.
+    <PullToRefresh onRefresh={fetchData} disabled={anyModalOpen}>
     <div className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
       {/* HEADER — sticky, "остаётся на месте" при скролле карточек товаров.
           bg-white (не /95): полупрозрачный фон + backdrop-blur на iOS
@@ -1686,6 +1697,43 @@ export function MarketplacePage() {
           so this pill would sit right on top of it and duplicate the
           shortcut. */}
 
+      {/* Post-submit success overlay — full-viewport confirmation for
+          either on-demand or checkout submission. Fixed-position layer
+          sits above every marketplace UI (bottom bar z-1000, sheets
+          z-[110]) at z-[1100]. Dismisses to Orders (primary) or Shop
+          (secondary). Copy differs per kind. Error paths still surface
+          via toast — this only replaces the SUCCESS toast. */}
+      {successKind !== null && (
+        <div className="fixed inset-0 z-[1100]">
+          <SuccessScreen
+            variant="confirmation"
+            title={successKind === 'on-demand'
+              ? (language === 'ru' ? 'Заявка отправлена' : 'Ariza yuborildi')
+              : (language === 'ru' ? 'Заказ создан' : 'Buyurtma yaratildi')}
+            subtitle={successKind === 'on-demand'
+              ? (language === 'ru'
+                  ? 'УК свяжется с вами по цене и доставке.'
+                  : "Boshqaruv narx va yetkazish bo'yicha siz bilan bog'lanadi.")
+              : (language === 'ru'
+                  ? 'Мы уже собираем ваш заказ. Отслеживайте статус в разделе «Заказы».'
+                  : "Buyurtmangizni yig'a boshladik. Holatni «Buyurtmalar» bo'limida kuzatib boring.")}
+            primary={{
+              label: successKind === 'on-demand'
+                ? (language === 'ru' ? 'Вернуться в магазин' : "Do'konga qaytish")
+                : (language === 'ru' ? 'К моим заказам' : 'Buyurtmalarim'),
+              onClick: () => {
+                const kind = successKind;
+                setSuccessKind(null);
+                // On-demand → back to shop (order sits at awaiting_price
+                // in Orders; feed is the natural return). Checkout →
+                // Orders tab (immediately actionable status).
+                setActiveTab(kind === 'on-demand' ? 'shop' : 'orders');
+              },
+            }}
+          />
+        </div>
+      )}
+
       {/* MarketplaceBottomBar — /marketplace-scoped nav. Mounted here
           rather than in Layout because it needs the sub-tab state
           (Корзина/Заказы) that lives on this component. */}
@@ -2171,6 +2219,7 @@ export function MarketplacePage() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

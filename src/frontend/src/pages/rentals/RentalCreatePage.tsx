@@ -23,6 +23,7 @@ import { useModalPresence } from '../../stores/modalStore';
 import { useAndroidKbSpacer } from './useAndroidKbSpacer';
 import { rentalsApi } from './api';
 import { compressImage } from '../../utils/compressImage';
+import { SuccessScreen } from '../../components/SuccessScreen';
 
 // Server caps (listings.ts):
 //   • decoded photo ≤ 1 MiB
@@ -232,48 +233,32 @@ export function RentalCreatePage() {
     : duration === 'short' ? t(language, 'Короткий срок', 'Qisqa muddat')
     : t(language, 'Гибко', 'Moslashuvchan');
 
-  // ── Step 4: Done ──
+  // ── Step 4: Done — now delegates to shared <SuccessScreen>. The
+  // inline copy that used to live here was the reference for the
+  // component's visual language; component ships the animated draw +
+  // haptic on top.
   if (step === 4) {
     return (
-      <div className="marketplace-page -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA] flex items-center justify-center px-6">
-        <div className="text-center max-w-[340px] mx-auto pb-16">
-          <div className="w-24 h-24 rounded-full bg-primary-50 grid place-items-center mx-auto mb-5">
-            <Check className="w-10 h-10 text-primary-500" strokeWidth={2.2} />
-          </div>
-          <h2 className="text-[24px] font-extrabold text-gray-900 leading-tight" style={{ letterSpacing: '-0.02em' }}>
-            {t(language, 'Опубликовано', 'Joylashtirildi')}
-            <span className="text-primary-500">.</span>
-          </h2>
-          <p className="text-[13.5px] text-gray-600 leading-relaxed mt-3 mb-5">
-            {t(language,
-              'Соседи увидят объявление в ленте прямо сейчас — без ожидания.',
-              "Qo'shnilar e'lonni lentada hoziroq ko'radi — kutmasdan.")}
-          </p>
-          <div className="p-3 rounded-[14px] bg-primary-50 border border-primary-200 flex gap-2 text-left mb-5">
-            <Clock className="w-4 h-4 text-primary-500 flex-shrink-0 mt-0.5" strokeWidth={2.2} />
-            <div className="text-[11.5px] text-primary-700 font-semibold leading-relaxed">
-              {t(language,
-                'Раз в 14 дней мы напомним подтвердить актуальность — одним тапом.',
-                "Har 14 kunda dolzarbligini tasdiqlashni eslataib turamiz — bitta tap bilan.")}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => navigate('/apartment-rentals')}
-              className="w-full py-3.5 rounded-[14px] text-white font-semibold text-[14px] active:scale-[0.98]"
-              style={{ background: 'linear-gradient(150deg, #FB923C, #EA580C)', boxShadow: '0 10px 24px -10px rgba(249,115,22,0.7)' }}
-            >
-              {t(language, 'Открыть объявление', "E'lonni ochish")}
-            </button>
-            <button
-              onClick={() => navigate('/apartment-rentals/mine')}
-              className="w-full py-3.5 rounded-[14px] border border-gray-200 text-gray-900 font-semibold text-[14px]"
-            >
-              {t(language, 'К моим объявлениям', "Mening e'lonlarimga")}
-            </button>
-          </div>
-        </div>
-      </div>
+      <SuccessScreen
+        title={t(language, 'Опубликовано', 'Joylashtirildi')}
+        subtitle={t(language,
+          'Соседи увидят объявление в ленте прямо сейчас — без ожидания.',
+          "Qo'shnilar e'lonni lentada hoziroq ko'radi — kutmasdan.")}
+        info={{
+          Icon: Clock,
+          text: t(language,
+            'Раз в 14 дней мы напомним подтвердить актуальность — одним тапом.',
+            "Har 14 kunda dolzarbligini tasdiqlashni eslatib turamiz — bitta tap bilan."),
+        }}
+        primary={{
+          label: t(language, 'Открыть объявление', "E'lonni ochish"),
+          onClick: () => navigate('/apartment-rentals'),
+        }}
+        secondary={{
+          label: t(language, 'К моим объявлениям', "Mening e'lonlarimga"),
+          onClick: () => navigate('/apartment-rentals/mine'),
+        }}
+      />
     );
   }
 

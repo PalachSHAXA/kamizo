@@ -13,7 +13,7 @@
 // border-gray-*, text-gray-*). Comment at
 // ApartmentRentalsPage.tsx:20-27 already documents this reuse.
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Sliders, Heart, Key, Plus, ShieldAlert } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -23,6 +23,7 @@ import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
 import { CardSkeleton } from '../../components/CardSkeleton';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { RentalsBottomBar } from './RentalsBottomBar';
 import { useAndroidKbSpacer } from './useAndroidKbSpacer';
 // MOCK_USER_ID / MOCK_TENANT_ID intentionally NOT imported here — see
@@ -80,6 +81,9 @@ function useListings(active: boolean) {
   const [listings, setListings] = useState<RentalListingUI[]>([]);
   const [photosByListing, setPhotosByListing] = useState<Record<string, RentalListingPhotoAPI[]>>({});
   const [loading, setLoading] = useState(true);
+  // Bump `refreshKey` from a caller (pull-to-refresh) to re-run the
+  // same fetch without changing the effect deps or the endpoint.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!active) { setLoading(false); return; }
@@ -97,9 +101,39 @@ function useListings(active: boolean) {
       setLoading(false);
     });
     return () => { cancelled = true; };
+  }, [active, refreshKey]);
+
+  // Returns a promise so PullToRefresh knows when to hide the indicator.
+  // We resolve on `active === false` immediately (no fetch to wait on).
+  const refetch = useCallback(async (): Promise<void> => {
+    if (!active) return;
+    return new Promise<void>((resolve) => {
+      // Track completion via a one-shot setState + observation. Simplest:
+      // bump the key and resolve on next microtask + a small tick to let
+      // the API round-trip land. This avoids re-plumbing the fetch out
+      // of useEffect. For PTR UX we mostly need "some time to show the
+      // spinner"; the visible list updates when the effect resolves.
+      setRefreshKey(k => k + 1);
+      // Match the effect's active-flag path: it flips loading synchronously,
+      // so we wait for a next loading→false transition. Cheap heuristic:
+      // 700 ms cap ensures the spinner never spins forever if the network
+      // 500s silently (setListings([]) still fires but state was already
+      // cleared). In practice the fetch resolves faster than the cap.
+      const started = Date.now();
+      const tick = () => {
+        if (!loadingRef.current || Date.now() - started > 700) resolve();
+        else setTimeout(tick, 60);
+      };
+      setTimeout(tick, 120);
+    });
   }, [active]);
 
-  return { listings, photosByListing, loading };
+  // Keep a ref of `loading` so the refetch closure can read the latest
+  // value without triggering a rebind.
+  const loadingRef = useRef(loading);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+  return { listings, photosByListing, loading, refetch };
 }
 
 export function RentalsFeedPage() {
@@ -115,7 +149,7 @@ export function RentalsFeedPage() {
   // shared BottomBar off this route.
   useModalPresence(true);
 
-  const { listings, photosByListing, loading } = useListings(hasRentals);
+  const { listings, photosByListing, loading, refetch } = useListings(hasRentals);
 
   const [favorites, setFavorites] = useState<string[]>(() => readFavs());
   const toggleFav = useCallback((id: string) => {
@@ -258,7 +292,12 @@ export function RentalsFeedPage() {
   }
 
   // ── Feature ON path — feed + empty state ──────────────────────────
+  // Wrapped in PullToRefresh: gesture re-runs the same rentalsApi
+  // .listActive() the feed already uses (see useListings above).
+  // Gesture is armed off while any sheet (filters) is open so the
+  // pull doesn't fight a sheet drag.
   return (
+    <PullToRefresh onRefresh={refetch} disabled={anyModalOpen}>
     <div className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
       {/* Sticky mobile header — editorial title + search chip + filters chip */}
       <div
@@ -546,6 +585,7 @@ export function RentalsFeedPage() {
         onBack={() => navigate('/')}
       />
     </div>
+    </PullToRefresh>
   );
 }
 
