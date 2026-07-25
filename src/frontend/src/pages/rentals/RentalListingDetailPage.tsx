@@ -13,7 +13,7 @@
 // The report sheet has a textarea → useAndroidKbSpacer scoped to when
 // it's open.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Heart, Phone, MessageCircle,
@@ -103,6 +103,37 @@ export function RentalListingDetailPage() {
   };
 
   const [carouselIndex, setCarouselIndex] = useState(0);
+  // Telegram-style tap-to-navigate on the photo hero.
+  // Left half → prev, right half → next. No wraparound (matches the
+  // current dot-tap behaviour: nothing wraps today, only jumps).
+  // A pointerdown/pointerup pair that moves more than TAP_MAX_MOVE
+  // pixels or takes longer than TAP_MAX_MS is treated as a drag/long-
+  // press and IGNORED — this keeps the door open for a future swipe
+  // gesture on the same layer without either handler stealing the
+  // other's events.
+  const TAP_MAX_MOVE = 8;
+  const TAP_MAX_MS = 300;
+  const tapStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const [tapSideFlash, setTapSideFlash] = useState<'left' | 'right' | null>(null);
+  const goPrev = () => setCarouselIndex(i => (i > 0 ? i - 1 : i));
+  const goNext = () => setCarouselIndex(i => (i < photos.length - 1 ? i + 1 : i));
+  const onZonePointerDown = (e: React.PointerEvent) => {
+    tapStartRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+  };
+  const onZonePointerUp = (side: 'left' | 'right') => (e: React.PointerEvent) => {
+    const start = tapStartRef.current;
+    tapStartRef.current = null;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dur = Date.now() - start.t;
+    if (dist > TAP_MAX_MOVE || dur > TAP_MAX_MS) return;   // drag / long-press → ignore
+    // Cheap visual ack: dim the tapped side for a beat.
+    setTapSideFlash(side);
+    setTimeout(() => setTapSideFlash(null), 120);
+    if (side === 'left') goPrev(); else goNext();
+  };
   const [phoneOpen, setPhoneOpen] = useState(false);
   // reportOpen state + useAndroidKbSpacer(reportOpen) removed — report
   // sheet is unreachable pre-launch (see comment at report entry point).
@@ -158,19 +189,50 @@ export function RentalListingDetailPage() {
           <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, #FDBA74, #EA580C)' }} />
         )}
 
-        {/* Top actions (over photo) */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        {/* Tap-to-navigate zones — Telegram-style. Left half → prev,
+            right half → next. Only rendered when there's more than one
+            photo. Sits at default z (above the base photo, below the
+            top-action strip z-10 + dots z-10). Movement>8px OR duration
+            >300ms is treated as drag/long-press and IGNORED — so a
+            future swipe implementation on the same surface can share
+            these listeners without a fight. */}
+        {photos.length > 1 && (
+          <>
+            <div
+              onPointerDown={onZonePointerDown}
+              onPointerUp={onZonePointerUp('left')}
+              onPointerCancel={() => { tapStartRef.current = null; }}
+              className={`absolute inset-y-0 left-0 w-1/2 cursor-default transition-opacity duration-100 ${tapSideFlash === 'left' ? 'bg-black/10' : 'bg-transparent'}`}
+              aria-label={t(language, 'Предыдущее фото', 'Oldingi surat')}
+              role="button"
+            />
+            <div
+              onPointerDown={onZonePointerDown}
+              onPointerUp={onZonePointerUp('right')}
+              onPointerCancel={() => { tapStartRef.current = null; }}
+              className={`absolute inset-y-0 right-0 w-1/2 cursor-default transition-opacity duration-100 ${tapSideFlash === 'right' ? 'bg-black/10' : 'bg-transparent'}`}
+              aria-label={t(language, 'Следующее фото', 'Keyingi surat')}
+              role="button"
+            />
+          </>
+        )}
+
+        {/* Top actions (over photo).
+            pointer-events-none on the wrapper so its transparent middle
+            doesn't swallow taps intended for the tap-zone layer below;
+            each child <button> re-enables pointer-events explicitly. */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 pointer-events-none" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <button
             onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full bg-black/32 backdrop-blur-sm flex items-center justify-center text-white"
+            className="pointer-events-auto w-10 h-10 rounded-full bg-black/32 backdrop-blur-sm flex items-center justify-center text-white"
             aria-label={t(language, 'Назад', 'Orqaga')}
           >
             <ArrowLeft className="w-5 h-5" strokeWidth={2.2} />
           </button>
-          <div className="flex gap-2">
+          <div className="flex gap-2 pointer-events-none">
             <button
               onClick={toggleFav}
-              className="w-10 h-10 rounded-full bg-black/32 backdrop-blur-sm flex items-center justify-center text-white"
+              className="pointer-events-auto w-10 h-10 rounded-full bg-black/32 backdrop-blur-sm flex items-center justify-center text-white"
               aria-label={t(language, 'В избранное', 'Sevimlilarga')}
             >
               <Heart className="w-5 h-5" fill={isFav ? '#F97316' : 'none'} color={isFav ? '#F97316' : '#FFFFFF'} strokeWidth={2.2} />
@@ -198,12 +260,16 @@ export function RentalListingDetailPage() {
               style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.35), transparent)' }}
               aria-hidden
             />
-            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-10">
+            {/* Dots wrapper: pointer-events-none so the transparent
+                strip left/right of the dot cluster falls through to the
+                tap-zone below; each dot button re-enables its own
+                pointer events. */}
+            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-10 pointer-events-none">
               {photos.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setCarouselIndex(i)}
-                  className="p-2 flex items-center justify-center"
+                  className="pointer-events-auto p-2 flex items-center justify-center"
                   aria-label={`Photo ${i + 1}`}
                 >
                   <span
