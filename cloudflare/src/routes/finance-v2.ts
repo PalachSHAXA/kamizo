@@ -25,7 +25,7 @@ import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';
-import { json, error, generateId, isAdminLevel } from '../utils/helpers';
+import { json, error, generateId, isAdminLevel, isManagement } from '../utils/helpers';
 import {
   computeEstimate,
   type EstimateInput,
@@ -158,7 +158,9 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isAdminLevel(user)) return error('Только admin/director может создавать сметы', 403);
+  // Manager УК тоже составляет сметы (директор потом активирует через
+  // отдельный endpoint activate — там уже строгий isAdminLevel).
+  if (!isManagement(user)) return error('Нет прав на создание сметы', 403);
 
   const body = await request.json() as any;
   const {
@@ -216,7 +218,7 @@ route('PUT', '/api/finance/estimates/:id/staff', async (request, env, params) =>
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
@@ -251,7 +253,7 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
@@ -293,7 +295,7 @@ route('PUT', '/api/finance/estimates/:id/incomes', async (request, env, params) 
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
@@ -916,7 +918,7 @@ route('POST', '/api/finance/fact-reports', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
 
   const body = await request.json() as any;
   const { building_id, period_from, period_to } = body;
@@ -1070,7 +1072,8 @@ route('GET', '/api/finance/penalty-settings', async (request, env) => {
 route('PUT', '/api/finance/penalty-settings', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+  // Ставка пени — финансовое решение, только admin/director.
+  if (!isAdminLevel(user)) return error('Только admin/director может менять ставку пеней', 403);
 
   const body = await request.json() as any;
   const tenantId = getTenantId(request) || '';
@@ -1120,7 +1123,8 @@ route('GET', '/api/finance/apartments/:id/penalties', async (request, env, param
 route('POST', '/api/finance/penalties/:id/waive', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!isAdminLevel(user)) return error('Только admin/director', 403);
+  // Списание пени — тоже финансовое решение, admin/director.
+  if (!isAdminLevel(user)) return error('Только admin/director может списывать пени', 403);
 
   const body = await request.json().catch(() => ({})) as any;
   const tenantId = getTenantId(request);

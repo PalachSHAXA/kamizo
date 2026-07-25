@@ -104,7 +104,8 @@ route('POST', '/api/finance/estimates', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isAdminLevel(user)) return error('Admin or director access required', 403);
+  // Manager УК составляет сметы. Активацию (activate) оставляем admin/director.
+  if (!isManagement(user)) return error('Нет прав на создание сметы', 403);
 
   const tenantId = getTenantId(request);
   const body = await request.json() as Record<string, unknown>;
@@ -155,7 +156,8 @@ route('PUT', '/api/finance/estimates/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isAdminLevel(user)) return error('Admin or director access required', 403);
+  // Manager УК редактирует draft-сметы. Активация draft→active остаётся у admin/director.
+  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const existing = await env.DB.prepare(

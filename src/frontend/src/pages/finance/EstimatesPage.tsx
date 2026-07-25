@@ -524,10 +524,19 @@ export default function EstimatesPage() {
                     placeholder={t('Название статьи', 'Band nomi')}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   />
+                  {/* v2 hotfix: type="text" + inputMode="numeric" вместо type="number".
+                      Причина: type="number" сбивал фокус при быстром вводе (spinner-стрелки
+                      ловили клик), и `value={x || ''}` глотал введённые нули.
+                      Теперь принимаем строку как есть, парсим при сохранении. */}
                   <input
-                    type="number"
-                    value={item.monthly_amount || ''}
-                    onChange={(e) => updateItem(idx, 'monthly_amount', Number(e.target.value))}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={item.monthly_amount === 0 ? '' : String(item.monthly_amount)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^\d]/g, '');
+                      updateItem(idx, 'monthly_amount', raw === '' ? 0 : Number(raw));
+                    }}
                     placeholder={t('сумма/мес', "summa/oy")}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-right focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   />
@@ -568,10 +577,13 @@ export default function EstimatesPage() {
                 </label>
                 <div className="flex items-center gap-2">
                   <input
-                    type="number"
-                    step="0.1"
-                    value={formProfitPct}
-                    onChange={(e) => setFormProfitPct(Number(e.target.value))}
+                    type="text"
+                    inputMode="decimal"
+                    value={String(formProfitPct ?? '')}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.');
+                      setFormProfitPct(raw === '' || raw === '.' ? 0 : Number(raw));
+                    }}
                     className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                   />
                   <span className="text-sm text-gray-400">&rarr;</span>
@@ -584,9 +596,13 @@ export default function EstimatesPage() {
                   {t('Коммерч. помещ.', 'Tijoriy bino')} ({t('сум/кв.м', "so'm/kv.m")})
                 </label>
                 <input
-                  type="number"
-                  value={formCommercialRate || ''}
-                  onChange={(e) => setFormCommercialRate(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={formCommercialRate ? String(formCommercialRate) : ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d]/g, '');
+                    setFormCommercialRate(raw === '' ? 0 : Number(raw));
+                  }}
                   placeholder="0"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 />
@@ -597,9 +613,13 @@ export default function EstimatesPage() {
                   {t('Подвал', 'Podval')} ({t('сум/кв.м', "so'm/kv.m")})
                 </label>
                 <input
-                  type="number"
-                  value={formBasementRate || ''}
-                  onChange={(e) => setFormBasementRate(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={formBasementRate ? String(formBasementRate) : ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d]/g, '');
+                    setFormBasementRate(raw === '' ? 0 : Number(raw));
+                  }}
                   placeholder="0"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 />
@@ -610,9 +630,13 @@ export default function EstimatesPage() {
                   {t('Парковка', 'Avtoturargoh')} ({t('сум/место', "so'm/joy")})
                 </label>
                 <input
-                  type="number"
-                  value={formParkingRate || ''}
-                  onChange={(e) => setFormParkingRate(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={formParkingRate ? String(formParkingRate) : ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d]/g, '');
+                    setFormParkingRate(raw === '' ? 0 : Number(raw));
+                  }}
                   placeholder="0"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 />
