@@ -18,6 +18,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
+import { CardSkeleton } from '../../components/CardSkeleton';
 import { RentalsBottomBar } from './RentalsBottomBar';
 // MOCK_USER_ID intentionally NOT imported — see note on RentalListingDetailPage.
 // No usage in this file today; keeping the removal explicit as a guard.
@@ -49,6 +50,12 @@ export function RentalMyListingsPage() {
   const [mine, setMine] = useState<RentalListingUI[]>([]);
   const [photosById, setPhotosById] = useState<Record<string, RentalListingPhotoAPI[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
+  // `loading` disambiguates the initial fetch from "loaded, no listings"
+  // so we can show a skeleton on first paint instead of the empty state.
+  // Refetches (state-transition + refetch()) don't flip this back to true
+  // because we already have content to show — same "keep prior content
+  // on screen during refresh" behaviour as the feed page.
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
     rentalsApi.listMine().then(({ listings, photosByListing }) => {
@@ -59,6 +66,9 @@ export function RentalMyListingsPage() {
       if (cancelled) return;
       setMine([]);
       setPhotosById({});
+    }).finally(() => {
+      if (cancelled) return;
+      setLoading(false);
     });
     return () => { cancelled = true; };
   }, [refreshKey]);
@@ -124,8 +134,16 @@ export function RentalMyListingsPage() {
         </div>
       </div>
 
+      {/* Skeleton while the first fetch is in flight. Guards on
+          mine.length so refetches (post-transition) don't flash. */}
+      {loading && mine.length === 0 && (
+        <div className="px-4 pt-4">
+          <CardSkeleton variant="rentals-mine" count={4} />
+        </div>
+      )}
+
       {/* Empty state — the typical starting condition */}
-      {mine.length === 0 && (
+      {!loading && mine.length === 0 && (
         <div className="pt-16 px-6 text-center max-w-[340px] mx-auto">
           <div className="w-16 h-16 rounded-full bg-primary-50 grid place-items-center mx-auto mb-5">
             <Key className="w-7 h-7 text-primary-500" strokeWidth={1.8} />

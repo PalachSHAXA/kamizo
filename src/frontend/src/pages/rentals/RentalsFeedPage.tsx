@@ -22,6 +22,7 @@ import { useTenantStore } from '../../stores/tenantStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
+import { CardSkeleton } from '../../components/CardSkeleton';
 import { RentalsBottomBar } from './RentalsBottomBar';
 import { useAndroidKbSpacer } from './useAndroidKbSpacer';
 // MOCK_USER_ID / MOCK_TENANT_ID intentionally NOT imported here — see
@@ -114,7 +115,7 @@ export function RentalsFeedPage() {
   // shared BottomBar off this route.
   useModalPresence(true);
 
-  const { listings, photosByListing } = useListings(hasRentals);
+  const { listings, photosByListing, loading } = useListings(hasRentals);
 
   const [favorites, setFavorites] = useState<string[]>(() => readFavs());
   const toggleFav = useCallback((id: string) => {
@@ -360,7 +361,12 @@ export function RentalsFeedPage() {
       </div>
 
       {/* Feed */}
-      {filtered.length === 0 ? (
+      {loading && listings.length === 0 ? (
+        // Content-shaped shimmer while the initial fetch is in flight.
+        // Only fires when we have no data yet — refetches keep prior
+        // content on screen instead of flashing skeletons.
+        <CardSkeleton variant="rentals-feed" count={5} />
+      ) : filtered.length === 0 ? (
         <EmptyState
           isFavorites={showFavorites}
           hasSearch={search.trim().length > 0 || filtersActiveCount(filters) > 0 || selectedRooms !== null}
@@ -530,7 +536,13 @@ export function RentalsFeedPage() {
         hidden={anyModalOpen}
         onFeed={() => { setShowFavorites(false); setSearch(''); setSelectedRooms(null); setFilters(emptyFilters()); }}
         onMine={() => navigate('/apartment-rentals/mine')}
-        onFavorites={() => setShowFavorites(v => !v)}
+        // Deterministic SELECT — do NOT toggle. Tapping «Избранное»
+        // while already on the favourites view is a no-op; user has
+        // to tap «Смотреть» to leave, which reads as intended and
+        // eliminates the "second tap bounced me back to the feed"
+        // confusion (which also masqueraded as a "first tap didn't
+        // register" perceived lag).
+        onFavorites={() => setShowFavorites(true)}
         onBack={() => navigate('/')}
       />
     </div>

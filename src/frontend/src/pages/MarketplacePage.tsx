@@ -5,6 +5,7 @@ import {
   MessageCircle, Phone,
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { CardSkeleton } from '../components/CardSkeleton';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -1187,20 +1188,7 @@ export function MarketplacePage() {
               загрузки products уже заполнены, skeleton не нужен —
               обновления идут сзади). */}
           {loading && products.length === 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {[0, 1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="bg-white rounded-[18px] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                  <div className="aspect-square bg-gray-200 animate-pulse" />
-                  <div className="p-3 space-y-2">
-                    <div className="h-3 bg-gray-200 rounded animate-pulse" />
-                    <div className="h-3 bg-gray-200 rounded w-3/4 animate-pulse" />
-                    <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse mt-2" />
-                    <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse mt-2" />
-                    <div className="h-9 bg-gray-200 rounded-[12px] animate-pulse mt-2" />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <CardSkeleton variant="marketplace-product" count={6} />
           )}
 
           {/* Sprint 87 v7 — editorial landscape product feed. Replaces
@@ -1491,7 +1479,10 @@ export function MarketplacePage() {
                     <div className="relative aspect-square bg-gray-50 flex items-center justify-center cursor-pointer" onClick={() => setSelectedProduct(p)}>
                       {p.image_url ? <ProductPhoto src={p.image_url} name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="lg" /> : <ProductCardPlaceholder name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="lg" />}
                       <button onClick={e => { e.stopPropagation(); toggleFavorite(p.id); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm active:scale-90 transition-transform">
-                        <Heart className="w-[15px] h-[15px] fill-red-500 text-red-500" strokeWidth={1.8} />
+                        <Heart
+                          className={`w-[15px] h-[15px] ${favorites.includes(p.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
+                          strokeWidth={1.8}
+                        />
                       </button>
                       {p.is_on_demand && <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">{language === 'ru' ? 'Под заказ' : 'Buyurtma'}</div>}
                       {!p.is_on_demand && disc > 0 && <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-[8px]">-{disc}%</div>}
