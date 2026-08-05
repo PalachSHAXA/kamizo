@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -54,17 +56,28 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Photo attachment on the resident "new request" flow uses
-         <input type="file" accept="image/*" capture="environment">.
-         Without CAMERA the WebView silently refuses to open the camera
-         path of the system file picker, and without READ_MEDIA_IMAGES
-         (API 33+) / READ_EXTERNAL_STORAGE (API ≤32) the gallery side of
-         the chooser is empty. Same chooser is used by chat / marketplace
-         / announcements / meeting attachments — fixing it here covers
-         every <input type="file"> in the app. -->
+    <!--
+      Photo attachment on the resident "new request" / chat / marketplace /
+      announcements / meeting flows uses <input type="file" accept="image/*"
+      capture="environment"> in the WebView. On modern Android:
+       - Camera path: still needs CAMERA (below) — for capturing a new photo.
+       - Gallery path: automatically routes to the SYSTEM PHOTO PICKER
+         on Android 13+ (backported to 4.1+ via WebView) WHEN we DO NOT
+         declare READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE. Declaring them
+         forces the legacy permission-gated chooser AND is now rejected
+         by Google Play policy (photo-and-video permissions). Photo Picker
+         is scoped to only the images the user picks — no runtime dialog,
+         no full-gallery access, Play-compliant.
+    -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- Explicit removal directives — if any bundled library adds these
+         back through manifest merge, strip them so Play doesn't reject
+         the release. READ_MEDIA_VIDEO is defensive; no current library
+         adds it, but keeping the rule prevents future regressions. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"      tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"       tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"  tools:node="remove" />
 
     <!-- Camera preferred but not required (some emulators / cheap
          tablets ship without one). `required=false` lets the APK install
