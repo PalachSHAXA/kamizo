@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -318,14 +319,18 @@ export default function EstimatesPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {/* Sprint 3: новый 4-шаговый мастер v2 (штат + доходы + гос. минимум). */}
-          <a
-            href="/finance/estimates/v2/new"
+          {/* Sprint 3: новый 4-шаговый мастер v2 (штат + доходы + гос. минимум).
+              Hotfix: заменили <a href> на <Link to> — иначе браузер делал
+              полную перезагрузку, index.html → SPA-fallback → ProtectedRoute
+              редиректил manager'а на "/", т.к. роут был admin/director-only.
+              Роль manager теперь в allowedRoles Layout.tsx (см. далее). */}
+          <Link
+            to="/finance/estimates/v2/new"
             className="inline-flex items-center gap-2 px-4 py-2.5 border border-primary-300 text-primary-600 rounded-xl hover:bg-primary-50 transition-colors font-medium text-sm"
             title={t('Новый мастер расчёта тарифа с проверкой Ташкентского минимума', 'Toshkent minimumini tekshirish bilan yangi tarif ustasi')}
           >
             ✨ {t('Мастер v2', 'v2 usta')}
-          </a>
+          </Link>
           <button
             onClick={() => setShowCreate(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm"

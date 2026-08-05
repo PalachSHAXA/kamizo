@@ -98,7 +98,7 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center" role="presentation" aria-hidden="false">
+    <div className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center" role="presentation" aria-hidden="false">
       {/* Backdrop with glass-morphism */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
 
@@ -108,7 +108,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className={`relative z-[111] w-full mx-0 sm:mx-4 bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl shadow-2xl transition-all duration-200 opacity-100 scale-100 max-h-[90dvh] flex flex-col ${sizeClasses[size]}`}
+        className={`relative z-[1201] w-full mx-0 sm:mx-4 bg-white/90 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl shadow-2xl transition-all duration-200 opacity-100 scale-100 max-h-[90dvh] flex flex-col ${sizeClasses[size]}`}
         style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom, 0px))' }}
       >
         {/* Header */}

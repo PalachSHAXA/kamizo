@@ -71,7 +71,27 @@ export async function generateEstimateExcel(
   const workbook = new ExcelJS.Workbook();
 
   // ─── Sheet 1: Смета ───
-  const ws1 = workbook.addWorksheet(t('Смета', 'Smeta'));
+  // pageSetup + view: без него Preview.app / Numbers / quick-look рисуют
+  // весь лист (1 048 576 строк × 16 384 колонки) со всеми линиями сетки,
+  // а контент выглядит крошечным в углу. Задаём A4 portrait, fit-to-width,
+  // скрываем grid при печати и в UI, оставляем только заполненную зону.
+  const ws1 = workbook.addWorksheet(t('Смета', 'Smeta'), {
+    pageSetup: {
+      paperSize: 9,              // A4
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 },
+      horizontalCentered: true,
+      printArea: undefined,      // проставим ниже, когда узнаем последнюю строку
+    },
+    views: [{
+      showGridLines: false,      // Preview/Numbers перестанут рисовать бесконечную сетку
+      state: 'frozen',
+      ySplit: 0,
+    }],
+  });
 
   ws1.getColumn(1).width = 7;
   ws1.getColumn(2).width = 50;
@@ -336,8 +356,24 @@ export async function generateEstimateExcel(
   cellSign.font = { ...FONT_BODY };
   cellSign.alignment = { horizontal: 'center', vertical: 'middle' };
 
+  // Sheet 1 закончен на строке `r-1` (следующий write был бы в r).
+  // Устанавливаем print area строго на заполненную зону.
+  const ws1LastRow = Math.max(1, r - 1);
+  ws1.pageSetup.printArea = `A1:D${ws1LastRow}`;
+
   // ─── Sheet 2: Площади ───
-  const ws2 = workbook.addWorksheet(t('Площади', 'Maydonlar'));
+  const ws2 = workbook.addWorksheet(t('Площади', 'Maydonlar'), {
+    pageSetup: {
+      paperSize: 9,
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 },
+      horizontalCentered: true,
+    },
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 1 }],
+  });
 
   ws2.getColumn(1).width = 30;
   ws2.getColumn(2).width = 18;
@@ -408,6 +444,10 @@ export async function generateEstimateExcel(
       ws2.getCell(r2, c).alignment = { horizontal: 'right' };
     }
   }
+
+  // Print area для ws2 — заполненная зона до строки r2 (включительно с
+  // итогами). Без этого Preview.app снова покажет "бесконечный лист".
+  ws2.pageSetup.printArea = `A1:D${r2}`;
 
   // ─── Save ───
   const buffer = await workbook.xlsx.writeBuffer();

@@ -799,9 +799,11 @@ export function Layout() {
                   <FinanceEstimatesPage />
                 </ProtectedRoute>
               } />
-              {/* Sprint 3 v2 wizard — admin/director only */}
+              {/* Sprint 3 v2 wizard + hotfix: manager тоже составляет
+                  сметы (директор потом активирует через отдельный endpoint).
+                  Backend guard isManagement уже разрешает manager'а. */}
               <Route path="/finance/estimates/v2/new" element={
-                <ProtectedRoute allowedRoles={['admin', 'director']} requiredFeature="communal">
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']} requiredFeature="communal">
                   <EstimateV2WizardPage />
                 </ProtectedRoute>
               } />
