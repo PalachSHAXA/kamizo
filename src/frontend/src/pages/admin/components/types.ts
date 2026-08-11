@@ -189,6 +189,7 @@ export const INITIAL_FORM_DATA: TenantFormData = {
 export const AVAILABLE_FEATURES = [
   { value: 'requests', labelRu: 'Заявки', labelUz: 'Arizalar' },
   { value: 'rentals', labelRu: 'Аренда', labelUz: 'Ijaralar' },
+  { value: 'rental_listings', labelRu: 'Объявления об аренде', labelUz: 'Ijara eʼlonlari' },
   { value: 'qr', labelRu: 'QR / Гостевые пропуска', labelUz: 'QR / Mehmon oʻtkazmalari' },
   { value: 'marketplace', labelRu: 'Маркетплейс', labelUz: 'Bozor' },
   { value: 'meetings', labelRu: 'Собрания', labelUz: 'Yigʻinlar' },
@@ -227,6 +228,7 @@ export const FEATURE_COLORS = ['#f97316', '#3B82F6', '#10B981', '#F59E0B', '#EF4
 export const FEATURE_LABELS_RU: Record<string, string> = {
   requests: 'Заявки',
   rentals: 'Аренда',
+  rental_listings: 'Объявления об аренде',
   qr: 'QR Коды',
   marketplace: 'Маркетплейс',
   meetings: 'Собрания',
@@ -241,6 +243,7 @@ export const FEATURE_LABELS_RU: Record<string, string> = {
 export const FEATURE_LABELS_UZ: Record<string, string> = {
   requests: 'Arizalar',
   rentals: 'Ijaralar',
+  rental_listings: 'Ijara eʼlonlari',
   qr: 'QR Kodlar',
   marketplace: 'Bozor',
   meetings: 'Yigʻinlar',
