@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from 'react';
+import { useState, useEffect, type ComponentType } from 'react';
 import { Eye, EyeOff, AlertCircle, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
@@ -34,6 +34,83 @@ const KAMIZO_DEMO_ACCOUNTS: DemoAccount[] = [
   { login: 'demo-security', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-orange-700' },
   { login: 'demo-tenant', role: 'tenant', labelRu: 'Арендатор', labelUz: 'Ijarachi', icon: Home, color: 'bg-yellow-700' },
 ];
+
+// ─── Two-step demo entrance — ONLY for tenant with slug === 'demo' ───
+// (1) Password gate: full-viewport overlay, one input, hardcoded check.
+//     Sentinel written to sessionStorage on success — no localStorage.
+// (2) After the gate: two role buttons («Директор», «Житель») do
+//     ONE-TAP login by calling the auth store's login() directly with
+//     hardcoded creds + tenantSlug='demo' (skips Path B disambig).
+// Credentials + gate password are visible in the JS bundle by design;
+// this is a throwaway demo tenant. Other tenants (myhelper, choko, …)
+// render the login page bit-identical to today: the DemoGate mount at
+// the top of return() and the DEMO_SLUG_ACCOUNTS block below are both
+// gated on `tenant?.slug === 'demo'`, and the pre-existing
+// `tenant?.is_demo` block picks up a `&& slug !== 'demo'` guard so it
+// stays available for any hypothetical future demo tenant that ISN'T
+// the demo slug.
+const DEMO_GATE_PASSWORD = 'Axelion27';
+const DEMO_GATE_SESSION_KEY = 'kamizo_demo_gate';
+
+type DemoSlugAccount = { login: string; password: string; labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string };
+
+const DEMO_SLUG_ACCOUNTS: DemoSlugAccount[] = [
+  { login: 'demo-director', password: 'director1235', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-orange-600' },
+  { login: '98765432',      password: 'OLM/8A/49',    labelRu: 'Житель',   labelUz: 'Aholi',    icon: Users,     color: 'bg-orange-500' },
+];
+
+function DemoGate({ onUnlock, language }: { onUnlock: () => void; language: Language }) {
+  const [entry, setEntry] = useState('');
+  const [err, setErr] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (entry === DEMO_GATE_PASSWORD) {
+      try { sessionStorage.setItem(DEMO_GATE_SESSION_KEY, '1'); } catch { /* Safari private mode: skip storage, unlock anyway */ }
+      onUnlock();
+    } else {
+      setErr(language === 'ru' ? 'Неверный пароль' : 'Parol noto‘g‘ri');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 px-4">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6">
+        <div className="flex flex-col items-center mb-5">
+          <AppLogo size="md" forceDefault />
+          <h1 className="mt-3 text-lg font-bold text-gray-900">Kamizo Demo</h1>
+          <p className="text-xs text-gray-500 mt-1 text-center">
+            {language === 'ru'
+              ? 'Введите пароль доступа к демо-версии'
+              : 'Namoyish kirish parolini kiriting'}
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3" autoComplete="off">
+          <input
+            type="password"
+            value={entry}
+            onChange={(e) => { setEntry(e.target.value); setErr(''); }}
+            className="w-full px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500/40 text-sm"
+            placeholder={language === 'ru' ? 'Пароль доступа' : 'Kirish paroli'}
+            autoFocus
+          />
+          {err && (
+            <p className="flex items-center gap-1.5 text-xs text-red-600">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {err}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="w-full py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-medium text-sm transition-colors"
+          >
+            {language === 'ru' ? 'Войти в демо' : 'Kirish'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export function LoginPage() {
   const { login, isLoading: authLoading, error: authError, pickerTenants, clearPicker } = useAuthStore();
@@ -77,6 +154,40 @@ export function LoginPage() {
   // Track which workspace row is in-flight, so we can show a spinner on
   // that exact row while the second login round-trip runs.
   const [pickingSlug, setPickingSlug] = useState<string | null>(null);
+
+  // Demo entrance gate — only relevant when tenant.slug === 'demo'.
+  // Default `true` = show gate; useEffect flips to false immediately if
+  // this tab has already unlocked (sessionStorage sentinel).
+  const [demoGateOpen, setDemoGateOpen] = useState(true);
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(DEMO_GATE_SESSION_KEY) === '1') {
+        setDemoGateOpen(false);
+      }
+    } catch { /* Safari private mode: leave gate open */ }
+  }, []);
+
+  // Which demo role button is in-flight, so we spinner only that pill.
+  const [demoLoggingIn, setDemoLoggingIn] = useState<string | null>(null);
+
+  // One-tap demo login. Third arg pins tenantSlug='demo' so a login
+  // string that happens to exist on another tenant doesn't drop us
+  // into the Path B disambiguation picker.
+  const handleDemoLogin = async (account: DemoSlugAccount) => {
+    if (demoLoggingIn) return;
+    setDemoLoggingIn(account.login);
+    setError('');
+    try {
+      await login(account.login, account.password, 'demo');
+      // outcome === 'success' → App re-renders with Layout.
+      // outcome === 'error'   → surfaced via displayError (authStore
+      //                         already mapped the server message).
+    } catch {
+      setError(language === 'ru' ? 'Ошибка при входе' : 'Kirishda xatolik');
+    } finally {
+      setDemoLoggingIn(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,13 +255,22 @@ export function LoginPage() {
   // 10 s frozen screen.
 
   return (
-    // Mobile app-shell in index.css locks body/#root/.layout-root to
-    // height:100dvh; overflow:hidden so the resident shell (fixed bars +
-    // single scrollable .main-content) works. /login renders outside
-    // <Layout>, so it inherits the page-lock with no scroll container.
-    // Make this div the scroll region itself: definite viewport height +
-    // overflow-y:auto, with m-auto-on-flex-child centering so the card
-    // centers when it fits the viewport and scrolls when it overflows.
+    <>
+    {/* Demo-tenant password gate — mounted ONLY when tenant.slug === 'demo'
+        and this tab hasn't unlocked yet. Renders as a fixed inset-0
+        overlay so it fully occludes the login page beneath it.
+        Every other tenant (myhelper, choko, my-humo, service, …) never
+        mounts this — condition is exclusively `tenant?.slug === 'demo'`. */}
+    {tenant?.slug === 'demo' && demoGateOpen && (
+      <DemoGate onUnlock={() => setDemoGateOpen(false)} language={language} />
+    )}
+    {/* Mobile app-shell in index.css locks body/#root/.layout-root to
+        height:100dvh; overflow:hidden so the resident shell (fixed bars +
+        single scrollable .main-content) works. /login renders outside
+        <Layout>, so it inherits the page-lock with no scroll container.
+        Make this div the scroll region itself: definite viewport height +
+        overflow-y:auto, with m-auto-on-flex-child centering so the card
+        centers when it fits the viewport and scrolls when it overflows. */}
     <div
       // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
       className="kz-screen relative bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
@@ -394,8 +514,50 @@ export function LoginPage() {
           </div>
         )}
 
-        {/* Demo Accounts Section - only on demo tenants (is_demo flag) */}
-        {tenant?.is_demo && (
+        {/* ─── DEMO SLUG 2-button one-tap login (tenant.slug === 'demo' ONLY) ───
+            All other tenants (myhelper, choko, my-humo, service,
+            qa-limited, qa-rentals) render the login page bit-identical
+            to what shipped before this change — this block is
+            gated on the slug, not on is_demo. */}
+        {tenant?.slug === 'demo' && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center mb-3">
+              {language === 'ru' ? 'Быстрый вход в демо:' : 'Namoyishga tez kirish:'}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {DEMO_SLUG_ACCOUNTS.map((account) => {
+                const Icon = account.icon;
+                const inFlight = demoLoggingIn === account.login;
+                return (
+                  <button
+                    key={account.login}
+                    type="button"
+                    disabled={demoLoggingIn !== null}
+                    onClick={() => handleDemoLogin(account)}
+                    className="flex flex-col items-center gap-1.5 px-3 py-3.5 rounded-xl bg-primary-50 hover:bg-primary-100/70 active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait transition-all touch-manipulation"
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-primary-400 to-primary-600`}>
+                      {inFlight
+                        ? <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        : <Icon className="w-5 h-5 text-white" />}
+                    </div>
+                    <span className="text-[13px] font-semibold text-gray-800 leading-tight">
+                      {language === 'ru' ? account.labelRu : account.labelUz}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Demo Accounts Section - only on demo tenants (is_demo flag).
+            NOTE: excluded on tenant.slug === 'demo' — that tenant gets
+            the trimmed 2-button DEMO_SLUG_ACCOUNTS block above (with
+            real per-role passwords + one-tap login). This block stays
+            available for any hypothetical future demo tenant on a
+            different slug. */}
+        {tenant?.is_demo && tenant.slug !== 'demo' && (
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center mb-3">
               {language === 'ru' ? 'Демо-входы для тестирования:' : 'Test uchun demo-kirish:'}
@@ -570,5 +732,6 @@ export function LoginPage() {
         </div>
       )}
     </div>
+    </>
   );
 }
